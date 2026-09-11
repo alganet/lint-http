@@ -69,7 +69,7 @@ defects! {
         title: "The Accept-Encoding wildcard is written where a coding belongs",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_12_5_3),
+        spec: &[RFC_9110_12_5_3],
     }
 
     /// `identity` written where a coding that was actually applied belongs. It
@@ -83,7 +83,7 @@ defects! {
         title: "The identity coding is named where a coding belongs",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_4),
+        spec: &[RFC_9110_8_4],
     }
 
     /// One coding named twice in one field: `Content-Encoding: gzip, gzip`.
@@ -104,7 +104,7 @@ defects! {
         title: "One coding is named twice in one field",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_9110_8_4),
+        spec: &[RFC_9110_8_4],
     }
 
     /// A coding name the deployment does not recognise, matched
@@ -122,7 +122,7 @@ defects! {
         title: "Content coding is not one the deployment recognises",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_4_1),
+        spec: &[RFC_9110_8_4_1],
     }
 }
 
@@ -137,11 +137,8 @@ mod tests {
     /// against itself.
     #[test]
     fn each_vocabulary_entry_quotes_the_field_that_admits_the_word() {
-        assert_eq!(
-            CONTENT_CODING_WILDCARD_FORBIDDEN.spec,
-            Some(RFC_9110_12_5_3)
-        );
-        assert_eq!(CONTENT_CODING_IDENTITY_FORBIDDEN.spec, Some(RFC_9110_8_4));
-        assert_eq!(CONTENT_CODING_UNREGISTERED.spec, Some(RFC_9110_8_4_1));
+        assert_eq!(CONTENT_CODING_WILDCARD_FORBIDDEN.spec, [RFC_9110_12_5_3]);
+        assert_eq!(CONTENT_CODING_IDENTITY_FORBIDDEN.spec, [RFC_9110_8_4]);
+        assert_eq!(CONTENT_CODING_UNREGISTERED.spec, [RFC_9110_8_4_1]);
     }
 }

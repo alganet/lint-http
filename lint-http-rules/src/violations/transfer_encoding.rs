@@ -74,7 +74,7 @@ defects! {
         title: "The chunked transfer coding is applied more than once",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9112_6_1),
+        spec: &[RFC_9112_6_1],
     }
 
     /// `chunked` is in the sequence and something is applied after it, so the
@@ -93,7 +93,7 @@ defects! {
         title: "The chunked transfer coding is not the final one",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9112_6_1),
+        spec: &[RFC_9112_6_1],
     }
 
     /// A coding was applied and `chunked` was not, so nothing frames the
@@ -113,7 +113,7 @@ defects! {
         title: "A coding is applied and chunked never is",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9112_6_1),
+        spec: &[RFC_9112_6_1],
     }
 
     /// A coding applied in transit that the representation already carries:
@@ -139,7 +139,7 @@ defects! {
         title: "A coding is applied in transit that the representation already carries",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_9112_7_3),
+        spec: &[RFC_9112_7_3],
     }
 }
 
@@ -165,7 +165,7 @@ mod tests {
             );
             assert!(!def.id.contains("request"), "{}", def.id);
             assert!(!def.id.contains("response"), "{}", def.id);
-            assert_eq!(def.spec, Some(RFC_9112_6_1), "{}", def.id);
+            assert_eq!(def.spec, [RFC_9112_6_1], "{}", def.id);
         }
     }
 

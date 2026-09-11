@@ -48,7 +48,7 @@ defects! {
         title: "Basic credentials hold no ':' separator",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7617_2),
+        spec: &[RFC_7617_2],
     }
 
     /// A control octet in the user-id or in the password. One def for both
@@ -63,7 +63,7 @@ defects! {
         title: "Basic credentials hold a control character",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_7617_2),
+        spec: &[RFC_7617_2],
     }
 }
 

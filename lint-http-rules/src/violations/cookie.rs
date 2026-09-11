@@ -103,7 +103,7 @@ defects! {
         title: "Set-Cookie Path attribute carries no value",
         message: "Set-Cookie attribute 'Path' requires a value",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_5_2_4),
+        spec: &[RFC_6265_5_2_4],
     }
 
     /// `Path=` with nothing after the `=`.
@@ -114,7 +114,7 @@ defects! {
         title: "Set-Cookie Path attribute is empty",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_5_2_4),
+        spec: &[RFC_6265_5_2_4],
     }
 
     /// A `Path` that does not start with `/`, which the user agent discards in
@@ -127,7 +127,7 @@ defects! {
         title: "Set-Cookie Path attribute is not rooted at `/`",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_5_2_4),
+        spec: &[RFC_6265_5_2_4],
     }
 
     /// A byte at or above %x80. `path-value` is built on `CHAR` = %x01-7F, so
@@ -139,7 +139,7 @@ defects! {
         title: "Set-Cookie Path attribute holds a raw non-ASCII character",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_4_1_1),
+        spec: &[RFC_6265_4_1_1],
     }
 
     /// A `CTL`, which `path-value` excludes by name. The most serious of the seven
@@ -152,7 +152,7 @@ defects! {
         title: "Set-Cookie Path attribute holds a control character",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_6265_4_1_1),
+        spec: &[RFC_6265_4_1_1],
     }
 
     /// A space, which `CHAR` admits and this crate refuses anyway — the one defect
@@ -165,7 +165,7 @@ defects! {
         title: "Set-Cookie Path attribute holds unencoded whitespace",
         message: "",
         default_severity: Severity::Info,
-        spec: None,
+        spec: &[],
     }
 
     /// `Domain` written with no value, or with one that is empty before
@@ -178,7 +178,7 @@ defects! {
         title: "Set-Cookie Domain attribute carries no value",
         message: "Set-Cookie attribute 'Domain' requires a value",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_5_2_3),
+        spec: &[RFC_6265_5_2_3],
     }
 
     /// A `Domain` that is empty once the tolerated leading dot comes off —
@@ -193,7 +193,7 @@ defects! {
         title: "Set-Cookie Domain attribute is empty",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_5_2_3),
+        spec: &[RFC_6265_5_2_3],
     }
 
     /// A leading `.`, which is not a syntax error: the user agent strips it,
@@ -208,7 +208,7 @@ defects! {
         title: "Set-Cookie Domain attribute keeps the obsolete leading dot",
         message: "Set-Cookie 'Domain' attribute uses a leading '.' which is deprecated; prefer the registry form without leading dot",
         default_severity: Severity::Info,
-        spec: Some(RFC_6265_5_2_3),
+        spec: &[RFC_6265_5_2_3],
     }
 
     /// A dotted-quad where a host name goes. The cookie is not thereby
@@ -222,7 +222,7 @@ defects! {
         title: "Set-Cookie Domain attribute is an IPv4 address",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_5_1_3),
+        spec: &[RFC_6265_5_1_3],
     }
 
     /// A bracketed IPv6 literal, for the same reason as the IPv4 form — kept
@@ -235,7 +235,7 @@ defects! {
         title: "Set-Cookie Domain attribute is an IPv6 literal",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_5_1_3),
+        spec: &[RFC_6265_5_1_3],
     }
 
     /// `SameSite` written as a bare attribute. The attribute is the whole of
@@ -249,7 +249,7 @@ defects! {
         title: "Set-Cookie SameSite attribute carries no value",
         message: "Set-Cookie attribute 'SameSite' requires a value",
         default_severity: Severity::Warn,
-        spec: Some(DRAFT_IETF_HTTPBIS_RFC6265BIS),
+        spec: &[DRAFT_IETF_HTTPBIS_RFC6265BIS],
     }
 
     /// A `SameSite` value that is none of the three the grammar lists. It is
@@ -268,7 +268,7 @@ defects! {
         title: "Set-Cookie SameSite names no policy the grammar defines",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(DRAFT_IETF_HTTPBIS_RFC6265BIS),
+        spec: &[DRAFT_IETF_HTTPBIS_RFC6265BIS],
     }
 
     /// `Max-Age` written as a bare attribute, with no number after it.
@@ -279,7 +279,7 @@ defects! {
         title: "Set-Cookie Max-Age attribute carries no value",
         message: "Set-Cookie attribute 'Max-Age' requires a numeric value",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_4_1_1),
+        spec: &[RFC_6265_4_1_1],
     }
 
     /// A `Max-Age` a user agent will not read a number out of. § 5.2.2 states
@@ -300,7 +300,7 @@ defects! {
         title: "Set-Cookie Max-Age is not a number a user agent will read",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_5_2_2),
+        spec: &[RFC_6265_5_2_2],
     }
 
     /// A `Set-Cookie` field line with no cookie-pair on it: nothing before the
@@ -317,7 +317,7 @@ defects! {
         title: "Set-Cookie carries no cookie-pair",
         message: "Set-Cookie header missing cookie-pair",
         default_severity: Severity::Error,
-        spec: Some(RFC_6265_4_1_1),
+        spec: &[RFC_6265_4_1_1],
     }
 
     /// A value written on `Secure` or `HttpOnly`. Both attributes are their own
@@ -335,7 +335,7 @@ defects! {
         title: "Set-Cookie writes a value on a flag attribute",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_4_1_1),
+        spec: &[RFC_6265_4_1_1],
     }
 
     /// `SameSite=None` on a cookie that is not `Secure`. The two attributes are
@@ -356,7 +356,7 @@ defects! {
         title: "A SameSite=None cookie is not Secure",
         message: "Set-Cookie with 'SameSite=None' must also set 'Secure'",
         default_severity: Severity::Error,
-        spec: Some(DRAFT_IETF_HTTPBIS_RFC6265BIS),
+        spec: &[DRAFT_IETF_HTTPBIS_RFC6265BIS],
     }
 
     /// `Expires` written as a bare attribute. The timestamp itself is
@@ -370,7 +370,7 @@ defects! {
         title: "Set-Cookie Expires attribute carries no value",
         message: "Set-Cookie attribute 'Expires' requires a HTTP-date value",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6265_4_1_1),
+        spec: &[RFC_6265_4_1_1],
     }
 }
 

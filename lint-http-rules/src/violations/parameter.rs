@@ -72,7 +72,7 @@ defects! {
         title: "Parameter is written without its '='",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_6),
+        spec: &[RFC_9110_5_6_6],
     }
 
     /// An `=` with nothing after it. Neither alternative of
@@ -94,7 +94,7 @@ defects! {
         title: "Parameter is written with no value after its '='",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_6),
+        spec: &[RFC_9110_5_6_6],
     }
 
     /// Whitespace beside the `=`. The production writes none — `parameter =
@@ -122,7 +122,7 @@ defects! {
         title: "Parameter writes whitespace beside its '='",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_9110_5_6_6),
+        spec: &[RFC_9110_5_6_6],
     }
 }
 

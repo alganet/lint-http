@@ -221,7 +221,7 @@ mod tests {
             title: "Example field is present but empty",
             message: "Example field is present but empty",
             default_severity: lint_http_rules::lint::Severity::Error,
-            spec: None,
+            spec: &[],
         };
         assert_eq!(
             violation_section(&def),

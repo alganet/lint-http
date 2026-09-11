@@ -64,7 +64,7 @@ defects! {
         title: "Weight is not a qvalue",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_12_4_2),
+        spec: &[RFC_9110_12_4_2],
     }
 
     /// Whitespace beside the weight's `=`: `q =0.5`, `q= 0.5`. The three
@@ -96,7 +96,7 @@ defects! {
         title: "Whitespace is written beside the weight's '='",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_12_4_2),
+        spec: &[RFC_9110_12_4_2],
     }
 }
 

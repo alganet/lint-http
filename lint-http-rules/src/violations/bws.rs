@@ -65,7 +65,7 @@ defects! {
         title: "Whitespace written where the grammar admits BWS",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_9110_5_6_3),
+        spec: &[RFC_9110_5_6_3],
     }
 }
 
@@ -89,12 +89,12 @@ mod tests {
             BWS_FORBIDDEN.default_severity,
             PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.default_severity,
         );
-        assert_ne!(
-            BWS_FORBIDDEN.spec.expect("a sentence").section,
-            PARAMETER_EQUALS_WHITESPACE_FORBIDDEN
-                .spec
-                .expect("a sentence")
-                .section,
-        );
+        let [bws] = BWS_FORBIDDEN.spec else {
+            panic!("one sentence")
+        };
+        let [parameter] = PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.spec else {
+            panic!("one sentence")
+        };
+        assert_ne!(bws.section, parameter.section);
     }
 }

@@ -68,7 +68,7 @@ defects! {
         title: "The policy is written with nothing in it",
         message: "Strict-Transport-Security header must not be empty",
         default_severity: Severity::Warn,
-        spec: None,
+        spec: &[],
     }
 
     /// A semicolon with no directive on one side of it. The same optional
@@ -81,7 +81,7 @@ defects! {
         title: "The policy holds a separator with no directive",
         message: "Empty directive in Strict-Transport-Security header",
         default_severity: Severity::Warn,
-        spec: None,
+        spec: &[],
     }
 
     /// The policy does not state how long it lasts. `max-age` is the one
@@ -95,7 +95,7 @@ defects! {
         title: "The policy states no max-age",
         message: "Strict-Transport-Security header missing required 'max-age' directive",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6797_6_1_1),
+        spec: &[RFC_6797_6_1_1],
     }
 
     /// One directive written twice in one field. § 6.1 admits no such thing,
@@ -109,7 +109,7 @@ defects! {
         title: "A directive is written more than once in one policy",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6797_6_1),
+        spec: &[RFC_6797_6_1],
     }
 
     /// A directive whose definition requires a value, written without one —
@@ -124,7 +124,7 @@ defects! {
         title: "A directive that requires a value carries none",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6797_6_1_1),
+        spec: &[RFC_6797_6_1_1],
     }
 
     /// A valueless directive carrying a value: `includeSubDomains=1`, or a
@@ -143,7 +143,7 @@ defects! {
         title: "A valueless directive is written with a value",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_6797_6_1_2),
+        spec: &[RFC_6797_6_1_2],
     }
 }
 
@@ -157,15 +157,15 @@ mod tests {
     /// own claim rather than a document's.
     #[test]
     fn the_two_entries_the_grammar_generates_carry_no_sentence() {
-        assert_eq!(STRICT_TRANSPORT_SECURITY_EMPTY.spec, None);
-        assert_eq!(STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY.spec, None);
+        assert!(STRICT_TRANSPORT_SECURITY_EMPTY.spec.is_empty());
+        assert!(STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY.spec.is_empty());
         for def in [
             &STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING,
             &STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
             &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
             &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
         ] {
-            assert!(def.spec.is_some(), "{}", def.id);
+            assert!(!def.spec.is_empty(), "{}", def.id);
         }
     }
 }

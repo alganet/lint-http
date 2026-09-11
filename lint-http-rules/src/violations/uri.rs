@@ -108,7 +108,7 @@ defects! {
         title: "Value holds a character no URI is written with",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_2),
+        spec: &[RFC_3986_2],
     }
 
     /// A `%` with fewer than two characters after it, because the value ended.
@@ -121,7 +121,7 @@ defects! {
         title: "Percent-encoding stops before its two hexadecimal digits",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_2_1),
+        spec: &[RFC_3986_2_1],
     }
 
     /// Two characters after the `%` that are not both `HEXDIG` — a literal
@@ -133,7 +133,7 @@ defects! {
         title: "Percent-encoding is not two hexadecimal digits",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_2_1),
+        spec: &[RFC_3986_2_1],
     }
     /// A value whose scheme candidate is empty — the colon with nothing before
     /// it. `ALPHA *( … )` generates nothing empty, so this derives from no
@@ -145,7 +145,7 @@ defects! {
         title: "URI scheme is empty",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_3_1),
+        spec: &[RFC_3986_3_1],
     }
 
     /// A scheme opening on something that is not a letter — a digit, most
@@ -157,7 +157,7 @@ defects! {
         title: "URI scheme does not begin with a letter",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_3_1),
+        spec: &[RFC_3986_3_1],
     }
 
     /// A character after the first that the production does not admit: only
@@ -169,7 +169,7 @@ defects! {
         title: "URI scheme holds a character outside letters, digits, '+', '-' and '.'",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_3_1),
+        spec: &[RFC_3986_3_1],
     }
     /// A host that opens an IP literal and never closes it. The `[` is what
     /// chooses that alternative, so there is no reading of the value in which
@@ -181,7 +181,7 @@ defects! {
         title: "Host opens an IP literal and never closes it",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_3_2_2),
+        spec: &[RFC_3986_3_2_2],
     }
 
     /// Brackets around something that is neither an `IPv6address` nor an
@@ -195,7 +195,7 @@ defects! {
         title: "Host brackets something that is not an IP literal",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_3_2_2),
+        spec: &[RFC_3986_3_2_2],
     }
 
     /// A bracket somewhere other than around an IP literal — a closing one with
@@ -209,7 +209,7 @@ defects! {
         title: "Host holds a square bracket outside an IP literal",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_3_2_2),
+        spec: &[RFC_3986_3_2_2],
     }
 
     /// A character no `reg-name` admits: not `unreserved`, not the `%` that
@@ -224,7 +224,7 @@ defects! {
         title: "Host holds a character outside the registered-name alphabet",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_3_2_2),
+        spec: &[RFC_3986_3_2_2],
     }
 
     /// A character in the port that is not a digit. There is no companion
@@ -238,7 +238,7 @@ defects! {
         title: "Port holds a character that is not a digit",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_3986_3_2_3),
+        spec: &[RFC_3986_3_2_3],
     }
 }
 

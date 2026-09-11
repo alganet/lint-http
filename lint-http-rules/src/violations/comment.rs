@@ -48,7 +48,7 @@ defects! {
         title: "Comment is never closed",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_5),
+        spec: &[RFC_9110_5_6_5],
     }
 
     /// An octet `ctext` does not admit — a control character, DEL — where the
@@ -69,7 +69,7 @@ defects! {
         title: "Comment holds a character ctext does not admit",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_5),
+        spec: &[RFC_9110_5_6_5],
     }
 }
 

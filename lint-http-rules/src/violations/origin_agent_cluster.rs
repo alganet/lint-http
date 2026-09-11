@@ -63,7 +63,7 @@ defects! {
         title: "Origin-Agent-Cluster is written with no boolean on it",
         message: "Origin-Agent-Cluster is written with no value",
         default_severity: Severity::Warn,
-        spec: Some(HTML_7_1_2),
+        spec: &[HTML_7_1_2],
     }
 
     /// More than one member on the line, where the field's value is a single
@@ -78,7 +78,7 @@ defects! {
         title: "Origin-Agent-Cluster carries a list where a boolean is due",
         message: "Origin-Agent-Cluster must be a single value",
         default_severity: Severity::Warn,
-        spec: Some(HTML_7_1_2),
+        spec: &[HTML_7_1_2],
     }
 
     /// One value, and it is not the true value. `?1` is what requests an
@@ -97,7 +97,7 @@ defects! {
         title: "Origin-Agent-Cluster states a value that is not `?1`",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(HTML_7_1_2),
+        spec: &[HTML_7_1_2],
     }
 }
 

@@ -68,7 +68,7 @@ defects! {
         title: "A coding writes a ';' with no parameter after it",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_A),
+        spec: &[RFC_9110_A],
     }
 
     /// A parameter hung off a coding that defines none. § 7.2 says so of the
@@ -90,7 +90,7 @@ defects! {
         title: "A coding that defines no parameters carries one",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9112_7_2),
+        spec: &[RFC_9112_7_2],
     }
 
     /// A coding name the deployment does not recognise — the fifth registry
@@ -110,7 +110,7 @@ defects! {
         title: "Transfer coding is not one the deployment recognises",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9112_7),
+        spec: &[RFC_9112_7],
     }
 }
 

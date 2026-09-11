@@ -51,7 +51,7 @@ defects! {
         title: "Domain name is longer than 255 octets",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_1035_2_3_4),
+        spec: &[RFC_1035_2_3_4],
     }
 
     /// Whitespace or a control character anywhere in the name — checked over
@@ -64,7 +64,7 @@ defects! {
         title: "Domain name holds whitespace or a control character",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_1035_2_3_1),
+        spec: &[RFC_1035_2_3_1],
     }
 
     /// A `.` with nothing between it and its neighbour: `a..example` or a name
@@ -76,7 +76,7 @@ defects! {
         title: "Domain name has an empty label",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_1035_2_3_1),
+        spec: &[RFC_1035_2_3_1],
     }
 
     /// One label over 63 characters, in a name that may be inside its own
@@ -88,7 +88,7 @@ defects! {
         title: "Domain label is longer than 63 characters",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_1035_2_3_1),
+        spec: &[RFC_1035_2_3_1],
     }
 
     /// A label opening or closing on `-`. Only the hyphen is checked at the
@@ -101,7 +101,7 @@ defects! {
         title: "Domain label starts or ends with a hyphen",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_1035_2_3_1),
+        spec: &[RFC_1035_2_3_1],
     }
 
     /// A label octet outside letters, digits and hyphen — an underscore, most
@@ -113,7 +113,7 @@ defects! {
         title: "Domain label holds a character outside letters, digits and hyphen",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_1035_2_3_1),
+        spec: &[RFC_1035_2_3_1],
     }
 }
 

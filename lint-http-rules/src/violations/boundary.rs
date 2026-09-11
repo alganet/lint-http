@@ -48,7 +48,7 @@ defects! {
         title: "A multipart media type carries no boundary parameter",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_2046_5_1_1),
+        spec: &[RFC_2046_5_1_1],
     }
 
     /// A character the delimiter set does not hold. The set is small and
@@ -64,7 +64,7 @@ defects! {
         title: "Boundary holds a character outside the delimiter set",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_2046_5_1_1),
+        spec: &[RFC_2046_5_1_1],
     }
 
     /// A boundary of no characters, or of more than seventy. The production
@@ -80,7 +80,7 @@ defects! {
         title: "Boundary is empty or longer than seventy characters",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_2046_5_1_1),
+        spec: &[RFC_2046_5_1_1],
     }
 
     /// A boundary whose last character is a space. SP is a `bchar` everywhere
@@ -99,7 +99,7 @@ defects! {
         title: "Boundary ends with a space",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_2046_5_1_1),
+        spec: &[RFC_2046_5_1_1],
     }
 }
 
@@ -119,7 +119,7 @@ mod tests {
             &BOUNDARY_LENGTH_INVALID,
             &BOUNDARY_TRAILING_SPACE_FORBIDDEN,
         ] {
-            assert_eq!(def.spec, Some(RFC_2046_5_1_1), "{}", def.id);
+            assert_eq!(def.spec, [RFC_2046_5_1_1], "{}", def.id);
         }
     }
 }

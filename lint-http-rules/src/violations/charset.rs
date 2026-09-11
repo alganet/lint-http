@@ -51,7 +51,7 @@ defects! {
         title: "Charset parameter carries no name",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_3_2),
+        spec: &[RFC_9110_8_3_2],
     }
 
     /// A charset name the deployment does not recognise. Matched
@@ -70,7 +70,7 @@ defects! {
         title: "Charset name is not one the deployment recognises",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_3_2),
+        spec: &[RFC_9110_8_3_2],
     }
 }
 
@@ -85,7 +85,7 @@ mod tests {
     fn the_empty_name_is_not_the_empty_parameter_value() {
         assert_eq!(CHARSET_EMPTY.id, "charset_empty");
         assert_ne!(CHARSET_EMPTY.id, "parameter_value_empty");
-        assert_eq!(CHARSET_EMPTY.spec, Some(RFC_9110_8_3_2));
-        assert_eq!(CHARSET_UNREGISTERED.spec, Some(RFC_9110_8_3_2));
+        assert_eq!(CHARSET_EMPTY.spec, [RFC_9110_8_3_2]);
+        assert_eq!(CHARSET_UNREGISTERED.spec, [RFC_9110_8_3_2]);
     }
 }

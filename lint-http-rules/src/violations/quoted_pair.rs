@@ -42,7 +42,7 @@ defects! {
         title: "Escape is not a quoted-pair",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_4),
+        spec: &[RFC_9110_5_6_4],
     }
 }
 

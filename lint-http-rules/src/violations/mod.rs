@@ -13,7 +13,8 @@
 //!
 //! This module holds the second half of that split. A [`ViolationDef`] is a
 //! defect: an id, a title, its default severity, and the specification
-//! sentence it enforces. Defs live in `src/violations/<subject>.rs`, grouped
+//! sentence it enforces — sentences, where a requirement is written once per
+//! protocol version and no one of them governs. Defs live in `src/violations/<subject>.rs`, grouped
 //! by subject the way `helpers/` is, written in a `defects!` block that
 //! self-registers each one into [`REGISTERED_VIOLATIONS`] at link time.
 //! [`VIOLATIONS`] is the sorted view.
@@ -111,14 +112,35 @@ pub struct ViolationDef {
     /// `docs/development.md` §6's no-defaults doctrine is reversed here for
     /// severity alone.
     pub default_severity: Severity,
-    /// The sentence this defect enforces. `None` while the reading has not
-    /// happened yet — the same shape `cite` has on a finding, and for the same
-    /// reason: an unread sentence is carried as absent, never as a guess.
+    /// The sentences this defect enforces. Empty while the reading has not
+    /// happened yet, or when nothing states the requirement — an unread
+    /// sentence is carried as absent, never as a guess.
     ///
     /// This is where a `// cite` comment moves to when its statement becomes a
     /// def. The quote sits beside the reference it quotes, and the rule site
     /// keeps none.
-    pub spec: Option<SpecRef>,
+    ///
+    /// # Why more than one
+    ///
+    /// Almost every entry names exactly one, and the shape to reach for first
+    /// is a single-element slice. What made this a slice instead of an
+    /// `Option` is the requirement written *once per protocol version*: RFC
+    /// 9113 § 8.2.2 and RFC 9114 § 4.2 state the same prohibition about the
+    /// same defect, both in force at the same time, and neither is *the*
+    /// sentence. Holding one would cite the wrong document on half the
+    /// findings; splitting the entry in two would give one defect two ids,
+    /// which is the duplication this catalogue exists to remove. So the entry
+    /// holds both, and [`RuleContext::finding`](crate::rules::RuleContext)
+    /// carries a citation onto a finding only when there is exactly one to
+    /// carry — a message governed by two documents names its own section in
+    /// its own words, as it did while these entries had no reference at all.
+    ///
+    /// This is not a licence to pile on further reading. A second entry means
+    /// the defect genuinely has two governing statements and no way to choose
+    /// between them from the catalogue; anything a rule merely wants a reader
+    /// to know belongs in
+    /// [`specifications()`](crate::rules::RuleMeta::specifications).
+    pub spec: &'static [SpecRef],
 }
 
 /// Define a subject's defects, and register every one of them.
@@ -135,7 +157,7 @@ pub struct ViolationDef {
 ///         title: "Field value does not match the grammar",
 ///         message: "",
 ///         default_severity: Severity::Warn,
-///         spec: Some(RFC_9110_5_5),
+///         spec: &[RFC_9110_5_5],
 ///     }
 /// }
 /// ```
@@ -346,15 +368,16 @@ mod tests {
     fn every_violation_spec_is_declared_by_its_rule() {
         for rule in crate::rules::all_rules() {
             for def in rule.violations() {
-                let Some(spec) = def.spec else { continue };
-                assert!(
-                    rule.specifications().contains(&spec),
-                    "{} reports {}, which cites {} {} — not in the rule's specifications()",
-                    rule.id(),
-                    def.id,
-                    spec.spec,
-                    spec.section.unwrap_or("(whole document)"),
-                );
+                for spec in def.spec {
+                    assert!(
+                        rule.specifications().contains(spec),
+                        "{} reports {}, which cites {} {} — not in the rule's specifications()",
+                        rule.id(),
+                        def.id,
+                        spec.spec,
+                        spec.section.unwrap_or("(whole document)"),
+                    );
+                }
             }
         }
     }
@@ -375,21 +398,26 @@ mod tests {
     /// its production — `1*DIGIT` sets no ceiling — and what refuses it is this
     /// crate's inability to represent it, which no document asked for either.
     ///
-    /// **The third reason is the opposite of the first two: not no sentence,
-    /// but two.** `field_connection_specific_forbidden` and
-    /// `te_member_forbidden` are stated once per version, by RFC 9113 § 8.2.2
-    /// and RFC 9114 § 4.2, and both documents are in force at the same time —
-    /// so a [`ViolationDef`], which holds one [`SpecRef`], would put an HTTP/2
-    /// citation on an HTTP/3 finding half the time. The sentences are quoted in
-    /// the subject file where neither is claimed as *the* one, and each finding
-    /// names its governing section in its own message. Two entries share this
-    /// reason today; a third would be the argument for `spec` becoming a slice,
-    /// which is a schema decision and not something to slide in under a floor.
+    /// **There was a third reason and it is retired.** Two entries —
+    /// `field_connection_specific_forbidden` and `te_member_forbidden` — were
+    /// uncited not because no sentence states them but because two do: RFC 9113
+    /// § 8.2.2 and RFC 9114 § 4.2 write the same requirement once per version,
+    /// both in force at the same time, and a [`ViolationDef`] held a single
+    /// [`SpecRef`], so naming either would have put an HTTP/2 citation on an
+    /// HTTP/3 finding half the time. This docstring recorded a third entry of
+    /// that shape as the threshold at which `spec` should become a slice, and
+    /// the threshold was reached. So `spec` is a slice, both entries name both
+    /// sections, and the count below is of entries with **at least** one.
+    ///
+    /// **What is left uncited is the first two reasons only** — both about
+    /// sentences that do not exist. An entry naming two is still the exception
+    /// rather than a licence: no finding of one carries a citation, because
+    /// none of the sentences governs the message on its own.
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 180;
-        let cited = VIOLATIONS.iter().filter(|d| d.spec.is_some()).count();
+        const FLOOR: usize = 182;
+        let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
             "{cited} of {} defs cite a sentence, below the floor of {FLOOR}",

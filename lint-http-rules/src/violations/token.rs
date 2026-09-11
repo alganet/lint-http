@@ -61,7 +61,7 @@ defects! {
         title: "Token holds whitespace or a control character",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_5_6_2),
+        spec: &[RFC_9110_5_6_2],
     }
 
     /// A token with no characters in it: the `=` of a parameter with nothing
@@ -80,7 +80,7 @@ defects! {
         title: "Token is written with no characters in it",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_2),
+        spec: &[RFC_9110_5_6_2],
     }
 
     /// A visible octet outside `tchar` — one of the delimiters § 5.6.2 names,
@@ -94,7 +94,7 @@ defects! {
         title: "Token holds a character outside tchar",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_2),
+        spec: &[RFC_9110_5_6_2],
     }
 }
 

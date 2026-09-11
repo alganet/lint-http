@@ -56,7 +56,7 @@ defects! {
         title: "ALPN protocol name is longer than the vector that carries it",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7301_3_1),
+        spec: &[RFC_7301_3_1],
     }
 
     /// A well-formed name that this deployment does not serve. The sixth
@@ -79,7 +79,7 @@ defects! {
         title: "ALPN protocol name is not one this deployment serves",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7838_2),
+        spec: &[RFC_7838_2],
     }
 }
 
@@ -92,8 +92,8 @@ mod tests {
     /// membership is a fact about a deployment.
     #[test]
     fn the_length_entry_is_the_one_that_needs_no_list() {
-        assert_eq!(ALPN_PROTOCOL_NAME_LENGTH_INVALID.spec, Some(RFC_7301_3_1));
-        assert_eq!(ALPN_PROTOCOL_NAME_UNREGISTERED.spec, Some(RFC_7838_2));
+        assert_eq!(ALPN_PROTOCOL_NAME_LENGTH_INVALID.spec, [RFC_7301_3_1]);
+        assert_eq!(ALPN_PROTOCOL_NAME_UNREGISTERED.spec, [RFC_7838_2]);
         assert_eq!(
             ALPN_PROTOCOL_NAME_LENGTH_INVALID.default_severity,
             Severity::Warn

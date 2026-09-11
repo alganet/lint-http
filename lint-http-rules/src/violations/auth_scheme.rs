@@ -54,7 +54,7 @@ defects! {
         title: "Authentication scheme holds a character outside token",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 
     /// A scheme name that is a perfectly good `token` and is not one the
@@ -80,6 +80,6 @@ defects! {
         title: "Authentication scheme is not one the deployment recognises",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_1),
+        spec: &[RFC_9110_11_1],
     }
 }

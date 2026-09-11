@@ -58,7 +58,7 @@ defects! {
         title: "Media type is written with nothing in it",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_3_1),
+        spec: &[RFC_9110_8_3_1],
     }
 
     /// A value that is not a `type "/" subtype` pair: no `/` anywhere, or a `/`
@@ -78,7 +78,7 @@ defects! {
         title: "Media type is not a type/subtype pair",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_3_1),
+        spec: &[RFC_9110_8_3_1],
     }
 
     /// An asterisk in either half of a `Content-Type`. `*` is a `tchar`, so
@@ -99,7 +99,7 @@ defects! {
         title: "A media range is written where one media type belongs",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_12_5_1),
+        spec: &[RFC_9110_12_5_1],
     }
 
     /// A well-formed `type/subtype` that the deployment does not expect. The
@@ -124,7 +124,7 @@ defects! {
         title: "Media type is not one the deployment recognises",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_3_1),
+        spec: &[RFC_9110_8_3_1],
     }
 }
 
@@ -171,10 +171,10 @@ mod tests {
     /// is registered.
     #[test]
     fn the_entry_quotes_the_registration_sentence() {
-        assert_eq!(MEDIA_TYPE_UNREGISTERED.spec, Some(RFC_9110_8_3_1));
-        assert_eq!(
-            MEDIA_TYPE_UNREGISTERED.spec.map(|s| s.spec),
-            Some("RFC 9110")
-        );
+        assert_eq!(MEDIA_TYPE_UNREGISTERED.spec, [RFC_9110_8_3_1]);
+        let [only] = MEDIA_TYPE_UNREGISTERED.spec else {
+            panic!("one sentence")
+        };
+        assert_eq!(only.spec, "RFC 9110");
     }
 }

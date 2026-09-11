@@ -54,7 +54,7 @@ defects! {
         title: "The body carries no delimiter line for its boundary",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_2046_5_1_1),
+        spec: &[RFC_2046_5_1_1],
     }
 
     /// A body whose only delimiter line is the terminating one. The closing
@@ -71,7 +71,7 @@ defects! {
         title: "The only delimiter line is the terminating one",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_2046_5_1_1),
+        spec: &[RFC_2046_5_1_1],
     }
 
     /// A body with parts and no closing delimiter. Nothing tells a recipient
@@ -85,7 +85,7 @@ defects! {
         title: "The body never closes its last part",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_2046_5_1_1),
+        spec: &[RFC_2046_5_1_1],
     }
 }
 
@@ -105,7 +105,7 @@ mod tests {
             &MULTIPART_BODY_TERMINATOR_MISSING,
         ] {
             assert!(def.id.starts_with("multipart_body_"), "{}", def.id);
-            assert_eq!(def.spec, Some(RFC_2046_5_1_1), "{}", def.id);
+            assert_eq!(def.spec, [RFC_2046_5_1_1], "{}", def.id);
             assert!(def.message.is_empty(), "{}", def.id);
         }
     }
