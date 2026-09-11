@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::request_target::{REQUEST_TARGET_ASTERISK_FORBIDDEN, RFC_9110_7_1};
 use crate::violations::uri::{
     host_and_port, scheme_name, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3,
     URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
@@ -25,10 +26,17 @@ pub struct Http3PseudoHeadersValid;
 /// measured this authority against `uri-host [ ":" port ]` since it was
 /// converted, and this one only ever looked for an `@`.
 ///
+/// **The asterisk is the ninth, and it is not the authority's.** A `:path` of
+/// `*` on a method other than `OPTIONS` is the request *target* being in a form
+/// that method may not use, which RFC 9110 § 7.1 states once for every version —
+/// so the entry lives in
+/// [`request_target`](crate::violations::request_target) and is declared here,
+/// by the HTTP/2 twin, and by the rule that reads an HTTP/1.x request-line.
+///
 /// Everything else here is about *which* pseudo-header a message carries and
-/// where — a missing `:method`, a CONNECT with no authority, an asterisk target
-/// on a method that may not use one. None of that is a defect of a production,
-/// and the documents that require it write no grammar to name it after.
+/// where — a missing `:method`, a CONNECT with no authority. None of that is a
+/// defect of a production, and the documents that require it write no grammar to
+/// name it after.
 static DECLARED: &[&ViolationDef] = &[
     &URI_HOST_CLOSING_BRACKET_MISSING,
     &URI_HOST_IP_LITERAL_MALFORMED,
@@ -38,6 +46,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &REQUEST_TARGET_ASTERISK_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -77,12 +86,6 @@ const RFC_9114_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.4"),
     url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4",
     note: "The CONNECT Method",
-};
-const RFC_9110_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("7.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
-    note: "Determining the Target Resource (asterisk-form request target)",
 };
 
 impl RuleMeta for Http3PseudoHeadersValid {
@@ -293,13 +296,22 @@ impl Rule for Http3PseudoHeadersValid {
                 // Non-CONNECT: the request-target is either the asterisk-form (OPTIONS
                 // only) or a path. RFC 9110 § 7.1 permits "*" for OPTIONS and forbids it
                 // for every other method.
-                // cite(RFC 9110 § 7.1): "For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*")."
-                // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
+                //
+                // Both sentences are quoted on the entry, which the HTTP/2 twin
+                // and the HTTP/1.x rule declare too: the asterisk is one defect
+                // over three spellings of one element, and § 7.1 is written in
+                // the version-independent document for that reason.
                 let uri_trimmed = tx.request.uri.trim();
                 if uri_trimmed == "*" {
                     if !method.eq_ignore_ascii_case("OPTIONS") {
-                        return Some(self.cited(&RFC_9110_7_1, ctx.severity, "Asterisk ('*') request-target is only permitted with OPTIONS method"
-                                    .into()));
+                        return Some(ctx.report_with(
+                            &REQUEST_TARGET_ASTERISK_FORBIDDEN,
+                            format!(
+                                "Asterisk ('*') is the ':path' value of a server-wide OPTIONS \
+                                 request and of nothing else, and this request's ':method' is \
+                                 '{method}'"
+                            ),
+                        ));
                     }
                 } else {
                     // cite(RFC 9114 § 4.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f)."

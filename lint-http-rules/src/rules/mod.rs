@@ -1335,7 +1335,12 @@ severity = "warn"
         /// took the rule's last site with it: § 15.2.2's definition, read for
         /// the connection it says changed protocol, now sits on
         /// `status_101_ignored`.
-        const FLOOR: usize = 117;
+        ///
+        /// **One more went with `request_target_asterisk_forbidden`**, which
+        /// three rules declare: the HTTP/3 site had cited § 7.1 and the HTTP/2
+        /// and HTTP/1.x ones never had, so converting three findings to one
+        /// entry cost this count exactly one.
+        const FLOOR: usize = 116;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
