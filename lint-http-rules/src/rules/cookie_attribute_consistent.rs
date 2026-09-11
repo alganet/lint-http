@@ -4,22 +4,46 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cookie::{
+    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING,
+    COOKIE_PATH_MISSING, RFC_6265_5_2_3, RFC_6265_5_2_4,
+};
+use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
 use crate::violations::ViolationDef;
 
 pub struct CookieAttributeConsistent;
 
-/// The one attribute this rule reads through a production another field
-/// already owns. `sane-cookie-date` is RFC 6265's name for the timestamp RFC
-/// 9110 § 5.6.7 writes, so a `Expires` a recipient cannot read is the same
-/// defect a `Date` or a `Sunset` a recipient cannot read is — and the rule
-/// keeps every other finding of its own, because the rest of a `cookie-av` is
-/// the cookie's grammar and nothing else's.
+/// What this rule reports that another reading already named.
 ///
-/// The remaining sixteen sites are not converted: the cookie-pair, the
-/// `Max-Age` integer and the `SameSite` values are subjects nothing has
-/// written, and the non-UTF-8 line is the family open question 1 refuses.
-static DECLARED: &[&ViolationDef] = &[&HTTP_DATE_MALFORMED];
+/// Three imports, each for a different reason. `sane-cookie-date` is RFC
+/// 6265's name for the timestamp RFC 9110 § 5.6.7 writes, so an `Expires` a
+/// recipient cannot read is the same defect a `Date` or a `Sunset` a recipient
+/// cannot read is. `cookie-name = token` imports the HTTP production by name,
+/// so a name that is empty or holds a delimiter answers to `token` — the
+/// alphabets are not merely similar, they are the same set. And `Path` and
+/// `Domain` were read out by `cookie_path_valid` and `cookie_domain_valid`
+/// first: this rule asks a coarser question of the same two attributes, so it
+/// reports what they report rather than a second name for it.
+///
+/// What is left in the rule's own words is the shape of the field line and the
+/// attributes nothing else reads — `SameSite`, `Max-Age`, the two flags, and
+/// the pairing that makes a `SameSite=None` cookie disappear.
+static DECLARED: &[&ViolationDef] = &[
+    &HTTP_DATE_MALFORMED,
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &COOKIE_PATH_MISSING,
+    &COOKIE_PATH_LEADING_SLASH_MISSING,
+    &COOKIE_DOMAIN_MISSING,
+    &COOKIE_DOMAIN_EMPTY,
+    &DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -70,15 +94,17 @@ impl CookieAttributeConsistent {
             return Some(self.violation(severity, "Set-Cookie header missing cookie-pair".into()));
         }
 
+        // The name is a `token` by import rather than by resemblance -- § 4.1.1
+        // writes `cookie-name = token` and takes the production from the HTTP
+        // document -- so both of its defects are that production's.
+        // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
         let name = pair.split('=').next().unwrap_or("").trim();
         if name.is_empty() {
-            return Some(self.violation(severity, "Set-Cookie cookie name is empty".into()));
+            return Some(ctx.report_with(&TOKEN_EMPTY, "Set-Cookie cookie name is empty".into()));
         }
-        // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-            return Some(self.cited(
-                &RFC_6265_4_1_1,
-                severity,
+            return Some(ctx.report_with(
+                token_character(c),
                 format!("Set-Cookie cookie-name contains invalid character: '{}'", c),
             ));
         }
@@ -210,16 +236,18 @@ impl CookieAttributeConsistent {
             });
         }
 
+        // `Path` and `Domain` are read here as far as their presence and their
+        // first character, and in full by `cookie_path_valid` and
+        // `cookie_domain_valid`. The coarser reading reports the same ids: what
+        // an operator silences is the defect, not which of the two rules noticed
+        // it first.
         if attribute.is("Path") {
             let Some(value) = attribute.value else {
-                return Some(self.violation(
-                    severity,
-                    "Set-Cookie attribute 'Path' requires a value".into(),
-                ));
+                return Some(ctx.report(&COOKIE_PATH_MISSING));
             };
             return (!value.starts_with('/')).then(|| {
-                self.violation(
-                    severity,
+                ctx.report_with(
+                    &COOKIE_PATH_LEADING_SLASH_MISSING,
                     format!(
                         "Set-Cookie attribute 'Path' should start with '/': '{}'",
                         value
@@ -230,20 +258,20 @@ impl CookieAttributeConsistent {
 
         if attribute.is("Domain") {
             let Some(value) = attribute.value else {
-                return Some(self.violation(
-                    severity,
-                    "Set-Cookie attribute 'Domain' requires a value".into(),
-                ));
+                return Some(ctx.report(&COOKIE_DOMAIN_MISSING));
             };
             if value.is_empty() {
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &COOKIE_DOMAIN_EMPTY,
                     "Set-Cookie attribute 'Domain' must not be empty".into(),
                 ));
             }
+            // A space inside a host name is the *name's* defect and not the
+            // attribute's: the same octet in a `Host`, a `Forwarded` host or a
+            // `From` mailbox reports under this id already.
             return value.contains(' ').then(|| {
-                self.violation(
-                    severity,
+                ctx.report_with(
+                    &DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN,
                     format!(
                         "Set-Cookie attribute 'Domain' must not contain spaces: '{}'",
                         value
@@ -275,9 +303,13 @@ severity = "warn"
         &[
             RFC_6265_4_1_1,
             RFC_6265_5_2_2,
+            RFC_6265_5_2_3,
+            RFC_6265_5_2_4,
             DRAFT_IETF_HTTPBIS_RFC6265BIS,
             MDN_SET_COOKIE,
             RFC_9110_5_6_7,
+            RFC_9110_5_6_2,
+            RFC_1035_2_3_1,
         ]
     }
 

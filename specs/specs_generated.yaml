@@ -731,13 +731,13 @@ sources:
     snippet: samesite-value = "Strict" / "Lax" / "None"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 148
+      line: 174
   - label: cookie_attribute_consistent (2)
     section: § 5.7
     snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 104
+      line: 130
   - label: cookie_same_site_enforced
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
@@ -2171,43 +2171,43 @@ sources:
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 77
+      line: 100
   - label: cookie_attribute_consistent (2)
     section: § 4.1.1
     snippet: expires-av        = "Expires=" sane-cookie-date
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 201
+      line: 227
   - label: cookie_attribute_consistent (3)
     section: § 4.1.1
     snippet: extension-av      = <any CHAR except CTLs or ";">
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 118
+      line: 144
   - label: cookie_attribute_consistent (4)
     section: § 4.1.1
     snippet: httponly-av       = "HttpOnly"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 128
+      line: 154
   - label: cookie_attribute_consistent (5)
     section: § 4.1.1
     snippet: secure-av         = "Secure"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 127
+      line: 153
   - label: cookie_attribute_consistent (6)
     section: § 5.2.2
     snippet: If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 175
+      line: 201
   - label: cookie_attribute_consistent (7)
     section: § 5.2.2
     snippet: If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 176
+      line: 202
   - label: cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
