@@ -1607,6 +1607,10 @@ severity = "warn"
 # Weight is not a qvalue
 severity = "warn"
 
+[violations.status_206_multipart_forbidden]
+# A multipart 206 answers a request that asked for a single range
+severity = "warn"
+
 [violations.status_206_unsolicited]
 # 206 Partial Content answers a request that asked for no range
 severity = "warn"
