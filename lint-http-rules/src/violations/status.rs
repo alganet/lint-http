@@ -98,6 +98,16 @@ pub const RFC_9113_8_6: SpecRef = SpecRef {
     note: "The Upgrade Header Field — HTTP/2 does not support the 101 status code, and says why: its semantics are not applicable to a multiplexed protocol",
 };
 
+/// What a 304 is for, the fields it owes, and the SHOULD NOT that keeps
+/// everything else off it. The goal stated in the same sentence is the reason:
+/// a response whose whole point is to transfer as little as possible.
+pub const RFC_9110_15_4_5: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
+    note: "304 Not Modified — the fields a 304 MUST send, the SHOULD NOT against any other representation metadata unless it guides cache updates, and the response being terminated by the end of the header section",
+};
+
 /// HTTP/3's, which withholds the mechanism and the code in one sentence.
 pub const RFC_9114_4_5: SpecRef = SpecRef {
     spec: "RFC 9114",
@@ -286,6 +296,66 @@ defects! {
         message: "HTTP traffic after 101 Switching Protocols on the same connection; the connection should have been handed off to the upgraded protocol",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_2_2],
+    }
+
+    /// A 304 carrying representation metadata beyond the fields it is required
+    /// to send. The status code exists to move as little as possible — the
+    /// client already holds the representation — so § 15.4.5 lists what a 304
+    /// MUST carry and asks a sender for nothing else, unless what it adds is
+    /// there to guide a cache update.
+    ///
+    /// **Read against the response alone**, which makes it the odd one in this
+    /// subject: every other entry here compares a response with the request it
+    /// answers or with an earlier message on the connection, and this one is
+    /// decided by the status code and a field beside it. The subject is still
+    /// the status — the field would be unremarkable under any other code — but
+    /// the evidence is in one message.
+    ///
+    /// `warn`, and the sentence is a SHOULD NOT: the response is readable, the
+    /// cache validation it exists for still works, and what is lost is the
+    /// economy the code was chosen for.
+    ///
+    // cite(RFC 9110 § 15.4.5): "Since the goal of a 304 response is to minimize information transfer when the recipient already has one or more cached representations, a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates (e.g., Last-Modified might be useful if the response does not have an ETag field)."
+    STATUS_304_METADATA_FORBIDDEN = {
+        id: "status_304_metadata_forbidden",
+        title: "A 304 sends representation metadata beyond the fields it owes",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_4_5],
+    }
+
+    /// Representation metadata on a response that cannot carry content at all —
+    /// a `1xx` or a `204`, each terminated by the end of its header section.
+    /// The field describes how content was encoded, and there is no content for
+    /// it to have been applied to.
+    ///
+    /// **Uncited because no sentence asks for this, and one leans the other
+    /// way.** § 15.3.5 says of a 204 that "Metadata in the response header
+    /// fields refer to the target resource and its selected representation
+    /// after the requested action was applied" — so metadata on a bodyless
+    /// response is *meaningful*, and a server describing a representation the
+    /// client is not being sent has a reading to stand on. What keeps the entry
+    /// is frequency rather than conformance: in traffic this is a proxy or a
+    /// framework adding a coding header to a response it never encoded.
+    ///
+    /// **Which is exactly why it is not folded into
+    /// [`STATUS_304_METADATA_FORBIDDEN`].** That one quotes a SHOULD NOT and
+    /// this one quotes nothing; one id over both would put § 15.4.5 behind an
+    /// inference, and an operator who reads this entry as a false positive
+    /// could not silence it without losing the finding the document does state.
+    /// **Where the evidence differs in kind, the entry differs too, even when
+    /// the fix is the same.**
+    ///
+    /// `info`, which is what `_redundant` means: nothing here is unreadable,
+    /// nothing is prohibited, and what the finding says is that the field was
+    /// avoidable.
+    ///
+    STATUS_METADATA_REDUNDANT = {
+        id: "status_metadata_redundant",
+        title: "A response that cannot carry content sends representation metadata",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
     }
 }
 
