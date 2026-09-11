@@ -8,7 +8,9 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.
+HTTP/3 requests encode control data as pseudo-header fields. This rule reads what each of them conveyed, and the first thing it checks is that every non-CONNECT request includes a non-empty `:path` pseudo-header field.
+
+**A request naming no method at all is not reported here.** §4.3.1 requires exactly one `:method`, and over this version an absent one and an empty one reassemble into the same capture: a method of no characters, which is `method = token`'s one-character floor. `request_method_token_valid` reports that on every version, so the finding is left there rather than given a second name; what a value naming no method does here is stop the rule, since neither the CONNECT restrictions nor the asterisk's one method have anything to turn on. `http2_pseudo_headers_valid` surrendered the same question earlier and for the same reason.
 
 For schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. **A CONNECT is asked the same question once**: §4.4 puts the host and port of the tunnel destination in `:authority`, a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field — and a request carrying neither names nothing to open a tunnel to. That is one finding whether the target arrived empty, as a path or as an asterisk, since the shape says what the sender attempted rather than what a recipient is missing; it used to be three, answered differently from how the HTTP/2 twin answered them. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.
 
@@ -71,17 +73,8 @@ Accept: text/html
 ```
 
 ```http
- HTTP/3
-Host: example.com
-```
-
-```http
 GET * HTTP/3
 Host: example.com
-```
-
-```http
-HTTP/3 0
 ```
 
 ### ❌ Bad (the deprecated userinfo subcomponent in :authority)
