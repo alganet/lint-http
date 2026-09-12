@@ -12,6 +12,7 @@ use crate::helpers::shown::describe_octet;
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::expect::{EXPECT_MEMBER_MALFORMED, EXPECT_VALUE_EMPTY, RFC_9110_10_1_1};
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, PARAMETER_VALUE_EMPTY,
@@ -37,11 +38,15 @@ pub struct ExpectHeaderValid;
 ///
 /// What stays on the older API is § 10.1.1's, and it is what the rule is for:
 /// a `100-continue` in a request with no content, a request repeating one a 417
-/// already refused, a `100-continue` written with an argument, and the two
-/// shapes an `expectation` itself can fail in — a member that does not begin
-/// with a token's `=`, and an `=` with no value after it. The last two belong
-/// to an `expectation` subject nothing has written.
+/// already refused, and a `100-continue` written with an argument — three
+/// statements about what the one defined expectation *means*, which
+/// [`expect`](crate::violations::expect) is written with room for. The two
+/// shapes an `expectation` itself can fail in are that subject's already: a
+/// member holding octets the production does not admit, and an `=` with no value
+/// after it.
 static DECLARED: &[&ViolationDef] = &[
+    &EXPECT_MEMBER_MALFORMED,
+    &EXPECT_VALUE_EMPTY,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -95,12 +100,11 @@ const HUNDRED_CONTINUE: &str = "100-continue";
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_10_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1",
-    note: "Expect: the field's grammar, the one expectation this specification defines, and the four client requirements — of which the MUST NOT on a request without content and the SHOULD after a 417 are the two a captured message can measure",
-};
+///
+/// § 10.1.1 is not written here: the two entries the member's assembly reports
+/// enforce its production, so the reference lives beside them in
+/// [`expect`](crate::violations::expect) and is imported back — which is also
+/// where the three entries about what `100-continue` means will name it.
 const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("A"),
@@ -424,16 +428,18 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect>
         return Ok(Expectation { name, member });
     };
     if stopper != '=' {
-        // Left unnamed: what failed is `expectation = token [ "=" ( token /
-        // quoted-string ) parameters ]` — the shape of the member rather than
-        // the name, which is a well-formed token that simply ended here. The
-        // `expectation` subject that would hold it is unwritten.
-        return Err(Defect::unnamed(format!(
-            "Invalid octet {} after the Expect expectation name '{}': the production admits only \
-             '=' there, and `parameters` are inside the group the '=' opens",
-            describe_octet(stopper as u8),
-            crate::helpers::shown::shown_in_finding(name)
-        )));
+        // The shape of the member rather than the name, which is a well-formed
+        // token that simply ended here — so the entry is the field's assembly
+        // and not the `token` subject's.
+        return Err(Defect::named(
+            &EXPECT_MEMBER_MALFORMED,
+            format!(
+                "Invalid octet {} after the Expect expectation name '{}': the production admits \
+                 only '=' there, and `parameters` are inside the group the '=' opens",
+                describe_octet(stopper as u8),
+                crate::helpers::shown::shown_in_finding(name)
+            ),
+        ));
     }
     let rest = &tail[1..];
 
@@ -469,15 +475,19 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect>
         // follows has to be `parameters`.
         let end = token_run_end(rest);
         if end == 0 {
-            // Also unnamed, and for the alternation's reason: an *expectation's* value
-            // being empty is a per-field verdict, not the alternation's, and
+            // The alternation's reason for having no entry of its own: an
+            // *expectation's* value being empty is a per-field verdict, and
             // `parameter_value_empty` answers for a parameter rather than for
-            // whatever else `( token / quoted-string )` is read as.
-            return Err(Defect::unnamed(format!(
-                "Expect member '{}' has '=' with no token or quoted-string after it: found {}",
-                crate::helpers::shown::shown_in_finding(member),
-                first_octet_of(rest)
-            )));
+            // whatever else `( token / quoted-string )` is read as. So the field
+            // says it, in the field's subject.
+            return Err(Defect::named(
+                &EXPECT_VALUE_EMPTY,
+                format!(
+                    "Expect member '{}' has '=' with no token or quoted-string after it: found {}",
+                    crate::helpers::shown::shown_in_finding(member),
+                    first_octet_of(rest)
+                ),
+            ));
         }
         &rest[end..]
     };
@@ -519,13 +529,17 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
     // allows before the semicolon. The splitter always yields that leading
     // segment, empty or not.
     if !segments[0].is_empty() {
-        // The expectation's own shape again: what is wrong is that the value
-        // ended and the member did not, which no parameter defect describes.
-        return Err(Defect::unnamed(format!(
-            "Expect member '{}' has octets after its value that are not parameters: '{}'",
-            crate::helpers::shown::shown_in_finding(member),
-            crate::helpers::shown::shown_in_finding(segments[0])
-        )));
+        // The expectation's own shape again, and the same entry: what is wrong
+        // is that the value ended and the member did not, which no parameter
+        // defect describes and which the position does not change.
+        return Err(Defect::named(
+            &EXPECT_MEMBER_MALFORMED,
+            format!(
+                "Expect member '{}' has octets after its value that are not parameters: '{}'",
+                crate::helpers::shown::shown_in_finding(member),
+                crate::helpers::shown::shown_in_finding(segments[0])
+            ),
+        ));
     }
 
     for seg in &segments[1..] {

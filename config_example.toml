@@ -1443,6 +1443,14 @@ severity = "warn"
 # Weakness indicator is not written W/
 severity = "warn"
 
+[violations.expect_member_malformed]
+# Expect member holds octets the expectation production does not admit
+severity = "warn"
+
+[violations.expect_value_empty]
+# Expect writes an expectation '=' with no value after it
+severity = "warn"
+
 [violations.field_connection_specific_forbidden]
 # A connection-specific field is written on a version that has none
 severity = "error"
