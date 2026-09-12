@@ -37,6 +37,7 @@ pub mod base64;
 pub mod basic_credentials;
 pub mod boundary;
 pub mod bws;
+pub mod cache_control;
 pub mod challenge;
 pub mod charset;
 pub mod comment;
@@ -420,7 +421,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 212;
+        const FLOOR: usize = 214;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
