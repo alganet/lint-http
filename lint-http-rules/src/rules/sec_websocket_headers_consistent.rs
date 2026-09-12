@@ -28,6 +28,7 @@ use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
+use crate::violations::upgrade::{RFC_9110_7_8, UPGRADE_CONNECTION_OPTION_MISSING};
 use crate::violations::ViolationDef;
 
 pub struct SecWebsocketHeadersConsistent;
@@ -54,8 +55,12 @@ pub struct SecWebsocketHeadersConsistent;
 /// [`sec_websocket_protocol`](crate::violations::sec_websocket_protocol)
 /// subject's — the field's own entry beside the productions it is spelled in.
 ///
-/// `Connection` is untouched and says so through its type: an unnamed
-/// [`Defect`] is a finding no subject has claimed.
+/// **`Connection` is the one entry here that RFC 6455 did not have to write.**
+/// The option that keeps `Upgrade` from being forwarded is owed by any sender of
+/// that field, and § 7.8 is where HTTP says so; § 4.1's *MUST include the
+/// "Upgrade" token* is the same requirement restated for this handshake, so the
+/// finding takes [`upgrade`](crate::violations::upgrade)'s entry rather than
+/// spelling a second id for one protocol's copy of it.
 static DECLARED: &[&ViolationDef] = &[
     &BASE64_CHARACTER_FORBIDDEN,
     &BASE64_QUANTUM_MALFORMED,
@@ -67,37 +72,30 @@ static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_VERSION_MISSING,
     &SEC_WEBSOCKET_VERSION_INVALID,
     &SEC_WEBSOCKET_PROTOCOL_DUPLICATED,
+    &UPGRADE_CONNECTION_OPTION_MISSING,
     &LIST_MEMBER_MISSING,
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
 ];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the entry it reports as.
 ///
-/// The shape `expect_header_valid` settled and `warning_header_syntax` reused: a
-/// judge that is half converted says so in its type rather than being split in
-/// two. Here the unnamed half is everything this rule reads that is not an
-/// encoding.
+/// The shape `expect_header_valid` settled, carried here while three of the four
+/// judges were still unnamed — **and the `Option` around `def` is gone now that
+/// the fourth has landed**, which is what a rule does when its last arm is
+/// named. What is left unnamed in this rule is not a judge at all: the HTTP
+/// version the handshake was sent over is read before any field is, and it
+/// reports through the pre-catalogue path.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed yet, reported at the rule's severity the
-    /// way every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 }
 
@@ -110,22 +108,34 @@ impl SecWebsocketHeadersConsistent {
     /// that a `connection-option` is a field name and therefore compared without
     /// case. The lines are joined before it looks, because `Connection` is one list
     /// however many lines carry it.
+    ///
+    /// **This document restates a requirement HTTP already makes**, and the entry is
+    /// the one HTTP's sentence owns: a sender of `Upgrade` owes the option whatever
+    /// protocol it is upgrading to, so a handshake missing it is not a different
+    /// defect from `Upgrade: h2c` missing it. The two sentences below are what this
+    /// rule reads — the second is the same requirement written from the server's
+    /// side of the same handshake — and `upgrade_and_connection_consistent` reports
+    /// the same entry from the general sentence.
     // cite(RFC 6455 § 4.1): "The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token."
     // cite(RFC 6455 § 4.2.1): "A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value."
-    fn connection_defect(headers: &hyper::HeaderMap) -> Option<String> {
+    fn connection_defect(headers: &hyper::HeaderMap) -> Option<Defect> {
         let Some(value) = combined_field_value_as_written(headers, "connection") else {
-            return Some(
+            return Some(Defect::named(
+                &UPGRADE_CONNECTION_OPTION_MISSING,
                 "the request carries no Connection header field, so it names no connection-option \
                  at all"
                     .into(),
-            );
+            ));
         };
         if is_nominated_by_connection("upgrade", Some(&value)) {
             return None;
         }
-        Some(format!(
-            "its Connection header field is `{}`, which does not include the Upgrade token",
-            shown_in_finding(&value)
+        Some(Defect::named(
+            &UPGRADE_CONNECTION_OPTION_MISSING,
+            format!(
+                "its Connection header field is `{}`, which does not include the Upgrade token",
+                shown_in_finding(&value)
+            ),
         ))
     }
 
@@ -356,6 +366,7 @@ severity = "warn"
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_1_2,
             RFC_9110_5_6_2,
+            RFC_9110_7_8,
         ]
     }
 
@@ -446,7 +457,7 @@ impl Rule for SecWebsocketHeadersConsistent {
             // taking the document's order rather than a convenient one means the finding
             // an operator sees first is the one the list reaches first.
             let defect = [
-                Self::connection_defect(&req.headers).map(Defect::unnamed),
+                Self::connection_defect(&req.headers),
                 Self::key_defect(&req.headers),
                 Self::version_defect(&req.headers),
                 Self::subprotocol_defect(&req.headers),
@@ -455,14 +466,13 @@ impl Rule for SecWebsocketHeadersConsistent {
             .flatten()
             .next()?;
 
-            let message = format!(
-                "This request asks to be upgraded to the WebSocket Protocol, but {}",
-                defect.message
-            );
-            match defect.def {
-                Some(def) => Some(ctx.report_with(def, message)),
-                None => violation(message),
-            }
+            Some(ctx.report_with(
+                defect.def,
+                format!(
+                    "This request asks to be upgraded to the WebSocket Protocol, but {}",
+                    defect.message
+                ),
+            ))
         };
         Vec::from_iter(finding())
     }
@@ -567,6 +577,9 @@ mod tests {
         ]);
         let v = run(&tx).expect("a Connection naming no Upgrade option is a finding");
         assert!(v.message.contains("Upgrade token"));
+        // HTTP's entry, not this document's: the option is owed by any sender of
+        // `Upgrade`, and § 4.1 restates that for one protocol.
+        assert_eq!(v.violation, "upgrade_connection_option_missing");
     }
 
     #[test]
