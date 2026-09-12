@@ -1671,8 +1671,20 @@ severity = "warn"
 # The asterisk target is sent with a method other than OPTIONS
 severity = "error"
 
+[violations.request_target_empty]
+# A request-line carries no request-target
+severity = "error"
+
+[violations.request_target_malformed]
+# A request-target derives from none of the four forms
+severity = "error"
+
 [violations.request_target_path_missing]
 # A request that owes a path names none
+severity = "error"
+
+[violations.request_target_whitespace_forbidden]
+# A request-target carries whitespace
 severity = "error"
 
 [violations.status_101_ignored]
