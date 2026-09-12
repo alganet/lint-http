@@ -18,6 +18,7 @@ use crate::violations::sec_websocket_extensions::SEC_WEBSOCKET_EXTENSIONS_UNSOLI
 use crate::violations::sec_websocket_protocol::{
     RFC_6455_4_2_2, SEC_WEBSOCKET_PROTOCOL_EMPTY, SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
 };
+use crate::violations::status::{RFC_6455_4_2_1, STATUS_101_FORBIDDEN};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -89,15 +90,19 @@ pub struct WebsocketHandshakeValid;
 /// besides `websocket` is § 4.2.2's ceiling on the value, which HTTP does not
 /// set.
 ///
-/// What is left unnamed is the `101` that completed a handshake a server was
-/// required to refuse, which says so through [`Defect`] — a finding no subject
-/// has claimed.
+/// The `101` that completed a handshake a server was required to refuse is the
+/// [`status`](crate::violations::status) subject's, and it is the last of this
+/// rule's readings to land: what is wrong there is the response's control data
+/// rather than any field on it, which is exactly what that subject holds.
+///
+/// **Nothing here is unnamed any more**, so [`Defect`] carries no `Option`.
 static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_ACCEPT_CONFLICTING,
     &SEC_WEBSOCKET_ACCEPT_MISSING,
     &SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED,
     &SEC_WEBSOCKET_PROTOCOL_EMPTY,
     &SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
+    &STATUS_101_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &UPGRADE_101_EMPTY,
@@ -106,30 +111,21 @@ static DECLARED: &[&ViolationDef] = &[
     &UPGRADE_CONNECTION_OPTION_MISSING,
 ];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the entry it reports as.
 ///
-/// The shape `expect_header_valid` settled and the rule measuring the other half
-/// of this handshake reuses: a judge that is half converted says so in its type
-/// rather than being split in two.
+/// The shape `expect_header_valid` settled, carried here while the readings were
+/// converting one at a time — **and the `Option` around `def` is gone now that
+/// the last one has landed**, which is what a rule does when nothing it reports
+/// is nameless.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed yet, reported at the rule's severity the
-    /// way every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 }
 
@@ -162,13 +158,14 @@ impl WebsocketHandshakeValid {
     // cite(RFC 6455 § 4.2.1): "A |Sec-WebSocket-Key| header field with a base64-encoded (see Section 4 of [RFC4648]) value that, when decoded, is 16 bytes in length."
     // cite(RFC 6455 § 4.2.1): "A |Sec-WebSocket-Version| header field, with a value of 13."
     // cite(RFC 6455 § 4.2.2): "If this version does not match a version understood by the server, the server MUST abort the WebSocket handshake described in this section and instead send an appropriate HTTP error code (such as 426 Upgrade Required) and a |Sec-WebSocket-Version| header field indicating the version(s) the server is capable of understanding."
-    fn refusable_handshake(req_headers: &hyper::HeaderMap) -> Option<String> {
+    fn refusable_handshake(req_headers: &hyper::HeaderMap) -> Option<Defect> {
         let Some(raw) = combined_field_value_as_written(req_headers, "sec-websocket-key") else {
-            return Some(
+            return Some(Defect::named(
+                &STATUS_101_FORBIDDEN,
                 "the request it answers carries no Sec-WebSocket-Key header field, and a \
                  handshake missing one is a handshake the server was required to refuse"
                     .into(),
-            );
+            ));
         };
         let defect = sec_websocket_key_defect(&raw)?;
         // The one verdict that is not this sentence's business, and it is the
@@ -188,11 +185,14 @@ impl WebsocketHandshakeValid {
         ) {
             return None;
         }
-        Some(format!(
-            "the request it answers offers the Sec-WebSocket-Key `{}`, which is not the nonce \
-             that field is defined as ({defect}) — a handshake the server was required to refuse \
-             rather than complete",
-            shown_in_finding(trim_ows(&raw))
+        Some(Defect::named(
+            &STATUS_101_FORBIDDEN,
+            format!(
+                "the request it answers offers the Sec-WebSocket-Key `{}`, which is not the \
+                 nonce that field is defined as ({defect}) — a handshake the server was required \
+                 to refuse rather than complete",
+                shown_in_finding(trim_ows(&raw))
+            ),
         ))
     }
 
@@ -499,6 +499,10 @@ fn extension_token(member: &str) -> &str {
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
 ///
+/// § 4.2.1 is not written here either, for the same reason: the entry a `101`
+/// over a refusable handshake reports is
+/// [`status`](crate::violations::status)', and the reference lives beside it.
+///
 /// § 4.2.2 is not written here and neither is RFC 9110 § 5.6.2: the first is
 /// what the two subprotocol entries in
 /// [`sec_websocket_protocol`](crate::violations::sec_websocket_protocol)
@@ -510,12 +514,6 @@ const RFC_6455_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.1"),
     url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1",
     note: "Client Requirements — the numbered list a client validates the server's response against, and the sentence handing every non-101 back to plain HTTP",
-};
-const RFC_6455_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("4.2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
-    note: "Reading the Client's Opening Handshake — the description a handshake has to match, and the requirement to refuse one that does not, which is what makes a 101 over a malformed key the server's defect",
 };
 const RFC_6455_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
@@ -664,7 +662,7 @@ impl Rule for WebsocketHandshakeValid {
             // admissibility ahead of the questions about its fields. One message carries
             // one finding, so the first defect is the one reported.
             let defect = [
-                Self::refusable_handshake(&req.headers).map(Defect::unnamed),
+                Self::refusable_handshake(&req.headers),
                 Self::upgrade_defect(&resp.headers),
                 Self::connection_defect(&resp.headers),
                 Self::accept_defect(&req.headers, &resp.headers),
@@ -675,14 +673,13 @@ impl Rule for WebsocketHandshakeValid {
             .flatten()
             .next()?;
 
-            let message = format!(
-                "This 101 completes a WebSocket opening handshake, but {}",
-                defect.message
-            );
-            match defect.def {
-                Some(def) => Some(ctx.report_with(def, message)),
-                None => Some(self.violation(ctx.severity, message)),
-            }
+            Some(ctx.report_with(
+                defect.def,
+                format!(
+                    "This 101 completes a WebSocket opening handshake, but {}",
+                    defect.message
+                ),
+            ))
         };
         Vec::from_iter(finding())
     }
@@ -1118,12 +1115,13 @@ mod tests {
         assert_eq!(found.violation, "sec_websocket_protocol_unsolicited");
     }
 
-    /// The rank a subprotocol finding carries is its entry's and no longer the
-    /// rule's: the fixture configures this rule at `warn`, and both halves of
-    /// what a server may write wrong come out at the `error` their defs
-    /// default to — while everything still unnamed here keeps the rule's.
+    /// Every finding this rule makes now carries its entry's rank rather than the
+    /// rule's: the fixture configures the rule at `warn`, an unoffered subprotocol
+    /// comes out at the `error` its entry defaults to, and the handshake a server
+    /// had to refuse stays at `warn` because that is what *its* entry says — not
+    /// because the rule's severity reached it.
     #[rstest]
-    fn a_named_defect_takes_its_entrys_rank_and_an_unnamed_one_the_rules() {
+    fn every_finding_takes_its_entrys_rank_and_not_the_rules() {
         let mut resp = handshake_response();
         resp.push(("sec-websocket-protocol", "mqtt"));
         let mut req = handshake_request();
@@ -1131,7 +1129,7 @@ mod tests {
         let tx = make_ws_tx(req, 101, resp);
         assert_eq!(run(&tx).unwrap().severity, crate::lint::Severity::Error);
 
-        // The one reading left that no subject has claimed: a `101` completing a
+        // The reading that lands in the status subject: a `101` completing a
         // handshake whose key is not a nonce, which is about the exchange rather
         // than about any field's value.
         let tx = make_ws_tx(
@@ -1146,7 +1144,7 @@ mod tests {
         );
         let found = run(&tx).unwrap();
         assert_eq!(found.severity, crate::lint::Severity::Warn);
-        assert!(found.violation.is_empty());
+        assert_eq!(found.violation, "status_101_forbidden");
     }
 
     /// Extensions are compared on the name half of each member; the parameters

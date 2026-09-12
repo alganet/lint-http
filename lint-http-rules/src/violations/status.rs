@@ -48,7 +48,14 @@
 //! answers; this one compares a connection with a response earlier on it, which
 //! is why it needs the history and a connection id to be reported at all.
 //!
-//! So five of the six default to `warn`, which is the severity the rules
+//! **The seventh is the first here whose sentence is not HTTP's**, and it is
+//! the shape the subject was always going to reach: a `101` answering a
+//! WebSocket handshake that RFC 6455 § 4.2.1 required the server to refuse. The
+//! status code contradicts its request exactly as the others do; what is new is
+//! that the contradiction is spelled out by the protocol being upgraded to,
+//! which is the only document that says what makes such a request refusable.
+//!
+//! So six of the seven default to `warn`, which is the severity the rules
 //! reporting them had already chosen for themselves: a client handed a response
 //! it did not ask for, or cannot parse, has to notice that on its own, and the
 //! exchange carries on around it. **The question that separates the levels is
@@ -114,6 +121,17 @@ pub const RFC_9114_4_5: SpecRef = SpecRef {
     section: Some("4.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
     note: "HTTP Upgrade — the only place RFC 9114 mentions 101, withholding the upgrade mechanism and the status code together",
+};
+
+/// Reading the Client's Opening Handshake: the description a request has to
+/// match for a server to accept it, and the sentence saying what a server does
+/// with one that does not. The entry it carries is the second half — a `101` is
+/// a server having done the opposite.
+pub const RFC_6455_4_2_1: SpecRef = SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
+    note: "Reading the Client's Opening Handshake — the description a handshake has to match, and the requirement to refuse one that does not, which is what makes a 101 over a malformed key the server's defect",
 };
 
 defects! {
@@ -296,6 +314,41 @@ defects! {
         message: "HTTP traffic after 101 Switching Protocols on the same connection; the connection should have been handed off to the upgraded protocol",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_2_2],
+    }
+
+    /// A `101` completing a handshake the server was required to refuse: the
+    /// WebSocket opening handshake it answers carries no `Sec-WebSocket-Key`,
+    /// or one that is not the sixteen-byte nonce the field is defined as.
+    ///
+    /// **The request's defect is somebody else's finding and this is not it.**
+    /// The value belongs to [`sec_websocket_key`](crate::violations::sec_websocket_key)
+    /// and is reported against the client by the rule that reads the request;
+    /// what this entry names is the *answer* — § 4.2.1 opens the description a
+    /// server matches a handshake against by saying what to do when it does not
+    /// match, which is to stop and return an error status. A `101` is that
+    /// server having done the opposite, and only a rule holding both messages
+    /// can see it.
+    ///
+    /// `_forbidden` rather than `_unsolicited`: the sentence prohibits the
+    /// response in as many words, which is the test the two `_unsolicited`
+    /// entries above are on the other side of.
+    ///
+    /// `warn`, and unlike [`STATUS_101_PROTOCOL_FORBIDDEN`] the hand-off is not
+    /// what is wrong here — the client asked for WebSocket and got WebSocket,
+    /// and both endpoints can speak it. **What is missing is a guard rather than
+    /// a statement**, the line
+    /// [`te_connection_option_missing`](crate::violations::te) drew: the nonce
+    /// is how a server tells a client that meant to open this handshake from one
+    /// that was aimed at it, and a server that skips the check is exposed rather
+    /// than confused.
+    ///
+    // cite(RFC 6455 § 4.2.1): "the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)"
+    STATUS_101_FORBIDDEN = {
+        id: "status_101_forbidden",
+        title: "A 101 completes a WebSocket handshake the server had to refuse",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6455_4_2_1],
     }
 
     /// A 304 carrying representation metadata beyond the fields it is required
