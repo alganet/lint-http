@@ -13,7 +13,8 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::alt_svc::{
     ALT_SVC_ALTERNATIVE_EQUALS_MISSING, ALT_SVC_CLEAR_CONFLICTING,
-    ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EQUALS_MISSING, RFC_7838_3,
+    ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EMPTY, ALT_SVC_PARAMETER_EQUALS_MISSING,
+    ALT_SVC_PARAMETER_VALUE_EMPTY, RFC_7838_3,
 };
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
@@ -35,12 +36,12 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Twenty defects over five subjects, and RFC 7838 defines four of them.
+/// Twenty-two defects over five subjects, and RFC 7838 defines six of them.
 ///
-/// The four are the field's own: the alternation at the top of it, the two `=`
-/// delimiters it prints and the whitespace it prints nowhere near them.
-/// Everything else here is imported, and the paragraph below is where each
-/// import comes from.
+/// The six are the field's own: the alternation at the top of it, the two `=`
+/// delimiters it prints, the whitespace it prints nowhere near them, and the
+/// two halves a parameter can be written without. Everything else here is
+/// imported, and the paragraph below is where each import comes from.
 ///
 /// § 1.1 says where the notation comes from and § 3 says where the productions
 /// do: the `#rule` extension is RFC 7230 § 7's, whose sender requirement is the
@@ -50,24 +51,24 @@ use crate::violations::ViolationDef;
 /// `port` out of RFC 3986. So an `alt-authority` of `"a]b:443"` reports the
 /// same defect a `Forwarded` `for=` and a `Warning`'s `warn-agent` do.
 ///
-/// **Eight findings stay this document's and are not named yet.** Two are the
+/// **Seven findings stay this document's and are not named yet.** Two are the
 /// ALPN name's percent-encoding spelling, which is this field's alone; two are
 /// `alt-authority`'s prose, which requires the colon and the port the ABNF
 /// leaves optional; one is a port outside the sixteen-bit namespace an ALPN
-/// name implies; one is `persist`'s single literal; one is § 8's A-labels; and
-/// one is a semicolon with no parameter behind it. Every one is a sentence
-/// about `Alt-Svc` and no other field, so every one of them is the `alt_svc`
-/// subject's, as the four already there were.
+/// name implies; one is `persist`'s single literal; and one is § 8's A-labels.
+/// Every one is a sentence about `Alt-Svc` and no other field, so every one of
+/// them is the `alt_svc` subject's, as the six already there were.
 ///
-/// **`parameter_equals_missing` and `parameter_equals_whitespace_forbidden` are
-/// refused, and the refusal is now written as two ids rather than as none.**
-/// RFC 7838 § 3's `parameter` is not § 5.6.6's: its value is mandatory where
-/// § 5.6.6's is optional, and it prints no whitespace beside its `=` at all —
-/// so where § 5.6.6 tolerates the whitespace and records the leniency at
-/// `info`, this document admits none and its own entry says so at `warn`. **A
-/// production of the same name in another document is another production**, and
-/// the catalogue can now hold both without either borrowing the other's
-/// sentence.
+/// **Nothing here borrows from the `parameter` subject, and the reason is one
+/// sentence repeated three times.** RFC 7838 § 3's `parameter` is not
+/// § 5.6.6's: its value is mandatory where § 5.6.6's is optional, it prints no
+/// whitespace beside its `=` at all, and the repetition holding it brackets
+/// nothing where § 5.6.6 writes `[ parameter ]`. So a bare name, a spaced-out
+/// `=` and an empty repetition are three defects here and none there, and where
+/// § 5.6.6 tolerates the whitespace at `info` this document admits none and
+/// says so at `warn`. **A production of the same name in another document is
+/// another production**, and the catalogue holds both without either borrowing
+/// the other's sentence.
 ///
 /// **Three of the four `quoted_string_*` entries are declared and unreachable
 /// here, and the reason is a check two levels up.** The field value's quoting
@@ -83,6 +84,8 @@ static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_CLEAR_CONFLICTING,
     &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
     &ALT_SVC_PARAMETER_EQUALS_MISSING,
+    &ALT_SVC_PARAMETER_EMPTY,
+    &ALT_SVC_PARAMETER_VALUE_EMPTY,
     &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
     &LIST_MEMBER_EMPTY,
     &LIST_MEMBER_MISSING,
@@ -107,7 +110,7 @@ static DECLARED: &[&ViolationDef] = &[
 ///
 /// The shape `expect_header_valid` settled: a judge that is half converted says
 /// so in its type. Here the halves are five subjects' ids — four imported and
-/// this field's own — against the nine sentences RFC 7838 writes about
+/// this field's own — against the seven sentences RFC 7838 writes about
 /// `Alt-Svc` that no entry holds yet.
 struct Defect {
     def: Option<&'static ViolationDef>,
@@ -393,10 +396,16 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
 fn check_parameter(shown: &str, parameter: &str) -> Option<Defect> {
     // `*( OWS ";" OWS parameter )` repeats a group holding one parameter,
     // so two adjacent semicolons produce a repetition with nothing in it.
+    // The brackets § 5.6.6 puts around its own `[ parameter ]` are what makes
+    // that conforming there and a defect here, which is why the entry is this
+    // field's rather than that subject's.
     if parameter.is_empty() {
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc alt-value '{shown}' carries a semicolon with no parameter after it. Each repetition of `*( OWS \";\" OWS parameter )` holds one `parameter`, and a `parameter` is a name, an '=' and a value"
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_PARAMETER_EMPTY,
+            format!(
+                "Alt-Svc alt-value '{shown}' carries a semicolon with no parameter after it. Each repetition of `*( OWS \";\" OWS parameter )` holds one `parameter`, and a `parameter` is a name, an '=' and a value"
+            ),
+        ));
     }
     //
     // **Not `parameter_equals_missing`.** That def carries § 5.6.6's
@@ -455,13 +464,16 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<Defect> {
     let unquoted = match token_or_quoted_string(value) {
         Ok(content) => content,
         // The `None` `word_defect` answers, at the third of the six fields that
-        // reach it: what an empty value means is this field's verdict, and the
-        // comment above says so in its own words.
+        // reach it: what an empty value means is this field's verdict, and this
+        // field now has an entry to say it in.
         Err(WordDefect::Empty) => {
-            return Some(Defect::unnamed(format!(
-                "Alt-Svc parameter '{}' in '{shown}' has an empty value. The value half is `token / quoted-string`, and the empty string derives from neither -- a `token` is `1*tchar` and a `quoted-string` is at least its two DQUOTEs",
-                shown_in_finding(name)
-            )))
+            return Some(Defect::named(
+                &ALT_SVC_PARAMETER_VALUE_EMPTY,
+                format!(
+                    "Alt-Svc parameter '{}' in '{shown}' has an empty value. The value half is `token / quoted-string`, and the empty string derives from neither -- a `token` is `1*tchar` and a `quoted-string` is at least its two DQUOTEs",
+                    shown_in_finding(name)
+                ),
+            ))
         }
         Err(WordDefect::NotToken(c)) => {
             return Some(Defect::named(
@@ -956,9 +968,17 @@ mod tests {
     )]
     #[case("h2=\":443\"; persist=2", "sets persist to \'2\'", "")]
     #[case("h2=\":443\"; persist=\"0\"", "sets persist to \'0\'", "")]
-    #[case("h2=\":443\"; ;", "semicolon with no parameter after it", "")]
+    #[case(
+        "h2=\":443\"; ;",
+        "semicolon with no parameter after it",
+        "alt_svc_parameter_empty"
+    )]
     #[case("h2=\":443\"; ma", "has no \'=\'", "alt_svc_parameter_equals_missing")]
-    #[case("h2=\":443\"; ma=", "has an empty value", "")]
+    #[case(
+        "h2=\":443\"; ma=",
+        "has an empty value",
+        "alt_svc_parameter_value_empty"
+    )]
     #[case(
         "h2=\":443\"; ma = 60",
         "whitespace beside its \'=\'",
