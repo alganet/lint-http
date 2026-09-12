@@ -9247,7 +9247,7 @@ sources:
     snippet: protocol = protocol-name ["/" protocol-version] protocol-name = token protocol-version = token
     cited_by:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 57
+      line: 61
   - label: user_agent_present
     section: § 10.1.5
     snippet: A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.
