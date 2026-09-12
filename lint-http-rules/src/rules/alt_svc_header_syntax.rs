@@ -11,6 +11,7 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::alt_svc::{ALT_SVC_CLEAR_CONFLICTING, RFC_7838_3};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
@@ -31,7 +32,12 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Sixteen defects over four subjects, and RFC 7838 defines not one of them.
+/// Seventeen defects over five subjects, and RFC 7838 defines one of them.
+///
+/// The one is the field's own: `Alt-Svc` is an alternation at the top, and a
+/// value carrying both of its halves is a state the document names. Everything
+/// else here is imported, and the paragraph below is where each import comes
+/// from.
 ///
 /// § 1.1 says where the notation comes from and § 3 says where the productions
 /// do: the `#rule` extension is RFC 7230 § 7's, whose sender requirement is the
@@ -41,15 +47,16 @@ use crate::violations::ViolationDef;
 /// `port` out of RFC 3986. So an `alt-authority` of `"a]b:443"` reports the
 /// same defect a `Forwarded` `for=` and a `Warning`'s `warn-agent` do.
 ///
-/// **Fifteen findings stay this document's, which is more than are named.**
+/// **Fourteen findings stay this document's and are not named yet.**
 /// Six are the two `=` delimiters RFC 7838 prints and the whitespace it does
 /// *not*; two are the ALPN name's percent-encoding spelling, which is this
 /// field's alone; two are `alt-authority`'s prose, which requires the colon and
 /// the port the ABNF leaves optional; one is a port outside the sixteen-bit
 /// namespace an ALPN name implies; one is `persist`'s single literal; one is
-/// § 8's A-labels; one is the case-sensitive spelling of `clear`; and one is
-/// `clear` beside an alternative, which is the alternation at the top of the
-/// field. Every one is a sentence about `Alt-Svc` and no other field.
+/// § 8's A-labels; and one is the case-sensitive spelling of `clear`. Every one
+/// is a sentence about `Alt-Svc` and no other field, so every one of them is
+/// the `alt_svc` subject's — the fifteenth was, and it went first because the
+/// document states the recipient behaviour that ranks it.
 ///
 /// **`parameter_equals_missing` and `parameter_equals_whitespace_forbidden` are
 /// refused, for the second commit running.** RFC 7838 § 3's `parameter` is not
@@ -70,6 +77,7 @@ use crate::violations::ViolationDef;
 /// because a literal that never closes leaves the composition with no port to
 /// find and is reported as that instead.
 static DECLARED: &[&ViolationDef] = &[
+    &ALT_SVC_CLEAR_CONFLICTING,
     &LIST_MEMBER_EMPTY,
     &LIST_MEMBER_MISSING,
     &TOKEN_EMPTY,
@@ -558,12 +566,11 @@ fn check_alt_value(member: &str) -> Option<Defect> {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7838_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7838",
-    section: Some("3"),
-    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
-    note: "The Alt-Svc HTTP Header Field: the field's grammar, the `clear` keyword, the three percent-encoding constraints on a protocol-id, and the prose requiring a colon and a port inside the alt-authority",
-};
+///
+/// § 3 is not among them: it belongs to the entry that names it, so it is
+/// defined in `violations/alt_svc.rs` beside that entry's quote and imported
+/// back here. A reference on a def and a reference in `specifications()` are
+/// compared by value, so there is one definition or there is a silent split.
 const RFC_7838_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7838",
     section: Some("3.1"),
@@ -733,10 +740,11 @@ impl Rule for AltSvcHeaderSyntax {
 
             // The parenthetical is the finding, and it is the document's own word
             // for this state: `clear` is the whole field value or it is nothing.
-            // cite(RFC 7838 § 3): "A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services)."
+            // The sentence saying so is on the entry, with the recipient
+            // behaviour that ranks it above everything else this rule reports.
             if members.contains(&CLEAR) {
-                return Some(self.cited(&RFC_7838_3,
-                    severity,
+                return Some(ctx.report_with(
+                    &ALT_SVC_CLEAR_CONFLICTING,
                     format!(
                         "Alt-Svc response carries both the keyword `clear` and alternative services ('{}'). `Alt-Svc = clear / 1#alt-value` is an alternation, so a value holding both derives from neither half -- the document calls this an invalid reply and has a client invalidate the alternatives named beside the keyword",
                         shown_in_finding(value)
@@ -848,14 +856,15 @@ mod tests {
     /// a test asserting `is_some` cannot see the two disagree.
     ///
     /// The third column is the defect the finding reports as, and the table
-    /// splits cleanly in two. A named row is a production RFC 7838 imports —
-    /// the list, the `token`, the `quoted-string`, the `uri-host`, the `port`,
-    /// the `pct-encoded` triplet — and the id is the one every other reader of
-    /// that production answers with. An empty row is a sentence RFC 7838 writes
-    /// about `Alt-Svc` and nothing else: which of its `=` delimiters are
-    /// mandatory, that it prints no whitespace beside them, how an ALPN name is
-    /// spelled, what `persist` means, and that `clear` is the whole value or
-    /// none of it.
+    /// splits cleanly in three. Most named rows are a production RFC 7838
+    /// imports — the list, the `token`, the `quoted-string`, the `uri-host`,
+    /// the `port`, the `pct-encoded` triplet — and the id is the one every
+    /// other reader of that production answers with. One named row is the
+    /// field's own, `alt_svc_clear_conflicting`, which no other field can
+    /// report. An empty row is a sentence RFC 7838 writes about `Alt-Svc` and
+    /// nothing else, waiting for the entry that will hold it: which of its `=`
+    /// delimiters are mandatory, that it prints no whitespace beside them, how
+    /// an ALPN name is spelled, and what `persist` means.
     #[rstest]
     #[case(
         "h2=example.com:443",
@@ -936,7 +945,7 @@ mod tests {
     #[case(
         "clear, h2=\":443\"",
         "both the keyword `clear` and alternative services",
-        ""
+        "alt_svc_clear_conflicting"
     )]
     #[case("CLEAR", "case-sensitive string", "")]
     #[case(",", "empty field value", "list_member_missing")]
