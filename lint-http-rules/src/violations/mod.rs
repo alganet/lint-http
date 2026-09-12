@@ -419,14 +419,21 @@ mod tests {
     /// the threshold was reached. So `spec` is a slice, both entries name both
     /// sections, and the count below is of entries with **at least** one.
     ///
-    /// **What is left uncited is the first two reasons only** — both about
-    /// sentences that do not exist. An entry naming two is still the exception
+    /// **A third reason has since been written, and it is about a sentence that
+    /// does not exist either**: `keep_alive_timeout_invalid` reports a value
+    /// above a bound *an operator configured*, and no document states a maximum
+    /// for that parameter. It is the first entry whose limit belongs to neither
+    /// a specification nor this crate, and a reference on it would dress a
+    /// deployment's policy as a requirement.
+    ///
+    /// **What is left uncited is those three reasons only** — every one of them
+    /// about sentences that do not exist. An entry naming two is still the exception
     /// rather than a licence: no finding of one carries a citation, because
     /// none of the sentences governs the message on its own.
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 232;
+        const FLOOR: usize = 235;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
