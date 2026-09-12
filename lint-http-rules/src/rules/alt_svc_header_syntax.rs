@@ -14,7 +14,8 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::alt_svc::{
     ALT_SVC_ALTERNATIVE_EQUALS_MISSING, ALT_SVC_CLEAR_CONFLICTING,
     ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EMPTY, ALT_SVC_PARAMETER_EQUALS_MISSING,
-    ALT_SVC_PARAMETER_VALUE_EMPTY, ALT_SVC_PERSIST_INVALID, RFC_7838_3, RFC_7838_3_1,
+    ALT_SVC_PARAMETER_VALUE_EMPTY, ALT_SVC_PERSIST_INVALID, ALT_SVC_PROTOCOL_ID_INVALID,
+    RFC_7838_3, RFC_7838_3_1,
 };
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
@@ -36,13 +37,14 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Twenty-three defects over five subjects, and RFC 7838 defines seven of them.
+/// Twenty-four defects over five subjects, and RFC 7838 defines eight of them.
 ///
-/// The seven are the field's own: the alternation at the top of it, the two `=`
+/// The eight are the field's own: the alternation at the top of it, the two `=`
 /// delimiters it prints, the whitespace it prints nowhere near them, the two
-/// halves a parameter can be written without, and the one parameter this
-/// document gives a value to. Everything else here is imported, and the
-/// paragraph below is where each import comes from.
+/// halves a parameter can be written without, the one parameter this document
+/// gives a value to, and the single spelling it allows an ALPN protocol name.
+/// Everything else here is imported, and the paragraph below is where each
+/// import comes from.
 ///
 /// § 1.1 says where the notation comes from and § 3 says where the productions
 /// do: the `#rule` extension is RFC 7230 § 7's, whose sender requirement is the
@@ -52,13 +54,12 @@ use crate::violations::ViolationDef;
 /// `port` out of RFC 3986. So an `alt-authority` of `"a]b:443"` reports the
 /// same defect a `Forwarded` `for=` and a `Warning`'s `warn-agent` do.
 ///
-/// **Six findings stay this document's and are not named yet.** Two are the
-/// ALPN name's percent-encoding spelling, which is this field's alone; two are
-/// `alt-authority`'s prose, which requires the colon and the port the ABNF
-/// leaves optional; one is a port outside the sixteen-bit namespace an ALPN
-/// name implies; and one is § 8's A-labels. Every one is a sentence about
-/// `Alt-Svc` and no other field, so every one of them is the `alt_svc`
-/// subject's, as the seven already there were.
+/// **Four findings stay this document's and are not named yet**, and all four
+/// are the `alt-authority`'s: the prose requiring the colon and the port the
+/// ABNF leaves optional, a port outside the sixteen-bit namespace an ALPN name
+/// implies, and § 8's A-labels. Every one is a sentence about `Alt-Svc` and no
+/// other field, so every one of them is the `alt_svc` subject's, as the eight
+/// already there were.
 ///
 /// **Nothing here borrows from the `parameter` subject, and the reason is one
 /// sentence repeated three times.** RFC 7838 § 3's `parameter` is not
@@ -89,6 +90,7 @@ static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_PARAMETER_VALUE_EMPTY,
     &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
     &ALT_SVC_PERSIST_INVALID,
+    &ALT_SVC_PROTOCOL_ID_INVALID,
     &LIST_MEMBER_EMPTY,
     &LIST_MEMBER_MISSING,
     &TOKEN_EMPTY,
@@ -112,7 +114,7 @@ static DECLARED: &[&ViolationDef] = &[
 ///
 /// The shape `expect_header_valid` settled: a judge that is half converted says
 /// so in its type. Here the halves are five subjects' ids — four imported and
-/// this field's own — against the six sentences RFC 7838 writes about
+/// this field's own — against the four sentences RFC 7838 writes about
 /// `Alt-Svc` that no entry holds yet.
 struct Defect {
     def: Option<&'static ViolationDef>,
@@ -172,10 +174,10 @@ fn whitespace_beside_delimiter(left: &str, right: &str) -> bool {
 /// The three sentences RFC 7838 § 3 adds on top of `protocol-id = token`.
 ///
 /// A `token` admits `%`, so the character scan cannot see any of them. Each is
-/// a MUST or a MUST NOT addressed to whoever writes the field, and together
-/// they are what the section's closing sentence rests on -- *"With these
-/// constraints, recipients can apply simple string comparison to match protocol
-/// identifiers."* A protocol-id spelled two ways is two protocols to every
+/// a MUST or a MUST NOT addressed to whoever writes the field, and all three
+/// are one requirement: the purpose they are stated for and the comparison they
+/// buy live on `alt_svc_protocol_id_invalid`, which is the one entry all three
+/// report as. A protocol-id spelled two ways is two protocols to every
 /// recipient reading it that way.
 ///
 /// `helpers::uri::check_percent_encoding` declines the uppercase question on
@@ -184,10 +186,8 @@ fn whitespace_beside_delimiter(left: &str, right: &str) -> bool {
 /// here, because this document states it as a MUST for this one production.
 // cite(RFC 7838 § 3): "Octets not allowed in tokens ([RFC7230], Section 3.2.6) MUST be percent-encoded as per Section 2.1 of [RFC3986]."
 // cite(RFC 7838 § 3): "Consequently, the octet representing the percent character "%" (hex 25) MUST be percent-encoded as well."
-// cite(RFC 7838 § 3): "In order to have precisely one way to represent any ALPN protocol name, the following additional constraints apply:"
 // cite(RFC 7838 § 3): "Octets in the ALPN protocol name MUST NOT be percent-encoded if they are valid token characters except "%", and"
 // cite(RFC 7838 § 3): "When using percent-encoding, uppercase hex digits MUST be used."
-// cite(RFC 7838 § 3): "With these constraints, recipients can apply simple string comparison to match protocol identifiers."
 // cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
 fn protocol_id_encoding_defect(protocol_id: &str) -> Option<Defect> {
     // The triplet's *shape* is `helpers::uri::percent_encoding_defect`'s, and it
@@ -218,19 +218,25 @@ fn protocol_id_encoding_defect(protocol_id: &str) -> Option<Defect> {
         // Both are `HEXDIG`; the scan above returned `None`.
         let (hi, lo) = (bytes[i + 1] as char, bytes[i + 2] as char);
         if hi.is_ascii_lowercase() || lo.is_ascii_lowercase() {
-            return Some(Defect::unnamed(format!(
-                "the triplet '%{hi}{lo}' at offset {i} uses lowercase hex digits, and this field requires uppercase ones so that two spellings of one ALPN protocol name cannot exist"
-            )));
+            return Some(Defect::named(
+                &ALT_SVC_PROTOCOL_ID_INVALID,
+                format!(
+                    "the triplet '%{hi}{lo}' at offset {i} uses lowercase hex digits, and this field requires uppercase ones so that two spellings of one ALPN protocol name cannot exist"
+                ),
+            ));
         }
         // The escaping table's third row is why `%25` is exempt: `%` is a
         // `tchar`, and it is the one `tchar` this document requires to be
         // encoded rather than forbids.
         let octet = (hi.to_digit(16)? * 16 + lo.to_digit(16)?) as u8;
         if octet != b'%' && crate::helpers::token::is_tchar_byte(octet) {
-            return Some(Defect::unnamed(format!(
-                "the triplet '%{hi}{lo}' at offset {i} encodes {}, which is a `tchar` and so must appear as itself -- this field admits exactly one spelling per ALPN protocol name",
-                describe_char(octet as char)
-            )));
+            return Some(Defect::named(
+                &ALT_SVC_PROTOCOL_ID_INVALID,
+                format!(
+                    "the triplet '%{hi}{lo}' at offset {i} encodes {}, which is a `tchar` and so must appear as itself -- this field admits exactly one spelling per ALPN protocol name",
+                    describe_char(octet as char)
+                ),
+            ));
         }
         i += 3;
     }
@@ -944,11 +950,15 @@ mod tests {
     )]
     #[case("h@=\":443\"", "which is no `tchar`", "token_character_forbidden")]
     #[case("=\":443\"", "empty protocol-id", "token_empty")]
-    #[case("x%3dy=\":443\"", "lowercase hex digits", "")]
+    #[case(
+        "x%3dy=\":443\"",
+        "lowercase hex digits",
+        "alt_svc_protocol_id_invalid"
+    )]
     #[case(
         "%68%32=\":443\"",
         "which is a `tchar` and so must appear as itself",
-        ""
+        "alt_svc_protocol_id_invalid"
     )]
     #[case(
         "x%zzy=\":443\"",

@@ -38,10 +38,17 @@
 //! the value optional and tolerates the whitespace at `info`. **A production of
 //! the same name written in another document is another production.**
 //!
+//! **The `protocol-id`'s spelling is here as well, and it is one entry for
+//! three sentences.** § 3 constrains the percent-encoding of an ALPN protocol
+//! name three ways and says what for — *precisely one way to represent* it —
+//! and every one of the three ends in the same place: two spellings of one name
+//! where the recipient does simple string comparison. The name itself, once the
+//! spelling is undone, is [`alpn`](crate::violations::alpn)'s.
+//!
 //! **What is still not written here** is the rest of
-//! `alt_svc_header_syntax`'s reading: a percent-encoding this field's
-//! one-spelling constraint forbids, and an `alt-authority` naming no port.
-//! Those are this subject's too.
+//! `alt_svc_header_syntax`'s reading: the `alt-authority`'s prose, which asks
+//! for a colon and a port the ABNF leaves optional, and the A-labels § 8 asks
+//! an internationalized name to be written as. Those are this subject's too.
 //
 // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
 
@@ -249,6 +256,42 @@ defects! {
         spec: &[RFC_7838_3],
     }
 
+    /// A `protocol-id` that is a well-formed `token` of well-formed triplets
+    /// and is not the one spelling this field allows for the name it stands
+    /// for: `x%3dy` for `x%3Dy`, or `%68%32` for `h2`.
+    ///
+    /// § 3 states three constraints and states them for one declared purpose —
+    /// *"In order to have precisely one way to represent any ALPN protocol
+    /// name"*. Octets no `token` admits are percent-encoded, `%` itself is
+    /// written `%25`, octets that *are* `tchar`s are not encoded at all, and
+    /// the hex digits are uppercase. **A `token` admits `%`, so no character
+    /// scan can see any of this**: every value reaching this entry has already
+    /// derived from the production.
+    ///
+    /// **One entry for the constraints, because they are one requirement and
+    /// the defect they describe is one defect.** Both spellings decode to the
+    /// right name — that is what makes them spellings rather than errors — and
+    /// what breaks is the closing sentence they exist for: *"recipients can
+    /// apply simple string comparison to match protocol identifiers"*. A
+    /// recipient comparing `%68%32` against `h2` finds two protocols where the
+    /// sender meant one, whichever constraint was broken. The message says
+    /// which triplet and why; the id says the name has more than one spelling.
+    ///
+    /// `_invalid`, on the same line `persist` is: every octet derives and what
+    /// fails is one level past the grammar. `warn` — the alternative is
+    /// advertised for a protocol no recipient will match, so it is lost the way
+    /// an unreadable member is.
+    ///
+    // cite(RFC 7838 § 3): "In order to have precisely one way to represent any ALPN protocol name, the following additional constraints apply:"
+    // cite(RFC 7838 § 3): "With these constraints, recipients can apply simple string comparison to match protocol identifiers."
+    ALT_SVC_PROTOCOL_ID_INVALID = {
+        id: "alt_svc_protocol_id_invalid",
+        title: "Alt-Svc protocol-id is not the one spelling this field allows for its ALPN name",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
     /// A `persist` parameter carrying anything but `1`.
     ///
     /// **The layer above a grammar**, and the second entry in this catalogue to
@@ -370,6 +413,20 @@ mod tests {
         assert!(ALT_SVC_PARAMETER_EMPTY.id.ends_with("_empty"));
         assert!(ALT_SVC_PARAMETER_VALUE_EMPTY.id.ends_with("_empty"));
         assert!(ALT_SVC_PARAMETER_EQUALS_MISSING.id.ends_with("_missing"));
+    }
+
+    /// The two entries about a value that derives perfectly and is still wrong
+    /// are the two `_invalid` ones, and they rank apart: a spelling nobody will
+    /// match costs the alternative, and a `persist` nobody will read costs a
+    /// hint. Neither is `_malformed`, which is the word for a value that does
+    /// not derive at all.
+    #[test]
+    fn the_entries_past_the_grammar_are_the_invalid_ones() {
+        assert_eq!(ALT_SVC_PROTOCOL_ID_INVALID.default_severity, Severity::Warn);
+        assert!(
+            ALT_SVC_PERSIST_INVALID.default_severity < ALT_SVC_PROTOCOL_ID_INVALID.default_severity
+        );
+        assert_eq!(ALT_SVC_PROTOCOL_ID_INVALID.spec, [RFC_7838_3]);
     }
 
     /// The two parameters § 3.1 defines rank apart, and the axis is what a

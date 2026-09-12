@@ -1095,6 +1095,10 @@ severity = "warn"
 # Alt-Svc sets persist to a value the parameter does not define
 severity = "info"
 
+[violations.alt_svc_protocol_id_invalid]
+# Alt-Svc protocol-id is not the one spelling this field allows for its ALPN name
+severity = "warn"
+
 [violations.auth_scheme_character_forbidden]
 # Authentication scheme holds a character outside token
 severity = "warn"
