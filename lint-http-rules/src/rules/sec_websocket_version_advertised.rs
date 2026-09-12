@@ -7,8 +7,51 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::websocket::version_production_defect;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::sec_websocket_version::{
+    version_defect, RFC_6455_4_3, SEC_WEBSOCKET_VERSION_EMPTY, SEC_WEBSOCKET_VERSION_MALFORMED,
+};
+use crate::violations::ViolationDef;
 
 pub struct SecWebsocketVersionAdvertised;
+
+/// The terminal every member of this list is, and nothing else this rule says.
+///
+/// `Sec-WebSocket-Version-Server = 1#version` is a list of the same production
+/// the request's field is one of, so a member that derives from no `version`
+/// reports what the request's does — the entries are the terminal's and neither
+/// direction owns them. What is left over is this field's own: a list
+/// advertising nothing, and an advertisement naming the version the request
+/// asked for. Both are still unnamed, and the judge says so in its type.
+static DECLARED: &[&ViolationDef] = &[
+    &SEC_WEBSOCKET_VERSION_EMPTY,
+    &SEC_WEBSOCKET_VERSION_MALFORMED,
+];
+
+/// One finding from the reading, and the entry the catalogue names it where it
+/// has one.
+///
+/// The shape `expect_header_valid` settled: a judge that is half converted says
+/// so in its type.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed yet, reported at the rule's severity the
+    /// way every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+}
 
 impl SecWebsocketVersionAdvertised {
     /// The versions this response advertises, in the order it wrote them, with
@@ -38,7 +81,7 @@ impl SecWebsocketVersionAdvertised {
     ///
     /// cite(RFC 6455 § 4.3, label: Sec-WebSocket-Version-Server): "Sec-WebSocket-Version-Server = 1#version"
     /// cite(RFC 6455 § 4.4): "If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use."
-    fn defect(resp_headers: &hyper::HeaderMap, requested: Option<&str>) -> Option<String> {
+    fn defect(resp_headers: &hyper::HeaderMap, requested: Option<&str>) -> Option<Defect> {
         let value = combined_field_value_as_written(resp_headers, "sec-websocket-version")?;
         let advertised = Self::advertised(&value);
 
@@ -47,19 +90,26 @@ impl SecWebsocketVersionAdvertised {
         //
         // cite(RFC 2616 § 2.1): "Therefore, where at least one element is required, at least one non-null element MUST be present."
         if advertised.is_empty() {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "advertises no version: '{}'. The field is `1#version` in a response, and the list \
                  construct this grammar uses allows null elements but requires at least one that \
                  is not",
                 shown_in_finding(&value)
-            ));
+            )));
         }
 
         for member in &advertised {
             if let Some(defect) = version_production_defect(member) {
-                return Some(format!(
-                    "advertises '{}', which derives from no `version`: {defect}",
-                    shown_in_finding(member)
+                // The terminal's entries, which the request's field reports
+                // through the same reader: a member of this list and the whole
+                // of that value are the same production and the same defect.
+                return Some(Defect::named(
+                    version_defect(defect),
+                    format!(
+                        "advertises '{}', which derives from no `version`: {}",
+                        shown_in_finding(member),
+                        defect.message()
+                    ),
                 ));
             }
         }
@@ -76,14 +126,14 @@ impl SecWebsocketVersionAdvertised {
         // cite(RFC 6455 § 11.3.5): "In such a case, the header field includes the protocol version(s) supported by the server."
         if let Some(requested) = requested {
             if advertised.contains(&requested) {
-                return Some(format!(
+                return Some(Defect::unnamed(format!(
                     "advertises '{}', which includes the version the request asked for ('{}'): the \
                      field is in a response because the version received from the client did not \
                      match one the server understood, so listing it says both that the server does \
                      not speak it and that it does",
                     shown_in_finding(&value),
                     shown_in_finding(requested)
-                ));
+                )));
             }
         }
 
@@ -94,14 +144,6 @@ impl SecWebsocketVersionAdvertised {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6455_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("4.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
-    note: "Collected ABNF — `Sec-WebSocket-Version-Server = 1#version`, the `version` \
-           production under it, the suffix convention that makes this field the \
-           response's, and the note that the notation is RFC 2616's",
-};
 const RFC_2616_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 2616",
     section: Some("2.1"),
@@ -144,6 +186,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_6455_4_3, RFC_2616_2_1, RFC_6455_4_4, RFC_6455_11_3_5]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -213,12 +259,16 @@ impl Rule for SecWebsocketVersionAdvertised {
                 combined_field_value_as_written(&tx.request.headers, "sec-websocket-version")
                     .map(|raw| trim_ows(&raw).to_string());
 
-            let message = Self::defect(&resp.headers, requested.as_deref())?;
+            let defect = Self::defect(&resp.headers, requested.as_deref())?;
+            let message = format!(
+                "The response to a WebSocket opening handshake {}",
+                defect.message
+            );
 
-            Some(self.violation(
-                ctx.severity,
-                format!("The response to a WebSocket opening handshake {message}"),
-            ))
+            Some(match defect.def {
+                Some(def) => ctx.report_with(def, message),
+                None => self.violation(ctx.severity, message),
+            })
         };
         Vec::from_iter(finding())
     }

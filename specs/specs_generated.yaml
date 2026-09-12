@@ -1115,7 +1115,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
       line: 312
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 48
+      line: 91
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
       line: 86
   - label: sec_websocket_extensions_syntax (3)
@@ -1125,7 +1125,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
       line: 311
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 24
+      line: 67
 - label: RFC 2617
   url: https://www.rfc-editor.org/rfc/rfc2617.html
   fragments:
@@ -1702,7 +1702,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 534
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 210
+      line: 249
     - file: lint-http-rules/src/violations/base64.rs
       line: 71
     - file: lint-http-rules/src/violations/base64.rs
@@ -1712,13 +1712,13 @@ sources:
     snippet: MAY chose to reject an encoding if the pad bits have not been set to zero.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 167
+      line: 206
   - label: lint-http-rules/src/helpers/websocket.rs (2)
     section: § 3.5
     snippet: These pad bits MUST be set to zero by conforming encoders, which is described in the descriptions on padding below.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 211
+      line: 250
     - file: lint-http-rules/src/violations/base64.rs
       line: 130
 - label: RFC 5234
@@ -2557,7 +2557,7 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
       line: 38
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 102
+      line: 108
   - label: lint-http-proxy/src/proxy/websocket/mod.rs (2)
     section: § 4.1
     snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
@@ -2565,7 +2565,7 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
       line: 37
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 110
+      line: 149
   - label: lint-http-proxy/src/proxy/websocket/observer.rs
     section: § 5.5.1
     snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
@@ -2579,55 +2579,55 @@ sources:
     snippet: (as a string, not base64-decoded) with the string
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 311
+      line: 350
   - label: lint-http-rules/src/helpers/websocket.rs (2)
     section: § 4.1
     snippet: The method of the request MUST be GET, and the HTTP version MUST be at least 1.1.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 109
+      line: 148
   - label: Sec-WebSocket-Key nonce
     section: § 4.1
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 212
+      line: 251
   - label: lint-http-rules/src/helpers/websocket.rs (3)
     section: § 4.1
     snippet: but ignoring any leading and trailing whitespace
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 293
+      line: 332
   - label: lint-http-rules/src/helpers/websocket.rs (4)
     section: § 4.2.1
     snippet: An |Upgrade| header field containing the value "websocket", treated as an ASCII case-insensitive value.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 111
+      line: 150
   - label: lint-http-rules/src/helpers/websocket.rs (5)
     section: § 4.2.2
     snippet: It is not necessary for the server to base64-decode the |Sec-WebSocket-Key| value.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 292
+      line: 331
   - label: lint-http-rules/src/helpers/websocket.rs (6)
     section: § 4.2.2
     snippet: server would append the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" to form the string
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 272
+      line: 311
   - label: lint-http-rules/src/helpers/websocket.rs (7)
     section: § 4.2.2
     snippet: taking the SHA-1 hash of this concatenated value to obtain a 20-byte value
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 314
+      line: 353
   - label: Sec-WebSocket-Key grammar
     section: § 4.3
     snippet: Sec-WebSocket-Key = base64-value-non-empty
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 142
+      line: 181
   - label: Sec-WebSocket-Version
     section: § 4.3
     snippet: Sec-WebSocket-Version-Client = version
@@ -2640,6 +2640,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 47
+    - file: lint-http-rules/src/violations/sec_websocket_version.rs
+      line: 62
+    - file: lint-http-rules/src/violations/sec_websocket_version.rs
+      line: 86
   - label: extension repetition
     section: § 9.1
     snippet: extension = extension-token *( ";" extension-param )
@@ -2697,19 +2701,19 @@ sources:
     snippet: The ABNF for the value of this header field is 1#token, where the definitions of constructs and rules are as given in [RFC2616].
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 204
+      line: 218
   - label: sec_websocket_headers_consistent (2)
     section: § 4.1
     snippet: The elements that comprise this value MUST be non-empty strings with characters in the range U+0021 to U+007E not including separator characters as defined in [RFC2616] and MUST all be unique strings.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 203
+      line: 217
   - label: sec_websocket_headers_consistent (3)
     section: § 4.1
     snippet: The request MUST include a header field with the name |Sec-WebSocket-Key|.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 174
+      line: 188
     - file: lint-http-rules/src/violations/sec_websocket_key.rs
       line: 63
   - label: sec_websocket_headers_consistent (4)
@@ -2717,25 +2721,25 @@ sources:
     snippet: The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 126
+      line: 132
   - label: sec_websocket_headers_consistent (5)
     section: § 4.2.1
     snippet: A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 103
+      line: 109
   - label: sec_websocket_headers_consistent (6)
     section: § 4.2.1
     snippet: An HTTP/1.1 or higher GET request
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 408
+      line: 416
   - label: sec_websocket_headers_consistent (7)
     section: § 4.2.1
     snippet: the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 409
+      line: 417
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 65
   - label: Sec-WebSocket-Protocol
@@ -2743,29 +2747,29 @@ sources:
     snippet: Sec-WebSocket-Protocol-Client = 1#token
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 205
+      line: 219
   - label: Sec-WebSocket-Version-Server
     section: § 4.3
     snippet: Sec-WebSocket-Version-Server = 1#version
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 134
+      line: 140
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 39
+      line: 82
   - label: sec_websocket_headers_consistent (8)
     section: § 4.4
     snippet: If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 154
+      line: 168
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 40
+      line: 83
   - label: sec_websocket_headers_consistent (9)
     section: § 4.4
     snippet: a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 153
+      line: 167
   - label: sec_websocket_key
     section: § 4.1
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded (see Section 4 of [RFC4648]).
@@ -2777,25 +2781,25 @@ sources:
     snippet: In such a case, the header field includes the protocol version(s) supported by the server.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 76
+      line: 126
   - label: sec_websocket_version_advertised (2)
     section: § 11.3.5
     snippet: The |Sec-WebSocket-Version| header field is also sent from the server to the client on WebSocket handshake error, when the version received from the client does not match a version understood by the server.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 75
+      line: 125
   - label: sec_websocket_version_advertised (3)
     section: § 4.3
     snippet: ABNF rules with the "-Client" suffix in the name are only used in requests sent by the client to the server; ABNF rules with the "-Server" suffix in the name are only used in responses sent by the server to the client.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 182
+      line: 228
   - label: sec_websocket_version_advertised (4)
     section: § 4.3
     snippet: This section is using ABNF syntax/rules from Section 2.1 of [RFC2616], including the "implied *LWS rule".
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 23
+      line: 66
   - label: websocket_frame_masking
     section: § 5.1
     snippet: A client MUST close a connection if it detects a masked frame.
@@ -4479,19 +4483,19 @@ sources:
     snippet: Implementations using this extended CONNECT to bootstrap WebSockets do not do the processing of the Sec-WebSocket-Key and Sec-WebSocket-Accept header fields of [RFC6455] as that functionality has been superseded by the :protocol pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 114
+      line: 153
   - label: lint-http-rules/src/helpers/websocket.rs (2)
     section: § 5
     snippet: This request replaces the GET-based request in [RFC6455] and is used to process the WebSockets opening handshake.
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 112
+      line: 151
   - label: lint-http-rules/src/helpers/websocket.rs (3)
     section: § 5
     snippet: '[RFC6455] requires the use of Connection and Upgrade header fields that are not part of HTTP/2.  They MUST NOT be included in the CONNECT request defined here.'
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 113
+      line: 152
 - label: RFC 8447
   url: https://www.rfc-editor.org/rfc/rfc8447.html
   fragments:
@@ -6647,7 +6651,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 324
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 213
+      line: 227
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -7351,7 +7355,7 @@ sources:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 73
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 209
+      line: 248
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 127
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
@@ -7611,7 +7615,7 @@ sources:
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
       line: 197
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 206
+      line: 220
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 506
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -11117,7 +11121,7 @@ sources:
     snippet: The semantics of the pseudo-header fields and setting are identical to those in HTTP/2 as defined in [RFC8441].
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 115
+      line: 154
 - label: RFC 9457
   url: https://www.rfc-editor.org/rfc/rfc9457.html
   fragments:

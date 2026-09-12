@@ -45,40 +45,79 @@ use sha1::Digest;
 /// `-Client`/`-Server` suffixes make those the two fields' own questions.
 // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Version): "Sec-WebSocket-Version-Client = version"
 // cite(RFC 6455 § 4.3, label: version): "version = DIGIT | (NZDIGIT DIGIT) | ("1" DIGIT DIGIT) | ("2" DIGIT DIGIT) ; Limited to 0-255 range, with no leading zeros"
-pub fn version_production_defect(value: &str) -> Option<String> {
+pub fn version_production_defect(value: &str) -> Option<VersionDefect> {
     if value.is_empty() {
-        return Some(
-            "it is empty, and every alternative of `version` spells at least one DIGIT".into(),
-        );
+        return Some(VersionDefect::Empty);
     }
     if let Some(c) = value.chars().find(|c| !c.is_ascii_digit()) {
-        return Some(format!(
-            "it contains {}, and `version` is spelled in DIGITs alone",
-            describe_octet(c as u8)
-        ));
+        return Some(VersionDefect::Character(c as u8));
     }
     if value.len() > 3 {
-        return Some(format!(
-            "it is {} characters, and no alternative of `version` is longer than three digits",
-            value.len()
-        ));
+        return Some(VersionDefect::TooLong(value.len()));
     }
     if value.len() > 1 && value.starts_with('0') {
-        return Some(
-            "it carries a leading zero, and the production admits none: `NZDIGIT` is the \
-             first digit of every alternative longer than one"
-                .into(),
-        );
+        return Some(VersionDefect::LeadingZero);
     }
     // Three digits beginning with a `2` do derive from the alternation, and the
     // comment printed under it is what stops at 255 -- so this last one is
     // arithmetic rather than shape.
     if value.parse::<u16>().is_ok_and(|n| n > 255) {
-        return Some(
-            "it is above 255, which is where the comment printed under the production stops".into(),
-        );
+        return Some(VersionDefect::AboveRange);
     }
     None
+}
+
+/// Which of `version`'s terminals a value failed.
+///
+/// Five variants rather than one "malformed" verdict, for the reason
+/// [`SecWebSocketKeyDefect`] has four: the advice "expected 13" is not something
+/// the sender of `Sec-WebSocket-Version: 013` can act on. What the catalogue
+/// does with them is coarser than this — an empty value and a value that
+/// derives from nothing are two entries and these five are the second of them —
+/// because the *sender* of any of the four is one sender who wrote a number the
+/// production does not spell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VersionDefect {
+    /// No characters at all, where every alternative spells at least one DIGIT.
+    Empty,
+    /// An octet that is not a DIGIT.
+    Character(u8),
+    /// More digits than the longest alternative holds.
+    TooLong(usize),
+    /// A leading zero, which `NZDIGIT` admits in no alternative longer than one.
+    LeadingZero,
+    /// Three digits the alternation derives and the comment beneath it stops:
+    /// `256` through `299`.
+    AboveRange,
+}
+
+impl VersionDefect {
+    /// The finding fragment. Callers name the field and the value, and put this
+    /// after "which derives from no `version`".
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => {
+                "it is empty, and every alternative of `version` spells at least one DIGIT"
+                    .to_string()
+            }
+            Self::Character(b) => format!(
+                "it contains {}, and `version` is spelled in DIGITs alone",
+                describe_octet(b)
+            ),
+            Self::TooLong(len) => format!(
+                "it is {len} characters, and no alternative of `version` is longer than three \
+                 digits"
+            ),
+            Self::LeadingZero => "it carries a leading zero, and the production admits none: \
+                                  `NZDIGIT` is the first digit of every alternative longer than \
+                                  one"
+            .to_string(),
+            Self::AboveRange => {
+                "it is above 255, which is where the comment printed under the production stops"
+                    .to_string()
+            }
+        }
+    }
 }
 
 /// Whether this request is RFC 6455's opening handshake, and the version it

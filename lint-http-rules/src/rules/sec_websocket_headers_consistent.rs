@@ -19,6 +19,10 @@ use crate::violations::list::{
 use crate::violations::sec_websocket_key::{
     RFC_6455_4_1, SEC_WEBSOCKET_KEY_LENGTH_INVALID, SEC_WEBSOCKET_KEY_MISSING,
 };
+use crate::violations::sec_websocket_version::{
+    version_defect as version_violation, RFC_6455_4_3, SEC_WEBSOCKET_VERSION_EMPTY,
+    SEC_WEBSOCKET_VERSION_MALFORMED,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -56,6 +60,8 @@ static DECLARED: &[&ViolationDef] = &[
     &BASE64_PAD_BITS_INVALID,
     &SEC_WEBSOCKET_KEY_MISSING,
     &SEC_WEBSOCKET_KEY_LENGTH_INVALID,
+    &SEC_WEBSOCKET_VERSION_EMPTY,
+    &SEC_WEBSOCKET_VERSION_MALFORMED,
     &LIST_MEMBER_MISSING,
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -124,7 +130,7 @@ impl SecWebsocketHeadersConsistent {
     /// first: whether the value derives from `version`, and then whether the version
     /// it names is the one this document defines.
     // cite(RFC 6455 § 4.1): "The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13."
-    fn version_defect(headers: &hyper::HeaderMap) -> Option<String> {
+    fn version_defect(headers: &hyper::HeaderMap) -> Option<Defect> {
         // The lines are joined before the value is read, and joining them is what
         // makes a second one visible: the client's field is one `version` and the
         // list form belongs to the server, which is how a server answers with the
@@ -133,14 +139,22 @@ impl SecWebsocketHeadersConsistent {
         // message clean.
         // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Version-Server): "Sec-WebSocket-Version-Server = 1#version"
         let Some(raw) = combined_field_value_as_written(headers, "sec-websocket-version") else {
-            return Some("the request carries no Sec-WebSocket-Version header field".into());
+            return Some(Defect::unnamed(
+                "the request carries no Sec-WebSocket-Version header field".into(),
+            ));
         };
         let value = trim_ows(&raw);
         if let Some(defect) = version_production_defect(value) {
-            return Some(format!(
-                "its Sec-WebSocket-Version is `{}`, which derives from no `version`: {}",
-                shown_in_finding(value),
-                defect
+            // The production's two entries, whichever of the reader's five
+            // verdicts arrived: the message keeps the verdict and the id keeps
+            // the defect.
+            return Some(Defect::named(
+                version_violation(defect),
+                format!(
+                    "its Sec-WebSocket-Version is `{}`, which derives from no `version`: {}",
+                    shown_in_finding(value),
+                    defect.message()
+                ),
             ));
         }
         if value == "13" {
@@ -152,12 +166,12 @@ impl SecWebsocketHeadersConsistent {
         // which protocol this handshake is for, and this document defines one of them.
         // cite(RFC 6455 § 4.4): "a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)"
         // cite(RFC 6455 § 4.4): "If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use."
-        Some(format!(
+        Some(Defect::unnamed(format!(
             "its Sec-WebSocket-Version is `{}`, so it is not a handshake for the version this \
              document defines; RFC 6455 § 4.4 makes that a version advertisement, and the \
              answer it asks a server for is a 400 carrying the versions the server will speak",
             shown_in_finding(value)
-        ))
+        )))
     }
 
     /// The `Sec-WebSocket-Key` half.
@@ -275,12 +289,6 @@ const RFC_6455_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.2.1"),
     url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
     note: "Reading the Client's Opening Handshake — the same list from the server's side, which is where the two case-insensitive comparisons and the `Origin` decline are stated",
-};
-const RFC_6455_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("4.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
-    note: "Collected ABNF — `Sec-WebSocket-Key = base64-value-non-empty`, `Sec-WebSocket-Version-Client = version`, `Sec-WebSocket-Protocol-Client = 1#token`; the client's version field is one `version` and only the server's is a list",
 };
 const RFC_6455_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
@@ -422,7 +430,7 @@ impl Rule for SecWebsocketHeadersConsistent {
             let defect = [
                 Self::connection_defect(&req.headers).map(Defect::unnamed),
                 Self::key_defect(&req.headers),
-                Self::version_defect(&req.headers).map(Defect::unnamed),
+                Self::version_defect(&req.headers),
                 Self::subprotocol_defect(&req.headers),
             ]
             .into_iter()
