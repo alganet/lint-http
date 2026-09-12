@@ -14,7 +14,7 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::alt_svc::{
     ALT_SVC_ALTERNATIVE_EQUALS_MISSING, ALT_SVC_CLEAR_CONFLICTING,
     ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EMPTY, ALT_SVC_PARAMETER_EQUALS_MISSING,
-    ALT_SVC_PARAMETER_VALUE_EMPTY, RFC_7838_3,
+    ALT_SVC_PARAMETER_VALUE_EMPTY, ALT_SVC_PERSIST_INVALID, RFC_7838_3, RFC_7838_3_1,
 };
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
@@ -36,12 +36,13 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Twenty-two defects over five subjects, and RFC 7838 defines six of them.
+/// Twenty-three defects over five subjects, and RFC 7838 defines seven of them.
 ///
-/// The six are the field's own: the alternation at the top of it, the two `=`
-/// delimiters it prints, the whitespace it prints nowhere near them, and the
-/// two halves a parameter can be written without. Everything else here is
-/// imported, and the paragraph below is where each import comes from.
+/// The seven are the field's own: the alternation at the top of it, the two `=`
+/// delimiters it prints, the whitespace it prints nowhere near them, the two
+/// halves a parameter can be written without, and the one parameter this
+/// document gives a value to. Everything else here is imported, and the
+/// paragraph below is where each import comes from.
 ///
 /// § 1.1 says where the notation comes from and § 3 says where the productions
 /// do: the `#rule` extension is RFC 7230 § 7's, whose sender requirement is the
@@ -51,13 +52,13 @@ use crate::violations::ViolationDef;
 /// `port` out of RFC 3986. So an `alt-authority` of `"a]b:443"` reports the
 /// same defect a `Forwarded` `for=` and a `Warning`'s `warn-agent` do.
 ///
-/// **Seven findings stay this document's and are not named yet.** Two are the
+/// **Six findings stay this document's and are not named yet.** Two are the
 /// ALPN name's percent-encoding spelling, which is this field's alone; two are
 /// `alt-authority`'s prose, which requires the colon and the port the ABNF
 /// leaves optional; one is a port outside the sixteen-bit namespace an ALPN
-/// name implies; one is `persist`'s single literal; and one is § 8's A-labels.
-/// Every one is a sentence about `Alt-Svc` and no other field, so every one of
-/// them is the `alt_svc` subject's, as the six already there were.
+/// name implies; and one is § 8's A-labels. Every one is a sentence about
+/// `Alt-Svc` and no other field, so every one of them is the `alt_svc`
+/// subject's, as the seven already there were.
 ///
 /// **Nothing here borrows from the `parameter` subject, and the reason is one
 /// sentence repeated three times.** RFC 7838 § 3's `parameter` is not
@@ -87,6 +88,7 @@ static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_PARAMETER_EMPTY,
     &ALT_SVC_PARAMETER_VALUE_EMPTY,
     &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
+    &ALT_SVC_PERSIST_INVALID,
     &LIST_MEMBER_EMPTY,
     &LIST_MEMBER_MISSING,
     &TOKEN_EMPTY,
@@ -110,7 +112,7 @@ static DECLARED: &[&ViolationDef] = &[
 ///
 /// The shape `expect_header_valid` settled: a judge that is half converted says
 /// so in its type. Here the halves are five subjects' ids — four imported and
-/// this field's own — against the seven sentences RFC 7838 writes about
+/// this field's own — against the six sentences RFC 7838 writes about
 /// `Alt-Svc` that no entry holds yet.
 struct Defect {
     def: Option<&'static ViolationDef>,
@@ -500,15 +502,18 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<Defect> {
     // § 3.1 prints a syntax for this parameter, and the syntax is one
     // literal. The sentence beside it is addressed to clients rather than
     // to the sender, which is what makes the finding a report of what the
-    // value will be treated as rather than of a refusal.
+    // value will be treated as rather than of a refusal -- and what puts the
+    // entry at `info`, since being ignored leaves the alternative exactly as
+    // persistent as one that never asked.
     // cite(RFC 7838 § 3.1): "Alternative services that are intended to be longer lived (such as those that are not specific to the client access network) can carry the "persist" parameter with a value "1" as a hint that the service is potentially useful beyond a network configuration change."
-    // cite(RFC 7838 § 3.1): "This specification only defines a single value for "persist"."
-    // cite(RFC 7838 § 3.1): "Clients MUST ignore "persist" parameters with values other than "1"."
     if name == "persist" && unquoted != "1" {
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc alt-value '{shown}' sets persist to '{}'. The registered syntax for this parameter is the single literal \"1\", and a client is required to ignore every other value -- so this alternative carries no persistence hint at all",
-            shown_in_finding(&unquoted)
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_PERSIST_INVALID,
+            format!(
+                "Alt-Svc alt-value '{shown}' sets persist to '{}'. The registered syntax for this parameter is the single literal \"1\", and a client is required to ignore every other value -- so this alternative carries no persistence hint at all",
+                shown_in_finding(&unquoted)
+            ),
+        ));
     }
     None
 }
@@ -609,12 +614,6 @@ fn check_alt_value(member: &str) -> Option<Defect> {
 /// defined in `violations/alt_svc.rs` beside that entry's quote and imported
 /// back here. A reference on a def and a reference in `specifications()` are
 /// compared by value, so there is one definition or there is a silent split.
-const RFC_7838_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7838",
-    section: Some("3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
-    note: "Caching Alt-Svc Header Field Values: `persist = \"1\"` is the whole syntax of that parameter, and clients ignore any other value",
-};
 const RFC_7838_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7838",
     section: Some("1.1"),
@@ -966,8 +965,16 @@ mod tests {
         "whitespace beside the \'=\'",
         "alt_svc_equals_whitespace_forbidden"
     )]
-    #[case("h2=\":443\"; persist=2", "sets persist to \'2\'", "")]
-    #[case("h2=\":443\"; persist=\"0\"", "sets persist to \'0\'", "")]
+    #[case(
+        "h2=\":443\"; persist=2",
+        "sets persist to \'2\'",
+        "alt_svc_persist_invalid"
+    )]
+    #[case(
+        "h2=\":443\"; persist=\"0\"",
+        "sets persist to \'0\'",
+        "alt_svc_persist_invalid"
+    )]
     #[case(
         "h2=\":443\"; ;",
         "semicolon with no parameter after it",

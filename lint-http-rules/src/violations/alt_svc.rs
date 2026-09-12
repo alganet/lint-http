@@ -40,14 +40,24 @@
 //!
 //! **What is still not written here** is the rest of
 //! `alt_svc_header_syntax`'s reading: a percent-encoding this field's
-//! one-spelling constraint forbids, an `alt-authority` naming no port, and what
-//! `persist` means. Those are this subject's too.
+//! one-spelling constraint forbids, and an `alt-authority` naming no port.
+//! Those are this subject's too.
 //
 // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+
+/// What the two parameters this document defines are for: how long an
+/// advertisement stays fresh, and the one literal `persist` is allowed to
+/// carry.
+pub const RFC_7838_3_1: SpecRef = SpecRef {
+    spec: "RFC 7838",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
+    note: "Caching Alt-Svc Header Field Values: the `ma` parameter's delta-seconds value states how long the alternative is considered fresh, and `persist` has exactly one defined value — `\"1\"` — with clients required to ignore any other",
+};
 
 /// The field: its grammar, the `clear` keyword, and what a recipient does with
 /// a value carrying that keyword beside an alternative service.
@@ -239,6 +249,37 @@ defects! {
         spec: &[RFC_7838_3],
     }
 
+    /// A `persist` parameter carrying anything but `1`.
+    ///
+    /// **The layer above a grammar**, and the second entry in this catalogue to
+    /// live there: every production in sight derives `persist=2` — the name is
+    /// a `token`, the value is a `token` — and what refuses it is the
+    /// subsection that defines the parameter. § 3.1 prints one value and one
+    /// only, and tells clients to ignore every other, so a value the grammar
+    /// admits is a value the parameter does not have. `_invalid` is exactly
+    /// that: grammatical, and refused past the grammar.
+    ///
+    /// **`info`, and the argument is the recipient's failure mode.** A client
+    /// that ignores the parameter treats the alternative as *not* persistent,
+    /// which is what an alternative with no `persist` at all is — the
+    /// conservative reading, and the one a network change re-checks. So the
+    /// sender lost a hint it wanted and nobody lost correctness, which is the
+    /// same severity argument the qualified cache directives make one field
+    /// over. It ranks below [`ALT_SVC_MA_INVALID`] for the same reason: an
+    /// implausible lifetime is an advertisement a client will not use, and an
+    /// unreadable `persist` is an advertisement it will use exactly as far as
+    /// the next network change.
+    ///
+    // cite(RFC 7838 § 3.1): "This specification only defines a single value for "persist"."
+    // cite(RFC 7838 § 3.1): "Clients MUST ignore "persist" parameters with values other than "1"."
+    ALT_SVC_PERSIST_INVALID = {
+        id: "alt_svc_persist_invalid",
+        title: "Alt-Svc sets persist to a value the parameter does not define",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_7838_3_1],
+    }
+
     /// A freshness lifetime that derives from `delta-seconds` and states
     /// nothing a client can use: `ma=0`, which is stale on arrival, or a value
     /// so far above any deployment's horizon that it is a typo.
@@ -329,6 +370,20 @@ mod tests {
         assert!(ALT_SVC_PARAMETER_EMPTY.id.ends_with("_empty"));
         assert!(ALT_SVC_PARAMETER_VALUE_EMPTY.id.ends_with("_empty"));
         assert!(ALT_SVC_PARAMETER_EQUALS_MISSING.id.ends_with("_missing"));
+    }
+
+    /// The two parameters § 3.1 defines rank apart, and the axis is what a
+    /// recipient does when the value is no use: `persist` is ignored, which
+    /// leaves the alternative exactly as persistent as one that never asked,
+    /// where an implausible `ma` is an advertisement a client will not act on
+    /// at all. Both cite the section that gives the parameters their meaning,
+    /// or would — the lifetime's ends are the entry with no sentence.
+    #[test]
+    fn the_ignored_parameter_ranks_below_the_unusable_one() {
+        assert_eq!(ALT_SVC_PERSIST_INVALID.default_severity, Severity::Info);
+        assert!(ALT_SVC_PERSIST_INVALID.default_severity < ALT_SVC_MA_INVALID.default_severity);
+        assert_eq!(ALT_SVC_PERSIST_INVALID.spec, [RFC_7838_3_1]);
+        assert!(ALT_SVC_MA_INVALID.spec.is_empty());
     }
 
     /// The two entries are the subject's two ends, and they rank apart for a

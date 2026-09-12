@@ -1091,6 +1091,10 @@ severity = "warn"
 # Alt-Svc parameter is written with no value after its '='
 severity = "warn"
 
+[violations.alt_svc_persist_invalid]
+# Alt-Svc sets persist to a value the parameter does not define
+severity = "info"
+
 [violations.auth_scheme_character_forbidden]
 # Authentication scheme holds a character outside token
 severity = "warn"
