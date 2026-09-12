@@ -1723,6 +1723,14 @@ severity = "error"
 # A request-target carries whitespace
 severity = "error"
 
+[violations.sec_websocket_accept_conflicting]
+# Sec-WebSocket-Accept is not the value the request's key derives
+severity = "error"
+
+[violations.sec_websocket_accept_missing]
+# A WebSocket handshake response carries no Sec-WebSocket-Accept
+severity = "error"
+
 [violations.sec_websocket_extensions_empty]
 # Sec-WebSocket-Extensions names no extension
 severity = "error"

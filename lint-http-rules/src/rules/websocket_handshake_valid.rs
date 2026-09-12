@@ -11,6 +11,9 @@ use crate::helpers::websocket::{
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::sec_websocket_accept::{
+    SEC_WEBSOCKET_ACCEPT_CONFLICTING, SEC_WEBSOCKET_ACCEPT_MISSING,
+};
 use crate::violations::sec_websocket_extensions::SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED;
 use crate::violations::sec_websocket_protocol::{
     RFC_6455_4_2_2, SEC_WEBSOCKET_PROTOCOL_EMPTY, SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
@@ -64,9 +67,17 @@ pub struct WebsocketHandshakeValid;
 /// see, and which is why the entry sits in a subject otherwise spelled entirely
 /// out of § 9.1's ABNF.
 ///
-/// Everything else this rule reads is still unnamed and says so through
-/// [`Defect`], which is a finding no subject has claimed.
+/// `Sec-WebSocket-Accept` is the subject this rule brought into the catalogue,
+/// because it is the only rule that can read it: the value is derived from a
+/// field of the *request*, so nothing holding one message alone can say whether
+/// it is right.
+///
+/// What is left unnamed is the response's `Upgrade` and `Connection`, and the
+/// `101` that completed a handshake a server was required to refuse. All three
+/// say so through [`Defect`], which is a finding no subject has claimed.
 static DECLARED: &[&ViolationDef] = &[
+    &SEC_WEBSOCKET_ACCEPT_CONFLICTING,
+    &SEC_WEBSOCKET_ACCEPT_MISSING,
     &SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED,
     &SEC_WEBSOCKET_PROTOCOL_EMPTY,
     &SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
@@ -260,12 +271,15 @@ impl WebsocketHandshakeValid {
     fn accept_defect(
         req_headers: &hyper::HeaderMap,
         resp_headers: &hyper::HeaderMap,
-    ) -> Option<String> {
+    ) -> Option<Defect> {
         let key = combined_field_value_as_written(req_headers, "sec-websocket-key")?;
         let expected = compute_accept(&key)?;
         let Some(raw) = combined_field_value_as_written(resp_headers, "sec-websocket-accept")
         else {
-            return Some("it carries no Sec-WebSocket-Accept header field".into());
+            return Some(Defect::named(
+                &SEC_WEBSOCKET_ACCEPT_MISSING,
+                "it carries no Sec-WebSocket-Accept header field".into(),
+            ));
         };
         // The clause of the sentence above that reads "but ignoring any leading and
         // trailing whitespace" — and `OWS` is what whitespace means on a value read
@@ -276,10 +290,13 @@ impl WebsocketHandshakeValid {
         if value == expected {
             return None;
         }
-        Some(format!(
-            "its Sec-WebSocket-Accept is `{}`, where the value derived from the request's \
-             Sec-WebSocket-Key is `{expected}`",
-            shown_in_finding(value)
+        Some(Defect::named(
+            &SEC_WEBSOCKET_ACCEPT_CONFLICTING,
+            format!(
+                "its Sec-WebSocket-Accept is `{}`, where the value derived from the request's \
+                 Sec-WebSocket-Key is `{expected}`",
+                shown_in_finding(value)
+            ),
         ))
     }
 
@@ -608,7 +625,7 @@ impl Rule for WebsocketHandshakeValid {
                 Self::refusable_handshake(&req.headers).map(Defect::unnamed),
                 Self::upgrade_defect(&resp.headers).map(Defect::unnamed),
                 Self::connection_defect(&resp.headers).map(Defect::unnamed),
-                Self::accept_defect(&req.headers, &resp.headers).map(Defect::unnamed),
+                Self::accept_defect(&req.headers, &resp.headers),
                 Self::extensions_defect(&req.headers, &resp.headers),
                 Self::subprotocol_defect(&req.headers, &resp.headers),
             ]
@@ -868,10 +885,11 @@ mod tests {
             101,
             vec![("upgrade", "websocket"), ("connection", "Upgrade")],
         );
-        assert!(run(&tx)
-            .unwrap()
+        let found = run(&tx).unwrap();
+        assert!(found
             .message
             .contains("carries no Sec-WebSocket-Accept header field"));
+        assert_eq!(found.violation, "sec_websocket_accept_missing");
 
         let tx = make_ws_tx(
             handshake_request(),
@@ -884,6 +902,7 @@ mod tests {
         );
         let v = run(&tx).unwrap();
         assert!(v.message.contains(ACCEPT), "{}", v.message);
+        assert_eq!(v.violation, "sec_websocket_accept_conflicting");
     }
 
     /// The whitespace this comparison ignores is `OWS`. An octet that merely looks
