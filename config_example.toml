@@ -1727,6 +1727,22 @@ severity = "warn"
 # Weight is not a qvalue
 severity = "warn"
 
+[violations.range_position_malformed]
+# Range position is not 1*DIGIT
+severity = "warn"
+
+[violations.range_positions_conflicting]
+# Range asks for a last-pos below its first-pos
+severity = "error"
+
+[violations.range_spec_character_forbidden]
+# Range specifier holds an octet no range-spec admits
+severity = "warn"
+
+[violations.range_spec_malformed]
+# A bytes range specifier derives from neither of the unit's two forms
+severity = "warn"
+
 [violations.request_target_asterisk_forbidden]
 # The asterisk target is sent with a method other than OPTIONS
 severity = "error"

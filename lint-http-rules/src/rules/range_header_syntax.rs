@@ -7,6 +7,10 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
+use crate::violations::range::{
+    RANGE_POSITIONS_CONFLICTING, RANGE_POSITION_MALFORMED, RANGE_SPEC_CHARACTER_FORBIDDEN,
+    RANGE_SPEC_MALFORMED, RFC_9110_14_1_1, RFC_9110_14_1_2,
+};
 use crate::violations::ViolationDef;
 
 pub struct RangeHeaderSyntax;
@@ -19,62 +23,50 @@ pub struct RangeHeaderSyntax;
 /// them with the ids an `Accept-Ranges`, a `Warning` or an `Accept-Patch`
 /// reports them with.
 ///
-/// **Everything else here is § 14.1.1's, including the arithmetic that looks
-/// shared.** `last-pos` below `first-pos` is stated twice in this document, once
-/// for this field and once for `Content-Range`, and the catalogue holds the
-/// other one as `content_range_positions_conflicting`: two sections, two
-/// sentences, two fields, and one of the ids is spelled for the field it was
-/// written at. The numerals, the two `bytes` forms, the `other-range` octets and
-/// the `range-unit` this rule does not model are all the same — a specifier
-/// grammar the section says in as many words is generic, whose meaning each unit
-/// supplies for itself.
-static DECLARED: &[&ViolationDef] = &[&LIST_MEMBER_MISSING, &LIST_MEMBER_EMPTY];
+/// **Everything else here is the [`range`](crate::violations::range) subject's,
+/// including the arithmetic that looks shared.** `last-pos` below `first-pos` is
+/// stated twice in this document, once for this field and once for
+/// `Content-Range`, and the catalogue holds the other one as
+/// `content_range_positions_conflicting`: two sections, two sentences, two
+/// fields, and neither id is the other's to borrow. The three positions are one
+/// entry between them — one production written three times, and a sender that
+/// put a sign in one of them made one mistake — while the octets and the
+/// withdrawn `other-range` are two, because the first is true of every unit and
+/// the second only of `bytes`.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_MISSING,
+    &LIST_MEMBER_EMPTY,
+    &RANGE_SPEC_CHARACTER_FORBIDDEN,
+    &RANGE_SPEC_MALFORMED,
+    &RANGE_POSITION_MALFORMED,
+    &RANGE_POSITIONS_CONFLICTING,
+];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the entry it reports as.
 ///
-/// The shape `expect_header_valid` settled, at its smallest: two of this rule's
-/// eight verdicts are the list construct's and the other six are the range
-/// specifier's own, so the `None` is the common case rather than the exception.
+/// The shape `expect_header_valid` settled, carried here while two of this
+/// rule's eight verdicts were the list construct's and the other six had no
+/// subject — **and the `Option` is gone now that the specifier has one**, which
+/// is what a rule does when its last arm is named.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed: what this section says about a
-    /// specifier rather than about the list carrying it.
-    fn unnamed(message: impl Into<String>) -> Self {
-        Self {
-            def: None,
-            message: message.into(),
-        }
+        Self { def, message }
     }
 }
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_14_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("14.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.1",
-    note: "Range Specifiers: `ranges-specifier = range-unit \"=\" range-set`, and the grammar under it is generic — each range unit says which of `int-range`, `suffix-range` and `other-range` its specifiers may use. A ranges-specifier is invalid when it holds a range-spec \"that is invalid or undefined for the indicated range-unit\", which is the sentence every check here rests on and the one that bounds them to the unit the rule knows",
-};
-const RFC_9110_14_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("14.1.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2",
-    note: "Byte Ranges: the two forms the `bytes` unit defines, both `1*DIGIT`, with `other-range` withdrawn for this unit. It also requires recipients to anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows — so positions are compared as digits and no ceiling is imposed — and it defines satisfiability, which is a question about the representation and not about the field",
-};
+///
+/// § 14.1.1 and § 14.1.2 are not written here: they are the sentences the
+/// [`range`](crate::violations::range) entries enforce, so both references live
+/// beside those entries and are imported back.
 const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("14.2"),
@@ -235,10 +227,7 @@ impl Rule for RangeHeaderSyntax {
             // cite(RFC 9110 § 14.1.1): "A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit."
             if let Err(defect) = validate_range_set(&unit, range_set) {
                 let message = format!("Invalid Range header '{}': {}", value, defect.message);
-                return Some(match defect.def {
-                    Some(def) => ctx.report_with(def, message),
-                    None => self.cited(&RFC_9110_14_1_1, ctx.severity, message),
-                });
+                return Some(ctx.report_with(defect.def, message));
             }
 
             // Three things a well-formed ranges-specifier can still be, none of them
@@ -341,10 +330,13 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), Defect> {
         //
         // cite(RFC 9110 § 14.1.1, label: other-range grammar): "other-range   = 1*( %x21-2B / %x2D-7E )"
         if let Some(c) = spec.chars().find(|c| !c.is_ascii_graphic()) {
-            return Err(Defect::unnamed(format!(
-                "range-spec '{}' holds {:?}, which no range-spec admits",
-                spec, c
-            )));
+            return Err(Defect::named(
+                &RANGE_SPEC_CHARACTER_FORBIDDEN,
+                format!(
+                    "range-spec '{}' holds {:?}, which no range-spec admits",
+                    spec, c
+                ),
+            ));
         }
 
         // The one unit whose specifiers this rule can go on to read. The name is
@@ -391,25 +383,28 @@ fn validate_bytes_range_spec(spec: &str) -> Result<(), Defect> {
         return if is_digits(suffix_length) {
             Ok(())
         } else {
-            Err(Defect::unnamed(format!(
-                "suffix-range '{}' is not '-' followed by 1*DIGIT",
-                spec
-            )))
+            Err(Defect::named(
+                &RANGE_POSITION_MALFORMED,
+                format!("suffix-range '{}' is not '-' followed by 1*DIGIT", spec),
+            ))
         };
     }
 
     // cite(RFC 9110 § 14.1.1, label: int-range grammar): "int-range     = first-pos "-" [ last-pos ]"
     let Some((first, last)) = spec.split_once('-') else {
-        return Err(Defect::unnamed(format!(
-            "byte range-spec '{}' is neither an int-range nor a suffix-range",
-            spec
-        )));
+        return Err(Defect::named(
+            &RANGE_SPEC_MALFORMED,
+            format!(
+                "byte range-spec '{}' is neither an int-range nor a suffix-range",
+                spec
+            ),
+        ));
     };
     if !is_digits(first) {
-        return Err(Defect::unnamed(format!(
-            "first-pos '{}' is not 1*DIGIT",
-            first
-        )));
+        return Err(Defect::named(
+            &RANGE_POSITION_MALFORMED,
+            format!("first-pos '{}' is not 1*DIGIT", first),
+        ));
     }
 
     // The square brackets. A `first-pos` with no `last-pos` after it is the whole
@@ -422,18 +417,18 @@ fn validate_bytes_range_spec(spec: &str) -> Result<(), Defect> {
         return Ok(());
     }
     if !is_digits(last) {
-        return Err(Defect::unnamed(format!(
-            "last-pos '{}' is not 1*DIGIT",
-            last
-        )));
+        return Err(Defect::named(
+            &RANGE_POSITION_MALFORMED,
+            format!("last-pos '{}' is not 1*DIGIT", last),
+        ));
     }
 
     // cite(RFC 9110 § 14.1.1): "An int-range is invalid if the last-pos value is present and less than the first-pos."
     if is_less_than(last, first) {
-        return Err(Defect::unnamed(format!(
-            "last-pos {} is less than first-pos {}",
-            last, first
-        )));
+        return Err(Defect::named(
+            &RANGE_POSITIONS_CONFLICTING,
+            format!("last-pos {} is less than first-pos {}", last, first),
+        ));
     }
     Ok(())
 }
@@ -556,21 +551,22 @@ mod tests {
     }
 
     /// The two floors of `1#range-spec`, answering with the ids every other
-    /// list-valued field answers with, and the verdicts that stay this
-    /// section's. The last row is the one worth reading twice: the arithmetic
-    /// is `Content-Range`'s too and the sentence is not, so the id the
-    /// catalogue already holds for that field is not borrowed here.
+    /// list-valued field answers with, and the verdicts that are this section's
+    /// own. The last row is the one worth reading twice: the arithmetic is
+    /// `Content-Range`'s too and the sentence is not, so that field's id is not
+    /// borrowed here — the two run in opposite directions and cite different
+    /// sections.
     #[rstest]
     #[case("bytes=", "list_member_missing")]
     #[case("items=", "list_member_missing")]
     #[case("bytes=1-2,,3-4", "list_member_empty")]
     #[case("bytes=1-2,", "list_member_empty")]
-    #[case("items=0 1", "")]
-    #[case("bytes=abc", "")]
-    #[case("bytes=-", "")]
-    #[case("bytes=a-5", "")]
-    #[case("bytes=5-a", "")]
-    #[case("bytes=5-3", "")]
+    #[case("items=0 1", "range_spec_character_forbidden")]
+    #[case("bytes=abc", "range_spec_malformed")]
+    #[case("bytes=-", "range_position_malformed")]
+    #[case("bytes=a-5", "range_position_malformed")]
+    #[case("bytes=5-a", "range_position_malformed")]
+    #[case("bytes=5-3", "range_positions_conflicting")]
     fn the_list_construct_is_borrowed_and_the_specifier_is_not(
         #[case] value: &str,
         #[case] id: &str,
