@@ -9,8 +9,9 @@ use crate::violations::authority::{
 };
 use crate::violations::request_target::{
     REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
-    REQUEST_TARGET_CONNECT_FORM_INVALID, REQUEST_TARGET_EMPTY, REQUEST_TARGET_MALFORMED,
-    REQUEST_TARGET_WHITESPACE_FORBIDDEN, RFC_9110_2_2, RFC_9110_7_1, RFC_9112_3_2, RFC_9112_3_2_3,
+    REQUEST_TARGET_CONNECT_FORM_INVALID, REQUEST_TARGET_EMPTY, REQUEST_TARGET_FORM_AMBIGUOUS,
+    REQUEST_TARGET_MALFORMED, REQUEST_TARGET_WHITESPACE_FORBIDDEN, RFC_9110_2_2, RFC_9110_7_1,
+    RFC_9112_3_2, RFC_9112_3_2_3,
 };
 use crate::violations::ViolationDef;
 
@@ -19,6 +20,12 @@ use crate::violations::ViolationDef;
 /// method-specific form and is stated once for every version of HTTP. The HTTP/2
 /// and HTTP/3 pseudo-header rules declare the same entry for the same defect
 /// spelled as a `:path`.
+///
+/// **The overlap is the last of them, and the only one that condemns nothing**:
+/// a target deriving from the authority-form and the absolute-form at once is
+/// reported as the ambiguity it is, because one of its two readings is
+/// conforming and the request-line says nothing that chooses. With it this rule
+/// declares an entry for every finding it makes.
 ///
 /// **A CONNECT in some other form is the third**, and it is the mirror of the
 /// second: § 7.1 forbids another method from reaching for CONNECT's form, and
@@ -58,6 +65,7 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTHORITY_TUNNEL_HOST_EMPTY,
     &AUTHORITY_TUNNEL_PORT_EMPTY,
     &REQUEST_TARGET_CONNECT_FORM_INVALID,
+    &REQUEST_TARGET_FORM_AMBIGUOUS,
 ];
 
 /// Which of the four productions a request-target derives from.
@@ -336,11 +344,12 @@ impl Rule for RequestTargetFormValid {
             // defined rather than in either version's syntax.
             // cite(RFC 9110 § 7.1): "There are two unusual cases for which the request target components are in a method-specific form"
             // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
-            // The judge yields the defect the catalogue names beside the wording,
-            // which is the shape `expect_header_valid` settled for a half-converted
-            // one: exactly one arm has an entry, and the rest are readings of the
-            // request-line that no id names yet.
-            let (def, message) = match (&form, method) {
+            // The judge yields the defect the catalogue names beside the wording.
+            // Every arm has one now, so the pair is a `&ViolationDef` and not an
+            // `Option` of one: the half-converted shape `expect_header_valid`
+            // settled is gone from here, and with it the arm that reported at the
+            // rule's own severity.
+            let (def, message): (&'static ViolationDef, String) = match (&form, method) {
                 // A CONNECT is judged against the one form it may be in, whichever of
                 // the others it is in instead -- and against the *contents* of that
                 // form, because both halves of `uri-host ":" port` are `*`-quantified
@@ -350,7 +359,7 @@ impl Rule for RequestTargetFormValid {
                 // cite(RFC 9112 § 3.2.3): "It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":")."
                 // cite(RFC 9112 § 3.2.3): "When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target."
                 (Some(TargetForm::Authority { host: "", .. }), "CONNECT") => (
-                    Some(&AUTHORITY_TUNNEL_HOST_EMPTY),
+                    &AUTHORITY_TUNNEL_HOST_EMPTY,
                     format!(
                         "CONNECT request-target '{shown}' names no host. `uri-host` derives the empty string -- `reg-name` is `*( unreserved / pct-encoded / sub-delims )` -- so the grammar admits this, and the tunnel destination is a host name and a port number, of which a recipient here has at most one"
                     ),
@@ -360,21 +369,21 @@ impl Rule for RequestTargetFormValid {
                 // client does when the target URI has no port to copy.
                 // cite(RFC 9112 § 3.2.3): "The client obtains the host and port from the target URI's authority component, except that it sends the scheme's default port if the target URI elides the port."
                 (Some(TargetForm::Authority { port: "", .. }), "CONNECT") => (
-                    Some(&AUTHORITY_TUNNEL_PORT_EMPTY),
+                    &AUTHORITY_TUNNEL_PORT_EMPTY,
                     format!(
                         "CONNECT request-target '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and a client with no port to copy sends the scheme's default one -- a recipient reading this has a host and no number to open the tunnel on"
                     ),
                 ),
                 (Some(TargetForm::Authority { .. }), "CONNECT") => return None,
                 (Some(other), "CONNECT") => (
-                    Some(&REQUEST_TARGET_CONNECT_FORM_INVALID),
+                    &REQUEST_TARGET_CONNECT_FORM_INVALID,
                     format!(
                         "CONNECT request-target '{shown}' is {}, and a CONNECT sends only the host and port of the tunnel destination, separated by a colon. A recipient has nowhere to open the tunnel to",
                         other.named()
                     ),
                 ),
                 (None, "CONNECT") => (
-                    Some(&REQUEST_TARGET_MALFORMED),
+                    &REQUEST_TARGET_MALFORMED,
                     format!(
                         "CONNECT request-target '{shown}' derives from none of the four forms, and a CONNECT sends only the host and port of the tunnel destination, separated by a colon. A recipient has nowhere to open the tunnel to"
                     ),
@@ -386,7 +395,7 @@ impl Rule for RequestTargetFormValid {
                 // cite(RFC 9112 § 3.2.4): "The "asterisk-form" of request-target is only used for a server-wide OPTIONS request"
                 // cite(RFC 9112 § 3.2.4): "When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target."
                 (Some(TargetForm::Asterisk), m) if m != "OPTIONS" => (
-                    Some(&REQUEST_TARGET_ASTERISK_FORBIDDEN),
+                    &REQUEST_TARGET_ASTERISK_FORBIDDEN,
                     format!(
                         "Asterisk-form request-target '*' was sent with method '{m}'. The asterisk is the request target of a server-wide OPTIONS request and of nothing else, and the two method-specific forms must not be used with other methods, so '{m} *' names nothing for the request to be applied to"
                     ),
@@ -405,7 +414,7 @@ impl Rule for RequestTargetFormValid {
                     }),
                     m,
                 ) => (
-                    None,
+                    &REQUEST_TARGET_FORM_AMBIGUOUS,
                     format!(
                         "Request-target '{shown}' was sent with method '{m}' and derives from two of the four forms: as a host and port it is the host '{host}' on port '{port}', which is a CONNECT's request target and no other method's, and as an absolute-URI it asks a proxy for a resource in a scheme named '{host}'. Nothing else in the request-line chooses between them, so two recipients on the same chain may route it two ways"
                     ),
@@ -414,7 +423,7 @@ impl Rule for RequestTargetFormValid {
                 // port and nothing else -- and it is CONNECT's.
                 // cite(RFC 9112 § 3.2.3): "The "authority-form" of request-target is only used for CONNECT requests"
                 (Some(TargetForm::Authority { .. }), m) => (
-                    Some(&REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN),
+                    &REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
                     format!(
                         "Authority-form request-target '{shown}' was sent with method '{m}'. The host-and-port form is a CONNECT's request target and no other method's, and the two method-specific forms must not be used with other methods"
                     ),
@@ -440,17 +449,14 @@ impl Rule for RequestTargetFormValid {
                 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
                 // cite(RFC 9112 § 3.2): "Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded."
                 (None, _) => (
-                    Some(&REQUEST_TARGET_MALFORMED),
+                    &REQUEST_TARGET_MALFORMED,
                     format!(
                         "Request-target '{shown}' derives from none of the four forms: it is not an absolute path, not a full target URI with a scheme, not a host and port, and not the asterisk. The request-line carrying it is invalid, and a recipient is asked to answer 400 (Bad Request) rather than guess which was meant"
                     ),
                 ),
             };
 
-            Some(match def {
-                Some(def) => ctx.report_with(def, message),
-                None => self.violation(ctx.severity, message),
-            })
+            Some(ctx.report_with(def, message))
         };
         Vec::from_iter(finding())
     }
@@ -464,6 +470,40 @@ static REGISTRATION: &dyn crate::rules::Rule = &RequestTargetFormValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// A value that derives from both the authority-form and the absolute-form
+    /// reports the ambiguity rather than either reading of it: `example.com` is
+    /// a `scheme` as well as a `reg-name`, and nothing else in the request-line
+    /// chooses. The unambiguous case beside it — a left half no `scheme` can
+    /// open — is the entry that says the MUST NOT was broken.
+    #[rstest]
+    #[case("example.com:443", "request_target_form_ambiguous")]
+    #[case("tel:8005551212", "request_target_form_ambiguous")]
+    #[case("192.0.2.1:443", "request_target_authority_form_forbidden")]
+    fn an_overlap_reports_the_ambiguity_and_not_a_verdict(
+        #[case] target: &str,
+        #[case] violation: &str,
+    ) {
+        let rule = RequestTargetFormValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = "GET".into();
+        tx.request.uri = target.into();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, violation, "{target}");
+        // The ambiguous one carries no citation, because no sentence is known to
+        // have been broken; its neighbour carries § 7.1's.
+        assert_eq!(
+            v.cite.is_some(),
+            violation != "request_target_form_ambiguous",
+            "{target}"
+        );
+    }
 
     /// A CONNECT whose target is one of the other three forms names no tunnel
     /// destination. `_invalid` rather than `_malformed`: the value derives from

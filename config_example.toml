@@ -1695,6 +1695,10 @@ severity = "error"
 # A request-line carries no request-target
 severity = "error"
 
+[violations.request_target_form_ambiguous]
+# A request-target derives from two of the four forms at once
+severity = "warn"
+
 [violations.request_target_malformed]
 # A request-target derives from none of the four forms
 severity = "error"

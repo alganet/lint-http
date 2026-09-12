@@ -431,6 +431,7 @@ mod tests {
     /// "Violation ids" in `docs/development.md`, beside the claim it breaks;
     /// this array and that table are extended in one commit or not at all.
     const DEFECT_ENDINGS: &[&str] = &[
+        "ambiguous",
         "conflicting",
         "duplicated",
         "empty",

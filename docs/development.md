@@ -126,6 +126,7 @@ member is malformed".
 | Permitted, and almost certainly not what was meant | `_redundant` | — |
 | Sent in answer to something the other side never asked for | `_unsolicited` | — |
 | Sent in the direction its definition does not describe | `_misdirected` | — |
+| Derives from two productions at once, and nothing chooses | `_ambiguous` | — |
 | Retired by a later specification | `_obsolete` | — |
 
 `_redundant` is the one ending that condemns nothing: it names work a message
@@ -144,6 +145,23 @@ code; not `_invalid`, since no value is being measured past its grammar; and not
 status code's definition is written in terms of a request that did not happen. A
 rule reporting one of these has to read both messages, which is why the subject
 is the status code and never the field it is read against.
+
+`_ambiguous` is the one ending that reports no verdict about the message. An
+alternation's alternatives are usually told apart by a committing delimiter — a
+`quoted-string` opens with a `"`, an `IP-literal` with a `[` — and where one
+exists, a value belongs to exactly one alternative and any defect is that
+alternative's. Where none exists, a value can derive from two at once, and
+`GET example.com:443` is the case worth naming: read as an authority-form it is
+CONNECT's request-target used by a method that may not, and read as an
+absolute-URI it is a perfectly ordinary proxy request for a resource under a
+scheme named `example.com`. Nothing else in the request-line chooses. So it is
+not `_malformed` (it derives), not `_invalid` (under one reading it is
+acceptable), not `_forbidden` (no sentence prohibits what it may be), and not
+`_conflicting` (nothing in the message disagrees with anything else in it — the
+message disagrees with itself only in the reading). What the finding says is that
+two recipients on one chain may route it two ways, which is why an entry ending
+this way defaults to `warn` and never to `error`: **the report is about the
+ambiguity and not about a defect the message can be shown to have.**
 
 `_misdirected` is the ending for a field that landed on the wrong side of the
 exchange. RFC 9110 §10 sorts nine fields into the ones that say something about
