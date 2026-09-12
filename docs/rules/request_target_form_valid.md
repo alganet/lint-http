@@ -30,7 +30,7 @@ Reads an HTTP/1.x request-line's request-target and asks two things: which of th
 ## Specifications
 
 - [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2): Request Target — `request-target = origin-form / absolute-form / authority-form / asterisk-form`, no whitespace allowed in any of them, the recipient's SHOULD to answer 400 rather than autocorrect, and why: a request-line like that might be crafted to bypass a filter along the chain
-- [RFC 9112 §3.2.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3): authority-form: CONNECT's target, and where the port number is asked for in prose rather than in the grammar
+- [RFC 9112 §3.2.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3): authority-form — `authority-form = uri-host ":" port`, the MUST that a CONNECT send only the host and port of the tunnel destination as its request-target, and the form being used for CONNECT requests only
 - [RFC 9112 §3.2.4](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.4): asterisk-form: the server-wide OPTIONS request's target
 - [RFC 9110 §7.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1): Determining the Target Resource — the two method-specific forms, the MUST NOT that keeps each to its method, and the reconstruction being specific to each major protocol version
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): Conformance — a sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules

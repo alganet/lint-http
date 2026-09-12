@@ -9,8 +9,8 @@ use crate::violations::authority::{
 };
 use crate::violations::request_target::{
     REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
-    REQUEST_TARGET_EMPTY, REQUEST_TARGET_MALFORMED, REQUEST_TARGET_WHITESPACE_FORBIDDEN,
-    RFC_9110_2_2, RFC_9110_7_1, RFC_9112_3_2,
+    REQUEST_TARGET_CONNECT_FORM_INVALID, REQUEST_TARGET_EMPTY, REQUEST_TARGET_MALFORMED,
+    REQUEST_TARGET_WHITESPACE_FORBIDDEN, RFC_9110_2_2, RFC_9110_7_1, RFC_9112_3_2, RFC_9112_3_2_3,
 };
 use crate::violations::ViolationDef;
 
@@ -19,6 +19,13 @@ use crate::violations::ViolationDef;
 /// method-specific form and is stated once for every version of HTTP. The HTTP/2
 /// and HTTP/3 pseudo-header rules declare the same entry for the same defect
 /// spelled as a `:path`.
+///
+/// **A CONNECT in some other form is the third**, and it is the mirror of the
+/// second: § 7.1 forbids another method from reaching for CONNECT's form, and
+/// RFC 9112 § 3.2.3 requires CONNECT to use it. Two directions, two sentences,
+/// two ids — and this one can only ever have this declarer, because the
+/// multiplexed versions cannot tell a basic CONNECT with a `:path` from RFC
+/// 8441's extended one.
 ///
 /// **Two of what it reports are not the target's at all**: a CONNECT naming a
 /// port and no host, and one ending at the colon with no port, are the tunnel
@@ -50,6 +57,7 @@ static DECLARED: &[&ViolationDef] = &[
     &REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
     &AUTHORITY_TUNNEL_HOST_EMPTY,
     &AUTHORITY_TUNNEL_PORT_EMPTY,
+    &REQUEST_TARGET_CONNECT_FORM_INVALID,
 ];
 
 /// Which of the four productions a request-target derives from.
@@ -164,12 +172,6 @@ pub struct RequestTargetFormValid;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9112_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("3.2.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3",
-    note: "authority-form: CONNECT's target, and where the port number is asked for in prose rather than in the grammar",
-};
 const RFC_9112_3_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
     section: Some("3.2.4"),
@@ -365,7 +367,7 @@ impl Rule for RequestTargetFormValid {
                 ),
                 (Some(TargetForm::Authority { .. }), "CONNECT") => return None,
                 (Some(other), "CONNECT") => (
-                    None,
+                    Some(&REQUEST_TARGET_CONNECT_FORM_INVALID),
                     format!(
                         "CONNECT request-target '{shown}' is {}, and a CONNECT sends only the host and port of the tunnel destination, separated by a colon. A recipient has nowhere to open the tunnel to",
                         other.named()
@@ -462,6 +464,33 @@ static REGISTRATION: &dyn crate::rules::Rule = &RequestTargetFormValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// A CONNECT whose target is one of the other three forms names no tunnel
+    /// destination. `_invalid` rather than `_malformed`: the value derives from
+    /// a form, and from the wrong one — where a target deriving from none of the
+    /// four is the same defect whatever method carried it.
+    #[rstest]
+    #[case("/path", "request_target_connect_form_invalid")]
+    #[case("https://example.com/", "request_target_connect_form_invalid")]
+    #[case("*", "request_target_connect_form_invalid")]
+    #[case("example.com", "request_target_malformed")]
+    fn a_connect_in_another_form_names_no_destination(
+        #[case] target: &str,
+        #[case] violation: &str,
+    ) {
+        let rule = RequestTargetFormValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = "CONNECT".into();
+        tx.request.uri = target.into();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, violation, "{target}");
+    }
 
     /// A CONNECT with half an authority answers to the tunnel destination's ids,
     /// which the HTTP/2 rule reports for the same two shapes out of an
