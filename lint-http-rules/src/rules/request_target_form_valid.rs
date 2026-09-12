@@ -5,8 +5,9 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::request_target::{
-    REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_EMPTY, REQUEST_TARGET_MALFORMED,
-    REQUEST_TARGET_WHITESPACE_FORBIDDEN, RFC_9110_2_2, RFC_9110_7_1, RFC_9112_3_2,
+    REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
+    REQUEST_TARGET_EMPTY, REQUEST_TARGET_MALFORMED, REQUEST_TARGET_WHITESPACE_FORBIDDEN,
+    RFC_9110_2_2, RFC_9110_7_1, RFC_9112_3_2,
 };
 use crate::violations::ViolationDef;
 
@@ -15,6 +16,11 @@ use crate::violations::ViolationDef;
 /// method-specific form and is stated once for every version of HTTP. The HTTP/2
 /// and HTTP/3 pseudo-header rules declare the same entry for the same defect
 /// spelled as a `:path`.
+///
+/// **The other half of that same MUST NOT is the second**: a host and port sent
+/// with a method that is not CONNECT, which only a request-line can show — the
+/// multiplexed versions reassemble an authority into the target without saying
+/// where the client wrote it.
 ///
 /// **Three more are the target's own**, and all three are an HTTP/1.x
 /// request-line's alone: whitespace where no form admits any, a target of no
@@ -31,6 +37,7 @@ static DECLARED: &[&ViolationDef] = &[
     &REQUEST_TARGET_WHITESPACE_FORBIDDEN,
     &REQUEST_TARGET_EMPTY,
     &REQUEST_TARGET_MALFORMED,
+    &REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
 ];
 
 /// Which of the four productions a request-target derives from.
@@ -389,7 +396,7 @@ impl Rule for RequestTargetFormValid {
                 // port and nothing else -- and it is CONNECT's.
                 // cite(RFC 9112 § 3.2.3): "The "authority-form" of request-target is only used for CONNECT requests"
                 (Some(TargetForm::Authority { .. }), m) => (
-                    None,
+                    Some(&REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN),
                     format!(
                         "Authority-form request-target '{shown}' was sent with method '{m}'. The host-and-port form is a CONNECT's request target and no other method's, and the two method-specific forms must not be used with other methods"
                     ),
@@ -439,6 +446,33 @@ static REGISTRATION: &dyn crate::rules::Rule = &RequestTargetFormValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// The two halves of one sentence are two ids: an operator who accepts
+    /// `GET example.com:443` from some client has no reason to accept `GET *`
+    /// with it, and a capture shows which of the two arrived.
+    #[rstest]
+    #[case("GET", "192.0.2.1:443", "request_target_authority_form_forbidden")]
+    #[case("GET", ":80", "request_target_authority_form_forbidden")]
+    #[case("GET", "*", "request_target_asterisk_forbidden")]
+    fn the_two_method_specific_forms_are_two_entries(
+        #[case] method: &str,
+        #[case] target: &str,
+        #[case] violation: &str,
+    ) {
+        let rule = RequestTargetFormValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = method.into();
+        tx.request.uri = target.into();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, violation, "{method} {target}");
+        assert!(v.cite.is_some(), "{}", v.message);
+    }
 
     fn judge(method: &str, uri: &str, version: &str) -> Option<String> {
         let rule = RequestTargetFormValid;
@@ -512,7 +546,9 @@ mod tests {
     #[case("GET", "tel:8005551212", "derives from two of the four forms")]
     #[case("GET", "urn:123", "derives from two of the four forms")]
     // No `scheme` opens with a digit or a bracket, so these derive from the
-    // host-and-port form alone and the finding can say so outright.
+    // host-and-port form alone and the finding can say so outright. They answer
+    // to the *other* half of § 7.1's MUST NOT — the entry the asterisk's sibling
+    // in the catalogue, and the id an operator silences separately from it.
     #[case("GET", "192.0.2.1:443", "host-and-port form is a CONNECT's")]
     #[case("GET", "[2001:db8::1]:443", "host-and-port form is a CONNECT's")]
     // `uri-host` derives the empty string, so this is an authority-form with no
