@@ -1747,6 +1747,10 @@ severity = "error"
 # Sec-WebSocket-Protocol names one subprotocol twice
 severity = "warn"
 
+[violations.sec_websocket_version_conflicting]
+# Sec-WebSocket-Version advertises the version the request asked for
+severity = "warn"
+
 [violations.sec_websocket_version_empty]
 # Sec-WebSocket-Version is written with no value
 severity = "error"
@@ -1754,6 +1758,10 @@ severity = "error"
 [violations.sec_websocket_version_invalid]
 # WebSocket handshake asks for a version other than 13
 severity = "warn"
+
+[violations.sec_websocket_version_list_empty]
+# Sec-WebSocket-Version advertises no version
+severity = "error"
 
 [violations.sec_websocket_version_malformed]
 # Sec-WebSocket-Version derives from no version production

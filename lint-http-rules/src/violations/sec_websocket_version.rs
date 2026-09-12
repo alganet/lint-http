@@ -31,6 +31,16 @@
 //! reply that would let a client retry — is written for a version the server
 //! *understood* and does not speak. Neither of these is that.
 //!
+//! **The response's list has two entries of its own**, and neither is the
+//! terminal's: a `1#version` advertising nothing at all, and an advertisement
+//! that names the very version the request asked for. The first is the 1997
+//! notation's floor — the same `#rule`
+//! [`sec_websocket_extensions`](crate::violations::sec_websocket_extensions)
+//! reads, permitting null elements and requiring one that is not — and the
+//! second is what the field is *for*: § 11.3.5 has a server send it when the
+//! version it received is not one it understood, so a list holding that version
+//! says both things about one handshake.
+//!
 //! **The other two entries are the field's requirement rather than its grammar**,
 //! and they are one numbered item: § 4.1 item 9 asks a request for the field and
 //! for the value `13`. A request with no field at all is not a handshake this
@@ -43,6 +53,7 @@ use crate::rules::SpecRef;
 // Item 9 is one numbered item of the same list item 7 is in, so the reference is
 // written once — in the subject that reached it first — and the two subjects
 // name the same `SpecRef` rather than two equal ones.
+use crate::violations::sec_websocket_extensions::RFC_2616_2_1;
 use crate::violations::sec_websocket_key::RFC_6455_4_1;
 use crate::violations::{defects, ViolationDef};
 
@@ -144,7 +155,71 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_6455_4_1],
     }
+
+    /// A response whose `1#version` advertises nothing: written empty, or
+    /// written as nothing but the commas of a list.
+    ///
+    /// **The floor, not the terminal**, which is why this is a second entry
+    /// beside the blank value above and cites another document entirely. § 4.3
+    /// imports RFC 2616's notation by name, so a null element conforms —
+    /// `13,,8` advertises two versions — and what pays for that permission is
+    /// the sentence requiring one element that is not null. A request's field
+    /// cannot reach this entry: it is one `version` and not a list of them.
+    ///
+    /// `error`, with the rest of the subject. A 400 that advertises nothing is
+    /// the answer § 4.4 asks a server for, minus the only part a client can act
+    /// on.
+    ///
+    // cite(RFC 2616 § 2.1): "Therefore, where at least one element is required, at least one non-null element MUST be present."
+    SEC_WEBSOCKET_VERSION_LIST_EMPTY = {
+        id: "sec_websocket_version_list_empty",
+        title: "Sec-WebSocket-Version advertises no version",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_2616_2_1],
+    }
+
+    /// A response advertising a list that holds the version the request asked
+    /// for.
+    ///
+    /// **Two claims about one handshake, and they disagree**: § 11.3.5 has a
+    /// server send this field *when the version received from the client does
+    /// not match a version understood by the server*, and says the field holds
+    /// the versions the server supports. Listing the requested one therefore
+    /// says both that the server does not speak it and that it does — which is
+    /// `_conflicting`'s definition and not `_invalid`'s, since no value here is
+    /// measured against anything but the other message.
+    ///
+    /// The comparison is exact. Both sides derive from `version`, which is
+    /// DIGITs, so there is no case to fold and no leading zero to normalise —
+    /// the production admits none.
+    ///
+    /// `warn`, where the subject's other entries are `error`. Everything in the
+    /// exchange is readable and the client is left with a list it can choose
+    /// from; what it cannot do is trust the choice, since one of the two claims
+    /// is wrong and the message does not say which.
+    ///
+    // cite(RFC 6455 § 11.3.5): "The |Sec-WebSocket-Version| header field is also sent from the server to the client on WebSocket handshake error, when the version received from the client does not match a version understood by the server."
+    SEC_WEBSOCKET_VERSION_CONFLICTING = {
+        id: "sec_websocket_version_conflicting",
+        title: "Sec-WebSocket-Version advertises the version the request asked for",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6455_11_3_5],
+    }
 }
+
+/// The field's registration: when a server sends it, and that it holds the
+/// versions the server supports — which is what a list holding the requested one
+/// contradicts.
+pub const RFC_6455_11_3_5: SpecRef = SpecRef {
+    spec: "RFC 6455",
+    section: Some("11.3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.3.5",
+    note: "The field's registration — when a server sends it, and that it holds the \
+           versions the server supports, which is what a list holding the requested \
+           one contradicts",
+};
 
 /// The entry a [`VersionDefect`] reports as.
 ///
