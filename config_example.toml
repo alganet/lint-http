@@ -1063,12 +1063,24 @@ severity = "warn"
 # ALPN protocol name is not one this deployment serves
 severity = "warn"
 
+[violations.alt_svc_alternative_equals_missing]
+# Alt-Svc alternative has no '=' between its protocol-id and its alt-authority
+severity = "warn"
+
 [violations.alt_svc_clear_conflicting]
 # Alt-Svc carries the clear keyword beside an alternative service
 severity = "error"
 
+[violations.alt_svc_equals_whitespace_forbidden]
+# Alt-Svc writes whitespace beside an '=' its grammar prints bare
+severity = "warn"
+
 [violations.alt_svc_ma_invalid]
 # Alt-Svc states a freshness lifetime that cannot be what was meant
+severity = "warn"
+
+[violations.alt_svc_parameter_equals_missing]
+# Alt-Svc parameter has no '=' and no value
 severity = "warn"
 
 [violations.auth_scheme_character_forbidden]
