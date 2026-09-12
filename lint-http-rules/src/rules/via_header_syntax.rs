@@ -19,11 +19,15 @@ use crate::violations::token::{
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::uri::{RFC_3986_3_2_3, URI_PORT_CHARACTER_FORBIDDEN};
+use crate::violations::via::{
+    RFC_9110_7_6_3, RFC_9110_B_2, VIA_COMMENT_DUPLICATED, VIA_MEMBER_MALFORMED,
+    VIA_RECEIVED_BY_MISSING, VIA_RECEIVED_BY_OBSOLETE,
+};
 use crate::violations::ViolationDef;
 
 pub struct ViaHeaderSyntax;
 
-/// Every production this field is assembled from, and none of its assembly.
+/// Every production this field is assembled from, and its assembly beside them.
 ///
 /// `Via = #( received-protocol RWS received-by [ RWS comment ] )` names four
 /// things and defines none of them: the `#` list, the two `token`s a
@@ -32,12 +36,14 @@ pub struct ViaHeaderSyntax;
 /// holding a bad octet answers with the same id an `Upgrade`, a `Server` or a
 /// `Content-Type` parameter would.
 ///
-/// What stays this rule's own is what the *member* says about its parts: a
-/// `received-by` that is missing, a second comment where the production
-/// permits one, content after a member that has ended, and the bracketed IPv6
-/// literal § B.2 took out of this production when it removed `uri-host` from
-/// it. Every one of those is a statement about assembly, and no borrowed
-/// production has a defect for it.
+/// What the *member* says about its parts is the four entries after them: a
+/// `received-by` that is missing, a second comment where the production permits
+/// one, content after a member that has ended, and the bracketed IPv6 literal
+/// § B.2 took out of this production when it removed `uri-host` from it. Every
+/// one of those is a statement about assembly, no borrowed production has a
+/// defect for any of them, and they are the [`via`](crate::violations::via)
+/// subject — this rule being their only reader does not make them the rule's,
+/// since what an operator configures is a defect in the traffic.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -47,33 +53,27 @@ static DECLARED: &[&ViolationDef] = &[
     &COMMENT_DELIMITER_MISSING,
     &COMMENT_CHARACTER_FORBIDDEN,
     &QUOTED_PAIR_MALFORMED,
+    &VIA_RECEIVED_BY_MISSING,
+    &VIA_MEMBER_MALFORMED,
+    &VIA_COMMENT_DUPLICATED,
+    &VIA_RECEIVED_BY_OBSOLETE,
 ];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the defect the catalogue names it.
 ///
-/// The shape `expect_header_valid` settled. Here the unnamed half is the
-/// member's assembly, and it is the larger half by count — which is what a
-/// field that borrows every production it is made of looks like from the
-/// inside.
+/// The shape `expect_header_valid` settled — a judge that is half converted
+/// carries an `Option` here — is not this rule's any more: the member's
+/// assembly became a subject of its own, so every arm names an entry and the
+/// def is a reference.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed: this production's own statement about
-    /// how its parts go together.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out — the direction
@@ -89,28 +89,17 @@ impl Defect {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_7_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("7.6.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3",
-    note: "The `Via` grammar this rule parses, the sentence that puts the field in both \
-           directions, and the requirements about forwarding and combining that a single \
-           captured message cannot answer",
-};
+///
+/// Two of them are not written here: the field's own section and the appendix
+/// that retired `uri-host` from `received-by` are what the
+/// [`via`](crate::violations::via) entries enforce, so they live beside those
+/// entries and are imported back for `specifications()`.
 const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.8"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
     note: "`received-protocol` points here for its two halves: `protocol-name = token` \
            and `protocol-version = token`",
-};
-const RFC_9110_B_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("B.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.2",
-    note: "Why a `received-by` is a token: RFC 9110 removed `uri-host` from the \
-           production, which is what makes a bracketed IPv6 literal a finding here and \
-           not under RFC 7230",
 };
 const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -242,10 +231,7 @@ impl Rule for ViaHeaderSyntax {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
-            let report = |defect: Defect| match defect.def {
-                Some(def) => ctx.report_with(def, defect.message),
-                None => self.cited(&RFC_9110_7_6_3, ctx.severity, defect.message),
-            };
+            let report = |defect: Defect| ctx.report_with(defect.def, defect.message);
 
             if let Some(defect) = judge(&tx.request.headers, "Request") {
                 return Some(report(defect));
@@ -356,19 +342,31 @@ fn validate_via(value: &[u8]) -> Result<(), Defect> {
             // member, so whatever is here followed a complete one. A `(` can only
             // be a second comment: an unspaced one is not a comment at all and
             // has already been reported against the `received-by` it ran into.
-            return Err(Defect::unnamed(if v[i] == b'(' {
-                format!("member {n} carries more than one comment, and the production permits one")
-            } else if commented {
-                format!(
-                    "member {n} has content after its comment, starting {}",
-                    describe_octet(v[i])
+            // That is the one shape here with an entry of its own — a repeated
+            // optional group is not the same sender as trailing content, even
+            // though the parser is stopped in the same place by both.
+            return Err(if v[i] == b'(' {
+                Defect::named(
+                    &VIA_COMMENT_DUPLICATED,
+                    format!(
+                        "member {n} carries more than one comment, and the production permits one"
+                    ),
                 )
             } else {
-                format!(
-                    "member {n} has content after its received-by, starting {}",
-                    describe_octet(v[i])
+                Defect::named(
+                    &VIA_MEMBER_MALFORMED,
+                    match commented {
+                        true => format!(
+                            "member {n} has content after its comment, starting {}",
+                            describe_octet(v[i])
+                        ),
+                        false => format!(
+                            "member {n} has content after its received-by, starting {}",
+                            describe_octet(v[i])
+                        ),
+                    },
                 )
-            }));
+            });
         }
         i += 1;
     }
@@ -426,15 +424,11 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), De
     // cite(RFC 9110 § 5.6.3): "The RWS rule is used when at least one linear whitespace octet is required to separate field tokens."
     // cite(RFC 9110 § 5.6.3): "RWS = 1*( SP / HTAB )"
     match v.get(i) {
-        None => {
-            return Err(Defect::unnamed(format!(
-                "member {n} has a received-protocol and no received-by"
-            )))
-        }
-        Some(&b',') => {
-            return Err(Defect::unnamed(format!(
-                "member {n} has a received-protocol and no received-by"
-            )))
+        None | Some(&b',') => {
+            return Err(Defect::named(
+                &VIA_RECEIVED_BY_MISSING,
+                format!("member {n} has a received-protocol and no received-by"),
+            ))
         }
         Some(&b) if b != b' ' && b != b'\t' => {
             return Err(Defect::named(
@@ -458,20 +452,21 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), De
     let pseudonym = scan_token(v, i);
     if pseudonym == i {
         return Err(match v.get(i) {
-            None => Defect::unnamed(format!(
-                "member {n} has a received-protocol and no received-by"
-            )),
+            None | Some(&b',') => Defect::named(
+                &VIA_RECEIVED_BY_MISSING,
+                format!("member {n} has a received-protocol and no received-by"),
+            ),
             // The brackets are § B.2's statement rather than the token's: the
             // production used to admit a `uri-host` and does not, so what is
             // wrong is which production the sender wrote, not which octet.
-            Some(&b'[') => Defect::unnamed(format!(
-                "member {n} spells its received-by as a bracketed IPv6 literal, which is not a \
-                 pseudonym; RFC 9110 removed uri-host from this production, so \"[\" cannot appear \
-                 in a received-by"
-            )),
-            Some(&b',') => Defect::unnamed(format!(
-                "member {n} has a received-protocol and no received-by"
-            )),
+            Some(&b'[') => Defect::named(
+                &VIA_RECEIVED_BY_OBSOLETE,
+                format!(
+                    "member {n} spells its received-by as a bracketed IPv6 literal, which is not \
+                     a pseudonym; RFC 9110 removed uri-host from this production, so \"[\" cannot \
+                     appear in a received-by"
+                ),
+            ),
             Some(&b) => Defect::named(
                 &TOKEN_EMPTY,
                 format!(
@@ -667,25 +662,38 @@ mod tests {
     /// Every production this field is made of, answering with the id it
     /// answers with everywhere else: the list's empty member, both `token`s of
     /// the `received-protocol`, the `pseudonym`, RFC 3986's port, and the
-    /// comment with its escape. The rows ending in `None` are the member's own
-    /// assembly, which no borrowed production has a defect for.
+    /// comment with its escape. The last four rows are the member's own
+    /// assembly, which no borrowed production has a defect for and which the
+    /// `via` subject holds.
     #[rstest]
-    #[case("1.1 fred, , 1.0 lucy", Some("list_member_empty"))]
-    #[case("1.1 fr@ed", Some("token_character_forbidden"))]
-    #[case("1.1@ fred", Some("token_character_forbidden"))]
-    #[case("(cached) 1.1 fred", Some("token_empty"))]
-    #[case("1.1/ fred", Some("token_empty"))]
-    #[case("1.1 fred:80x", Some("uri_port_character_forbidden"))]
-    #[case("1.1 fred (unterminated", Some("comment_delimiter_missing"))]
-    #[case("1.1 fred (a\\", Some("quoted_pair_malformed"))]
-    #[case("1.1 [::1]", None)]
-    #[case("1.1", None)]
-    fn a_via_member_borrows_every_production_it_is_made_of(
-        #[case] value: &str,
-        #[case] id: Option<&str>,
-    ) {
+    #[case("1.1 fred, , 1.0 lucy", "list_member_empty")]
+    #[case("1.1 fr@ed", "token_character_forbidden")]
+    #[case("1.1@ fred", "token_character_forbidden")]
+    #[case("(cached) 1.1 fred", "token_empty")]
+    #[case("1.1/ fred", "token_empty")]
+    #[case("1.1 fred:80x", "uri_port_character_forbidden")]
+    #[case("1.1 fred (unterminated", "comment_delimiter_missing")]
+    #[case("1.1 fred (a\\", "quoted_pair_malformed")]
+    #[case("1.1 [::1]", "via_received_by_obsolete")]
+    #[case("1.1", "via_received_by_missing")]
+    #[case("1.1 fred (a) (b)", "via_comment_duplicated")]
+    #[case("1.1 exa mple", "via_member_malformed")]
+    fn a_via_member_borrows_every_production_it_is_made_of(#[case] value: &str, #[case] id: &str) {
         let defect = judge(&headers(&[("via", value)]), "Request").expect("a finding");
-        assert_eq!(defect.def.map(|def| def.id), id, "{value}");
+        assert_eq!(defect.def.id, id, "{value}");
+    }
+
+    /// The four sites that ask whether a member has a recipient after its
+    /// protocol are one defect: the value stops, or the list's comma arrives,
+    /// with or without the `RWS` that would have introduced the `received-by`.
+    #[rstest]
+    #[case("1.1")]
+    #[case("1.1 ")]
+    #[case("1.1, 1.0 fred")]
+    #[case("1.1 , 1.0 fred")]
+    fn every_way_of_stopping_after_the_protocol_is_one_entry(#[case] value: &str) {
+        let defect = judge(&headers(&[("via", value)]), "Request").expect("a finding");
+        assert_eq!(defect.def.id, "via_received_by_missing", "{value}");
     }
 
     /// The lines of one field section are one list, so a member written empty
@@ -695,7 +703,7 @@ mod tests {
     fn an_empty_member_at_a_line_boundary_is_found() {
         let hm = headers(&[("via", "1.1 fred"), ("via", "")]);
         let defect = judge(&hm, "Request").expect("an empty member");
-        assert_eq!(defect.def.expect("the list's id").id, "list_member_empty");
+        assert_eq!(defect.def.id, "list_member_empty");
         let err = defect.message;
         assert!(err.contains("member 2 is empty"), "got {err}");
     }
