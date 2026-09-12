@@ -21,7 +21,7 @@ use crate::violations::sec_websocket_key::{
 };
 use crate::violations::sec_websocket_version::{
     version_defect as version_violation, RFC_6455_4_3, SEC_WEBSOCKET_VERSION_EMPTY,
-    SEC_WEBSOCKET_VERSION_MALFORMED,
+    SEC_WEBSOCKET_VERSION_INVALID, SEC_WEBSOCKET_VERSION_MALFORMED, SEC_WEBSOCKET_VERSION_MISSING,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
@@ -62,6 +62,8 @@ static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_KEY_LENGTH_INVALID,
     &SEC_WEBSOCKET_VERSION_EMPTY,
     &SEC_WEBSOCKET_VERSION_MALFORMED,
+    &SEC_WEBSOCKET_VERSION_MISSING,
+    &SEC_WEBSOCKET_VERSION_INVALID,
     &LIST_MEMBER_MISSING,
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -139,7 +141,8 @@ impl SecWebsocketHeadersConsistent {
         // message clean.
         // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Version-Server): "Sec-WebSocket-Version-Server = 1#version"
         let Some(raw) = combined_field_value_as_written(headers, "sec-websocket-version") else {
-            return Some(Defect::unnamed(
+            return Some(Defect::named(
+                &SEC_WEBSOCKET_VERSION_MISSING,
                 "the request carries no Sec-WebSocket-Version header field".into(),
             ));
         };
@@ -160,18 +163,23 @@ impl SecWebsocketHeadersConsistent {
         if value == "13" {
             return None;
         }
-        // Not "invalid", because § 4.4 prints a request exactly like this one as its
-        // illustration of version advertisement -- `Sec-WebSocket-Version: 25`, answered
-        // with a 400 listing what the server will speak. What the value settles is
-        // which protocol this handshake is for, and this document defines one of them.
+        // The catalogue's `_invalid` is what this is: a value that derives from
+        // the production and a requirement past the grammar refusing it. § 4.4
+        // prints a request exactly like this one -- `Sec-WebSocket-Version: 25`,
+        // answered with a 400 listing what the server will speak -- and that is
+        // how a server *answers* it, not a licence for the sender. Which is also
+        // why the entry ranks below the two that derive from nothing.
         // cite(RFC 6455 § 4.4): "a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)"
         // cite(RFC 6455 § 4.4): "If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use."
-        Some(Defect::unnamed(format!(
-            "its Sec-WebSocket-Version is `{}`, so it is not a handshake for the version this \
-             document defines; RFC 6455 § 4.4 makes that a version advertisement, and the \
-             answer it asks a server for is a 400 carrying the versions the server will speak",
-            shown_in_finding(value)
-        )))
+        Some(Defect::named(
+            &SEC_WEBSOCKET_VERSION_INVALID,
+            format!(
+                "its Sec-WebSocket-Version is `{}`, so it is not a handshake for the version this \
+                 document defines; RFC 6455 § 4.4 makes that a version advertisement, and the \
+                 answer it asks a server for is a 400 carrying the versions the server will speak",
+                shown_in_finding(value)
+            ),
+        ))
     }
 
     /// The `Sec-WebSocket-Key` half.

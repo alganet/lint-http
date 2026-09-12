@@ -1747,8 +1747,16 @@ severity = "error"
 # Sec-WebSocket-Version is written with no value
 severity = "error"
 
+[violations.sec_websocket_version_invalid]
+# WebSocket handshake asks for a version other than 13
+severity = "warn"
+
 [violations.sec_websocket_version_malformed]
 # Sec-WebSocket-Version derives from no version production
+severity = "error"
+
+[violations.sec_websocket_version_missing]
+# WebSocket handshake carries no Sec-WebSocket-Version
 severity = "error"
 
 [violations.status_101_ignored]
