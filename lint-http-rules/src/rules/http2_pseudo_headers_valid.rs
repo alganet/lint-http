@@ -5,8 +5,10 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::authority::{
-    AUTHORITY_TUNNEL_MISSING, AUTHORITY_TUNNEL_USERINFO_FORBIDDEN, AUTHORITY_USERINFO_FORBIDDEN,
-    RFC_9110_9_3_6, RFC_9113_8_3_1, RFC_9113_8_5, RFC_9114_4_3_1, RFC_9114_4_4,
+    AUTHORITY_TUNNEL_HOST_EMPTY, AUTHORITY_TUNNEL_MISSING, AUTHORITY_TUNNEL_PORT_EMPTY,
+    AUTHORITY_TUNNEL_PORT_MISSING, AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
+    AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6, RFC_9113_8_3_1, RFC_9113_8_5, RFC_9114_4_3_1,
+    RFC_9114_4_4,
 };
 use crate::violations::request_target::{
     REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_PATH_MISSING, RFC_9110_7_1,
@@ -66,17 +68,21 @@ static DECLARED: &[&ViolationDef] = &[
     &REQUEST_TARGET_PATH_MISSING,
     &AUTHORITY_TUNNEL_MISSING,
     &URI_HOST_EMPTY,
+    &AUTHORITY_TUNNEL_PORT_MISSING,
+    &AUTHORITY_TUNNEL_PORT_EMPTY,
+    &AUTHORITY_TUNNEL_HOST_EMPTY,
 ];
 
 /// One finding from the CONNECT reading, and the defect it reports as where
 /// the catalogue names that defect.
 ///
 /// The shape `expect_header_valid` settled: a judge that is half converted says
-/// so in its type. Here the named half is the authority's grammar and the
-/// userinfo the tunnel form has no room for; the unnamed half is what § 9.3.6
-/// says a CONNECT's authority must *hold* — a port that is present, not empty
-/// and inside the transport's namespace, with a host beside it — which is prose
-/// about this method's target rather than a production's defect.
+/// so in its type — and this one is nearly whole. Named: the authority's
+/// grammar, the userinfo the tunnel form has no room for, and the three ways
+/// `uri-host ":" port` derives a value with one of its two components missing.
+/// Unnamed: a port number outside the transport's namespace, whose sentence is
+/// not § 9.3.6's at all but RFC 6335's sixteen bits, reached through the one
+/// sentence that says a proxy opens a *TCP* connection.
 struct Defect {
     def: Option<&'static ViolationDef>,
     message: String,
@@ -157,18 +163,28 @@ fn connect_authority_finding(authority: &str) -> Option<Defect> {
     // is required outright; the host is what "the host and port number of the
     // tunnel destination" leaves nothing of if it is absent.
     match port {
-        None => Some(Defect::unnamed(format!(
-            "CONNECT ':authority' '{shown}' names no port, and a CONNECT has no default port: a \
-             client sends the port number even when the URI reference it started from elided one"
-        ))),
-        Some("") => Some(Defect::unnamed(format!(
-            "CONNECT ':authority' '{shown}' ends at the colon with no port number, which a server \
-             is required to reject"
-        ))),
-        Some(port) if host.is_empty() => Some(Defect::unnamed(format!(
-            "CONNECT ':authority' '{shown}' names the port '{port}' and no host, so it names \
-             nothing to open a tunnel to"
-        ))),
+        None => Some(Defect::named(
+            &AUTHORITY_TUNNEL_PORT_MISSING,
+            format!(
+                "CONNECT ':authority' '{shown}' names no port, and a CONNECT has no default port: \
+                 a client sends the port number even when the URI reference it started from \
+                 elided one"
+            ),
+        )),
+        Some("") => Some(Defect::named(
+            &AUTHORITY_TUNNEL_PORT_EMPTY,
+            format!(
+                "CONNECT ':authority' '{shown}' ends at the colon with no port number, which a \
+                 server is required to reject"
+            ),
+        )),
+        Some(port) if host.is_empty() => Some(Defect::named(
+            &AUTHORITY_TUNNEL_HOST_EMPTY,
+            format!(
+                "CONNECT ':authority' '{shown}' names the port '{port}' and no host, so it names \
+                 nothing to open a tunnel to"
+            ),
+        )),
         Some(port) => connect_port_range_finding(port).map(|msg| {
             Defect::unnamed(format!(
                 "CONNECT ':authority' '{shown}' targets an invalid port number: {msg}"
@@ -896,6 +912,33 @@ mod tests {
     #[case("example.com:0")]
     fn a_basic_connect_names_a_host_and_a_port(#[case] target: &str) {
         assert_eq!(judge_request("CONNECT", target), None, "{target}");
+    }
+
+    /// The same three ids the HTTP/1.x rule reports for a request-target with
+    /// half an authority: `uri-host ":" port` derives all of these, and the
+    /// prose in § 9.3.6 is what refuses them.
+    #[rstest]
+    #[case("example.com", "authority_tunnel_port_missing")]
+    #[case("example.com:", "authority_tunnel_port_empty")]
+    #[case(":443", "authority_tunnel_host_empty")]
+    fn a_connect_authority_with_one_component_answers_to_the_destinations_ids(
+        #[case] target: &str,
+        #[case] violation: &str,
+    ) {
+        let mut tx = h2();
+        tx.request.method = "CONNECT".into();
+        tx.request.uri = target.into();
+        let v = crate::test_helpers::run_rule(
+            &Http2PseudoHeadersValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "http2_pseudo_headers_valid",
+            ]),
+        )
+        .expect("reported");
+        assert_eq!(v.violation, violation, "{target}");
+        assert!(v.cite.is_some(), "{}", v.message);
     }
 
     #[rstest]

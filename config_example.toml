@@ -1079,8 +1079,20 @@ severity = "error"
 # A request that owes an authority names none
 severity = "error"
 
+[violations.authority_tunnel_host_empty]
+# A CONNECT's destination names a port and no host
+severity = "error"
+
 [violations.authority_tunnel_missing]
 # A CONNECT names no host and port to open a tunnel to
+severity = "error"
+
+[violations.authority_tunnel_port_empty]
+# A CONNECT's destination ends at the colon with no port
+severity = "error"
+
+[violations.authority_tunnel_port_missing]
+# A CONNECT's destination names no port
 severity = "error"
 
 [violations.authority_tunnel_userinfo_forbidden]
