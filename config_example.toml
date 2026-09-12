@@ -1095,6 +1095,18 @@ severity = "warn"
 # Alt-Svc sets persist to a value the parameter does not define
 severity = "info"
 
+[violations.alt_svc_port_empty]
+# Alt-Svc alt-authority ends at the colon with no port
+severity = "warn"
+
+[violations.alt_svc_port_invalid]
+# Alt-Svc alt-authority names a port no transport has
+severity = "warn"
+
+[violations.alt_svc_port_missing]
+# Alt-Svc alt-authority names no port
+severity = "warn"
+
 [violations.alt_svc_protocol_id_invalid]
 # Alt-Svc protocol-id is not the one spelling this field allows for its ALPN name
 severity = "warn"

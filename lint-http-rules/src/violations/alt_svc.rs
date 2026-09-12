@@ -45,10 +45,17 @@
 //! where the recipient does simple string comparison. The name itself, once the
 //! spelling is undone, is [`alpn`](crate::violations::alpn)'s.
 //!
-//! **What is still not written here** is the rest of
-//! `alt_svc_header_syntax`'s reading: the `alt-authority`'s prose, which asks
-//! for a colon and a port the ABNF leaves optional, and the A-labels § 8 asks
-//! an internationalized name to be written as. Those are this subject's too.
+//! **The `alt-authority`'s three port entries are the prose rather than the
+//! ABNF**, which is what makes them this subject's at all: the production is
+//! `quoted-string` and a comment, and the sentence beside it asks for an
+//! OPTIONAL host, a colon and a port number. Two of the three are not optional,
+//! so a value with no colon, a value ending on one, and a value naming a number
+//! no transport has are three senders with three fixes and one sentence between
+//! them.
+//!
+//! **What is still not written here** is the last of
+//! `alt_svc_header_syntax`'s reading: the A-labels § 8 asks an internationalized
+//! name to be written as. That is this subject's too.
 //
 // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
 
@@ -256,6 +263,83 @@ defects! {
         spec: &[RFC_7838_3],
     }
 
+    /// An `alt-authority` with no colon in it: `h2="example.com"`.
+    ///
+    /// **The ABNF is not the requirement here, and that is the whole of these
+    /// three entries.** `alt-authority = quoted-string` is followed by a
+    /// comment, and the prose beside it is what states the shape: an OPTIONAL
+    /// `uri-host`, a colon, and a port number. Two of the three are not
+    /// optional, so a value naming a host and stopping names nothing a client
+    /// can open a connection to — the same shape `authority-form` has, where
+    /// the quantifiers demand nothing and the sentence beside them demands two
+    /// halves.
+    ///
+    /// `_missing` and not `_empty`: no colon was written, so there is no port
+    /// to be blank. [`ALT_SVC_PORT_EMPTY`] is the other side of that line.
+    ///
+    /// `warn`. The alternative is unusable and the origin still is not — a
+    /// client with nowhere to reach the alternative uses the origin it already
+    /// has.
+    ///
+    // cite(RFC 7838 § 3): "The "alt-authority" component consists of an OPTIONAL uri-host ("host" in Section 3.2.2 of [RFC3986]), a colon (":"), and a port number."
+    ALT_SVC_PORT_MISSING = {
+        id: "alt_svc_port_missing",
+        title: "Alt-Svc alt-authority names no port",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
+    /// An `alt-authority` that carries the colon and no digits after it:
+    /// `h2="example.com:"`.
+    ///
+    /// `port` is `*DIGIT`, so the grammar derives this and there is no
+    /// production to have broken; what asks for a number is § 3's prose. **The
+    /// delimiter is what splits this from [`ALT_SVC_PORT_MISSING`]** — a sender
+    /// that wrote the colon knew the component was there and wrote none of it,
+    /// which is a different sender from one that stopped at the host.
+    ///
+    /// `warn`, with its sibling and for the same reason.
+    ///
+    // cite(RFC 7838 § 3): "The "alt-authority" component consists of an OPTIONAL uri-host ("host" in Section 3.2.2 of [RFC3986]), a colon (":"), and a port number."
+    ALT_SVC_PORT_EMPTY = {
+        id: "alt_svc_port_empty",
+        title: "Alt-Svc alt-authority ends at the colon with no port",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
+    /// An `alt-authority` naming a number no transport has: `h2=":65536"`.
+    ///
+    /// `port` is `*DIGIT` and bounds nothing at either end, so every digit here
+    /// derives from the production and what fails is that the result is not a
+    /// port number. **The sentence that makes it a defect is § 3's prose and
+    /// the width comes from somewhere else** — § 2 says an ALPN protocol name
+    /// implicitly identifies a suite carried over a transport, and those
+    /// transports register their ports in a sixteen-bit namespace (RFC 6335
+    /// § 6). So this entry names the requirement and the rule declaring it
+    /// names the two references that supply the measurement: **a bound reached
+    /// through a transport is still the requirement's defect, not the
+    /// transport's**, which is the line the CONNECT destination's port drew one
+    /// subject over.
+    ///
+    /// **`0` is not reported.** It sits inside the namespace as a reserved edge
+    /// value, held back for extending the ranges later, and no sentence here
+    /// makes a reserved port an invalid one.
+    ///
+    /// `_invalid` rather than `_malformed`, with this subject's other two: every
+    /// octet is a DIGIT and the production is satisfied.
+    ///
+    // cite(RFC 7838 § 3): "The "alt-authority" component consists of an OPTIONAL uri-host ("host" in Section 3.2.2 of [RFC3986]), a colon (":"), and a port number."
+    ALT_SVC_PORT_INVALID = {
+        id: "alt_svc_port_invalid",
+        title: "Alt-Svc alt-authority names a port no transport has",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
     /// A `protocol-id` that is a well-formed `token` of well-formed triplets
     /// and is not the one spelling this field allows for the name it stands
     /// for: `x%3dy` for `x%3Dy`, or `%68%32` for `h2`.
@@ -413,6 +497,30 @@ mod tests {
         assert!(ALT_SVC_PARAMETER_EMPTY.id.ends_with("_empty"));
         assert!(ALT_SVC_PARAMETER_VALUE_EMPTY.id.ends_with("_empty"));
         assert!(ALT_SVC_PARAMETER_EQUALS_MISSING.id.ends_with("_missing"));
+    }
+
+    /// One sentence, three entries, and the reason they are three: a value with
+    /// no colon, a value ending on one, and a value naming a number no
+    /// transport has are three senders with three fixes. The delimiter is what
+    /// splits the first two, exactly as it does for a CONNECT's destination —
+    /// and the ranks are this field's rather than that one's, because an
+    /// unusable alternative costs a client nothing it did not already have.
+    #[test]
+    fn the_alt_authoritys_prose_is_three_entries_of_one_rank() {
+        use crate::violations::authority::AUTHORITY_TUNNEL_PORT_INVALID;
+
+        for def in [
+            &ALT_SVC_PORT_MISSING,
+            &ALT_SVC_PORT_EMPTY,
+            &ALT_SVC_PORT_INVALID,
+        ] {
+            assert_eq!(def.spec, [RFC_7838_3], "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+        }
+        assert_eq!(
+            AUTHORITY_TUNNEL_PORT_INVALID.default_severity,
+            Severity::Error
+        );
     }
 
     /// The two entries about a value that derives perfectly and is still wrong

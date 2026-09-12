@@ -14,8 +14,9 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::alt_svc::{
     ALT_SVC_ALTERNATIVE_EQUALS_MISSING, ALT_SVC_CLEAR_CONFLICTING,
     ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EMPTY, ALT_SVC_PARAMETER_EQUALS_MISSING,
-    ALT_SVC_PARAMETER_VALUE_EMPTY, ALT_SVC_PERSIST_INVALID, ALT_SVC_PROTOCOL_ID_INVALID,
-    RFC_7838_3, RFC_7838_3_1,
+    ALT_SVC_PARAMETER_VALUE_EMPTY, ALT_SVC_PERSIST_INVALID, ALT_SVC_PORT_EMPTY,
+    ALT_SVC_PORT_INVALID, ALT_SVC_PORT_MISSING, ALT_SVC_PROTOCOL_ID_INVALID, RFC_7838_3,
+    RFC_7838_3_1,
 };
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
@@ -37,14 +38,14 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Twenty-four defects over five subjects, and RFC 7838 defines eight of them.
+/// Twenty-seven defects over five subjects, and RFC 7838 defines eleven of them.
 ///
-/// The eight are the field's own: the alternation at the top of it, the two `=`
+/// The eleven are the field's own: the alternation at the top of it, the two `=`
 /// delimiters it prints, the whitespace it prints nowhere near them, the two
 /// halves a parameter can be written without, the one parameter this document
-/// gives a value to, and the single spelling it allows an ALPN protocol name.
-/// Everything else here is imported, and the paragraph below is where each
-/// import comes from.
+/// gives a value to, the single spelling it allows an ALPN protocol name, and
+/// the three ways an `alt-authority` can name no port. Everything else here is
+/// imported, and the paragraph below is where each import comes from.
 ///
 /// § 1.1 says where the notation comes from and § 3 says where the productions
 /// do: the `#rule` extension is RFC 7230 § 7's, whose sender requirement is the
@@ -54,12 +55,10 @@ use crate::violations::ViolationDef;
 /// `port` out of RFC 3986. So an `alt-authority` of `"a]b:443"` reports the
 /// same defect a `Forwarded` `for=` and a `Warning`'s `warn-agent` do.
 ///
-/// **Four findings stay this document's and are not named yet**, and all four
-/// are the `alt-authority`'s: the prose requiring the colon and the port the
-/// ABNF leaves optional, a port outside the sixteen-bit namespace an ALPN name
-/// implies, and § 8's A-labels. Every one is a sentence about `Alt-Svc` and no
-/// other field, so every one of them is the `alt_svc` subject's, as the eight
-/// already there were.
+/// **One finding stays this document's and is not named yet**: § 8's A-labels,
+/// which is an octet at or above %x80 anywhere inside an `alt-authority`. It is
+/// a sentence about `Alt-Svc` and no other field, so it is the `alt_svc`
+/// subject's, as the eleven already there are.
 ///
 /// **Nothing here borrows from the `parameter` subject, and the reason is one
 /// sentence repeated three times.** RFC 7838 § 3's `parameter` is not
@@ -91,6 +90,9 @@ static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
     &ALT_SVC_PERSIST_INVALID,
     &ALT_SVC_PROTOCOL_ID_INVALID,
+    &ALT_SVC_PORT_MISSING,
+    &ALT_SVC_PORT_EMPTY,
+    &ALT_SVC_PORT_INVALID,
     &LIST_MEMBER_EMPTY,
     &LIST_MEMBER_MISSING,
     &TOKEN_EMPTY,
@@ -114,8 +116,8 @@ static DECLARED: &[&ViolationDef] = &[
 ///
 /// The shape `expect_header_valid` settled: a judge that is half converted says
 /// so in its type. Here the halves are five subjects' ids — four imported and
-/// this field's own — against the four sentences RFC 7838 writes about
-/// `Alt-Svc` that no entry holds yet.
+/// this field's own — against the one sentence RFC 7838 writes about `Alt-Svc`
+/// that no entry holds yet.
 struct Defect {
     def: Option<&'static ViolationDef>,
     message: String,
@@ -319,10 +321,13 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
     let Some(port) = port else {
         // The prose beside the production, and it is this document's: the two
         // halves are RFC 3986's and which of them is optional is § 3's.
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc alternative '{shown}' has an alt-authority with no ':' in it. The host is optional and the colon and the port number are not, so '{}' names no port for a client to open the alternative on",
-            shown_in_finding(&inner)
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_PORT_MISSING,
+            format!(
+                "Alt-Svc alternative '{shown}' has an alt-authority with no ':' in it. The host is optional and the colon and the port number are not, so '{}' names no port for a client to open the alternative on",
+                shown_in_finding(&inner)
+            ),
+        ));
     };
     if !host.is_empty() {
         if let Err(defect) = crate::helpers::uri::validate_uri_host(host) {
@@ -339,9 +344,12 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
         // Said in the finding itself: `port = *DIGIT` generates this, so no
         // production is broken and there is no defect of one to report. What is
         // wrong is § 3's prose asking for a port number.
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc alternative '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and the sentence beside it asks for a port number -- a client reading this has a host and no number to reach it on"
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_PORT_EMPTY,
+            format!(
+                "Alt-Svc alternative '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and the sentence beside it asks for a port number -- a client reading this has a host and no number to reach it on"
+            ),
+        ));
     }
     if let Some(c) = port.chars().find(|c| !c.is_ascii_digit()) {
         return Some(Defect::named(
@@ -361,14 +369,18 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
     // cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
     // cite(RFC 6335 § 6): "Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future."
     if crate::helpers::uri::port_number(port).is_none() {
-        // A well-formed `port` naming a number no transport has. The def above
-        // is about the octets and says in its own doc that a port outside a
-        // transport's range is not its finding, because `port = *DIGIT` bounds
-        // nothing -- so the sentence answering this one is RFC 6335's, and the
-        // subject that would hold it does not exist.
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc alternative '{shown}' names port {port}, which designates no port: the transports an ALPN protocol name is carried over register theirs in a sixteen-bit namespace"
-        )));
+        // A well-formed `port` naming a number no transport has. The `uri` def
+        // above is about the octets and says in its own doc that a port outside
+        // a transport's range is not its finding, because `port = *DIGIT` bounds
+        // nothing -- so the sentence answering this one is § 3's prose asking
+        // for a port *number*, and the width is measured by the two references
+        // this rule declares beside it.
+        return Some(Defect::named(
+            &ALT_SVC_PORT_INVALID,
+            format!(
+                "Alt-Svc alternative '{shown}' names port {port}, which designates no port: the transports an ALPN protocol name is carried over register theirs in a sixteen-bit namespace"
+            ),
+        ));
     }
     None
 }
@@ -914,14 +926,22 @@ mod tests {
         "unquoted alt-authority",
         "quoted_string_delimiter_missing"
     )]
-    #[case("h2=\"example.com\"", "no \':\' in it", "")]
-    #[case("h2=\"example.com:\"", "carries the port\'s delimiter and no port", "")]
+    #[case("h2=\"example.com\"", "no \':\' in it", "alt_svc_port_missing")]
+    #[case(
+        "h2=\"example.com:\"",
+        "carries the port\'s delimiter and no port",
+        "alt_svc_port_empty"
+    )]
     #[case(
         "h2=\"example.com:notaport\"",
         "in its port",
         "uri_port_character_forbidden"
     )]
-    #[case("h2=\"example.com:65536\"", "sixteen-bit namespace", "")]
+    #[case(
+        "h2=\"example.com:65536\"",
+        "sixteen-bit namespace",
+        "alt_svc_port_invalid"
+    )]
     #[case(
         "h2=\"exam ple.com:443\"",
         "is not a `uri-host`",
