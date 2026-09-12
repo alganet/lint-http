@@ -1687,6 +1687,10 @@ severity = "error"
 # The host-and-port target is sent with a method other than CONNECT
 severity = "error"
 
+[violations.request_target_connect_form_invalid]
+# A CONNECT's request-target is not a host and port
+severity = "error"
+
 [violations.request_target_empty]
 # A request-line carries no request-target
 severity = "error"

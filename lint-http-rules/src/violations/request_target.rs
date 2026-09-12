@@ -71,6 +71,18 @@ pub const RFC_9110_2_2: SpecRef = SpecRef {
     note: "Conformance — a sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules",
 };
 
+/// The authority-form's own section: what a CONNECT's request-target consists
+/// of, the MUST that a client send only that, and where the port comes from when
+/// the target URI elided one. HTTP/1.1's, because it is HTTP/1.1 that writes a
+/// request-target out — the entry citing it is one no pseudo-header rule can
+/// report.
+pub const RFC_9112_3_2_3: SpecRef = SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3",
+    note: "authority-form — `authority-form = uri-host \":\" port`, the MUST that a CONNECT send only the host and port of the tunnel destination as its request-target, and the form being used for CONNECT requests only",
+};
+
 /// Where the four forms are named, what each is for, and the one MUST NOT that
 /// keeps the two method-specific ones to their methods. Shared by the three
 /// rules that read a request target, which had grown three notes for it.
@@ -143,6 +155,40 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_1],
+    }
+
+    /// A CONNECT whose request-target is in one of the other three forms — a
+    /// path, a full URI with a scheme, the asterisk. The target of a CONNECT
+    /// *is* the tunnel destination, so a value that is some other form names no
+    /// destination at all and a recipient has nowhere to open the tunnel to.
+    ///
+    /// **`_invalid` and not `_malformed`**: the value derives from a form, just
+    /// not from the one this method requires, which is the line the closed
+    /// vocabulary draws between grammar and everything past it.
+    /// [`REQUEST_TARGET_MALFORMED`] is for a value that derives from no form at
+    /// all, and a CONNECT gets that one too — the method changes the wording of
+    /// the finding and not which defect it is.
+    ///
+    /// **The mirror of [`REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN`], and not the
+    /// same entry.** That one is another method reaching for CONNECT's form,
+    /// which § 7.1 prohibits in so many words; this one is CONNECT failing to
+    /// use it, which § 3.2.3 states as a positive requirement. Two directions,
+    /// two sentences, two things a sender has to change.
+    ///
+    /// **One declarer, and it can only ever have one.** Over HTTP/2 and HTTP/3 a
+    /// CONNECT with a `:scheme` and a `:path` is a conforming *extended* CONNECT
+    /// (RFC 8441) and a malformed basic one, with nothing in a capture to choose
+    /// between them — both pseudo-header rules decline it for that reason. The
+    /// request-line has no such ambiguity: RFC 8441's mechanism is not part of
+    /// HTTP/1.1.
+    ///
+    // cite(RFC 9112 § 3.2.3): "When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target."
+    REQUEST_TARGET_CONNECT_FORM_INVALID = {
+        id: "request_target_connect_form_invalid",
+        title: "A CONNECT's request-target is not a host and port",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9112_3_2_3],
     }
 
     /// A request whose target carries no path component, on a method that owes
