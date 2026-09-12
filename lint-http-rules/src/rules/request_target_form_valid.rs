@@ -4,7 +4,10 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::request_target::{REQUEST_TARGET_ASTERISK_FORBIDDEN, RFC_9110_7_1};
+use crate::violations::request_target::{
+    REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_EMPTY, REQUEST_TARGET_MALFORMED,
+    REQUEST_TARGET_WHITESPACE_FORBIDDEN, RFC_9110_2_2, RFC_9110_7_1, RFC_9112_3_2,
+};
 use crate::violations::ViolationDef;
 
 /// The one finding of this rule the catalogue names: the asterisk sent with a
@@ -13,11 +16,22 @@ use crate::violations::ViolationDef;
 /// and HTTP/3 pseudo-header rules declare the same entry for the same defect
 /// spelled as a `:path`.
 ///
+/// **Three more are the target's own**, and all three are an HTTP/1.x
+/// request-line's alone: whitespace where no form admits any, a target of no
+/// characters, and a target deriving from none of the four. Over the multiplexed
+/// versions a capture holds the URI the transport reassembled, so none of them
+/// has evidence to be read from there — which is why these three entries have
+/// one declarer where the asterisk has three.
+///
 /// The rest of what this rule reports is about the request-*line* — a target
-/// deriving from none of the four forms, from two of them at once, a CONNECT
-/// with half an authority, whitespace where the production admits none — and
+/// deriving from two forms at once, a CONNECT with half an authority — and
 /// each of those is a reading of its own.
-static DECLARED: &[&ViolationDef] = &[&REQUEST_TARGET_ASTERISK_FORBIDDEN];
+static DECLARED: &[&ViolationDef] = &[
+    &REQUEST_TARGET_ASTERISK_FORBIDDEN,
+    &REQUEST_TARGET_WHITESPACE_FORBIDDEN,
+    &REQUEST_TARGET_EMPTY,
+    &REQUEST_TARGET_MALFORMED,
+];
 
 /// Which of the four productions a request-target derives from.
 ///
@@ -131,12 +145,6 @@ pub struct RequestTargetFormValid;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9112_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
-    note: "Request Target: the four forms, and the exclusion of whitespace from all of them",
-};
 const RFC_9112_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
     section: Some("3.2.3"),
@@ -148,12 +156,6 @@ const RFC_9112_3_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("3.2.4"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.4",
     note: "asterisk-form: the server-wide OPTIONS request's target",
-};
-const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-    note: "The sender's MUST NOT against generating protocol elements outside the ABNF, which is what makes a target in none of the four forms a violation",
 };
 
 impl RuleMeta for RequestTargetFormValid {
@@ -281,9 +283,8 @@ impl Rule for RequestTargetFormValid {
             // cite(RFC 9112 § 3.2): "A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain."
             // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
             if let Some(ws) = target.chars().find(|c| c.is_ascii_whitespace()) {
-                let severity = ctx.severity;
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &REQUEST_TARGET_WHITESPACE_FORBIDDEN,
                     format!(
                         "Request-target '{shown}' contains '{}', and no whitespace is allowed in a request-target -- nor a CR, LF or FF, which no component of any of the four forms admits. The request-line carrying it is malformed, and a recipient is asked not to autocorrect it, since a request-line like this one might be deliberately crafted to bypass a security filter along the request chain",
                         crate::helpers::shown::shown_in_finding(&ws.to_string())
@@ -297,9 +298,8 @@ impl Rule for RequestTargetFormValid {
             // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
             // cite(RFC 9112 § 3.2): "Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded."
             if target.is_empty() {
-                let severity = ctx.severity;
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &REQUEST_TARGET_EMPTY,
                     "Request carries an empty request-target. Every one of the four forms derives at least one character -- an absolute path opens with '/', an absolute-URI has a scheme and its colon, a host and port has the colon between them, and the asterisk is itself -- so the empty string is none of them and the request-line naming it is invalid".into(),
                 ));
             }
@@ -349,7 +349,7 @@ impl Rule for RequestTargetFormValid {
                     ),
                 ),
                 (None, "CONNECT") => (
-                    None,
+                    Some(&REQUEST_TARGET_MALFORMED),
                     format!(
                         "CONNECT request-target '{shown}' derives from none of the four forms, and a CONNECT sends only the host and port of the tunnel destination, separated by a colon. A recipient has nowhere to open the tunnel to"
                     ),
@@ -415,7 +415,7 @@ impl Rule for RequestTargetFormValid {
                 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
                 // cite(RFC 9112 § 3.2): "Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded."
                 (None, _) => (
-                    None,
+                    Some(&REQUEST_TARGET_MALFORMED),
                     format!(
                         "Request-target '{shown}' derives from none of the four forms: it is not an absolute path, not a full target URI with a scheme, not a host and port, and not the asterisk. The request-line carrying it is invalid, and a recipient is asked to answer 400 (Bad Request) rather than guess which was meant"
                     ),

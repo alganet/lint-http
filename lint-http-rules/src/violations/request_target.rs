@@ -28,6 +28,13 @@
 //! once for every version (§ 7.1) and sometimes once per version, and where it
 //! is the latter the entry names them all and no finding carries one.
 //!
+//! **Three of the entries below are an HTTP/1.x request-line's alone**, and the
+//! reason is the spelling rather than the element: whitespace inside the target,
+//! a target of no characters and a target deriving from none of the four forms
+//! are all visible where the sender wrote the element out between two spaces.
+//! Over the multiplexed versions a capture holds the URI the transport
+//! reassembled, so none of the three has evidence to be read from.
+//!
 //! What the *components* of a target are made of is not here: a scheme that is
 //! not a scheme name, an authority that is not a host and port, a percent
 //! triplet that does not derive are [`uri`](crate::violations::uri)'s, on every
@@ -38,6 +45,29 @@ use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::authority::{RFC_9113_8_3_1, RFC_9114_4_3_1};
 use crate::violations::defects;
+
+/// Where HTTP/1.1 writes the element out: the four forms as one production, the
+/// sentence excluding whitespace from all of them, and what a recipient of an
+/// invalid request-line is asked to answer. The three entries below that are
+/// read out of an HTTP/1.x request-line name it; the two above are about the
+/// element whichever way it arrived.
+pub const RFC_9112_3_2: SpecRef = SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+    note: "Request Target — `request-target = origin-form / absolute-form / authority-form / asterisk-form`, no whitespace allowed in any of them, the recipient's SHOULD to answer 400 rather than autocorrect, and why: a request-line like that might be crafted to bypass a filter along the chain",
+};
+
+/// The sentence that makes a value outside its ABNF a violation rather than an
+/// observation. Two entries here need it because the request-target's own
+/// production says what the four forms are and says nothing about a value that
+/// is none of them.
+pub const RFC_9110_2_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "Conformance — a sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules",
+};
 
 /// Where the four forms are named, what each is for, and the one MUST NOT that
 /// keeps the two method-specific ones to their methods. Shared by the three
@@ -110,6 +140,79 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9113_8_3_1, RFC_9114_4_3_1],
+    }
+
+    /// Whitespace inside a request-target: a SP or HTAB, or a CR, LF or FF. The
+    /// sentence excluding it is written of the target as a whole rather than of
+    /// any component, and it is written because senders do it — the paragraph
+    /// carrying it says so, and follows with the reason a recipient is asked not
+    /// to tidy it up: a request-line like that one may have been crafted to get
+    /// two recipients on a chain to read two different requests out of it.
+    ///
+    /// **Only an HTTP/1.x request has this defect to have.** The element arrives
+    /// as a request-line there, with SP delimiting the three parts of it, so a
+    /// space inside the target is a boundary in the wrong place; over HTTP/2 and
+    /// HTTP/3 the transport carries the components separately and a capture holds
+    /// what it reassembled. The octet inside a target is a different question
+    /// again, asked on every version by
+    /// `request_uri_percent_encoding_valid` against the alphabet a URI is
+    /// written from.
+    ///
+    /// `error`, which is what the rule reporting it had already chosen: a
+    /// recipient asked not to guess has nothing left to do but refuse the
+    /// request.
+    ///
+    // cite(RFC 9112 § 3.2): "No whitespace is allowed in the request-target."
+    REQUEST_TARGET_WHITESPACE_FORBIDDEN = {
+        id: "request_target_whitespace_forbidden",
+        title: "A request-target carries whitespace",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9112_3_2],
+    }
+
+    /// A request-line whose target is the empty string. Every one of the four
+    /// forms derives at least one character — an absolute path opens with `/`, an
+    /// absolute-URI has a scheme and its colon, a host and port has the colon
+    /// between them, and the asterisk is itself — so nothing was written where
+    /// the element goes.
+    ///
+    /// Separate from [`REQUEST_TARGET_MALFORMED`] the way the vocabulary
+    /// separates them everywhere: this sender wrote nothing and that one wrote
+    /// something no form generates, and the two are different mistakes to make
+    /// even though a recipient refuses both. **The pseudo-header versions have no
+    /// such split** — there an absent `:path` and a blank one reassemble into one
+    /// target, which is why [`REQUEST_TARGET_PATH_MISSING`] is one entry — and
+    /// the difference is the request-line, where what the sender wrote is on the
+    /// wire.
+    ///
+    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+    REQUEST_TARGET_EMPTY = {
+        id: "request_target_empty",
+        title: "A request-line carries no request-target",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_2_2],
+    }
+
+    /// A request-target that derives from none of the four forms. The four are
+    /// alternatives of one production and alternation is not exclusive, so a
+    /// value derives from at least one of them or from none — and "none" is not
+    /// an odd target to be lenient about, it is a request-line whose recipient is
+    /// asked to answer 400 rather than guess which form was meant.
+    ///
+    /// **The entry is the target's and not the method's**, though the rule
+    /// reporting it words the finding differently for a CONNECT: a method that
+    /// requires one particular form has more to say about a value in none of
+    /// them, and none of that changes what is wrong with the value.
+    ///
+    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+    REQUEST_TARGET_MALFORMED = {
+        id: "request_target_malformed",
+        title: "A request-target derives from none of the four forms",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_2_2],
     }
 }
 
