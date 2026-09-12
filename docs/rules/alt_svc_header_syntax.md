@@ -37,7 +37,7 @@ parameter     = token "=" ( token / quoted-string )
 ## Specifications
 
 - [RFC 7838 §3](https://www.rfc-editor.org/rfc/rfc7838.html#section-3): The Alt-Svc HTTP Header Field: `Alt-Svc = clear / 1#alt-value` and the productions under it, the case-sensitive `clear` keyword, the three percent-encoding constraints on a `protocol-id`, and the prose requiring a colon and a port inside the `alt-authority`
-- [RFC 7838 §3.1](https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1): Caching Alt-Svc Header Field Values: `persist = "1"` is the whole syntax of that parameter, and clients ignore any other value
+- [RFC 7838 §3.1](https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1): Caching Alt-Svc Header Field Values: the `ma` parameter's delta-seconds value states how long the alternative is considered fresh, and `persist` has exactly one defined value — `"1"` — with clients required to ignore any other
 - [RFC 7838 §1.1](https://www.rfc-editor.org/rfc/rfc7838.html#section-1.1): Notational Conventions: the field's terminals — `OWS`, `port`, `quoted-string`, `token`, `uri-host` — and the `#rule` extension are imported from RFC 7230, whose §3.2.3, §2.7, §3.2.6 and §7 are carried unchanged by RFC 9110 §5.6.3, §4.1, §5.6.4, §5.6.2 and §5.6.1
 - [RFC 7838 §8](https://www.rfc-editor.org/rfc/rfc7838.html#section-8): Internationalization Considerations: an internationalized domain name in this field is written as A-labels
 - [RFC 7838 §2](https://www.rfc-editor.org/rfc/rfc7838.html#section-2): Alternative Services Concepts: an alternative service is an ALPN protocol name, an RFC 3986 host and an RFC 3986 port, and the protocol name implies the transport the port is registered in
