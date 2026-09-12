@@ -1735,6 +1735,14 @@ severity = "error"
 # Sec-WebSocket-Extensions writes a parameter '=' with no value after it
 severity = "error"
 
+[violations.sec_websocket_key_length_invalid]
+# Sec-WebSocket-Key is not a sixteen-byte nonce
+severity = "warn"
+
+[violations.sec_websocket_key_missing]
+# WebSocket handshake carries no Sec-WebSocket-Key
+severity = "error"
+
 [violations.status_101_ignored]
 # HTTP continues on a connection a 101 handed off
 severity = "warn"

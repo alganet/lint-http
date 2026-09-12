@@ -16,6 +16,9 @@ use crate::violations::base64::{
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
+use crate::violations::sec_websocket_key::{
+    RFC_6455_4_1, SEC_WEBSOCKET_KEY_LENGTH_INVALID, SEC_WEBSOCKET_KEY_MISSING,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -28,17 +31,14 @@ pub struct SecWebsocketHeadersConsistent;
 /// and none it writes.
 ///
 /// **The key**: `Sec-WebSocket-Key = base64-value-non-empty`, and RFC 6455
-/// hands the encoding to RFC 4648 without restating a character of it.
-///
-/// `Sec-WebSocket-Key = base64-value-non-empty`, and RFC 6455 hands the
-/// encoding to RFC 4648 without restating a character of it — so an octet
-/// outside the alphabet, a symbol count no group of twenty-four bits accounts
-/// for, and a final symbol whose discarded bits are not zero are the same three
-/// defects an `Authorization: Basic` value can have. What is left is the
-/// field's own sentence — the nonce is sixteen octets, and the field has to be
-/// there at all — and both of those stay in this rule's words: they belong to a
-/// `sec_websocket_key` subject nothing has written, and a subject with one
-/// reader is written when it is read twice.
+/// hands the encoding to RFC 4648 without restating a character of it — so an
+/// octet outside the alphabet, a symbol count no group of twenty-four bits
+/// accounts for, and a final symbol whose discarded bits are not zero are the
+/// same three defects an `Authorization: Basic` value can have. What is left is
+/// item 7's own two sentences — the field has to be there at all, and what it
+/// carries is a sixteen-byte nonce — which are the
+/// [`sec_websocket_key`](crate::violations::sec_websocket_key) subject and are
+/// declared here beside the encoding's three.
 ///
 /// **The subprotocol list**: `Sec-WebSocket-Protocol-Client = 1#token`, so a
 /// value naming nothing, a stray comma and an octet no `tchar` admits are the
@@ -47,12 +47,15 @@ pub struct SecWebsocketHeadersConsistent;
 /// one word. What stays this rule's own is the uniqueness requirement, which is
 /// about the *set* and which § 5.6.1.1 writes nothing about.
 ///
-/// `Connection` and the version are untouched and say so through their type: an
-/// unnamed [`Defect`] is a finding no subject has claimed.
+/// `Connection`, the version and the subprotocol list's uniqueness requirement
+/// are untouched and say so through their type: an unnamed [`Defect`] is a
+/// finding no subject has claimed.
 static DECLARED: &[&ViolationDef] = &[
     &BASE64_CHARACTER_FORBIDDEN,
     &BASE64_QUANTUM_MALFORMED,
     &BASE64_PAD_BITS_INVALID,
+    &SEC_WEBSOCKET_KEY_MISSING,
+    &SEC_WEBSOCKET_KEY_LENGTH_INVALID,
     &LIST_MEMBER_MISSING,
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -165,13 +168,14 @@ impl SecWebsocketHeadersConsistent {
     ///
     /// Three of the four verdicts are the encoding's and carry its ids; the
     /// fourth is a well-formed encoding of the wrong number of octets, which is
-    /// this field's own sentence and is left unnamed. The field being absent
-    /// altogether is the same field's sentence and is left unnamed beside it —
-    /// one commit will write both, or neither.
+    /// the field's own sentence and is the `sec_websocket_key` subject's. The
+    /// field being absent altogether is the other sentence of the same numbered
+    /// item, and the two landed together as that entry predicted.
     // cite(RFC 6455 § 4.1): "The request MUST include a header field with the name |Sec-WebSocket-Key|."
     fn key_defect(headers: &hyper::HeaderMap) -> Option<Defect> {
         let Some(raw) = combined_field_value_as_written(headers, "sec-websocket-key") else {
-            return Some(Defect::unnamed(
+            return Some(Defect::named(
+                &SEC_WEBSOCKET_KEY_MISSING,
                 "the request carries no Sec-WebSocket-Key header field".into(),
             ));
         };
@@ -181,10 +185,7 @@ impl SecWebsocketHeadersConsistent {
             shown_in_finding(trim_ows(&raw)),
             defect
         );
-        Some(match key_violation(&defect) {
-            Some(def) => Defect::named(def, message),
-            None => Defect::unnamed(message),
-        })
+        Some(Defect::named(key_violation(&defect), message))
     }
 
     /// The optional `Sec-WebSocket-Protocol`, which is two MUSTs about its members
@@ -264,12 +265,11 @@ impl SecWebsocketHeadersConsistent {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6455_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1",
-    note: "Client Requirements — the numbered list this rule measures: GET, HTTP version at least 1.1, `Upgrade: websocket`, the `Upgrade` connection-option, the `Sec-WebSocket-Key` nonce, `Sec-WebSocket-Version: 13`, and `Sec-WebSocket-Protocol`'s non-empty unique `token` members",
-};
+///
+/// § 4.1 is not written here: its item 7 is what the
+/// [`sec_websocket_key`](crate::violations::sec_websocket_key) entries enforce,
+/// so the reference lives beside them and is imported back — which is also why
+/// the numbered list a reader is sent to is described from the field's side.
 const RFC_6455_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
     section: Some("4.2.1"),

@@ -139,7 +139,7 @@ pub fn opening_handshake_version(
 /// value outside the alphabet, a value the encoding does not generate, and a
 /// perfectly good encoding of the wrong number of octets are three different things
 /// for an operator to go and fix.
-// cite(RFC 6455 § 4.3, label: Sec-WebSocket-Key): "Sec-WebSocket-Key = base64-value-non-empty"
+// cite(RFC 6455 § 4.3, label: Sec-WebSocket-Key grammar): "Sec-WebSocket-Key = base64-value-non-empty"
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SecWebSocketKeyDefect {
     /// An octet that `base64-character` does not derive.
