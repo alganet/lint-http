@@ -157,6 +157,40 @@ defects! {
         spec: &[RFC_9110_7_1],
     }
 
+    /// A request-target that derives from the authority-form *and* from the
+    /// absolute-form, sent with a method that is not CONNECT — `example.com:443`,
+    /// `tel:8005551212`, `urn:123`. Read one way it is a host and a port, which
+    /// is CONNECT's target and no other method's; read the other it is a full
+    /// URI asking a proxy for a resource under a scheme named `example.com`.
+    /// Nothing else in the request-line chooses between them.
+    ///
+    /// **The first entry in this catalogue that reports no verdict about the
+    /// message**, and the ending exists for it. Both readings derive, so it is
+    /// not `_malformed`; one of them is conforming, so it is not `_invalid` and
+    /// not `_forbidden`; and nothing in the message disagrees with anything else
+    /// in it, so it is not `_conflicting`. What is being reported is that two
+    /// recipients on one chain may route the request two ways — which is the
+    /// shape a request-smuggling attempt has, and is also what an ordinary
+    /// `tel:` URI in the wrong field looks like.
+    ///
+    /// **Separate from [`REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN`] because the
+    /// evidence is weaker, not because the defect is different.** That entry is
+    /// for a value only the authority-form generates — `192.0.2.1:443`,
+    /// `[2001:db8::1]:443`, `:80`, none of which any `scheme` can open — where
+    /// § 7.1's MUST NOT is established. Here it may not have been broken at all,
+    /// so the entry carries no sentence and ranks below its neighbour.
+    ///
+    /// `warn`, which the ending requires: an entry that cannot say the message
+    /// is wrong may not rank with the ones that can.
+    ///
+    REQUEST_TARGET_FORM_AMBIGUOUS = {
+        id: "request_target_form_ambiguous",
+        title: "A request-target derives from two of the four forms at once",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[],
+    }
+
     /// A CONNECT whose request-target is in one of the other three forms — a
     /// path, a full URI with a scheme, the asterisk. The target of a CONNECT
     /// *is* the tunnel destination, so a value that is some other form names no
