@@ -1899,6 +1899,22 @@ severity = "warn"
 # URI scheme does not begin with a letter
 severity = "warn"
 
+[violations.via_comment_duplicated]
+# Via member carries more than one comment
+severity = "warn"
+
+[violations.via_member_malformed]
+# Via member does not end where the production ends it
+severity = "warn"
+
+[violations.via_received_by_missing]
+# Via member names no received-by
+severity = "warn"
+
+[violations.via_received_by_obsolete]
+# Via received-by is spelled as a uri-host
+severity = "warn"
+
 [violations.weight_equals_whitespace_forbidden]
 # Whitespace is written beside the weight's '='
 severity = "warn"

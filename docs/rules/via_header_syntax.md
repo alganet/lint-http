@@ -18,7 +18,7 @@ What the rule does not judge: whether a proxy sent a `Via` at all. §7.6.3's MUS
 
 ## Specifications
 
-- [RFC 9110 §7.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3): The `Via` grammar this rule parses, the sentence that puts the field in both directions, and the requirements about forwarding and combining that a single captured message cannot answer
+- [RFC 9110 §7.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3): The `Via` grammar — `Via = #( received-protocol RWS received-by [ RWS comment ] )` — the sentence that puts the field in both directions, and the requirements about forwarding and combining that a single captured message cannot answer
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): `received-protocol` points here for its two halves: `protocol-name = token` and `protocol-version = token`
 - [RFC 9110 §B.2](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.2): Why a `received-by` is a token: RFC 9110 removed `uri-host` from the production, which is what makes a bracketed IPv6 literal a finding here and not under RFC 7230
 - [RFC 9110 §5.6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5): Comments — `comment = "(" *( ctext / quoted-pair / comment ) ")"`, the `ctext` class, and the self-reference that makes a comment nestable

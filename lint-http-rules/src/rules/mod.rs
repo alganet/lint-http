@@ -1370,7 +1370,18 @@ severity = "warn"
         /// *trailer* sentence rather than the requirement it reports — the entry
         /// names § 15.5.22 and the trailer nuance stays in the message, where it
         /// was always the aside.
-        const FLOOR: usize = 106;
+        ///
+        /// **The `via` subject took one more, and it is one site standing for
+        /// seven.** `via_header_syntax` cited § 7.6.3 once, from the arm that
+        /// reported everything the member's *assembly* got wrong — a missing
+        /// `received-by`, a second comment, trailing content, a `received-by`
+        /// spelled as the `uri-host` § B.2 removed. Four entries now hold those,
+        /// each naming the sentence it enforces, so every one of those findings
+        /// is still cited and three of them are cited by a reference the site
+        /// never carried. **A count of cited sites falls fastest where one site
+        /// was standing in for several defects**, which is the shape a
+        /// half-converted judge has by construction.
+        const FLOOR: usize = 105;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
