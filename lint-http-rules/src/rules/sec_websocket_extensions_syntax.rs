@@ -16,6 +16,10 @@ use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
+use crate::violations::sec_websocket_extensions::{
+    RFC_2616_2_1, RFC_6455_9_1, SEC_WEBSOCKET_EXTENSIONS_EMPTY,
+    SEC_WEBSOCKET_EXTENSIONS_PARAMETER_MISSING, SEC_WEBSOCKET_EXTENSIONS_PARAMETER_VALUE_EMPTY,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -24,8 +28,8 @@ use crate::violations::ViolationDef;
 
 pub struct SecWebsocketExtensionsSyntax;
 
-/// Six defs over two subjects, and this field's own list construct is
-/// deliberately not among them.
+/// Ten defs over three subjects, and this field's own list construct is
+/// deliberately not borrowed from any of them.
 ///
 /// `extension-token = registered-token = token` and `extension-param = token [
 /// "=" (token | quoted-string) ]`, so the name, the parameter name and an
@@ -39,11 +43,15 @@ pub struct SecWebsocketExtensionsSyntax;
 /// non-null; RFC 9110's forbids them outright. `list_member_empty` reports a
 /// sender's MUST NOT that does not apply here, so a field allowing what it
 /// forbids must not borrow it — and the floor, though it says the same thing,
-/// is stated by a different document for a different construct. Both findings
-/// stay in this rule's words.
+/// is stated by a different document for a different construct.
 ///
-/// The parameter that is nothing at all — a `;` with nothing after it — is this
-/// grammar's own repetition group and stays unnamed beside them.
+/// Neither is the parameter that is nothing at all — a `;` with nothing after
+/// it — nor the `=` with nothing after it: the production is § 9.1's own and
+/// not § 5.6.6's `parameters`, which brackets its parameter and requires its
+/// value. Those three are the
+/// [`sec_websocket_extensions`](crate::violations::sec_websocket_extensions)
+/// subject, and they rank above the seven borrowed ones because § 9.1 says
+/// what a recipient does with a value that does not conform.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -52,32 +60,26 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &SEC_WEBSOCKET_EXTENSIONS_EMPTY,
+    &SEC_WEBSOCKET_EXTENSIONS_PARAMETER_MISSING,
+    &SEC_WEBSOCKET_EXTENSIONS_PARAMETER_VALUE_EMPTY,
 ];
 
 /// One finding from the reading, and the defect it reports as where the
 /// catalogue names that defect.
 ///
-/// The shape `expect_header_valid` settled. The unnamed half here is everything
-/// RFC 2616's notation owns: the list construct, its null elements, and the
-/// repetition group a `;` opens.
+/// The shape `expect_header_valid` settled — a judge that is half converted
+/// carries an `Option` here — is not this rule's any more: what RFC 2616's
+/// notation owns became a subject of its own, so every arm names an entry.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed, reported at the rule's severity the way
-    /// every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out — the direction
@@ -147,11 +149,14 @@ fn extension_defect(member: &str) -> Option<Defect> {
         // null-element permission is the `#rule`'s, and the `#rule` here is the
         // comma-separated list of extensions above.
         if param.is_empty() {
-            return Some(Defect::unnamed(format!(
-                "member '{}' has an empty parameter: every \";\" in an extension is followed by an \
-                 extension-param, which begins with a token",
-                shown_in_finding(member)
-            )));
+            return Some(Defect::named(
+                &SEC_WEBSOCKET_EXTENSIONS_PARAMETER_MISSING,
+                format!(
+                    "member '{}' has an empty parameter: every \";\" in an extension is followed \
+                     by an extension-param, which begins with a token",
+                    shown_in_finding(member)
+                ),
+            ));
         }
 
         // The `=` is optional, and where it is absent the parameter is a bare
@@ -260,11 +265,15 @@ fn extension_defect(member: &str) -> Option<Defect> {
             // The alternation's empty value, which the catalogue declines: six
             // fields settled that verdict four different ways and two of them
             // tolerate it outright.
-            return Some(Defect::unnamed(format!(
-                "member '{}' has a parameter whose \"=\" is followed by no value; the alternation \
-                 is a token or a quoted-string, and neither derives the empty string",
-                shown_in_finding(member)
-            )));
+            return Some(Defect::named(
+                &SEC_WEBSOCKET_EXTENSIONS_PARAMETER_VALUE_EMPTY,
+                format!(
+                    "member '{}' has a parameter whose \"=\" is followed by no value; the \
+                     alternation is a token or a quoted-string, and neither derives the empty \
+                     string",
+                    shown_in_finding(member)
+                ),
+            ));
         }
         if let Some(c) = find_invalid_token_char(value) {
             return Some(Defect::named(
@@ -327,12 +336,15 @@ impl SecWebsocketExtensionsSyntax {
             // worked example, and the construct here is RFC 2616's, which
             // permits the null elements RFC 9110 forbids. Same words, different
             // document, different list.
-            return Some(Defect::unnamed(format!(
-                "{direction} Sec-WebSocket-Extensions names no extension: '{}'. The field is \
-                 `1#extension`, and RFC 2616's list construct — the one this grammar uses — allows \
-                 null elements but requires at least one that is not",
-                shown_in_finding(&value)
-            )));
+            return Some(Defect::named(
+                &SEC_WEBSOCKET_EXTENSIONS_EMPTY,
+                format!(
+                    "{direction} Sec-WebSocket-Extensions names no extension: '{}'. The field is \
+                     `1#extension`, and RFC 2616's list construct — the one this grammar uses — \
+                     allows null elements but requires at least one that is not",
+                    shown_in_finding(&value)
+                ),
+            ));
         }
 
         for member in members {
@@ -355,23 +367,11 @@ impl SecWebsocketExtensionsSyntax {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6455_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("9.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1",
-    note: "Negotiating Extensions — the grammar, the MUST that makes a non-conforming \
-           value a failure of the connection, the note that the notation is RFC \
-           2616's, and the requirement on a quoted-string value after unescaping",
-};
-const RFC_2616_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 2616",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-2.1",
-    note: "Augmented BNF — the notation §9.1 imports by name: the `#rule` whose null \
-           elements are allowed (RFC 9110 §5.6.1.1 forbids them) and the implied \
-           *LWS rule that permits whitespace beside the separators. Obsolete and \
-           correct: the current document is what sends the reader here",
-};
+///
+/// Two of them are not written here: the field's section and the notation it
+/// imports are what the
+/// [`sec_websocket_extensions`](crate::violations::sec_websocket_extensions)
+/// entries enforce, so they live beside those entries and are imported back.
 const RFC_6455_11_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
     section: Some("11.4"),
@@ -471,10 +471,7 @@ impl Rule for SecWebsocketExtensionsSyntax {
                 Self::defect(&resp.headers, "Response")
             })?;
 
-            Some(match defect.def {
-                Some(def) => ctx.report_with(def, defect.message),
-                None => self.violation(ctx.severity, defect.message),
-            })
+            Some(ctx.report_with(defect.def, defect.message))
         };
         Vec::from_iter(finding())
     }
@@ -510,9 +507,10 @@ mod tests {
     /// unescaped value must conform to `token` in as many words. The
     /// `quoted-string` itself reports the shared ids too.
     ///
-    /// What does not convert is asserted here as well: this field's `#rule` is
+    /// What is not borrowed is asserted here as well: this field's `#rule` is
     /// RFC 2616's, which permits the null elements RFC 9110's forbids, so
-    /// neither list id may be borrowed however alike the sentences read.
+    /// neither list id may be taken however alike the sentences read — the
+    /// floor is this subject's own entry instead.
     #[test]
     fn the_token_is_the_same_token_at_five_positions() {
         let id = |line: &[u8]| {
@@ -529,8 +527,14 @@ mod tests {
         assert_eq!(id(b";name=1"), "token_empty");
         assert_eq!(id(br#"x;name="a"#), "quoted_string_delimiter_missing");
 
-        // RFC 2616's list construct, which permits what RFC 9110's forbids.
-        assert_eq!(id(b","), "");
+        // RFC 2616's list construct, which permits what RFC 9110's forbids:
+        // the floor is the field's, not the list subject's.
+        assert_eq!(id(b","), "sec_websocket_extensions_empty");
+        assert_eq!(id(b"x;"), "sec_websocket_extensions_parameter_missing");
+        assert_eq!(
+            id(b"x;name="),
+            "sec_websocket_extensions_parameter_value_empty"
+        );
     }
 
     fn extensions(section: Section, lines: &[&[u8]]) -> Option<Violation> {
