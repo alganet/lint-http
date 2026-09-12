@@ -35,7 +35,14 @@
 //! not make the requirement shared, and [`te`](crate::violations::te) already
 //! carries its own.
 //!
-//! **Four of the five are the same two defects under each of the two status
+//! **A sixth entry is the only one about a value.** The two `101` entries below
+//! ask whether a protocol was named at all; RFC 6455 asks *which*, because a
+//! WebSocket handshake's response carries the field with the value `websocket`
+//! and nothing beside it. HTTP sets no such ceiling — § 15.2.2's field names
+//! *which protocol(s) will be in effect* — so an entry about the value can only
+//! come from the protocol the handshake belongs to.
+//!
+//! **Four of the six are the same two defects under each of the two status
 //! codes**,
 //! and the ids say which because the conditions and the sentences both differ.
 //! An entry naming § 15.2.2 and § 15.5.22 together would give up the citation
@@ -52,6 +59,10 @@
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+// The section a server's half of a WebSocket handshake is written from, defined
+// where its first entry landed and named here for the one entry of this subject
+// that is not HTTP's own requirement.
+use crate::violations::sec_websocket_protocol::RFC_6455_4_2_2;
 
 /// The status code's section: what the code indicates, and the requirement on
 /// the field written into the same paragraph. Shared with
@@ -157,6 +168,42 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_15_2_2],
+    }
+
+    /// A `101` whose `Upgrade` names a protocol the exchange it completes does
+    /// not permit there.
+    ///
+    /// **The third thing that can be wrong with a `101`'s `Upgrade`, and the
+    /// only one about the value rather than its presence.** The two entries
+    /// above are read from § 15.2.2 alone and apply to every `101`; this one
+    /// takes a second sentence from whichever protocol the handshake belongs
+    /// to, because HTTP itself sets no ceiling — `Upgrade` names *which
+    /// protocol(s) will be in effect*, and several is a value § 15.2.2 admits.
+    /// RFC 6455 does set one: a WebSocket handshake's response carries the field
+    /// *with value "websocket"*, so a member beside it is a protocol this
+    /// connection cannot be speaking.
+    ///
+    /// Not [`STATUS_101_PROTOCOL_FORBIDDEN`](crate::violations::status), which
+    /// is § 7.8's MUST NOT about switching to something the *client* never
+    /// indicated. A client that offered `websocket, h2c` indicated both, so that
+    /// entry is silent on a response naming both — and this one is not, because
+    /// what the handshake permits is not a matter of what was offered.
+    ///
+    /// `_invalid` and not `_forbidden`: the value derives from `#protocol` and
+    /// every member is a protocol name, and what it fails is a requirement past
+    /// the grammar about which name may appear.
+    ///
+    /// `error`, with the `101` pair above and for their reason: the connection
+    /// has been handed over, so there is no later message in which a client that
+    /// cannot tell what it is now speaking can ask.
+    ///
+    // cite(RFC 6455 § 4.2.2): "An |Upgrade| header field with value "websocket" as per RFC 2616 [RFC2616]."
+    UPGRADE_101_INVALID = {
+        id: "upgrade_101_invalid",
+        title: "A 101 response names a protocol its handshake does not permit",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_6455_4_2_2],
     }
 
     /// A `426` response with no `Upgrade` field on it at all. The status code

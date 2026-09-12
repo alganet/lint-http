@@ -1923,6 +1923,10 @@ severity = "info"
 # A 101 response names no protocol on its Upgrade field
 severity = "error"
 
+[violations.upgrade_101_invalid]
+# A 101 response names a protocol its handshake does not permit
+severity = "error"
+
 [violations.upgrade_101_missing]
 # A 101 response carries no Upgrade field
 severity = "error"
