@@ -55,7 +55,16 @@
 //! that the contradiction is spelled out by the protocol being upgraded to,
 //! which is the only document that says what makes such a request refusable.
 //!
-//! So six of the seven default to `warn`, which is the severity the rules
+//! **The eighth is the second read out of a third message**, and it is the first
+//! entry here about a *request*: a `417` says the response chain cannot meet an
+//! expectation, and a repeat that keeps the expectation asks again for what was
+//! refused. The word is `_ignored` for the reason the `101` entry carries it —
+//! nothing is malformed, and what was not acted on is what the status code said.
+//! **The subject is why the id reads correctly**: an id built on the field would
+//! have named the expectation as the thing ignored, which is a server's
+//! behaviour and the opposite of this finding.
+//!
+//! So seven of the eight default to `warn`, which is the severity the rules
 //! reporting them had already chosen for themselves: a client handed a response
 //! it did not ask for, or cannot parse, has to notice that on its own, and the
 //! exchange carries on around it. **The question that separates the levels is
@@ -65,8 +74,12 @@
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+// The sentence a `417` leaves a client with, written in the field's section
+// rather than the status code's — defined where the field's entries are, and
+// named here for the entry about a request that disregarded it.
 use crate::violations::content_range::RFC_9110_15_3_7_2;
 use crate::violations::defects;
+use crate::violations::expect::RFC_9110_10_1_1;
 use crate::violations::upgrade::RFC_9110_15_2_2;
 
 /// What a 206 says it is doing, and the field a single-part one has to carry
@@ -349,6 +362,39 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6455_4_2_1],
+    }
+
+    /// A request carrying a `100-continue` expectation after a `417
+    /// (Expectation Failed)` answered the same request without one being
+    /// dropped.
+    ///
+    /// The status code says the expectation could not be met by at least one of
+    /// the inbound servers, which is a fact about the *chain* and not about this
+    /// request: an HTTP/1.0 hop in the middle will fail it again tomorrow. So
+    /// § 10.1.1 tells a client that receives one to repeat the request without
+    /// the expectation, and a repeat that keeps it asks again for something
+    /// already refused.
+    ///
+    /// **`_ignored`, and the sibling that carries the word is the reason it
+    /// reads correctly here**: the subject is the status code, so what was not
+    /// acted on is the `417` — never the expectation, which is what an id built
+    /// on `expect` would have said instead.
+    ///
+    /// **Read out of a third message**, like [`STATUS_101_IGNORED`] and unlike
+    /// everything else in this subject: the evidence is an *earlier* exchange
+    /// with the same method on the same resource, so a rule reporting it needs
+    /// the history, and a capture holding one request cannot produce it.
+    ///
+    /// `warn`. Nothing is malformed and the request is answerable; what it
+    /// costs is a round trip that was already known to fail.
+    ///
+    // cite(RFC 9110 § 10.1.1): "A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server)."
+    STATUS_417_IGNORED = {
+        id: "status_417_ignored",
+        title: "A request repeats an expectation a 417 already refused",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_10_1_1],
     }
 
     /// A 304 carrying representation metadata beyond the fields it is required

@@ -1443,6 +1443,14 @@ severity = "warn"
 # Weakness indicator is not written W/
 severity = "warn"
 
+[violations.expect_100_continue_forbidden]
+# A 100-continue expectation is sent in a request with no content
+severity = "warn"
+
+[violations.expect_100_continue_invalid]
+# The 100-continue expectation is written with an argument
+severity = "info"
+
 [violations.expect_member_malformed]
 # Expect member holds octets the expectation production does not admit
 severity = "warn"
@@ -1849,6 +1857,10 @@ severity = "warn"
 
 [violations.status_416_unsolicited]
 # 416 Range Not Satisfiable answers a request that named no range
+severity = "warn"
+
+[violations.status_417_ignored]
+# A request repeats an expectation a 417 already refused
 severity = "warn"
 
 [violations.status_metadata_redundant]

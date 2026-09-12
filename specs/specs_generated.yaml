@@ -2763,7 +2763,7 @@ sources:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 156
     - file: lint-http-rules/src/violations/status.rs
-      line: 345
+      line: 358
   - label: Sec-WebSocket-Protocol-Client
     section: § 4.3
     snippet: Sec-WebSocket-Protocol-Client = 1#token
@@ -5205,7 +5205,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 118
     - file: lint-http-rules/src/violations/status.rs
-      line: 150
+      line: 163
   - label: accept_ranges_on_partial_content
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
@@ -5309,7 +5309,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 369
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 406
+      line: 402
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 303
     - file: lint-http-rules/src/rules/http_version_syntax.rs
@@ -5901,7 +5901,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 28
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 197
+      line: 193
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 222
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
@@ -5915,7 +5915,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 29
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 213
+      line: 209
   - label: context_fields_direction (3)
     section: § 10.1.2
     snippet: The "From" header field contains an Internet email address for a human user who controls the requesting user agent.
@@ -6059,61 +6059,67 @@ sources:
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 301
+      line: 291
   - label: expect_header_valid (2)
     section: § 10.1.1
     snippet: A client MUST NOT generate a 100-continue expectation in a request that does not include content.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 300
+      line: 290
+    - file: lint-http-rules/src/violations/expect.rs
+      line: 116
   - label: expect_header_valid (3)
     section: § 10.1.1
     snippet: A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server).
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 319
+      line: 310
+    - file: lint-http-rules/src/violations/status.rs
+      line: 391
   - label: expect_header_valid (4)
     section: § 10.1.1
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 342
+      line: 334
   - label: expect_header_valid (5)
     section: § 10.1.1
     snippet: The Expect field value is case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 97
+      line: 92
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 264
+      line: 254
   - label: expect_header_valid (6)
     section: § 10.1.1
     snippet: The only expectation defined by this specification is "100-continue" (with no defined parameters).
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 96
+      line: 91
+    - file: lint-http-rules/src/violations/expect.rs
+      line: 141
   - label: expectation production
     section: § 10.1.1
     snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 405
+      line: 401
     - file: lint-http-rules/src/violations/expect.rs
-      line: 65
+      line: 68
     - file: lint-http-rules/src/violations/expect.rs
-      line: 86
+      line: 89
   - label: expect_header_valid (7)
     section: § 15.5.18
     snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 318
+      line: 309
   - label: expect_header_valid (8)
     section: § 5.6.6
     snippet: 'Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character.'
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 584
+      line: 580
     - file: lint-http-rules/src/violations/parameter.rs
       line: 119
   - label: expect_header_valid (9)
@@ -6121,19 +6127,19 @@ sources:
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 249
+      line: 239
   - label: expect_header_valid (10)
     section: § B.3
     snippet: List-based grammar for Expect has been restored for compatibility with RFC 2616.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 228
+      line: 224
   - label: expect_header_valid (11)
     section: § B.3
     snippet: Parameters in media type, media range, and expectation can be empty via one or more trailing semicolons.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 552
+      line: 548
   - label: extension_headers_registered
     section: § 16.3
     snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
@@ -7433,7 +7439,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 383
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 512
+      line: 508
   - label: parameter-value grammar
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
@@ -7443,7 +7449,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 26
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 513
+      line: 509
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 89
     - file: lint-http-rules/src/violations/parameter.rs
@@ -7461,7 +7467,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 221
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 510
+      line: 506
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 266
   - label: lint-http-rules/src/helpers/media_type.rs (5)
@@ -7527,7 +7533,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 107
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 511
+      line: 507
     - file: lint-http-rules/src/violations/parameter.rs
       line: 69
   - label: lint-http-rules/src/helpers/product.rs
@@ -8829,37 +8835,37 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 310
+      line: 323
   - label: status (2)
     section: § 15.3.7.2
     snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 197
+      line: 210
   - label: status (3)
     section: § 15.4.5
     snippet: Since the goal of a 304 response is to minimize information transfer when the recipient already has one or more cached representations, a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates (e.g., Last-Modified might be useful if the response does not have an ETag field).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 371
+      line: 417
   - label: status (4)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 170
+      line: 183
   - label: status (5)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 274
+      line: 287
   - label: status (6)
     section: § 7.8
     snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 237
+      line: 250
   - label: status_101_switching_protocols
     section: § 7.8
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
@@ -10698,7 +10704,7 @@ sources:
     snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 238
+      line: 251
   - label: the TE exception
     section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
@@ -10905,7 +10911,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 181
     - file: lint-http-rules/src/violations/status.rs
-      line: 239
+      line: 252
   - label: lint-http-core/src/http_version.rs
     section: § 4.3.1
     snippet: HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line.

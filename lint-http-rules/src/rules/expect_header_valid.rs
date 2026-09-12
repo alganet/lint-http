@@ -12,7 +12,10 @@ use crate::helpers::shown::describe_octet;
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::expect::{EXPECT_MEMBER_MALFORMED, EXPECT_VALUE_EMPTY, RFC_9110_10_1_1};
+use crate::violations::expect::{
+    EXPECT_100_CONTINUE_FORBIDDEN, EXPECT_100_CONTINUE_INVALID, EXPECT_MEMBER_MALFORMED,
+    EXPECT_VALUE_EMPTY, RFC_9110_10_1_1,
+};
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, PARAMETER_VALUE_EMPTY,
@@ -23,6 +26,7 @@ use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
+use crate::violations::status::STATUS_417_IGNORED;
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
 };
@@ -36,15 +40,19 @@ pub struct ExpectHeaderValid;
 /// `( token / quoted-string )` — so a stray comma, a parameter with no `=` and
 /// an unterminated quote are the same defects twenty-odd other fields report.
 ///
-/// What stays on the older API is § 10.1.1's, and it is what the rule is for:
-/// a `100-continue` in a request with no content, a request repeating one a 417
-/// already refused, and a `100-continue` written with an argument — three
-/// statements about what the one defined expectation *means*, which
-/// [`expect`](crate::violations::expect) is written with room for. The two
-/// shapes an `expectation` itself can fail in are that subject's already: a
-/// member holding octets the production does not admit, and an `=` with no value
-/// after it.
+/// What § 10.1.1 says about the one defined expectation is what this rule is
+/// for, and it lands in two subjects rather than one.
+/// [`expect`](crate::violations::expect) holds the assembly of a member, the
+/// value it may not leave empty, the MUST NOT against sending `100-continue`
+/// with no content, and the argument that costs the expectation its meaning.
+/// The request that repeats one a `417` already refused is
+/// [`status_417_ignored`](crate::violations::status): what it disregards is a
+/// status code, the evidence is an earlier exchange, and an id built on this
+/// field would have named the expectation as the thing ignored — which is a
+/// server's behaviour and the opposite of the finding.
 static DECLARED: &[&ViolationDef] = &[
+    &EXPECT_100_CONTINUE_FORBIDDEN,
+    &EXPECT_100_CONTINUE_INVALID,
     &EXPECT_MEMBER_MALFORMED,
     &EXPECT_VALUE_EMPTY,
     &LIST_MEMBER_EMPTY,
@@ -57,37 +65,24 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &STATUS_417_IGNORED,
 ];
 
-/// One finding the reading produced: its wording, and the defect it reports as
-/// where the catalogue has a name for that defect.
+/// One finding the reading produced: its wording, and the entry it reports as.
 ///
-/// The first judge converted in this tree — `x_forwarded_consistent`'s —
-/// returns `(&'static ViolationDef, String)`, because every arm of it had an
-/// entry. This rule's judges are half
-/// converted — an `expectation`'s own two failures are its field's and no
-/// subject holds them — so the def is an `Option`, and the site that reports
-/// picks the API from it. **A partially converted judge says which arms are
-/// converted in its type**, which is the smallest honest shape for it and
-/// cheaper than splitting the reading in two.
+/// This type carried an `Option` while an `expectation`'s own failures had no
+/// subject to belong to, which is what a half-converted judge says in its type
+/// rather than by being split in two. **The field has a subject now**, so the
+/// `Option` is gone and the site reports one way.
 pub(crate) struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed yet, reported at the rule's severity the
-    /// way every finding was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 }
 
@@ -101,10 +96,11 @@ const HUNDRED_CONTINUE: &str = "100-continue";
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
 ///
-/// § 10.1.1 is not written here: the two entries the member's assembly reports
-/// enforce its production, so the reference lives beside them in
-/// [`expect`](crate::violations::expect) and is imported back — which is also
-/// where the three entries about what `100-continue` means will name it.
+/// § 10.1.1 is not written here: every entry this rule reports out of that
+/// section enforces one of its sentences, so the reference lives beside them in
+/// [`expect`](crate::violations::expect) and is imported back — including by the
+/// [`status`](crate::violations::status) entry, whose sentence is written in the
+/// field's section rather than the status code's.
 const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("A"),
@@ -231,15 +227,9 @@ impl Rule for ExpectHeaderValid {
             // Read after the field, not before it: both this and a missing `Expect`
             // end the rule, and the header probe is one map lookup where the config
             // read is several.
-            // Two APIs behind one closure: a defect the catalogue names resolves
-            // the severity configured for it, and one it does not still emits at
-            // the rule's.
-            let report = |defect: Defect| {
-                Some(match defect.def {
-                    Some(def) => ctx.report_with(def, defect.message),
-                    None => self.violation(ctx.severity, defect.message),
-                })
-            };
+            // One API now that every finding here names an entry: the severity is
+            // the entry's, resolved from the configuration by identity.
+            let report = |defect: Defect| Some(ctx.report_with(defect.def, defect.message));
 
             // A list of no members, which is not a list with an empty member in it —
             // the two look alike and only one of them is a defect. The sender-expanded
@@ -300,7 +290,8 @@ impl Rule for ExpectHeaderValid {
                 // cite(RFC 9110 § 10.1.1): "A client MUST NOT generate a 100-continue expectation in a request that does not include content."
                 // cite(RFC 9110 § 10.1.1): "A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request"
                 if content_evidence(&tx.request.headers, tx.request.body_length).is_none() {
-                    return report(Defect::unnamed(
+                    return report(Defect::named(
+                        &EXPECT_100_CONTINUE_FORBIDDEN,
                         "Request carries a 100-continue expectation but no content: the expectation \
                          asks the server to weigh in before content the message never had"
                             .to_string(),
@@ -325,7 +316,8 @@ impl Rule for ExpectHeaderValid {
                             && carries_hundred_continue(&prev.request.headers)
                     })
                 {
-                    return report(Defect::unnamed(
+                    return report(Defect::named(
+                        &STATUS_417_IGNORED,
                         "Request repeats one the response chain answered with 417 (Expectation Failed) \
                          and still carries a 100-continue expectation"
                             .to_string(),
@@ -341,13 +333,17 @@ impl Rule for ExpectHeaderValid {
                 //
                 // cite(RFC 9110 § 10.1.1): "A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met."
                 if e.has_arguments() {
-                    return report(Defect::unnamed(format!(
-                        "Expect writes the 100-continue expectation with an argument ('{}'); the \
-                         specification defines no value or parameters for it, so a recipient matching \
-                         the member against 100-continue sees a different expectation and may answer \
-                         417 (Expectation Failed). This is advice: the grammar admits the argument",
-                        crate::helpers::shown::shown_in_finding(e.member)
-                    )));
+                    return report(Defect::named(
+                        &EXPECT_100_CONTINUE_INVALID,
+                        format!(
+                            "Expect writes the 100-continue expectation with an argument ('{}'); \
+                             the specification defines no value or parameters for it, so a \
+                             recipient matching the member against 100-continue sees a different \
+                             expectation and may answer 417 (Expectation Failed). This is advice: \
+                             the grammar admits the argument",
+                            crate::helpers::shown::shown_in_finding(e.member)
+                        ),
+                    ));
                 }
             }
 
@@ -799,10 +795,11 @@ mod tests {
 
     /// This rule's own severity is `error`, chosen for the requirements it is
     /// named after, and until the catalogue existed every grammar quibble it
-    /// noticed inherited that level. Three findings out of one rule now come out
-    /// three different ways: the spelling of a `=` at `info`, a stray comma at
-    /// `warn`, and the MUST NOT about content at the `error` the rule was
-    /// configured with.
+    /// noticed inherited that level. **The configured level now reaches none of
+    /// them**: three findings out of one rule come out at the three levels their
+    /// entries default to — the spelling of a `=` at `info`, a stray comma at
+    /// `warn`, and the MUST NOT about content at `warn` because the exchange
+    /// survives it, whatever the rule was configured with.
     #[test]
     fn one_rule_now_reports_at_three_levels() {
         let severity_of = |value: &str| {
@@ -824,9 +821,9 @@ mod tests {
         assert_eq!(comma.violation, "list_member_empty");
         assert_eq!(comma.severity, crate::lint::Severity::Warn);
 
-        // The 100-continue expectation on a request with no content:
-        // unconverted, and still the rule's own severity. The fixture above
-        // gives every request content, so this one is built without it.
+        // The 100-continue expectation on a request with no content: its own
+        // entry now, and its own rank. The fixture above gives every request
+        // content, so this one is built without it.
         let mut tx = tx_with_expect_lines(&[b"100-continue"]);
         tx.request.body_length = None;
         let framing = crate::test_helpers::run_rule(
@@ -836,8 +833,8 @@ mod tests {
             &crate::test_helpers::make_test_config_with_severity(ExpectHeaderValid.id(), "error"),
         )
         .expect("the MUST NOT about content");
-        assert!(framing.violation.is_empty());
-        assert_eq!(framing.severity, crate::lint::Severity::Error);
+        assert_eq!(framing.violation, "expect_100_continue_forbidden");
+        assert_eq!(framing.severity, crate::lint::Severity::Warn);
     }
 
     #[test]
@@ -888,8 +885,9 @@ mod tests {
     fn hundred_continue_without_content_is_the_must_not() {
         let mut tx = tx_with_expect_lines(&[b"100-continue"]);
         tx.request.body_length = Some(0);
-        let msg = judge(&tx).expect("MUST NOT").message;
-        assert!(msg.contains("no content"), "{msg}");
+        let defect = judge(&tx).expect("MUST NOT");
+        assert!(defect.message.contains("no content"), "{}", defect.message);
+        assert_eq!(defect.violation, "expect_100_continue_forbidden");
     }
 
     #[test]
@@ -931,9 +929,12 @@ mod tests {
 
     #[test]
     fn an_argument_on_hundred_continue_is_advice_not_a_grammar_defect() {
-        let msg = judge_value("100-continue=param").expect("advice").message;
-        assert!(msg.contains("417"), "{msg}");
-        assert!(msg.contains("advice"), "{msg}");
+        let defect = judge_value("100-continue=param").expect("advice");
+        assert!(defect.message.contains("417"), "{}", defect.message);
+        assert!(defect.message.contains("advice"), "{}", defect.message);
+        // The argument is not a grammar defect and the entry says so: `_invalid`
+        // at `info`, where the member's assembly is `warn`.
+        assert_eq!(defect.violation, "expect_100_continue_invalid");
     }
 
     #[test]
@@ -977,10 +978,12 @@ mod tests {
 
     #[test]
     fn repeating_after_a_417_still_expecting_is_reported() {
-        let msg = judge_with_history(vec![prior("POST", 417, Some("100-continue"))])
-            .expect("417 repeat")
-            .message;
-        assert!(msg.contains("417"), "{msg}");
+        let defect =
+            judge_with_history(vec![prior("POST", 417, Some("100-continue"))]).expect("417 repeat");
+        assert!(defect.message.contains("417"), "{}", defect.message);
+        // The status code is the subject: what was not acted on is the `417`,
+        // and an id built on this field would have said the expectation was.
+        assert_eq!(defect.violation, "status_417_ignored");
     }
 
     #[test]
@@ -1025,10 +1028,7 @@ mod tests {
             "{}",
             defect.message
         );
-        assert_eq!(
-            defect.def.map(|d| d.id),
-            Some("quoted_string_control_character_forbidden"),
-        );
+        assert_eq!(defect.def.id, "quoted_string_control_character_forbidden");
     }
 
     #[test]
