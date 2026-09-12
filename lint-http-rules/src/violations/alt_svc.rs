@@ -147,6 +147,64 @@ defects! {
         spec: &[RFC_7838_3],
     }
 
+    /// A repetition of the parameter group holding no parameter: `h2=":443"; ;`
+    /// or a value ending on its semicolon.
+    ///
+    /// **Not [`list_member_empty`](crate::violations::list) and not
+    /// [`parameter`](crate::violations::parameter)'s anything**, and the second
+    /// half of that is the sharper one. § 5.6.6 writes `parameters = *( OWS ";"
+    /// OWS [ parameter ] )` — the brackets are what make `text/plain;` a
+    /// conforming zero-parameter repetition — and RFC 7838 § 3 writes
+    /// `*( OWS ";" OWS parameter )` with no brackets at all. **The same
+    /// repetition written without its brackets is a different production**, so
+    /// what conforms one field over is a defect here, and the entry that would
+    /// have been borrowed does not exist because there is nothing there to
+    /// report.
+    ///
+    /// `_empty` and not `_missing`: the semicolon is the repetition's own
+    /// delimiter, so a sender that wrote one knew a parameter was due and wrote
+    /// none of it.
+    ///
+    /// `warn`, with the rest of the field's grammar — the alternative carrying
+    /// it is what a recipient drops.
+    ///
+    // cite(RFC 7838 § 3): "Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value."
+    ALT_SVC_PARAMETER_EMPTY = {
+        id: "alt_svc_parameter_empty",
+        title: "Alt-Svc writes a semicolon with no parameter behind it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
+    /// An `=` with nothing after it: `ma=`.
+    ///
+    /// The value half is `( token / quoted-string )` and neither alternative
+    /// derives the empty string — a `token` is `1*tchar` and the shortest
+    /// `quoted-string` is its two DQUOTEs. `ma=""` is a different value and
+    /// conforms to the production, whatever the parameter makes of it.
+    ///
+    /// **This entry is the answer to a `None` in a mapping.** The shared reader
+    /// of `( token / quoted-string )` returns no id for an empty value on
+    /// purpose, because what an empty value *means* is the field's to say and
+    /// six fields reach that reader. Here it means an advertisement that named
+    /// a parameter and said nothing with it, which is this document's sentence
+    /// about its own production rather than § 5.6.6's about another one.
+    ///
+    /// `warn`, and beside [`ALT_SVC_PARAMETER_EQUALS_MISSING`] rather than
+    /// folded into it: `docs/development.md` keeps `_missing` and `_empty`
+    /// apart wherever a delimiter can tell them apart, and a sender that wrote
+    /// the `=` knew a value was due.
+    ///
+    // cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
+    ALT_SVC_PARAMETER_VALUE_EMPTY = {
+        id: "alt_svc_parameter_value_empty",
+        title: "Alt-Svc parameter is written with no value after its '='",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
     /// Whitespace touching one of the field's two `=` delimiters: `h2 = ":443"`
     /// or `; ma = 60`.
     ///
@@ -253,11 +311,24 @@ mod tests {
         for def in [
             &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
             &ALT_SVC_PARAMETER_EQUALS_MISSING,
+            &ALT_SVC_PARAMETER_EMPTY,
+            &ALT_SVC_PARAMETER_VALUE_EMPTY,
             &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
         ] {
             assert_eq!(def.spec, [RFC_7838_3], "{}", def.id);
             assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
         }
+    }
+
+    /// The pair `docs/development.md` keeps apart wherever a delimiter can tell
+    /// them apart, written here for both of the field's: the `;` of the
+    /// repetition and the `=` of the parameter. A sender that wrote either knew
+    /// something was due after it.
+    #[test]
+    fn each_delimiter_splits_the_absent_from_the_blank() {
+        assert!(ALT_SVC_PARAMETER_EMPTY.id.ends_with("_empty"));
+        assert!(ALT_SVC_PARAMETER_VALUE_EMPTY.id.ends_with("_empty"));
+        assert!(ALT_SVC_PARAMETER_EQUALS_MISSING.id.ends_with("_missing"));
     }
 
     /// The two entries are the subject's two ends, and they rank apart for a

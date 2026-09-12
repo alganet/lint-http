@@ -1079,8 +1079,16 @@ severity = "warn"
 # Alt-Svc states a freshness lifetime that cannot be what was meant
 severity = "warn"
 
+[violations.alt_svc_parameter_empty]
+# Alt-Svc writes a semicolon with no parameter behind it
+severity = "warn"
+
 [violations.alt_svc_parameter_equals_missing]
 # Alt-Svc parameter has no '=' and no value
+severity = "warn"
+
+[violations.alt_svc_parameter_value_empty]
+# Alt-Svc parameter is written with no value after its '='
 severity = "warn"
 
 [violations.auth_scheme_character_forbidden]
