@@ -1390,7 +1390,13 @@ severity = "warn"
         /// § 14.1.1 and one naming the unit's own section, so every one of those
         /// findings is still cited and one of them is cited more precisely than
         /// the site ever was.
-        const FLOOR: usize = 104;
+        /// **`alt_svc_clear_conflicting` took the next one, and it is the plain
+        /// shape**: one site, one sentence, one entry naming it. RFC 7838 § 3's
+        /// parenthetical moved from the site to the def, the finding still
+        /// carries the reference, and `alt_svc_header_syntax` — a rule with
+        /// fourteen findings this document writes about its own field — now has
+        /// no cited site left to lose.
+        const FLOOR: usize = 103;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

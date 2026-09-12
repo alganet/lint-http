@@ -14,29 +14,73 @@
 //! value is a [`delta_seconds`](crate::violations::delta_seconds), read at both
 //! ends of that production.
 //!
-//! **What is left for this subject is what the numbers mean**, and the first
-//! entry is the whole of it: a freshness lifetime that conforms to its
-//! production and cannot be what the sender intended. RFC 7838 sets no bound in
-//! either direction — zero is a legal `delta-seconds` and so is a run of forty
-//! digits — so the entry carries no reference, and the message says which end of
-//! the range the value fell off.
+//! **What is left is what the field states above its grammar**, and the two
+//! entries below are at opposite ends of it. One is the top production's
+//! alternation, where the document names the state it forbids and says what a
+//! recipient does about it. The other is what a number means: a freshness
+//! lifetime that conforms to `delta-seconds` and cannot be what the sender
+//! intended. RFC 7838 sets no bound in either direction — zero is a legal
+//! `delta-seconds` and so is a run of forty digits — so that entry carries no
+//! reference, and the message says which end of the range the value fell off.
 //!
-//! What `ma` states is the one sentence this subject rests on, and it states a
-//! meaning rather than a bound — which is the whole of the argument for the
-//! entry below carrying no reference.
+//! What `ma` states is a meaning rather than a bound, which is the whole of the
+//! argument for the uncited entry; the alternation, by contrast, is a sentence,
+//! and the entry naming it is cited on every finding.
 //!
-//! **The field's own grammar is not written here yet.** `alt_svc_header_syntax`
-//! reads it in both directions — an `alternative` with no `=`, an empty
-//! `protocol-id`, a percent-encoding this field's one-spelling constraint
-//! forbids, an unterminated DQUOTE — and those are this subject's entries when
-//! that rule converts.
+//! **The field's own grammar is only partly written here.** The top
+//! production's alternation is, because a value holding both of its halves is
+//! a state the document names in its own words. The rest —
+//! `alt_svc_header_syntax`'s reading of an `alternative` with no `=`, a
+//! percent-encoding this field's one-spelling constraint forbids, an
+//! `alt-authority` naming no port — is this subject's too and is not written
+//! yet.
 //
 // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
 
 use crate::lint::Severity;
+use crate::rules::SpecRef;
 use crate::violations::defects;
 
+/// The field: its grammar, the `clear` keyword, and what a recipient does with
+/// a value carrying that keyword beside an alternative service.
+pub const RFC_7838_3: SpecRef = SpecRef {
+    spec: "RFC 7838",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
+    note: "The Alt-Svc HTTP Header Field: `Alt-Svc = clear / 1#alt-value` and the productions under it, the case-sensitive `clear` keyword, the three percent-encoding constraints on a `protocol-id`, and the prose requiring a colon and a port inside the `alt-authority`",
+};
+
 defects! {
+    /// The keyword and an alternative service in one field value.
+    ///
+    /// `Alt-Svc = clear / 1#alt-value` is an alternation, so a value holding
+    /// both halves derives from neither — and the document does not leave that
+    /// to a reader to work out. It names the state in a parenthetical, calls it
+    /// an invalid reply, and says what a client does with it: invalidate every
+    /// alternative for the origin, *including the ones written beside the
+    /// keyword*.
+    ///
+    /// `_conflicting` because both halves are readable and each one contradicts
+    /// the other. Nothing is malformed at the octet level, nothing is missing,
+    /// and neither half is forbidden on its own — what fails is that one field
+    /// value says two things a recipient cannot both act on.
+    ///
+    /// **`error`, and it is the one entry in this subject that outranks its
+    /// rule.** Every other defect in an `Alt-Svc` costs the sender the one
+    /// alternative it is written in; this one costs the sender all of them,
+    /// because the recipient's defined answer is to discard the alternatives
+    /// this very response was sent to advertise. A field that is otherwise a
+    /// hint here does the opposite of what its sender meant.
+    ///
+    // cite(RFC 7838 § 3): "A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services)."
+    ALT_SVC_CLEAR_CONFLICTING = {
+        id: "alt_svc_clear_conflicting",
+        title: "Alt-Svc carries the clear keyword beside an alternative service",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_7838_3],
+    }
+
     /// A freshness lifetime that derives from `delta-seconds` and states
     /// nothing a client can use: `ma=0`, which is stale on arrival, or a value
     /// so far above any deployment's horizon that it is a typo.
@@ -78,8 +122,19 @@ mod tests {
     /// The entry that carries no sentence, and the reason it may not gain one
     /// later: what it reports is a value both of whose ends conform.
     #[test]
-    fn the_only_entry_here_states_no_sentence() {
+    fn the_uncited_entry_states_no_sentence() {
         assert!(ALT_SVC_MA_INVALID.spec.is_empty());
         assert_eq!(ALT_SVC_MA_INVALID.default_severity, Severity::Warn);
+    }
+
+    /// The two entries are the subject's two ends, and they rank apart for a
+    /// reason the file argues rather than assumes: a value nobody meant costs
+    /// its own alternative, and a value the document calls an invalid reply
+    /// costs every alternative the response carried.
+    #[test]
+    fn the_alternation_outranks_the_lifetime_and_names_its_sentence() {
+        assert_eq!(ALT_SVC_CLEAR_CONFLICTING.default_severity, Severity::Error);
+        assert_eq!(ALT_SVC_CLEAR_CONFLICTING.spec, [RFC_7838_3]);
+        assert!(ALT_SVC_MA_INVALID.default_severity < ALT_SVC_CLEAR_CONFLICTING.default_severity);
     }
 }
