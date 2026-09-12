@@ -22,6 +22,7 @@ use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
+use crate::violations::upgrade::{RFC_9110_7_8, UPGRADE_CONNECTION_OPTION_MISSING};
 use crate::violations::ViolationDef;
 
 /// The server's half of a WebSocket opening handshake, measured against the
@@ -72,9 +73,15 @@ pub struct WebsocketHandshakeValid;
 /// field of the *request*, so nothing holding one message alone can say whether
 /// it is right.
 ///
-/// What is left unnamed is the response's `Upgrade` and `Connection`, and the
-/// `101` that completed a handshake a server was required to refuse. All three
-/// say so through [`Defect`], which is a finding no subject has claimed.
+/// The response's `Connection` takes [`upgrade`](crate::violations::upgrade)'s
+/// entry, because the option a sender of `Upgrade` owes is HTTP's requirement
+/// and § 4.1 only restates it for this handshake — the same reading the rule
+/// measuring the request made, so one id now answers for both halves of the
+/// exchange and for every other protocol an `Upgrade` may name.
+///
+/// What is left unnamed is the response's `Upgrade` value and the `101` that
+/// completed a handshake a server was required to refuse. Both say so through
+/// [`Defect`], which is a finding no subject has claimed.
 static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_ACCEPT_CONFLICTING,
     &SEC_WEBSOCKET_ACCEPT_MISSING,
@@ -83,6 +90,7 @@ static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
+    &UPGRADE_CONNECTION_OPTION_MISSING,
 ];
 
 /// One finding from the reading, and the defect it reports as where the
@@ -231,21 +239,31 @@ impl WebsocketHandshakeValid {
     /// case; the sentence here asks for exactly that fold in its own words. The
     /// lines are joined before it looks, because `Connection` is one list however
     /// many of them carry it.
+    /// **The entry is HTTP's and not this document's**, the same reading the rule
+    /// measuring the request took: a sender of `Upgrade` owes the option whatever
+    /// it is upgrading to, § 7.8 is where that is written, and the two sentences
+    /// below restate it for one protocol and one direction. A `101` is a message
+    /// carrying `Upgrade`, so the general sentence reaches it without any help
+    /// from this one.
     // cite(RFC 6455 § 4.1): "If the response lacks a |Connection| header field or the |Connection| header field doesn't contain a token that is an ASCII case-insensitive match for the value "Upgrade", the client MUST _Fail the WebSocket Connection_."
     // cite(RFC 6455 § 4.2.2): "A |Connection| header field with value "Upgrade"."
-    fn connection_defect(resp_headers: &hyper::HeaderMap) -> Option<String> {
+    fn connection_defect(resp_headers: &hyper::HeaderMap) -> Option<Defect> {
         let Some(value) = combined_field_value_as_written(resp_headers, "connection") else {
-            return Some(
+            return Some(Defect::named(
+                &UPGRADE_CONNECTION_OPTION_MISSING,
                 "it carries no Connection header field, so it names no connection-option at all"
                     .into(),
-            );
+            ));
         };
         if is_nominated_by_connection("upgrade", Some(&value)) {
             return None;
         }
-        Some(format!(
-            "its Connection header field is `{}`, which does not include the Upgrade token",
-            shown_in_finding(&value)
+        Some(Defect::named(
+            &UPGRADE_CONNECTION_OPTION_MISSING,
+            format!(
+                "its Connection header field is `{}`, which does not include the Upgrade token",
+                shown_in_finding(&value)
+            ),
         ))
     }
 
@@ -531,6 +549,7 @@ severity = "warn"
             RFC_8441_5,
             RFC_9220_3,
             RFC_9110_5_6_2,
+            RFC_9110_7_8,
         ]
     }
 
@@ -624,7 +643,7 @@ impl Rule for WebsocketHandshakeValid {
             let defect = [
                 Self::refusable_handshake(&req.headers).map(Defect::unnamed),
                 Self::upgrade_defect(&resp.headers).map(Defect::unnamed),
-                Self::connection_defect(&resp.headers).map(Defect::unnamed),
+                Self::connection_defect(&resp.headers),
                 Self::accept_defect(&req.headers, &resp.headers),
                 Self::extensions_defect(&req.headers, &resp.headers),
                 Self::subprotocol_defect(&req.headers, &resp.headers),
@@ -839,6 +858,10 @@ mod tests {
         }
     }
 
+    /// Both shapes of the missing option report one entry, and it is the one HTTP
+    /// owns — the same id `upgrade_and_connection_consistent` reports about the
+    /// same message from the general sentence, and the same one the request's half
+    /// of this handshake reports about the other message.
     #[rstest]
     fn the_response_connection_is_required() {
         let tx = make_ws_tx(
@@ -846,10 +869,23 @@ mod tests {
             101,
             vec![("upgrade", "websocket"), ("sec-websocket-accept", ACCEPT)],
         );
-        assert!(run(&tx)
-            .unwrap()
-            .message
-            .contains("carries no Connection header field"));
+        let found = run(&tx).unwrap();
+        assert!(found.message.contains("carries no Connection header field"));
+        assert_eq!(found.violation, "upgrade_connection_option_missing");
+
+        let tx = make_ws_tx(
+            handshake_request(),
+            101,
+            vec![
+                ("upgrade", "websocket"),
+                ("connection", "keep-alive"),
+                ("sec-websocket-accept", ACCEPT),
+            ],
+        );
+        assert_eq!(
+            run(&tx).unwrap().violation,
+            "upgrade_connection_option_missing"
+        );
     }
 
     /// A `Connection` value holding an `obs-text` octet is a value, and the finding
