@@ -1091,6 +1091,10 @@ severity = "error"
 # A CONNECT's destination ends at the colon with no port
 severity = "error"
 
+[violations.authority_tunnel_port_invalid]
+# A CONNECT's destination names a port no transport has
+severity = "error"
+
 [violations.authority_tunnel_port_missing]
 # A CONNECT's destination names no port
 severity = "error"

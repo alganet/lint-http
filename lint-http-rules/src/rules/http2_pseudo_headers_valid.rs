@@ -6,9 +6,9 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::authority::{
     AUTHORITY_TUNNEL_HOST_EMPTY, AUTHORITY_TUNNEL_MISSING, AUTHORITY_TUNNEL_PORT_EMPTY,
-    AUTHORITY_TUNNEL_PORT_MISSING, AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
-    AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6, RFC_9113_8_3_1, RFC_9113_8_5, RFC_9114_4_3_1,
-    RFC_9114_4_4,
+    AUTHORITY_TUNNEL_PORT_INVALID, AUTHORITY_TUNNEL_PORT_MISSING,
+    AUTHORITY_TUNNEL_USERINFO_FORBIDDEN, AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6,
+    RFC_9113_8_3_1, RFC_9113_8_5, RFC_9114_4_3_1, RFC_9114_4_4,
 };
 use crate::violations::request_target::{
     REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_PATH_MISSING, RFC_9110_7_1,
@@ -71,36 +71,27 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTHORITY_TUNNEL_PORT_MISSING,
     &AUTHORITY_TUNNEL_PORT_EMPTY,
     &AUTHORITY_TUNNEL_HOST_EMPTY,
+    &AUTHORITY_TUNNEL_PORT_INVALID,
 ];
 
 /// One finding from the CONNECT reading, and the defect it reports as where
 /// the catalogue names that defect.
 ///
-/// The shape `expect_header_valid` settled: a judge that is half converted says
-/// so in its type — and this one is nearly whole. Named: the authority's
-/// grammar, the userinfo the tunnel form has no room for, and the three ways
-/// `uri-host ":" port` derives a value with one of its two components missing.
-/// Unnamed: a port number outside the transport's namespace, whose sentence is
-/// not § 9.3.6's at all but RFC 6335's sixteen bits, reached through the one
-/// sentence that says a proxy opens a *TCP* connection.
+/// One finding from the CONNECT reading, and the entry the catalogue names it
+/// by. Every arm has one now — the authority's grammar, the userinfo the tunnel
+/// form has no room for, the three ways `uri-host ":" port` derives a value
+/// missing one of its two components, and a port number outside the transport's
+/// namespace — so what is left of the half-converted shape
+/// `expect_header_valid` settled is a plain pair.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
-    /// A defect the catalogue names.
+    /// A defect the catalogue names, which by now is all of them.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed yet, reported at the rule's severity the
-    /// way every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 }
 
@@ -186,9 +177,10 @@ fn connect_authority_finding(authority: &str) -> Option<Defect> {
             ),
         )),
         Some(port) => connect_port_range_finding(port).map(|msg| {
-            Defect::unnamed(format!(
-                "CONNECT ':authority' '{shown}' targets an invalid port number: {msg}"
-            ))
+            Defect::named(
+                &AUTHORITY_TUNNEL_PORT_INVALID,
+                format!("CONNECT ':authority' '{shown}' targets an invalid port number: {msg}"),
+            )
         }),
     }
 }
@@ -496,10 +488,7 @@ impl Rule for Http2PseudoHeadersValid {
                 // cite(RFC 9113 § 8.5): "A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1)."
                 if target_authority.is_some() && absolute_form.is_none() {
                     if let Some(defect) = connect_authority_finding(target) {
-                        return Some(match defect.def {
-                            Some(def) => ctx.report_with(def, defect.message),
-                            None => self.violation(ctx.severity, defect.message),
-                        });
+                        return Some(ctx.report_with(defect.def, defect.message));
                     }
                 }
             } else {

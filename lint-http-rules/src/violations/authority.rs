@@ -227,6 +227,41 @@ defects! {
         spec: &[RFC_9110_9_3_6],
     }
 
+    /// A CONNECT whose destination names a port number no transport has. `port`
+    /// is `*DIGIT` and bounds nothing at either end, so `70000` and
+    /// `99999999999999999999` both derive — and the sentence beside the empty
+    /// port refuses them in the same breath: a server is told to reject a
+    /// request targeting an *empty or invalid* port number.
+    ///
+    /// **What makes a number invalid is not in either sentence, and that is the
+    /// reading.** § 9.3.6 says a server rejects one and says nothing about which
+    /// numbers those are; what supplies the bound is that this method opens a
+    /// *TCP* connection to the host and port, and TCP's port namespace is
+    /// sixteen bits wide (RFC 6335 § 6). So the entry names the sentence that
+    /// makes it a defect and the rule declaring it names the two that supply the
+    /// width — **a bound reached through a transport is still the requirement's
+    /// defect, not the transport's.**
+    ///
+    /// **`0` is not reported.** It is inside the namespace: a reserved value at
+    /// the edge of a range, held back for extending the ranges later, and no
+    /// sentence here makes a reserved port an invalid one. The check this entry
+    /// replaced in one rule rejected it under the same message as `70000`.
+    ///
+    /// **Not the same as a port outside a `Host` field's range, which is
+    /// nobody's finding.** There the only sentence is `port = *DIGIT`, which
+    /// bounds nothing, and `host_header` says so in its description; here the
+    /// method's own section names the transport, which is what licenses the
+    /// bound.
+    ///
+    // cite(RFC 9110 § 9.3.6): "A server MUST reject a CONNECT request that targets an empty or invalid port number, typically by responding with a 400 (Bad Request) status code."
+    AUTHORITY_TUNNEL_PORT_INVALID = {
+        id: "authority_tunnel_port_invalid",
+        title: "A CONNECT's destination names a port no transport has",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_9_3_6],
+    }
+
     /// A CONNECT whose destination names a host and no port at all — no colon
     /// anywhere in it. Every other request-target elides a port and lets the
     /// scheme supply one; this method has no scheme and no default, so the

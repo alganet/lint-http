@@ -5,7 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::authority::{
-    AUTHORITY_TUNNEL_HOST_EMPTY, AUTHORITY_TUNNEL_PORT_EMPTY, RFC_9110_9_3_6,
+    AUTHORITY_TUNNEL_HOST_EMPTY, AUTHORITY_TUNNEL_PORT_EMPTY, AUTHORITY_TUNNEL_PORT_INVALID,
+    RFC_9110_9_3_6,
 };
 use crate::violations::request_target::{
     REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
@@ -26,6 +27,12 @@ use crate::violations::ViolationDef;
 /// reported as the ambiguity it is, because one of its two readings is
 /// conforming and the request-line says nothing that chooses. With it this rule
 /// declares an entry for every finding it makes.
+///
+/// **A port outside the transport's namespace is the fourth**, and it is the
+/// destination's too: `port = *DIGIT` bounds nothing, so what refuses `70000` is
+/// the sentence saying this method opens a *TCP* connection and the sixteen bits
+/// TCP's registry uses. The HTTP/2 twin has read it that way since it was
+/// converted; this rule had not read it at all.
 ///
 /// **A CONNECT in some other form is the third**, and it is the mirror of the
 /// second: § 7.1 forbids another method from reaching for CONNECT's form, and
@@ -64,6 +71,7 @@ static DECLARED: &[&ViolationDef] = &[
     &REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
     &AUTHORITY_TUNNEL_HOST_EMPTY,
     &AUTHORITY_TUNNEL_PORT_EMPTY,
+    &AUTHORITY_TUNNEL_PORT_INVALID,
     &REQUEST_TARGET_CONNECT_FORM_INVALID,
     &REQUEST_TARGET_FORM_AMBIGUOUS,
 ];
@@ -180,6 +188,12 @@ pub struct RequestTargetFormValid;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
+const RFC_6335_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6335",
+    section: Some("6"),
+    url: "https://www.rfc-editor.org/rfc/rfc6335.html#section-6",
+    note: "Port Number Ranges — the 16-bit namespace that bounds a CONNECT's port above, and the reserved edge values that are why `0` is not reported",
+};
 const RFC_9112_3_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
     section: Some("3.2.4"),
@@ -213,6 +227,10 @@ severity = "error"
             // every version: the entries this rule borrows for a target with
             // half an authority carry its sentences, so the docs name it here.
             RFC_9110_9_3_6,
+            // The width the port number is measured against, which no HTTP
+            // document states: § 9.3.6 says a server rejects an invalid port and
+            // this is what says which numbers those are.
+            RFC_6335_6,
         ]
     }
 
@@ -374,6 +392,26 @@ impl Rule for RequestTargetFormValid {
                         "CONNECT request-target '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and a client with no port to copy sends the scheme's default one -- a recipient reading this has a host and no number to open the tunnel on"
                     ),
                 ),
+                // The number is inside the grammar and outside the transport.
+                // `port` is `*DIGIT` and bounds nothing, so what refuses `70000`
+                // is that this method opens a TCP connection to the host and
+                // port — sixteen bits of namespace — and that a server is
+                // required to reject a request targeting an invalid port number.
+                // The same reading the HTTP/2 twin makes of an `:authority`, and
+                // the same reader carrying the width; `0` is inside the
+                // namespace and is not reported.
+                // cite(RFC 9112 § 3.2.3): "When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target."
+                // cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
+                (Some(TargetForm::Authority { port, .. }), "CONNECT")
+                    if crate::helpers::uri::port_number(port).is_none() =>
+                {
+                    (
+                        &AUTHORITY_TUNNEL_PORT_INVALID,
+                        format!(
+                            "CONNECT request-target '{shown}' targets the port '{port}', and a TCP port number is one of 65536 values: `port` is `*DIGIT` and bounds nothing, so the number is the transport's to refuse and a server is required to reject a CONNECT targeting an invalid one"
+                        ),
+                    )
+                }
                 (Some(TargetForm::Authority { .. }), "CONNECT") => return None,
                 (Some(other), "CONNECT") => (
                     &REQUEST_TARGET_CONNECT_FORM_INVALID,
@@ -503,6 +541,37 @@ mod tests {
             violation != "request_target_form_ambiguous",
             "{target}"
         );
+    }
+
+    /// The port a tunnel cannot be opened on. `port = *DIGIT` bounds nothing, so
+    /// the number answers to the transport this method names — and `0` is inside
+    /// that namespace, a reserved value rather than an invalid one.
+    #[rstest]
+    #[case("example.com:70000", Some("authority_tunnel_port_invalid"))]
+    #[case(
+        "example.com:99999999999999999999",
+        Some("authority_tunnel_port_invalid")
+    )]
+    #[case("example.com:0", None)]
+    #[case("example.com:65535", None)]
+    fn a_port_outside_the_transports_namespace_is_reported(
+        #[case] target: &str,
+        #[case] violation: Option<&str>,
+    ) {
+        let rule = RequestTargetFormValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = "CONNECT".into();
+        tx.request.uri = target.into();
+        let finding = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+        );
+        match violation {
+            Some(id) => assert_eq!(finding.expect("a finding").violation, id, "{target}"),
+            None => assert!(finding.is_none(), "{target}"),
+        }
     }
 
     /// A CONNECT whose target is one of the other three forms names no tunnel
