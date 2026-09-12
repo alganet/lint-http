@@ -1115,9 +1115,11 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
       line: 312
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 91
+      line: 87
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
-      line: 86
+      line: 93
+    - file: lint-http-rules/src/violations/sec_websocket_version.rs
+      line: 173
   - label: sec_websocket_extensions_syntax (3)
     section: § 2.1
     snippet: Wherever this construct is used, null elements are allowed, but do not contribute to the count of elements present.
@@ -1125,7 +1127,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
       line: 311
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 67
+      line: 63
 - label: RFC 2617
   url: https://www.rfc-editor.org/rfc/rfc2617.html
   fragments:
@@ -2641,21 +2643,21 @@ sources:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 47
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
-      line: 67
+      line: 78
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
-      line: 91
+      line: 102
   - label: extension repetition
     section: § 9.1
     snippet: extension = extension-token *( ";" extension-param )
     cited_by:
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
-      line: 107
+      line: 114
   - label: extension-param alternation
     section: § 9.1
     snippet: extension-param = token [ "=" (token | quoted-string) ]
     cited_by:
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
-      line: 135
+      line: 142
   - label: quoted-string parameter note
     section: § 9.1
     snippet: ;When using the quoted-string syntax variant, the value ;after quoted-string unescaping MUST conform to the ;'token' ABNF.
@@ -2725,9 +2727,9 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 137
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
-      line: 108
+      line: 119
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
-      line: 139
+      line: 150
   - label: sec_websocket_headers_consistent (5)
     section: § 4.2.1
     snippet: A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value.
@@ -2761,7 +2763,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 145
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 82
+      line: 78
   - label: sec_websocket_headers_consistent (8)
     section: § 4.4
     snippet: If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use.
@@ -2769,7 +2771,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 176
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 83
+      line: 79
   - label: sec_websocket_headers_consistent (9)
     section: § 4.4
     snippet: a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)
@@ -2787,25 +2789,27 @@ sources:
     snippet: In such a case, the header field includes the protocol version(s) supported by the server.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 126
+      line: 125
   - label: sec_websocket_version_advertised (2)
     section: § 11.3.5
     snippet: The |Sec-WebSocket-Version| header field is also sent from the server to the client on WebSocket handshake error, when the version received from the client does not match a version understood by the server.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 125
+      line: 124
+    - file: lint-http-rules/src/violations/sec_websocket_version.rs
+      line: 202
   - label: sec_websocket_version_advertised (3)
     section: § 4.3
     snippet: ABNF rules with the "-Client" suffix in the name are only used in requests sent by the client to the server; ABNF rules with the "-Server" suffix in the name are only used in responses sent by the server to the client.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 228
+      line: 214
   - label: sec_websocket_version_advertised (4)
     section: § 4.3
     snippet: This section is using ABNF syntax/rules from Section 2.1 of [RFC2616], including the "implied *LWS rule".
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 66
+      line: 62
   - label: websocket_frame_masking
     section: § 5.1
     snippet: A client MUST close a connection if it detects a masked frame.

@@ -7,49 +7,45 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::websocket::version_production_defect;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::sec_websocket_extensions::RFC_2616_2_1;
 use crate::violations::sec_websocket_version::{
-    version_defect, RFC_6455_4_3, SEC_WEBSOCKET_VERSION_EMPTY, SEC_WEBSOCKET_VERSION_MALFORMED,
+    version_defect, RFC_6455_11_3_5, RFC_6455_4_3, SEC_WEBSOCKET_VERSION_CONFLICTING,
+    SEC_WEBSOCKET_VERSION_EMPTY, SEC_WEBSOCKET_VERSION_LIST_EMPTY, SEC_WEBSOCKET_VERSION_MALFORMED,
 };
 use crate::violations::ViolationDef;
 
 pub struct SecWebsocketVersionAdvertised;
 
-/// The terminal every member of this list is, and nothing else this rule says.
+/// The terminal every member of this list is, and the two things the list says
+/// on its own.
 ///
 /// `Sec-WebSocket-Version-Server = 1#version` is a list of the same production
 /// the request's field is one of, so a member that derives from no `version`
-/// reports what the request's does — the entries are the terminal's and neither
-/// direction owns them. What is left over is this field's own: a list
-/// advertising nothing, and an advertisement naming the version the request
-/// asked for. Both are still unnamed, and the judge says so in its type.
+/// reports what the request's does — those entries are the terminal's and
+/// neither direction owns them. The other two are this field's own: a list
+/// advertising nothing, whose sentence is the 1997 notation's floor rather than
+/// the terminal's, and an advertisement naming the version the request asked
+/// for, whose evidence is in the other message.
 static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_VERSION_EMPTY,
     &SEC_WEBSOCKET_VERSION_MALFORMED,
+    &SEC_WEBSOCKET_VERSION_LIST_EMPTY,
+    &SEC_WEBSOCKET_VERSION_CONFLICTING,
 ];
 
-/// One finding from the reading, and the entry the catalogue names it where it
-/// has one.
+/// One finding from the reading, and the entry the catalogue names it.
 ///
-/// The shape `expect_header_valid` settled: a judge that is half converted says
-/// so in its type.
+/// Every arm names one, so the def is a reference and not an `Option` of one —
+/// the half-converted shape `expect_header_valid` settled is gone from here.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed yet, reported at the rule's severity the
-    /// way every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 }
 
@@ -90,12 +86,15 @@ impl SecWebsocketVersionAdvertised {
         //
         // cite(RFC 2616 § 2.1): "Therefore, where at least one element is required, at least one non-null element MUST be present."
         if advertised.is_empty() {
-            return Some(Defect::unnamed(format!(
-                "advertises no version: '{}'. The field is `1#version` in a response, and the list \
-                 construct this grammar uses allows null elements but requires at least one that \
-                 is not",
-                shown_in_finding(&value)
-            )));
+            return Some(Defect::named(
+                &SEC_WEBSOCKET_VERSION_LIST_EMPTY,
+                format!(
+                    "advertises no version: '{}'. The field is `1#version` in a response, and the \
+                     list construct this grammar uses allows null elements but requires at least \
+                     one that is not",
+                    shown_in_finding(&value)
+                ),
+            ));
         }
 
         for member in &advertised {
@@ -126,14 +125,17 @@ impl SecWebsocketVersionAdvertised {
         // cite(RFC 6455 § 11.3.5): "In such a case, the header field includes the protocol version(s) supported by the server."
         if let Some(requested) = requested {
             if advertised.contains(&requested) {
-                return Some(Defect::unnamed(format!(
-                    "advertises '{}', which includes the version the request asked for ('{}'): the \
-                     field is in a response because the version received from the client did not \
-                     match one the server understood, so listing it says both that the server does \
-                     not speak it and that it does",
-                    shown_in_finding(&value),
-                    shown_in_finding(requested)
-                )));
+                return Some(Defect::named(
+                    &SEC_WEBSOCKET_VERSION_CONFLICTING,
+                    format!(
+                        "advertises '{}', which includes the version the request asked for \
+                         ('{}'): the field is in a response because the version received from the \
+                         client did not match one the server understood, so listing it says both \
+                         that the server does not speak it and that it does",
+                        shown_in_finding(&value),
+                        shown_in_finding(requested)
+                    ),
+                ));
             }
         }
 
@@ -144,14 +146,6 @@ impl SecWebsocketVersionAdvertised {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_2616_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 2616",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-2.1",
-    note: "Augmented BNF — the `#rule` §4.3 imports: null elements are allowed (RFC \
-           9110 §5.6.1.1 forbids them) and `1#` requires one that is not. Obsolete \
-           and correct: the current document is what sends the reader here",
-};
 const RFC_6455_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
     section: Some("4.4"),
@@ -159,14 +153,6 @@ const RFC_6455_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Supporting Multiple Versions — the conditional MUST whose antecedent is the \
            server's own state, and the worked example printing one advertisement as \
            one field line and as two",
-};
-const RFC_6455_11_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("11.3.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.3.5",
-    note: "The field's registration — when a server sends it, and that it holds the \
-           versions the server supports, which is what a list holding the requested \
-           one contradicts",
 };
 
 impl RuleMeta for SecWebsocketVersionAdvertised {
@@ -265,10 +251,7 @@ impl Rule for SecWebsocketVersionAdvertised {
                 defect.message
             );
 
-            Some(match defect.def {
-                Some(def) => ctx.report_with(def, message),
-                None => self.violation(ctx.severity, message),
-            })
+            Some(ctx.report_with(defect.def, message))
         };
         Vec::from_iter(finding())
     }

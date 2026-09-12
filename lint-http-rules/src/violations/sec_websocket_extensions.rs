@@ -53,17 +53,24 @@ pub const RFC_6455_9_1: SpecRef = SpecRef {
            2616's, and the requirement on a quoted-string value after unescaping",
 };
 
-/// The notation § 9.1 imports by name, and the only place the list construct
-/// this field uses is written. Obsolete and correct: the document in force is
-/// what sends the reader here.
+/// The notation RFC 6455 imports by name — § 9.1 for this field and § 4.3 for
+/// the collected grammar — and the only place the list construct either of them
+/// uses is written. Obsolete and correct: the document in force is what sends
+/// the reader here.
+///
+/// Shared with [`sec_websocket_version`](crate::violations::sec_websocket_version),
+/// whose response field is a `1#version` under the same `#rule`. One section,
+/// one reference: two equal `SpecRef`s in two subject files would pass the gate
+/// today and drift apart on the first edit to either note.
 pub const RFC_2616_2_1: SpecRef = SpecRef {
     spec: "RFC 2616",
     section: Some("2.1"),
     url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-2.1",
-    note: "Augmented BNF — the notation §9.1 imports by name: the `#rule` whose null \
-           elements are allowed (RFC 9110 §5.6.1.1 forbids them) and the implied \
-           *LWS rule that permits whitespace beside the separators. Obsolete and \
-           correct: the current document is what sends the reader here",
+    note: "Augmented BNF — the notation RFC 6455 imports by name (§9.1 for the extension list, \
+           §4.3 for the collected grammar): the `#rule` whose null elements are allowed (RFC \
+           9110 §5.6.1.1 forbids them) and which requires one that is not, and the implied \
+           *LWS rule that permits whitespace beside the separators. Obsolete and correct: the \
+           current document is what sends the reader here",
 };
 
 defects! {
