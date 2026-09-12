@@ -1743,6 +1743,14 @@ severity = "warn"
 # WebSocket handshake carries no Sec-WebSocket-Key
 severity = "error"
 
+[violations.sec_websocket_version_empty]
+# Sec-WebSocket-Version is written with no value
+severity = "error"
+
+[violations.sec_websocket_version_malformed]
+# Sec-WebSocket-Version derives from no version production
+severity = "error"
+
 [violations.status_101_ignored]
 # HTTP continues on a connection a 101 handed off
 severity = "warn"
