@@ -4,6 +4,10 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{
+    CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY, CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY, RFC_9111_5_2_2_4,
+    RFC_9111_5_2_2_7,
+};
 use crate::violations::delta_seconds::{DELTA_SECONDS_CHARACTER_FORBIDDEN, RFC_9111_1_2_2};
 use crate::violations::list::{cache_directive_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
@@ -33,8 +37,14 @@ pub struct CacheControlDirectiveValid;
 /// well-formed `token` and not a number breaks nothing about the
 /// `cache-directive` — but § 5.2.2.1 gives that directive's argument the syntax
 /// `delta-seconds`, so the name commits the value to a second production and
-/// the value failed it. What stays unnamed is the sentence with no production
-/// behind it at all: a qualified directive whose argument lists no field.
+/// the value failed it.
+///
+/// The last two are the sentences with no production behind them at all: a
+/// qualified directive whose argument lists no field, written once in
+/// `no-cache`'s subsection and once in `private`'s. They are the
+/// [`cache_control`](crate::violations::cache_control) subject — the layer above
+/// this field's grammar, where a directive's own definition says what its
+/// argument must say.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -45,6 +55,8 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+    &CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
+    &CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -68,29 +80,19 @@ const RFC_9111_1_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
 /// One finding from the reading, and the defect it reports as where the
 /// catalogue names that defect.
 ///
-/// The shape `expect_header_valid` settled: a judge that is half converted says
-/// so in its type. The unnamed half here is now one sentence rather than two — a
-/// qualified directive whose argument lists no field at all, which is RFC 9111
-/// saying what a particular directive means by its argument and is a statement
-/// no production carries.
+/// The shape `expect_header_valid` settled — a judge that is half converted
+/// says so in its type — is not this rule's any more: the sentence no
+/// production carries got a subject of its own, one entry per directive that
+/// writes it.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed, reported at the rule's severity the way
-    /// every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 }
 
@@ -118,10 +120,7 @@ impl CacheControlDirectiveValid {
                     "Invalid Cache-Control header in {}: {}",
                     side, defect.message
                 );
-                return Some(match defect.def {
-                    Some(def) => ctx.report_with(def, message),
-                    None => self.violation(ctx.severity, message),
-                });
+                return Some(ctx.report_with(defect.def, message));
             }
         }
         None
@@ -151,6 +150,8 @@ severity = "warn"
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
             RFC_9111_1_2_2,
+            RFC_9111_5_2_2_4,
+            RFC_9111_5_2_2_7,
         ]
     }
 
@@ -342,8 +343,9 @@ fn field_name_list_defect(name: &str, argument: &str) -> Option<Defect> {
     // not the same statement. `#field-name` is a plain `#`, so an argument of
     // nothing is a zero-element list the production generates — what is wrong
     // with `private=""` is that the *qualified* form is defined as listing one
-    // or more field names, which is § 5.2.2.7's sentence and no subject's.
-    // `private=","` is the other one: an element a sender wrote and left blank.
+    // or more field names, which is the directive's own subsection and no
+    // production. `private=","` is the other one: an element a sender wrote and
+    // left blank, which is the list's sender MUST NOT.
     // cite(RFC 9110 § 5.6.1): "#element => [ element ] *( OWS "," OWS [ element ] )"
     let lists_no_field = list.trim().is_empty();
 
@@ -352,7 +354,11 @@ fn field_name_list_defect(name: &str, argument: &str) -> Option<Defect> {
         if field.is_empty() {
             let message = format!("Empty field-name in {} value", name);
             return Some(match lists_no_field {
-                true => Defect::unnamed(message),
+                // Which of the two sentences governs is the directive name, and
+                // the caller has it: each subsection defines its own qualified
+                // form, so a finding here cites the paragraph the sender was
+                // reaching for.
+                true => Defect::named(qualified_form_lists_nothing(name), message),
                 false => Defect::named(&LIST_MEMBER_EMPTY, message),
             });
         }
@@ -364,6 +370,20 @@ fn field_name_list_defect(name: &str, argument: &str) -> Option<Defect> {
         }
     }
     None
+}
+
+/// The entry for a qualified form that lists no field name, chosen by the
+/// directive that was written.
+///
+/// Both subsections state the same requirement for their own directive and the
+/// two entries exist to keep that citation, so the mapping is the whole of the
+/// difference between them. `private` is the fallback rather than a third arm:
+/// only these two names reach here, and the compiler cannot say so.
+fn qualified_form_lists_nothing(name: &str) -> &'static ViolationDef {
+    match name.eq_ignore_ascii_case("no-cache") {
+        true => &CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
+        false => &CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY,
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -869,17 +889,26 @@ mod tests {
         );
     }
 
-    /// The one statement left with no production behind it: § 5.2.2.7 defines
-    /// the qualified form as listing *one or more* field names, and no imported
-    /// grammar says a `#field-name` may not be empty — `#` generates it.
-    #[test]
-    fn an_argument_listing_no_field_is_the_rules_own_and_keeps_no_id() {
-        assert_eq!(judge("private=\"\"").violation, "");
+    /// The statement with no production behind it: each directive's subsection
+    /// defines the qualified form as listing *one or more* field names, and no
+    /// imported grammar says a `#field-name` may not be empty — `#` generates
+    /// it. The requirement is written once per directive, so the id says which
+    /// paragraph the finding is against.
+    #[rstest]
+    #[case("private=\"\"", "cache_control_private_argument_empty")]
+    #[case("no-cache=\"\"", "cache_control_no_cache_argument_empty")]
+    #[case("PRIVATE=\"\"", "cache_control_private_argument_empty")]
+    #[case("No-Cache=\" \"", "cache_control_no_cache_argument_empty")]
+    fn an_argument_listing_no_field_names_the_directives_own_sentence(
+        #[case] value: &str,
+        #[case] id: &str,
+    ) {
+        assert_eq!(judge(value).violation, id, "{value}");
     }
 
     /// One line, two statements, and the argument syntax is what separates
     /// them. `#field-name` generates the empty list, so an argument listing
-    /// nothing breaks § 5.2.2.7's definition of the qualified form and not
+    /// nothing breaks the directive's definition of the qualified form and not
     /// § 5.6.1.1's MUST NOT — which forbids an element a sender wrote and left
     /// blank, and is exactly what the comma in the second value is.
     #[test]
@@ -887,7 +916,7 @@ mod tests {
         let empty_list = judge("private=\"\"");
         let empty_element = judge("private=\",\"");
         assert_eq!(empty_list.message, empty_element.message);
-        assert_eq!(empty_list.violation, "");
+        assert_eq!(empty_list.violation, "cache_control_private_argument_empty");
         assert_eq!(empty_element.violation, "list_member_empty");
     }
 

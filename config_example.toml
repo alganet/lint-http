@@ -1151,6 +1151,14 @@ severity = "warn"
 # Whitespace written where the grammar admits BWS
 severity = "info"
 
+[violations.cache_control_no_cache_argument_empty]
+# Cache-Control no-cache is qualified by no field name
+severity = "info"
+
+[violations.cache_control_private_argument_empty]
+# Cache-Control private is qualified by no field name
+severity = "info"
+
 [violations.challenge_empty]
 # Authentication challenge is empty
 severity = "warn"
