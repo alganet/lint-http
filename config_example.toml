@@ -1791,6 +1791,10 @@ severity = "error"
 # WebSocket handshake carries no Sec-WebSocket-Version
 severity = "error"
 
+[violations.status_101_forbidden]
+# A 101 completes a WebSocket handshake the server had to refuse
+severity = "warn"
+
 [violations.status_101_ignored]
 # HTTP continues on a connection a 101 handed off
 severity = "warn"
