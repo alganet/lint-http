@@ -21,12 +21,20 @@
 //! borrowing either would put a citation on a finding whose grammar the cited
 //! sentence does not govern.
 //!
-//! **Every entry here is an `error`, and one sentence is why.** § 9.1 does not
-//! leave the consequence of a malformed value to a recipient's judgement: *the
-//! recipient of such malformed data MUST immediately _Fail the WebSocket
-//! Connection_*. So the question [`status`](crate::violations::status) ranks by
-//! — whether the exchange can continue — is answered by the document itself,
-//! and answered the same way for all three.
+//! **The fourth entry is about neither the grammar nor its notation**, and it
+//! is the one that needs two messages to see: an extension a server lists that
+//! the client never offered derives from the ABNF exactly, and what condemns it
+//! is § 4.2.2's prohibition on listing it. Negotiation is an exchange, so a
+//! subject spelled out of one message's productions cannot be all of it.
+//!
+//! **Every entry here is an `error`, and § 9.1 is why for three of them.** It
+//! does not leave the consequence of a malformed value to a recipient's
+//! judgement: *the recipient of such malformed data MUST immediately _Fail the
+//! WebSocket Connection_*. So the question
+//! [`status`](crate::violations::status) ranks by — whether the exchange can
+//! continue — is answered by the document itself. The fourth lands at the same
+//! rank by a sentence of its own, § 4.1's instruction to a client that reads an
+//! extension it did not ask for, which is to fail the connection.
 //!
 //! **The borrowed ids stay at their own rank, and that is not an
 //! inconsistency to fix.** `token_empty` answers for eighty other fields and
@@ -40,6 +48,9 @@
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+// One definition of the server's section for both subjects a server chooses
+// from, kept where the first entry to cite it landed rather than copied here.
+use crate::violations::sec_websocket_protocol::RFC_6455_4_2_2;
 
 /// Negotiating Extensions: the grammar, the MUST that makes a non-conforming
 /// value a failure of the connection, and the note that the notation is RFC
@@ -147,6 +158,38 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_6455_9_1],
     }
+
+    /// An extension in a response the request never offered — a name outside
+    /// the client's list, or any name at all where the client sent no list.
+    ///
+    /// **The one entry here that is about neither the grammar nor its
+    /// notation.** Everything else this subject owns is a value that fails to
+    /// derive from § 9.1's ABNF; this one derives perfectly and is still wrong,
+    /// because negotiation has two messages in it and only one of them is being
+    /// read when a value is measured against a production. § 4.2.2 states it as
+    /// a prohibition on the sender, and § 9.1 says what the field means when it
+    /// is obeyed: the server's list *is* the extensions in use, so a name the
+    /// client never offered claims a connection is running something neither
+    /// side agreed to.
+    ///
+    /// `error`, with the rest of the subject, and by a different sentence: not
+    /// § 9.1's failure on malformed data, which this value is not, but the
+    /// instruction § 4.1 hands the client for this exact case, which is to fail
+    /// the connection.
+    ///
+    /// The comparison is over the `extension-token` half of each member, and it
+    /// is of the octets as written: a name is registered rather than spelled
+    /// afresh by either side, and this document folds case at the two fields
+    /// where it says so and nowhere near this one.
+    ///
+    // cite(RFC 6455 § 4.2.2): "Extensions not listed by the client MUST NOT be listed."
+    SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED = {
+        id: "sec_websocket_extensions_unsolicited",
+        title: "Sec-WebSocket-Extensions names an extension the request did not offer",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_6455_4_2_2],
+    }
 }
 
 #[cfg(test)]
@@ -155,16 +198,27 @@ mod tests {
 
     /// The rank is the document's rather than the subject's judgement: a value
     /// that does not conform to § 9.1's ABNF is a connection a recipient MUST
-    /// fail, so nothing here can be the milder half of anything.
+    /// fail, and an extension the client never offered is one § 4.1 tells it to
+    /// fail for, so nothing here can be the milder half of anything.
     #[test]
     fn a_value_this_field_cannot_read_ends_the_connection() {
         for def in [
             &SEC_WEBSOCKET_EXTENSIONS_EMPTY,
             &SEC_WEBSOCKET_EXTENSIONS_PARAMETER_MISSING,
             &SEC_WEBSOCKET_EXTENSIONS_PARAMETER_VALUE_EMPTY,
+            &SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED,
         ] {
             assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
+    }
+
+    /// The one entry here that no production could have produced, and the
+    /// section it cites says so: § 9.1 is where this field is written and
+    /// § 4.2.2 is where a server is told what it may write there.
+    #[test]
+    fn the_entry_needing_two_messages_cites_the_section_addressed_to_the_server() {
+        assert_eq!(SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED.spec, [RFC_6455_4_2_2]);
+        assert_ne!(RFC_6455_4_2_2.section, RFC_6455_9_1.section);
     }
 
     /// The list floor is the 1997 notation's and the two parameter absences are

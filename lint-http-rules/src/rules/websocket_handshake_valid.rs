@@ -11,6 +11,7 @@ use crate::helpers::websocket::{
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::sec_websocket_extensions::SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED;
 use crate::violations::sec_websocket_protocol::{
     RFC_6455_4_2_2, SEC_WEBSOCKET_PROTOCOL_EMPTY, SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
 };
@@ -57,9 +58,16 @@ pub struct WebsocketHandshakeValid;
 /// the comma that says a server answered with a list is a delimiter § 5.6.2
 /// names, and it keeps its own message beside the shared id.
 ///
+/// The extensions half is the same shape once more: the field's grammar is
+/// `sec_websocket_extensions_syntax`' in both directions, and what is left here
+/// is a name the request never offered — which no reading of one message can
+/// see, and which is why the entry sits in a subject otherwise spelled entirely
+/// out of § 9.1's ABNF.
+///
 /// Everything else this rule reads is still unnamed and says so through
 /// [`Defect`], which is a finding no subject has claimed.
 static DECLARED: &[&ViolationDef] = &[
+    &SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED,
     &SEC_WEBSOCKET_PROTOCOL_EMPTY,
     &SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -301,14 +309,13 @@ impl WebsocketHandshakeValid {
     /// both directions and each field section on its own — including the RFC
     /// 2616 notation § 9.1 imports, under which a null list element conforms.
     // cite(RFC 6455 § 4.1): "If the response includes a |Sec-WebSocket-Extensions| header field and this header field indicates the use of an extension that was not present in the client's handshake (the server has indicated an extension not requested by the client), the client MUST _Fail the WebSocket Connection_."
-    // cite(RFC 6455 § 4.2.2): "Extensions not listed by the client MUST NOT be listed."
     // cite(RFC 6455 § 9.1): "The extensions listed by the server in response represent the extensions actually in use for the connection."
     // cite(RFC 6455 § 9.1): "any extension parameters, and what constitutes a valid response by a server to a requested set of parameters by a client, will be defined by each such extension."
     // cite(RFC 6455 § 9.1): "Any extension-token used MUST be a registered token (see Section 11.4)."
     fn extensions_defect(
         req_headers: &hyper::HeaderMap,
         resp_headers: &hyper::HeaderMap,
-    ) -> Option<String> {
+    ) -> Option<Defect> {
         let raw = combined_field_value_as_written(resp_headers, "sec-websocket-extensions")?;
         let offered_raw = combined_field_value_as_written(req_headers, "sec-websocket-extensions")
             .unwrap_or_default();
@@ -316,10 +323,13 @@ impl WebsocketHandshakeValid {
         for member in list_members(&raw) {
             let name = extension_token(member);
             if !offered.contains(&name) {
-                return Some(format!(
-                    "its Sec-WebSocket-Extensions names the extension `{}`, which the request it \
-                     answers did not offer",
-                    shown_in_finding(name)
+                return Some(Defect::named(
+                    &SEC_WEBSOCKET_EXTENSIONS_UNSOLICITED,
+                    format!(
+                        "its Sec-WebSocket-Extensions names the extension `{}`, which the request \
+                         it answers did not offer",
+                        shown_in_finding(name)
+                    ),
                 ));
             }
         }
@@ -599,7 +609,7 @@ impl Rule for WebsocketHandshakeValid {
                 Self::upgrade_defect(&resp.headers).map(Defect::unnamed),
                 Self::connection_defect(&resp.headers).map(Defect::unnamed),
                 Self::accept_defect(&req.headers, &resp.headers).map(Defect::unnamed),
-                Self::extensions_defect(&req.headers, &resp.headers).map(Defect::unnamed),
+                Self::extensions_defect(&req.headers, &resp.headers),
                 Self::subprotocol_defect(&req.headers, &resp.headers),
             ]
             .into_iter()
@@ -1067,7 +1077,11 @@ mod tests {
         let tx = make_ws_tx(req, 101, resp);
         match expected {
             None => assert!(run(&tx).is_none()),
-            Some(text) => assert!(run(&tx).unwrap().message.contains(text), "{value}"),
+            Some(text) => {
+                let found = run(&tx).unwrap();
+                assert!(found.message.contains(text), "{value}");
+                assert_eq!(found.violation, "sec_websocket_extensions_unsolicited");
+            }
         }
     }
 

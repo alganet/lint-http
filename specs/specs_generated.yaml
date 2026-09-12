@@ -1117,7 +1117,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 87
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
-      line: 93
+      line: 104
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
       line: 173
   - label: sec_websocket_extensions_syntax (3)
@@ -2505,7 +2505,7 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
       line: 73
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 305
+      line: 312
   - label: lint-http-proxy/src/proxy/websocket/frame.rs
     section: § 5.2
     snippet: '%x3-7 are reserved for further non-control frames'
@@ -2646,18 +2646,24 @@ sources:
       line: 78
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
       line: 102
+  - label: sec_websocket_extensions
+    section: § 4.2.2
+    snippet: Extensions not listed by the client MUST NOT be listed.
+    cited_by:
+    - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
+      line: 185
   - label: extension repetition
     section: § 9.1
     snippet: extension = extension-token *( ";" extension-param )
     cited_by:
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
-      line: 114
+      line: 125
   - label: extension-param alternation
     section: § 9.1
     snippet: extension-param = token [ "=" (token | quoted-string) ]
     cited_by:
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
-      line: 142
+      line: 153
   - label: quoted-string parameter note
     section: § 9.1
     snippet: ;When using the quoted-string syntax variant, the value ;after quoted-string unescaping MUST conform to the ;'token' ABNF.
@@ -2677,7 +2683,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
       line: 123
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 307
+      line: 314
   - label: sec_websocket_extensions_syntax (3)
     section: § 9.1
     snippet: If a value is received by either the client or the server during negotiation that does not conform to the ABNF below, the recipient of such malformed data MUST immediately _Fail the WebSocket Connection_.
@@ -2685,7 +2691,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
       line: 333
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
-      line: 38
+      line: 46
   - label: sec_websocket_extensions_syntax (4)
     section: § 9.1
     snippet: Note that this section is using ABNF syntax/rules from [RFC2616], including the "implied *LWS rule".
@@ -2749,7 +2755,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 435
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 120
+      line: 128
   - label: Sec-WebSocket-Protocol-Client
     section: § 4.3
     snippet: Sec-WebSocket-Protocol-Client = 1#token
@@ -2963,151 +2969,145 @@ sources:
     snippet: If the response includes a |Sec-WebSocket-Extensions| header field and this header field indicates the use of an extension that was not present in the client's handshake (the server has indicated an extension not requested by the client), the client MUST _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 303
+      line: 311
   - label: websocket_handshake_valid (2)
     section: § 4.1
     snippet: If the response includes a |Sec-WebSocket-Protocol| header field and this header field indicates the use of a subprotocol that was not present in the client's handshake (the server has indicated a subprotocol not requested by the client), the client MUST _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 353
+      line: 363
   - label: websocket_handshake_valid (3)
     section: § 4.1
     snippet: If the response lacks a |Connection| header field or the |Connection| header field doesn't contain a token that is an ASCII case-insensitive match for the value "Upgrade", the client MUST _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 215
+      line: 223
   - label: websocket_handshake_valid (4)
     section: § 4.1
     snippet: If the response lacks a |Sec-WebSocket-Accept| header field or the |Sec-WebSocket-Accept| contains a value other than the base64-encoded SHA-1 of the concatenation of the |Sec-WebSocket-Key| (as a string, not base64-decoded) with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" but ignoring any leading and trailing whitespace, the client MUST _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 250
+      line: 258
   - label: websocket_handshake_valid (5)
     section: § 4.1
     snippet: If the response lacks an |Upgrade| header field or the |Upgrade| header field contains a value that is not an ASCII case-insensitive match for the value "websocket", the client MUST _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 180
+      line: 188
   - label: websocket_handshake_valid (6)
     section: § 4.1
     snippet: If the status code received from the server is not 101, the client handles the response per HTTP [RFC2616] procedures.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 577
+      line: 587
   - label: websocket_handshake_valid (7)
     section: § 4.1
     snippet: In particular, the client might perform authentication if it receives a 401 status code; the server might redirect the client using a 3xx status code (but clients are not required to follow them), etc.  Otherwise, proceed as follows.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 578
+      line: 588
   - label: websocket_handshake_valid (8)
     section: § 4.2.1
     snippet: A |Sec-WebSocket-Key| header field with a base64-encoded (see Section 4 of [RFC4648]) value that, when decoded, is 16 bytes in length.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 122
+      line: 130
   - label: websocket_handshake_valid (9)
     section: § 4.2.1
     snippet: A |Sec-WebSocket-Version| header field, with a value of 13.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 123
+      line: 131
   - label: websocket_handshake_valid (10)
     section: § 4.2.1
     snippet: including but not limited to any violations of the ABNF grammar specified for the components of the handshake
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 121
+      line: 129
   - label: websocket_handshake_valid (11)
     section: § 4.2.2
     snippet: A Status-Line with a 101 response code as per RFC 2616 [RFC2616].
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 584
+      line: 594
   - label: websocket_handshake_valid (12)
     section: § 4.2.2
     snippet: A |Connection| header field with value "Upgrade".
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 216
+      line: 224
   - label: websocket_handshake_valid (13)
     section: § 4.2.2
     snippet: A |Sec-WebSocket-Accept| header field.  The value of this header field is constructed by concatenating /key/, defined above in step 4 in Section 4.2.2, with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", taking the SHA-1 hash of this concatenated value to obtain a 20-byte value and base64-encoding (see Section 4 of [RFC4648]) this 20-byte hash.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 251
+      line: 259
   - label: websocket_handshake_valid (14)
     section: § 4.2.2
     snippet: An |Upgrade| header field with value "websocket" as per RFC 2616 [RFC2616].
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 181
+      line: 189
   - label: websocket_handshake_valid (15)
-    section: § 4.2.2
-    snippet: Extensions not listed by the client MUST NOT be listed.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 304
-  - label: websocket_handshake_valid (16)
     section: § 4.2.2
     snippet: If the requested service is not available, the server MUST send an appropriate HTTP error code (such as 404 Not Found) and abort the WebSocket handshake.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 583
-  - label: websocket_handshake_valid (17)
+      line: 593
+  - label: websocket_handshake_valid (16)
     section: § 4.2.2
     snippet: If the server chooses to accept the incoming connection, it MUST reply with a valid HTTP response indicating the following.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 579
-  - label: websocket_handshake_valid (18)
+      line: 589
+  - label: websocket_handshake_valid (17)
     section: § 4.2.2
     snippet: If the server does not wish to accept this connection, it MUST return an appropriate HTTP error code (e.g., 403 Forbidden) and abort the WebSocket handshake described in this section.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 582
-  - label: websocket_handshake_valid (19)
+      line: 592
+  - label: websocket_handshake_valid (18)
     section: § 4.2.2
     snippet: If this version does not match a version understood by the server, the server MUST abort the WebSocket handshake described in this section and instead send an appropriate HTTP error code (such as 426 Upgrade Required) and a |Sec-WebSocket-Version| header field indicating the version(s) the server is capable of understanding.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 124
-  - label: websocket_handshake_valid (20)
+      line: 132
+  - label: websocket_handshake_valid (19)
     section: § 4.2.2
     snippet: The server MAY redirect the client using a 3xx status code [RFC2616].
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 581
-  - label: websocket_handshake_valid (21)
+      line: 591
+  - label: websocket_handshake_valid (20)
     section: § 4.2.2
     snippet: The server can perform additional client authentication, for example, by returning a 401 status code with the corresponding |WWW-Authenticate| header field as described in [RFC2616].
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 580
-  - label: websocket_handshake_valid (22)
+      line: 590
+  - label: websocket_handshake_valid (21)
     section: § 4.2.2
     snippet: if the server does not wish to agree to one of the suggested subprotocols, it MUST NOT send back a |Sec-WebSocket-Protocol| header field in its response
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 354
+      line: 364
   - label: Sec-WebSocket-Protocol-Server
     section: § 4.3
     snippet: Sec-WebSocket-Protocol-Server = token
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 355
+      line: 365
   - label: extension
     section: § 4.3
     snippet: extension = extension-token *( ";" extension-param )
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 423
-  - label: websocket_handshake_valid (23)
+      line: 433
+  - label: websocket_handshake_valid (22)
     section: § 9.1
     snippet: any extension parameters, and what constitutes a valid response by a server to a requested set of parameters by a client, will be defined by each such extension.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
-      line: 306
+      line: 313
 - label: RFC 6585
   url: https://www.rfc-editor.org/rfc/rfc6585.html
   fragments:
