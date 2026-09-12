@@ -10,6 +10,7 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::token_or_quoted_string;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::alt_svc::ALT_SVC_MA_INVALID;
 use crate::violations::delta_seconds::{
     DELTA_SECONDS_CHARACTER_FORBIDDEN, DELTA_SECONDS_EMPTY, RFC_9111_1_2_2,
 };
@@ -72,41 +73,35 @@ const RFC_7838_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
         "Caching Alt-Svc Header Field Values — what the `ma` parameter's delta-seconds value means",
 };
 
-/// The two halves of `1*DIGIT`, and nothing else.
+/// The two halves of `1*DIGIT`, and what a conforming value can still be.
 ///
 /// RFC 7838 § 3.1 gives `ma` a `delta-seconds` value by importing the
 /// production, so both ways of failing it are the production's defects and
 /// neither is this field's — the same arithmetic `Age` and `max-age` carry, in
-/// a parameter of an alternative service. What stays the rule's own is
-/// everything `ma` *means*: a lifetime of zero, and a lifetime so long it is a
-/// typo. Those two have no sentence to cite and no subject to belong to, which
-/// is why this judge is half converted and says so in its type.
-static DECLARED: &[&ViolationDef] = &[&DELTA_SECONDS_EMPTY, &DELTA_SECONDS_CHARACTER_FORBIDDEN];
+/// a parameter of an alternative service. What `ma` *means* is the field's, and
+/// it is one entry rather than two: a lifetime of zero and a lifetime so long it
+/// is a typo are both conforming values that state nothing a client can use, and
+/// the number written is not the number meant either way.
+static DECLARED: &[&ViolationDef] = &[
+    &ALT_SVC_MA_INVALID,
+    &DELTA_SECONDS_EMPTY,
+    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+];
 
-/// One finding from the reading, and the def that names it where the catalogue
-/// has one.
+/// One finding from the reading, and the entry it reports as.
 ///
-/// The shape `expect_header_valid` settled and `alt_svc_header_syntax` uses one
-/// file over: a judge that is half converted carries the `Option` rather than
-/// pretending either half.
+/// The shape `expect_header_valid` settled and `alt_svc_header_syntax` still
+/// carries one file over — **without the `Option` here**, now that what `ma`
+/// means has a subject of its own and every arm of this judge names an entry.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed, reported at the rule's severity the way
-    /// every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 }
 
@@ -287,10 +282,7 @@ impl Rule for AltSvcH3AdvertisementValid {
                 }
 
                 if let Some(defect) = h3_ma_defect(parameters) {
-                    return Some(match defect.def {
-                        Some(def) => ctx.report_with(def, defect.message),
-                        None => self.violation(ctx.severity, defect.message),
-                    });
+                    return Some(ctx.report_with(defect.def, defect.message));
                 }
             }
 
@@ -373,20 +365,28 @@ fn h3_ma_defect(parameters: &[&str]) -> Option<Defect> {
         // cite(RFC 9111 § 1.2.2): "or the greatest positive integer it can conveniently represent."
         let n = seconds.parse::<u64>().unwrap_or(u64::MAX);
 
+        // The two ends of one entry: a lifetime of zero and a lifetime past any
+        // deployment's horizon are both conforming `delta-seconds` and neither
+        // is a number a sender meant to write.
         if n == 0 {
-            return Some(Defect::unnamed(
+            return Some(Defect::named(
+                &ALT_SVC_MA_INVALID,
                 "Alt-Svc h3 entry has 'ma=0' which immediately invalidates the advertisement (RFC 7838 §3.1)"
                     .into(),
             ));
         }
         // Heuristic ceiling, not spec-derived: RFC 7838 places no upper bound
-        // on `ma` (see MAX_REASONABLE_MA). Flags likely misconfiguration only.
+        // on `ma` (see MAX_REASONABLE_MA). Flags likely misconfiguration only,
+        // which is why the entry it reports carries no reference.
         if n > MAX_REASONABLE_MA {
-            return Some(Defect::unnamed(format!(
-                "Alt-Svc h3 entry has unreasonably large 'ma={}' (exceeds 1 year / {} seconds)",
-                shown_in_finding(&seconds),
-                MAX_REASONABLE_MA
-            )));
+            return Some(Defect::named(
+                &ALT_SVC_MA_INVALID,
+                format!(
+                    "Alt-Svc h3 entry has unreasonably large 'ma={}' (exceeds 1 year / {} seconds)",
+                    shown_in_finding(&seconds),
+                    MAX_REASONABLE_MA
+                ),
+            ));
         }
     }
 
@@ -537,6 +537,9 @@ mod tests {
         )
         .unwrap();
         assert!(v.message.contains("ma=0"));
+        // Both ends of the lifetime report one entry; the message is where they
+        // differ.
+        assert_eq!(v.violation, "alt_svc_ma_invalid");
     }
 
     #[test]
@@ -555,6 +558,7 @@ mod tests {
         )
         .unwrap();
         assert!(v.message.contains("unreasonably large"));
+        assert_eq!(v.violation, "alt_svc_ma_invalid");
     }
 
     /// The message is pinned whole: it is assembled from a prefix and the value
