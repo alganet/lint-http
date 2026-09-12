@@ -3969,7 +3969,7 @@ sources:
     snippet: Alt-Svc       = clear / 1#alt-value
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 28
+      line: 29
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 132
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
@@ -3979,7 +3979,7 @@ sources:
     snippet: An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 219
+      line: 214
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 667
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
@@ -3989,7 +3989,7 @@ sources:
     snippet: Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 320
+      line: 312
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 376
   - label: alt_svc_h3_advertisement_valid (3)
@@ -3997,7 +3997,7 @@ sources:
     snippet: Unknown parameters MUST be ignored.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 44
+      line: 45
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 377
   - label: alt_svc_h3_advertisement_valid (4)
@@ -4005,7 +4005,7 @@ sources:
     snippet: clear         = %s"clear"; "clear", case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 29
+      line: 30
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 133
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -4017,9 +4017,9 @@ sources:
     snippet: parameter     = token "=" ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 43
+      line: 44
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 319
+      line: 311
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 375
   - label: alt_svc_h3_advertisement_valid (6)
@@ -4027,7 +4027,9 @@ sources:
     snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 345
+      line: 337
+    - file: lint-http-rules/src/violations/alt_svc.rs
+      line: 34
   - label: alt_svc_header_syntax
     section: § 1.1
     snippet: This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230].
@@ -7781,7 +7783,7 @@ sources:
     - file: lint-http-rules/src/helpers/vary.rs
       line: 79
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 220
+      line: 215
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 701
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
@@ -9490,7 +9492,7 @@ sources:
     snippet: If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 372
+      line: 364
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 270
     - file: lint-http-rules/src/violations/delta_seconds.rs
@@ -9500,7 +9502,7 @@ sources:
     snippet: The delta-seconds rule specifies a non-negative integer, representing time in seconds.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 346
+      line: 338
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 236
   - label: alt_svc_h3_advertisement_valid (3)
@@ -9508,7 +9510,7 @@ sources:
     snippet: or the greatest positive integer it can conveniently represent.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 373
+      line: 365
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 271
   - label: cache_coherence
@@ -10729,7 +10731,7 @@ sources:
     snippet: An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 273
+      line: 268
   - label: authority
     section: § 4.3.1
     snippet: The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https".

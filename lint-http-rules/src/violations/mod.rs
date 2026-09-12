@@ -31,6 +31,7 @@ use linkme::distributed_slice;
 use std::sync::LazyLock;
 
 pub mod alpn;
+pub mod alt_svc;
 pub mod auth_scheme;
 pub mod authority;
 pub mod base64;
