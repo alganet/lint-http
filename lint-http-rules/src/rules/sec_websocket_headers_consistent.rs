@@ -227,7 +227,11 @@ impl SecWebsocketHeadersConsistent {
     /// exact; the definition it resolves to today is cited beside it.
     // cite(RFC 6455 § 4.1): "The elements that comprise this value MUST be non-empty strings with characters in the range U+0021 to U+007E not including separator characters as defined in [RFC2616] and MUST all be unique strings."
     // cite(RFC 6455 § 4.1): "The ABNF for the value of this header field is 1#token, where the definitions of constructs and rules are as given in [RFC2616]."
-    // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Protocol): "Sec-WebSocket-Protocol-Client = 1#token"
+    // The label is the production's full name and not the field's: a label of
+    // `Sec-WebSocket-Protocol` and the `sec_websocket_protocol` subject's file
+    // stem differ only in punctuation and case, which is one fragment identity
+    // for two groups of sentences.
+    // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Protocol-Client): "Sec-WebSocket-Protocol-Client = 1#token"
     // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
     fn subprotocol_defect(headers: &hyper::HeaderMap) -> Option<Defect> {
         let raw = combined_field_value_as_written(headers, "sec-websocket-protocol")?;

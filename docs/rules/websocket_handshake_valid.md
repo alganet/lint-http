@@ -33,6 +33,7 @@ Two neighbours own the sentences this rule does not. The obligation to send an `
 - [RFC 6455 §9.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1): Negotiating Extensions — the server's list is the extensions in use, each extension's own document defines what a valid answer to its parameters is, and an `extension-token` is a registered name
 - [RFC 8441 §5](https://www.rfc-editor.org/rfc/rfc8441.html#section-5): Updates RFC 6455: over HTTP/2 the handshake is an extended CONNECT, `Connection` and `Upgrade` MUST NOT be included, and `Sec-WebSocket-Accept` is not processed — the sentences behind this rule's version gate
 - [RFC 9220 §3](https://www.rfc-editor.org/rfc/rfc9220.html#section-3): Carries RFC 8441's mechanism to HTTP/3 with identical semantics
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 
 ## Configuration
 
