@@ -2557,7 +2557,7 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
       line: 38
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 110
+      line: 113
   - label: lint-http-proxy/src/proxy/websocket/mod.rs (2)
     section: § 4.1
     snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
@@ -2701,19 +2701,21 @@ sources:
     snippet: The ABNF for the value of this header field is 1#token, where the definitions of constructs and rules are as given in [RFC2616].
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 226
+      line: 229
   - label: sec_websocket_headers_consistent (2)
     section: § 4.1
     snippet: The elements that comprise this value MUST be non-empty strings with characters in the range U+0021 to U+007E not including separator characters as defined in [RFC2616] and MUST all be unique strings.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 225
+      line: 228
+    - file: lint-http-rules/src/violations/sec_websocket_protocol.rs
+      line: 53
   - label: sec_websocket_headers_consistent (3)
     section: § 4.1
     snippet: The request MUST include a header field with the name |Sec-WebSocket-Key|.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 196
+      line: 199
     - file: lint-http-rules/src/violations/sec_websocket_key.rs
       line: 63
   - label: sec_websocket_headers_consistent (4)
@@ -2721,7 +2723,7 @@ sources:
     snippet: The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 134
+      line: 137
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
       line: 108
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
@@ -2731,19 +2733,19 @@ sources:
     snippet: A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 111
+      line: 114
   - label: sec_websocket_headers_consistent (6)
     section: § 4.2.1
     snippet: An HTTP/1.1 or higher GET request
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 424
+      line: 430
   - label: sec_websocket_headers_consistent (7)
     section: § 4.2.1
     snippet: the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 425
+      line: 431
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 65
   - label: Sec-WebSocket-Protocol
@@ -2751,13 +2753,13 @@ sources:
     snippet: Sec-WebSocket-Protocol-Client = 1#token
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 227
+      line: 230
   - label: Sec-WebSocket-Version-Server
     section: § 4.3
     snippet: Sec-WebSocket-Version-Server = 1#version
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 142
+      line: 145
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 82
   - label: sec_websocket_headers_consistent (8)
@@ -2765,7 +2767,7 @@ sources:
     snippet: If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 173
+      line: 176
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 83
   - label: sec_websocket_headers_consistent (9)
@@ -2773,7 +2775,7 @@ sources:
     snippet: a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 172
+      line: 175
   - label: sec_websocket_key
     section: § 4.1
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded (see Section 4 of [RFC4648]).
@@ -6655,7 +6657,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 324
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 235
+      line: 238
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -7619,7 +7621,7 @@ sources:
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
       line: 197
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
-      line: 228
+      line: 231
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 506
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs

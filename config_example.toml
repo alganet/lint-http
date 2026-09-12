@@ -1743,6 +1743,10 @@ severity = "warn"
 # WebSocket handshake carries no Sec-WebSocket-Key
 severity = "error"
 
+[violations.sec_websocket_protocol_duplicated]
+# Sec-WebSocket-Protocol names one subprotocol twice
+severity = "warn"
+
 [violations.sec_websocket_version_empty]
 # Sec-WebSocket-Version is written with no value
 severity = "error"

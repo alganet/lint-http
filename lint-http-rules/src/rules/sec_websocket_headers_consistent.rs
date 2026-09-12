@@ -19,6 +19,7 @@ use crate::violations::list::{
 use crate::violations::sec_websocket_key::{
     RFC_6455_4_1, SEC_WEBSOCKET_KEY_LENGTH_INVALID, SEC_WEBSOCKET_KEY_MISSING,
 };
+use crate::violations::sec_websocket_protocol::SEC_WEBSOCKET_PROTOCOL_DUPLICATED;
 use crate::violations::sec_websocket_version::{
     version_defect as version_violation, RFC_6455_4_3, SEC_WEBSOCKET_VERSION_EMPTY,
     SEC_WEBSOCKET_VERSION_INVALID, SEC_WEBSOCKET_VERSION_MALFORMED, SEC_WEBSOCKET_VERSION_MISSING,
@@ -48,12 +49,13 @@ pub struct SecWebsocketHeadersConsistent;
 /// value naming nothing, a stray comma and an octet no `tchar` admits are the
 /// list's and the token's — and the alphabet § 4.1 spells out in words (U+0021
 /// to U+007E less the separators) is `token`, which the ABNF beside it says in
-/// one word. What stays this rule's own is the uniqueness requirement, which is
-/// about the *set* and which § 5.6.1.1 writes nothing about.
+/// one word. The uniqueness requirement is about the *set* rather than the
+/// members and § 5.6.1.1 writes nothing about it, so it is the
+/// [`sec_websocket_protocol`](crate::violations::sec_websocket_protocol)
+/// subject's — the field's own entry beside the productions it is spelled in.
 ///
-/// `Connection`, the version and the subprotocol list's uniqueness requirement
-/// are untouched and say so through their type: an unnamed [`Defect`] is a
-/// finding no subject has claimed.
+/// `Connection` is untouched and says so through its type: an unnamed
+/// [`Defect`] is a finding no subject has claimed.
 static DECLARED: &[&ViolationDef] = &[
     &BASE64_CHARACTER_FORBIDDEN,
     &BASE64_QUANTUM_MALFORMED,
@@ -64,6 +66,7 @@ static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_VERSION_MALFORMED,
     &SEC_WEBSOCKET_VERSION_MISSING,
     &SEC_WEBSOCKET_VERSION_INVALID,
+    &SEC_WEBSOCKET_PROTOCOL_DUPLICATED,
     &LIST_MEMBER_MISSING,
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -273,11 +276,14 @@ impl SecWebsocketHeadersConsistent {
         // of one name are two strings, so the comparison is of what was written.
         for (i, member) in members.iter().enumerate() {
             if members[..i].contains(member) {
-                return Some(Defect::unnamed(format!(
-                    "its Sec-WebSocket-Protocol names the subprotocol `{}` more than once, and \
-                     the elements of this list are required to be unique",
-                    shown_in_finding(member)
-                )));
+                return Some(Defect::named(
+                    &SEC_WEBSOCKET_PROTOCOL_DUPLICATED,
+                    format!(
+                        "its Sec-WebSocket-Protocol names the subprotocol `{}` more than once, \
+                         and the elements of this list are required to be unique",
+                        shown_in_finding(member)
+                    ),
+                ));
             }
         }
         None
