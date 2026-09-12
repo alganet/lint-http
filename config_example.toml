@@ -1735,6 +1735,10 @@ severity = "error"
 # Sec-WebSocket-Extensions writes a parameter '=' with no value after it
 severity = "error"
 
+[violations.sec_websocket_extensions_unsolicited]
+# Sec-WebSocket-Extensions names an extension the request did not offer
+severity = "error"
+
 [violations.sec_websocket_key_length_invalid]
 # Sec-WebSocket-Key is not a sixteen-byte nonce
 severity = "warn"
