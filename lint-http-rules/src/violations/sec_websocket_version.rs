@@ -31,14 +31,19 @@
 //! reply that would let a client retry — is written for a version the server
 //! *understood* and does not speak. Neither of these is that.
 //!
-//! Not here: a request whose version is a perfectly good number other than 13.
-//! That value derives from the production and what refuses it is § 4.1's item 9,
-//! which is the field's requirement rather than its grammar — a separate entry,
-//! and one that has to be read beside § 4.4 before it is written.
+//! **The other two entries are the field's requirement rather than its grammar**,
+//! and they are one numbered item: § 4.1 item 9 asks a request for the field and
+//! for the value `13`. A request with no field at all is not a handshake this
+//! document can answer; a request with a good number that is not 13 is one it
+//! answers by refusing, which is where the two part company in rank.
 
 use crate::helpers::websocket::VersionDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+// Item 9 is one numbered item of the same list item 7 is in, so the reference is
+// written once — in the subject that reached it first — and the two subjects
+// name the same `SpecRef` rather than two equal ones.
+use crate::violations::sec_websocket_key::RFC_6455_4_1;
 use crate::violations::{defects, ViolationDef};
 
 /// The collected ABNF: the `version` production, the comment bounding it, and
@@ -91,6 +96,54 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_6455_4_3],
     }
+
+    /// An opening handshake with no `Sec-WebSocket-Version` field on it at all.
+    ///
+    /// The first half of item 9, and `error` for the reason the grammar's two
+    /// are: a server has no version to check and § 4.2.1 has it stop and answer
+    /// with an error status. There is nothing to advertise back either — § 4.4's
+    /// reply lists the versions a server will speak *in answer to* one it was
+    /// asked for.
+    ///
+    // cite(RFC 6455 § 4.1): "The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13."
+    SEC_WEBSOCKET_VERSION_MISSING = {
+        id: "sec_websocket_version_missing",
+        title: "WebSocket handshake carries no Sec-WebSocket-Version",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_6455_4_1],
+    }
+
+    /// A request whose version derives from the production and is not 13.
+    ///
+    /// **`_invalid` is the vocabulary's word for exactly this**: the value is
+    /// grammatical and a requirement past the grammar refuses it. The rule
+    /// reporting it had declined the word on the grounds that § 4.4 prints a
+    /// request like this one — `Sec-WebSocket-Version: 25`, answered with a 400
+    /// listing what the server will speak — but that section describes how a
+    /// server *answers* a version it does not understand, and item 9 is what
+    /// says which version a request may carry. Both are true, and only one of
+    /// them is addressed to the sender.
+    ///
+    /// `warn`, alone in this subject, and § 4.4 is why: the exchange has a
+    /// defined outcome that leaves the connection an ordinary HTTP one and the
+    /// client able to ask again. A version nobody can *read* has no such reply —
+    /// the advertisement is written for a version a server understood and does
+    /// not speak.
+    ///
+    /// The NOTE beside item 9 is worth knowing before raising this: the draft
+    /// values 9 through 12 were reserved in the registry and never used, so a
+    /// capture carrying one is a client built against a draft rather than a
+    /// client speaking a version that exists.
+    ///
+    // cite(RFC 6455 § 4.1): "The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13."
+    SEC_WEBSOCKET_VERSION_INVALID = {
+        id: "sec_websocket_version_invalid",
+        title: "WebSocket handshake asks for a version other than 13",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6455_4_1],
+    }
 }
 
 /// The entry a [`VersionDefect`] reports as.
@@ -134,7 +187,8 @@ mod tests {
     }
 
     /// A version nobody can read is a handshake nobody can negotiate, whichever
-    /// side wrote it — so the pair ranks together and ranks at the top.
+    /// side wrote it — so those rank at the top, and the one value the document
+    /// answers by refusing ranks below them.
     #[test]
     fn a_version_that_cannot_be_read_ends_the_negotiation() {
         assert_eq!(
@@ -145,5 +199,21 @@ mod tests {
             SEC_WEBSOCKET_VERSION_MALFORMED.default_severity,
             Severity::Error
         );
+        assert_eq!(
+            SEC_WEBSOCKET_VERSION_MISSING.default_severity,
+            Severity::Error
+        );
+        assert!(
+            SEC_WEBSOCKET_VERSION_INVALID.default_severity
+                < SEC_WEBSOCKET_VERSION_MALFORMED.default_severity
+        );
+    }
+
+    /// Which sentence each half names: the grammar for the two that fail the
+    /// production, item 9 for the two that fail what the field is for.
+    #[test]
+    fn the_grammar_and_the_requirement_are_two_sections() {
+        assert_eq!(SEC_WEBSOCKET_VERSION_MALFORMED.spec, [RFC_6455_4_3]);
+        assert_eq!(SEC_WEBSOCKET_VERSION_INVALID.spec, [RFC_6455_4_1]);
     }
 }
