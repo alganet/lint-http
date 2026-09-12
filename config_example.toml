@@ -1747,6 +1747,14 @@ severity = "error"
 # Sec-WebSocket-Protocol names one subprotocol twice
 severity = "warn"
 
+[violations.sec_websocket_protocol_empty]
+# Sec-WebSocket-Protocol is written with no subprotocol in it
+severity = "error"
+
+[violations.sec_websocket_protocol_unsolicited]
+# Sec-WebSocket-Protocol names a subprotocol the request did not offer
+severity = "error"
+
 [violations.sec_websocket_version_conflicting]
 # Sec-WebSocket-Version advertises the version the request asked for
 severity = "warn"

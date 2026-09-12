@@ -11,6 +11,14 @@ use crate::helpers::websocket::{
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::sec_websocket_protocol::{
+    RFC_6455_4_2_2, SEC_WEBSOCKET_PROTOCOL_EMPTY, SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 /// The server's half of a WebSocket opening handshake, measured against the
 /// request it answers.
@@ -37,6 +45,53 @@ use crate::rules::{Rule, RuleMeta};
 /// The history parameter is unused: both halves of a transaction arrive together,
 /// and nothing here spans two of them.
 pub struct WebsocketHandshakeValid;
+
+/// The defects this rule declares, and the two directions they are read in.
+///
+/// The subprotocol is where the server's grammar and the client's differ —
+/// `Sec-WebSocket-Protocol-Server = token` against `1#token` — so the response's
+/// emptiness is § 4.2.2's own sentence rather than the list's floor, and a name
+/// the request never offered is `_unsolicited`, whose evidence sits in the other
+/// message this rule holds. What is left of the field is the alphabet it is
+/// spelled in, and that is [`token`](crate::violations::token)'s on both sides:
+/// the comma that says a server answered with a list is a delimiter § 5.6.2
+/// names, and it keeps its own message beside the shared id.
+///
+/// Everything else this rule reads is still unnamed and says so through
+/// [`Defect`], which is a finding no subject has claimed.
+static DECLARED: &[&ViolationDef] = &[
+    &SEC_WEBSOCKET_PROTOCOL_EMPTY,
+    &SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
+
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled and the rule measuring the other half
+/// of this handshake reuses: a judge that is half converted says so in its type
+/// rather than being split in two.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed yet, reported at the rule's severity the
+    /// way every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+}
 
 impl WebsocketHandshakeValid {
     /// The one finding here that is about the request, and it is about the
@@ -280,6 +335,12 @@ impl WebsocketHandshakeValid {
     /// as not a legal value, the production is one `token`, and the name has to be
     /// one the client offered.
     ///
+    /// The first and the third are the field's own entries, because no production
+    /// carries either — the emptiness the grammar refuses is a `token`'s floor,
+    /// and what § 4.2.2 adds is that this field's empty string is not its absence.
+    /// The alphabet in between is `token`'s, on this side of the exchange as on
+    /// the other.
+    ///
     /// The last comparison is of what was written. This document folds case where
     /// it means to — the two fields above are each *"treated as an ASCII
     /// case-insensitive value"* in so many words — and says nothing of the kind
@@ -290,41 +351,47 @@ impl WebsocketHandshakeValid {
     /// the null value rather than a defect, so the whole check is behind the
     /// field's presence.
     // cite(RFC 6455 § 4.1): "If the response includes a |Sec-WebSocket-Protocol| header field and this header field indicates the use of a subprotocol that was not present in the client's handshake (the server has indicated a subprotocol not requested by the client), the client MUST _Fail the WebSocket Connection_."
-    // cite(RFC 6455 § 4.2.2): "The value chosen MUST be derived from the client's handshake, specifically by selecting one of the values from the |Sec-WebSocket-Protocol| field that the server is willing to use for this connection (if any)."
     // cite(RFC 6455 § 4.2.2): "if the server does not wish to agree to one of the suggested subprotocols, it MUST NOT send back a |Sec-WebSocket-Protocol| header field in its response"
-    // cite(RFC 6455 § 4.2.2): "The empty string is not the same as the null value for these purposes and is not a legal value for this field."
     // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Protocol-Server): "Sec-WebSocket-Protocol-Server = token"
     fn subprotocol_defect(
         req_headers: &hyper::HeaderMap,
         resp_headers: &hyper::HeaderMap,
-    ) -> Option<String> {
+    ) -> Option<Defect> {
         let raw = combined_field_value_as_written(resp_headers, "sec-websocket-protocol")?;
         let value = trim_ows(&raw);
         if value.is_empty() {
-            return Some(
+            return Some(Defect::named(
+                &SEC_WEBSOCKET_PROTOCOL_EMPTY,
                 "its Sec-WebSocket-Protocol is empty, and the empty string is named as not a \
                  legal value for this field — a server agreeing to no subprotocol sends no field \
                  at all"
                     .into(),
-            );
+            ));
         }
-        // A comma is not a `tchar`, so the scan below would report it as one more
-        // octet the production does not admit. It earns its own sentence: what the
-        // server got wrong is not a character, it is that it answered with a list
-        // where the grammar for its direction writes one name.
+        // A comma is not a `tchar`, so the entry is the same one the scan below
+        // reports and the message is not: what the server got wrong is not a
+        // character it chose, it is that it answered with a list where the grammar
+        // for its direction writes one name. The delimiter is what says so, which
+        // is why the reading survives the id being shared.
         if value.contains(',') {
-            return Some(format!(
-                "its Sec-WebSocket-Protocol is `{}`, and the server's field is one subprotocol \
-                 name where the client's is a list of them",
-                shown_in_finding(value)
+            return Some(Defect::named(
+                &TOKEN_CHARACTER_FORBIDDEN,
+                format!(
+                    "its Sec-WebSocket-Protocol is `{}`, and the server's field is one subprotocol \
+                     name where the client's is a list of them",
+                    shown_in_finding(value)
+                ),
             ));
         }
         if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
-            return Some(format!(
-                "its Sec-WebSocket-Protocol is `{}`, which holds {} and so derives from no \
-                 `token`",
-                shown_in_finding(value),
-                describe_octet(c as u8)
+            return Some(Defect::named(
+                token_character(c),
+                format!(
+                    "its Sec-WebSocket-Protocol is `{}`, which holds {} and so derives from no \
+                     `token`",
+                    shown_in_finding(value),
+                    describe_octet(c as u8)
+                ),
             ));
         }
         let offered = combined_field_value_as_written(req_headers, "sec-websocket-protocol")
@@ -335,10 +402,13 @@ impl WebsocketHandshakeValid {
         if list_members(&offered).any(|m| m == value) {
             return None;
         }
-        Some(format!(
-            "its Sec-WebSocket-Protocol names the subprotocol `{}`, which the request it answers \
-             did not offer",
-            shown_in_finding(value)
+        Some(Defect::named(
+            &SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
+            format!(
+                "its Sec-WebSocket-Protocol names the subprotocol `{}`, which the request it \
+                 answers did not offer",
+                shown_in_finding(value)
+            ),
         ))
     }
 }
@@ -361,6 +431,13 @@ fn extension_token(member: &str) -> &str {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
+///
+/// § 4.2.2 is not written here and neither is RFC 9110 § 5.6.2: the first is
+/// what the two subprotocol entries in
+/// [`sec_websocket_protocol`](crate::violations::sec_websocket_protocol)
+/// enforce and the second is what
+/// [`token`](crate::violations::token)'s pair does, so both references live
+/// beside the entries that cite them and are imported back.
 const RFC_6455_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
     section: Some("4.1"),
@@ -372,12 +449,6 @@ const RFC_6455_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.2.1"),
     url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
     note: "Reading the Client's Opening Handshake — the description a handshake has to match, and the requirement to refuse one that does not, which is what makes a 101 over a malformed key the server's defect",
-};
-const RFC_6455_4_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("4.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2",
-    note: "Sending the Server's Opening Handshake — what a server sends if it accepts, the five things it sends instead if it does not, and how `Sec-WebSocket-Accept`, `/subprotocol/` and `/extensions/` are derived from the request",
 };
 const RFC_6455_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
@@ -432,7 +503,12 @@ severity = "warn"
             RFC_6455_9_1,
             RFC_8441_5,
             RFC_9220_3,
+            RFC_9110_5_6_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -519,21 +595,25 @@ impl Rule for WebsocketHandshakeValid {
             // admissibility ahead of the questions about its fields. One message carries
             // one finding, so the first defect is the one reported.
             let defect = [
-                Self::refusable_handshake(&req.headers),
-                Self::upgrade_defect(&resp.headers),
-                Self::connection_defect(&resp.headers),
-                Self::accept_defect(&req.headers, &resp.headers),
-                Self::extensions_defect(&req.headers, &resp.headers),
+                Self::refusable_handshake(&req.headers).map(Defect::unnamed),
+                Self::upgrade_defect(&resp.headers).map(Defect::unnamed),
+                Self::connection_defect(&resp.headers).map(Defect::unnamed),
+                Self::accept_defect(&req.headers, &resp.headers).map(Defect::unnamed),
+                Self::extensions_defect(&req.headers, &resp.headers).map(Defect::unnamed),
                 Self::subprotocol_defect(&req.headers, &resp.headers),
             ]
             .into_iter()
             .flatten()
             .next()?;
 
-            Some(self.violation(
-                ctx.severity,
-                format!("This 101 completes a WebSocket opening handshake, but {defect}"),
-            ))
+            let message = format!(
+                "This 101 completes a WebSocket opening handshake, but {}",
+                defect.message
+            );
+            match defect.def {
+                Some(def) => Some(ctx.report_with(def, message)),
+                None => Some(self.violation(ctx.severity, message)),
+            }
         };
         Vec::from_iter(finding())
     }
@@ -881,17 +961,39 @@ mod tests {
         assert!(run(&tx).unwrap().message.contains(&accept));
     }
 
-    /// The server's subprotocol field is one `token` the client offered.
+    /// The server's subprotocol field is one `token` the client offered, and
+    /// each way of failing that is reported under the entry that owns it: the
+    /// field's own two sentences, and the alphabet's — which the comma reaches
+    /// by a reading of its own and the same id.
     #[rstest]
     #[case("chat", None)]
     #[case("superchat", None)]
-    #[case("mqtt", Some("did not offer"))]
-    #[case("Chat", Some("did not offer"))]
-    #[case("", Some("not a legal value"))]
-    #[case("   ", Some("not a legal value"))]
-    #[case("chat, superchat", Some("one subprotocol name"))]
-    #[case("cha t", Some("derives from no `token`"))]
-    fn the_servers_subprotocol(#[case] value: &str, #[case] expected: Option<&str>) {
+    #[case(
+        "mqtt",
+        Some(("did not offer", "sec_websocket_protocol_unsolicited"))
+    )]
+    #[case(
+        "Chat",
+        Some(("did not offer", "sec_websocket_protocol_unsolicited"))
+    )]
+    #[case("", Some(("not a legal value", "sec_websocket_protocol_empty")))]
+    #[case("   ", Some(("not a legal value", "sec_websocket_protocol_empty")))]
+    #[case(
+        "chat, superchat",
+        Some(("one subprotocol name", "token_character_forbidden"))
+    )]
+    #[case(
+        "cha t",
+        Some((
+            "derives from no `token`",
+            "token_whitespace_or_control_forbidden"
+        ))
+    )]
+    #[case(
+        "cha:t",
+        Some(("derives from no `token`", "token_character_forbidden"))
+    )]
+    fn the_servers_subprotocol(#[case] value: &str, #[case] expected: Option<(&str, &str)>) {
         let mut req = handshake_request();
         req.push(("sec-websocket-protocol", "chat, superchat"));
         let mut resp = handshake_response();
@@ -899,7 +1001,11 @@ mod tests {
         let tx = make_ws_tx(req, 101, resp);
         match expected {
             None => assert!(run(&tx).is_none()),
-            Some(text) => assert!(run(&tx).unwrap().message.contains(text), "{value}"),
+            Some((text, id)) => {
+                let found = run(&tx).unwrap();
+                assert!(found.message.contains(text), "{value}");
+                assert_eq!(found.violation, id, "{value}");
+            }
         }
     }
 
@@ -914,7 +1020,33 @@ mod tests {
         let mut resp = handshake_response();
         resp.push(("sec-websocket-protocol", "chat"));
         let tx = make_ws_tx(handshake_request(), 101, resp);
-        assert!(run(&tx).unwrap().message.contains("did not offer"));
+        let found = run(&tx).unwrap();
+        assert!(found.message.contains("did not offer"));
+        assert_eq!(found.violation, "sec_websocket_protocol_unsolicited");
+    }
+
+    /// The rank a subprotocol finding carries is its entry's and no longer the
+    /// rule's: the fixture configures this rule at `warn`, and both halves of
+    /// what a server may write wrong come out at the `error` their defs
+    /// default to — while everything still unnamed here keeps the rule's.
+    #[rstest]
+    fn a_named_defect_takes_its_entrys_rank_and_an_unnamed_one_the_rules() {
+        let mut resp = handshake_response();
+        resp.push(("sec-websocket-protocol", "mqtt"));
+        let mut req = handshake_request();
+        req.push(("sec-websocket-protocol", "chat"));
+        let tx = make_ws_tx(req, 101, resp);
+        assert_eq!(run(&tx).unwrap().severity, crate::lint::Severity::Error);
+
+        // The `Upgrade` reading, which no subject has claimed.
+        let tx = make_ws_tx(
+            handshake_request(),
+            101,
+            vec![("connection", "Upgrade"), ("sec-websocket-accept", ACCEPT)],
+        );
+        let found = run(&tx).unwrap();
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
+        assert!(found.violation.is_empty());
     }
 
     /// Extensions are compared on the name half of each member; the parameters
