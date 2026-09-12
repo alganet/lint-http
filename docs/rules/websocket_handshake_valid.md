@@ -35,6 +35,7 @@ Two neighbours own the sentences this rule does not. The obligation to send an `
 - [RFC 9220 §3](https://www.rfc-editor.org/rfc/rfc9220.html#section-3): Carries RFC 8441's mechanism to HTTP/3 with identical semantics
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade — the sender's obligation to name the field as a connection-option beside it, and the `#protocol` grammar that makes the field's presence the thing the obligation turns on
+- [RFC 9110 §15.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2): 101 Switching Protocols — the status code is a change in the application protocol being used on this connection, and the response MUST generate an `Upgrade` field naming the protocol(s) in effect after it
 
 ## Configuration
 

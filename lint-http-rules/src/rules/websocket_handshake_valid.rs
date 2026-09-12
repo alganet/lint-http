@@ -22,7 +22,10 @@ use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
-use crate::violations::upgrade::{RFC_9110_7_8, UPGRADE_CONNECTION_OPTION_MISSING};
+use crate::violations::upgrade::{
+    RFC_9110_15_2_2, RFC_9110_7_8, UPGRADE_101_EMPTY, UPGRADE_101_INVALID, UPGRADE_101_MISSING,
+    UPGRADE_CONNECTION_OPTION_MISSING,
+};
 use crate::violations::ViolationDef;
 
 /// The server's half of a WebSocket opening handshake, measured against the
@@ -79,9 +82,16 @@ pub struct WebsocketHandshakeValid;
 /// measuring the request made, so one id now answers for both halves of the
 /// exchange and for every other protocol an `Upgrade` may name.
 ///
-/// What is left unnamed is the response's `Upgrade` value and the `101` that
-/// completed a handshake a server was required to refuse. Both say so through
-/// [`Defect`], which is a finding no subject has claimed.
+/// The response's `Upgrade` splits three ways and only one of them is this
+/// document's. A `101` with no field, and one naming no protocol, are what
+/// § 15.2.2 asks of *every* `101` — [`upgrade`](crate::violations::upgrade)'s
+/// pair, reported here from a second rule — while a field naming anything
+/// besides `websocket` is § 4.2.2's ceiling on the value, which HTTP does not
+/// set.
+///
+/// What is left unnamed is the `101` that completed a handshake a server was
+/// required to refuse, which says so through [`Defect`] — a finding no subject
+/// has claimed.
 static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_ACCEPT_CONFLICTING,
     &SEC_WEBSOCKET_ACCEPT_MISSING,
@@ -90,6 +100,9 @@ static DECLARED: &[&ViolationDef] = &[
     &SEC_WEBSOCKET_PROTOCOL_UNSOLICITED,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
+    &UPGRADE_101_EMPTY,
+    &UPGRADE_101_INVALID,
+    &UPGRADE_101_MISSING,
     &UPGRADE_CONNECTION_OPTION_MISSING,
 ];
 
@@ -206,15 +219,21 @@ impl WebsocketHandshakeValid {
     /// `status_101_switching_protocols`'.
     // cite(RFC 6455 § 4.1): "If the response lacks an |Upgrade| header field or the |Upgrade| header field contains a value that is not an ASCII case-insensitive match for the value "websocket", the client MUST _Fail the WebSocket Connection_."
     // cite(RFC 6455 § 4.2.2): "An |Upgrade| header field with value "websocket" as per RFC 2616 [RFC2616]."
-    fn upgrade_defect(resp_headers: &hyper::HeaderMap) -> Option<String> {
+    fn upgrade_defect(resp_headers: &hyper::HeaderMap) -> Option<Defect> {
         let Some(raw) = combined_field_value_as_written(resp_headers, "upgrade") else {
-            return Some("it carries no Upgrade header field".into());
+            return Some(Defect::named(
+                &UPGRADE_101_MISSING,
+                "it carries no Upgrade header field".into(),
+            ));
         };
         if let Some(other) = list_members(&raw).find(|m| !m.eq_ignore_ascii_case("websocket")) {
-            return Some(format!(
-                "its Upgrade header field names `{}`, and the only protocol this response's \
-                 Upgrade may name is `websocket`",
-                shown_in_finding(other)
+            return Some(Defect::named(
+                &UPGRADE_101_INVALID,
+                format!(
+                    "its Upgrade header field names `{}`, and the only protocol this response's \
+                     Upgrade may name is `websocket`",
+                    shown_in_finding(other)
+                ),
             ));
         }
         // A field that is present and names nothing is the first clause's case
@@ -222,10 +241,13 @@ impl WebsocketHandshakeValid {
         // neighbour reports the same message as a 101 whose `Upgrade` indicates no
         // protocol, from RFC 9110's side of it.
         if list_members(&raw).next().is_none() {
-            return Some(format!(
-                "its Upgrade header field is `{}`, which names no protocol at all where this \
-                 response's Upgrade is defined with the value `websocket`",
-                shown_in_finding(trim_ows(&raw))
+            return Some(Defect::named(
+                &UPGRADE_101_EMPTY,
+                format!(
+                    "its Upgrade header field is `{}`, which names no protocol at all where this \
+                     response's Upgrade is defined with the value `websocket`",
+                    shown_in_finding(trim_ows(&raw))
+                ),
             ));
         }
         None
@@ -550,6 +572,7 @@ severity = "warn"
             RFC_9220_3,
             RFC_9110_5_6_2,
             RFC_9110_7_8,
+            RFC_9110_15_2_2,
         ]
     }
 
@@ -642,7 +665,7 @@ impl Rule for WebsocketHandshakeValid {
             // one finding, so the first defect is the one reported.
             let defect = [
                 Self::refusable_handshake(&req.headers).map(Defect::unnamed),
-                Self::upgrade_defect(&resp.headers).map(Defect::unnamed),
+                Self::upgrade_defect(&resp.headers),
                 Self::connection_defect(&resp.headers),
                 Self::accept_defect(&req.headers, &resp.headers),
                 Self::extensions_defect(&req.headers, &resp.headers),
@@ -782,13 +805,13 @@ mod tests {
     #[case("WebSocket", None)]
     #[case("  websocket\t", None)]
     #[case("websocket, websocket", None)]
-    #[case("notwebsocket", Some("names `notwebsocket`"))]
-    #[case("websocket, h2c", Some("names `h2c`"))]
-    #[case("", Some("names no protocol at all"))]
-    #[case("  ,  ", Some("names no protocol at all"))]
+    #[case("notwebsocket", Some(("names `notwebsocket`", "upgrade_101_invalid")))]
+    #[case("websocket, h2c", Some(("names `h2c`", "upgrade_101_invalid")))]
+    #[case("", Some(("names no protocol at all", "upgrade_101_empty")))]
+    #[case("  ,  ", Some(("names no protocol at all", "upgrade_101_empty")))]
     fn the_response_upgrade_names_websocket_and_nothing_else(
         #[case] value: &str,
-        #[case] expected: Option<&str>,
+        #[case] expected: Option<(&str, &str)>,
     ) {
         let tx = make_ws_tx(
             handshake_request(),
@@ -801,7 +824,13 @@ mod tests {
         );
         match expected {
             None => assert!(run(&tx).is_none(), "{value}"),
-            Some(text) => assert!(run(&tx).unwrap().message.contains(text), "{value}"),
+            Some((text, id)) => {
+                let found = run(&tx).unwrap();
+                assert!(found.message.contains(text), "{value}");
+                // The emptiness is every `101`'s and the wrong name is this
+                // handshake's, which is the whole of why they are two entries.
+                assert_eq!(found.violation, id, "{value}");
+            }
         }
     }
 
@@ -829,10 +858,9 @@ mod tests {
             101,
             vec![("connection", "Upgrade"), ("sec-websocket-accept", ACCEPT)],
         );
-        assert!(run(&tx)
-            .unwrap()
-            .message
-            .contains("carries no Upgrade header field"));
+        let found = run(&tx).unwrap();
+        assert!(found.message.contains("carries no Upgrade header field"));
+        assert_eq!(found.violation, "upgrade_101_missing");
     }
 
     /// `Connection` is a list, and it is one list however many field lines carry
@@ -1103,11 +1131,18 @@ mod tests {
         let tx = make_ws_tx(req, 101, resp);
         assert_eq!(run(&tx).unwrap().severity, crate::lint::Severity::Error);
 
-        // The `Upgrade` reading, which no subject has claimed.
+        // The one reading left that no subject has claimed: a `101` completing a
+        // handshake whose key is not a nonce, which is about the exchange rather
+        // than about any field's value.
         let tx = make_ws_tx(
-            handshake_request(),
+            vec![
+                ("upgrade", "websocket"),
+                ("connection", "Upgrade"),
+                ("sec-websocket-key", "dG9vLXNob3J0"),
+                ("sec-websocket-version", "13"),
+            ],
             101,
-            vec![("connection", "Upgrade"), ("sec-websocket-accept", ACCEPT)],
+            vec![("upgrade", "websocket"), ("connection", "Upgrade")],
         );
         let found = run(&tx).unwrap();
         assert_eq!(found.severity, crate::lint::Severity::Warn);
