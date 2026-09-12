@@ -1475,6 +1475,10 @@ severity = "info"
 # Timestamp is padded with whitespace the grammar does not print
 severity = "warn"
 
+[violations.keep_alive_connection_option_missing]
+# Keep-Alive is sent with no keep-alive connection-option in Connection
+severity = "warn"
+
 [violations.language_tag_character_forbidden]
 # Language tag holds a character outside letters, digits and hyphen
 severity = "warn"
