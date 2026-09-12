@@ -15,8 +15,11 @@
 //!
 //! What is left, and what this subject holds, is what the two documents say
 //! about the field *beyond* the syntax: components the field may not carry, and
-//! the halves a CONNECT owes. Those are prose requirements about a field, which
-//! is what makes the field the subject.
+//! the halves a CONNECT owes — three of the entries below are exactly those
+//! halves, and all three are `uri-host ":" port` deriving something the prose
+//! then refuses, since both halves of that production are `*`-quantified. Those
+//! are prose requirements about a field, which is what makes the field the
+//! subject.
 //!
 //! **The first entry is the shape the `spec` slice was made for.** RFC 9113
 //! § 8.3.1 and RFC 9114 § 4.3.1 forbid the same subcomponent in the same field
@@ -180,6 +183,69 @@ defects! {
     AUTHORITY_TUNNEL_USERINFO_FORBIDDEN = {
         id: "authority_tunnel_userinfo_forbidden",
         title: "A CONNECT's :authority carries a userinfo subcomponent",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_9_3_6],
+    }
+
+    /// A CONNECT whose destination names a port and no host — `:443`, or the
+    /// colon alone. `uri-host` derives the empty string, so the grammar admits
+    /// it and the prose is what does not: the target is *the host name and port
+    /// number* of the tunnel destination, and a recipient with only the number
+    /// has nothing to open a connection to.
+    ///
+    /// `_empty` rather than `_missing`, and the delimiter is what decides it: the
+    /// colon says the sender knew the component was there and wrote nothing in
+    /// it. [`AUTHORITY_TUNNEL_PORT_MISSING`] is the same line drawn on the other
+    /// component, where a value with no colon at all names no port to be empty.
+    ///
+    // cite(RFC 9110 § 9.3.6): "CONNECT uses a special form of request target, unique to this method, consisting of only the host and port number of the tunnel destination, separated by a colon."
+    AUTHORITY_TUNNEL_HOST_EMPTY = {
+        id: "authority_tunnel_host_empty",
+        title: "A CONNECT's destination names a port and no host",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_9_3_6],
+    }
+
+    /// A CONNECT whose destination carries the port's delimiter and no digits
+    /// after it — `example.com:`. `port` is `*DIGIT`, so this derives too, and
+    /// again the prose is the requirement: there is no default port for this
+    /// method, and a server is told to reject a request targeting an empty one.
+    ///
+    /// **The sentence naming the empty port is the server's**, and it is why
+    /// this is worth reporting at all rather than treating the colon as a typo:
+    /// a recipient is required to answer 400 to it, so a client that sends it
+    /// gets no tunnel and no useful diagnosis.
+    ///
+    // cite(RFC 9110 § 9.3.6): "A server MUST reject a CONNECT request that targets an empty or invalid port number, typically by responding with a 400 (Bad Request) status code."
+    AUTHORITY_TUNNEL_PORT_EMPTY = {
+        id: "authority_tunnel_port_empty",
+        title: "A CONNECT's destination ends at the colon with no port",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_9_3_6],
+    }
+
+    /// A CONNECT whose destination names a host and no port at all — no colon
+    /// anywhere in it. Every other request-target elides a port and lets the
+    /// scheme supply one; this method has no scheme and no default, so the
+    /// number is the client's to send even when the URI reference it started
+    /// from left it out.
+    ///
+    /// Separate from [`AUTHORITY_TUNNEL_PORT_EMPTY`] because the senders are
+    /// different and the document addresses them separately: one copied an
+    /// authority whose port was elided and stopped, and the other built
+    /// `host ":" port` from a port it did not have. **Over HTTP/1.1 only one of
+    /// the two arrives here** — a request-target with no colon derives from no
+    /// form at all and is [`request_target`](crate::violations::request_target)'s
+    /// `_malformed` — which is a difference in the *spelling* and not in the
+    /// defect, and is why the entry is the field's rather than the target's.
+    ///
+    // cite(RFC 9110 § 9.3.6): "There is no default port; a client MUST send the port number even if the CONNECT request is based on a URI reference that contains an authority component with an elided port (Section 4.1)."
+    AUTHORITY_TUNNEL_PORT_MISSING = {
+        id: "authority_tunnel_port_missing",
+        title: "A CONNECT's destination names no port",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_6],

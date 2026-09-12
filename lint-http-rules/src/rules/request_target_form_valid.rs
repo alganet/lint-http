@@ -4,6 +4,9 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::authority::{
+    AUTHORITY_TUNNEL_HOST_EMPTY, AUTHORITY_TUNNEL_PORT_EMPTY, RFC_9110_9_3_6,
+};
 use crate::violations::request_target::{
     REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
     REQUEST_TARGET_EMPTY, REQUEST_TARGET_MALFORMED, REQUEST_TARGET_WHITESPACE_FORBIDDEN,
@@ -16,6 +19,13 @@ use crate::violations::ViolationDef;
 /// method-specific form and is stated once for every version of HTTP. The HTTP/2
 /// and HTTP/3 pseudo-header rules declare the same entry for the same defect
 /// spelled as a `:path`.
+///
+/// **Two of what it reports are not the target's at all**: a CONNECT naming a
+/// port and no host, and one ending at the colon with no port, are the tunnel
+/// destination's halves — the same two defects the HTTP/2 rule reads out of an
+/// `:authority`, under the same ids and RFC 9110 § 9.3.6's sentences. The
+/// element is spelled differently on the two versions and the requirement is
+/// not, which is [`authority`](crate::violations::authority)'s to hold.
 ///
 /// **The other half of that same MUST NOT is the second**: a host and port sent
 /// with a method that is not CONNECT, which only a request-line can show — the
@@ -38,6 +48,8 @@ static DECLARED: &[&ViolationDef] = &[
     &REQUEST_TARGET_EMPTY,
     &REQUEST_TARGET_MALFORMED,
     &REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN,
+    &AUTHORITY_TUNNEL_HOST_EMPTY,
+    &AUTHORITY_TUNNEL_PORT_EMPTY,
 ];
 
 /// Which of the four productions a request-target derives from.
@@ -187,6 +199,10 @@ severity = "error"
             RFC_9112_3_2_4,
             RFC_9110_7_1,
             RFC_9110_2_2,
+            // Where the two components a CONNECT names are required, once for
+            // every version: the entries this rule borrows for a target with
+            // half an authority carry its sentences, so the docs name it here.
+            RFC_9110_9_3_6,
         ]
     }
 
@@ -332,7 +348,7 @@ impl Rule for RequestTargetFormValid {
                 // cite(RFC 9112 § 3.2.3): "It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":")."
                 // cite(RFC 9112 § 3.2.3): "When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target."
                 (Some(TargetForm::Authority { host: "", .. }), "CONNECT") => (
-                    None,
+                    Some(&AUTHORITY_TUNNEL_HOST_EMPTY),
                     format!(
                         "CONNECT request-target '{shown}' names no host. `uri-host` derives the empty string -- `reg-name` is `*( unreserved / pct-encoded / sub-delims )` -- so the grammar admits this, and the tunnel destination is a host name and a port number, of which a recipient here has at most one"
                     ),
@@ -342,7 +358,7 @@ impl Rule for RequestTargetFormValid {
                 // client does when the target URI has no port to copy.
                 // cite(RFC 9112 § 3.2.3): "The client obtains the host and port from the target URI's authority component, except that it sends the scheme's default port if the target URI elides the port."
                 (Some(TargetForm::Authority { port: "", .. }), "CONNECT") => (
-                    None,
+                    Some(&AUTHORITY_TUNNEL_PORT_EMPTY),
                     format!(
                         "CONNECT request-target '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and a client with no port to copy sends the scheme's default one -- a recipient reading this has a host and no number to open the tunnel on"
                     ),
@@ -446,6 +462,33 @@ static REGISTRATION: &dyn crate::rules::Rule = &RequestTargetFormValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// A CONNECT with half an authority answers to the tunnel destination's ids,
+    /// which the HTTP/2 rule reports for the same two shapes out of an
+    /// `:authority` — the element is spelled differently on the two versions and
+    /// § 9.3.6's sentences are not.
+    #[rstest]
+    #[case(":80", "authority_tunnel_host_empty")]
+    #[case(":", "authority_tunnel_host_empty")]
+    #[case("example.com:", "authority_tunnel_port_empty")]
+    fn a_connect_with_half_an_authority_answers_to_the_destinations_ids(
+        #[case] target: &str,
+        #[case] violation: &str,
+    ) {
+        let rule = RequestTargetFormValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = "CONNECT".into();
+        tx.request.uri = target.into();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, violation, "{target}");
+        assert!(v.cite.is_some(), "{}", v.message);
+    }
 
     /// The two halves of one sentence are two ids: an operator who accepts
     /// `GET example.com:443` from some client has no reason to accept `GET *`
