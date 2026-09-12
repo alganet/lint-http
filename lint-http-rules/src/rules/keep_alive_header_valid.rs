@@ -9,6 +9,7 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::keep_alive::{KEEP_ALIVE_CONNECTION_OPTION_MISSING, RFC_2068_19_7_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
@@ -84,14 +85,20 @@ pub struct KeepAliveHeaderValid;
 /// value may not hold answers here with the id an `Accept` parameter, an
 /// `auth-param` or a `Content-Type` parameter answers with.
 ///
+/// The connection option the field must travel with is
+/// [`keep_alive`](crate::violations::keep_alive)'s, and the third of a family
+/// each of whose members sits in its own subject: the sentence requiring the
+/// option is written once per field, so an identical defect under a different
+/// sentence is a different entry.
+///
 /// Everything else is this document's own and stays: a member with no `=` at
 /// all (the expired draft would have allowed it and the document in force does
 /// not), a member that names no parameter, a `timeout` that is not
-/// `delta-seconds`, a `timeout` above the bound an operator configured, and the
-/// connection option the field must travel with. **The empty value is unnamed
-/// too** — `word_defect` declines that verdict because six fields answered it
+/// `delta-seconds`, and a `timeout` above the bound an operator configured.
+/// **The empty value is unnamed too** — `word_defect` declines that verdict because six fields answered it
 /// four ways, and this one answers it in its own words.
 static DECLARED: &[&ViolationDef] = &[
+    &KEEP_ALIVE_CONNECTION_OPTION_MISSING,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
@@ -137,16 +144,12 @@ impl Defect {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_2068_19_7_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 2068",
-    section: Some("19.7.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-19.7.1.1",
-    note: "The `Keep-Alive` grammar, the sentence saying HTTP/1.1 defines no \
-           parameters for it, and the field's one requirement on a sender — the \
-           matching connection token. Obsoleted, and still the document RFC 9110 \
-           §7.6.1 names for this field, so this is where the productions are read \
-           from. The reference here used to be RFC 7230 §6.7, which is `Upgrade`",
-};
+///
+/// § 19.7.1.1 is not written here: it is the sentence the connection-option
+/// entry enforces, so the reference lives beside that entry in
+/// [`keep_alive`](crate::violations::keep_alive) and is imported back — and the
+/// rest of this field's grammar is read from the same section, which is why the
+/// docs still name it.
 const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.6.1"),
@@ -499,7 +502,7 @@ fn judge(
 
     validate_keep_alive(&value, max_timeout_seconds)
         .err()
-        .or_else(|| missing_connection_option(headers, version).map(Defect::unnamed))
+        .or_else(|| missing_connection_option(headers, version))
         .map(|defect| defect.in_context(|message| format!("{side} Keep-Alive header: {message}")))
 }
 
@@ -515,20 +518,20 @@ fn judge(
 /// a connection option would be asking it to violate RFC 9113 §8.2.2 —
 /// `no_connection_specific_fields` owns that question for both versions.
 // cite(RFC 9110 § 7.6.1): "Keep-Alive (Section 19.7.1 of [RFC2068])"
-fn missing_connection_option(headers: &hyper::HeaderMap, version: &str) -> Option<String> {
+fn missing_connection_option(headers: &hyper::HeaderMap, version: &str) -> Option<Defect> {
     if !crate::http_version::is_major(version, 1) {
         return None;
     }
     let connection = combined_field_value_as_written(headers, "connection");
-    // cite(RFC 2068 § 19.7.1.1): "If the Keep-Alive header is sent, the corresponding connection token MUST be transmitted."
     if is_nominated_by_connection("keep-alive", connection.as_deref()) {
         return None;
     }
-    Some(
+    Some(Defect::named(
+        &KEEP_ALIVE_CONNECTION_OPTION_MISSING,
         "the field was sent with no `keep-alive` connection option in `Connection`, and the \
          corresponding connection token must be transmitted with it"
             .into(),
-    )
+    ))
 }
 
 /// Validate a whole `Keep-Alive` field value.
@@ -934,6 +937,10 @@ mod tests {
             "{}",
             found.message
         );
+        // The third id of a family that ranks together and cites apart: the
+        // sentence behind this one is the field's own, and it is RFC 2068's.
+        assert_eq!(found.violation, "keep_alive_connection_option_missing");
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
     }
 
     /// The option is a field name, so the comparison folds case, and it is one
