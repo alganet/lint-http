@@ -137,27 +137,30 @@ defects! {
     }
 }
 
-/// The defect a [`SecWebSocketKeyDefect`] reports as, where this subject holds
-/// one.
+/// The defect a [`SecWebSocketKeyDefect`] reports as.
 ///
-/// [`SecWebSocketKeyDefect::Length`] is the only variant that answers `None`,
-/// and it is not an encoding defect at all: a base64 spelling of twelve octets
-/// is a perfectly good base64 spelling, and the sixteen is RFC 6455's sentence
-/// about what the field carries. That defect belongs to a `sec_websocket_key`
-/// subject nothing has written, and the rule reporting it keeps its own words
-/// until something does.
+/// Three of the four verdicts are this subject's and the fourth is not an
+/// encoding defect at all: a base64 spelling of twelve octets is a perfectly
+/// good base64 spelling, and the sixteen is RFC 6455's sentence about what the
+/// field carries. That one is
+/// [`sec_websocket_key`](crate::violations::sec_websocket_key)'s, which is why
+/// this mapping crosses subjects rather than answering `None` — **a reader
+/// whose verdicts belong to two subjects is still one mapping**, the shape
+/// `word_defect` has for the alternation it splits.
 ///
 /// The mapping lives here rather than in a file named after the helper for the
 /// reason every mapping in this catalogue is shelved that way — the first thing
 /// this reader measures is the encoding, and a
 /// subject file holding nothing but a mapping fn would carry no `// cite` and
 /// fail the citation ratchet on the spot.
-pub fn sec_websocket_key_defect(defect: &SecWebSocketKeyDefect) -> Option<&'static ViolationDef> {
+pub fn sec_websocket_key_defect(defect: &SecWebSocketKeyDefect) -> &'static ViolationDef {
     match defect {
-        SecWebSocketKeyDefect::Alphabet(_) => Some(&BASE64_CHARACTER_FORBIDDEN),
-        SecWebSocketKeyDefect::Shape => Some(&BASE64_QUANTUM_MALFORMED),
-        SecWebSocketKeyDefect::PadBits => Some(&BASE64_PAD_BITS_INVALID),
-        SecWebSocketKeyDefect::Length(_) => None,
+        SecWebSocketKeyDefect::Alphabet(_) => &BASE64_CHARACTER_FORBIDDEN,
+        SecWebSocketKeyDefect::Shape => &BASE64_QUANTUM_MALFORMED,
+        SecWebSocketKeyDefect::PadBits => &BASE64_PAD_BITS_INVALID,
+        SecWebSocketKeyDefect::Length(_) => {
+            &crate::violations::sec_websocket_key::SEC_WEBSOCKET_KEY_LENGTH_INVALID
+        }
     }
 }
 
@@ -166,34 +169,25 @@ mod tests {
     use super::*;
     use crate::helpers::websocket::sec_websocket_key_defect as read_key;
 
-    /// The mapping, written against the reader: four verdicts, three ids and
-    /// one deliberate `None`. The values are the ones RFC 6455's own examples
-    /// and NOTE reach.
+    /// The mapping, written against the reader: four verdicts, four ids, and
+    /// the fourth belonging to the field rather than to the encoding. The
+    /// values are the ones RFC 6455's own examples and NOTE reach.
     #[test]
-    fn the_three_encoding_verdicts_are_three_ids_and_the_length_is_not_one() {
+    fn the_three_encoding_verdicts_are_three_ids_and_the_length_is_another_subjects() {
         let id = |value: &str| {
             let defect = read_key(value).expect("a defect");
-            sec_websocket_key_defect(&defect).map(|def| def.id)
+            sec_websocket_key_defect(&defect).id
         };
 
         // `!` is not one of the sixty-four, and `=` inside the value is a pad
         // character where no padding goes.
-        assert_eq!(
-            id("dGhlIHNhbXBsZSBub25jZQ!="),
-            Some("base64_character_forbidden")
-        );
-        assert_eq!(
-            id("dGhlIHNhbXBsZ=Sbm9uY2U="),
-            Some("base64_quantum_malformed")
-        );
+        assert_eq!(id("dGhlIHNhbXBsZSBub25jZQ!="), "base64_character_forbidden");
+        assert_eq!(id("dGhlIHNhbXBsZ=Sbm9uY2U="), "base64_quantum_malformed");
         // § 4.1's own NOTE prints this spelling of the octets 0x01..0x10.
-        assert_eq!(
-            id("AQIDBAUGBwgJCgsMDQ4PEC=="),
-            Some("base64_pad_bits_invalid")
-        );
+        assert_eq!(id("AQIDBAUGBwgJCgsMDQ4PEC=="), "base64_pad_bits_invalid");
         // A well-formed encoding of the wrong number of octets is not the
-        // encoding's defect, so this subject does not answer for it.
-        assert_eq!(id("dGhlIHNhbXBsZQ=="), None);
+        // encoding's defect, and the id it answers with says whose it is.
+        assert_eq!(id("dGhlIHNhbXBsZQ=="), "sec_websocket_key_length_invalid");
         // And the value § 4.1 prints as the field's example is no defect at all.
         assert!(read_key("dGhlIHNhbXBsZSBub25jZQ==").is_none());
     }
