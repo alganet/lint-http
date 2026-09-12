@@ -9,7 +9,12 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::keep_alive::{KEEP_ALIVE_CONNECTION_OPTION_MISSING, RFC_2068_19_7_1_1};
+use crate::violations::delta_seconds::{DELTA_SECONDS_CHARACTER_FORBIDDEN, RFC_9111_1_2_2};
+use crate::violations::keep_alive::{
+    KEEP_ALIVE_CONNECTION_OPTION_MISSING, KEEP_ALIVE_PARAMETER_EQUALS_MISSING,
+    KEEP_ALIVE_PARAMETER_NAME_MISSING, KEEP_ALIVE_PARAMETER_VALUE_EMPTY,
+    KEEP_ALIVE_TIMEOUT_INVALID, RFC_2068_19_7_1_1, RFC_2068_3_7,
+};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
@@ -98,7 +103,12 @@ pub struct KeepAliveHeaderValid;
 /// **The empty value is unnamed too** — `word_defect` declines that verdict because six fields answered it
 /// four ways, and this one answers it in its own words.
 static DECLARED: &[&ViolationDef] = &[
+    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
     &KEEP_ALIVE_CONNECTION_OPTION_MISSING,
+    &KEEP_ALIVE_PARAMETER_EQUALS_MISSING,
+    &KEEP_ALIVE_PARAMETER_NAME_MISSING,
+    &KEEP_ALIVE_PARAMETER_VALUE_EMPTY,
+    &KEEP_ALIVE_TIMEOUT_INVALID,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
@@ -107,28 +117,21 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_PAIR_MALFORMED,
 ];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the entry it reports as.
 ///
-/// The shape `expect_header_valid` settled. Two arms of the value's reader are
-/// named and everything else this rule says is RFC 2068's or the deployment's.
+/// The shape `expect_header_valid` settled, carried here while this document's
+/// own statements had nowhere to go — **and the `Option` is gone now that they
+/// do**: the field's grammar is a subject, and the one finding no document
+/// states is an entry that says so by carrying no reference.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed: this document's own statement.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out — the member it
@@ -145,11 +148,10 @@ impl Defect {
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
 ///
-/// § 19.7.1.1 is not written here: it is the sentence the connection-option
-/// entry enforces, so the reference lives beside that entry in
-/// [`keep_alive`](crate::violations::keep_alive) and is imported back — and the
-/// rest of this field's grammar is read from the same section, which is why the
-/// docs still name it.
+/// Three are not written here — § 19.7.1.1 and § 3.7, which the
+/// [`keep_alive`](crate::violations::keep_alive) entries enforce, and RFC 9111
+/// § 1.2.2, which is [`delta_seconds`](crate::violations::delta_seconds)' — so
+/// each reference lives beside the entries that name it and is imported back.
 const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.6.1"),
@@ -177,14 +179,6 @@ const RFC_2068_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
            seventeen `tspecials` are RFC 9110's delimiters and both alphabets stop at \
            US-ASCII — so the shared helper is the same production under another name",
 };
-const RFC_2068_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 2068",
-    section: Some("3.7"),
-    url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-3.7",
-    note: "`value = token | quoted-string`, the right-hand half of `keepalive-param`. \
-           The rule name is defined once for the document and `keepalive-param` uses \
-           it, which is why a parameter value may be quoted at all",
-};
 const RFC_2068_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 2068",
     section: Some("4.2"),
@@ -202,14 +196,6 @@ const DRAFT_THOMSON_HYBI_HTTP_TIMEOUT_03_2: crate::rules::SpecRef = crate::rules
            the only published reading of the parameter and never as a requirement. \
            Its §2.2.1 deprecates `max`; its §7.2 asks IANA for a registry that was \
            never created, which is why this rule carries no list of parameter names",
-};
-const RFC_9111_1_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("1.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
-    note: "`delta-seconds = 1*DIGIT`, the production the draft's `timeout` value is. \
-           `1*DIGIT` is what a leading `+` fails, and a standard-library integer \
-           parser accepts",
 };
 const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -470,10 +456,7 @@ impl Rule for KeepAliveHeaderValid {
                 })
             })?;
 
-            Some(match message.def {
-                Some(def) => ctx.report_with(def, message.message),
-                None => self.violation(config.severity, message.message),
-            })
+            Some(ctx.report_with(message.def, message.message))
         };
         Vec::from_iter(finding())
     }
@@ -599,11 +582,15 @@ fn validate_keepalive_param(member: &str, max_timeout_seconds: u64) -> Result<()
     // no escape for that.)
     // cite(RFC 2068 § 2.1): "At least one delimiter (tspecials) must exist between any two tokens, since they would otherwise be interpreted as a single token."
     let Some(eq) = member.find('=') else {
-        return Err(Defect::unnamed(format!(
-            "is `{}`, which has no \"=\" and no value after it; the draft that named these \
-             parameters would have allowed that and the document specifying the field does not",
-            shown_in_finding(member)
-        )));
+        return Err(Defect::named(
+            &KEEP_ALIVE_PARAMETER_EQUALS_MISSING,
+            format!(
+                "is `{}`, which has no \"=\" and no value after it; the draft that named these \
+                 parameters would have allowed that and the document specifying the field does \
+                 not",
+                shown_in_finding(member)
+            ),
+        ));
     };
 
     // Whitespace either side of the `=` is not slack this rule is granting: the
@@ -620,7 +607,8 @@ fn validate_keepalive_param(member: &str, max_timeout_seconds: u64) -> Result<()
     // absence is a different question: a member that is only a value names no
     // parameter at all.
     if name.is_empty() {
-        return Err(Defect::unnamed(
+        return Err(Defect::named(
+            &KEEP_ALIVE_PARAMETER_NAME_MISSING,
             "begins with its \"=\", so it names no parameter".into(),
         ));
     }
@@ -676,7 +664,8 @@ fn validate_param_value(value: &str) -> Result<(), Defect> {
         // and a `quoted-string` is at least its two DQUOTEs -- so a member
         // ending on its `=` has a value the grammar cannot generate. No
         // sentence in this document tolerates it, so it is a finding here.
-        Err(WordDefect::Empty) => Err(Defect::unnamed(
+        Err(WordDefect::Empty) => Err(Defect::named(
+            &KEEP_ALIVE_PARAMETER_VALUE_EMPTY,
             "has nothing after its \"=\", and neither a token nor a quoted-string derives the \
              empty string"
                 .into(),
@@ -716,11 +705,14 @@ fn validate_timeout(value: &str, max_timeout_seconds: u64) -> Result<(), Defect>
     // parser: `u64::from_str` accepts a leading `+`, and no `delta-seconds`
     // does.
     if let Some(c) = value.chars().find(|c| !c.is_ascii_digit()) {
-        return Err(Defect::unnamed(format!(
-            "has {} in its timeout, and the only published grammar for the parameter writes a \
-             delta-seconds, which is 1*DIGIT",
-            describe_char(c)
-        )));
+        return Err(Defect::named(
+            &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+            format!(
+                "has {} in its timeout, and the only published grammar for the parameter writes \
+                 a delta-seconds, which is 1*DIGIT",
+                describe_char(c)
+            ),
+        ));
     }
 
     // The value is all digits, so a parse failure here is arithmetic rather than
@@ -728,10 +720,13 @@ fn validate_timeout(value: &str, max_timeout_seconds: u64) -> Result<(), Defect>
     // an operator can configure.
     let seconds = value.parse::<u64>().unwrap_or(u64::MAX);
     if seconds > max_timeout_seconds {
-        return Err(Defect::unnamed(format!(
-            "has a timeout of {value} seconds, above the max_timeout_seconds of \
-             {max_timeout_seconds} this deployment configured; no document states a maximum"
-        )));
+        return Err(Defect::named(
+            &KEEP_ALIVE_TIMEOUT_INVALID,
+            format!(
+                "has a timeout of {value} seconds, above the max_timeout_seconds of \
+                 {max_timeout_seconds} this deployment configured; no document states a maximum"
+            ),
+        ));
     }
 
     Ok(())
@@ -745,19 +740,22 @@ mod tests {
     /// The `value` half is RFC 2068's `token | quoted-string`, which is
     /// RFC 9110's pair under another name — the fourth reading of that
     /// equivalence in this tree, and the first that does not have to state it,
-    /// because the ids do. Everything else this rule reports is the document's
-    /// own and carries no defect id.
+    /// because the ids do. What this document writes for itself is a subject of
+    /// its own, and the `timeout`'s octets belong to the production its value is
+    /// — so every finding here names an entry and each says which document it
+    /// came from.
     #[rstest]
-    #[case("timeout=5@0", Some("token_character_forbidden"))]
-    #[case("ext=\"unterminated", Some("quoted_string_delimiter_missing"))]
+    #[case("timeout=5@0", "token_character_forbidden")]
+    #[case("ext=\"unterminated", "quoted_string_delimiter_missing")]
     // A backslash that eats the closing DQUOTE: the value is quoted and the
     // escape is two octets short of a `quoted-pair`.
-    #[case("ext=\"a\\\"", Some("quoted_pair_malformed"))]
-    #[case("timeout=", None)]
-    #[case("timeout", None)]
-    #[case("=5", None)]
-    #[case("timeout=5x", None)]
-    fn the_value_half_borrows_and_the_rest_does_not(#[case] value: &str, #[case] id: Option<&str>) {
+    #[case("ext=\"a\\\"", "quoted_pair_malformed")]
+    #[case("timeout=", "keep_alive_parameter_value_empty")]
+    #[case("timeout", "keep_alive_parameter_equals_missing")]
+    #[case("=5", "keep_alive_parameter_name_missing")]
+    #[case("timeout=5x", "delta_seconds_character_forbidden")]
+    #[case("timeout=99999999", "keep_alive_timeout_invalid")]
+    fn the_value_half_borrows_and_the_rest_does_not(#[case] value: &str, #[case] id: &str) {
         let tx = crate::test_helpers::make_test_transaction_with_headers(&[
             ("connection", "keep-alive"),
             ("keep-alive", value),
@@ -769,7 +767,7 @@ mod tests {
             &cfg_with_max(3600),
         )
         .expect("a finding");
-        assert_eq!(found.violation, id.unwrap_or(""), "{value}");
+        assert_eq!(found.violation, id, "{value}");
     }
 
     /// The rule's config table, with `max_timeout_seconds` written only when the

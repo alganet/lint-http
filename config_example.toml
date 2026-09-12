@@ -1479,6 +1479,22 @@ severity = "warn"
 # Keep-Alive is sent with no keep-alive connection-option in Connection
 severity = "warn"
 
+[violations.keep_alive_parameter_equals_missing]
+# Keep-Alive writes a parameter with no '=' and no value
+severity = "warn"
+
+[violations.keep_alive_parameter_name_missing]
+# Keep-Alive writes a parameter that names nothing before its '='
+severity = "warn"
+
+[violations.keep_alive_parameter_value_empty]
+# Keep-Alive writes a parameter '=' with no value after it
+severity = "warn"
+
+[violations.keep_alive_timeout_invalid]
+# Keep-Alive asks for a timeout above the configured maximum
+severity = "warn"
+
 [violations.language_tag_character_forbidden]
 # Language tag holds a character outside letters, digits and hyphen
 severity = "warn"

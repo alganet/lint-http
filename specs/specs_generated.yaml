@@ -768,19 +768,19 @@ sources:
     snippet: keep-alive-extension = token [ "=" ( token / quoted-string ) ]
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 591
+      line: 574
   - label: keep_alive_header_valid (2)
     section: § 2
     snippet: keep-alive-info      =   "timeout" "=" delta-seconds
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 634
+      line: 622
   - label: keep_alive_header_valid (3)
     section: § 2.1
     snippet: The value of the "timeout" parameter is a single integer in seconds.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 712
+      line: 701
 - label: MDN Content-Type
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
   fragments:
@@ -1020,85 +1020,91 @@ sources:
     snippet: If the Keep-Alive header is sent, the corresponding connection token MUST be transmitted.
     cited_by:
     - file: lint-http-rules/src/violations/keep_alive.rs
-      line: 69
+      line: 93
   - label: keep_alive_header_valid
     section: § 19.7.1.1
     snippet: HTTP/1.1 does not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 635
+      line: 623
   - label: keep_alive_header_valid (2)
     section: § 19.7.1.1
     snippet: Keep-Alive-header = "Keep-Alive" ":" 0# keepalive-param
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 539
+      line: 522
   - label: keep_alive_header_valid (3)
     section: § 19.7.1.1
     snippet: The Keep-Alive header itself is optional, and is used only if a parameter is being sent.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 557
+      line: 540
   - label: keep_alive_header_valid (4)
     section: § 19.7.1.1
     snippet: When the Keep-Alive connection-token has been transmitted with a request or a response, a Keep-Alive header field MAY also be included.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 428
-  - label: keep_alive_header_valid (5)
+      line: 414
+  - label: keepalive-param
     section: § 19.7.1.1
     snippet: keepalive-param = param-name "=" value
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 590
-  - label: keep_alive_header_valid (6)
+      line: 573
+    - file: lint-http-rules/src/violations/keep_alive.rs
+      line: 113
+    - file: lint-http-rules/src/violations/keep_alive.rs
+      line: 133
+  - label: keep_alive_header_valid (5)
     section: § 2.1
     snippet: At least one delimiter (tspecials) must exist between any two tokens, since they would otherwise be interpreted as a single token.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 600
-  - label: keep_alive_header_valid (7)
+      line: 583
+  - label: keep_alive_header_valid (6)
     section: § 2.1
     snippet: Wherever this construct is used, null elements are allowed, but do not contribute
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 556
-  - label: keep_alive_header_valid (8)
+      line: 539
+  - label: keep_alive_header_valid (7)
     section: § 2.1
     snippet: linear whitespace (LWS) can be included between any two adjacent words (token or quoted-string), and between adjacent tokens and delimiters (tspecials), without changing the interpretation of a field.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 613
+      line: 600
   - label: LWS grammar
     section: § 2.2
     snippet: LWS            = [CRLF] 1*( SP | HT )
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 614
-  - label: keep_alive_header_valid (9)
+      line: 601
+  - label: keep_alive_header_valid (8)
     section: § 2.2
     snippet: The backslash character ("\") may be used as a single-character quoting mechanism only within quoted-string and comment constructs.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 671
-  - label: keep_alive_header_valid (10)
+      line: 659
+  - label: keep_alive_header_valid (9)
     section: § 2.2
     snippet: quoted-string  = ( <"> *(qdtext) <"> )
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 670
-  - label: keep_alive_header_valid (11)
+      line: 658
+  - label: keep_alive_header_valid (10)
     section: § 2.2
     snippet: token          = 1*<any CHAR except CTLs or tspecials>
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 669
-  - label: keep_alive_header_valid (12)
+      line: 657
+  - label: keepalive value
     section: § 3.7
     snippet: value          = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 668
+      line: 656
+    - file: lint-http-rules/src/violations/keep_alive.rs
+      line: 154
 - label: RFC 2616
   url: https://www.rfc-editor.org/rfc/rfc2616.html
   fragments:
@@ -5311,7 +5317,7 @@ sources:
     - file: lint-http-rules/src/rules/http_version_syntax.rs
       line: 170
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 538
+      line: 521
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 590
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
@@ -6359,7 +6365,7 @@ sources:
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 520
+      line: 503
   - label: language_tag_syntax
     section: § 8.5
     snippet: 'Content-Language = #language-tag'
@@ -7011,7 +7017,7 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 436
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 541
+      line: 524
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 593
     - file: lint-http-rules/src/rules/refresh_header_syntax.rs
@@ -9638,7 +9644,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 83
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 713
+      line: 702
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 100
     - file: lint-http-rules/src/violations/delta_seconds.rs
