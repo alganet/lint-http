@@ -418,7 +418,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 199;
+        const FLOOR: usize = 200;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

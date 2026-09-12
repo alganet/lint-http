@@ -10,7 +10,9 @@
 //! names its target in control data, and RFC 9110 § 7.1 is where what that
 //! naming may be is written. Two of the four forms are *method-specific* — the
 //! host and port a CONNECT tunnels to, and the asterisk a server-wide OPTIONS
-//! asks about — and the section closes them both with one MUST NOT.
+//! asks about — and the section closes them both with one MUST NOT. **That one
+//! sentence is two entries here**, because the two senders wrote different
+//! mistakes and an operator silencing one has no reason to silence the other.
 //!
 //! **What makes this a subject rather than a drawer is that the element is
 //! version-independent while its spelling is not.** Over HTTP/1.x the target is
@@ -104,6 +106,40 @@ defects! {
     REQUEST_TARGET_ASTERISK_FORBIDDEN = {
         id: "request_target_asterisk_forbidden",
         title: "The asterisk target is sent with a method other than OPTIONS",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_7_1],
+    }
+
+    /// A request whose target is a host and port — the authority-form — on a
+    /// method other than `CONNECT`. That form names a tunnel destination and not
+    /// a resource, so a `GET example.com:443` asks for nothing a server could
+    /// apply the method to, and a recipient reading it as an origin-form path
+    /// would route the request somewhere the client never named.
+    ///
+    /// **§ 7.1's MUST NOT closes both method-specific forms in one sentence**,
+    /// and this is its other half:
+    /// [`REQUEST_TARGET_ASTERISK_FORBIDDEN`] is the asterisk sent with a method
+    /// that is not `OPTIONS`, and this is the host-and-port sent with a method
+    /// that is not `CONNECT`. Two entries rather than one, because the fix
+    /// differs — one sender wrote the wrong method, the other wrote a target for
+    /// a tunnel it did not ask for — and because an operator silencing one has
+    /// no reason to silence the other.
+    ///
+    /// **One declarer, unlike its sibling.** The asterisk survives reassembly as
+    /// a `:path` of `*` and is reported on every version; a host and port does
+    /// not, because a capture of an HTTP/2 or HTTP/3 request holds a URI built
+    /// from `:scheme`, `:authority` and `:path`, and nothing in it says the
+    /// client wrote the authority where a path goes.
+    ///
+    /// `error`, with the rest of this subject: the request names no resource and
+    /// two recipients on one chain may disagree about what it named.
+    ///
+    // cite(RFC 9110 § 7.1): "For CONNECT (Section 9.3.6), the request target is the host name and port number of the tunnel destination, separated by a colon."
+    // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
+    REQUEST_TARGET_AUTHORITY_FORM_FORBIDDEN = {
+        id: "request_target_authority_form_forbidden",
+        title: "The host-and-port target is sent with a method other than CONNECT",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_1],
