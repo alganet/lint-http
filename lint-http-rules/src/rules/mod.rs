@@ -1381,7 +1381,16 @@ severity = "warn"
         /// never carried. **A count of cited sites falls fastest where one site
         /// was standing in for several defects**, which is the shape a
         /// half-converted judge has by construction.
-        const FLOOR: usize = 105;
+        /// **The `range` subject took the next one, and it is the shape this
+        /// note has described three times**: `range_header_syntax` cited
+        /// § 14.1.1 once, from the arm that reported everything a *specifier*
+        /// got wrong — an octet no alternative admits, a `bytes` value in
+        /// neither numeric form, a position that is not `1*DIGIT`, a range
+        /// running backwards. Four entries hold those now, three of them naming
+        /// § 14.1.1 and one naming the unit's own section, so every one of those
+        /// findings is still cited and one of them is cited more precisely than
+        /// the site ever was.
+        const FLOOR: usize = 104;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
