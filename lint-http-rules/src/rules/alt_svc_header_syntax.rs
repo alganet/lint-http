@@ -11,7 +11,10 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::alt_svc::{ALT_SVC_CLEAR_CONFLICTING, RFC_7838_3};
+use crate::violations::alt_svc::{
+    ALT_SVC_ALTERNATIVE_EQUALS_MISSING, ALT_SVC_CLEAR_CONFLICTING,
+    ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EQUALS_MISSING, RFC_7838_3,
+};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
@@ -32,12 +35,12 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Seventeen defects over five subjects, and RFC 7838 defines one of them.
+/// Twenty defects over five subjects, and RFC 7838 defines four of them.
 ///
-/// The one is the field's own: `Alt-Svc` is an alternation at the top, and a
-/// value carrying both of its halves is a state the document names. Everything
-/// else here is imported, and the paragraph below is where each import comes
-/// from.
+/// The four are the field's own: the alternation at the top of it, the two `=`
+/// delimiters it prints and the whitespace it prints nowhere near them.
+/// Everything else here is imported, and the paragraph below is where each
+/// import comes from.
 ///
 /// § 1.1 says where the notation comes from and § 3 says where the productions
 /// do: the `#rule` extension is RFC 7230 § 7's, whose sender requirement is the
@@ -47,24 +50,24 @@ use crate::violations::ViolationDef;
 /// `port` out of RFC 3986. So an `alt-authority` of `"a]b:443"` reports the
 /// same defect a `Forwarded` `for=` and a `Warning`'s `warn-agent` do.
 ///
-/// **Fourteen findings stay this document's and are not named yet.**
-/// Six are the two `=` delimiters RFC 7838 prints and the whitespace it does
-/// *not*; two are the ALPN name's percent-encoding spelling, which is this
-/// field's alone; two are `alt-authority`'s prose, which requires the colon and
-/// the port the ABNF leaves optional; one is a port outside the sixteen-bit
-/// namespace an ALPN name implies; one is `persist`'s single literal; one is
-/// § 8's A-labels; and one is the case-sensitive spelling of `clear`. Every one
-/// is a sentence about `Alt-Svc` and no other field, so every one of them is
-/// the `alt_svc` subject's — the fifteenth was, and it went first because the
-/// document states the recipient behaviour that ranks it.
+/// **Eight findings stay this document's and are not named yet.** Two are the
+/// ALPN name's percent-encoding spelling, which is this field's alone; two are
+/// `alt-authority`'s prose, which requires the colon and the port the ABNF
+/// leaves optional; one is a port outside the sixteen-bit namespace an ALPN
+/// name implies; one is `persist`'s single literal; one is § 8's A-labels; and
+/// one is a semicolon with no parameter behind it. Every one is a sentence
+/// about `Alt-Svc` and no other field, so every one of them is the `alt_svc`
+/// subject's, as the four already there were.
 ///
 /// **`parameter_equals_missing` and `parameter_equals_whitespace_forbidden` are
-/// refused, for the second commit running.** RFC 7838 § 3's `parameter` is not
-/// § 5.6.6's: its value is mandatory where § 5.6.6's is optional, and it prints
-/// no whitespace beside its `=` at all — so where § 5.6.6 tolerates the
-/// whitespace and records the leniency at `info`, this document admits none and
-/// the rule reports it at its own level. Two sentences, two verdicts, and the
-/// rule had already written the difference down for another reason.
+/// refused, and the refusal is now written as two ids rather than as none.**
+/// RFC 7838 § 3's `parameter` is not § 5.6.6's: its value is mandatory where
+/// § 5.6.6's is optional, and it prints no whitespace beside its `=` at all —
+/// so where § 5.6.6 tolerates the whitespace and records the leniency at
+/// `info`, this document admits none and its own entry says so at `warn`. **A
+/// production of the same name in another document is another production**, and
+/// the catalogue can now hold both without either borrowing the other's
+/// sentence.
 ///
 /// **Three of the four `quoted_string_*` entries are declared and unreachable
 /// here, and the reason is a check two levels up.** The field value's quoting
@@ -78,6 +81,9 @@ use crate::violations::ViolationDef;
 /// find and is reported as that instead.
 static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_CLEAR_CONFLICTING,
+    &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
+    &ALT_SVC_PARAMETER_EQUALS_MISSING,
+    &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
     &LIST_MEMBER_EMPTY,
     &LIST_MEMBER_MISSING,
     &TOKEN_EMPTY,
@@ -100,8 +106,9 @@ static DECLARED: &[&ViolationDef] = &[
 /// catalogue names that defect.
 ///
 /// The shape `expect_header_valid` settled: a judge that is half converted says
-/// so in its type. Here the halves are almost even — four subjects' ids against
-/// nine sentences this document writes about its own field.
+/// so in its type. Here the halves are five subjects' ids — four imported and
+/// this field's own — against the nine sentences RFC 7838 writes about
+/// `Alt-Svc` that no entry holds yet.
 struct Defect {
     def: Option<&'static ViolationDef>,
     message: String,
@@ -395,24 +402,32 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<Defect> {
     // **Not `parameter_equals_missing`.** That def carries § 5.6.6's
     // `parameter`, whose value the constructs reading it treat as optional --
     // which is the very thing the paragraph above says this production is not.
-    // A def is a sentence, and this field's is its own.
+    // A def is a sentence, and this field's is its own -- so it has one of its
+    // own, and the two ids sit beside each other in the catalogue saying which
+    // document each answers for.
     let Some((name, value)) = parameter.split_once('=') else {
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc parameter '{}' in '{shown}' has no '='. A `parameter` is `token \"=\" ( token / quoted-string )`, so the value and its delimiter are not optional",
-            shown_in_finding(parameter)
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_PARAMETER_EQUALS_MISSING,
+            format!(
+                "Alt-Svc parameter '{}' in '{shown}' has no '='. A `parameter` is `token \"=\" ( token / quoted-string )`, so the value and its delimiter are not optional",
+                shown_in_finding(parameter)
+            ),
+        ));
     };
     //
     // **Not `parameter_equals_whitespace_forbidden` either**, and this is the
     // sharper half of the same refusal: that def is `info`, because § 5.6.6's
     // readers trim the whitespace and publish the leniency. This document
-    // prints no whitespace here to be lenient *about*, so the rule reports it
-    // at its own level rather than at one chosen for a different production.
+    // prints no whitespace here to be lenient *about*, so the finding reports
+    // as this field's own defect at this field's own rank.
     if whitespace_beside_delimiter(name, value) {
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc parameter '{}' in '{shown}' has whitespace beside its '='. `parameter` prints `token \"=\" ( token / quoted-string )` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon",
-            shown_in_finding(parameter)
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
+            format!(
+                "Alt-Svc parameter '{}' in '{shown}' has whitespace beside its '='. `parameter` prints `token \"=\" ( token / quoted-string )` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon",
+                shown_in_finding(parameter)
+            ),
+        ));
     }
     if name.is_empty() {
         return Some(Defect::named(
@@ -509,22 +524,33 @@ fn check_alt_value(member: &str) -> Option<Defect> {
     let Some((protocol_id, authority)) = alternative.split_once('=') else {
         // `%s"clear"` is case-sensitive, so a case variant is not the
         // keyword -- it is an `alt-value` with no '=' in it, and saying so
-        // is more use to whoever wrote it than the generic verdict.
+        // is more use to whoever wrote it than the generic verdict. **The id
+        // is the same one either way**: what the value is does not change
+        // because a reader can say how its sender got there.
         // cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
         if alternative.eq_ignore_ascii_case(CLEAR) {
-            return Some(Defect::unnamed(format!(
-                "Alt-Svc carries '{}' where the keyword is spelled `%s\"clear\"` -- a case-sensitive string, so this value is read as an `alt-value` instead, and an `alt-value` opens with `protocol-id \"=\" alt-authority`",
-                shown_in_finding(alternative)
-            )));
+            return Some(Defect::named(
+                &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
+                format!(
+                    "Alt-Svc carries '{}' where the keyword is spelled `%s\"clear\"` -- a case-sensitive string, so this value is read as an `alt-value` instead, and an `alt-value` opens with `protocol-id \"=\" alt-authority`",
+                    shown_in_finding(alternative)
+                ),
+            ));
         }
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc alt-value '{shown}' has no '=' in its alternative. `alternative` is `protocol-id \"=\" alt-authority`, so a recipient reading this finds a protocol identifier and no alternative to reach it at"
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
+            format!(
+                "Alt-Svc alt-value '{shown}' has no '=' in its alternative. `alternative` is `protocol-id \"=\" alt-authority`, so a recipient reading this finds a protocol identifier and no alternative to reach it at"
+            ),
+        ));
     };
     if whitespace_beside_delimiter(protocol_id, authority) {
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc alt-value '{shown}' has whitespace beside the '=' of its alternative. `alternative` prints `protocol-id \"=\" alt-authority` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon before a parameter"
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
+            format!(
+                "Alt-Svc alt-value '{shown}' has whitespace beside the '=' of its alternative. `alternative` prints `protocol-id \"=\" alt-authority` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon before a parameter"
+            ),
+        ));
     }
     if protocol_id.is_empty() {
         return Some(Defect::named(
@@ -900,7 +926,11 @@ mod tests {
     )]
     #[case("h2=\"a]b:443\"", "is not a `uri-host`", "uri_host_bracket_forbidden")]
     #[case("h2=\"a%zb:443\"", "is not a `uri-host`", "percent_encoding_malformed")]
-    #[case("h2example.com:443", "has no \'=\' in its alternative", "")]
+    #[case(
+        "h2example.com:443",
+        "has no \'=\' in its alternative",
+        "alt_svc_alternative_equals_missing"
+    )]
     #[case("h@=\":443\"", "which is no `tchar`", "token_character_forbidden")]
     #[case("=\":443\"", "empty protocol-id", "token_empty")]
     #[case("x%3dy=\":443\"", "lowercase hex digits", "")]
@@ -919,13 +949,21 @@ mod tests {
         "Percent-encoding incomplete",
         "percent_encoding_digits_missing"
     )]
-    #[case("h2 = \":443\"", "whitespace beside the \'=\'", "")]
+    #[case(
+        "h2 = \":443\"",
+        "whitespace beside the \'=\'",
+        "alt_svc_equals_whitespace_forbidden"
+    )]
     #[case("h2=\":443\"; persist=2", "sets persist to \'2\'", "")]
     #[case("h2=\":443\"; persist=\"0\"", "sets persist to \'0\'", "")]
     #[case("h2=\":443\"; ;", "semicolon with no parameter after it", "")]
-    #[case("h2=\":443\"; ma", "has no \'=\'", "")]
+    #[case("h2=\":443\"; ma", "has no \'=\'", "alt_svc_parameter_equals_missing")]
     #[case("h2=\":443\"; ma=", "has an empty value", "")]
-    #[case("h2=\":443\"; ma = 60", "whitespace beside its \'=\'", "")]
+    #[case(
+        "h2=\":443\"; ma = 60",
+        "whitespace beside its \'=\'",
+        "alt_svc_equals_whitespace_forbidden"
+    )]
     #[case(
         "h2=\":443\"; m@=60",
         "which is no `tchar`",
@@ -947,7 +985,7 @@ mod tests {
         "both the keyword `clear` and alternative services",
         "alt_svc_clear_conflicting"
     )]
-    #[case("CLEAR", "case-sensitive string", "")]
+    #[case("CLEAR", "case-sensitive string", "alt_svc_alternative_equals_missing")]
     #[case(",", "empty field value", "list_member_missing")]
     #[case("h2=\":443\",", "empty list element", "list_member_empty")]
     #[case(

@@ -14,8 +14,8 @@
 //! value is a [`delta_seconds`](crate::violations::delta_seconds), read at both
 //! ends of that production.
 //!
-//! **What is left is what the field states above its grammar**, and the two
-//! entries below are at opposite ends of it. One is the top production's
+//! **What is left is what the field states for itself**, and two entries below
+//! are at opposite ends of it. One is the top production's
 //! alternation, where the document names the state it forbids and says what a
 //! recipient does about it. The other is what a number means: a freshness
 //! lifetime that conforms to `delta-seconds` and cannot be what the sender
@@ -27,13 +27,21 @@
 //! argument for the uncited entry; the alternation, by contrast, is a sentence,
 //! and the entry naming it is cited on every finding.
 //!
-//! **The field's own grammar is only partly written here.** The top
-//! production's alternation is, because a value holding both of its halves is
-//! a state the document names in its own words. The rest —
-//! `alt_svc_header_syntax`'s reading of an `alternative` with no `=`, a
-//! percent-encoding this field's one-spelling constraint forbids, an
-//! `alt-authority` naming no port — is this subject's too and is not written
-//! yet.
+//! **The two `=` delimiters are here too, and they are the field's rather than
+//! any production's.** `alternative` and `parameter` each print one, with
+//! nothing beside it: RFC 7838 writes `OWS` in exactly one place — around the
+//! semicolon before a parameter — and the `#rule` it imports writes it around
+//! the commas, both of them gone by the time a half is read. So a delimiter
+//! that is absent and whitespace that is present are two of this document's
+//! sentences, and neither can borrow from
+//! [`parameter`](crate::violations::parameter), whose § 5.6.6 production makes
+//! the value optional and tolerates the whitespace at `info`. **A production of
+//! the same name written in another document is another production.**
+//!
+//! **What is still not written here** is the rest of
+//! `alt_svc_header_syntax`'s reading: a percent-encoding this field's
+//! one-spelling constraint forbids, an `alt-authority` naming no port, and what
+//! `persist` means. Those are this subject's too.
 //
 // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
 
@@ -81,6 +89,98 @@ defects! {
         spec: &[RFC_7838_3],
     }
 
+    /// An `alt-value` whose alternative holds no `=`: a protocol identifier
+    /// and nowhere to reach it.
+    ///
+    /// `alternative = protocol-id "=" alt-authority` writes three parts and
+    /// brackets none of them, so a member with no delimiter in it names a
+    /// protocol and no service. What a recipient can do with it is nothing —
+    /// the alternative is dropped, and the response advertises one fewer
+    /// service than it looks like it does.
+    ///
+    /// **A `clear` in the wrong case reports here too, with its own message.**
+    /// `%s"clear"` is RFC 7405's case-sensitive string, so `CLEAR` is not the
+    /// keyword and is read as an `alt-value` like any other — which is exactly
+    /// this defect, reached by a sender who meant something else entirely. The
+    /// message says so; the id says what the value is. **A reading that
+    /// explains how a sender got here is not a second defect**, which is the
+    /// line drawn for the comma in a `Sec-WebSocket-Protocol`.
+    ///
+    /// `warn`, with the rest of the field's grammar: one alternative is lost
+    /// and the exchange is unaffected, because a client that finds no
+    /// alternative it can use goes to the origin.
+    ///
+    // cite(RFC 7838 § 3): "alternative   = protocol-id "=" alt-authority"
+    ALT_SVC_ALTERNATIVE_EQUALS_MISSING = {
+        id: "alt_svc_alternative_equals_missing",
+        title: "Alt-Svc alternative has no '=' between its protocol-id and its alt-authority",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
+    /// A `parameter` whose value and delimiter are both absent: `; ma`.
+    ///
+    /// **Not [`parameter_equals_missing`](crate::violations::parameter), and
+    /// the reason is the whole of this entry.** That def carries RFC 9110
+    /// § 5.6.6's `parameter`, whose `= value` half the constructs reading it
+    /// treat as optional. This document prints `parameter = token "="
+    /// ( token / quoted-string )` with no brackets anywhere in it, so a name on
+    /// its own derives from nothing here and derives perfectly well there. **Two
+    /// documents, one production name, two sentences** — borrowing the id would
+    /// put § 5.6.6's requirement behind a finding § 5.6.6 does not make.
+    ///
+    /// Its own entry rather than the alternative's, for the same reason the two
+    /// are two productions: what is absent differs. An `alternative` with no
+    /// `=` names no service at all; a `parameter` with no `=` names a service
+    /// perfectly well and loses one thing said about it.
+    ///
+    /// `warn`. A recipient that cannot read a parameter drops the alternative
+    /// carrying it, since a member is read as a whole.
+    ///
+    // cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
+    ALT_SVC_PARAMETER_EQUALS_MISSING = {
+        id: "alt_svc_parameter_equals_missing",
+        title: "Alt-Svc parameter has no '=' and no value",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
+    /// Whitespace touching one of the field's two `=` delimiters: `h2 = ":443"`
+    /// or `; ma = 60`.
+    ///
+    /// **One entry for both delimiters**, because what is forbidden is the same
+    /// octet in the same position under the same sentence, and a sender that
+    /// spaced out one of its `=` spaced out the other for the same reason. The
+    /// message says which delimiter it was. **Split where the thing that is
+    /// wrong differs, not where its container does.**
+    ///
+    /// RFC 7838 writes `OWS` in exactly one place — around the semicolon of
+    /// `*( OWS ";" OWS parameter )` — and the `#rule` it imports writes it
+    /// around the commas. Both are consumed before a half reaches a delimiter,
+    /// so whitespace still touching an `=` is admitted by no production of this
+    /// field. **This is the opposite answer to a `BWS`**, which is whitespace a
+    /// grammar prints in order to tolerate; there is none printed here to
+    /// tolerate.
+    ///
+    /// Which is also why this is not
+    /// [`parameter_equals_whitespace_forbidden`](crate::violations::parameter).
+    /// That entry is `info` because § 5.6.6's readers trim the whitespace and
+    /// the specification publishes the leniency. Nothing publishes a leniency
+    /// here, so the defect ranks with the field's other grammar defects at
+    /// `warn` — a recipient reading `h2 ` against `token` finds no `tchar` for
+    /// the space and drops the alternative.
+    ///
+    // cite(RFC 7838 § 3): "alt-value     = alternative *( OWS ";" OWS parameter )"
+    ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN = {
+        id: "alt_svc_equals_whitespace_forbidden",
+        title: "Alt-Svc writes whitespace beside an '=' its grammar prints bare",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_3],
+    }
+
     /// A freshness lifetime that derives from `delta-seconds` and states
     /// nothing a client can use: `ma=0`, which is stale on arrival, or a value
     /// so far above any deployment's horizon that it is a typo.
@@ -125,6 +225,39 @@ mod tests {
     fn the_uncited_entry_states_no_sentence() {
         assert!(ALT_SVC_MA_INVALID.spec.is_empty());
         assert_eq!(ALT_SVC_MA_INVALID.default_severity, Severity::Warn);
+    }
+
+    /// The two delimiters this field prints bare, measured against the
+    /// `parameter` subject they may not borrow from: same shape, different
+    /// document, and the rank is where the difference shows. § 5.6.6's readers
+    /// trim the whitespace and the specification publishes the leniency, so
+    /// that entry is `info`; nothing publishes one here.
+    #[test]
+    fn the_field_writes_its_own_delimiter_entries_rather_than_borrowing() {
+        use crate::violations::parameter::{
+            PARAMETER_EQUALS_MISSING, PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
+        };
+
+        assert_ne!(
+            ALT_SVC_PARAMETER_EQUALS_MISSING.id,
+            PARAMETER_EQUALS_MISSING.id
+        );
+        assert_eq!(
+            ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN.default_severity,
+            Severity::Warn
+        );
+        assert_eq!(
+            PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.default_severity,
+            Severity::Info
+        );
+        for def in [
+            &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
+            &ALT_SVC_PARAMETER_EQUALS_MISSING,
+            &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
+        ] {
+            assert_eq!(def.spec, [RFC_7838_3], "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+        }
     }
 
     /// The two entries are the subject's two ends, and they rank apart for a
