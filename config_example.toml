@@ -1935,6 +1935,10 @@ severity = "warn"
 # A 426 response carries no Upgrade field
 severity = "warn"
 
+[violations.upgrade_connection_option_missing]
+# Upgrade is sent with no upgrade connection-option in Connection
+severity = "warn"
+
 [violations.uri_character_forbidden]
 # Value holds a character no URI is written with
 severity = "warn"
