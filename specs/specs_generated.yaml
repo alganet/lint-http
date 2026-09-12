@@ -1107,21 +1107,23 @@ sources:
     snippet: Except where noted otherwise, linear white space (LWS) can be included between any two adjacent words (token or quoted-string), and between adjacent words and separators, without changing the interpretation of a field.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 111
+      line: 113
   - label: sec_websocket_extensions_syntax (2)
     section: § 2.1
     snippet: Therefore, where at least one element is required, at least one non-null element MUST be present.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 303
+      line: 312
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 48
+    - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
+      line: 86
   - label: sec_websocket_extensions_syntax (3)
     section: § 2.1
     snippet: Wherever this construct is used, null elements are allowed, but do not contribute to the count of elements present.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 302
+      line: 311
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 24
 - label: RFC 2617
@@ -2638,12 +2640,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 47
+  - label: extension repetition
+    section: § 9.1
+    snippet: extension = extension-token *( ";" extension-param )
+    cited_by:
+    - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
+      line: 107
+  - label: extension-param alternation
+    section: § 9.1
+    snippet: extension-param = token [ "=" (token | quoted-string) ]
+    cited_by:
+    - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
+      line: 135
   - label: quoted-string parameter note
     section: § 9.1
     snippet: ;When using the quoted-string syntax variant, the value ;after quoted-string unescaping MUST conform to the ;'token' ABNF.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 208
+      line: 213
   - label: sec_websocket_extensions_syntax
     section: § 9.1
     snippet: A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616].
@@ -2655,7 +2669,7 @@ sources:
     snippet: Any extension-token used MUST be a registered token (see Section 11.4).
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 121
+      line: 123
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 252
   - label: sec_websocket_extensions_syntax (3)
@@ -2663,19 +2677,21 @@ sources:
     snippet: If a value is received by either the client or the server during negotiation that does not conform to the ABNF below, the recipient of such malformed data MUST immediately _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 324
+      line: 333
+    - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
+      line: 38
   - label: sec_websocket_extensions_syntax (4)
     section: § 9.1
     snippet: Note that this section is using ABNF syntax/rules from [RFC2616], including the "implied *LWS rule".
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 301
+      line: 310
   - label: Sec-WebSocket-Extensions grammar
     section: § 9.1
     snippet: Sec-WebSocket-Extensions = extension-list extension-list = 1#extension extension = extension-token *( ";" extension-param ) extension-token = registered-token registered-token = token extension-param = token [ "=" (token | quoted-string) ]
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 110
+      line: 112
   - label: sec_websocket_headers_consistent
     section: § 4.1
     snippet: The ABNF for the value of this header field is 1#token, where the definitions of constructs and rules are as given in [RFC2616].

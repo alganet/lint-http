@@ -1715,6 +1715,18 @@ severity = "error"
 # A request-target carries whitespace
 severity = "error"
 
+[violations.sec_websocket_extensions_empty]
+# Sec-WebSocket-Extensions names no extension
+severity = "error"
+
+[violations.sec_websocket_extensions_parameter_missing]
+# Sec-WebSocket-Extensions writes a ';' with no parameter after it
+severity = "error"
+
+[violations.sec_websocket_extensions_parameter_value_empty]
+# Sec-WebSocket-Extensions writes a parameter '=' with no value after it
+severity = "error"
+
 [violations.status_101_ignored]
 # HTTP continues on a connection a 101 handed off
 severity = "warn"
