@@ -6559,7 +6559,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 49
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 61
+      line: 76
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (8)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
@@ -8207,7 +8207,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 214
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 60
+      line: 75
   - label: range_and_content_range_consistent
     section: § 14.1.2
     snippet: If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding.
@@ -8969,9 +8969,9 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 137
     - file: lint-http-rules/src/violations/upgrade.rs
-      line: 120
+      line: 179
     - file: lint-http-rules/src/violations/upgrade.rs
-      line: 140
+      line: 199
   - label: status_426_upgrade_valid (3)
     section: § 7.8
     snippet: A server MAY send an Upgrade header field in any other response to advertise that it implements support for upgrading to the listed protocols, in order of descending preference, when appropriate for a future request.
@@ -9211,7 +9211,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 260
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 42
+      line: 54
   - label: trailer_header_valid
     section: § 6.5.2
     snippet: The "Trailer" header field (Section 6.6.2) can be sent to indicate fields likely to be sent in the trailer section, which allows recipients to prepare for their receipt before processing the content.
@@ -9241,27 +9241,27 @@ sources:
     snippet: The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response.
     cited_by:
     - file: lint-http-rules/src/violations/upgrade.rs
-      line: 75
+      line: 134
     - file: lint-http-rules/src/violations/upgrade.rs
-      line: 94
+      line: 153
+  - label: upgrade (2)
+    section: § 7.8
+    snippet: A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
+    cited_by:
+    - file: lint-http-rules/src/violations/upgrade.rs
+      line: 121
   - label: upgrade_and_connection_consistent
     section: § 7.6.1
     snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
     cited_by:
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 94
-  - label: upgrade_and_connection_consistent (2)
-    section: § 7.8
-    snippet: A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
-    cited_by:
-    - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 43
+      line: 109
   - label: Upgrade grammar, sender-expanded
     section: § A
     snippet: Upgrade = [ protocol *( OWS "," OWS protocol ) ]
     cited_by:
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 44
+      line: 55
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 200
   - label: upgrade_header_syntax
@@ -10630,7 +10630,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 48
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 63
+      line: 78
   - label: no_body_for_1xx_204_304
     section: § 8.2.2
     snippet: An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields.
@@ -10644,7 +10644,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 215
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 62
+      line: 77
     - file: lint-http-rules/src/violations/field.rs
       line: 164
   - label: no_connection_specific_fields
@@ -11037,7 +11037,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 217
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
-      line: 64
+      line: 79
     - file: lint-http-rules/src/violations/field.rs
       line: 166
 - label: RFC 9218

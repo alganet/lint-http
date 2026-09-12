@@ -7,8 +7,20 @@ use crate::helpers::headers::combined_field_value_as_written;
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::upgrade::{RFC_9110_7_8, UPGRADE_CONNECTION_OPTION_MISSING};
+use crate::violations::ViolationDef;
 
 pub struct UpgradeAndConnectionConsistent;
+
+/// One entry, and it is `Upgrade`'s rather than `Connection`'s.
+///
+/// The missing name is on `Connection`, and the sentence requiring it is in the
+/// section defining `Upgrade` — as `TE`'s is in `TE`'s and `Keep-Alive`'s is in
+/// a 1997 document. A shared entry would have to cite § 7.6.1's general wording
+/// for findings whose evidence is a field-specific MUST, which is the shape the
+/// registry family already refused: **an identical defect under a different
+/// sentence is a different entry.**
+static DECLARED: &[&ViolationDef] = &[&UPGRADE_CONNECTION_OPTION_MISSING];
 
 impl UpgradeAndConnectionConsistent {
     /// One field section, measured against the sentence that pairs the two fields.
@@ -40,9 +52,12 @@ impl UpgradeAndConnectionConsistent {
     /// quotation needs to be evidence of anything.
     ///
     /// cite(RFC 9110 § 7.6.1): "When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field."
-    /// cite(RFC 9110 § 7.8): "A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field."
     /// cite(RFC 9110 § A, label: Upgrade grammar, sender-expanded): "Upgrade = [ protocol *( OWS "," OWS protocol ) ]"
-    fn defect(headers: &hyper::HeaderMap, version: &str, direction: &str) -> Option<String> {
+    fn defect(
+        headers: &hyper::HeaderMap,
+        version: &str,
+        direction: &str,
+    ) -> Option<(&'static ViolationDef, String)> {
         // The major digit decides whether this version has a `Connection` field to
         // carry the option; `http_version` owns the production that reads it. The MUST
         // is unconditional in its own sentence and its condition is one section away:
@@ -96,11 +111,14 @@ impl UpgradeAndConnectionConsistent {
             Some(value) => format!("its Connection field names `{}`", shown_in_finding(value)),
             None => "the message carries no Connection field".to_string(),
         };
-        Some(format!(
-            "{direction} carries an Upgrade header field without an 'upgrade' connection option \
-             in Connection ({names}); Upgrade applies to the immediate connection only, the \
-             option is what stops an intermediary from forwarding it, and a recipient that \
-             receives it forwarded is told to ignore it (RFC 9110 §7.8)"
+        Some((
+            &UPGRADE_CONNECTION_OPTION_MISSING,
+            format!(
+                "{direction} carries an Upgrade header field without an 'upgrade' connection \
+                 option in Connection ({names}); Upgrade applies to the immediate connection \
+                 only, the option is what stops an intermediary from forwarding it, and a \
+                 recipient that receives it forwarded is told to ignore it (RFC 9110 §7.8)"
+            ),
         ))
     }
 }
@@ -108,14 +126,10 @@ impl UpgradeAndConnectionConsistent {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("7.8"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
-    note: "Upgrade — the sender's obligation to name the field as a connection-option \
-           beside it, and the `#protocol` grammar that makes the field's presence the \
-           thing the obligation turns on",
-};
+///
+/// § 7.8 is not written here: it is the sentence the entry this rule reports
+/// enforces, so the reference lives beside that entry in
+/// [`upgrade`](crate::violations::upgrade) and is imported back.
 const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.6.1"),
@@ -158,6 +172,10 @@ severity = "warn"
         &[RFC_9110_7_8, RFC_9110_7_6_1, RFC_9113_8_2_2, RFC_9114_4_2]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -198,7 +216,7 @@ impl Rule for UpgradeAndConnectionConsistent {
             // the request may have arrived over HTTP/3 while the response came back from
             // the origin over HTTP/1.1, and the sender the sentence is about is the one
             // that wrote the section being read.
-            let message = Self::defect(&tx.request.headers, &tx.request.version, "Request")
+            let (def, message) = Self::defect(&tx.request.headers, &tx.request.version, "Request")
                 .or_else(|| {
                     let resp = tx.response.as_ref()?;
                     Self::defect(&resp.headers, &resp.version, "Response")
@@ -206,7 +224,7 @@ impl Rule for UpgradeAndConnectionConsistent {
 
             // Read last: every gate above ends the rule, so only a message about to be
             // reported pays for the map probes and the hash over the rule id.
-            Some(self.violation(ctx.severity, message))
+            Some(ctx.report_with(def, message))
         };
         Vec::from_iter(finding())
     }
@@ -313,6 +331,20 @@ mod tests {
             "{}",
             violation.message
         );
+    }
+
+    /// One entry for both shapes of the absence — the option is what is missing
+    /// either way, and the message is where the two part company. The rank is the
+    /// entry's now, and it is the one this rule had chosen for itself.
+    #[rstest]
+    #[case(vec![("upgrade", "websocket")])]
+    #[case(vec![("connection", "keep-alive"), ("upgrade", "websocket")])]
+    fn both_shapes_of_the_absence_report_one_entry(#[case] header_pairs: Vec<(&str, &str)>) {
+        let mut tx = make_test_transaction();
+        tx.request.headers = make_headers_from_pairs(header_pairs.as_slice());
+        let violation = run(&tx).expect("a field without its option");
+        assert_eq!(violation.violation, "upgrade_connection_option_missing");
+        assert_eq!(violation.severity, crate::lint::Severity::Warn);
     }
 
     /// The version gate, over the fixture the rule *does* report. Only the version

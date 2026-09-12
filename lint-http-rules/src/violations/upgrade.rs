@@ -26,7 +26,17 @@
 //! upgrade mechanism, that it may not switch to something nobody offered —
 //! belongs to [`status`](crate::violations::status).
 //!
-//! **Four entries: the same two defects under each of the two status codes**,
+//! **The fifth entry is not a status code's**, and it is the only one here that
+//! is about a *different* field: a sender that writes `Upgrade` owes the field's
+//! name as a `connection-option` on `Connection`, because that option is the
+//! whole of what makes the field hop-by-hop. It sits in this subject for the
+//! reason the registry family settled — the sentence is written once per field,
+//! § 7.8 for this one and § 10.1.4 for `TE`, so the shape being identical does
+//! not make the requirement shared, and [`te`](crate::violations::te) already
+//! carries its own.
+//!
+//! **Four of the five are the same two defects under each of the two status
+//! codes**,
 //! and the ids say which because the conditions and the sentences both differ.
 //! An entry naming § 15.2.2 and § 15.5.22 together would give up the citation
 //! its findings can carry — 2 sites out of 2 know which status they read — and
@@ -67,7 +77,56 @@ pub const RFC_9110_15_5_22: SpecRef = SpecRef {
     note: "426 Upgrade Required — the server refuses the request under the current protocol, and MUST send an `Upgrade` field to indicate the required protocol(s). RFC 9110 §7.8 states the same MUST from the field's side.",
 };
 
+/// The field's own section, and the sentence that pairs it with `Connection`.
+/// § 7.6.1 states the same obligation for every connection-specific field; this
+/// is where it is written for this one, which is why the entry below can name a
+/// field at all.
+pub const RFC_9110_7_8: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
+    note: "Upgrade — the sender's obligation to name the field as a connection-option \
+           beside it, and the `#protocol` grammar that makes the field's presence the \
+           thing the obligation turns on",
+};
+
 defects! {
+    /// A message carrying `Upgrade` and no `upgrade` connection-option in
+    /// `Connection`. The field applies to the immediate connection; the option
+    /// is what stops an intermediary from relaying it, and § 7.6.1 tells the
+    /// recipient of a relayed one to ignore it — so the upgrade this message
+    /// asks for is lost in both directions rather than merely mis-declared.
+    ///
+    /// **One entry where this catalogue usually writes two.** A `Connection`
+    /// that names other options and a message with no `Connection` at all are
+    /// two shapes and they are one absence: what is missing is the *option*, and
+    /// it is equally missing whichever way the container turned out. **Split
+    /// when the thing that is absent differs, not when what surrounds it does**
+    /// — which is exactly what separates the two pairs above, where a field that
+    /// was never written and a field written blank are two different absences of
+    /// a protocol name. The site keeps both shapes in its message.
+    ///
+    /// **Asked only of the versions that have a `Connection` field**, which is
+    /// the reading of whichever rule reports it and not this entry's: over
+    /// HTTP/2 and HTTP/3 the option cannot be sent at all, so an entry demanding
+    /// it would ask a sender to make its own message malformed.
+    ///
+    /// `warn` rather than `error` despite the MUST, and
+    /// [`te_connection_option_missing`](crate::violations::te) is the sibling
+    /// that ranked it first: nothing about this message is unreadable, and the
+    /// defect is a guard that was not set rather than a statement that is wrong.
+    /// What it risks is a *later* hop being misled, which no recipient of this
+    /// message can detect.
+    ///
+    // cite(RFC 9110 § 7.8): "A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field."
+    UPGRADE_CONNECTION_OPTION_MISSING = {
+        id: "upgrade_connection_option_missing",
+        title: "Upgrade is sent with no upgrade connection-option in Connection",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_7_8],
+    }
+
     /// A `101` response with no `Upgrade` field on it at all. The connection
     /// has changed protocol and the message that changed it does not say to
     /// what.
