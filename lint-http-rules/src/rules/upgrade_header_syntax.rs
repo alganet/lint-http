@@ -18,20 +18,24 @@ use crate::violations::ViolationDef;
 pub struct UpgradeHeaderSyntax;
 
 /// `protocol-name` and `protocol-version` are both `token`, and the members
-/// between them are a `#` list, so this rule declares four defs and writes one
+/// between them are a `#` list, so this rule declares four defs and writes none
 /// of its own.
 ///
-/// Four of the five readings are the borrowed productions': a member that
-/// contributes nothing to the list, a `protocol-version` written as nothing
-/// after its slash, and an octet outside `tchar` in either half. The `token`
+/// Every reading is a borrowed production's: a member that contributes nothing
+/// to the list, a half written as nothing on one side or the other of the
+/// slash, and an octet outside `tchar` anywhere in either half. The `token`
 /// pair is reached from *both* halves of the same member, which is the clearest
 /// case yet of one id answering twice inside one value.
 ///
-/// The fifth is this production's own and stays unnamed: a member opening with
-/// the slash of its optional group, which is `protocol = protocol-name ["/"
-/// protocol-version]` saying that the name is the half that is not optional. No
-/// subject holds a statement about which of two halves an optional group hangs
-/// from, and one rule reading it is not a subject.
+/// **The empty half is reached from both as well.** A member opening with the
+/// slash of its optional group is `protocol = protocol-name ["/"
+/// protocol-version]` saying that the name is the half that is not optional —
+/// but what the sender left in front of that slash is a `token` of no
+/// characters, which is the same `1*tchar` floor the version reaches when the
+/// slash is the last thing on the member. `product = token [ "/"
+/// product-version ]` is the same production under another name and its reader
+/// answers the same way, so the statement about which half is optional lives in
+/// the message where it always belonged, and the id names the defect.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -58,28 +62,18 @@ static DECLARED: &[&ViolationDef] = &[
 /// One finding from the reading, and the defect it reports as where the
 /// catalogue names that defect.
 ///
-/// The shape `expect_header_valid` settled: a judge that is half converted says
-/// so in its type. Here the unnamed half is one branch — a member that opens
-/// with the slash of its optional group — which is `protocol`'s own statement
-/// that the *name* is the half that is not optional, and no subject holds it.
+/// The shape `expect_header_valid` settled — a judge that is half converted
+/// says so in its type — is not this rule's any more: every arm names an entry,
+/// so the def is a reference and not an `Option` of one.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed yet, reported at the rule's severity the
-    /// way every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out — the direction,
@@ -95,9 +89,11 @@ impl Defect {
 
 fn protocol_defect(member: &str) -> Option<Defect> {
     // A `protocol-name` is `token`, which is `1*tchar`, so a run of no `tchar`
-    // is not a name however the member goes on. The slash is worth its own
+    // is not a name however the member goes on. The slash is still worth its own
     // sentence: a member beginning with one was written as if the name were
-    // optional, and it is the `protocol-version` that is.
+    // optional, and it is the `protocol-version` that is. What is left in front
+    // of it is a name of no characters, which is the *token's* defect and the
+    // one the version half reports from the other side of the same slash.
     let name_end = token_run_end(member);
     if name_end == 0 {
         // An empty member has no defect of its own -- there is no such thing as
@@ -108,14 +104,18 @@ fn protocol_defect(member: &str) -> Option<Defect> {
         let first = member.chars().next()?;
         return Some(if first == '/' {
             // `protocol = protocol-name ["/" protocol-version]` — the optional
-            // group written without the thing it is optional *on*. That is this
-            // production's own statement and no subject holds it.
-            Defect::unnamed(format!(
-                "member '{}' begins with the slash of a protocol version and names no protocol; \
-                 a protocol is a protocol-name that a \"/\" and a protocol-version may follow, and \
-                 the name is the half that is not optional",
-                shown_in_finding(member)
-            ))
+            // group written without the thing it is optional *on*. The slash is
+            // the delimiter the production prints, so the sender knew the name
+            // was due and wrote none of it: a `token` of no characters.
+            Defect::named(
+                &TOKEN_EMPTY,
+                format!(
+                    "member '{}' begins with the slash of a protocol version and names no \
+                     protocol; a protocol-name is a token, which is at least one character, and \
+                     it is the half that is not optional",
+                    shown_in_finding(member)
+                ),
+            )
         } else {
             Defect::named(
                 token_character(first),
@@ -402,10 +402,7 @@ impl Rule for UpgradeHeaderSyntax {
 
             // Read last: a message about to be reported is the only one that pays
             // for the map probes and the two lookups of the rule id.
-            Some(match defect.def {
-                Some(def) => ctx.report_with(def, defect.message),
-                None => self.violation(ctx.severity, defect.message),
-            })
+            Some(ctx.report_with(defect.def, defect.message))
         };
         Vec::from_iter(finding())
     }
@@ -464,9 +461,10 @@ mod tests {
     /// twice — and the version written as nothing after its slash is the same
     /// `1*tchar` floor a directive name and a method reach.
     ///
-    /// The one branch that stays this rule's own is the member opening with a
-    /// slash: that is `protocol` saying which of its two halves is optional,
-    /// and it reports at the rule's severity because no subject holds it.
+    /// The name written as nothing *before* that slash is that floor as well,
+    /// which is why the two emptinesses share an id: which half is optional is
+    /// what the message says, and a token of no characters is what the sender
+    /// wrote either way.
     #[test]
     fn both_halves_of_a_protocol_report_the_same_token_defects() {
         let id = |line: &[u8]| {
@@ -481,9 +479,10 @@ mod tests {
         assert_eq!(id(b"websocket/"), "token_empty");
         assert_eq!(id(b"websocket,,h2c"), "list_member_empty");
 
-        // `protocol-name` is the half that is not optional, which is a
-        // statement about this production and about nothing else.
-        assert_eq!(id(b"/1.1"), "");
+        // The slash of the optional group with no name in front of it: the
+        // half that is not optional, written as no characters at all.
+        assert_eq!(id(b"/1.1"), "token_empty");
+        assert_eq!(id(b"/"), "token_empty");
     }
 
     /// `protocol-name` alone and `protocol-name "/" protocol-version`, including
