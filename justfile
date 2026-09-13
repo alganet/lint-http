@@ -50,12 +50,46 @@ install-citations:
     @.venv/bin/apycite --help >/dev/null && echo "✓ citation toolchain installed from specs/requirements.txt"
 
 # Citations file is current and the ratchet holds — offline, from the .venv.
+#
+# This says nothing about whether a quote is *in* its document: `extract` reads
+# the tree and `ratchet` counts files. The recipe that opens the documents is
+# `quotes` below, and the two are separate because only one of them needs the
+# network.
 citations:
     #!/usr/bin/env bash
     set -euo pipefail
     apy=.venv/bin/apycite; [ -x "$apy" ] || apy=apycite
     "$apy" extract --frozen
     "$apy" ratchet
+
+# Every quote still says what the code claims it says.
+#
+# **This is the gate that catches a sentence nobody read.** A cite comment is
+# ordinary source text: a quote recalled from memory rather than copied out of
+# the document compiles, formats, passes clippy, passes `citations` above, and
+# fails only here — which is exactly what happened to an RFC 9651 § 4.2 quote
+# that turned two answers into one. Nothing cheaper can find it, because
+# everything cheaper is reading the same wrong string this file is.
+#
+# Slower than the rest of `check` put together (~80s) and the only recipe in it
+# that touches the network. It reads through the HTTP cache in `data/cache/`,
+# where CI runs `apycite verify --refresh --strict-redirects` and re-fetches
+# every source — so a green run here means the quotes match the documents *as
+# this machine last saw them*, and CI is what says they still match the
+# documents as published. That difference is why the flag is not copied here:
+# re-fetching forty documents on every local check would buy an answer the
+# push already gets.
+#
+# Document supersession is a WARN and stays one: six of the RFCs this catalogue
+# quotes have successors that deleted the thing being linted, which the CI job's
+# own comment explains at length.
+#
+# Reads the documents: the gate that catches a quote nobody read.
+quotes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    apy=.venv/bin/apycite; [ -x "$apy" ] || apy=apycite
+    "$apy" verify
 
 # Regenerate docs/rules/ and docs/rules.md from rule metadata — the fixer for the
 # `docs_match_generated` and `docs_have_no_orphans` gates. Not part of `check`:
@@ -74,8 +108,9 @@ supply-chain:
     reuse lint
     cargo deny check advisories licenses
 
-# Everything CI rejects a PR for, cheapest checks first so failures surface early.
-check: fmt-check citations lint doc test
+# Everything CI rejects a PR for, cheapest checks first so failures surface early
+# — which puts `quotes` last, since it is the only one that reads the sources.
+check: fmt-check citations lint doc test quotes
 
 # Enable the versioned pre-commit hook (points core.hooksPath at .githooks).
 install-hooks:

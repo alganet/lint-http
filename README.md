@@ -153,7 +153,7 @@ The CI gates are mirrored locally with [`just`](https://just.systems). Run bare
 `just` to list recipes:
 
 ```bash
-just check          # everything CI rejects a PR for: fmt, citations, lint, test
+just check          # everything CI rejects a PR for: fmt, citations, lint, test, quotes
 just fmt            # format the whole tree, including the rule modules cargo fmt can't reach
 just gendocs        # regenerate docs/rules/ and docs/rules.md from rule metadata
 just install-hooks  # enable the pre-commit guard (fmt + citations, once per clone)
@@ -164,6 +164,12 @@ just install-hooks  # enable the pre-commit guard (fmt + citations, once per clo
 formats them directly, and the pre-commit hook (in `.githooks/`) blocks a commit
 that would fail the CI fmt or citation gate. Bypass it once with
 `git commit --no-verify`.
+
+`just quotes` is the one gate in `check` that opens the documents — it asks
+whether every `// cite(…)` still says what the source says, which nothing else
+can: a quote written from memory compiles, formats and passes the citation gate
+like any other string. It is also the slowest and the only one that touches the
+network, which is why the pre-commit hook does not run it.
 
 Individual gates are also available directly: `cargo test`, `cargo lint`, and
 `cargo coverage` (the last two are aliases in `.cargo/config.toml`).
