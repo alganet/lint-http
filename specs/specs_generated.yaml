@@ -4967,7 +4967,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 218
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 127
+      line: 139
+    - file: lint-http-rules/src/violations/accept_encoding.rs
+      line: 78
   - label: accept_encoding_parameter_valid (5)
     section: § 12.5.3
     snippet: Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2.
@@ -4995,7 +4997,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 179
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 119
+      line: 131
   - label: accept_encoding_parameter_valid (9)
     section: § 12.5.3
     snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
@@ -5015,31 +5017,33 @@ sources:
     snippet: 'Accept-Encoding = #( codings [ weight ] )'
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 121
+      line: 133
   - label: accept_encoding_present (2)
     section: § 12.5.3
     snippet: If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 120
+      line: 132
+    - file: lint-http-rules/src/violations/accept_encoding.rs
+      line: 56
   - label: accept_encoding_present (3)
     section: § 12.5.3
     snippet: If the representation has no content coding, then it is acceptable by default unless specifically excluded by the Accept-Encoding header field stating either "identity;q=0" or "*;q=0" without a more specific entry for "identity".
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 168
+      line: 180
   - label: accept_encoding_present (4)
     section: § 9.3.6
     snippet: Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 107
+      line: 119
   - label: accept_encoding_present (5)
     section: § 9.3.6
     snippet: The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 106
+      line: 118
   - label: accept_header_media_type_syntax
     section: § 12.4.2
     snippet: A sender of qvalue MUST NOT generate more than three digits after the decimal point.
@@ -6745,7 +6749,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 85
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 135
+      line: 147
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 219
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs

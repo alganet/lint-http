@@ -1055,6 +1055,14 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[violations.accept_encoding_empty]
+# Request declines every content coding
+severity = "info"
+
+[violations.accept_encoding_missing]
+# Request expresses no content-coding preference
+severity = "info"
+
 [violations.accept_patch_missing]
 # A response that should name the patch formats names none
 severity = "warn"
