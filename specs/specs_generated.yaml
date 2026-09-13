@@ -417,6 +417,18 @@ sources:
   url: https://www.w3.org/TR/CSP3/
   type: text/html
   fragments:
+  - label: content_security_policy
+    section: § 2.2
+    snippet: 'A serialized CSP is an ASCII string consisting of a semicolon-delimited series of serialized directives, adhering to the following ABNF grammar [RFC5234]:'
+    cited_by:
+    - file: lint-http-rules/src/violations/content_security_policy.rs
+      line: 67
+  - label: serialized-policy grammar
+    section: § 2.2
+    snippet: serialized-policy = serialized-directive *( optional-ascii-whitespace ";" [ optional-ascii-whitespace serialized-directive ] )
+    cited_by:
+    - file: lint-http-rules/src/violations/content_security_policy.rs
+      line: 96
   - label: content_security_policy_and_frame_options_consistent
     section: § 6.4.2
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
@@ -436,13 +448,15 @@ sources:
     snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
-      line: 70
+      line: 98
+    - file: lint-http-rules/src/violations/content_security_policy.rs
+      line: 119
   - label: content_security_policy_valid (2)
     section: § 2.3
     snippet: hash-algorithm = "sha256" / "sha384" / "sha512"
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
-      line: 36
+      line: 55
 - label: Clear-Site-Data
   url: https://www.w3.org/TR/clear-site-data/
   type: text/html

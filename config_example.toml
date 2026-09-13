@@ -1411,6 +1411,18 @@ severity = "warn"
 # Content-Range writes something other than '*' before its '/'
 severity = "warn"
 
+[violations.content_security_policy_directive_empty]
+# A policy opens with a semicolon and names no first directive
+severity = "info"
+
+[violations.content_security_policy_directive_name_character_forbidden]
+# A CSP directive name holds a character the production does not admit
+severity = "warn"
+
+[violations.content_security_policy_empty]
+# Content-Security-Policy is written with no policy in it
+severity = "warn"
+
 [violations.cookie_domain_empty]
 # Set-Cookie Domain attribute is empty
 severity = "warn"
