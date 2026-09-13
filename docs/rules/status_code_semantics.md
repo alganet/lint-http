@@ -23,10 +23,10 @@ The response status and those two fields are the whole input — whether a chall
 
 ## Specifications
 
-- [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 (Unauthorized) — the MUST for a `WWW-Authenticate` header field containing at least one challenge
+- [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource
 - [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): `WWW-Authenticate` — the field definition, the same MUST for a 401, and the MAY that permits the field on any other response (which is why this rule reports no such response)
-- [RFC 9110 §15.5.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.8): 407 (Proxy Authentication Required) — the MUST for a `Proxy-Authenticate` header field containing a challenge applicable to that proxy
-- [RFC 9110 §11.7.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.1): `Proxy-Authenticate` — at least one field in each 407 the proxy generates, and the sentence limiting the field to the next outbound client, which is all that stands behind the advisory finding on other statuses
+- [RFC 9110 §15.5.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.8): 407 (Proxy Authentication Required) — the proxy generating one MUST send a `Proxy-Authenticate` containing a challenge applicable to that proxy for the request
+- [RFC 9110 §11.7.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.1): `Proxy-Authenticate` — at least one field in each 407 a proxy generates, and the sentence limiting the field to the next outbound client on the response chain, which is all that stands behind an advisory finding on any other status
 - [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Empty list elements do not contribute to the count of elements present — why `WWW-Authenticate: ,` carries no challenge
 - [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): Status Codes — the part of the document both status definitions live in
 

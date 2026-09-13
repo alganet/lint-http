@@ -2833,7 +2833,7 @@ sources:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 156
     - file: lint-http-rules/src/violations/status.rs
-      line: 367
+      line: 383
   - label: Sec-WebSocket-Protocol-Client
     section: § 4.3
     snippet: Sec-WebSocket-Protocol-Client = 1#token
@@ -5355,7 +5355,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 131
     - file: lint-http-rules/src/violations/status.rs
-      line: 172
+      line: 188
   - label: accept_ranges_on_partial_content
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
@@ -5573,7 +5573,7 @@ sources:
     - file: lint-http-rules/src/rules/authentication_failure_loop.rs
       line: 74
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 181
+      line: 187
   - label: authorization_credentials_present
     section: § 11.6.2
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
@@ -6245,7 +6245,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 310
     - file: lint-http-rules/src/violations/status.rs
-      line: 400
+      line: 416
   - label: expect_header_valid (4)
     section: § 10.1.1
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
@@ -6703,9 +6703,11 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 42
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 235
+      line: 241
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 270
+      line: 276
+    - file: lint-http-rules/src/violations/proxy_authenticate.rs
+      line: 53
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
     section: § 11.7.2
     snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
@@ -6841,7 +6843,7 @@ sources:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 300
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 16
+      line: 36
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 236
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -7017,7 +7019,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 196
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 21
+      line: 41
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 83
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
@@ -9021,37 +9023,37 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 332
+      line: 348
   - label: status (2)
     section: § 15.3.7.2
     snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 219
+      line: 235
   - label: status (3)
     section: § 15.4.5
     snippet: Since the goal of a 304 response is to minimize information transfer when the recipient already has one or more cached representations, a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates (e.g., Last-Modified might be useful if the response does not have an ETag field).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 426
+      line: 442
   - label: status (4)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 192
+      line: 208
   - label: status (5)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 296
+      line: 312
   - label: status (6)
     section: § 7.8
     snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 259
+      line: 275
   - label: status_101_switching_protocols
     section: § 7.8
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
@@ -9203,25 +9205,25 @@ sources:
     snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 189
+      line: 195
   - label: status_code_semantics (2)
     section: § 11.6.1
     snippet: A server MAY generate a WWW-Authenticate header field in other response messages to indicate that supplying credentials (or different credentials) might affect the response.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 226
+      line: 232
   - label: status_code_semantics (3)
     section: § 11.6.1
     snippet: Furthermore, the header field itself can occur multiple times.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 25
+      line: 45
   - label: status_code_semantics (4)
     section: § 11.6.1
     snippet: The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 175
+      line: 181
     - file: lint-http-rules/src/rules/www_authenticate_challenge_syntax.rs
       line: 145
   - label: status_code_semantics (5)
@@ -9229,55 +9231,59 @@ sources:
     snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 177
+      line: 183
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 237
+      line: 243
   - label: status_code_semantics (6)
     section: § 11.7.1
     snippet: Note that the parsing considerations for WWW-Authenticate apply to this header field as well; see Section 11.6.1 for details.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 30
+      line: 50
   - label: status_code_semantics (7)
     section: § 11.7.1
     snippet: The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 176
+      line: 182
   - label: status_code_semantics (8)
     section: § 15.5.2
     snippet: The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 190
+      line: 196
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 211
+      line: 217
+    - file: lint-http-rules/src/violations/status.rs
+      line: 541
   - label: status_code_semantics (9)
     section: § 15.5.8
     snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 228
+      line: 234
   - label: status_code_semantics (10)
     section: § 15.5.8
     snippet: The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 236
+      line: 242
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 249
+      line: 255
+    - file: lint-http-rules/src/violations/status.rs
+      line: 567
   - label: status_code_semantics (11)
     section: § A
     snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 248
+      line: 254
   - label: status_code_semantics (12)
     section: § A
     snippet: WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 210
+      line: 216
   - label: status_code_valid_range
     section: § 15
     snippet: All valid status codes are within the range of 100 to 599, inclusive.
@@ -10898,7 +10904,7 @@ sources:
     snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 260
+      line: 276
   - label: the TE exception
     section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
@@ -11105,7 +11111,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 181
     - file: lint-http-rules/src/violations/status.rs
-      line: 261
+      line: 277
   - label: lint-http-core/src/http_version.rs
     section: § 4.3.1
     snippet: HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line.
