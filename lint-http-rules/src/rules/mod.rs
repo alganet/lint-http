@@ -1445,7 +1445,11 @@ severity = "warn"
         /// entries that replaced them carry the same three sections across four
         /// ids. One of the six was deleted outright — a zero on the one window
         /// HTTP/3 never opens — and that is the only finding this rule lost.
-        const FLOOR: usize = 83;
+        /// **`expires_and_cache_control_consistent` gave up two**, both § 5.3
+        /// cited from two of the four arms reporting one disagreement. The
+        /// entry that holds all four names that section, so the two findings
+        /// that were cited still are and the two that were not now are too.
+        const FLOOR: usize = 81;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
