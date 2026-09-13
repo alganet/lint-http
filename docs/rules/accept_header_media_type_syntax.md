@@ -20,7 +20,7 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 
 **Whitespace inside a media-range is reported.** The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and used to pass, because the media-type helper trims each half before returning it and the space vanished before any check saw it.
 
-**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `q =0.5` is accepted. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do.
+**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `"q="` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do.
 
 ## Specifications
 

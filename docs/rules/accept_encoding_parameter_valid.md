@@ -20,7 +20,7 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 
 **An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.
 
-**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `"q="` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.
+**Whitespace beside the weight's `=` is reported.** The production spells the weight as the literal text `"q="` rather than as a parameter with a name and a separator, and both `OWS` it prints stand before that literal — so there is no room in it for the space at all, and `gzip;q =0.5` is characters the construct does not generate rather than whitespace a recipient parses out. The value is still trimmed before the number is read, because that is what a recipient does; reporting it is what the *sender* is told.
 
 **The value is read as the octets the sender wrote**, and each is reported by the production it landed in. There are no quoted-strings in this field — a member is a `token`, one of two literals, and the weight's fixed text — so no octet outside visible US-ASCII is legal anywhere in it: one in a coding name is the `token`'s defect, one in a weight fails the `q` name or the `qvalue`. Refusing to decode the line named the octet and put every other defect written beside it out of reach.
 

@@ -5,7 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::qvalue::{
-    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_MALFORMED, WEIGHT_MISSING,
+    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
+    WEIGHT_MALFORMED, WEIGHT_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -19,12 +20,16 @@ use crate::violations::ViolationDef;
 /// `accept_encoding_parameter_valid` says all three about its own field, in
 /// the same order and for the same reason: `#( language-range [ weight ] )`
 /// and `#( codings [ weight ] )` put `[ weight ]` after the primary and stop,
-/// so the only construct that can be malformed there is the weight.
+/// so the only construct that can be malformed there is the weight. The fifth
+/// entry is the weight's spelling rather than its assembly, and it arrived from
+/// `te_header_valid`, which reported it while three fields printing the same
+/// production called it a known leniency.
 static DECLARED: &[&ViolationDef] = &[
     &QVALUE_MALFORMED,
     &WEIGHT_MISSING,
     &WEIGHT_MALFORMED,
     &WEIGHT_DUPLICATED,
+    &WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
 ];
 
 pub struct AcceptLanguageWeightValid;
@@ -67,7 +72,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`: each member a language range, optionally followed by a weight whose value is a `qvalue` — `0` to `1` with at most three digits after the point.\n\n**There is no parameter list in this field.** A range may carry a weight and nothing else, so `en;charset=utf-8` is reported however well formed the pair looks in isolation. The rule used to check that parameter names were tokens and values were tokens or quoted-strings, which is the parameter grammar of a *different* kind of field; its own SpecRef note said it was following \"the same q/parameter validation semantics used across other headers in this project\".\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `en;` and `en;;q=0.5` are separators introducing a weight that is not there. `[ weight ]` is singular, so `en;q=0.5;q=0.8` is two of it. And a weight is optional — `en, fr` is as conforming as `en;q=1, fr;q=0.8`.\n\n**The language range itself is not checked here.** That is `language_tag_syntax`'s subject: it reports an empty range, whitespace inside one, and an over-long subtag, and lets `*` through.\n\n**A response's Accept-Language is read, but the spec does not describe one.** This is the asymmetry worth knowing about: §12.5.1 and §12.5.3 each say what `Accept` and `Accept-Encoding` mean when a server sends them in a response, and §12.5.4 says no such thing — it defines a request field and stops. The value is still checked, because a malformed one is malformed wherever it appears, but the finding is about syntax and claims nothing about meaning.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted, though `weight` spells the text as the literal `\"q=\"`. It can only miss a report, never invent one.\n\n**The value is read as the octets the sender wrote**, and each is reported by whichever production it landed in. Nothing in this grammar is a quoted-string, so no octet outside visible US-ASCII is legal anywhere in the field — but this rule reads only what follows the `;`, where such an octet fails the `q` name or the `qvalue`. One inside the range is `language_tag_syntax`'s, which reads the same field the same way: the range's characters are deferred to the same place as the range's syntax. Refusing to decode the line reported the octet and put every other defect written beside it out of reach."
+        "Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`: each member a language range, optionally followed by a weight whose value is a `qvalue` — `0` to `1` with at most three digits after the point.\n\n**There is no parameter list in this field.** A range may carry a weight and nothing else, so `en;charset=utf-8` is reported however well formed the pair looks in isolation. The rule used to check that parameter names were tokens and values were tokens or quoted-strings, which is the parameter grammar of a *different* kind of field; its own SpecRef note said it was following \"the same q/parameter validation semantics used across other headers in this project\".\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `en;` and `en;;q=0.5` are separators introducing a weight that is not there. `[ weight ]` is singular, so `en;q=0.5;q=0.8` is two of it. And a weight is optional — `en, fr` is as conforming as `en;q=1, fr;q=0.8`.\n\n**The language range itself is not checked here.** That is `language_tag_syntax`'s subject: it reports an empty range, whitespace inside one, and an over-long subtag, and lets `*` through.\n\n**A response's Accept-Language is read, but the spec does not describe one.** This is the asymmetry worth knowing about: §12.5.1 and §12.5.3 each say what `Accept` and `Accept-Encoding` mean when a server sends them in a response, and §12.5.4 says no such thing — it defines a request field and stops. The value is still checked, because a malformed one is malformed wherever it appears, but the finding is about syntax and claims nothing about meaning.\n\n**Whitespace beside the weight's `=` is reported**, and the production is the whole argument: `weight = OWS \";\" OWS \"q=\" qvalue` prints both of its `OWS` *before* `\"q=\"`, which is one string literal with nothing optional inside it. So `q =0.5` is not bad whitespace a recipient parses out — it is characters the construct does not generate, in the one place it has no `OWS` to spare. The value is still trimmed before the number is read, because that is what a recipient does; reporting it is what the *sender* is told.\n\n**The value is read as the octets the sender wrote**, and each is reported by whichever production it landed in. Nothing in this grammar is a quoted-string, so no octet outside visible US-ASCII is legal anywhere in the field — but this rule reads only what follows the `;`, where such an octet fails the `q` name or the `qvalue`. One inside the range is `language_tag_syntax`'s, which reads the same field the same way: the range's characters are deferred to the same place as the range's syntax. Refusing to decode the line reported the octet and put every other defect written beside it out of reach."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -206,9 +211,19 @@ impl Rule for AcceptLanguageWeightValid {
                         // the parameter that way, and this is the only name the
                         // field admits.
                         // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
-                        let mut nv = param.splitn(2, '=').map(crate::helpers::headers::trim_ows);
-                        let name = nv.next().unwrap();
-                        let val_opt = nv.next();
+                        let mut nv = param.splitn(2, '=');
+                        let raw_name = nv.next().unwrap();
+                        let raw_value = nv.next();
+                        let name = crate::helpers::headers::trim_ows(raw_name);
+                        let val_opt = raw_value.map(crate::helpers::headers::trim_ows);
+                        // Trimming is what a recipient does to find the weight;
+                        // whether a sender may write the whitespace is a
+                        // separate question, and the production answers it. Both
+                        // `OWS` it prints stand before `"q="`, which is one
+                        // string literal with nothing optional inside it.
+                        let whitespace_beside_equals = name.len() != raw_name.len()
+                            || raw_value
+                                .is_some_and(|v| val_opt.is_some_and(|t| t.len() != v.len()));
 
                         if !name.eq_ignore_ascii_case("q") {
                             return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
@@ -231,6 +246,17 @@ impl Rule for AcceptLanguageWeightValid {
                             ));
                         }
                         weight_seen = true;
+
+                        // Not `parameter_equals_whitespace_forbidden`: that
+                        // entry answers § 5.6.6's Note about a `parameter`, and
+                        // this field has no parameter list for the Note to be
+                        // about.
+                        if whitespace_beside_equals {
+                            return Some(ctx.report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                    "Accept-Language member '{}' writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
+                                    member
+                                )));
+                        }
 
                         // The name matched and the `=` did not, which is one
                         // literal short of a weight rather than a parameter
@@ -336,6 +362,66 @@ mod tests {
         .expect("a finding");
         assert_eq!(found.violation, "qvalue_malformed", "{field}: {value}");
         assert!(found.message.contains("1.5"), "{}", found.message);
+    }
+
+    /// Four fields, one literal. `"q="` is written as a single ABNF string
+    /// with nothing optional inside it and both of `weight`'s `OWS` standing
+    /// before it, so whitespace there is the same defect wherever the weight is
+    /// carried — and three of these four rules published it as a known leniency
+    /// while the fourth reported it.
+    #[rstest]
+    #[case("accept-language", "en;q =0.5")]
+    #[case("accept-language", "en;q= 0.5")]
+    #[case("accept-encoding", "gzip;q =0.5")]
+    #[case("accept-encoding", "gzip;q= 0.5")]
+    #[case("accept", "text/plain;q =0.5")]
+    #[case("te", "gzip;q =0.5")]
+    fn whitespace_beside_the_weights_equals_is_one_defect_in_every_field(
+        #[case] field: &str,
+        #[case] value: &str,
+    ) {
+        let rule: &dyn crate::rules::Rule = match field {
+            "accept-language" => &AcceptLanguageWeightValid,
+            "accept-encoding" => {
+                &super::super::accept_encoding_parameter_valid::AcceptEncodingParameterValid
+            }
+            "accept" => &super::super::accept_header_media_type_syntax::AcceptHeaderMediaTypeSyntax,
+            _ => &super::super::te_header_valid::TeHeaderValid,
+        };
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(field, value)]);
+        let found = crate::test_helpers::run_rule(
+            rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+        )
+        .expect("a finding");
+        assert_eq!(
+            found.violation, "weight_equals_whitespace_forbidden",
+            "{field}: {value}"
+        );
+    }
+
+    /// The other side of that line, and the reason the two ids are two: a
+    /// *parameter*'s `=` is § 5.6.6's, whose Note six rules in this tree
+    /// publish a leniency about. Only the `q` stopped being lenient.
+    #[test]
+    fn a_media_range_parameter_keeps_the_leniency_the_weight_lost() {
+        let rule = super::super::accept_header_media_type_syntax::AcceptHeaderMediaTypeSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "accept",
+            "text/plain;charset = utf-8",
+        )]);
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "accept_header_media_type_syntax",
+                "warn",
+            ),
+        );
+        assert!(found.is_none(), "{found:?}");
     }
 
     /// The assembly around the weight, which this rule's `DECLARED` used to

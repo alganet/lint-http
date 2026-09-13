@@ -14,7 +14,9 @@ use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
-use crate::violations::qvalue::{QVALUE_MALFORMED, RFC_9110_12_4_2};
+use crate::violations::qvalue::{
+    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -36,9 +38,15 @@ pub struct AcceptHeaderMediaTypeSyntax;
 ///
 /// What stays on the older API is what only this field can say: an empty
 /// media-range, whitespace inside one, a `/` that is missing, a bare `*`, a
-/// wildcard type beside a concrete subtype, a parameter written after the
-/// weight, and a `q` whose value is no `qvalue`. Those are § 12.5.1's and
-/// § 12.4.2's, and neither has a subject yet.
+/// wildcard type beside a concrete subtype, and a parameter written after the
+/// weight. Those are § 12.5.1's, and that section has no subject yet.
+///
+/// **The `q` is the exception on both counts**, and it is the one place in the
+/// member walk where the parameter's *name* decides which document a defect
+/// answers to. A `q` is not a parameter of the media-range: it is the member's
+/// `weight`, so its number is `qvalue`'s defect and whitespace beside its `=`
+/// is `weight`'s — while the same whitespace beside a `charset=` is § 5.6.6's,
+/// which this rule and five others tolerate on the record.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -50,6 +58,7 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     &QVALUE_MALFORMED,
+    &WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -90,7 +99,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`). The second of those is a judgement about the prose rather than a reading of the ABNF: `type` is a `token` and `*` is a `tchar`, so `*/json` does derive from `type \"/\" subtype`. But §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `content_type_valid` takes the same position on the same shape in `Content-Type`.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Whitespace inside a media-range is reported.** The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and used to pass, because the media-type helper trims each half before returning it and the space vanished before any check saw it.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `q =0.5` is accepted. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do."
+        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`). The second of those is a judgement about the prose rather than a reading of the ABNF: `type` is a `token` and `*` is a `tchar`, so `*/json` does derive from `type \"/\" subtype`. But §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `content_type_valid` takes the same position on the same shape in `Content-Type`.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Whitespace inside a media-range is reported.** The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and used to pass, because the media-type helper trims each half before returning it and the space vanished before any check saw it.\n\n**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `\"q=\"` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -370,7 +379,6 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                 ))
                             }
                         };
-                        let _ = parsed.whitespace_beside_equals;
                         let k = parsed.name;
                         let v = parsed.value;
                         // `token = 1*tchar`, so a name with no characters is not a
@@ -405,6 +413,22 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // cite(RFC 9110 § 12.5.1): "Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering."
                         if k.eq_ignore_ascii_case("q") {
                             weight_seen = true;
+                            // The one `=` in this loop that is not a
+                            // `parameter`'s. § 5.6.6's Note is what six rules
+                            // reading a media type publish a leniency about,
+                            // and the whitespace this rule trims elsewhere
+                            // answers to it — but a `q` is the `weight`, whose
+                            // production prints both of its `OWS` *before*
+                            // `"q="` and nothing optional inside the literal.
+                            // Two sentences about the same three characters,
+                            // and the parameter's name is what chooses.
+                            // cite(RFC 9110 § 12.4.2, label: the weight production): "weight = OWS ";" OWS "q=" qvalue"
+                            if parsed.whitespace_beside_equals {
+                                return Some(ctx.report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                        "Parameter '{}' in {} header writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
+                                        p, hdr
+                                    )));
+                            }
                             // The three-digit cap and the asymmetry between the
                             // two branches are both in the production, and the
                             // helper owns it — this rule does not keep a second
@@ -418,6 +442,14 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                 ));
                             }
                         } else {
+                            // Here the whitespace beside the `=` *is* the
+                            // parameter's, and it stays this rule's published
+                            // leniency: the flag is read and dropped, which is
+                            // what makes that paragraph a statement about the
+                            // code. `expect_header_valid` is still the one rule
+                            // in the tree that reports it.
+                            let _ = parsed.whitespace_beside_equals;
+
                             // `parameter-value` is `( token / quoted-string )`, and
                             // the alternation is read by the helper that owns it.
                             // Each half's defect is named after the half, which is
