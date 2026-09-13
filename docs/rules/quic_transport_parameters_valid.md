@@ -17,9 +17,9 @@ Validates that the QUIC transport parameters advertised for HTTP/3 are reasonabl
 
 ## Specifications
 
-- [RFC 9000 §18.2](https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2): Transport Parameter Definitions
-- [RFC 9114 §6.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-6.1): Bidirectional Streams — servers SHOULD grant non-zero stream and flow-control limits
-- [RFC 9114 §6.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-6.2): Unidirectional Streams — restricting their flow-control window blocks control/QPACK
+- [RFC 9000 §18.2](https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2): Transport Parameter Definitions — what each initial limit means, and that a zero or absent value is legal with a defined effect rather than a defect
+- [RFC 9114 §6.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-6.1): Bidirectional Streams — an HTTP/3 server SHOULD configure non-zero minimums for the number of permitted streams and the initial stream flow-control window, and HTTP/3 does not use server-initiated bidirectional streams
+- [RFC 9114 §6.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-6.2): Unidirectional Streams — restricting the number or the flow-control window of these streams makes the peer reach the limit early and block, which for HTTP/3 means the control and QPACK streams
 
 ## Configuration
 

@@ -1439,7 +1439,13 @@ severity = "warn"
         /// name one section each and keep their reference; the third names two
         /// and keeps none, which is the trade an entry makes when one defect
         /// has two governing sentences.
-        const FLOOR: usize = 88;
+        /// **`quic_transport_parameters_valid` gave up five**, which is the
+        /// largest single fall on this list and the least interesting: it cited
+        /// § 18.2 and § 6.1 and § 6.2 from six sites over four defects, so the
+        /// entries that replaced them carry the same three sections across four
+        /// ids. One of the six was deleted outright — a zero on the one window
+        /// HTTP/3 never opens — and that is the only finding this rule lost.
+        const FLOOR: usize = 83;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

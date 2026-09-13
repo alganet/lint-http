@@ -74,6 +74,7 @@ pub mod multipart_body;
 pub mod node;
 pub mod origin_agent_cluster;
 pub mod parameter;
+pub mod quic_transport_parameters;
 pub mod quoted_pair;
 pub mod quoted_string;
 pub mod qvalue;

@@ -4840,25 +4840,21 @@ sources:
     snippet: The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters
     cited_by:
     - file: lint-http-rules/src/rules/quic_transport_parameters_valid.rs
-      line: 129
+      line: 136
   - label: quic_transport_parameters_valid (2)
     section: § 18.2
     snippet: Idle timeout is disabled when both endpoints omit this transport parameter or specify a value of 0.
     cited_by:
     - file: lint-http-rules/src/rules/quic_transport_parameters_valid.rs
-      line: 220
+      line: 216
   - label: quic_transport_parameters_valid (3)
-    section: § 18.2
-    snippet: the initial flow control limit for locally initiated bidirectional streams
-    cited_by:
-    - file: lint-http-rules/src/rules/quic_transport_parameters_valid.rs
-      line: 173
-  - label: quic_transport_parameters_valid (4)
     section: § 18.2
     snippet: the initial value for the maximum amount of data that can be sent on the connection
     cited_by:
     - file: lint-http-rules/src/rules/quic_transport_parameters_valid.rs
-      line: 156
+      line: 162
+    - file: lint-http-rules/src/violations/quic_transport_parameters.rs
+      line: 100
 - label: RFC 9110
   url: https://www.rfc-editor.org/rfc/rfc9110.html
   fragments:
@@ -11175,21 +11171,25 @@ sources:
     snippet: HTTP/3 does not use server-initiated bidirectional streams
     cited_by:
     - file: lint-http-rules/src/rules/quic_transport_parameters_valid.rs
-      line: 174
+      line: 182
   - label: quic_transport_parameters_valid (2)
     section: § 6.1
     snippet: In order to permit these streams to open, an HTTP/3 server SHOULD configure non-zero minimum values for the number of permitted streams and the initial stream flow-control window.
     cited_by:
     - file: lint-http-rules/src/rules/quic_transport_parameters_valid.rs
-      line: 139
+      line: 146
     - file: lint-http-rules/src/rules/quic_transport_parameters_valid.rs
-      line: 189
+      line: 187
+    - file: lint-http-rules/src/violations/quic_transport_parameters.rs
+      line: 78
   - label: quic_transport_parameters_valid (3)
     section: § 6.2
     snippet: Endpoints that excessively restrict the number of streams or the flow-control window of these streams will increase the chance that the remote peer reaches the limit early and becomes blocked.
     cited_by:
     - file: lint-http-rules/src/rules/quic_transport_parameters_valid.rs
-      line: 204
+      line: 201
+    - file: lint-http-rules/src/violations/quic_transport_parameters.rs
+      line: 122
   - label: request_method_token_valid
     section: § 4.3.1
     snippet: '":method":  Contains the HTTP method (Section 9 of [HTTP])'
