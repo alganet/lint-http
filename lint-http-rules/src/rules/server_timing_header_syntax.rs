@@ -19,8 +19,9 @@ use crate::violations::quoted_string::{
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::server_timing::{
-    SERVER_TIMING_2, SERVER_TIMING_PARAM_EMPTY, SERVER_TIMING_PARAM_EQUALS_MISSING,
-    SERVER_TIMING_PARAM_VALUE_EMPTY, SERVER_TIMING_PARAM_VALUE_MALFORMED,
+    SERVER_TIMING_2, SERVER_TIMING_PARAM_DUPLICATED, SERVER_TIMING_PARAM_EMPTY,
+    SERVER_TIMING_PARAM_EQUALS_MISSING, SERVER_TIMING_PARAM_VALUE_EMPTY,
+    SERVER_TIMING_PARAM_VALUE_MALFORMED,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
@@ -144,8 +145,8 @@ fn is_valid_floating_point_number(s: &str) -> bool {
 /// § 2 prints.
 pub struct ServerTimingHeaderSyntax;
 
-/// Twelve defects over four subjects, and the field's own document defines four
-/// of them.
+/// Thirteen defects over four subjects, and the field's own document defines
+/// five of them.
 ///
 /// § 2 prints `Server-Timing = #server-timing-metric` and then a sentence
 /// naming where the notation comes from: *See [RFC7230] for definitions of #,
@@ -162,10 +163,12 @@ pub struct ServerTimingHeaderSyntax;
 /// alternative it started in. That is the residue a borrowed construct leaves,
 /// for the fourth and fifth time.
 ///
-/// **Three sentences stay unnamed**: a parameter named twice, which is § 2's
-/// SHOULD NOT and the only sentence in the document measuring a server, and the
-/// two the getters supply — a `dur` that is not a valid floating-point number,
-/// and a name spelled in a case that surfaces nothing.
+/// **The fifth is § 2's SHOULD NOT**, the only sentence in the document
+/// measuring a server, and it is the one entry here that is not assembly.
+///
+/// **Two sentences stay unnamed**, both of them the getters': a `dur` that is
+/// not a valid floating-point number, and a name spelled in a case that
+/// surfaces nothing.
 ///
 /// **`parameter_equals_missing` is deliberately not among these**, and the
 /// reason is written at the site: this parameter is not § 5.6.6's. Its value is
@@ -193,6 +196,7 @@ static DECLARED: &[&ViolationDef] = &[
     &SERVER_TIMING_PARAM_EQUALS_MISSING,
     &SERVER_TIMING_PARAM_VALUE_EMPTY,
     &SERVER_TIMING_PARAM_VALUE_MALFORMED,
+    &SERVER_TIMING_PARAM_DUPLICATED,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -662,15 +666,18 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
     // cite(Server Timing § 2): "All subsequent occurrences MUST be ignored without signaling an error or otherwise altering the processing of the server-timing-metric."
     if seen.contains(&name) {
         // The document's own sentence, and the only one it addresses to a
-        // server. `parameter_duplicated` is the def a subject would hold for
-        // this, and no subject holds one yet — three fields report a repeated
-        // parameter over three different productions, and nothing has read them
-        // together.
-        return Some(Defect::unnamed(format!(
+        // server. It is *this field's* entry rather than a shared
+        // `parameter_duplicated`: the four fields reporting a repeated
+        // parameter were read together and no two of them share a production, a
+        // document or a modal, which the def records.
+        return Some(Defect::named(
+            &SERVER_TIMING_PARAM_DUPLICATED,
+            format!(
             "Server-Timing metric '{}' names the server-timing-param '{}' more than once; a user agent takes the first occurrence and ignores the rest without signalling anything, so the later values are silently discarded (advice: the specification says SHOULD NOT, to avoid any possible ambiguity)",
-            shown_in_finding(metric),
-            shown_in_finding(name)
-        )));
+                shown_in_finding(metric),
+                shown_in_finding(name)
+            ),
+        ));
     }
     seen.push(name);
 
@@ -968,8 +975,16 @@ mod tests {
         "server_timing_param_value_malformed"
     )]
     // Advice, and every one of these was silence before.
-    #[case::repeated_param(b"db;dur=50;dur=51", "more than once", "")]
-    #[case::repeated_param_second_invalid(b"db;dur=50;dur=abc", "more than once", "")]
+    #[case::repeated_param(
+        b"db;dur=50;dur=51",
+        "more than once",
+        "server_timing_param_duplicated"
+    )]
+    #[case::repeated_param_second_invalid(
+        b"db;dur=50;dur=abc",
+        "more than once",
+        "server_timing_param_duplicated"
+    )]
     // Which spellings the production admits is the table at the bottom of this
     // module; these two cases are here for the wiring -- that the branch is
     // reached, and that it is reached through the quoted alternative too, where

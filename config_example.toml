@@ -1895,6 +1895,10 @@ severity = "error"
 # WebSocket handshake carries no Sec-WebSocket-Version
 severity = "error"
 
+[violations.server_timing_param_duplicated]
+# Server-Timing metric names one parameter more than once
+severity = "warn"
+
 [violations.server_timing_param_empty]
 # Server-Timing writes a semicolon with no parameter behind it
 severity = "warn"

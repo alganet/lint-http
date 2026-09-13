@@ -312,25 +312,25 @@ sources:
     snippet: 'A string is a valid floating-point number if it consists of:'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 77
+      line: 78
   - label: server_timing_header_syntax (2)
     section: § 2.3.4.3
     snippet: Advance position to the next character. (The "+" is ignored, but it is not conforming.)
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 88
+      line: 89
   - label: server_timing_header_syntax (3)
     section: § 2.3.4.3
     snippet: The Infinity and Not-a-Number (NaN) values are not valid floating-point numbers.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 78
+      line: 79
   - label: server_timing_header_syntax (4)
     section: § 2.3.4.3
     snippet: The valid floating-point number concept is typically only used to restrict what is allowed for authors, while the user agent requirements use the rules for parsing floating-point number values below
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 79
+      line: 80
 - label: HTML Document Lifecycle
   url: https://html.spec.whatwg.org/multipage/document-lifecycle.html
   type: text/html
@@ -589,113 +589,115 @@ sources:
     snippet: '*( OWS ";" OWS server-timing-param ) metric-name = token'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 502
+      line: 506
   - label: server_timing_header_syntax
     section: § 2
     snippet: A user agent that does not recognize particular server-timing-param-name in the Server-Timing header field of a response MUST ignore those tokens and continue processing instead of signaling an error.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 46
+      line: 47
   - label: server_timing_header_syntax (2)
     section: § 2
     snippet: All subsequent occurrences MUST be ignored without signaling an error or otherwise altering the processing of the server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 662
+      line: 666
   - label: server_timing_header_syntax (3)
     section: § 2
     snippet: If any server-timing-param-name is specified more than once, only the first instance is to be considered, even if the server-timing-param is incomplete or invalid.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 661
+      line: 665
   - label: server_timing_header_syntax (4)
     section: § 2
     snippet: 'See [RFC7230] for definitions of #, *, OWS, token, and quoted-string.'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 470
+      line: 474
   - label: Server-Timing grammar
     section: § 2
     snippet: 'Server-Timing = #server-timing-metric'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 469
+      line: 473
   - label: server_timing_header_syntax (5)
     section: § 2
     snippet: The Server-Timing header field is used to communicate one or more metrics and descriptions for the given request-response cycle.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 364
+      line: 368
   - label: server_timing_header_syntax (6)
     section: § 2
     snippet: This specification establishes the server-timing-params for server-timing-param-names "dur" for duration and "desc" for description, both optional.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 45
+      line: 46
   - label: server_timing_header_syntax (7)
     section: § 2
     snippet: To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 660
+      line: 664
+    - file: lint-http-rules/src/violations/server_timing.rs
+      line: 163
   - label: server_timing_header_syntax (8)
     section: § 2
     snippet: User agents MUST ignore extraneous characters found after a server-timing-param-value but before the next server-timing-param and before the end of the current server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 686
+      line: 693
   - label: server-timing-metric grammar
     section: § 2
     snippet: server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 501
+      line: 505
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 39
+      line: 45
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 71
+      line: 77
   - label: server-timing-param grammar
     section: § 2
     snippet: server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 580
+      line: 584
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 96
+      line: 102
   - label: server-timing-param-name grammar
     section: § 2
     snippet: server-timing-param-name = token
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 581
+      line: 585
   - label: server-timing-param-value grammar
     section: § 2
     snippet: server-timing-param-value = token / quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 724
+      line: 731
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 121
+      line: 127
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 149
+      line: 191
   - label: server_timing_header_syntax (9)
     section: § 3.2
     snippet: If dur is an error, return 0; Otherwise return dur.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 806
+      line: 813
   - label: server_timing_header_syntax (10)
     section: § 3.2
     snippet: Let dur be the result of parsing this’s params["dur"] using the rules for parsing floating-point number values.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 805
+      line: 812
   - label: server_timing_header_syntax (11)
     section: § 3.3
     snippet: The description getter steps are to return this’s params["desc"] if it exists, otherwise the empty string.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 789
+      line: 796
 - label: Permissions Policy
   url: https://w3c.github.io/webappsec-permissions-policy/
   type: text/html
@@ -5403,7 +5405,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 333
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 365
+      line: 369
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 188
   - label: auth_scheme
@@ -6839,7 +6841,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 315
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 481
+      line: 485
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
       line: 183
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
@@ -7061,7 +7063,7 @@ sources:
     - file: lint-http-rules/src/rules/refresh_header_syntax.rs
       line: 324
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 464
+      line: 468
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 46
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -7107,7 +7109,7 @@ sources:
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
       line: 160
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 397
+      line: 401
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 240
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
@@ -7225,7 +7227,7 @@ sources:
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
       line: 174
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 408
+      line: 412
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 187
   - label: lint-http-rules/src/helpers/headers.rs (6)
@@ -7293,7 +7295,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 307
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 626
+      line: 630
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 251
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -7395,7 +7397,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 257
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 440
+      line: 444
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 423
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -7679,7 +7681,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 245
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 517
+      line: 521
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 276
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -7815,7 +7817,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 363
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 407
+      line: 411
   - label: lint-http-rules/src/helpers/word.rs
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
@@ -8829,7 +8831,7 @@ sources:
     snippet: '#element => [ 1#element ]'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 463
+      line: 467
   - label: singleton_fields_not_repeated
     section: § 10.1.5
     snippet: User-Agent = product *( RWS ( product / comment ) )
