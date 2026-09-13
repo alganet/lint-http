@@ -28,6 +28,10 @@ use crate::violations::uri::{
     RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN,
     URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
 };
+use crate::violations::warning::{
+    RFC_7234_5_5, WARNING_AGENT_MISSING, WARNING_CODE_MALFORMED, WARNING_MEMBER_MALFORMED,
+    WARNING_TEXT_MISSING,
+};
 use crate::violations::ViolationDef;
 
 pub struct WarningHeaderSyntax;
@@ -45,12 +49,17 @@ pub struct WarningHeaderSyntax;
 /// inside the value, and the three rules that convert an `HTTP-date` off a
 /// field line declare that def without being able to reach it.
 ///
-/// What stays on the older API is `warning-value` itself: the three digits of a
-/// `warn-code`, the `SP` at each seam, the parts arriving in the order the
-/// production writes them, and a `1#` list with no member in it. Those are RFC
-/// 7234 § 5.5's own, and the subject holding them would have this rule as its
-/// only reader.
+/// **`warning-value` itself is the last four**, and they are the only entries
+/// in the catalogue this rule is the sole reader of: the three digits of a
+/// `warn-code`, a member that stops before its agent or before its text, and a
+/// member whose parts do not go together the way the production writes them.
+/// Those are RFC 7234 § 5.5's own and nobody else's, which is what a subject
+/// with one declarer is for.
 static DECLARED: &[&ViolationDef] = &[
+    &WARNING_CODE_MALFORMED,
+    &WARNING_AGENT_MISSING,
+    &WARNING_TEXT_MISSING,
+    &WARNING_MEMBER_MALFORMED,
     &LIST_MEMBER_EMPTY,
     &LIST_MEMBER_MISSING,
     &QUOTED_STRING_DELIMITER_MISSING,
@@ -69,33 +78,20 @@ static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_WHITESPACE_FORBIDDEN,
 ];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the entry it reports as.
 ///
-/// The same shape `expect_header_valid` settled: a judge that is half converted
-/// says so in its type rather than being split in two. Here the unnamed half is
-/// `warning-value`'s own structure, which no subject holds.
+/// The same shape `expect_header_valid` settled — **without the `Option`
+/// now**, since `warning-value`'s own structure has a subject and every arm of
+/// the reading names an entry.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect belonging to `warning-value` itself, reported at the rule's
-    /// severity the way every finding here was before the catalogue existed.
-    fn unnamed(message: impl Into<String>) -> Self {
-        Self {
-            def: None,
-            message: message.into(),
-        }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out — the member
@@ -112,16 +108,6 @@ impl Defect {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7234_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7234",
-    section: Some("5.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5",
-    note: "The last statement of the `Warning` grammar, and the requirements about \
-           warn-codes and warn-dates that go with it. Obsoleted by RFC 9111, which \
-           removed the field rather than restating it — so this is where the \
-           productions are read from, and RFC 9111 §5.5 is where the field's status \
-           is read from",
-};
 const RFC_9111_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("5.5"),
@@ -348,13 +334,7 @@ impl Rule for WarningHeaderSyntax {
                     .and_then(|resp| judge(&resp.headers, "Response"))
             })?;
 
-            // Two APIs behind one site: a defect the catalogue names resolves the
-            // severity configured for it, and `warning-value`'s own structure
-            // still emits at the rule's.
-            Some(match defect.def {
-                Some(def) => ctx.report_with(def, defect.message),
-                None => self.violation(ctx.severity, defect.message),
-            })
+            Some(ctx.report_with(defect.def, defect.message))
         };
         Vec::from_iter(finding())
     }
@@ -459,28 +439,41 @@ fn validate_warning_value(member: &str) -> Result<(), Defect> {
         match chars.next() {
             Some((_, c)) if c.is_ascii_digit() => {}
             Some((_, c)) => {
-                return Err(Defect::unnamed(format!(
-                    "has {} in its warn-code, and a warn-code is three digits",
-                    describe_char(c)
-                )))
+                return Err(Defect::named(
+                    &WARNING_CODE_MALFORMED,
+                    format!(
+                        "has {} in its warn-code, and a warn-code is three digits",
+                        describe_char(c)
+                    ),
+                ))
             }
             None => {
-                return Err(Defect::unnamed(
-                    "is shorter than the three digits of a warn-code",
+                return Err(Defect::named(
+                    &WARNING_CODE_MALFORMED,
+                    "is shorter than the three digits of a warn-code".into(),
                 ))
             }
         }
     }
 
     let Some((sp, c)) = chars.next() else {
-        return Err(Defect::unnamed("is a warn-code and nothing else"));
+        return Err(Defect::named(
+            &WARNING_AGENT_MISSING,
+            "is a warn-code and nothing else".into(),
+        ));
     };
     if c != ' ' {
-        return Err(Defect::unnamed(format!(
-            "has {} where the SP after its warn-code goes, so either the warn-code runs longer \
-             than three digits or the parts are unseparated",
-            describe_char(c)
-        )));
+        // Two senders and one finding: a fourth digit is a `warn-code` too long
+        // and anything else is a seam that is not a SP, and neither the
+        // catalogue nor a recipient can say which was meant.
+        return Err(Defect::named(
+            &WARNING_MEMBER_MALFORMED,
+            format!(
+                "has {} where the SP after its warn-code goes, so either the warn-code runs longer \
+                 than three digits or the parts are unseparated",
+                describe_char(c)
+            ),
+        ));
     }
 
     // The SP is one octet, so the offset just past it is a character boundary.
@@ -489,19 +482,27 @@ fn validate_warning_value(member: &str) -> Result<(), Defect> {
     // Neither alternative of `warn-agent` admits a space, so the next one ends
     // it — and a member with none of them left has no `warn-text` behind it.
     let Some(agent_end) = rest.find(' ') else {
-        return Err(Defect::unnamed(
-            "has a warn-code and a warn-agent and no warn-text",
+        return Err(Defect::named(
+            &WARNING_TEXT_MISSING,
+            "has a warn-code and a warn-agent and no warn-text".into(),
         ));
     };
     validate_warn_agent(&rest[..agent_end])?;
     let after = &rest[agent_end + 1..];
 
     // cite(RFC 7234 § 5.5): "warn-text = quoted-string"
+    // The production is its two DQUOTEs and what they enclose, so a value with
+    // neither is a `quoted-string` missing a delimiter rather than a badly
+    // written `warn-text` -- the answer an unquoted `alt-authority` gets, one
+    // field over.
     if !after.starts_with('"') {
-        return Err(Defect::unnamed(format!(
-            "has a warn-text beginning {}, and a warn-text is a quoted-string",
-            first_octet(after)
-        )));
+        return Err(Defect::named(
+            &QUOTED_STRING_DELIMITER_MISSING,
+            format!(
+                "has a warn-text beginning {}, and a warn-text is a quoted-string",
+                first_octet(after)
+            ),
+        ));
     }
     let Some(text_end) = quoted_string_end(after) else {
         return Err(Defect::named(
@@ -533,17 +534,26 @@ fn validate_warning_value(member: &str) -> Result<(), Defect> {
 
     // cite(RFC 7234 § 5.5): "warn-date = DQUOTE HTTP-date DQUOTE"
     let Some(date) = tail.strip_prefix(' ') else {
-        return Err(Defect::unnamed(format!(
-            "has {} after its warn-text, where the production writes either nothing or one SP and \
-             a warn-date",
-            first_octet(tail)
-        )));
+        return Err(Defect::named(
+            &WARNING_MEMBER_MALFORMED,
+            format!(
+                "has {} after its warn-text, where the production writes either nothing or one SP \
+                 and a warn-date",
+                first_octet(tail)
+            ),
+        ));
     };
+    // The same borrowing as the `warn-text`'s: the wrapper is a
+    // `quoted-string`, and a value that does not open with a DQUOTE is missing
+    // the delimiter rather than holding a bad date.
     if !date.starts_with('"') {
-        return Err(Defect::unnamed(format!(
-            "has a warn-date beginning {}, and a warn-date is an HTTP-date between two DQUOTEs",
-            first_octet(date)
-        )));
+        return Err(Defect::named(
+            &QUOTED_STRING_DELIMITER_MISSING,
+            format!(
+                "has a warn-date beginning {}, and a warn-date is an HTTP-date between two DQUOTEs",
+                first_octet(date)
+            ),
+        ));
     }
     let Some(date_end) = quoted_string_end(date) else {
         return Err(Defect::named(
@@ -553,10 +563,13 @@ fn validate_warning_value(member: &str) -> Result<(), Defect> {
     };
     let remainder = &date[date_end + 1..];
     if let Some(c) = remainder.chars().next() {
-        return Err(Defect::unnamed(format!(
-            "has {} after its warn-date, which is the last part a member has",
-            describe_char(c)
-        )));
+        return Err(Defect::named(
+            &WARNING_MEMBER_MALFORMED,
+            format!(
+                "has {} after its warn-date, which is the last part a member has",
+                describe_char(c)
+            ),
+        ));
     }
 
     validate_warn_date(&date[..=date_end])
@@ -580,11 +593,18 @@ fn validate_warn_agent(agent: &str) -> Result<(), Defect> {
     // Reported here rather than left to the host reading below, because the
     // finding is about one octet and neither alternative admits any of them:
     // `obs-text` is outside `tchar` and outside every `uri-host` character set.
+    // The id is the host reading's, because that is the alternative this
+    // function commits to: an alternation owns no defect, and a `warn-agent`
+    // failing both halves is read against the one carrying a port. The message
+    // names both halves, which is what the reading actually found.
     if let Some(c) = agent.chars().find(|c| !c.is_ascii()) {
-        return Err(Defect::unnamed(format!(
-            "has a warn-agent holding {}, which no uri-host admits and is not a tchar",
-            describe_char(c)
-        )));
+        return Err(Defect::named(
+            &URI_HOST_CHARACTER_FORBIDDEN,
+            format!(
+                "has a warn-agent holding {}, which no uri-host admits and is not a tchar",
+                describe_char(c)
+            ),
+        ));
     }
 
     // `reg-name` is `*( ... )`, so a host of no characters is a host and the
@@ -859,7 +879,7 @@ mod tests {
             "got {:?}",
             found.message
         );
-        assert_eq!(found.def.map(|d| d.id), Some("list_member_empty"));
+        assert_eq!(found.def.id, "list_member_empty");
     }
 
     /// The three ways a `warn-date` fails are the three `HTTP-date` ids, and
@@ -893,6 +913,43 @@ mod tests {
             id_for(" Wed, 21 Oct 2015 07:28:00 GMT"),
             "http_date_whitespace_forbidden",
         );
+    }
+
+    /// Which entry each of `warning-value`'s own findings reports as, and which
+    /// of them are borrowed. The split is the claim: an id beginning
+    /// `warning_` is a statement about how the four parts go together, and
+    /// every other id here belongs to a production the field imported and is
+    /// tuned once for every field written out of it.
+    #[rstest]
+    #[case("21a host \"text\"", "warning_code_malformed")]
+    #[case("1", "warning_code_malformed")]
+    #[case("214", "warning_agent_missing")]
+    #[case("214 host", "warning_text_missing")]
+    #[case("2140 host \"x\"", "warning_member_malformed")]
+    #[case("110-\"bad\"", "warning_member_malformed")]
+    #[case("214 host \"x\"x", "warning_member_malformed")]
+    #[case(
+        "214 host \"x\" \"Wed, 21 Oct 2015 07:28:00 GMT\"x",
+        "warning_member_malformed"
+    )]
+    // Borrowed: the wrapper is a `quoted-string` at both places it appears, so
+    // a value that does not open with a DQUOTE is missing the delimiter.
+    #[case("214 host text", "quoted_string_delimiter_missing")]
+    #[case("214 host \"x\" nodate", "quoted_string_delimiter_missing")]
+    // Borrowed: an alternation owns no defect, and the `warn-agent` reading
+    // commits to the host — the alternative that carries a port.
+    #[case("214 h\u{e9}st \"x\"", "uri_host_character_forbidden")]
+    fn each_finding_reports_as_the_entry_that_owns_it(#[case] value: &str, #[case] id: &str) {
+        let tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("Warning", value)]);
+        let found = crate::test_helpers::run_rule(
+            &WarningHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax"]),
+        )
+        .unwrap_or_else(|| panic!("accepted {value:?}"));
+        assert_eq!(found.violation, id, "for {value:?}: {}", found.message);
     }
 
     /// Both obsolete formats parse as an `HTTP-date`, and §5.6.7's MUST is what
