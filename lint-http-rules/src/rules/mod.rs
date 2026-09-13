@@ -1449,7 +1449,12 @@ severity = "warn"
         /// cited from two of the four arms reporting one disagreement. The
         /// entry that holds all four names that section, so the two findings
         /// that were cited still are and the two that were not now are too.
-        const FLOOR: usize = 81;
+        /// **`early_data_header_safe_method` gave up three**, all § 5.1, and
+        /// all three of the entries holding them name that section — so the
+        /// fall is three sites becoming three defs with the same reference,
+        /// which is this list's most common shape and the one it exists to
+        /// distinguish from a loss.
+        const FLOOR: usize = 78;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

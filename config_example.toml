@@ -1631,6 +1631,22 @@ severity = "warn"
 # Domain name holds whitespace or a control character
 severity = "warn"
 
+[violations.early_data_duplicated]
+# A request carries more than one Early-Data field line
+severity = "info"
+
+[violations.early_data_forbidden]
+# Early-Data appears where the section forbids it
+severity = "warn"
+
+[violations.early_data_invalid]
+# Early-Data carries a value other than 1
+severity = "info"
+
+[violations.early_data_method_forbidden]
+# A request in early data uses a method whose safety is not known
+severity = "warn"
+
 [violations.etag_character_forbidden]
 # Entity-tag holds a character etagc does not admit
 severity = "warn"
