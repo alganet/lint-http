@@ -18,8 +18,8 @@ Servers and clients relying on Digest authentication may behave incorrectly when
 
 ## Specifications
 
-- [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the "MUST be used by all implementations" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced here in both directions
-- [RFC 2617 §3.2.2](https://www.rfc-editor.org/rfc/rfc2617.html#section-3.2.2): The obsolete document whose qop-less credential shape is why cnonce and nc are demanded only beside a qop: its own conditional ("MUST be specified if a qop directive is sent") is the observable line, and deployed servers still verify the older shape
+- [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the "MUST be used by all implementations" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced in both directions
+- [RFC 2617 §3.2.2](https://www.rfc-editor.org/rfc/rfc2617.html#section-3.2.2): The Authorization Request Header — `cnonce` and `nc` MUST be specified if a qop directive is sent, which is the sentence that makes their absence observable from the credential alone
 - [RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2): Authentication Parameters — `auth-scheme = token`, `auth-param = token BWS "=" BWS ( token / quoted-string )`, and `token68`'s alphabet
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits

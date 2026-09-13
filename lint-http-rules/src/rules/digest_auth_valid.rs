@@ -6,6 +6,10 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::auth_param::AUTH_PARAM_EQUALS_MISSING;
 use crate::violations::auth_scheme::RFC_9110_11_2;
+use crate::violations::digest_credentials::{
+    DIGEST_CREDENTIALS_PARAMETER_EMPTY, DIGEST_CREDENTIALS_PARAMETER_MISSING,
+    DIGEST_CREDENTIALS_QUOTING_INVALID, RFC_2617_3_2_2, RFC_7616_3_4,
+};
 use crate::violations::list::{auth_param_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -45,6 +49,9 @@ pub struct DigestAuthValid;
 /// production with no `BWS` in it.
 static DECLARED: &[&ViolationDef] = &[
     &AUTH_PARAM_EQUALS_MISSING,
+    &DIGEST_CREDENTIALS_PARAMETER_MISSING,
+    &DIGEST_CREDENTIALS_PARAMETER_EMPTY,
+    &DIGEST_CREDENTIALS_QUOTING_INVALID,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -54,22 +61,6 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
-
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_7616_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7616",
-    section: Some("3.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
-    note: "The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the \"MUST be used by all implementations\" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced here in both directions",
-};
-const RFC_2617_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 2617",
-    section: Some("3.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc2617.html#section-3.2.2",
-    note: "The obsolete document whose qop-less credential shape is why cnonce and nc are demanded only beside a qop: its own conditional (\"MUST be specified if a qop directive is sent\") is the observable line, and deployed servers still verify the older shape",
-};
 
 impl RuleMeta for DigestAuthValid {
     fn id(&self) -> &'static str {
@@ -164,8 +155,8 @@ impl Rule for DigestAuthValid {
                 let rest = match parts.next() {
                     Some(r) => r.trim(),
                     None => {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &DIGEST_CREDENTIALS_PARAMETER_MISSING,
                             "Authorization Digest scheme missing parameters".into(),
                         ))
                     }
@@ -197,15 +188,15 @@ impl Rule for DigestAuthValid {
                                     };
 
                                     if is_empty {
-                                        return Some(self.violation(ctx.severity, format!(
-                                                "Digest Authorization missing or empty required parameter '{}'",
+                                        return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_EMPTY, format!(
+                                                "Digest Authorization sends required parameter '{}' with nothing in it",
                                                 k
                                             )))
                                     }
                                 }
                                 None => {
-                                    return Some(self.violation(ctx.severity, format!(
-                                            "Digest Authorization missing or empty required parameter '{}'",
+                                    return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_MISSING, format!(
+                                            "Digest Authorization is missing required parameter '{}' (RFC 7616 \u{a7}3.4)",
                                             k
                                         )))
                                 }
@@ -227,7 +218,7 @@ impl Rule for DigestAuthValid {
                         if map.contains_key("qop") {
                             for &k in &["cnonce", "nc"] {
                                 if !map.contains_key(k) {
-                                    return Some(self.violation(ctx.severity, format!(
+                                    return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_MISSING, format!(
                                             "Digest Authorization sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
                                         )));
                                 }
@@ -280,12 +271,12 @@ impl Rule for DigestAuthValid {
 
                             let quoted = v.starts_with('"');
                             if MUST_QUOTE.contains(&k.as_str()) && !quoted {
-                                return Some(self.cited(&RFC_7616_3_4, ctx.severity, format!(
+                                return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
                                         "Digest Authorization sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
                                     )));
                             }
                             if MUST_NOT_QUOTE.contains(&k.as_str()) && quoted {
-                                return Some(self.violation(ctx.severity, format!(
+                                return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
                                         "Digest Authorization sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
                                     )));
                             }
@@ -433,11 +424,11 @@ mod tests {
         Ok(())
     }
 
-    /// The four findings that are the `auth-param`'s grammar and not Digest's,
-    /// with the ids they now carry — and the four that stay RFC 7616's, at the
-    /// rule's own severity. The fourth arrived last: a member with no `=` had
-    /// no id for as long as the only candidate carried § 5.6.6's production,
-    /// which prints no `BWS` where this one does.
+    /// Every finding this rule makes and the id it draws, in two groups. The
+    /// first four are the `auth-param`'s grammar rather than Digest's, and a
+    /// `WWW-Authenticate` reports them the same way; the last four are RFC
+    /// 7616 § 3.4's, about which parameters a credential owes and how each is
+    /// spelled. Nothing in the rule is untyped now.
     #[rstest]
     // A bad *name* is answered by the reader rather than by this rule's own
     // check -- `parse_auth_params` measures it two lines earlier -- and since
@@ -454,13 +445,16 @@ mod tests {
         "Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", opaque=\"abc",
         "quoted_string_delimiter_missing"
     )]
-    #[case::missing_required("Digest realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\"", "")]
-    #[case::qop_without_cnonce("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", qop=auth, nc=00000001", "")]
+    #[case::missing_required(
+        "Digest realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\"",
+        "digest_credentials_parameter_missing"
+    )]
+    #[case::qop_without_cnonce("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", qop=auth, nc=00000001", "digest_credentials_parameter_missing")]
     #[case::must_quote(
         "Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=/, response=\"d\"",
-        ""
+        "digest_credentials_quoting_invalid"
     )]
-    #[case::must_not_quote("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", qop=\"auth\", cnonce=\"c\", nc=00000001", "")]
+    #[case::must_not_quote("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", qop=\"auth\", cnonce=\"c\", nc=00000001", "digest_credentials_quoting_invalid")]
     fn the_auth_params_grammar_is_not_digests(#[case] header: &str, #[case] violation: &str) {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request
@@ -589,7 +583,7 @@ mod tests {
         assert!(v.is_some());
         let v = v.unwrap();
         assert!(
-            v.message.contains("missing or empty required parameter")
+            v.message.contains("required parameter")
                 || v.message.contains("Invalid Digest auth parameters")
         );
         Ok(())
@@ -642,7 +636,7 @@ mod tests {
         assert!(
             msg.contains("Invalid quoted-string")
                 || msg.contains("Invalid Digest auth parameters")
-                || msg.contains("missing or empty required parameter")
+                || msg.contains("required parameter")
         );
         Ok(())
     }
@@ -783,7 +777,7 @@ mod tests {
         assert!(v.is_some());
         let v = v.unwrap();
         assert!(
-            v.message.contains("missing or empty required parameter")
+            v.message.contains("required parameter")
                 || v.message.contains("Invalid Digest auth parameters")
         );
         Ok(())
@@ -815,7 +809,7 @@ mod tests {
         assert!(v.is_some());
         let v = v.unwrap();
         assert!(
-            v.message.contains("missing or empty required parameter")
+            v.message.contains("required parameter")
                 || v.message.contains("Invalid Digest auth parameters")
         );
         Ok(())
@@ -944,7 +938,7 @@ mod tests {
         assert!(
             msg.contains("Invalid quoted-string")
                 || msg.contains("Invalid Digest auth parameters")
-                || msg.contains("missing or empty required parameter")
+                || msg.contains("required parameter")
         );
         Ok(())
     }
@@ -969,8 +963,7 @@ mod tests {
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(
-            msg.contains("missing or empty required parameter")
-                || msg.contains("Invalid Digest auth parameters")
+            msg.contains("required parameter") || msg.contains("Invalid Digest auth parameters")
         );
         Ok(())
     }

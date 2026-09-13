@@ -1539,6 +1539,18 @@ severity = "warn"
 # A time in seconds is stated with no digits
 severity = "warn"
 
+[violations.digest_credentials_parameter_empty]
+# A required Digest parameter is written with nothing in it
+severity = "warn"
+
+[violations.digest_credentials_parameter_missing]
+# Digest credentials omit a parameter the response computation needs
+severity = "warn"
+
+[violations.digest_credentials_quoting_invalid]
+# A Digest parameter is written in the syntax its definition refuses
+severity = "warn"
+
 [violations.digest_equals_missing]
 # Digest member is written without its '='
 severity = "warn"
