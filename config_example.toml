@@ -1239,6 +1239,10 @@ severity = "warn"
 # Whitespace written where the grammar admits BWS
 severity = "info"
 
+[violations.cache_control_freshness_conflicting]
+# A Cache-Control freshness directive is given more than one value
+severity = "warn"
+
 [violations.cache_control_no_cache_argument_empty]
 # Cache-Control no-cache is qualified by no field name
 severity = "info"
@@ -1246,6 +1250,10 @@ severity = "info"
 [violations.cache_control_private_argument_empty]
 # Cache-Control private is qualified by no field name
 severity = "info"
+
+[violations.cache_control_storage_conflicting]
+# Two Cache-Control directives disagree about storing the response
+severity = "warn"
 
 [violations.challenge_empty]
 # Authentication challenge is empty
