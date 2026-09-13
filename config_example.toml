@@ -1607,6 +1607,18 @@ severity = "info"
 # Timestamp is padded with whitespace the grammar does not print
 severity = "warn"
 
+[violations.if_range_empty]
+# If-Range is written with no validator in it
+severity = "warn"
+
+[violations.if_range_forbidden]
+# If-Range is sent in a request with no Range
+severity = "warn"
+
+[violations.if_range_validator_weak_forbidden]
+# If-Range carries a weak entity-tag
+severity = "warn"
+
 [violations.keep_alive_connection_option_missing]
 # Keep-Alive is sent with no keep-alive connection-option in Connection
 severity = "warn"

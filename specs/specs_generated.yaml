@@ -5679,9 +5679,9 @@ sources:
     snippet: A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 257
+      line: 255
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 275
+      line: 273
   - label: conditional_headers_consistent (3)
     section: § 13.1.4
     snippet: A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field
@@ -5693,25 +5693,29 @@ sources:
     snippet: A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates).
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 258
+      line: 256
   - label: conditional_headers_consistent (5)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 206
+    - file: lint-http-rules/src/violations/if_range.rs
+      line: 77
   - label: conditional_headers_consistent (6)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 192
+    - file: lint-http-rules/src/violations/if_range.rs
+      line: 52
   - label: conditional_headers_consistent (7)
     section: § 13.1.5
     snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 222
+      line: 221
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 278
   - label: If-Range grammar
@@ -5719,9 +5723,11 @@ sources:
     snippet: If-Range = entity-tag / HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 221
+      line: 220
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 49
+    - file: lint-http-rules/src/violations/if_range.rs
+      line: 100
   - label: conditional_request_handling
     section: § 13.1.2
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
@@ -7229,7 +7235,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 41
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 254
+      line: 252
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 253
     - file: lint-http-rules/src/rules/content_type_valid.rs
