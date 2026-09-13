@@ -182,9 +182,9 @@ sources:
     snippet: The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 107
+      line: 114
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 266
+      line: 277
   - label: refresh_header_syntax
     section: § 7.8
     snippet: It takes the same value and works largely the same.
@@ -422,53 +422,61 @@ sources:
     snippet: 'A serialized CSP is an ASCII string consisting of a semicolon-delimited series of serialized directives, adhering to the following ABNF grammar [RFC5234]:'
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 76
+      line: 85
   - label: serialized-policy grammar
     section: § 2.2
     snippet: serialized-policy = serialized-directive *( optional-ascii-whitespace ";" [ optional-ascii-whitespace serialized-directive ] )
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 105
+      line: 114
   - label: base64-value grammar
     section: § 2.3.1
     snippet: base64-value  = 1*( ALPHA / DIGIT / "+" / "/" / "-" / "_" )*2( "=" )
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 197
+      line: 206
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 216
+      line: 225
   - label: hash-source grammar
     section: § 2.3.1
     snippet: hash-source    = "'" hash-algorithm "-" base64-value "'"
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 154
+      line: 163
   - label: nonce-source grammar
     section: § 2.3.1
     snippet: nonce-source  = "'nonce-" base64-value "'"
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 153
+      line: 162
   - label: source-expression alternatives
     section: § 2.3.1
     snippet: source-expression      = scheme-source / host-source / keyword-source / nonce-source / hash-source
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 173
+      line: 182
+  - label: frame-ancestors overrides X-Frame-Options
+    section: § 6.4.2.2
+    snippet: In order to allow backwards-compatible deployment, the frame-ancestors directive overrides the
+    cited_by:
+    - file: lint-http-rules/src/violations/content_security_policy.rs
+      line: 258
   - label: content_security_policy_and_frame_options_consistent
     section: § 6.4.2
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 51
+      line: 58
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 265
+      line: 276
+    - file: lint-http-rules/src/violations/content_security_policy.rs
+      line: 257
   - label: content_security_policy_and_frame_options_consistent (2)
     section: § 6.4.2.2
     snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 264
+      line: 275
   - label: content_security_policy_valid
     section: § 2.3
     snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
@@ -476,7 +484,7 @@ sources:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
       line: 106
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 128
+      line: 137
   - label: content_security_policy_valid (2)
     section: § 2.3
     snippet: hash-algorithm = "sha256" / "sha384" / "sha512"

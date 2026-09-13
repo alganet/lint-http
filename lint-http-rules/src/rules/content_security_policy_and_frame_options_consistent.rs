@@ -4,18 +4,25 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_security_policy::{
+    CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING, CSP3_6_4_2,
+};
+use crate::violations::ViolationDef;
+
+/// One entry for five shapes of the same disagreement.
+///
+/// `DENY` beside a policy that permits framing, `SAMEORIGIN` beside `'none'`,
+/// and three ways an `ALLOW-FROM` origin can fall outside what
+/// `frame-ancestors` lists are one claim with one repair: a server wrote two
+/// framing policies into one response and they do not agree. Which of the five
+/// it was is the message's to say.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING];
 
 pub struct ContentSecurityPolicyAndFrameOptionsConsistent;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const CSP3_6_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "CSP3",
-    section: Some("6.4.2"),
-    url: "https://www.w3.org/TR/CSP3/#directive-frame-ancestors",
-    note: "`frame-ancestors` directive. Note: when present and enforceable, `frame-ancestors` overrides `X-Frame-Options` (see §6.4.2.2)",
-};
 const HTML_SPECULATIVE_LOADING: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "HTML Speculative Loading",
     section: None,
@@ -148,12 +155,12 @@ impl ContentSecurityPolicyAndFrameOptionsConsistent {
         csp: &FrameAncestors,
         as_written: &str,
         request_uri: &str,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let allowed = as_written.strip_suffix('/').unwrap_or(as_written);
 
         if csp.none {
-            return Some(self.violation(severity, format!(
+            return Some(ctx.report_with(&CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING, format!(
                 "X-Frame-Options: ALLOW-FROM {} permits framing but Content-Security-Policy frame-ancestors is 'none'",
                 as_written
             )));
@@ -169,7 +176,7 @@ impl ContentSecurityPolicyAndFrameOptionsConsistent {
 
         if !csp.origins.is_empty() {
             return (!csp.lists(allowed) && !own_origin()).then(|| {
-                self.violation(severity, format!(
+                ctx.report_with(&CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING, format!(
                     "X-Frame-Options: ALLOW-FROM {} is not included in Content-Security-Policy frame-ancestors",
                     as_written
                 ))
@@ -179,7 +186,7 @@ impl ContentSecurityPolicyAndFrameOptionsConsistent {
         if csp.own_origin {
             let origin = extract_origin_from_uri(request_uri)?;
             return (!origin.eq_ignore_ascii_case(allowed)).then(|| {
-                self.violation(severity, format!(
+                ctx.report_with(&CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING, format!(
                     "X-Frame-Options: ALLOW-FROM {} does not match Content-Security-Policy frame-ancestors 'self' (origin {})",
                     as_written, origin
                 ))
@@ -203,6 +210,10 @@ severity = "warn"
 
     fn description(&self) -> &'static str {
         "Detect contradictory framing directives between `Content-Security-Policy` (the `frame-ancestors` directive) and `X-Frame-Options`. These headers express framing restrictions; when they conflict, they create ambiguity that may cause different user agents to allow or block framing inconsistently.\n\nNote: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement."
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -277,15 +288,15 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
             match FrameOptions::of(xfo) {
                 // DENY forbids framing, so it contradicts a policy that permits any.
                 FrameOptions::Deny => (!csp.none && csp.permits_framing()).then(|| {
-                    self.violation(ctx.severity, "X-Frame-Options: DENY contradicts Content-Security-Policy frame-ancestors which permits framing".into())
+                    ctx.report_with(&CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING, "X-Frame-Options: DENY contradicts Content-Security-Policy frame-ancestors which permits framing".into())
                 }),
                 // SAMEORIGIN permits same-origin framing, so only an outright
                 // 'none' contradicts it.
                 FrameOptions::SameOrigin => csp.none.then(|| {
-                    self.violation(ctx.severity, "Content-Security-Policy frame-ancestors: 'none' forbids framing while X-Frame-Options: SAMEORIGIN permits same-origin frames".into())
+                    ctx.report_with(&CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING, "Content-Security-Policy frame-ancestors: 'none' forbids framing while X-Frame-Options: SAMEORIGIN permits same-origin frames".into())
                 }),
                 FrameOptions::AllowFrom(as_written) => {
-                    self.allow_from_defect(&csp, as_written, &tx.request.uri, ctx.severity)
+                    self.allow_from_defect(&csp, as_written, &tx.request.uri, ctx)
                 }
                 // A form no user agent implements says nothing to contradict;
                 // reporting it belongs to the rule that owns the field.

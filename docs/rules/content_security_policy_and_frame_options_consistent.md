@@ -14,7 +14,7 @@ Note: this check considers only enforceable header-delivered CSP policies (`Cont
 
 ## Specifications
 
-- [CSP3 §6.4.2](https://www.w3.org/TR/CSP3/#directive-frame-ancestors): `frame-ancestors` directive. Note: when present and enforceable, `frame-ancestors` overrides `X-Frame-Options` (see §6.4.2.2)
+- [CSP3 §6.4.2](https://www.w3.org/TR/CSP3/#directive-frame-ancestors): `frame-ancestors` — which URLs may embed the resource, the rough equivalences between its source expressions and `X-Frame-Options`' values, and § 6.4.2.2's statement that an enforced `frame-ancestors` overrides that header outright
 - [HTML Speculative Loading](https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header): HTML Living Standard — `X-Frame-Options` header and its relation to `frame-ancestors`
 - [MDN X-Frame-Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options): `X-Frame-Options` — legacy header with values `DENY`, `SAMEORIGIN`, and the obsolete `ALLOW-FROM`. Note: `ALLOW-FROM` is deprecated and not supported by most modern browsers — prefer using CSP's `frame-ancestors` for origin-specific framing policies
 
