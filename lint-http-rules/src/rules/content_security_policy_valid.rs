@@ -5,23 +5,31 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::content_security_policy::{
+    CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY, CONTENT_SECURITY_POLICY_BASE64_VALUE_MALFORMED,
     CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
     CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN, CONTENT_SECURITY_POLICY_EMPTY,
-    CSP3_2_2, CSP3_2_3,
+    CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING, CONTENT_SECURITY_POLICY_SOURCE_EMPTY,
+    CSP3_2_2, CSP3_2_3, CSP3_2_3_1,
 };
 use crate::violations::ViolationDef;
 
 /// The policy and directive level of the field, which is what the rule reads
 /// before it reaches a source expression.
 ///
-/// Three entries, ranked apart where the rule's one severity could not: a
-/// header enforcing nothing at all, a directive a user agent will not
+/// Seven entries. Three are ranked apart where the rule's one severity could
+/// not — a header enforcing nothing at all, a directive a user agent will not
 /// recognise and therefore not apply, and a stray semicolon in a policy that
-/// still works.
+/// still works. The four below them are the source expressions, and they sit
+/// at one level: each is a source the user agent will parse as something else
+/// or drop, and in every case the policy stops doing what its author wrote.
 static DECLARED: &[&ViolationDef] = &[
     &CONTENT_SECURITY_POLICY_EMPTY,
     &CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
     &CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN,
+    &CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING,
+    &CONTENT_SECURITY_POLICY_SOURCE_EMPTY,
+    &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
+    &CONTENT_SECURITY_POLICY_BASE64_VALUE_MALFORMED,
 ];
 
 /// Basic Content-Security-Policy validation focusing on directive name syntax,
@@ -111,7 +119,7 @@ impl ContentSecurityPolicyValid {
             ));
         }
 
-        parts.find_map(|source| self.source_expression_defect(source, name, ctx.severity))
+        parts.find_map(|source| self.source_expression_defect(source, name, ctx))
     }
 
     /// One source expression, quoted or not.
@@ -127,22 +135,25 @@ impl ContentSecurityPolicyValid {
         &self,
         source: &str,
         directive: &str,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         if source.starts_with('\'') {
+            // An opening quote and no closing one: the same defect as writing
+            // no quotes at all, since `nonce-source` and `hash-source` print
+            // both of them inside the production.
             if !source.ends_with('\'') || source.len() < 2 {
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING,
                     format!(
-                    "Unterminated or empty single-quoted source expression '{}' in directive '{}'",
-                    source, directive
-                ),
+                        "Unterminated single-quoted source expression '{}' in directive '{}'",
+                        source, directive
+                    ),
                 ));
             }
             let inner = &source[1..source.len() - 1];
             if inner.is_empty() {
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &CONTENT_SECURITY_POLICY_SOURCE_EMPTY,
                     format!(
                         "Empty single-quoted source expression '{}' in directive '{}'",
                         source, directive
@@ -152,14 +163,18 @@ impl ContentSecurityPolicyValid {
 
             if let Some(nonce) = inner.strip_prefix("nonce-") {
                 if nonce.is_empty() {
-                    return Some(self.violation(
-                        severity,
+                    return Some(ctx.report_with(
+                        &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
                         format!("Empty nonce value in directive '{}'", directive),
                     ));
                 }
+                // Unicode whitespace rather than ASCII, and the difference is
+                // the whole reachable set: a source list is cut apart on
+                // `required-ascii-whitespace`, so an ordinary space never
+                // arrives inside a source expression and %xA0 does.
                 if nonce.chars().any(char::is_whitespace) {
-                    return Some(self.violation(
-                        severity,
+                    return Some(ctx.report_with(
+                        &CONTENT_SECURITY_POLICY_BASE64_VALUE_MALFORMED,
                         format!(
                             "Invalid nonce value containing whitespace in directive '{}'",
                             directive
@@ -172,8 +187,8 @@ impl ContentSecurityPolicyValid {
                 .iter()
                 .any(|prefix| inner.strip_prefix(prefix) == Some(""))
             {
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
                     format!("Empty hash value in directive '{}'", directive),
                 ));
             }
@@ -182,15 +197,17 @@ impl ContentSecurityPolicyValid {
             return None;
         }
 
+        // Unquoted. The value half is named first where both are wrong,
+        // because putting quotes around nothing fixes nothing.
         if let Some(nonce) = source.strip_prefix("nonce-") {
             if nonce.is_empty() {
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
                     format!("Empty nonce value in directive '{}'", directive),
                 ));
             }
-            return Some(self.violation(
-                severity,
+            return Some(ctx.report_with(
+                &CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING,
                 "Nonce source expressions MUST be single-quoted (e.g., 'nonce-...')".into(),
             ));
         }
@@ -199,13 +216,13 @@ impl ContentSecurityPolicyValid {
             .iter()
             .find(|prefix| source.starts_with(**prefix))?;
         if source.len() == prefix.len() {
-            return Some(self.violation(
-                severity,
+            return Some(ctx.report_with(
+                &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
                 format!("Empty hash value in directive '{}'", directive),
             ));
         }
-        Some(self.violation(
-            severity,
+        Some(ctx.report_with(
+            &CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING,
             format!(
                 "Hash source expressions MUST be single-quoted (e.g., '{}...')",
                 prefix
@@ -234,7 +251,13 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[CSP3, CSP3_2_2, CSP3_2_3, MDN_CONTENT_SECURITY_POLICY]
+        &[
+            CSP3,
+            CSP3_2_2,
+            CSP3_2_3,
+            CSP3_2_3_1,
+            MDN_CONTENT_SECURITY_POLICY,
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -616,6 +639,48 @@ mod tests {
         )
         .unwrap();
         assert!(v.message.contains("MUST not be empty"));
+    }
+
+    /// The source-expression half, each shape pinned to the entry it draws. The
+    /// two nonce rows and the two hash rows are the point: one `base64-value`
+    /// production is carried by both, so a nonce with no nonce in it and a
+    /// `sha256-` with no digest after it are one defect and one id.
+    #[rstest]
+    #[case(
+        "script-src 'nonce-abc",
+        "content_security_policy_source_delimiter_missing"
+    )]
+    #[case(
+        "script-src nonce-abc",
+        "content_security_policy_source_delimiter_missing"
+    )]
+    #[case(
+        "script-src sha256-abc",
+        "content_security_policy_source_delimiter_missing"
+    )]
+    #[case("script-src ''", "content_security_policy_source_empty")]
+    #[case("script-src 'nonce-'", "content_security_policy_base64_value_empty")]
+    #[case("script-src 'sha384-'", "content_security_policy_base64_value_empty")]
+    #[case("script-src nonce-", "content_security_policy_base64_value_empty")]
+    #[case("script-src sha512-", "content_security_policy_base64_value_empty")]
+    #[case(
+        "script-src 'nonce-a\u{a0}b'",
+        "content_security_policy_base64_value_malformed"
+    )]
+    fn the_source_expression_findings_name_their_entries(#[case] policy: &str, #[case] id: &str) {
+        let rule = ContentSecurityPolicyValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_octet_pairs(
+            &[("content-security-policy", policy.as_bytes())],
+        );
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, id, "{policy:?}");
     }
 
     /// The three entries this half of the rule reports, each pinned to its id.

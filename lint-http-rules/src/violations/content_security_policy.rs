@@ -43,6 +43,15 @@ pub const CSP3_2_2: SpecRef = SpecRef {
     note: "Policies: `serialized-policy = serialized-directive *( optional-ascii-whitespace \";\" [ optional-ascii-whitespace serialized-directive ] )` — one unbracketed directive and any number of bracketed ones, which is what decides whether a given `;` names anything",
 };
 
+/// Source Lists: the source expressions a directive value is made of, and the
+/// two of them whose single quotes are part of the production.
+pub const CSP3_2_3_1: SpecRef = SpecRef {
+    spec: "CSP3",
+    section: Some("2.3.1"),
+    url: "https://www.w3.org/TR/CSP3/#framework-directive-source-list",
+    note: "Source Lists: `source-expression`, the `nonce-source` and `hash-source` productions whose single quotes are written *inside* them, and the `base64-value` both of them carry",
+};
+
 /// Directives: the name production, which is narrower than the HTTP `token`.
 pub const CSP3_2_3: SpecRef = SpecRef {
     spec: "CSP3",
@@ -123,6 +132,94 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[CSP3_2_3],
+    }
+
+    /// A nonce or hash source written without the single quotes the production
+    /// prints, or with only the opening one: `nonce-abc123`, `sha256-xyz`,
+    /// `'nonce-abc123`.
+    ///
+    /// **The quotes are inside the production, not around it.**
+    /// `nonce-source = "'nonce-" base64-value "'"` opens with a literal that
+    /// includes the quote, and `hash-source` prints one on each side of the
+    /// algorithm and digest — so an unquoted `nonce-abc` is not a badly
+    /// punctuated nonce, it is a `host-source` naming a host called
+    /// `nonce-abc`. A user agent parses it as one, matches nothing against it,
+    /// and the inline script the nonce was minted for is blocked.
+    ///
+    /// The unterminated case is the same defect from the other end and shares
+    /// the id: a value that opens with `'` and never closes derives from no
+    /// source expression at all.
+    ///
+    // cite(CSP3 § 2.3.1, label: nonce-source grammar): "nonce-source  = "'nonce-" base64-value "'""
+    // cite(CSP3 § 2.3.1, label: hash-source grammar): "hash-source    = "'" hash-algorithm "-" base64-value "'""
+    CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING = {
+        id: "content_security_policy_source_delimiter_missing",
+        title: "A nonce or hash source is written without its single quotes",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[CSP3_2_3_1],
+    }
+
+    /// A quoted source expression with nothing between the quotes: `''`.
+    ///
+    /// Every quoted form the grammar has puts something inside the quotes — a
+    /// keyword, `nonce-` and a value, an algorithm and a digest — so two
+    /// quotes with nothing between them derive from none of them. Separate
+    /// from [`CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING`] for the reason
+    /// `docs/development.md` gives for every `_missing`/`_empty` pair: one
+    /// sender never wrote the delimiter and the other wrote it and put nothing
+    /// in it.
+    ///
+    // cite(CSP3 § 2.3.1, label: source-expression alternatives): "source-expression      = scheme-source / host-source / keyword-source / nonce-source / hash-source"
+    CONTENT_SECURITY_POLICY_SOURCE_EMPTY = {
+        id: "content_security_policy_source_empty",
+        title: "A quoted source expression is written with nothing in it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[CSP3_2_3_1],
+    }
+
+    /// A nonce or hash source naming no value: `'nonce-'`, `'sha256-'`,
+    /// `nonce-`, `sha256-`.
+    ///
+    /// **One entry over both, because one production fails.** `base64-value`
+    /// is written once and carried by `nonce-source` and all three
+    /// `hash-source` algorithms, and `1*( ALPHA / DIGIT / "+" / "/" / "-" /
+    /// "_" )` has a one-character floor — so a nonce with no nonce in it and a
+    /// `sha256-` with no digest after it are the same arithmetic. The rule
+    /// reporting this had four messages for it, one per algorithm and one for
+    /// the nonce; the message still names which was written.
+    ///
+    /// **Where the quotes are missing too, this is the finding.** An unquoted
+    /// `nonce-` fails both this and the entry above, and naming the value is
+    /// the useful half: putting quotes around nothing fixes nothing.
+    ///
+    // cite(CSP3 § 2.3.1, label: base64-value grammar): "base64-value  = 1*( ALPHA / DIGIT / "+" / "/" / "-" / "_" )*2( "=" )"
+    CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY = {
+        id: "content_security_policy_base64_value_empty",
+        title: "A nonce or hash source names no value",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[CSP3_2_3_1],
+    }
+
+    /// A nonce whose value holds a character `base64-value` does not admit —
+    /// in practice an octet like %xA0, since a source list is cut apart on
+    /// ASCII whitespace and an ordinary space can never reach the inside of one.
+    ///
+    /// `_malformed` rather than the `_character_forbidden` half of the pair,
+    /// and it is the directive-name reasoning run the other way: here the octet
+    /// that *can* arrive is precisely the one nobody typed, so naming the
+    /// character class would draw the id whose case does not occur. What the
+    /// finding says is that the value does not derive.
+    ///
+    // cite(CSP3 § 2.3.1, label: base64-value grammar): "base64-value  = 1*( ALPHA / DIGIT / "+" / "/" / "-" / "_" )*2( "=" )"
+    CONTENT_SECURITY_POLICY_BASE64_VALUE_MALFORMED = {
+        id: "content_security_policy_base64_value_malformed",
+        title: "A nonce value holds a character base64-value does not admit",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[CSP3_2_3_1],
     }
 }
 

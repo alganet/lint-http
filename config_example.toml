@@ -1411,6 +1411,14 @@ severity = "warn"
 # Content-Range writes something other than '*' before its '/'
 severity = "warn"
 
+[violations.content_security_policy_base64_value_empty]
+# A nonce or hash source names no value
+severity = "warn"
+
+[violations.content_security_policy_base64_value_malformed]
+# A nonce value holds a character base64-value does not admit
+severity = "warn"
+
 [violations.content_security_policy_directive_empty]
 # A policy opens with a semicolon and names no first directive
 severity = "info"
@@ -1421,6 +1429,14 @@ severity = "warn"
 
 [violations.content_security_policy_empty]
 # Content-Security-Policy is written with no policy in it
+severity = "warn"
+
+[violations.content_security_policy_source_delimiter_missing]
+# A nonce or hash source is written without its single quotes
+severity = "warn"
+
+[violations.content_security_policy_source_empty]
+# A quoted source expression is written with nothing in it
 severity = "warn"
 
 [violations.cookie_domain_empty]
