@@ -1426,7 +1426,13 @@ severity = "warn"
         /// `Range`, a weak entity-tag, and a value that chose neither
         /// alternative. Three entries name the same section, so all three
         /// findings keep their reference.
-        const FLOOR: usize = 92;
+        /// **`digest_auth_valid` gave up its last one and now carries none.**
+        /// It cited RFC 7616 § 3.4 from the arm reporting a parameter written
+        /// in the syntax its own definition refuses; the entry that replaced it
+        /// names the same section, and so do the two beside it — so the rule
+        /// has *more* cited findings after the fall than before it, which is
+        /// the difference between counting sites and counting defects.
+        const FLOOR: usize = 91;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
