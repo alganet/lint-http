@@ -1460,7 +1460,12 @@ severity = "warn"
         /// now carry § 15.5.2 and § 15.5.8 from the two entries they collapsed
         /// into. The count falls by one and the rule's *cited findings* go from
         /// one to five.
-        const FLOOR: usize = 77;
+        /// **`cookie_lifecycle` gave up its one**, § 5.3 from the arm reporting
+        /// a cookie the store should have evicted; the entry that holds it
+        /// names § 5.3 and § 5.4 together, so that finding trades its citation
+        /// for an entry naming both sentences it fails — the shape 2.204's
+        /// note describes, seen once more.
+        const FLOOR: usize = 76;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

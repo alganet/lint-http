@@ -82,6 +82,24 @@ pub const RFC_6265_5_2_3: SpecRef = SpecRef {
 
 /// Domain matching, which is where an IP address stops being a cookie domain:
 /// the algorithm only reaches its host-name arm for a string that is not one.
+/// The storage model, for the one sentence about a store holding what it
+/// should have emptied.
+pub const RFC_6265_5_3: SpecRef = SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.3",
+    note: "Storage Model — what a user agent stores about each cookie, and the MUST to evict every expired cookie from the store as soon as one exists in it",
+};
+
+/// The `Cookie` field: the algorithm that decides which stored cookies a
+/// request may carry.
+pub const RFC_6265_5_4: SpecRef = SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4",
+    note: "The Cookie Header — the algorithm a user agent MUST use to compute the cookie-string, whose first step excludes a cookie whose path does not path-match and one whose secure-only-flag is set on a scheme that is not secure",
+};
+
 pub const RFC_6265_5_1_3: SpecRef = SpecRef {
     spec: "RFC 6265",
     section: Some("5.1.3"),
@@ -371,6 +389,88 @@ defects! {
         message: "Set-Cookie attribute 'Expires' requires a HTTP-date value",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
+    }
+
+    /// A cookie carrying the `Secure` attribute, sent on a request whose scheme
+    /// is not a secure one.
+    ///
+    /// **The first entry in this subject about the `Cookie` field rather than
+    /// the `Set-Cookie` one**, and the sender is the other party: everything
+    /// above is a server writing an attribute wrong, and this is a user agent
+    /// not honouring one it was written correctly. `_ignored` is the ending for
+    /// exactly that.
+    ///
+    /// § 5.4's algorithm is a MUST and its first step excludes such a cookie
+    /// outright, so a request carrying one was not built by that algorithm.
+    /// What it costs is the whole point of the attribute: the value the server
+    /// marked as too sensitive for clear text is on the wire in clear text, and
+    /// by the time this is reported it has already been sent.
+    ///
+    // cite(RFC 6265 § 5.4): "If the cookie's secure-only-flag is true, then the request-uri's scheme must denote a "secure" protocol (as defined by the user agent)."
+    COOKIE_SECURE_IGNORED = {
+        id: "cookie_secure_ignored",
+        title: "A Secure cookie is sent over a scheme that is not secure",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6265_5_4],
+    }
+
+    /// A cookie sent where the store's own rules exclude it: one whose expiry
+    /// has passed, or one whose `Path` does not path-match the request.
+    ///
+    /// **One entry over two sections, because the repair is one and the
+    /// evidence is the same store.** § 5.3 has a user agent evict every expired
+    /// cookie as soon as one exists in the store, and § 5.4's first step
+    /// excludes a cookie whose path does not match — so in both cases the
+    /// request carries a cookie the algorithm that builds a `Cookie` field
+    /// would not have included. The message names which and quotes the section.
+    ///
+    /// **`_ignored` and not `_forbidden`**, for the same reason as the entry
+    /// above: what was not honoured is an instruction the *server* wrote and
+    /// the user agent stored. Nothing prohibits the octets; an algorithm was
+    /// not followed.
+    ///
+    /// `info` rather than `warn`, and the reason is what this rule can see. The
+    /// store is the proxy's reconstruction from `Set-Cookie` fields it happened
+    /// to observe, so a cookie it believes expired may have been re-set on an
+    /// exchange that did not pass through here.
+    ///
+    // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
+    // cite(RFC 6265 § 5.4): "The request-uri's path path-matches the cookie's path."
+    COOKIE_SCOPE_IGNORED = {
+        id: "cookie_scope_ignored",
+        title: "A cookie is sent where the store's own rules exclude it",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_6265_5_3, RFC_6265_5_4],
+    }
+
+    /// A cookie whose value differs from the one the most specific applicable
+    /// `Set-Cookie` established.
+    ///
+    /// **Uncited, and it is the third entry of this shape in the catalogue.**
+    /// Nothing requires a user agent to send back the value a server set — a
+    /// script may have written it, another exchange may have re-set it, and the
+    /// store this is measured against is the proxy's reconstruction from the
+    /// `Set-Cookie` fields it observed. Like
+    /// [`conditional_validator_missing`](crate::violations::conditional::CONDITIONAL_VALIDATOR_MISSING)
+    /// and
+    /// [`digest_credentials_challenge_missing`](crate::violations::digest_credentials::DIGEST_CREDENTIALS_CHALLENGE_MISSING),
+    /// what it reports is a state this exchange cannot account for, and a
+    /// reference on it would dress a stateful guess as a requirement.
+    ///
+    /// **The "most specific" is § 5.4's ordering borrowed for a different
+    /// job**: that section lists longer paths first so a server reads the most
+    /// specific cookie first, and the same order picks which stored value a
+    /// duplicate name should be compared against.
+    ///
+    /// `info`.
+    COOKIE_VALUE_CONFLICTING = {
+        id: "cookie_value_conflicting",
+        title: "A cookie carries a value the observed exchange did not set",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
     }
 }
 

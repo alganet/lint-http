@@ -4,6 +4,36 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cookie::{
+    COOKIE_SCOPE_IGNORED, COOKIE_SECURE_IGNORED, COOKIE_VALUE_CONFLICTING, RFC_6265_5_1_3,
+    RFC_6265_5_3, RFC_6265_5_4,
+};
+use crate::violations::ViolationDef;
+
+/// Path matching, which is where `path-matches` is defined for the algorithm
+/// § 5.4 runs and for the store this rule keeps.
+const RFC_6265_5_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4",
+    note:
+        "Paths and Path-Match — the comparison § 5.4's first step runs a request-uri's path through",
+};
+
+/// Three entries, and all three are the *user agent's* rather than the
+/// server's — which is what makes them the first `cookie` entries about the
+/// `Cookie` field instead of the `Set-Cookie` one.
+///
+/// § 5.4's algorithm decides which stored cookies a request may carry, and two
+/// of these are cookies it excludes: one whose `Secure` attribute the scheme
+/// contradicts, and one the store should not have offered at all. The third is
+/// a value this exchange never set, which no sentence forbids and which the
+/// entry marks as the heuristic it is.
+static DECLARED: &[&ViolationDef] = &[
+    &COOKIE_SECURE_IGNORED,
+    &COOKIE_SCOPE_IGNORED,
+    &COOKIE_VALUE_CONFLICTING,
+];
 
 /// Ensure cookies set via `Set-Cookie` are stored and sent correctly by the
 /// client: expired cookies should not be included, updated cookies should
@@ -13,28 +43,6 @@ use crate::rules::{Rule, RuleMeta};
 /// `Set-Cookie` responses for the same origin, then compares that state with
 /// the `Cookie` header on outgoing requests.
 pub struct CookieLifecycle;
-
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_6265_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6265",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.3",
-    note: "Storage model",
-};
-const RFC_6265_5_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6265",
-    section: Some("5.1.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3",
-    note: "Domain matching",
-};
-const RFC_6265_5_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6265",
-    section: Some("5.1.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4",
-    note: "Path matching",
-};
 
 /// The request a cookie is being sent on, in the three terms a cookie is
 /// matched against.
@@ -127,7 +135,7 @@ impl CookieLifecycle {
         request: &RequestScope,
         name: &str,
         value: &str,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         if request.scheme == "https" {
             return None;
@@ -140,9 +148,12 @@ impl CookieLifecycle {
                 && c.path_matches(&request.path)
         });
         sent_a_secure_cookie.then(|| {
-            self.violation(
-                severity,
-                format!("Secure cookie '{}' sent over insecure transport", name),
+            ctx.report_with(
+                &COOKIE_SECURE_IGNORED,
+                format!(
+                    "Secure cookie '{}' sent over insecure transport; RFC 6265 \u{a7}5.4 excludes it from the cookie-string on a scheme that is not secure",
+                    name
+                ),
             )
         })
     }
@@ -163,8 +174,12 @@ severity = "warn"
         "Cookies sent by servers via the `Set-Cookie` header establish state that a client is expected to retain and present on subsequent requests. This rule reconstructs a simplistic cookie store for a given origin and verifies that outgoing requests are consistent with that store.  It flags three broad classes of client misbehaviour:\n\n* Sending cookies after they have clearly expired or been removed.\n* Continuing to send an old value after a newer cookie with the same name/domain/path has been observed.\n* Transmitting a cookie marked `Secure` over an insecure (HTTP) transport.  The rule only flags this if the actual name/value pair sent corresponds to a known secure cookie, which avoids false positives when a non‑secure cookie with the same name is used.\n\nThe check relies solely on the captured traffic for a given client+origin; if a cookie appears in a request but the linter has never seen it set in the past, the rule assumes it pre‑dates the capture and does not complain."
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6265_5_3, RFC_6265_5_1_3, RFC_6265_5_1_4]
+        &[RFC_6265_5_3, RFC_6265_5_4, RFC_6265_5_1_3, RFC_6265_5_1_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -230,7 +245,7 @@ impl Rule for CookieLifecycle {
 
             for (name, value) in sent {
                 if let Some(v) =
-                    self.secure_cookie_stayed_on_https(&live, &request, &name, &value, ctx.severity)
+                    self.secure_cookie_stayed_on_https(&live, &request, &name, &value, ctx)
                 {
                     return Some(v);
                 }
@@ -251,7 +266,7 @@ impl Rule for CookieLifecycle {
 
                 if let Some(applicable) = applicable {
                     if applicable.value != value {
-                        return Some(self.violation(ctx.severity, format!(
+                        return Some(ctx.report_with(&COOKIE_VALUE_CONFLICTING, format!(
                                 "Cookie '{}' value '{}' does not match stored value '{}', likely stale",
                                 name, value, applicable.value
                             )));
@@ -265,16 +280,16 @@ impl Rule for CookieLifecycle {
                     // a store the user agent was required to have emptied.
                     // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
                     PreviouslySet::AndApplicable => {
-                        return Some(self.cited(&RFC_6265_5_3, ctx.severity, format!(
-                                "Cookie '{}' was previously set but is expired or removed and should not be sent",
+                        return Some(ctx.report_with(&COOKIE_SCOPE_IGNORED, format!(
+                                "Cookie '{}' was previously set but is expired or removed and should not be sent; RFC 6265 \u{a7}5.3 has a user agent evict it from the store",
                                 name
                             )))
                     }
                     PreviouslySet::ForAnotherPath => {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &COOKIE_SCOPE_IGNORED,
                             format!(
-                                "Cookie '{}' is not valid for path '{}' and should not be sent",
+                                "Cookie '{}' is not valid for path '{}' and should not be sent; RFC 6265 \u{a7}5.4 excludes a cookie whose path does not path-match the request",
                                 name, request.path
                             ),
                         ))
@@ -333,6 +348,49 @@ mod tests {
             tx.timestamp = ts;
         }
         tx
+    }
+
+    /// Every finding and the id it draws. All three are the *user agent's*
+    /// rather than the server's, which is what makes them the first `cookie`
+    /// entries about the `Cookie` field, and only the first of the three is
+    /// something this proxy can be sure of.
+    #[test]
+    fn each_finding_names_its_entry() {
+        let ts = chrono::Utc::now();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]);
+        let judge = |set_cookie: &str, set_on: &str, sent_on: &str, cookie: &str| {
+            let prev = make_resp_tx(set_on, Some(set_cookie), Some(ts));
+            let mut tx = make_tx_with_req(sent_on, Some(cookie));
+            tx.timestamp = ts + chrono::Duration::seconds(1);
+            crate::test_helpers::run_rule(
+                &CookieLifecycle,
+                &tx,
+                &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+                &cfg,
+            )
+        };
+
+        let found = judge(
+            "a=1; Secure",
+            "https://example.com/",
+            "http://example.com/",
+            "a=1",
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "cookie_secure_ignored");
+
+        let found = judge(
+            "a=1; Path=/only",
+            "https://example.com/only",
+            "https://example.com/elsewhere",
+            "a=1",
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "cookie_scope_ignored");
+
+        let found =
+            judge("a=1", "https://example.com/", "https://example.com/", "a=2").expect("a finding");
+        assert_eq!(found.violation, "cookie_value_conflicting");
     }
 
     #[test]
