@@ -24,7 +24,7 @@ Report a response whose `Content-Type` is not covered by any `media-range` the r
 
 ## Specifications
 
-- [RFC 9110 §12.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.1): Absence: what a missing negotiation field means, and — the reason this rule is advisory — the origin server's explicit choice between sending 406 and disregarding the header entirely
+- [RFC 9110 §12.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.1): Absence: what a missing negotiation field means, and the origin server's explicit choice between sending a 406 and disregarding the field — which is why a finding about an unhonoured preference is advice and never a violation
 - [RFC 9110 §12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1): Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, the instruction to find `q` wherever it sits, and the media-range parameters this rule does not compare
 - [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality Values — `weight = OWS ";" OWS "q=" qvalue`, the `qvalue` production and its three-digit fraction, the case-insensitive `q` parameter name, and what a weight of zero means
 - [RFC 9110 §12.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.1): Proactive negotiation: that a user agent cannot rely on its preferences being honoured, which is the same point as §12.4.1's from the client's side

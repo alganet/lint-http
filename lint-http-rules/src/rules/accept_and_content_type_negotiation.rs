@@ -4,19 +4,15 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::accept::{ACCEPT_IGNORED, RFC_9110_12_4_1};
 use crate::violations::qvalue::RFC_9110_12_4_2;
+use crate::violations::ViolationDef;
 
 pub struct AcceptAndContentTypeNegotiation;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_12_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.1",
-    note: "Absence: what a missing negotiation field means, and — the reason this rule is advisory — the origin server's explicit choice between sending 406 and disregarding the header entirely",
-};
 const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("12.5.1"),
@@ -43,6 +39,15 @@ const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Content-Type: that recipients differ over which member of a duplicated field they act on, which is why a response with two Content-Type lines is not judged",
 };
 
+/// The one entry, and it is the field's purpose rather than its grammar.
+///
+/// Every way an `Accept` *value* can be wrong belongs to a production it
+/// borrowed, and `accept_header_media_type_syntax` declares those. What this
+/// rule reads is whether the response honoured the preference — advice, since
+/// § 12.4.1 names disregarding the field as one of the two answers a server may
+/// give, and the entry says so at length.
+static DECLARED: &[&ViolationDef] = &[&ACCEPT_IGNORED];
+
 impl RuleMeta for AcceptAndContentTypeNegotiation {
     fn id(&self) -> &'static str {
         "accept_and_content_type_negotiation"
@@ -60,6 +65,10 @@ severity = "warn"
 
     fn description(&self) -> &'static str {
         "Report a response whose `Content-Type` is not covered by any `media-range` the request's `Accept` header listed with a non-zero weight — `Accept: application/json` answered with `Content-Type: text/html`. The suggested remedies are the two the specification names: send a representation the client asked for, or say so with `406 (Not Acceptable)`.\n\n**This is advice, not a conformance check, and the specification is explicit about it.** RFC 9110 §12.4.1 gives the origin server the choice in as many words: when no available representation is acceptable it \"can either honor the header field by sending a 406 (Not Acceptable) response or disregard the header field by treating the response as if it is not subject to content negotiation\". §12.1 says the same from the other side — a user agent \"cannot rely on proactive negotiation preferences being consistently honored\". So **a message this rule reports may be perfectly conforming**, and the finding is worded as a suggestion because that is all it can be. It is worth having anyway: a response the client cannot use is usually not what the server meant to send.\n\n**A 406 response is never reported** — that status is the server taking the other branch of the same choice.\n\n**Weights:** a member with `q=0` is a refusal and does not count as accepting anything. `q` is read wherever it appears in the member and its name is matched case-insensitively, which is what §12.5.1 tells recipients to do. A `q` whose value is not a `qvalue` (`q=-1`, `q=0.0001`, `q=1e-9`) is not a weight at all; the member keeps the default weight of 1, and reporting the malformed value is `accept_header_media_type_syntax`'s job.\n\n**Nothing is reported when the question has no answer.** If no member of `Accept` is a `media-range` — `Accept: *`, `Accept: not-a-media-range`, an empty value — then no preference was expressed that this rule can read, and naming the response for a defect in the request would be the wrong finding about the wrong message. Likewise if the response carries more than one `Content-Type` field line: recipients differ over which one they act on, so which media type the client actually got is unknown.\n\n**Quoting that never closes is declined too.** After a stray `\"` no separator can be trusted — the rest of the field collapses into one member — so `Accept: text/html;foo=\"x, application/json` is not reported against an `application/json` response it plainly asks for.\n\n**Known leniency: media-range parameters are ignored.** §12.5.1 lets a range carry media type parameters and makes a more specific range take precedence, so `text/plain;format=flowed` and `text/plain;format=fixed` are different preferences. This rule compares only type and subtype, which can only make it quieter — a response whose *parameters* nobody asked for goes unmentioned."
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -319,7 +328,7 @@ impl Rule for AcceptAndContentTypeNegotiation {
             }
 
             if !matched {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(ctx.report_with(&ACCEPT_IGNORED, format!(
                         "Response Content-Type '{}' does not match request Accept header '{}', consider returning 406 Not Acceptable",
                         content_type, accept
                     )));
@@ -339,6 +348,29 @@ static REGISTRATION: &dyn crate::rules::Rule = &AcceptAndContentTypeNegotiation;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// The rule's one finding and its id. `_ignored` is the ending for a
+    /// directive that was not honoured, and here the specification names not
+    /// honouring as one of two permitted answers — which is the whole reason
+    /// the entry defaults to `info` and a `406` is never reported.
+    #[test]
+    fn a_preference_the_response_did_not_honour_names_the_field() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("accept", "application/json")]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/html")]);
+        let found = crate::test_helpers::run_rule(
+            &AcceptAndContentTypeNegotiation,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "accept_and_content_type_negotiation",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "accept_ignored");
+    }
 
     #[rstest]
     #[case(Some("application/json"), Some("application/json"), 200, false)]
