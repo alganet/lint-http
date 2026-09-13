@@ -4,6 +4,25 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_security_policy::{
+    CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
+    CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN, CONTENT_SECURITY_POLICY_EMPTY,
+    CSP3_2_2, CSP3_2_3,
+};
+use crate::violations::ViolationDef;
+
+/// The policy and directive level of the field, which is what the rule reads
+/// before it reaches a source expression.
+///
+/// Three entries, ranked apart where the rule's one severity could not: a
+/// header enforcing nothing at all, a directive a user agent will not
+/// recognise and therefore not apply, and a stray semicolon in a policy that
+/// still works.
+static DECLARED: &[&ViolationDef] = &[
+    &CONTENT_SECURITY_POLICY_EMPTY,
+    &CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
+    &CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN,
+];
 
 /// Basic Content-Security-Policy validation focusing on directive name syntax,
 /// minimal value sanity checks (quoted keywords and simple hash/nonce forms),
@@ -43,14 +62,23 @@ impl ContentSecurityPolicyValid {
         &self,
         directive: &str,
         position: usize,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         if directive.is_empty() {
-            // A trailing or doubled semicolon.
-            return Some(self.violation(
-                severity,
+            // Only the first position, because only the first is unbracketed.
+            // `serialized-policy` puts every directive after the first inside
+            // an optional group, so a trailing `;`, a doubled `;;` and a `; ;`
+            // are zero-directive repetitions the production generates — the
+            // same shape a trailing `;` has in a `media-type`'s parameters.
+            // Reporting them was one of the two readings a `;` has and the
+            // wrong one.
+            if position > 0 {
+                return None;
+            }
+            return Some(ctx.report_with(
+                &CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
                 format!(
-                    "Content-Security-Policy contains empty directive at position {}",
+                    "Content-Security-Policy opens with a ';' and names no directive at position {}",
                     position
                 ),
             ));
@@ -72,8 +100,8 @@ impl ContentSecurityPolicyValid {
             .chars()
             .find(|c| !(c.is_ascii_alphanumeric() || *c == '-'))
         {
-            return Some(self.violation(
-                severity,
+            return Some(ctx.report_with(
+                &CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN,
                 format!(
                     "Invalid character {} in CSP directive-name '{}', at position {}",
                     crate::helpers::shown::describe_char(c),
@@ -83,7 +111,7 @@ impl ContentSecurityPolicyValid {
             ));
         }
 
-        parts.find_map(|source| self.source_expression_defect(source, name, severity))
+        parts.find_map(|source| self.source_expression_defect(source, name, ctx.severity))
     }
 
     /// One source expression, quoted or not.
@@ -201,8 +229,12 @@ severity = "warn"
         "Validate basic `Content-Security-Policy` syntax in responses. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow CSP's `directive-name = 1*( ALPHA / DIGIT / \"-\" )` grammar — narrower than the HTTP `token`), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).\n\nThis rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations."
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[CSP3, MDN_CONTENT_SECURITY_POLICY]
+        &[CSP3, CSP3_2_2, CSP3_2_3, MDN_CONTENT_SECURITY_POLICY]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -265,8 +297,8 @@ impl Rule for ContentSecurityPolicyValid {
                 let policy = policy.as_str();
 
                 if crate::helpers::headers::trim_ows(policy).is_empty() {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CONTENT_SECURITY_POLICY_EMPTY,
                         "Content-Security-Policy header MUST not be empty".into(),
                     ));
                 }
@@ -275,7 +307,7 @@ impl Rule for ContentSecurityPolicyValid {
                     if let Some(defect) = self.directive_defect(
                         crate::helpers::headers::trim_ows(directive),
                         position,
-                        ctx.severity,
+                        ctx,
                     ) {
                         return Some(defect);
                     }
@@ -382,24 +414,45 @@ mod tests {
         assert!(v.message.contains("Invalid character") && v.message.contains('_'));
     }
 
-    #[test]
-    fn trailing_semicolon_reports_empty_directive() {
+    /// `serialized-policy` brackets every directive after the first, so these
+    /// three are zero-directive repetitions the grammar produces. All three
+    /// were reported as an empty directive, which is one of the two readings a
+    /// `;` has and the wrong one.
+    #[rstest]
+    #[case::trailing("default-src \'self\'; ")]
+    #[case::doubled("default-src \'self\';;;script-src \'self\'")]
+    #[case::spaced("default-src \'self\'; ; script-src \'self\'")]
+    fn a_semicolon_the_grammar_brackets_is_not_a_finding(#[case] policy: &str) {
         let rule = ContentSecurityPolicyValid;
-        let cfg = make_cfg();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-security-policy", policy)]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        assert!(v.is_none(), "{policy:?}: {v:?}");
+    }
 
+    /// The one position the production does not bracket.
+    #[test]
+    fn a_policy_that_opens_with_a_semicolon_names_no_first_directive() {
+        let rule = ContentSecurityPolicyValid;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-security-policy",
-            "default-src 'self'; ",
+            "; default-src 'self'",
         )]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &make_cfg(),
         )
-        .unwrap();
-        assert!(v.message.contains("empty directive"));
+        .expect("a finding");
+        assert_eq!(v.violation, "content_security_policy_directive_empty");
     }
 
     #[test]
@@ -565,24 +618,27 @@ mod tests {
         assert!(v.message.contains("MUST not be empty"));
     }
 
-    #[test]
-    fn consecutive_semicolons_reports_empty_directive() {
+    /// The three entries this half of the rule reports, each pinned to its id.
+    #[rstest]
+    #[case::blank("", "content_security_policy_empty")]
+    #[case::leading_semicolon("; default-src 'self'", "content_security_policy_directive_empty")]
+    #[case::underscore(
+        "default_src 'self'",
+        "content_security_policy_directive_name_character_forbidden"
+    )]
+    fn the_policy_level_findings_name_their_entries(#[case] policy: &str, #[case] id: &str) {
         let rule = ContentSecurityPolicyValid;
-        let cfg = make_cfg();
-
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
-            "content-security-policy",
-            "default-src 'self';;;script-src 'self'",
-        )]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-security-policy", policy)]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &make_cfg(),
         )
-        .unwrap();
-        assert!(v.message.contains("empty directive"));
+        .expect("a finding");
+        assert_eq!(v.violation, id, "{policy:?}");
     }
 
     #[test]
