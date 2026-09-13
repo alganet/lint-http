@@ -4,6 +4,28 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::digest_credentials::{
+    DIGEST_CREDENTIALS_CHALLENGE_MISSING, DIGEST_CREDENTIALS_NC_INVALID,
+    DIGEST_CREDENTIALS_NC_MALFORMED, DIGEST_CREDENTIALS_OPAQUE_CONFLICTING, RFC_7616_3_3,
+    RFC_7616_3_4, RFC_7616_3_5,
+};
+use crate::violations::ViolationDef;
+
+/// Four entries, all `digest_credentials`', and the ranking is what the rule's
+/// one severity could not draw.
+///
+/// An `opaque` returned changed and an `opaque` not returned at all are one
+/// entry, because § 3.4 says the value *must be* the one the challenge
+/// supplied and both fail that equally; the count that did not increase and
+/// the one that did not restart after a `stale` challenge are one for the same
+/// kind of reason. Below all of them sits the nonce this observer never saw
+/// offered, which is a heuristic and says so.
+static DECLARED: &[&ViolationDef] = &[
+    &DIGEST_CREDENTIALS_CHALLENGE_MISSING,
+    &DIGEST_CREDENTIALS_OPAQUE_CONFLICTING,
+    &DIGEST_CREDENTIALS_NC_MALFORMED,
+    &DIGEST_CREDENTIALS_NC_INVALID,
+];
 
 /// Stateful tracking of Digest authentication nonce/opaque lifecycle.
 ///
@@ -116,23 +138,6 @@ fn highest_nc_for_nonce(
 
 pub struct DigestAuthNonceHandling;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_7616_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7616",
-    section: Some("3.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3",
-    note:
-        "The WWW-Authenticate Response Header Field — the server challenge (nonce, opaque, stale)",
-};
-const RFC_7616_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7616",
-    section: Some("3.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
-    note: "The Authorization Header Field — the client response parameters (nonce, nc, opaque)",
-};
-
 impl RuleMeta for DigestAuthNonceHandling {
     fn id(&self) -> &'static str {
         "digest_auth_nonce_handling"
@@ -149,7 +154,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7616_3_3, RFC_7616_3_4]
+        &[RFC_7616_3_3, RFC_7616_3_4, RFC_7616_3_5]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -236,8 +245,8 @@ impl Rule for DigestAuthNonceHandling {
 
                 // 1. nonce must have been offered in a challenge
                 if nonce.is_some() && last_challenge_nonce.is_none() {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &DIGEST_CREDENTIALS_CHALLENGE_MISSING,
                         "Digest Authorization used without prior Digest challenge".into(),
                     ));
                 }
@@ -250,9 +259,8 @@ impl Rule for DigestAuthNonceHandling {
                 {
                     if o != expected {
                         return Some(
-                            self.cited(
-                                &RFC_7616_3_3,
-                                ctx.severity,
+                            ctx.report_with(
+                                &DIGEST_CREDENTIALS_OPAQUE_CONFLICTING,
                                 "Digest Authorization opaque does not match most recent challenge"
                                     .into(),
                             ),
@@ -260,8 +268,8 @@ impl Rule for DigestAuthNonceHandling {
                     }
                 } else if opaque.is_none() && last_challenge_opaque.is_some() {
                     // Challenge included opaque, but client omitted it
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &DIGEST_CREDENTIALS_OPAQUE_CONFLICTING,
                         "Digest Authorization missing opaque from most recent challenge".into(),
                     ));
                 }
@@ -273,8 +281,8 @@ impl Rule for DigestAuthNonceHandling {
                     (nonce.as_ref(), last_challenge_nonce.as_ref())
                 {
                     if n != expected {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &DIGEST_CREDENTIALS_CHALLENGE_MISSING,
                             "Digest Authorization nonce differs from most recent challenge".into(),
                         ));
                     }
@@ -285,8 +293,8 @@ impl Rule for DigestAuthNonceHandling {
                     let current_nc = match crate::helpers::auth::parse_nc_hex(nc_val) {
                         Ok(v) => v,
                         Err(msg) => {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                &DIGEST_CREDENTIALS_NC_MALFORMED,
                                 format!("Invalid nc (nonce-count) value: {}", msg),
                             ));
                         }
@@ -302,10 +310,9 @@ impl Rule for DigestAuthNonceHandling {
                     // signature of a replay, which nc exists to let the server detect.
                     // cite(RFC 7616 § 3.4): "if the same nc value is seen twice, then the request is a replay."
                     if current_nc <= highest {
-                        return Some(self.cited(
-                            &RFC_7616_3_4,
-                            ctx.severity,
-                            "Digest Authorization nonce-count did not increase".into(),
+                        return Some(ctx.report_with(
+                            &DIGEST_CREDENTIALS_NC_INVALID,
+                            "Digest Authorization nonce-count did not increase, which RFC 7616 \u{a7}3.4 names as the signature of a replay".into(),
                         ));
                     }
 
@@ -319,7 +326,7 @@ impl Rule for DigestAuthNonceHandling {
                         && highest == 0
                         && current_nc != 1
                     {
-                        return Some(self.cited(&RFC_7616_3_3, ctx.severity, "Digest Authorization with new nonce after stale challenge must reset nc to 00000001".into()));
+                        return Some(ctx.report_with(&DIGEST_CREDENTIALS_NC_INVALID, "Digest Authorization with new nonce after a RFC 7616 \u{a7}3.3 stale challenge must reset nc to 00000001".into()));
                     }
                 }
             }
@@ -384,6 +391,69 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("authorization", auth)]);
         tx
+    }
+
+    /// Every finding this rule makes and the id it draws. The two `opaque`
+    /// rows and the two `nc` rows are the commit's argument: § 3.4 says the
+    /// `opaque` must *be* the challenge's, which an omission fails as squarely
+    /// as a change, and a count that did not increase and one that did not
+    /// restart are both the count not being the number the exchange calls for.
+    #[test]
+    fn each_finding_names_its_entry() {
+        use crate::transaction_history::TransactionHistory;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "digest_auth_nonce_handling",
+        ]);
+        let nonce = random_nonce();
+        let other = random_nonce();
+
+        let judge = |history: Vec<crate::http_transaction::HttpTransaction>, auth: &str| {
+            crate::test_helpers::run_rule(
+                &DigestAuthNonceHandling,
+                &tx_req_with_auth(auth),
+                &TransactionHistory::from_transactions(history),
+                &cfg,
+            )
+        };
+
+        // No challenge at all, and a challenge naming a different nonce: one
+        // claim, one id — this exchange cannot account for the nonce.
+        for history in [
+            vec![],
+            vec![tx_resp_with_challenge(&make_challenge(&other, None, None))],
+        ] {
+            let found =
+                judge(history, &make_auth(&nonce, Some("00000001"), None)).expect("a finding");
+            assert_eq!(found.violation, "digest_credentials_challenge_missing");
+        }
+
+        // An opaque changed, and an opaque dropped.
+        let challenge = vec![tx_resp_with_challenge(&make_challenge(
+            &nonce,
+            Some("o"),
+            None,
+        ))];
+        for auth in [
+            make_auth(&nonce, Some("00000001"), Some("other")),
+            make_auth(&nonce, Some("00000001"), None),
+        ] {
+            let found = judge(challenge.clone(), &auth).expect("a finding");
+            assert_eq!(found.violation, "digest_credentials_opaque_conflicting");
+        }
+
+        // A count that is not eight hexadecimal digits.
+        let challenge = vec![tx_resp_with_challenge(&make_challenge(&nonce, None, None))];
+        let found = judge(challenge, &make_auth(&nonce, Some("1"), None)).expect("a finding");
+        assert_eq!(found.violation, "digest_credentials_nc_malformed");
+
+        // A count that did not restart after a stale challenge.
+        let stale = vec![tx_resp_with_challenge(&make_challenge(
+            &nonce,
+            None,
+            Some("true"),
+        ))];
+        let found = judge(stale, &make_auth(&nonce, Some("00000004"), None)).expect("a finding");
+        assert_eq!(found.violation, "digest_credentials_nc_invalid");
     }
 
     #[test]

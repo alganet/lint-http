@@ -1539,6 +1539,22 @@ severity = "warn"
 # A time in seconds is stated with no digits
 severity = "warn"
 
+[violations.digest_credentials_challenge_missing]
+# Digest credentials name a nonce no observed challenge offered
+severity = "info"
+
+[violations.digest_credentials_nc_invalid]
+# A Digest nonce-count is not the number the exchange calls for
+severity = "warn"
+
+[violations.digest_credentials_nc_malformed]
+# A Digest nonce-count is not eight hexadecimal digits
+severity = "warn"
+
+[violations.digest_credentials_opaque_conflicting]
+# Digest credentials do not return the opaque the challenge supplied
+severity = "warn"
+
 [violations.digest_credentials_parameter_empty]
 # A required Digest parameter is written with nothing in it
 severity = "warn"
