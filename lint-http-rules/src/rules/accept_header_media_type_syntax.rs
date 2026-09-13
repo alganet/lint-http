@@ -7,6 +7,9 @@ use crate::helpers::parameter::ParameterDefect;
 use crate::helpers::word::WordDefect;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::media_range::{
+    MEDIA_RANGE_PARAMETER_FORBIDDEN, MEDIA_RANGE_WILDCARD_INVALID, RFC_9110_12_5_1,
+};
 use crate::violations::media_type::{
     media_type_error, MEDIA_TYPE_EMPTY, MEDIA_TYPE_MALFORMED, RFC_9110_8_3_1,
 };
@@ -40,17 +43,20 @@ pub struct AcceptHeaderMediaTypeSyntax;
 /// the character in `Accept: text/pl@in` draws the same one as the character in
 /// `Content-Type: text/pl@in`.
 ///
-/// What stays on the older API is what only this field can say: an empty
-/// media-range, whitespace inside one, a `/` that is missing, a bare `*`, a
-/// wildcard type beside a concrete subtype, and a parameter written after the
-/// weight. Those are § 12.5.1's, and that section has no subject yet.
+/// What only this field can say is two things, and they are
+/// [`media_range`](crate::violations::media_range)'s: an asterisk written where
+/// the wider production gives it no meaning, and a parameter written past the
+/// point where a member ends. Everything else about a member — failing to be a
+/// `type "/" subtype` pair, a mangled octet, a parameter with no `=`, an
+/// unterminated quote — is a question `Content-Type` asks of the same readers
+/// and answers with the same ids.
 ///
-/// **The `q` is the exception on both counts**, and it is the one place in the
-/// member walk where the parameter's *name* decides which document a defect
-/// answers to. A `q` is not a parameter of the media-range: it is the member's
-/// `weight`, so its number is `qvalue`'s defect and whitespace beside its `=`
-/// is `weight`'s — while the same whitespace beside a `charset=` is § 5.6.6's,
-/// which this rule and five others tolerate on the record.
+/// **The `q` is the exception**, and it is the one place in the member walk
+/// where the parameter's *name* decides which document a defect answers to. A
+/// `q` is not a parameter of the media-range: it is the member's `weight`, so
+/// its number is `qvalue`'s defect and whitespace beside its `=` is `weight`'s
+/// — while the same whitespace beside a `charset=` is § 5.6.6's, which this
+/// rule and five others tolerate on the record.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -65,17 +71,13 @@ static DECLARED: &[&ViolationDef] = &[
     &WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
     &MEDIA_TYPE_EMPTY,
     &MEDIA_TYPE_MALFORMED,
+    &MEDIA_RANGE_WILDCARD_INVALID,
+    &MEDIA_RANGE_PARAMETER_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.5.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
-    note: "Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, the removal of the extension parameters that once followed the weight, and the meaning of an Accept sent in a response",
-};
 const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.6.1.2"),
@@ -99,7 +101,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`). The second of those is a judgement about the prose rather than a reading of the ABNF: `type` is a `token` and `*` is a `tchar`, so `*/json` does derive from `type \"/\" subtype`. But §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `content_type_valid` takes the same position on the same shape in `Content-Type`.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Whitespace inside a media-range is reported**, as the `token` defect it is. The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and the shared reader hands back the two halves exactly as written, so the space arrives inside the `type` and the character scan names it. This rule used to run a whitespace check of its own in front of the parse, from when that reader trimmed each half and the space vanished before anything could see it.\n\n**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `\"q=\"` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do."
+        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`) — but for different reasons, and only the second is about the asterisk. A `*` holds no `/`, so it is no `type/subtype` pair at all and is refused for the same reason `text` is. `*/json` *does* derive: `type` is a `token` and `*` is a `tchar`, so the ABNF produces it. What refuses it is that §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `content_type_valid` takes a stronger position on the same character, because a `Content-Type` states *the* media type of a representation and any wildcard there names nothing.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Whitespace inside a media-range is reported**, as the `token` defect it is. The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and the shared reader hands back the two halves exactly as written, so the space arrives inside the `type` and the character scan names it. This rule used to run a whitespace check of its own in front of the parse, from when that reader trimmed each half and the space vanished before anything could see it.\n\n**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `\"q=\"` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -231,18 +233,15 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
                     let media = crate::helpers::headers::trim_ows(parts.next().unwrap_or(""));
 
-                    // Three shapes, and a bare asterisk is none of them. The
-                    // asterisk stands for a whole type or a whole subtype; on its
-                    // own it names neither side of a pair the grammar requires.
+                    // A bare asterisk is none of the three shapes, and it needs
+                    // no branch of its own to say so: it holds no `/`, so the
+                    // reader below refuses it for the same arithmetic reason it
+                    // refuses `text`, and the message quotes the value back. It
+                    // had one, reporting "invalid media-range" under §12.5.1's
+                    // sentence about what the asterisk ranges over — which
+                    // explains what `*` would have meant somewhere else rather
+                    // than what is wrong with it here.
                     // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
-                    // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
-                    if media == "*" {
-                        return Some(self.cited(
-                            &RFC_9110_12_5_1,
-                            ctx.severity,
-                            format!("Invalid media-range '*' in {} header", hdr),
-                        ));
-                    }
 
                     if media != "*/*" {
                         // The three ways a value is no `type "/" subtype` pair
@@ -315,7 +314,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // `content_type_valid` takes the same
                             // position on the same shape in Content-Type.
                             if parsed.type_ == "*" {
-                                return Some(self.violation(ctx.severity, format!(
+                                return Some(ctx.report_with(&MEDIA_RANGE_WILDCARD_INVALID, format!(
                                         "Invalid media-range '{}' in {} header: a wildcard type is only meaningful with a wildcard subtype ('*/*'), since the asterisk names all media types or all subtypes of one type and nothing else",
                                         media, hdr
                                     )));
@@ -352,7 +351,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // cite(RFC 9110 § 12.5.1): "The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields."
                         // cite(RFC 9110 § 12.5.1): "Senders using weights SHOULD send "q" last (after all media-range parameters)."
                         if weight_seen {
-                            return Some(self.cited(&RFC_9110_12_5_1, ctx.severity, format!(
+                            return Some(ctx.report_with(&MEDIA_RANGE_PARAMETER_FORBIDDEN, format!(
                                     "Parameter '{}' follows the weight in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
                                     p, hdr
                                 )));
@@ -612,6 +611,40 @@ mod tests {
         )
         .expect("a finding about the Content-Type");
         assert_eq!(field.violation, id, "Content-Type: {value}");
+    }
+
+    /// The two findings that are this field's own, and the one that stopped
+    /// being. `*` looks like the wildcard's defect and is not: it holds no `/`,
+    /// so it fails the pair the same way `text` does — while `*/json` derives
+    /// from the ABNF perfectly well and fails a sentence instead. Splitting the
+    /// first on what the sender probably meant would be a guess with an id on
+    /// it.
+    #[rstest]
+    #[case("*", "media_type_malformed")]
+    #[case("*/json", "media_range_wildcard_invalid")]
+    #[case("*/*", "")]
+    #[case("text/*", "")]
+    #[case("text/html;q=0.5;charset=utf-8", "media_range_parameter_forbidden")]
+    #[case("text/html;charset=utf-8;q=0.5", "")]
+    fn the_asterisks_two_positions_and_the_parameter_past_the_weight(
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
+        let rule = AcceptHeaderMediaTypeSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[("accept", value)]);
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "accept_header_media_type_syntax",
+                "warn",
+            ),
+        );
+        match expected {
+            "" => assert!(found.is_none(), "{value}: {found:?}"),
+            id => assert_eq!(found.expect("a finding").violation, id, "{value}"),
+        }
     }
 
     /// The four ways a member fails to be a `type "/" subtype` pair at all, and

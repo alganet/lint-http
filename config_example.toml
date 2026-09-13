@@ -1755,6 +1755,14 @@ severity = "warn"
 # Mailbox is followed by something else
 severity = "warn"
 
+[violations.media_range_parameter_forbidden]
+# Accept member writes a parameter after the weight
+severity = "warn"
+
+[violations.media_range_wildcard_invalid]
+# A wildcard type is written beside a concrete subtype
+severity = "warn"
+
 [violations.media_type_empty]
 # Media type is written with nothing in it
 severity = "warn"
