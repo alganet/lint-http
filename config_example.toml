@@ -1459,6 +1459,22 @@ severity = "warn"
 # A time in seconds is stated with no digits
 severity = "warn"
 
+[violations.digest_preference_invalid]
+# Want-Digest preference is outside the range 0 to 10
+severity = "info"
+
+[violations.digest_preference_malformed]
+# Want-Digest preference is not an Integer
+severity = "warn"
+
+[violations.digest_value_empty]
+# Digest field member carries no digest
+severity = "warn"
+
+[violations.digest_value_malformed]
+# Digest field member's value is not a Byte Sequence
+severity = "warn"
+
 [violations.domain_label_character_forbidden]
 # Domain label holds a character outside letters, digits and hyphen
 severity = "warn"
