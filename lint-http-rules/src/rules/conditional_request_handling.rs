@@ -4,7 +4,9 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::conditional::CONDITIONAL_VALIDATOR_MISSING;
 use crate::violations::etag::RFC_9110_8_8_3;
+use crate::violations::ViolationDef;
 
 /// Stateful checks for conditional requests and their responses.
 ///
@@ -107,22 +109,22 @@ impl ConditionalRequestHandling {
         &self,
         sent: &Preconditions,
         history: &crate::transaction_history::TransactionHistory,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let Some(prev) = history.previous() else {
-            return Some(self.violation(severity, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()));
+            return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_MISSING, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()));
         };
         let Some(resp) = &prev.response else {
-            return Some(self.violation(
-                severity,
+            return Some(ctx.report_with(
+                &CONDITIONAL_VALIDATOR_MISSING,
                 "Conditional request sent but previous transaction has no response recorded".into(),
             ));
         };
         if sent.entity_tag() && !resp.headers.contains_key("etag") {
-            return Some(self.violation(severity, "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into()));
+            return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_MISSING, "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into()));
         }
         if sent.date() && !resp.headers.contains_key("last-modified") {
-            return Some(self.violation(severity, "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into()));
+            return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_MISSING, "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into()));
         }
         None
     }
@@ -184,6 +186,16 @@ impl ConditionalRequestHandling {
     }
 }
 
+/// The heuristic half of this rule, and the only entry it declares that no
+/// sentence supports.
+///
+/// A precondition built from a validator this exchange never provided is a
+/// stateful guess — legitimate explanations exist for every one of the four
+/// situations it covers — so the entry names no section and defaults to `info`.
+/// The rest of what this rule reports is a *status code* answering a false
+/// precondition, which belongs to the `status` subject.
+static DECLARED: &[&ViolationDef] = &[&CONDITIONAL_VALIDATOR_MISSING];
+
 impl RuleMeta for ConditionalRequestHandling {
     fn id(&self) -> &'static str {
         "conditional_request_handling"
@@ -197,6 +209,10 @@ severity = "warn"
 
     fn description(&self) -> &'static str {
         "Warn when conditional requests are used without a prior validator (ETag / Last-Modified) observed for the same resource and client. Also flag obvious cases where a server returns a `200` for a conditional `GET`/`HEAD` when the validator clearly matches (the server should return `304 Not Modified`)."
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -250,7 +266,7 @@ impl Rule for ConditionalRequestHandling {
             if !sent.any() {
                 return None;
             }
-            self.validator_was_observed(&sent, history, ctx.severity)
+            self.validator_was_observed(&sent, history, ctx)
                 .or_else(|| self.if_none_match_was_evaluated(tx, &sent, ctx.severity))
                 .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx.severity))
         };
@@ -272,6 +288,39 @@ mod tests {
         let mut prev = crate::test_helpers::make_test_transaction_with_response(200, headers);
         prev.request.method = "GET".to_string();
         prev
+    }
+
+    /// Four situations, one entry, because the claim is the same in all four:
+    /// the precondition names a validator this exchange cannot account for.
+    /// Two of them are about what the proxy observed and two about what the
+    /// server sent, and the message is where that difference belongs.
+    #[test]
+    fn every_unaccountable_validator_draws_one_id() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "conditional_request_handling",
+        ]);
+
+        // Nothing stored at all.
+        let found = crate::test_helpers::run_rule(
+            &ConditionalRequestHandling,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "conditional_validator_missing");
+
+        // A stored response that carried no ETag for the tag conditional to
+        // have come from.
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            make_prev_with_headers(&[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")]),
+        ]);
+        let found = crate::test_helpers::run_rule(&ConditionalRequestHandling, &tx, &history, &cfg)
+            .expect("a finding");
+        assert_eq!(found.violation, "conditional_validator_missing");
     }
 
     #[test]
