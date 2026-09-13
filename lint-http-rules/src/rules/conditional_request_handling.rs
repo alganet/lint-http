@@ -4,8 +4,9 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::conditional::CONDITIONAL_VALIDATOR_MISSING;
+use crate::violations::conditional::{CONDITIONAL_VALIDATOR_MISSING, RFC_9110_13_1_3};
 use crate::violations::etag::RFC_9110_8_8_3;
+use crate::violations::status::{RFC_9110_13_1_2, STATUS_304_MISSING};
 use crate::violations::ViolationDef;
 
 /// Stateful checks for conditional requests and their responses.
@@ -25,18 +26,6 @@ const RFC_9110_13_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("13.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
     note: "Preconditions",
-};
-const RFC_9110_13_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("13.1.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
-    note: "If-None-Match: GET/HEAD with a false condition MUST get 304",
-};
-const RFC_9110_13_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("13.1.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
-    note: "If-Modified-Since: a false condition SHOULD get 304",
 };
 const RFC_9110_13_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -140,7 +129,7 @@ impl ConditionalRequestHandling {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         sent: &Preconditions,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         if !sent.if_none_match || !is_get_or_head(&tx.request.method) {
             return None;
@@ -155,7 +144,7 @@ impl ConditionalRequestHandling {
                 .flat_map(crate::helpers::list::list_members)
                 .any(|member| member == etag || member == "*");
 
-        condition_was_false.then(|| self.violation(severity, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 §13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()))
+        condition_was_false.then(|| ctx.report_with(&STATUS_304_MISSING, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 \u{a7}13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()))
     }
 
     /// A GET or HEAD whose `If-Modified-Since` condition is false should be
@@ -170,7 +159,7 @@ impl ConditionalRequestHandling {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         sent: &Preconditions,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         if !sent.if_modified_since || sent.if_none_match || !is_get_or_head(&tx.request.method) {
             return None;
@@ -182,7 +171,7 @@ impl ConditionalRequestHandling {
         let since = crate::http_date::header_timestamp(&tx.request.headers, "if-modified-since")?;
         let last_modified = crate::http_date::header_timestamp(&resp.headers, "last-modified")?;
 
-        (last_modified <= since).then(|| self.violation(severity, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; consider returning 304 Not Modified".into()))
+        (last_modified <= since).then(|| ctx.report_with(&STATUS_304_MISSING, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; RFC 9110 \u{a7}13.1.3 says such a response SHOULD be a 304 (Not Modified)".into()))
     }
 }
 
@@ -193,8 +182,9 @@ impl ConditionalRequestHandling {
 /// stateful guess — legitimate explanations exist for every one of the four
 /// situations it covers — so the entry names no section and defaults to `info`.
 /// The rest of what this rule reports is a *status code* answering a false
-/// precondition, which belongs to the `status` subject.
-static DECLARED: &[&ViolationDef] = &[&CONDITIONAL_VALIDATOR_MISSING];
+/// precondition, which is the `status` subject's: the defect is that a `200`
+/// was sent, and it is read out of two messages the way every entry there is.
+static DECLARED: &[&ViolationDef] = &[&CONDITIONAL_VALIDATOR_MISSING, &STATUS_304_MISSING];
 
 impl RuleMeta for ConditionalRequestHandling {
     fn id(&self) -> &'static str {
@@ -267,8 +257,8 @@ impl Rule for ConditionalRequestHandling {
                 return None;
             }
             self.validator_was_observed(&sent, history, ctx)
-                .or_else(|| self.if_none_match_was_evaluated(tx, &sent, ctx.severity))
-                .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx.severity))
+                .or_else(|| self.if_none_match_was_evaluated(tx, &sent, ctx))
+                .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx))
         };
         Vec::from_iter(finding())
     }
@@ -501,8 +491,11 @@ mod tests {
                 "conditional_request_handling",
             ]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("consider returning 304"));
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "status_304_missing");
+        // The entry names two sections and governs by neither, so the message
+        // carries the one it was read from.
+        assert!(v.message.contains("\u{a7}13.1.3"), "{}", v.message);
     }
 
     #[test]
