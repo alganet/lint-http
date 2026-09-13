@@ -4,6 +4,8 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::auth_param::AUTH_PARAM_EQUALS_MISSING;
+use crate::violations::auth_scheme::RFC_9110_11_2;
 use crate::violations::list::{auth_param_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -42,6 +44,7 @@ pub struct DigestAuthValid;
 /// sentence, and `parameter_equals_missing` carries § 5.6.6's about a
 /// production with no `BWS` in it.
 static DECLARED: &[&ViolationDef] = &[
+    &AUTH_PARAM_EQUALS_MISSING,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -87,6 +90,7 @@ severity = "warn"
         &[
             RFC_7616_3_4,
             RFC_2617_3_2_2,
+            RFC_9110_11_2,
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
@@ -315,19 +319,16 @@ impl Rule for DigestAuthValid {
                             }
                         }
                     }
-                    // The reader is typed now, so three of its four
-                    // verdicts arrive with a name: an empty member is
-                    // the list's, an empty name and a bad character are
-                    // the `token`'s. The fourth — a member with no `=`
-                    // — is § 11.2's own sentence about `auth-param`,
-                    // and § 5.6.6's `parameter` does not answer for it.
+                    // The reader is typed and its mapping is total: an empty
+                    // member is the list's, an empty name and a bad character
+                    // are the `token`'s, and a member with no `=` is
+                    // `auth-param`'s own — § 11.2's sentence rather than
+                    // § 5.6.6's, which describes a construct with no `BWS` in
+                    // it.
                     Err(defect) => {
                         let message =
                             format!("Invalid Digest auth parameters: {}", defect.message());
-                        return Some(match auth_param_member(defect) {
-                            Some(def) => ctx.report_with(def, message),
-                            None => self.violation(ctx.severity, message),
-                        });
+                        return Some(ctx.report_with(auth_param_member(defect), message));
                     }
                 }
             }
@@ -432,9 +433,11 @@ mod tests {
         Ok(())
     }
 
-    /// The three findings that are the `auth-param`'s grammar and not Digest's,
+    /// The four findings that are the `auth-param`'s grammar and not Digest's,
     /// with the ids they now carry — and the four that stay RFC 7616's, at the
-    /// rule's own severity.
+    /// rule's own severity. The fourth arrived last: a member with no `=` had
+    /// no id for as long as the only candidate carried § 5.6.6's production,
+    /// which prints no `BWS` where this one does.
     #[rstest]
     // A bad *name* is answered by the reader rather than by this rule's own
     // check -- `parse_auth_params` measures it two lines earlier -- and since
@@ -445,7 +448,7 @@ mod tests {
     )]
     #[case::empty_member("Digest username=\"u\", , realm=\"r\"", "list_member_empty")]
     #[case::empty_name("Digest =abc, realm=\"r\"", "token_empty")]
-    #[case::value_missing("Digest username, realm=\"r\"", "")]
+    #[case::value_missing("Digest username, realm=\"r\"", "auth_param_equals_missing")]
     #[case::value_character("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", algorithm=M@D5", "token_character_forbidden")]
     #[case::unterminated_quote(
         "Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", opaque=\"abc",

@@ -36,6 +36,7 @@ pub mod accept_patch;
 pub mod accept_ranges;
 pub mod alpn;
 pub mod alt_svc;
+pub mod auth_param;
 pub mod auth_scheme;
 pub mod authority;
 pub mod base64;
@@ -461,7 +462,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 311;
+        const FLOOR: usize = 312;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
