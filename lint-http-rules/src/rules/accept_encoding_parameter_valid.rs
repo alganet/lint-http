@@ -5,7 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::qvalue::{
-    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_MALFORMED, WEIGHT_MISSING,
+    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
+    WEIGHT_MALFORMED, WEIGHT_MISSING,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
@@ -38,7 +39,10 @@ pub struct AcceptEncodingParameterValid;
 /// `content-coding` is a `token`, `identity` is one, and `*` is a single
 /// `tchar`. So an empty primary derives from none of them for the arithmetic
 /// reason `token_empty` already names, and the rule declares nothing of its own
-/// at all.
+/// at all. `weight_equals_whitespace_forbidden` is the same borrowing one step
+/// further out: the spelling of the weight rather than the shape of the member,
+/// and this field's `description()` called it a known leniency while
+/// `te_header_valid` reported it against the identical production.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -47,6 +51,7 @@ static DECLARED: &[&ViolationDef] = &[
     &WEIGHT_MISSING,
     &WEIGHT_MALFORMED,
     &WEIGHT_DUPLICATED,
+    &WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -87,7 +92,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.\n\n**The value is read as the octets the sender wrote**, and each is reported by the production it landed in. There are no quoted-strings in this field — a member is a `token`, one of two literals, and the weight's fixed text — so no octet outside visible US-ASCII is legal anywhere in it: one in a coding name is the `token`'s defect, one in a weight fails the `q` name or the `qvalue`. Refusing to decode the line named the octet and put every other defect written beside it out of reach."
+        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**Whitespace beside the weight's `=` is reported.** The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, and both `OWS` it prints stand before that literal — so there is no room in it for the space at all, and `gzip;q =0.5` is characters the construct does not generate rather than whitespace a recipient parses out. The value is still trimmed before the number is read, because that is what a recipient does; reporting it is what the *sender* is told.\n\n**The value is read as the octets the sender wrote**, and each is reported by the production it landed in. There are no quoted-strings in this field — a member is a `token`, one of two literals, and the weight's fixed text — so no octet outside visible US-ASCII is legal anywhere in it: one in a coding name is the `token`'s defect, one in a weight fails the `q` name or the `qvalue`. Refusing to decode the line named the octet and put every other defect written beside it out of reach."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -298,10 +303,20 @@ impl Rule for AcceptEncodingParameterValid {
                                 // and %x85, which are `obs-text` — an octet
                                 // this field admits nowhere, and one the checks
                                 // below would then never see.
-                                let mut nv =
-                                    param.splitn(2, '=').map(crate::helpers::headers::trim_ows);
-                                let name = nv.next().unwrap();
-                                let val = nv.next();
+                                let mut nv = param.splitn(2, '=');
+                                let raw_name = nv.next().unwrap();
+                                let raw_value = nv.next();
+                                let name = crate::helpers::headers::trim_ows(raw_name);
+                                let val = raw_value.map(crate::helpers::headers::trim_ows);
+                                // Trimming is what a recipient does to find the
+                                // weight; whether a sender may write the
+                                // whitespace is a separate question, and the
+                                // production answers it. Both `OWS` it prints
+                                // stand before `"q="`, which is one string
+                                // literal with nothing optional inside it.
+                                let whitespace_beside_equals = name.len() != raw_name.len()
+                                    || raw_value
+                                        .is_some_and(|v| val.is_some_and(|t| t.len() != v.len()));
 
                                 if !name.eq_ignore_ascii_case("q") {
                                     return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
@@ -324,6 +339,18 @@ impl Rule for AcceptEncodingParameterValid {
                                     ));
                                 }
                                 weight_seen = true;
+
+                                // Not
+                                // `parameter_equals_whitespace_forbidden`: that
+                                // entry answers § 5.6.6's Note about a
+                                // `parameter`, and this field has no parameter
+                                // list for the Note to be about.
+                                if whitespace_beside_equals {
+                                    return Some(ctx.report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                        "Accept-Encoding member '{}' writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
+                                        part
+                                    )));
+                                }
 
                                 // The name matched and the `=` did not, which is
                                 // one literal short of a weight rather than a
