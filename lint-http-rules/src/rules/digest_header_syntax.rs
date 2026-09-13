@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::base64::{BASE64_MALFORMED, RFC_4648_3_3};
+use crate::violations::digest::{
+    DIGEST_PREFERENCE_INVALID, DIGEST_PREFERENCE_MALFORMED, DIGEST_VALUE_EMPTY,
+    DIGEST_VALUE_MALFORMED, RFC_9530_2, RFC_9530_4,
+};
 use crate::violations::structured_fields::{RFC_9651_4_2_3_3, STRUCTURED_FIELD_KEY_MALFORMED};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
@@ -14,8 +19,8 @@ use base64::Engine;
 
 pub struct DigestHeaderSyntax;
 
-/// Three defects, two of them the one production the *legacy* half of this rule
-/// borrows and one the production the structured half is written in.
+/// Nine defects, four of them productions this rule borrows and five statements
+/// the two digest documents make about their own members.
 ///
 /// RFC 3230 § 4.1.1 writes `digest-algorithm = token` and takes `token` from
 /// RFC 2616, whose character set is § 5.6.2's — the fourth reading of that
@@ -35,6 +40,14 @@ pub struct DigestHeaderSyntax;
 /// shared by construction, the way `token` is, and one whose second declarer is
 /// already visible in `permissions_policy_directives_valid`.
 ///
+/// **The value half of a member is a subject now**, and it is one subject over
+/// both generations: what a `Digest` and a `Content-Digest` carry is the same
+/// thing — an algorithm and the digest it produced — so a member with no digest
+/// in it is one entry whichever field wrote it, and the encoding under both is
+/// [`base64`](crate::violations::base64)'s. What differs is the type the
+/// document gives the value, which is why the Byte Sequence and the preference
+/// entries name RFC 9530's sections and the empty one names nothing.
+///
 /// **The empty member is refused on both halves, for two different reasons.**
 /// On the legacy side the list is RFC 2616's `#rule`, which *permits* null
 /// elements — the judgment `Sec-WebSocket-Extensions` settled — so
@@ -42,6 +55,11 @@ pub struct DigestHeaderSyntax;
 /// the structured side there is no `#rule` at all. Both findings are this
 /// rule's own strictness and stay at its severity.
 static DECLARED: &[&ViolationDef] = &[
+    &DIGEST_VALUE_MALFORMED,
+    &DIGEST_VALUE_EMPTY,
+    &DIGEST_PREFERENCE_MALFORMED,
+    &DIGEST_PREFERENCE_INVALID,
+    &BASE64_MALFORMED,
     &STRUCTURED_FIELD_KEY_MALFORMED,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -85,24 +103,11 @@ impl Defect {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9530_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9530",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
-    note:
-        "`Content-Digest`: a Dictionary keyed by hashing algorithm whose values are Byte Sequences",
-};
 const RFC_9530_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9530",
     section: Some("3"),
     url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-3",
     note: "`Repr-Digest`: the same syntax over representation data rather than message content",
-};
-const RFC_9530_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9530",
-    section: Some("4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-4",
-    note: "`Want-Content-Digest` / `Want-Repr-Digest`: a Dictionary whose values are Integers in the range 0 to 10 inclusive",
 };
 const RFC_3230_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 3230",
@@ -389,10 +394,10 @@ fn legacy_digest_defect(value: &str) -> Option<Defect> {
 
     for (algorithm, encoded) in members {
         if encoded.is_empty() {
-            return Some(Defect::unnamed(format!(
-                "Digest member '{}' has empty value",
-                algorithm
-            )));
+            return Some(Defect::named(
+                &DIGEST_VALUE_EMPTY,
+                format!("Digest member '{}' has empty value", algorithm),
+            ));
         }
 
         // The algorithm is a token. RFC 3230 also makes it case-insensitive,
@@ -407,14 +412,19 @@ fn legacy_digest_defect(value: &str) -> Option<Defect> {
             ));
         }
 
+        // Neither document restates a character of the encoding, so a value
+        // that does not decode is the same defect wherever it was carried.
         if base64::engine::general_purpose::STANDARD
             .decode(&encoded)
             .is_err()
         {
-            return Some(Defect::unnamed(format!(
-                "Digest value for algorithm '{}' is not valid base64",
-                algorithm
-            )));
+            return Some(Defect::named(
+                &BASE64_MALFORMED,
+                format!(
+                    "Digest value for algorithm '{}' is not valid base64",
+                    algorithm
+                ),
+            ));
         }
     }
     None
@@ -457,10 +467,13 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
         // same rule).
         // cite(RFC 9530 § 2): "value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation."
         if !crate::helpers::structured_fields::is_byte_sequence(&encoded) {
-            return Some(Defect::unnamed(format!(
-                "Digest member '{}={}' value must be a byte sequence like ':b64:'",
-                algorithm, encoded
-            )));
+            return Some(Defect::named(
+                &DIGEST_VALUE_MALFORMED,
+                format!(
+                    "Digest member '{}={}' value must be a byte sequence like ':b64:'",
+                    algorithm, encoded
+                ),
+            ));
         }
 
         // Two deliberate strictnesses beyond the grammar, neither of which the
@@ -472,19 +485,22 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
         // accepted there.
         let inner = &encoded[1..encoded.len() - 1];
         if inner.is_empty() {
-            return Some(Defect::unnamed(format!(
-                "Digest member '{}' has empty byte sequence",
-                algorithm
-            )));
+            return Some(Defect::named(
+                &DIGEST_VALUE_EMPTY,
+                format!("Digest member '{}' has empty byte sequence", algorithm),
+            ));
         }
         if base64::engine::general_purpose::STANDARD
             .decode(inner)
             .is_err()
         {
-            return Some(Defect::unnamed(format!(
-                "Digest value for algorithm '{}' is not valid base64",
-                algorithm
-            )));
+            return Some(Defect::named(
+                &BASE64_MALFORMED,
+                format!(
+                    "Digest value for algorithm '{}' is not valid base64",
+                    algorithm
+                ),
+            ));
         }
     }
     None
@@ -519,16 +535,19 @@ fn want_preference_defect(value: &str) -> Option<Defect> {
         // Integer, so no decimal point.
         // cite(RFC 9530 § 4): "value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive."
         let Ok(n) = weight.parse::<i64>() else {
-            return Some(Defect::unnamed(format!(
-                "Want-* weight '{}' is not an integer",
-                weight
-            )));
+            return Some(Defect::named(
+                &DIGEST_PREFERENCE_MALFORMED,
+                format!("Want-* weight '{}' is not an integer", weight),
+            ));
         };
+        // The two halves of one sentence, and they fail at two levels: a value
+        // deriving from no Integer stops a parser, and one deriving from an
+        // Integer is refused by the range printed beside the type.
         if !(0..=10).contains(&n) {
-            return Some(Defect::unnamed(format!(
-                "Want-* weight '{}' out of range 0..=10",
-                weight
-            )));
+            return Some(Defect::named(
+                &DIGEST_PREFERENCE_INVALID,
+                format!("Want-* weight '{}' out of range 0..=10", weight),
+            ));
         }
     }
     None
@@ -558,6 +577,7 @@ severity = "warn"
             RFC_7231_APPENDIX_B,
             RFC_9110_5_6_2,
             RFC_9651_4_2_3_3,
+            RFC_4648_3_3,
         ]
     }
 
@@ -697,7 +717,25 @@ mod tests {
         "structured_field_key_malformed"
     )]
     #[case::want_key_case("want-content-digest", "SHA-256=5", "structured_field_key_malformed")]
-    #[case::structured_not_a_byte_sequence("content-digest", "sha-256=YWJj", "")]
+    #[case::structured_not_a_byte_sequence(
+        "content-digest",
+        "sha-256=YWJj",
+        "digest_value_malformed"
+    )]
+    #[case::structured_empty_byte_sequence("content-digest", "sha-256=::", "digest_value_empty")]
+    #[case::legacy_empty_value("digest", "sha-256=", "digest_value_empty")]
+    #[case::legacy_bad_base64("digest", "sha-256=!!!", "base64_malformed")]
+    #[case::structured_bad_base64("content-digest", "sha-256=:YWJ:", "base64_malformed")]
+    #[case::want_weight_not_an_integer(
+        "want-content-digest",
+        "sha-256=1.5",
+        "digest_preference_malformed"
+    )]
+    #[case::want_weight_out_of_range(
+        "want-content-digest",
+        "sha-256=11",
+        "digest_preference_invalid"
+    )]
     #[case::structured_empty_member("content-digest", "sha-256=:YWJj:,", "")]
     fn only_the_legacy_algorithm_is_a_borrowed_production(
         #[case] field: &str,
