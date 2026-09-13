@@ -4,7 +4,9 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::qvalue::{QVALUE_MALFORMED, RFC_9110_12_4_2};
+use crate::violations::qvalue::{
+    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_MALFORMED, WEIGHT_MISSING,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -25,13 +27,20 @@ pub struct AcceptEncodingParameterValid;
 /// `codings [ weight ]` owns all of it: a separator introducing a weight that
 /// is not there, two of something there may be at most one of, a member whose
 /// non-optional half is missing, and a `name=value` pair no derivation of the
-/// field produces. That is the residue every borrowed construct leaves — what
-/// a construct says about its own assembly — and it is the whole of what this
-/// rule is named for.
+/// field produces. Three of those four are the *weight's* residue rather than
+/// this field's, which is why they now draw the ids
+/// `accept_language_weight_valid` draws: `#( codings [ weight ] )` and
+/// `#( language-range [ weight ] )` put `[ weight ]` after the primary and stop,
+/// so in both fields the only construct that can be malformed after the `;` is
+/// the weight. What is left as this rule's own is the fourth — a member that is
+/// all weight and no coding.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &QVALUE_MALFORMED,
+    &WEIGHT_MISSING,
+    &WEIGHT_MALFORMED,
+    &WEIGHT_DUPLICATED,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -263,7 +272,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 // — whether it sits at the end of the member or
                                 // between two others.
                                 if param.is_empty() {
-                                    return Some(self.violation(ctx.severity, format!(
+                                    return Some(ctx.report_with(&WEIGHT_MISSING, format!(
                                         "Accept-Encoding member '{}' has a ';' with no weight after it",
                                         part
                                     )));
@@ -279,25 +288,35 @@ impl Rule for AcceptEncodingParameterValid {
                                 let val = nv.next();
 
                                 if !name.eq_ignore_ascii_case("q") {
-                                    return Some(self.cited(&RFC_9110_12_4_2, ctx.severity, format!(
+                                    return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
                                         "'{}' is not a weight, and a weight is the only thing an Accept-Encoding coding may carry (member '{}')",
                                         param, part
                                     )));
                                 }
+                                // §12.5.3 brackets one `[ weight ]` after the
+                                // codings, and the message names it because the
+                                // entry cannot: the same bracket is written once
+                                // per field, and a shared entry may only cite a
+                                // sentence every rule declaring it states.
                                 if weight_seen {
-                                    return Some(self.violation(
-                                        ctx.severity,
+                                    return Some(ctx.report_with(
+                                        &WEIGHT_DUPLICATED,
                                         format!(
-                                            "More than one weight in Accept-Encoding member '{}'",
+                                            "More than one weight in Accept-Encoding member '{}': §12.5.3 brackets one",
                                             part
                                         ),
                                     ));
                                 }
                                 weight_seen = true;
 
+                                // The name matched and the `=` did not, which is
+                                // one literal short of a weight rather than a
+                                // parameter missing its value: `"q="` is written
+                                // as a single string, so there is no `=` here to
+                                // be absent from a pair this field never had.
                                 let Some(v) = val else {
-                                    return Some(self.violation(ctx.severity, format!(
-                                        "Missing parameter value for '{}' in Accept-Encoding member '{}'",
+                                    return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
+                                        "'{}' is not a weight in Accept-Encoding member '{}': the production writes \"q=\" as one literal and this member stops at the name",
                                         name, part
                                     )));
                                 };
