@@ -1435,6 +1435,10 @@ severity = "warn"
 # Content-Security-Policy is written with no policy in it
 severity = "warn"
 
+[violations.content_security_policy_frame_ancestors_conflicting]
+# frame-ancestors and X-Frame-Options state different framing policies
+severity = "warn"
+
 [violations.content_security_policy_source_delimiter_missing]
 # A nonce or hash source is written without its single quotes
 severity = "warn"

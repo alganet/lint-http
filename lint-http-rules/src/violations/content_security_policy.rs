@@ -52,6 +52,15 @@ pub const CSP3_2_3_1: SpecRef = SpecRef {
     note: "Source Lists: `source-expression`, the `nonce-source` and `hash-source` productions whose single quotes are written *inside* them, and the `base64-value` both of them carry",
 };
 
+/// `frame-ancestors`, and the sentence that makes it the authority when an
+/// `X-Frame-Options` says something else.
+pub const CSP3_6_4_2: SpecRef = SpecRef {
+    spec: "CSP3",
+    section: Some("6.4.2"),
+    url: "https://www.w3.org/TR/CSP3/#directive-frame-ancestors",
+    note: "`frame-ancestors` — which URLs may embed the resource, the rough equivalences between its source expressions and `X-Frame-Options`' values, and § 6.4.2.2's statement that an enforced `frame-ancestors` overrides that header outright",
+};
+
 /// Directives: the name production, which is narrower than the HTTP `token`.
 pub const CSP3_2_3: SpecRef = SpecRef {
     spec: "CSP3",
@@ -220,6 +229,39 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[CSP3_2_3_1],
+    }
+
+    /// A response whose `X-Frame-Options` and whose `frame-ancestors` say
+    /// different things about who may embed it: `DENY` beside a policy that
+    /// permits framing, `SAMEORIGIN` beside `'none'`, an `ALLOW-FROM` naming an
+    /// origin the policy does not list.
+    ///
+    /// **One entry over five shapes, because the claim, the sender and the
+    /// repair are one.** A server wrote two framing policies into one response
+    /// and they disagree; the fix is to make them agree, whichever way. The
+    /// message says which pair was in front of it.
+    ///
+    /// **The disagreement is real even though the specification resolves it**,
+    /// which is the whole reason the entry is worth having. § 6.4.2.2 says an
+    /// enforced `frame-ancestors` overrides `X-Frame-Options`, so a modern user
+    /// agent is never confused — it reads the CSP and ignores the other header.
+    /// What the finding reports is the *deployment*: two policies maintained in
+    /// one response, one of which is dead on arrival at every browser that
+    /// implements CSP and live at every one that does not. An operator reading
+    /// the headers cannot tell which is in force without knowing that sentence.
+    ///
+    /// `warn`, and the direction of the mistake is why it is not `info`: the
+    /// header that loses is the legacy one, so a `DENY` that a policy overrides
+    /// is a framing restriction the deployment believes it has and does not.
+    ///
+    // cite(CSP3 § 6.4.2): "The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed."
+    // cite(CSP3 § 6.4.2.2, label: frame-ancestors overrides X-Frame-Options): "In order to allow backwards-compatible deployment, the frame-ancestors directive overrides the"
+    CONTENT_SECURITY_POLICY_FRAME_ANCESTORS_CONFLICTING = {
+        id: "content_security_policy_frame_ancestors_conflicting",
+        title: "frame-ancestors and X-Frame-Options state different framing policies",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[CSP3_6_4_2],
     }
 }
 
