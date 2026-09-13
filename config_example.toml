@@ -1987,6 +1987,10 @@ severity = "warn"
 # The policy states no max-age
 severity = "warn"
 
+[violations.structured_field_key_malformed]
+# Structured field key is not a key production
+severity = "warn"
+
 [violations.te_chunked_forbidden]
 # TE names the chunked coding, which cannot be declined
 severity = "warn"
