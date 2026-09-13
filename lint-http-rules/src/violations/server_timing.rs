@@ -25,6 +25,12 @@
 //! document is another production**, which is the line `Alt-Svc` drew one field
 //! over and this document draws at a publisher that is not the IETF.
 //!
+//! **One entry is not the assembly**: § 2's SHOULD NOT about a parameter name
+//! written twice, which is the only sentence the document addresses to a
+//! server. Everything else it says about repetition is the user agent's
+//! recovery — take the first, ignore the rest, signal nothing — so nothing but
+//! that entry will ever tell a server the later values were discarded.
+//!
 //! **Every entry here names the section that prints the production, and none
 //! names the modal.** The Server Timing specification holds nine BCP 14
 //! keywords and eight of them are addressed to the user agent; the one that
@@ -127,6 +133,42 @@ defects! {
         spec: &[SERVER_TIMING_2],
     }
 
+    /// One `server-timing-param-name` written twice in one metric:
+    /// `db;dur=50;dur=51`.
+    ///
+    /// **The only sentence in the document addressed to a server**, which is
+    /// what makes this entry different in kind from the four around it. The
+    /// other three of its four modals about repetition are the user agent's:
+    /// take the first occurrence, ignore every later one, signal no error. So
+    /// nothing but this will ever tell a server it wrote an ambiguity, and the
+    /// later values are discarded where no one can see it happen.
+    ///
+    /// `warn` rather than the `info` the two advisory entries carry, and the
+    /// consequence is the reason rather than the modal: a SHOULD NOT is weaker
+    /// than the MUST NOT holding up the grammar entries, and what a recipient
+    /// does about it is worse — it keeps a value the server did not mean and
+    /// says nothing.
+    ///
+    /// **Not a shared `parameter_duplicated`, and the four fields were read
+    /// together before that was decided.** `Forwarded` states a MUST NOT per
+    /// field value (RFC 7239 § 4), `Link` states one per parameter with the
+    /// parser's ignore-after-first beside it (RFC 8288 § 3.3, § 3.4.1),
+    /// `Prefer` says only the first instance is considered (RFC 7240 § 2), and
+    /// this document says SHOULD NOT to avoid ambiguity. Four productions, four
+    /// documents, four modals — **an identical defect under a different
+    /// sentence is a different entry**, so a shared one would name whichever
+    /// document was written first and cite it on three fields it does not
+    /// govern.
+    ///
+    // cite(Server Timing § 2): "To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric."
+    SERVER_TIMING_PARAM_DUPLICATED = {
+        id: "server_timing_param_duplicated",
+        title: "Server-Timing metric names one parameter more than once",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[SERVER_TIMING_2],
+    }
+
     /// Content after the closing DQUOTE of a quoted value: `db;desc="abc"x`.
     ///
     /// The `quoted-string` is well formed and closed where it says; what
@@ -173,6 +215,7 @@ mod tests {
             &SERVER_TIMING_PARAM_EQUALS_MISSING,
             &SERVER_TIMING_PARAM_VALUE_EMPTY,
             &SERVER_TIMING_PARAM_VALUE_MALFORMED,
+            &SERVER_TIMING_PARAM_DUPLICATED,
         ] {
             assert_eq!(def.spec, [SERVER_TIMING_2], "{}", def.id);
             assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
