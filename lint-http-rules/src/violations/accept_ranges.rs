@@ -39,6 +39,15 @@ pub const RFC_9110_14_3: SpecRef = SpecRef {
     note: "`Accept-Ranges`: `acceptable-ranges = 1#range-unit`, what advertising a unit is for, the reservation of `none` for a server supporting no kind of range request, and the MAYs on both sides that make every finding here advice rather than a broken requirement",
 };
 
+/// `Range`, for the one sentence that says what happens to a request naming a
+/// unit the server does not know.
+pub const RFC_9110_14_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
+    note: "`Range`: an origin server MUST ignore a `Range` field in a unit it does not understand, which is what a request outside the advertised set is likely to cost — the whole representation instead of the part asked for",
+};
+
 defects! {
     /// A `206 (Partial Content)` carrying no `Accept-Ranges` at all.
     ///
@@ -115,6 +124,40 @@ defects! {
         default_severity: Severity::Info,
         spec: &[RFC_9110_14_3],
     }
+
+    /// A request asking for a range the resource never advertised: a `Range`
+    /// sent after an `Accept-Ranges: none`, or one naming a unit that
+    /// response's list left out.
+    ///
+    /// **`none` is not a special value here, and that is the whole reading.**
+    /// The permission it carries makes the advertised set *empty*, so a request
+    /// naming `bytes` after a `none` and a request naming `pages` after a
+    /// `bytes` fail the same test: the unit is not in the set. Two branches
+    /// exist in the rule because the two deserve different sentences, not
+    /// because they are different defects — the fix is the same, and it is
+    /// either to stop asking or to ask in a unit the resource named.
+    ///
+    /// **The quoted sentence is the consequence rather than the requirement**,
+    /// because there is no requirement: § 14.3 says outright that a client MAY
+    /// generate range requests regardless of having received the field, and
+    /// that the field is advice for the sake of performance. What the request
+    /// risks is § 14.2's MUST on the *other* side — an origin server has to
+    /// ignore a unit it does not understand, and ignoring the field means
+    /// sending the whole representation. That is the unnecessary transfer the
+    /// advice exists to prevent, and it is the reason an advisory finding is
+    /// worth making at all.
+    ///
+    /// `info`, which is where an entry lands when both documents' modals point
+    /// away from it.
+    ///
+    // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
+    ACCEPT_RANGES_IGNORED = {
+        id: "accept_ranges_ignored",
+        title: "A range is requested outside what the resource advertised",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_9110_14_2],
+    }
 }
 
 #[cfg(test)]
@@ -135,5 +178,18 @@ mod tests {
             ACCEPT_RANGES_UNIT_MISSING.default_severity
         );
         assert_eq!(ACCEPT_RANGES_MISSING.default_severity, Severity::Info);
+        assert_eq!(ACCEPT_RANGES_IGNORED.default_severity, Severity::Info);
+    }
+
+    /// The one entry here that quotes a sentence from another field's section,
+    /// and the one whose sentence is a consequence rather than a requirement.
+    /// If a reading ever finds something in § 14.3 that a client is actually
+    /// obliged to do, this is the assertion that has to be revisited first.
+    #[test]
+    fn the_clients_entry_cites_the_consequence_and_not_a_duty() {
+        let [only] = ACCEPT_RANGES_IGNORED.spec else {
+            panic!("one sentence")
+        };
+        assert_eq!(only.section, Some("14.2"));
     }
 }

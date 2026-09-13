@@ -1415,7 +1415,13 @@ severity = "warn"
         /// for a `none` in a `206` and for a unit the response used and did not
         /// advertise; the entries that hold them name § 14.3 and every one of
         /// those findings still carries a reference.
-        const FLOOR: usize = 97;
+        /// **And `accept_ranges_on_partial_content` gave up its last two to a
+        /// single entry**, which is the shape worth noticing here: two cited
+        /// sites became one def, so the count falls by two while the number of
+        /// *defects* named falls by one. A floor on sites cannot see a merge,
+        /// which is the second thing on this list it cannot tell apart from a
+        /// regression.
+        const FLOOR: usize = 95;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
