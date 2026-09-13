@@ -62,7 +62,150 @@ pub const RFC_8288_3_3: SpecRef = SpecRef {
            letter in a registered one not",
 };
 
+/// The attributes § 3.4.1 defines for this serialisation: how many times each
+/// may appear, and what two of their values derive from.
+pub const RFC_8288_3_4_1: SpecRef = SpecRef {
+    spec: "RFC 8288",
+    section: Some("3.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.1",
+    note: "The four serialisation-defined attributes this document bounds to one \
+           occurrence — `media`, `title`, `title*`, `type` — each in its own MUST \
+           NOT. `hreflang` is the one it deliberately leaves unbounded, saying that \
+           repeating it means several languages are available. Also the per-attribute \
+           value ABNFs: `Language-Tag` for `hreflang`, `type-name \"/\" \
+           subtype-name` for `type`, and `media-query-list` for `media` — the first \
+           two measured here, the third declined for the reasons the description \
+           gives",
+};
+
+/// HTML's algorithm for reading this field out of a response, which is the only
+/// published sentence pairing `rel=preload` with `as`.
+pub const HTML_SEMANTICS_4_2_4_4: SpecRef = SpecRef {
+    spec: "HTML Semantics",
+    section: Some("4.2.4.4"),
+    url: "https://html.spec.whatwg.org/multipage/semantics.html#processing-link-headers",
+    note: "*Processing `Link` headers* — the algorithm that reads this field out of a \
+           **response** and, for `rel=preload`, returns early when `as` does not \
+           exist or names no preload destination. The only published sentences \
+           pairing the two, and the reason both findings are worded as a member being \
+           discarded rather than as a MUST",
+};
+
 defects! {
+    /// A `rel` written twice in one member: `</a>; rel=next; rel=prev`.
+    ///
+    /// § 3.3 states it in the same breath as the presence requirement, and the
+    /// consequence is the one that makes it worth reporting: occurrences after
+    /// the first MUST be ignored, so the second relation type is not an
+    /// addition a recipient will merge — it is text nobody reads. A member
+    /// meaning to say two things says one and looks like it said two.
+    ///
+    /// **Separate from [`LINK_ATTRIBUTE_DUPLICATED`], which is the same defect
+    /// under § 3.4.1's four sentences.** One entry naming both sections would
+    /// carry a citation onto no finding at all, and the site always knows which
+    /// parameter it read — so the split costs an id and buys every finding its
+    /// reference.
+    ///
+    // cite(RFC 8288 § 3.3, label: rel at most once): "The rel parameter MUST be present but MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers."
+    LINK_REL_DUPLICATED = {
+        id: "link_rel_duplicated",
+        title: "Link member writes rel more than once",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_8288_3_3],
+    }
+
+    /// A `media`, `title`, `title*` or `type` written twice in one member.
+    ///
+    /// Four sentences, one for each attribute, each saying the same two things:
+    /// it may not appear more than once, and occurrences after the first are
+    /// ignored. **One entry for the four**, because a sender that repeated
+    /// `title` and one that repeated `type` made the same mistake and a
+    /// recipient does the same thing with both — and the message names which.
+    ///
+    /// `hreflang` is deliberately not among them: § 3.4.1 gives *repeating* it
+    /// a meaning, so bounding it would report a conforming member for saying
+    /// something true.
+    ///
+    // cite(RFC 8288 § 3.4.1, label: attribute at most once): "There MUST NOT be more than one media attribute in a link-value; occurrences after the first MUST be ignored by parsers."
+    LINK_ATTRIBUTE_DUPLICATED = {
+        id: "link_attribute_duplicated",
+        title: "Link member writes one of the bounded attributes more than once",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_8288_3_4_1],
+    }
+
+    /// A `type` whose value is not `type-name "/" subtype-name`: `type=text`,
+    /// `type=text/`, `type=/plain`.
+    ///
+    /// **Not [`media_type`](crate::violations::media_type)'s**, and the reason
+    /// is what § 3.4.1 prints: an ABNF of exactly two names and a slash, with
+    /// no parameters after it — where a `Content-Type` carries `media-type =
+    /// type "/" subtype parameters`. A `type="text/plain; charset=utf-8"` in a
+    /// `Link` derives from the field's own production not at all, and reporting
+    /// it as a media type's defect would name a production this attribute does
+    /// not use.
+    ///
+    // cite(RFC 8288 § 3.4.1, label: type value ABNF): "The ABNF for the type parameter's value is:"
+    LINK_TYPE_MALFORMED = {
+        id: "link_type_malformed",
+        title: "Link type attribute does not derive from type-name \"/\" subtype-name",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_8288_3_4_1],
+    }
+
+    /// A response's `rel=preload` with no `as` parameter.
+    ///
+    /// **The only published sentence pairing the two is a step of HTML's
+    /// algorithm, and what the step does is stop.** Reading a response's `Link`
+    /// headers, HTML looks up `attribs["as"]` and returns false when it does
+    /// not exist — so the member never becomes a preload at all, and nothing is
+    /// fetched early. That is why the finding says the member was discarded
+    /// rather than that a requirement was broken: no RFC states one, and HTML's
+    /// own `must` about `as` is authoring conformance for a `link` element
+    /// rather than for a field.
+    ///
+    /// **The direction is part of the entry**, which no other entry in this
+    /// subject needs: the algorithm reads a *response*, so the same member in a
+    /// request is nobody's finding.
+    ///
+    // cite(HTML Semantics § 4.2.4.4, label: preload as existence): "If attribs["as"] does not exist, then return false."
+    LINK_PRELOAD_AS_MISSING = {
+        id: "link_preload_as_missing",
+        title: "A response's preload link carries no as parameter",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[HTML_SEMANTICS_4_2_4_4],
+    }
+
+    /// A response's `rel=preload` whose `as` names no preload destination:
+    /// `as=document`, `as=Font`.
+    ///
+    /// The same early return one step later. HTML translates the value and
+    /// returns false when the translation is null, and the set it translates
+    /// against is HTML's six strings rather than Fetch's twenty-odd
+    /// destinations — so `as=document` names a Fetch destination and is
+    /// discarded all the same.
+    ///
+    /// **The comparison keeps case, and that is the algorithm's own contrast**:
+    /// the steps beside this one say *an ASCII case-insensitive match* about
+    /// `crossorigin` and `fetchpriority` in as many words, and this one says
+    /// nothing of the kind. `Font` is a string the set does not hold.
+    ///
+    /// `_invalid` rather than `_malformed`: the value is a perfectly good
+    /// `token` and what refuses it is a set one document keeps.
+    ///
+    // cite(HTML Semantics § 4.2.4.4, label: preload as translation): "If destination is null, then return false."
+    LINK_PRELOAD_AS_INVALID = {
+        id: "link_preload_as_invalid",
+        title: "A response's preload link names no preload destination in its as",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[HTML_SEMANTICS_4_2_4_4],
+    }
+
     /// A `link-value` with no `rel` parameter at all: `</a>; title="Home"`.
     ///
     /// **The one parameter this serialisation requires**, and the reason is

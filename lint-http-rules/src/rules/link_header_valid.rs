@@ -16,9 +16,11 @@ use crate::violations::language::{
     LANGUAGE_TAG_SUBTAG_LENGTH_INVALID, LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_5646_2_1,
 };
 use crate::violations::link::{
-    LINK_MEMBER_MALFORMED, LINK_PARAM_EMPTY, LINK_PARAM_VALUE_EMPTY, LINK_RELATION_TYPE_MALFORMED,
-    LINK_REL_EMPTY, LINK_REL_MALFORMED, LINK_REL_MISSING, LINK_TARGET_DELIMITER_MISSING,
-    RFC_8288_3, RFC_8288_3_3,
+    HTML_SEMANTICS_4_2_4_4, LINK_ATTRIBUTE_DUPLICATED, LINK_MEMBER_MALFORMED, LINK_PARAM_EMPTY,
+    LINK_PARAM_VALUE_EMPTY, LINK_PRELOAD_AS_INVALID, LINK_PRELOAD_AS_MISSING,
+    LINK_RELATION_TYPE_MALFORMED, LINK_REL_DUPLICATED, LINK_REL_EMPTY, LINK_REL_MALFORMED,
+    LINK_REL_MISSING, LINK_TARGET_DELIMITER_MISSING, LINK_TYPE_MALFORMED, RFC_8288_3, RFC_8288_3_3,
+    RFC_8288_3_4_1,
 };
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
@@ -38,8 +40,8 @@ use crate::violations::ViolationDef;
 
 pub struct LinkHeaderValid;
 
-/// Every production this field is assembled from, and everything the
-/// serialisation says about `rel`.
+/// Every production this field is assembled from, and every statement its own
+/// serialisation makes.
 ///
 /// `Link = #link-value` with `link-value = "<" URI-Reference ">" *( OWS ";"
 /// OWS link-param )` and `link-param = token BWS [ "=" BWS ( token /
@@ -67,15 +69,28 @@ pub struct LinkHeaderValid;
 /// colon commits it to the URI half and every octet after that is
 /// `uri`'s to judge.
 ///
-/// **What is still unnamed** is a parameter this serialisation admits at most
-/// once and written twice, a `type` value that is no media type, and the two
-/// findings HTML states about a `preload` — which no RFC asks for at all.
+/// **The rest of it is written too, and two of the entries are a split worth
+/// knowing.** A parameter written twice is § 3.3's sentence for `rel` and
+/// § 3.4.1's four for the other bounded attributes, so it is two ids rather
+/// than one entry naming two sections — the site always knows which parameter
+/// it read, and an entry naming both would carry a citation onto no finding.
+/// A `type` that is not `type-name "/" subtype-name` is this attribute's rather
+/// than `media_type`'s, since the production here prints two names and a slash
+/// and no parameters after them. And the two `preload` findings are HTML's
+/// algorithm rather than any RFC's: the member is discarded before anything is
+/// fetched, which is why both are worded as a discard and why they are the only
+/// entries in the subject that depend on the direction.
 static DECLARED: &[&ViolationDef] = &[
     &LINK_TARGET_DELIMITER_MISSING,
     &LINK_REL_MISSING,
     &LINK_REL_EMPTY,
     &LINK_REL_MALFORMED,
     &LINK_RELATION_TYPE_MALFORMED,
+    &LINK_REL_DUPLICATED,
+    &LINK_ATTRIBUTE_DUPLICATED,
+    &LINK_TYPE_MALFORMED,
+    &LINK_PRELOAD_AS_MISSING,
+    &LINK_PRELOAD_AS_INVALID,
     &LINK_MEMBER_MALFORMED,
     &LINK_PARAM_EMPTY,
     &LINK_PARAM_VALUE_EMPTY,
@@ -101,32 +116,22 @@ static DECLARED: &[&ViolationDef] = &[
     &LANGUAGE_TAG_SUBTAG_LENGTH_INVALID,
 ];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the entry it reports as.
 ///
-/// The shape `expect_header_valid` settled. Here the named half is every
-/// character question the field asks and the unnamed half is the
-/// serialisation's own — which is what a field defined as an assembly of five
-/// other documents' productions looks like from the inside.
+/// The shape `expect_header_valid` settled — **without the `Option` now**.
+/// Every character question this field asks answers with a borrowed
+/// production's id, and everything the serialisation says for itself answers
+/// with the `link` subject's, which is what a field assembled out of five other
+/// documents' productions looks like once the assembly has a name too.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed: this serialisation's own statement
-    /// about how a `link-value` is put together, or HTML's about what it does
-    /// with one.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out — the member it
@@ -149,19 +154,6 @@ const RFC_8288_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The link target: one IRI converted to a `URI-Reference` and written inside \
            angle brackets. The conversion is why an octet no URI admits is a finding \
            rather than an encoding question",
-};
-const RFC_8288_3_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8288",
-    section: Some("3.4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.1",
-    note: "The four serialisation-defined attributes this document bounds to one \
-           occurrence — `media`, `title`, `title*`, `type` — each in its own MUST \
-           NOT. `hreflang` is the one it deliberately leaves unbounded, saying that \
-           repeating it means several languages are available. Also the per-attribute \
-           value ABNFs: `Language-Tag` for `hreflang`, `type-name \"/\" \
-           subtype-name` for `type`, and `media-query-list` for `media` — the first \
-           two measured here, the third declined for the reasons the description \
-           gives",
 };
 const RFC_8288_2_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 8288",
@@ -241,15 +233,6 @@ const RFC_6838_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
            halves of a `type` value. It opens on a letter or digit and closes at \
            127 characters, and §3.4.1's ABNF for the value ends at the \
            subtype-name, so there is no parameters group and no wildcard here",
-};
-const HTML_SEMANTICS_4_2_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "HTML Semantics",
-    section: Some("4.2.4.4"),
-    url: "https://html.spec.whatwg.org/multipage/semantics.html#processing-link-headers",
-    note: "*Processing `Link` headers* — the algorithm that reads this field out of a \
-           **response** and, for `rel=preload`, returns early when `as` does not \
-           exist. The only published sentence pairing the two, and the reason that \
-           finding is worded as a member being discarded rather than as a MUST",
 };
 const HTML_LINKS_4_6_8_20: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "HTML Links",
@@ -556,10 +539,7 @@ impl Rule for LinkHeaderValid {
                     .and_then(|resp| judge(&resp.headers, "Response", true))
             })?;
 
-            Some(match defect.def {
-                Some(def) => ctx.report_with(def, defect.message),
-                None => self.violation(ctx.severity, defect.message),
-            })
+            Some(ctx.report_with(defect.def, defect.message))
         };
         Vec::from_iter(finding())
     }
@@ -859,11 +839,22 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         // cite(RFC 8288 § 2.2): "The names of target attributes SHOULD conform to the token rule, but SHOULD NOT include any of the characters "%", "'", or "*", for portability across serialisations and MUST be compared in a case-insensitive fashion."
         let name = parsed.name.to_ascii_lowercase();
 
+        // Two entries for one shape, because the sentence is § 3.3's for `rel`
+        // and § 3.4.1's for the other four -- and the site always knows which
+        // parameter it read, so the split buys every finding a citation.
         if AT_MOST_ONCE.contains(&name.as_str()) && seen.contains(&name) {
-            return Err(Defect::unnamed(format!(
-                "writes '{}' more than once, and this serialisation admits it at most once in a link-value",
-                parsed.name
-            )));
+            let def = if name == "rel" {
+                &LINK_REL_DUPLICATED
+            } else {
+                &LINK_ATTRIBUTE_DUPLICATED
+            };
+            return Err(Defect::named(
+                def,
+                format!(
+                    "writes '{}' more than once, and this serialisation admits it at most once in a link-value",
+                    parsed.name
+                ),
+            ));
         }
         match name.as_str() {
             "rel" => {
@@ -925,11 +916,14 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
             "type" => {
                 let value = parsed.value.as_deref().unwrap_or_default();
                 if let Err(why) = type_value_defect(value) {
-                    return Err(Defect::unnamed(format!(
-                        "writes type='{}', which does not derive from type-name \"/\" subtype-name: {}",
-                        shown_in_finding(value),
-                        why
-                    )));
+                    return Err(Defect::named(
+                        &LINK_TYPE_MALFORMED,
+                        format!(
+                            "writes type='{}', which does not derive from type-name \"/\" subtype-name: {}",
+                            shown_in_finding(value),
+                            why
+                        ),
+                    ));
                 }
             }
             // `media` is the one §3.4.1 value grammar this catalogue does not
@@ -982,10 +976,13 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
     // cite(HTML Semantics § 4.2.4.4): "If attribs["as"] does not exist, then return false."
     if is_response && preloads {
         let Some(as_value) = as_value else {
-            return Err(Defect::unnamed(format!(
-                "'{}' asks for a preload with no 'as' parameter, so the HTML processing model for a response's Link headers stops before fetching anything",
-                shown_in_finding(member)
-            )));
+            return Err(Defect::named(
+                &LINK_PRELOAD_AS_MISSING,
+                format!(
+                    "'{}' asks for a preload with no 'as' parameter, so the HTML processing model for a response's Link headers stops before fetching anything",
+                    shown_in_finding(member)
+                ),
+            ));
         };
 
         // The value takes the same early return the absent parameter does,
@@ -1001,11 +998,14 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         // cite(HTML Semantics § 4.2.4.4): "If destination is null, then return false."
         // cite(HTML Semantics § 4.2.4.4): "If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords"
         if !PRELOAD_DESTINATIONS.contains(&as_value.as_str()) {
-            return Err(Defect::unnamed(format!(
-                "'{}' asks for a preload whose as='{}' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything",
-                shown_in_finding(member),
-                shown_in_finding(&as_value)
-            )));
+            return Err(Defect::named(
+                &LINK_PRELOAD_AS_INVALID,
+                format!(
+                    "'{}' asks for a preload whose as='{}' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything",
+                    shown_in_finding(member),
+                    shown_in_finding(&as_value)
+                ),
+            ));
         }
     }
 
@@ -1497,81 +1497,73 @@ mod tests {
     /// not — a capture replayed from octets, a version that admits them — the
     /// finding is already named.
     #[rstest]
-    #[case(b"</a>; rel=next, ,</b>; rel=prev", Some("list_member_empty"))]
-    #[case(b"</a>; =1; rel=next", Some("token_empty"))]
-    #[case(b"</a>; bad@=1; rel=next", Some("token_character_forbidden"))]
-    #[case(
-        b"</a>; ba d=1; rel=next",
-        Some("token_whitespace_or_control_forbidden")
-    )]
-    #[case(b"</a>; rel=n\xe9xt", Some("token_character_forbidden"))]
+    #[case(b"</a>; rel=next, ,</b>; rel=prev", "list_member_empty")]
+    #[case(b"</a>; =1; rel=next", "token_empty")]
+    #[case(b"</a>; bad@=1; rel=next", "token_character_forbidden")]
+    #[case(b"</a>; ba d=1; rel=next", "token_whitespace_or_control_forbidden")]
+    #[case(b"</a>; rel=n\xe9xt", "token_character_forbidden")]
     #[case(
         b"</a>; rel=next; title=\"unterminated",
-        Some("quoted_string_delimiter_missing")
+        "quoted_string_delimiter_missing"
     )]
     #[case(
         b"</a>; rel=next; title=\"a\"b\"",
-        Some("quoted_string_quote_escape_missing")
+        "quoted_string_quote_escape_missing"
     )]
-    #[case(b"</a>; rel=next; title=\"a\\\"", Some("quoted_pair_malformed"))]
-    #[case(b"</a>; rel = next", Some("bws_forbidden"))]
-    #[case(b"</a\xe9>; rel=next", Some("uri_character_forbidden"))]
-    #[case(b"</a>; rel=\"http://a\xe9/b\"", Some("uri_character_forbidden"))]
-    #[case(b"</a>; rel=\":/b\"", Some("uri_scheme_empty"))]
-    #[case(b"</a>; rel=\"9x:/b\"", Some("uri_scheme_leading_letter_missing"))]
-    #[case(b"</a>; rel=\"h*p:/b\"", Some("uri_scheme_character_forbidden"))]
-    #[case(b"</a>; rel=alternate; hreflang", Some("language_tag_empty"))]
+    #[case(b"</a>; rel=next; title=\"a\\\"", "quoted_pair_malformed")]
+    #[case(b"</a>; rel = next", "bws_forbidden")]
+    #[case(b"</a\xe9>; rel=next", "uri_character_forbidden")]
+    #[case(b"</a>; rel=\"http://a\xe9/b\"", "uri_character_forbidden")]
+    #[case(b"</a>; rel=\":/b\"", "uri_scheme_empty")]
+    #[case(b"</a>; rel=\"9x:/b\"", "uri_scheme_leading_letter_missing")]
+    #[case(b"</a>; rel=\"h*p:/b\"", "uri_scheme_character_forbidden")]
+    #[case(b"</a>; rel=alternate; hreflang", "language_tag_empty")]
     #[case(
         b"</a>; rel=alternate; hreflang=\"en US\"",
-        Some("language_tag_whitespace_or_control_forbidden")
+        "language_tag_whitespace_or_control_forbidden"
     )]
     #[case(
         b"</a>; rel=alternate; hreflang=en_US",
-        Some("language_tag_character_forbidden")
+        "language_tag_character_forbidden"
     )]
     #[case(
         b"</a>; rel=alternate; hreflang=en-",
-        Some("language_tag_edge_hyphen_forbidden")
+        "language_tag_edge_hyphen_forbidden"
     )]
     #[case(
         b"</a>; rel=alternate; hreflang=1en",
-        Some("language_tag_leading_letter_missing")
+        "language_tag_leading_letter_missing"
     )]
-    #[case(
-        b"</a>; rel=alternate; hreflang=en--US",
-        Some("language_tag_subtag_empty")
-    )]
+    #[case(b"</a>; rel=alternate; hreflang=en--US", "language_tag_subtag_empty")]
     #[case(
         b"</a>; rel=alternate; hreflang=englishlanguage",
-        Some("language_tag_subtag_length_invalid")
+        "language_tag_subtag_length_invalid"
     )]
     // The serialisation's own half: a target with no brackets, content after
     // the one that closed, a `;` owing a parameter, `rel` absent, empty,
     // repeated, or naming a value neither of §3.3's alternatives generates —
     // and the two findings HTML states about a preload.
-    #[case(b"https://example/; rel=next", Some("link_target_delimiter_missing"))]
-    #[case(b"</a; rel=next", Some("link_target_delimiter_missing"))]
-    #[case(b"</a> junk; rel=next", Some("link_member_malformed"))]
-    #[case(b"</a>; rel=next;", Some("link_param_empty"))]
-    #[case(b"</a>; title=\"Home\"", Some("link_rel_missing"))]
-    #[case(b"</a>", Some("link_rel_missing"))]
-    #[case(b"</a>; rel=", Some("link_param_value_empty"))]
-    #[case(b"</a>; rel=next; rel=prev", None)]
-    #[case(b"</a>; rel=Next", Some("link_relation_type_malformed"))]
-    #[case(b"</a>; rel=\"\"", Some("link_rel_empty"))]
-    #[case(b"</a>; rel", Some("link_rel_empty"))]
-    #[case(b"</a>; rel=\" next\"", Some("link_rel_malformed"))]
-    #[case(b"</a>; rel=alternate; type=text", None)]
-    #[case(b"</a>; rel=preload", None)]
-    #[case(b"</a>; rel=preload; as=document", None)]
-    fn a_link_value_borrows_every_production_it_is_made_of(
-        #[case] value: &[u8],
-        #[case] id: Option<&str>,
-    ) {
+    #[case(b"https://example/; rel=next", "link_target_delimiter_missing")]
+    #[case(b"</a; rel=next", "link_target_delimiter_missing")]
+    #[case(b"</a> junk; rel=next", "link_member_malformed")]
+    #[case(b"</a>; rel=next;", "link_param_empty")]
+    #[case(b"</a>; title=\"Home\"", "link_rel_missing")]
+    #[case(b"</a>", "link_rel_missing")]
+    #[case(b"</a>; rel=", "link_param_value_empty")]
+    #[case(b"</a>; rel=next; rel=prev", "link_rel_duplicated")]
+    #[case(b"</a>; rel=next; title=a; title=b", "link_attribute_duplicated")]
+    #[case(b"</a>; rel=Next", "link_relation_type_malformed")]
+    #[case(b"</a>; rel=\"\"", "link_rel_empty")]
+    #[case(b"</a>; rel", "link_rel_empty")]
+    #[case(b"</a>; rel=\" next\"", "link_rel_malformed")]
+    #[case(b"</a>; rel=alternate; type=text", "link_type_malformed")]
+    #[case(b"</a>; rel=preload", "link_preload_as_missing")]
+    #[case(b"</a>; rel=preload; as=document", "link_preload_as_invalid")]
+    fn a_link_value_borrows_every_production_it_is_made_of(#[case] value: &[u8], #[case] id: &str) {
         let headers = crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]);
         let defect = judge(&headers, "Response", true).expect("a finding");
         assert_eq!(
-            defect.def.map(|def| def.id),
+            defect.def.id,
             id,
             "value: {}",
             String::from_utf8_lossy(value)
