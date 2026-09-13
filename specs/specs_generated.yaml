@@ -4877,7 +4877,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 239
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 261
+      line: 238
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 277
     - file: lint-http-rules/src/violations/media_type.rs
@@ -4895,7 +4895,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 238
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 260
+      line: 237
   - label: accept_and_content_type_negotiation (13)
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
@@ -5073,19 +5073,11 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 185
   - label: accept_header_media_type_syntax (6)
-    section: § 5.6.2
-    snippet: Tokens are short textual identifiers that do not include whitespace or delimiters.
-    cited_by:
-    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 249
-    - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 100
-  - label: accept_header_media_type_syntax (7)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 289
+      line: 260
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 42
   - label: accept_language_weight_valid
@@ -5741,6 +5733,12 @@ sources:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 166
   - label: connection_header_tokens_valid
+    section: § 5.6.2
+    snippet: Tokens are short textual identifiers that do not include whitespace or delimiters.
+    cited_by:
+    - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
+      line: 100
+  - label: connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
     cited_by:
@@ -5754,7 +5752,7 @@ sources:
       line: 46
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 180
-  - label: connection_header_tokens_valid (2)
+  - label: connection_header_tokens_valid (3)
     section: § 7.6.1
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
     cited_by:
