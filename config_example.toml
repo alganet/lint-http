@@ -1527,9 +1527,21 @@ severity = "warn"
 # Set-Cookie SameSite attribute carries no value
 severity = "warn"
 
+[violations.cookie_scope_ignored]
+# A cookie is sent where the store's own rules exclude it
+severity = "info"
+
+[violations.cookie_secure_ignored]
+# A Secure cookie is sent over a scheme that is not secure
+severity = "warn"
+
 [violations.cookie_secure_missing]
 # A SameSite=None cookie is not Secure
 severity = "error"
+
+[violations.cookie_value_conflicting]
+# A cookie carries a value the observed exchange did not set
+severity = "info"
 
 [violations.credentials_control_character_forbidden]
 # Credentials hold a control character
