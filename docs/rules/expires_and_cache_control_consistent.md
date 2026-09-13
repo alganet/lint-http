@@ -20,7 +20,7 @@ common `Expires: 0` paired with a positive `max-age` is flagged.
 
 ## Specifications
 
-- [RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3): Cache-Control overrides Expires: a recipient MUST ignore Expires when max-age is present, and a shared cache MUST ignore it when s-maxage is present
+- [RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3): `Expires` — a recipient MUST ignore it when `max-age` is present and a shared cache when `s-maxage` is, an invalid date ("0" above all) MUST be read as already expired, and the field is only intended for recipients that have not implemented Cache-Control
 - [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`
 
 ## Configuration

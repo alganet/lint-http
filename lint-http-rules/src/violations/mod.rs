@@ -60,6 +60,7 @@ pub mod digest_credentials;
 pub mod domain;
 pub mod etag;
 pub mod expect;
+pub mod expires;
 pub mod field;
 pub mod http_date;
 pub mod if_range;

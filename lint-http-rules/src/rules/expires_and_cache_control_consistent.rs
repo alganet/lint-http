@@ -4,6 +4,18 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::expires::{EXPIRES_CONFLICTING, RFC_9111_5_3};
+use crate::violations::ViolationDef;
+
+/// One entry over four shapes of one disagreement.
+///
+/// An unreadable `Expires` beside a positive `max-age`, a future one beside
+/// `no-cache`, an already-past one beside a positive `max-age`, and a date that
+/// is not `Date` plus `max-age` are all the same message read two ways: caches
+/// that implement `Cache-Control` use the directive, caches that do not use the
+/// field. Same sender, same repair, same loss — which of the four it was is the
+/// message's to say.
+static DECLARED: &[&ViolationDef] = &[&EXPIRES_CONFLICTING];
 use chrono::{DateTime, Utc};
 
 /// If `Expires` and `Cache-Control` are both present, their values should not contradict.
@@ -15,12 +27,6 @@ pub struct ExpiresAndCacheControlConsistent;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3",
-    note: "Cache-Control overrides Expires: a recipient MUST ignore Expires when max-age is present, and a shared cache MUST ignore it when s-maxage is present",
-};
 const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("4.2"),
@@ -41,6 +47,10 @@ severity = "warn"
 
     fn description(&self) -> &'static str {
         "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nAn `Expires` value that is not a valid HTTP-date counts as contradictory too, rather\nthan as no information: a cache is required to read it as already expired, so the\ncommon `Expires: 0` paired with a positive `max-age` is flagged."
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -139,7 +149,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
             let Some(expires) = expires_dt else {
                 if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
-                    return Some(self.cited(&RFC_9111_5_3, ctx.severity, format!(
+                    return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                             "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory (RFC 9111 §5.3)",
                             expires_raw
                         )));
@@ -162,7 +172,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
             // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field"
             if (cc_no_cache || cc_no_store || cc_max_age == Some(0)) && expires > date_ref {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                         "Response contains Cache-Control directives {:?} that make it non-fresh, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1)",
                         if cc_no_cache { "no-cache" } else if cc_no_store { "no-store" } else { "max-age=0" },
                         expires
@@ -177,7 +187,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             if (cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0)
                 && expires <= date_ref
             {
-                return Some(self.cited(&RFC_9111_5_3, ctx.severity, format!(
+                return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                         "Response contains Cache-Control max-age/s-maxage but Expires {} is not in the future relative to Date {} — values are contradictory (RFC 9111 §4.2, §5.3)",
                         expires, date_ref
                     )));
@@ -194,7 +204,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
                         // Allow a small leeway (1 second) for formatting/rounding differences
                         let diff = (expected - expires).num_seconds().abs();
                         if diff > 1 {
-                            return Some(self.violation(ctx.severity, format!(
+                            return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                                     "Cache-Control max-age={} suggests Expires should be {} (Date + max-age), but Expires is {} — prefer consistent values or omit Expires (RFC 9111 §5.3)",
                                     max_age, expected, expires
                                 )));
