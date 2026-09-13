@@ -1410,7 +1410,12 @@ severity = "warn"
         /// written past the weight. The rule now cites nothing at a finding
         /// site and every one of its findings carries a reference, which is the
         /// end state this ratchet is counting down *to* rather than a fall.
-        const FLOOR: usize = 99;
+        /// **The `accept_ranges` subject took two more of the same kind.** Both
+        /// were § 14.3 and § 14.2 cited from `accept_ranges_and_206_consistent`,
+        /// for a `none` in a `206` and for a unit the response used and did not
+        /// advertise; the entries that hold them name § 14.3 and every one of
+        /// those findings still carries a reference.
+        const FLOOR: usize = 97;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
