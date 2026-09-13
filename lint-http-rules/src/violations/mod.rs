@@ -83,6 +83,7 @@ pub mod transfer_encoding;
 pub mod upgrade;
 pub mod uri;
 pub mod via;
+pub mod warning;
 
 /// One reportable defect.
 ///
@@ -437,7 +438,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 261;
+        const FLOOR: usize = 265;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

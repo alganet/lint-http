@@ -2139,6 +2139,22 @@ severity = "warn"
 # Via received-by is spelled as a uri-host
 severity = "warn"
 
+[violations.warning_agent_missing]
+# Warning member names no warn-agent
+severity = "warn"
+
+[violations.warning_code_malformed]
+# Warning member's warn-code is not three digits
+severity = "warn"
+
+[violations.warning_member_malformed]
+# Warning member does not derive where the production continues it
+severity = "warn"
+
+[violations.warning_text_missing]
+# Warning member carries no warn-text
+severity = "warn"
+
 [violations.weight_equals_whitespace_forbidden]
 # Whitespace is written beside the weight's '='
 severity = "warn"
