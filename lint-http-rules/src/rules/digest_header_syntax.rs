@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::structured_fields::{RFC_9651_4_2_3_3, STRUCTURED_FIELD_KEY_MALFORMED};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -13,8 +14,8 @@ use base64::Engine;
 
 pub struct DigestHeaderSyntax;
 
-/// Two defects, and both are the one production the *legacy* half of this rule
-/// borrows.
+/// Three defects, two of them the one production the *legacy* half of this rule
+/// borrows and one the production the structured half is written in.
 ///
 /// RFC 3230 § 4.1.1 writes `digest-algorithm = token` and takes `token` from
 /// RFC 2616, whose character set is § 5.6.2's — the fourth reading of that
@@ -22,14 +23,17 @@ pub struct DigestHeaderSyntax;
 /// or a `Want-Digest` naming an algorithm no `tchar` admits reports what a
 /// `Vary` member and a method do.
 ///
-/// **The RFC 9530 half borrows nothing, and that is the interesting half.**
+/// **The RFC 9530 half borrows one thing, and it is the interesting half.**
 /// `Content-Digest` and its three siblings are Structured Field Dictionaries,
 /// not `#rule` lists: an algorithm is a `key` — lowercase, and the helper that
-/// owns that grammar says so — and a value is a Byte Sequence or an Integer.
-/// None of those productions has a subject here, and a Dictionary key is
-/// emphatically not a `token`: the whole point of the finding is that carrying
-/// RFC 3230's `SHA-256` spelling across produces a field no structured-field
-/// parser will read.
+/// owns that grammar says so — and a value is a Byte Sequence or an Integer. A
+/// Dictionary key is emphatically not a `token`, which is the whole point of
+/// the finding: carrying RFC 3230's `SHA-256` spelling across produces a field
+/// no structured-field parser will read. That defect belongs to RFC 9651's
+/// `key` rather than to any of these fields, so it is
+/// [`structured_fields`](crate::violations::structured_fields)' — a subject
+/// shared by construction, the way `token` is, and one whose second declarer is
+/// already visible in `permissions_policy_directives_valid`.
 ///
 /// **The empty member is refused on both halves, for two different reasons.**
 /// On the legacy side the list is RFC 2616's `#rule`, which *permits* null
@@ -38,6 +42,7 @@ pub struct DigestHeaderSyntax;
 /// the structured side there is no `#rule` at all. Both findings are this
 /// rule's own strictness and stay at its severity.
 static DECLARED: &[&ViolationDef] = &[
+    &STRUCTURED_FIELD_KEY_MALFORMED,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 ];
@@ -437,11 +442,14 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
         // itself is owned by the structured-fields helper.
         // cite(RFC 9530 § 2): "key conveys the hashing algorithm (see Section 5) used to compute the digest;"
         if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
-            return Some(Defect::unnamed(format!(
-                "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
-                algorithm,
-                algorithm.to_ascii_lowercase()
-            )));
+            return Some(Defect::named(
+                &STRUCTURED_FIELD_KEY_MALFORMED,
+                format!(
+                    "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
+                    algorithm,
+                    algorithm.to_ascii_lowercase()
+                ),
+            ));
         }
 
         // The `:`-delimited base64 form, whose grammar the structured-fields
@@ -497,11 +505,14 @@ fn want_preference_defect(value: &str) -> Option<Defect> {
     for (algorithm, weight) in members {
         // Same Dictionary-key rule as the digest fields above.
         if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
-            return Some(Defect::unnamed(format!(
-                "Want-* algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
-                algorithm,
-                algorithm.to_ascii_lowercase()
-            )));
+            return Some(Defect::named(
+                &STRUCTURED_FIELD_KEY_MALFORMED,
+                format!(
+                    "Want-* algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
+                    algorithm,
+                    algorithm.to_ascii_lowercase()
+                ),
+            ));
         }
 
         // The bound is the spec's own, not a chosen tolerance, and the type is
@@ -546,6 +557,7 @@ severity = "warn"
             RFC_3230_4_1_1,
             RFC_7231_APPENDIX_B,
             RFC_9110_5_6_2,
+            RFC_9651_4_2_3_3,
         ]
     }
 
@@ -667,17 +679,24 @@ mod tests {
         tx
     }
 
-    /// The two findings that belong to a production this rule borrows, and a
-    /// sample of the nineteen that do not. The line the table draws is between
-    /// RFC 3230's legacy fields — whose algorithm is a `token` — and RFC 9530's,
-    /// which are Structured Field Dictionaries and share nothing with a `#rule`
-    /// list or a `token`.
+    /// The findings that belong to a production this rule borrows, and a sample
+    /// of the ones that do not. The line the table draws is between the
+    /// productions and the fields: RFC 3230's legacy algorithm is a `token`,
+    /// RFC 9530's Dictionary key is RFC 9651's `key` — the spelling a
+    /// deployment carries across from the older registry and the one no
+    /// structured-field parser will read — and everything else is a statement
+    /// one of the two documents makes about its own members.
     #[rstest]
     #[case::legacy_digest_algorithm("digest", "sha@1=YWJj", "token_character_forbidden")]
     #[case::legacy_want_digest_algorithm("want-digest", "sha@1", "token_character_forbidden")]
     #[case::legacy_empty_member("digest", "sha-256=YWJj,", "")]
     #[case::legacy_no_equals("digest", "sha-256", "")]
-    #[case::structured_key_case("content-digest", "SHA-256=:YWJj:", "")]
+    #[case::structured_key_case(
+        "content-digest",
+        "SHA-256=:YWJj:",
+        "structured_field_key_malformed"
+    )]
+    #[case::want_key_case("want-content-digest", "SHA-256=5", "structured_field_key_malformed")]
     #[case::structured_not_a_byte_sequence("content-digest", "sha-256=YWJj", "")]
     #[case::structured_empty_member("content-digest", "sha-256=:YWJj:,", "")]
     fn only_the_legacy_algorithm_is_a_borrowed_production(

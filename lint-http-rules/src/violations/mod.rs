@@ -75,6 +75,7 @@ pub mod sec_websocket_version;
 pub mod server_timing;
 pub mod status;
 pub mod strict_transport_security;
+pub mod structured_fields;
 pub mod te;
 pub mod token;
 pub mod token68;
@@ -438,7 +439,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 265;
+        const FLOOR: usize = 266;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
