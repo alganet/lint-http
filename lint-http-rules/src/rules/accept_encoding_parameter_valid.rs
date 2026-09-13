@@ -8,7 +8,7 @@ use crate::violations::qvalue::{
     QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_MALFORMED, WEIGHT_MISSING,
 };
 use crate::violations::token::{
-    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
@@ -33,10 +33,16 @@ pub struct AcceptEncodingParameterValid;
 /// `#( language-range [ weight ] )` put `[ weight ]` after the primary and stop,
 /// so in both fields the only construct that can be malformed after the `;` is
 /// the weight. What is left as this rule's own is the fourth — a member that is
-/// all weight and no coding.
+/// all weight and no coding — and it turns out not to be this rule's either.
+/// All three of `codings`' alternatives have a one-character floor: a
+/// `content-coding` is a `token`, `identity` is one, and `*` is a single
+/// `tchar`. So an empty primary derives from none of them for the arithmetic
+/// reason `token_empty` already names, and the rule declares nothing of its own
+/// at all.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_EMPTY,
     &QVALUE_MALFORMED,
     &WEIGHT_MISSING,
     &WEIGHT_MALFORMED,
@@ -81,7 +87,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.\n\n**An octet outside visible US-ASCII is reported** rather than skipped, unlike the neighbouring `Accept` rules. Those decode such a value because `obs-text` is legal inside a quoted-string; there are no quoted-strings here, so no octet `to_str` refuses can be a legal part of this field."
+        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.\n\n**The value is read as the octets the sender wrote**, and each is reported by the production it landed in. There are no quoted-strings in this field — a member is a `token`, one of two literals, and the weight's fixed text — so no octet outside visible US-ASCII is legal anywhere in it: one in a coding name is the `token`'s defect, one in a weight fails the `q` name or the `qvalue`. Refusing to decode the line named the octet and put every other defect written beside it out of reach."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -187,19 +193,17 @@ impl Rule for AcceptEncodingParameterValid {
             // cite(RFC 9110 § 12.5.3): "Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*""
             // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
             let check_all = |headers: &hyper::HeaderMap| -> Option<Violation> {
-                for hv in headers.get_all("accept-encoding").iter() {
-                    let Ok(val) = hv.to_str() else {
-                        // Reported rather than skipped, and this field is the reason.
-                        // The rules audited alongside this one decode such a value
-                        // instead, because `obs-text` is legal inside a quoted-string
-                        // and refusing the value would hide findings elsewhere in it.
-                        // There are no quoted-strings here: every part of an
-                        // Accept-Encoding member is a `token` or the fixed text of a
-                        // weight, so an octet `to_str` refuses cannot be a legal part
-                        // of this field whatever else the value contains.
-                        return Some(self.violation(ctx.severity, "Accept-Encoding contains an octet no part of this field's grammar admits"
-                                .into()));
-                    };
+                // Read as the octets the sender wrote, one `char` per octet.
+                // There are no quoted-strings anywhere in this field — a member
+                // is a `token`, one of two literals, and the weight's fixed
+                // text — so no octet outside visible US-ASCII is legal in it,
+                // and every one of them lands inside a production that already
+                // has an id for it. Refusing the whole line named the octet and
+                // took every other defect written beside it out of reach.
+                for line in
+                    crate::helpers::headers::field_lines_as_written(headers, "accept-encoding")
+                {
+                    let val = line.as_str();
                     // A comma split with no regard for quoting, which is
                     // correct here rather than merely tolerable: nothing in
                     // this field's grammar is a quoted-string, so there is no
@@ -230,9 +234,16 @@ impl Rule for AcceptEncodingParameterValid {
                             // cite(RFC 9110 § 12.5.3): "The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field."
                             // cite(RFC 9110 § 12.5.3): "An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred."
                             if primary != "*" {
+                                // The `1*tchar` floor, which all three
+                                // alternatives share: a `content-coding` is a
+                                // `token`, `identity` is one, and `*` is a
+                                // single `tchar`. So a member that begins at
+                                // the `;` derives from none of them for one
+                                // arithmetic reason, and the id names that
+                                // reason rather than this field.
                                 if primary.is_empty() {
-                                    return Some(self.violation(
-                                        ctx.severity,
+                                    return Some(ctx.report_with(
+                                        &TOKEN_EMPTY,
                                         format!(
                                             "Empty content-coding in Accept-Encoding member '{}'",
                                             part
@@ -264,7 +275,6 @@ impl Rule for AcceptEncodingParameterValid {
                             // cite(RFC 9110 § 12.5.3): "Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2."
                             let mut weight_seen = false;
                             for param in iter {
-                                let param = param.trim();
                                 // Not skipped as an empty parameter slot, because
                                 // there are no parameter slots. `weight` brackets
                                 // nothing, so a `;` with nothing after it is a
@@ -283,7 +293,13 @@ impl Rule for AcceptEncodingParameterValid {
                                 // way, and this is the only name the field
                                 // admits.
                                 // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
-                                let mut nv = param.splitn(2, '=').map(|s| s.trim());
+                                // `OWS`, not `str::trim`: on a value read one
+                                // `char` per octet the wider trim removes %xA0
+                                // and %x85, which are `obs-text` — an octet
+                                // this field admits nowhere, and one the checks
+                                // below would then never see.
+                                let mut nv =
+                                    param.splitn(2, '=').map(crate::helpers::headers::trim_ows);
                                 let name = nv.next().unwrap();
                                 let val = nv.next();
 
@@ -420,27 +436,36 @@ mod tests {
         }
     }
 
-    #[test]
-    fn non_utf8_request_header_value_is_violation() -> anyhow::Result<()> {
+    /// An octet outside visible US-ASCII is still reported, and now by the
+    /// production it landed in rather than by a claim about the whole line.
+    /// The second and third rows are what the old whole-line refusal cost: a
+    /// defect written *beside* such an octet was never reached.
+    #[rstest]
+    #[case(b"\xff", "token_character_forbidden")]
+    #[case(b"gzip\xff, br;q=1.0000", "token_character_forbidden")]
+    #[case(b"br;q=1.0000, gzip\xff", "qvalue_malformed")]
+    fn an_obs_text_octet_is_the_defect_of_wherever_it_sits(
+        #[case] raw: &[u8],
+        #[case] expected: &str,
+    ) -> anyhow::Result<()> {
         let rule = AcceptEncodingParameterValid;
         let mut tx = crate::test_helpers::make_test_transaction();
         use hyper::header::HeaderValue;
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        let bad = HeaderValue::from_bytes(&[0xff])?;
-        hm.append("accept-encoding", bad);
+        hm.append("accept-encoding", HeaderValue::from_bytes(raw)?);
         tx.request.headers = hm;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "accept_encoding_parameter_valid",
         ]);
 
-        // Non-UTF8 header values should be considered a violation by this rule
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-        );
-        assert!(v.is_some());
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, expected, "{v:?}");
         Ok(())
     }
 

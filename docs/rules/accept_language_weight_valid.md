@@ -20,7 +20,7 @@ Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`
 
 **Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted, though `weight` spells the text as the literal `"q="`. It can only miss a report, never invent one.
 
-**An octet outside visible US-ASCII is reported** rather than skipped: nothing in this grammar is a quoted-string, so no such octet can be a legal part of the field.
+**The value is read as the octets the sender wrote**, and each is reported by whichever production it landed in. Nothing in this grammar is a quoted-string, so no octet outside visible US-ASCII is legal anywhere in the field — but this rule reads only what follows the `;`, where such an octet fails the `q` name or the `qvalue`. One inside the range is `language_tag_syntax`'s, which reads the same field the same way: the range's characters are deferred to the same place as the range's syntax. Refusing to decode the line reported the octet and put every other defect written beside it out of reach.
 
 ## Specifications
 
