@@ -1067,6 +1067,10 @@ severity = "warn"
 # Alt-Svc alternative has no '=' between its protocol-id and its alt-authority
 severity = "warn"
 
+[violations.alt_svc_authority_character_forbidden]
+# Alt-Svc alt-authority holds an octet no production of it admits
+severity = "warn"
+
 [violations.alt_svc_clear_conflicting]
 # Alt-Svc carries the clear keyword beside an alternative service
 severity = "error"

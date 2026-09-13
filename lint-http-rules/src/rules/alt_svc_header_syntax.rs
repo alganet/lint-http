@@ -12,11 +12,11 @@ use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::alt_svc::{
-    ALT_SVC_ALTERNATIVE_EQUALS_MISSING, ALT_SVC_CLEAR_CONFLICTING,
-    ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EMPTY, ALT_SVC_PARAMETER_EQUALS_MISSING,
-    ALT_SVC_PARAMETER_VALUE_EMPTY, ALT_SVC_PERSIST_INVALID, ALT_SVC_PORT_EMPTY,
-    ALT_SVC_PORT_INVALID, ALT_SVC_PORT_MISSING, ALT_SVC_PROTOCOL_ID_INVALID, RFC_7838_3,
-    RFC_7838_3_1,
+    ALT_SVC_ALTERNATIVE_EQUALS_MISSING, ALT_SVC_AUTHORITY_CHARACTER_FORBIDDEN,
+    ALT_SVC_CLEAR_CONFLICTING, ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EMPTY,
+    ALT_SVC_PARAMETER_EQUALS_MISSING, ALT_SVC_PARAMETER_VALUE_EMPTY, ALT_SVC_PERSIST_INVALID,
+    ALT_SVC_PORT_EMPTY, ALT_SVC_PORT_INVALID, ALT_SVC_PORT_MISSING, ALT_SVC_PROTOCOL_ID_INVALID,
+    RFC_7838_3, RFC_7838_3_1, RFC_7838_8,
 };
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
@@ -38,14 +38,15 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Twenty-seven defects over five subjects, and RFC 7838 defines eleven of them.
+/// Twenty-eight defects over five subjects, and RFC 7838 defines twelve of them.
 ///
-/// The eleven are the field's own: the alternation at the top of it, the two `=`
+/// The twelve are the field's own: the alternation at the top of it, the two `=`
 /// delimiters it prints, the whitespace it prints nowhere near them, the two
 /// halves a parameter can be written without, the one parameter this document
-/// gives a value to, the single spelling it allows an ALPN protocol name, and
-/// the three ways an `alt-authority` can name no port. Everything else here is
-/// imported, and the paragraph below is where each import comes from.
+/// gives a value to, the single spelling it allows an ALPN protocol name, the
+/// three ways an `alt-authority` can name no port, and the octet § 8 tells a
+/// sender to write as an A-label. Everything else here is imported, and the
+/// paragraph below is where each import comes from.
 ///
 /// § 1.1 says where the notation comes from and § 3 says where the productions
 /// do: the `#rule` extension is RFC 7230 § 7's, whose sender requirement is the
@@ -55,10 +56,11 @@ use crate::violations::ViolationDef;
 /// `port` out of RFC 3986. So an `alt-authority` of `"a]b:443"` reports the
 /// same defect a `Forwarded` `for=` and a `Warning`'s `warn-agent` do.
 ///
-/// **One finding stays this document's and is not named yet**: § 8's A-labels,
-/// which is an octet at or above %x80 anywhere inside an `alt-authority`. It is
-/// a sentence about `Alt-Svc` and no other field, so it is the `alt_svc`
-/// subject's, as the eleven already there are.
+/// **Every finding here now names an entry**, which is what the `Defect` below
+/// says in its type. The twelve this document writes for itself went into
+/// `violations/alt_svc.rs` one reading at a time, and the sixteen the
+/// productions supply were there from the start — the two halves the first
+/// paragraph splits are the same two the catalogue does.
 ///
 /// **Nothing here borrows from the `parameter` subject, and the reason is one
 /// sentence repeated three times.** RFC 7838 § 3's `parameter` is not
@@ -93,6 +95,7 @@ static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_PORT_MISSING,
     &ALT_SVC_PORT_EMPTY,
     &ALT_SVC_PORT_INVALID,
+    &ALT_SVC_AUTHORITY_CHARACTER_FORBIDDEN,
     &LIST_MEMBER_EMPTY,
     &LIST_MEMBER_MISSING,
     &TOKEN_EMPTY,
@@ -111,31 +114,21 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_PORT_CHARACTER_FORBIDDEN,
 ];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the entry it reports as.
 ///
-/// The shape `expect_header_valid` settled: a judge that is half converted says
-/// so in its type. Here the halves are five subjects' ids — four imported and
-/// this field's own — against the one sentence RFC 7838 writes about `Alt-Svc`
-/// that no entry holds yet.
+/// The shape `expect_header_valid` settled — **without the `Option` now**,
+/// since every arm of this judge names an entry: four imported subjects' ids
+/// and, for every sentence RFC 7838 writes about `Alt-Svc` alone, this field's
+/// own.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed, reported at the rule's severity the way
-    /// every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out -- which
@@ -294,22 +287,23 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
     // Every production the content derives from is US-ASCII -- `reg-name`
     // is `*( unreserved / pct-encoded / sub-delims )` and `port` is
     // `*DIGIT` -- so an octet at or above %x80 belongs to none of them.
-    // § 8 names the reason it is usually there and forbids it by name.
-    // cite(RFC 7838 § 8): "An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1)."
     // cite(RFC 3986 § 3.2.2): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
     //
-    // Unnamed, and the sentence reported is why. `uri_host_character_forbidden`
-    // would answer for a high octet in the *host*, but this is asked of the
-    // whole `alt-authority` before it is split, and what it reports is § 8's
-    // MUST about how an internationalized name is written *instead* -- a
-    // requirement about the sender's spelling, not about which octets a
-    // `reg-name` admits. A value that gets past here and still holds one is the
-    // host subject's, below.
+    // The entry is this field's rather than the host's, and the sentence it
+    // carries is why: `uri_host_character_forbidden` would answer for a high
+    // octet in the *host*, and this is asked of the whole `alt-authority`
+    // before it is split, reporting § 8's MUST about how an internationalized
+    // name is written *instead* -- a requirement about the sender's spelling,
+    // not about which octets a `reg-name` admits. A value that gets past here
+    // and still holds one is the host subject's, below.
     if let Some(c) = inner.chars().find(|c| !c.is_ascii()) {
-        return Some(Defect::unnamed(format!(
-            "Alt-Svc alternative '{shown}' has the octet {} inside its alt-authority. Every production the content derives from is US-ASCII, and an internationalized domain name here is written as A-labels",
-            crate::helpers::shown::describe_octet(c as u32 as u8)
-        )));
+        return Some(Defect::named(
+            &ALT_SVC_AUTHORITY_CHARACTER_FORBIDDEN,
+            format!(
+                "Alt-Svc alternative '{shown}' has the octet {} inside its alt-authority. Every production the content derives from is US-ASCII, and an internationalized domain name here is written as A-labels",
+                crate::helpers::shown::describe_octet(c as u32 as u8)
+            ),
+        ));
     }
 
     // `port = *DIGIT` is thirteen characters standing alone between two
@@ -638,12 +632,6 @@ const RFC_7838_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-1.1",
     note: "Notational Conventions: the field's terminals — `OWS`, `port`, `quoted-string`, `token`, `uri-host` — and the `#rule` extension are imported from RFC 7230, whose §3.2.3, §2.7, §3.2.6 and §7 are carried unchanged by RFC 9110 §5.6.3, §4.1, §5.6.4, §5.6.2 and §5.6.1",
 };
-const RFC_7838_8: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7838",
-    section: Some("8"),
-    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-8",
-    note: "Internationalization Considerations: an internationalized domain name in this field is written as A-labels",
-};
 const RFC_7838_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7838",
     section: Some("2"),
@@ -745,7 +733,6 @@ impl Rule for AltSvcHeaderSyntax {
             // none: every response is a response this field may ride on.
             // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
             let resp = tx.response.as_ref()?;
-            let severity = ctx.severity;
 
             // One `char` per octet, because the findings below are about what a
             // sender wrote: `to_str` would fold a field carrying `obs-text` into
@@ -822,10 +809,7 @@ impl Rule for AltSvcHeaderSyntax {
                     ));
                 }
                 if let Some(defect) = check_alt_value(member) {
-                    return Some(match defect.def {
-                        Some(def) => ctx.report_with(def, defect.message),
-                        None => self.violation(severity, defect.message),
-                    });
+                    return Some(ctx.report_with(defect.def, defect.message));
                 }
             }
 
@@ -1123,6 +1107,7 @@ mod tests {
         let v = check(&tx).expect("no uri-host derives an octet at or above %x80");
         assert!(v.message.contains("0xE9"), "{}", v.message);
         assert!(v.message.contains("A-labels"), "{}", v.message);
+        assert_eq!(v.violation, "alt_svc_authority_character_forbidden");
     }
 
     /// The field's two alternatives are combined differently: a list is one
