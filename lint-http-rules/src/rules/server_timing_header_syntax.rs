@@ -19,8 +19,9 @@ use crate::violations::quoted_string::{
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::server_timing::{
-    SERVER_TIMING_2, SERVER_TIMING_PARAM_DUPLICATED, SERVER_TIMING_PARAM_EMPTY,
-    SERVER_TIMING_PARAM_EQUALS_MISSING, SERVER_TIMING_PARAM_VALUE_EMPTY,
+    SERVER_TIMING_2, SERVER_TIMING_DUR_INVALID, SERVER_TIMING_PARAM_DUPLICATED,
+    SERVER_TIMING_PARAM_EMPTY, SERVER_TIMING_PARAM_EQUALS_MISSING,
+    SERVER_TIMING_PARAM_NAME_INVALID, SERVER_TIMING_PARAM_VALUE_EMPTY,
     SERVER_TIMING_PARAM_VALUE_MALFORMED,
 };
 use crate::violations::token::{
@@ -145,8 +146,8 @@ fn is_valid_floating_point_number(s: &str) -> bool {
 /// § 2 prints.
 pub struct ServerTimingHeaderSyntax;
 
-/// Thirteen defects over four subjects, and the field's own document defines
-/// five of them.
+/// Fifteen defects over four subjects, and the field's own document defines
+/// seven of them.
 ///
 /// § 2 prints `Server-Timing = #server-timing-metric` and then a sentence
 /// naming where the notation comes from: *See [RFC7230] for definitions of #,
@@ -166,9 +167,12 @@ pub struct ServerTimingHeaderSyntax;
 /// **The fifth is § 2's SHOULD NOT**, the only sentence in the document
 /// measuring a server, and it is the one entry here that is not assembly.
 ///
-/// **Two sentences stay unnamed**, both of them the getters': a `dur` that is
-/// not a valid floating-point number, and a name spelled in a case that
-/// surfaces nothing.
+/// **The last two are the getters', and they are the two entries here that name
+/// no sentence**: a `dur` that is not a valid floating-point number, and a name
+/// spelled in a case that surfaces nothing. § 3.2 and § 3.3 state what an
+/// attribute returns, which is a consequence and not a requirement, so a
+/// reference on either entry would dress the one as the other. Both are `info`
+/// for the same reason — a diagnostic reading zero costs nobody a request.
 ///
 /// **`parameter_equals_missing` is deliberately not among these**, and the
 /// reason is written at the site: this parameter is not § 5.6.6's. Its value is
@@ -197,6 +201,8 @@ static DECLARED: &[&ViolationDef] = &[
     &SERVER_TIMING_PARAM_VALUE_EMPTY,
     &SERVER_TIMING_PARAM_VALUE_MALFORMED,
     &SERVER_TIMING_PARAM_DUPLICATED,
+    &SERVER_TIMING_PARAM_NAME_INVALID,
+    &SERVER_TIMING_DUR_INVALID,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -207,31 +213,21 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
 
-/// One finding from the reading, and the defect it reports as where the
-/// catalogue names that defect.
+/// One finding from the reading, and the entry it reports as.
 ///
 /// The shape `expect_header_valid` settled and `warning_header_syntax`
-/// generalised: four nested judges that returned `Option<String>` return this
-/// instead, and [`Defect::in_context`] is where the section's name goes on the
-/// front, so the wording is byte-identical to what it was.
+/// generalised — **without the `Option` now**, since every arm of the four
+/// nested judges names an entry. [`Defect::in_context`] is where the section's
+/// name goes on the front, so the wording is byte-identical to what it was.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed, reported at the rule's severity the way
-    /// every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out — which field
@@ -420,10 +416,7 @@ impl Rule for ServerTimingHeaderSyntax {
                 if let Some(defect) = check_field_value(&value) {
                     let defect = defect
                         .in_context(|message| format!("In the response {section}: {message}"));
-                    return Some(match defect.def {
-                        Some(def) => ctx.report_with(def, defect.message),
-                        None => self.violation(ctx.severity, defect.message),
-                    });
+                    return Some(ctx.report_with(defect.def, defect.message));
                 }
             }
 
@@ -795,12 +788,15 @@ fn established_param_advice(metric: &str, name: &str, value: &str) -> Option<Def
     //
     // cite(Server Timing § 3.3): "The description getter steps are to return this’s params["desc"] if it exists, otherwise the empty string."
     if name != *established {
-        return Some(Defect::unnamed(format!(
+        return Some(Defect::named(
+            &SERVER_TIMING_PARAM_NAME_INVALID,
+            format!(
             "Server-Timing metric '{}' names a server-timing-param '{}', which is '{}' in another case; the attribute that would surface it looks the name up as written, so this parameter is one no user agent recognises and every one of them ignores without error (advice: nothing forbids the name)",
-            shown_in_finding(metric),
-            shown_in_finding(name),
-            established
-        )));
+                shown_in_finding(metric),
+                shown_in_finding(name),
+                established
+            ),
+        ));
     }
 
     // `desc` is whatever the server wrote and § 3.3 returns it unexamined, so
@@ -812,11 +808,14 @@ fn established_param_advice(metric: &str, name: &str, value: &str) -> Option<Def
     // cite(Server Timing § 3.2): "Let dur be the result of parsing this’s params["dur"] using the rules for parsing floating-point number values."
     // cite(Server Timing § 3.2): "If dur is an error, return 0; Otherwise return dur."
     if *established == "dur" && !is_valid_floating_point_number(value) {
-        return Some(Defect::unnamed(format!(
+        return Some(Defect::named(
+            &SERVER_TIMING_DUR_INVALID,
+            format!(
             "Server-Timing metric '{}' has a 'dur' of '{}', which is not a valid floating-point number; the parsing rules return an error for a value that does not begin with one — surfaced as a duration of 0 — and otherwise stop at the first character that is not part of the number, so neither reading is what this metric says (advice: no sentence requires 'dur' to be a number)",
-            shown_in_finding(metric),
-            shown_in_finding(value)
-        )));
+                shown_in_finding(metric),
+                shown_in_finding(value)
+            ),
+        ));
     }
 
     None
@@ -917,14 +916,15 @@ mod tests {
     /// Every finding this rule makes, with the sentence it says it in and the
     /// defect it reports as.
     ///
-    /// The third column splits the table in three. Most ids name a production
-    /// the field borrowed — the list around the metrics, the `token` three
-    /// positions are, the `quoted-string` a value may be — and an operator
-    /// tunes those once for every field in this catalogue written out of the
-    /// same production. Four name this document's own assembly, which no
-    /// borrowed production can fail. An empty one is what is left: § 2's SHOULD
-    /// NOT, and what the two getters do with what they are handed. There is
-    /// nothing in the middle, which is the claim.
+    /// The third column splits the table in three, and no cell in it is empty
+    /// any more. Most ids name a production the field borrowed — the list
+    /// around the metrics, the `token` three positions are, the `quoted-string`
+    /// a value may be — and an operator tunes those once for every field in
+    /// this catalogue written out of the same production. Four name this
+    /// document's own assembly, which no borrowed production can fail. Three
+    /// name what only this field can say: § 2's SHOULD NOT, and the two things
+    /// the getters do with what they are handed. There is nothing in the
+    /// middle, which is the claim.
     #[rstest]
     #[case::leading_comma(b",miss", "empty list element", "list_member_empty")]
     #[case::trailing_comma(b"miss,", "empty list element", "list_member_empty")]
@@ -989,11 +989,31 @@ mod tests {
     // module; these two cases are here for the wiring -- that the branch is
     // reached, and that it is reached through the quoted alternative too, where
     // `""` is a value the empty-value branch above cannot see.
-    #[case::dur_not_a_number(b"db;dur=abc", "not a valid floating-point number", "")]
-    #[case::dur_quoted_empty(b"db;dur=\"\"", "not a valid floating-point number", "")]
-    #[case::dur_quoted_not_a_number(b"db;dur=\"abc\"", "not a valid floating-point number", "")]
-    #[case::dur_wrong_case(b"db;DUR=53", "which is 'dur' in another case", "")]
-    #[case::desc_wrong_case(b"db;Desc=x", "which is 'desc' in another case", "")]
+    #[case::dur_not_a_number(
+        b"db;dur=abc",
+        "not a valid floating-point number",
+        "server_timing_dur_invalid"
+    )]
+    #[case::dur_quoted_empty(
+        b"db;dur=\"\"",
+        "not a valid floating-point number",
+        "server_timing_dur_invalid"
+    )]
+    #[case::dur_quoted_not_a_number(
+        b"db;dur=\"abc\"",
+        "not a valid floating-point number",
+        "server_timing_dur_invalid"
+    )]
+    #[case::dur_wrong_case(
+        b"db;DUR=53",
+        "which is 'dur' in another case",
+        "server_timing_param_name_invalid"
+    )]
+    #[case::desc_wrong_case(
+        b"db;Desc=x",
+        "which is 'desc' in another case",
+        "server_timing_param_name_invalid"
+    )]
     fn reported(#[case] line: &[u8], #[case] expected: &str, #[case] violation: &str) {
         let v = header(line).unwrap_or_else(|| panic!("expected a finding for {line:?}"));
         assert!(
