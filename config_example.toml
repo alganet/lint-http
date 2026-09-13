@@ -1303,6 +1303,10 @@ severity = "warn"
 # A date conditional is sent beside the entity-tag conditional that supersedes it
 severity = "info"
 
+[violations.conditional_validator_missing]
+# A precondition names a validator this exchange never provided
+severity = "info"
+
 [violations.content_coding_identity_forbidden]
 # The identity coding is named where a coding belongs
 severity = "warn"

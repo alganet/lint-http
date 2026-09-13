@@ -106,6 +106,40 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9110_13_1_3],
     }
+
+    /// A precondition naming a validator this exchange never provided: a
+    /// conditional request with no stored response for the resource, one whose
+    /// stored response was never observed, an entity-tag conditional after a
+    /// response with no `ETag`, or a date conditional after one with no
+    /// `Last-Modified`.
+    ///
+    /// **The one entry in this subject that names no sentence, and the reason
+    /// is that there is none.** RFC 9110 states no requirement that a client
+    /// have previously received the validator it conditions on — `If-None-Match:
+    /// *` legitimately needs no prior tag at all, and a client may carry a
+    /// validator from a cache this observer never saw fill. The heuristic is
+    /// this crate's, and a reference on it would dress a stateful guess as a
+    /// requirement.
+    ///
+    /// **Four situations, one entry, and two of them are about the observer
+    /// rather than the sender.** "No stored response for this resource" and
+    /// "a stored transaction whose response was never recorded" are statements
+    /// about what reached the proxy; "the response carried no `ETag`" and "no
+    /// `Last-Modified`" are statements about what the server sent. They share
+    /// the claim that matters — the precondition was built from something this
+    /// exchange cannot account for — and the message says which of the four it
+    /// was, which is where the difference belongs when the repair is the same
+    /// in all four: none, unless the validator was invented.
+    ///
+    /// `info`, for a finding with no sentence behind it and a legitimate
+    /// explanation available in every case.
+    CONDITIONAL_VALIDATOR_MISSING = {
+        id: "conditional_validator_missing",
+        title: "A precondition names a validator this exchange never provided",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
 }
 
 #[cfg(test)]
