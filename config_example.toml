@@ -1635,6 +1635,22 @@ severity = "warn"
 # Link parameter writes an '=' with no value after it
 severity = "warn"
 
+[violations.link_rel_empty]
+# Link member writes a rel with no relation type in it
+severity = "warn"
+
+[violations.link_rel_malformed]
+# Link rel value opens or closes on a space
+severity = "warn"
+
+[violations.link_rel_missing]
+# Link member carries no rel parameter
+severity = "warn"
+
+[violations.link_relation_type_malformed]
+# Link names a relation type that is neither registered-shaped nor a URI
+severity = "warn"
+
 [violations.link_target_delimiter_missing]
 # Link member's target is not inside angle brackets
 severity = "warn"

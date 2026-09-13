@@ -50,7 +50,111 @@ pub const RFC_8288_3: SpecRef = SpecRef {
            quoted-string forms, which is why a value is judged after unquoting",
 };
 
+/// The `rel` parameter: that a member has one, and what its value derives from.
+pub const RFC_8288_3_3: SpecRef = SpecRef {
+    spec: "RFC 8288",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.3",
+    note: "`rel` MUST be present and MUST NOT appear more than once; its value is \
+           `relation-type *( 1*SP relation-type )`; `relation-type = reg-rel-type / \
+           ext-rel-type` with `ext-rel-type = URI`, required to be absolute. The \
+           section that makes a URI-shaped relation type conforming and a capital \
+           letter in a registered one not",
+};
+
 defects! {
+    /// A `link-value` with no `rel` parameter at all: `</a>; title="Home"`.
+    ///
+    /// **The one parameter this serialisation requires**, and the reason is
+    /// what a link *is*: a target, a context and a relation type. A member
+    /// naming a target and no relation says which document is there and
+    /// nothing about why, so a recipient has nothing to file it under.
+    ///
+    /// Reached by two paths that are one defect — a member with no parameters
+    /// at all, and a member whose parameters do not include this one — because
+    /// what is absent is the same thing and the fix is the same.
+    ///
+    // cite(RFC 8288 § 3.3, label: rel presence): "The rel parameter MUST be present but MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers."
+    LINK_REL_MISSING = {
+        id: "link_rel_missing",
+        title: "Link member carries no rel parameter",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_8288_3_3],
+    }
+
+    /// A `rel` that is present and says nothing: a bare `rel`, or `rel=""`.
+    ///
+    /// **Distinct from a parameter with an open `=` and nothing after it**,
+    /// which is [`LINK_PARAM_VALUE_EMPTY`] and is about the *grammar* of any
+    /// parameter. This entry is about `rel` in particular: the optional group
+    /// makes a valueless parameter derive, and `""` is a `quoted-string` that
+    /// derives too, so both spellings are conforming `link-param`s carrying no
+    /// relation type — which § 3.3's own value production does not admit,
+    /// since it opens on a `relation-type`.
+    ///
+    /// **Two spellings, one entry**: a sender that wrote `rel` and one that
+    /// wrote `rel=""` both named a link with no relation, and a recipient
+    /// cannot tell the two apart once the value is unquoted.
+    ///
+    // cite(RFC 8288 § 3.3, label: rel value production): "relation-type *( 1*SP relation-type )"
+    LINK_REL_EMPTY = {
+        id: "link_rel_empty",
+        title: "Link member writes a rel with no relation type in it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_8288_3_3],
+    }
+
+    /// A `rel` value that opens or closes on a space: `rel=" next"`.
+    ///
+    /// The value is `relation-type *( 1*SP relation-type )` — it opens on a
+    /// type, closes on a type, and prints the separator only between two of
+    /// them. A leading or trailing space is admitted nowhere, and a recipient
+    /// splitting on `1*SP` finds an element that is not a relation type at all.
+    ///
+    /// **The value's shape rather than a value's**: what fails here is how the
+    /// types are arranged, where
+    /// [`LINK_RELATION_TYPE_MALFORMED`] is one of them failing on its own.
+    ///
+    // cite(RFC 8288 § 3.3, label: rel value separator): "relation-type *( 1*SP relation-type )"
+    LINK_REL_MALFORMED = {
+        id: "link_rel_malformed",
+        title: "Link rel value opens or closes on a space",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_8288_3_3],
+    }
+
+    /// A relation type deriving from neither alternative: `Next`, `foo bar` —
+    /// anything that is not a `reg-rel-type` and has no scheme to be a URI
+    /// with.
+    ///
+    /// **The alternation is the whole of the check, and each half is stricter
+    /// and looser than a `token` at once.** `reg-rel-type` admits less — a
+    /// leading lowercase letter, then lowercase letters, digits, `.` and `-`,
+    /// so no capital and no `_` — and `ext-rel-type` admits far more, since a
+    /// URI holds `:` and `/`. A scan against `tchar` would pass `Next` and
+    /// report `http://example.net/foo`, which the section prints as a
+    /// conforming example.
+    ///
+    /// **The `:` is what commits a value to one half**, which is why this entry
+    /// is reached only where there is none: once a colon is written, the value
+    /// can only have been meant as a URI, and every octet of it is
+    /// [`uri`](crate::violations::uri)'s to judge — the scheme's spelling and
+    /// the alphabet both. **A value with no colon is neither production's, and
+    /// that is this entry**: the verdict belongs to `relation-type` itself,
+    /// which is what an alternation can own when the reading cannot commit.
+    ///
+    // cite(RFC 8288 § 3.3, label: relation-type alternation): "relation-type  = reg-rel-type / ext-rel-type"
+    LINK_RELATION_TYPE_MALFORMED = {
+        id: "link_relation_type_malformed",
+        title: "Link names a relation type that is neither registered-shaped nor a URI",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_8288_3_3],
+    }
+
     /// A member whose target is not between angle brackets: `http://x>`, or
     /// `<http://x` with nothing closing it.
     ///

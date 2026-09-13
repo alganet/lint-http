@@ -16,8 +16,9 @@ use crate::violations::language::{
     LANGUAGE_TAG_SUBTAG_LENGTH_INVALID, LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_5646_2_1,
 };
 use crate::violations::link::{
-    LINK_MEMBER_MALFORMED, LINK_PARAM_EMPTY, LINK_PARAM_VALUE_EMPTY, LINK_TARGET_DELIMITER_MISSING,
-    RFC_8288_3,
+    LINK_MEMBER_MALFORMED, LINK_PARAM_EMPTY, LINK_PARAM_VALUE_EMPTY, LINK_RELATION_TYPE_MALFORMED,
+    LINK_REL_EMPTY, LINK_REL_MALFORMED, LINK_REL_MISSING, LINK_TARGET_DELIMITER_MISSING,
+    RFC_8288_3, RFC_8288_3_3,
 };
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
@@ -37,8 +38,8 @@ use crate::violations::ViolationDef;
 
 pub struct LinkHeaderValid;
 
-/// Every production this field is assembled from, and the first four entries of
-/// its assembly.
+/// Every production this field is assembled from, and everything the
+/// serialisation says about `rel`.
 ///
 /// `Link = #link-value` with `link-value = "<" URI-Reference ">" *( OWS ";"
 /// OWS link-param )` and `link-param = token BWS [ "=" BWS ( token /
@@ -59,12 +60,22 @@ pub struct LinkHeaderValid;
 /// repetition is RFC 8288's own, so the two separators of one field answer to
 /// two documents.
 ///
-/// **What is still unnamed** is what the parameters *mean*: `rel` missing,
-/// empty, written twice or naming a relation type deriving from neither of
-/// § 3.3's alternatives, a `type` value that is no media type — and the two
-/// findings HTML states about a `preload`, which no RFC asks for at all.
+/// **The `rel` family is written too**: the parameter absent, present and
+/// saying nothing, arranged around a space the production admits nowhere, or
+/// naming a relation type that derives from neither of § 3.3's alternatives.
+/// The last of those is reached only where the value has no `:`, because a
+/// colon commits it to the URI half and every octet after that is
+/// `uri`'s to judge.
+///
+/// **What is still unnamed** is a parameter this serialisation admits at most
+/// once and written twice, a `type` value that is no media type, and the two
+/// findings HTML states about a `preload` — which no RFC asks for at all.
 static DECLARED: &[&ViolationDef] = &[
     &LINK_TARGET_DELIMITER_MISSING,
+    &LINK_REL_MISSING,
+    &LINK_REL_EMPTY,
+    &LINK_REL_MALFORMED,
+    &LINK_RELATION_TYPE_MALFORMED,
     &LINK_MEMBER_MALFORMED,
     &LINK_PARAM_EMPTY,
     &LINK_PARAM_VALUE_EMPTY,
@@ -138,16 +149,6 @@ const RFC_8288_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The link target: one IRI converted to a `URI-Reference` and written inside \
            angle brackets. The conversion is why an octet no URI admits is a finding \
            rather than an encoding question",
-};
-const RFC_8288_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8288",
-    section: Some("3.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.3",
-    note: "`rel` MUST be present and MUST NOT appear more than once; its value is \
-           `relation-type *( 1*SP relation-type )`; `relation-type = reg-rel-type / \
-           ext-rel-type` with `ext-rel-type = URI`, required to be absolute. The \
-           section that makes a URI-shaped relation type conforming and a capital \
-           letter in a registered one not",
 };
 const RFC_8288_3_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 8288",
@@ -1032,10 +1033,13 @@ const PRELOAD_DESTINATIONS: &[&str] = &["fetch", "font", "image", "script", "sty
 // cite(RFC 8288 § 3.3): "The relation type of a link conveyed in the Link header field is conveyed in the "rel" parameter's value."
 // cite(RFC 8288 § 3.3): "The rel parameter MUST be present but MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers."
 fn missing_rel(member: &str) -> Result<(), Defect> {
-    Err(Defect::unnamed(format!(
-        "'{}' carries no 'rel' parameter, and a link-value must have one",
-        shown_in_finding(member)
-    )))
+    Err(Defect::named(
+        &LINK_REL_MISSING,
+        format!(
+            "'{}' carries no 'rel' parameter, and a link-value must have one",
+            shown_in_finding(member)
+        ),
+    ))
 }
 
 /// Split a `rel` value into its relation types and judge each one.
@@ -1049,15 +1053,19 @@ fn missing_rel(member: &str) -> Result<(), Defect> {
 // cite(RFC 8288 § 3.3): "The rel parameter can, however, contain multiple link relation types."
 fn validate_rel_value(value: &str) -> Result<Vec<&str>, Defect> {
     if value.is_empty() {
-        return Err(Defect::unnamed(
+        return Err(Defect::named(
+            &LINK_REL_EMPTY,
             "writes 'rel' with no value, where §3.3 asks it for one or more relation types".into(),
         ));
     }
     if value.starts_with(' ') || value.ends_with(' ') {
-        return Err(Defect::unnamed(format!(
-            "writes rel='{}', which opens or closes on a space the production does not admit",
-            shown_in_finding(value)
-        )));
+        return Err(Defect::named(
+            &LINK_REL_MALFORMED,
+            format!(
+                "writes rel='{}', which opens or closes on a space the production does not admit",
+                shown_in_finding(value)
+            ),
+        ));
     }
 
     let types: Vec<&str> = value.split(' ').filter(|t| !t.is_empty()).collect();
@@ -1110,7 +1118,10 @@ fn relation_type_defect(t: &str) -> Result<(), Defect> {
         Some(colon) => validate_scheme_name(&t[..colon])
             .err()
             .map(|defect| Defect::named(scheme_name(defect), defect.message())),
-        None => Some(Defect::unnamed("it has no scheme".to_string())),
+        None => Some(Defect::named(
+            &LINK_RELATION_TYPE_MALFORMED,
+            "it has no scheme".to_string(),
+        )),
     };
 
     if let Some(defect) = scheme_defect {
@@ -1542,10 +1553,14 @@ mod tests {
     #[case(b"</a; rel=next", Some("link_target_delimiter_missing"))]
     #[case(b"</a> junk; rel=next", Some("link_member_malformed"))]
     #[case(b"</a>; rel=next;", Some("link_param_empty"))]
-    #[case(b"</a>; title=\"Home\"", None)]
+    #[case(b"</a>; title=\"Home\"", Some("link_rel_missing"))]
+    #[case(b"</a>", Some("link_rel_missing"))]
     #[case(b"</a>; rel=", Some("link_param_value_empty"))]
     #[case(b"</a>; rel=next; rel=prev", None)]
-    #[case(b"</a>; rel=Next", None)]
+    #[case(b"</a>; rel=Next", Some("link_relation_type_malformed"))]
+    #[case(b"</a>; rel=\"\"", Some("link_rel_empty"))]
+    #[case(b"</a>; rel", Some("link_rel_empty"))]
+    #[case(b"</a>; rel=\" next\"", Some("link_rel_malformed"))]
     #[case(b"</a>; rel=alternate; type=text", None)]
     #[case(b"</a>; rel=preload", None)]
     #[case(b"</a>; rel=preload; as=document", None)]
