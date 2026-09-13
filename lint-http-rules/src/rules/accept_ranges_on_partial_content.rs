@@ -4,8 +4,21 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::accept_ranges::{ACCEPT_RANGES_IGNORED, RFC_9110_14_2, RFC_9110_14_3};
+use crate::violations::ViolationDef;
 
 pub struct AcceptRangesOnPartialContent;
+
+/// One entry, and it took reading the two findings to see that they were one.
+///
+/// This rule reports a `Range` sent after an `Accept-Ranges: none` and a
+/// `Range` naming a unit the previous response's list left out. `none` looks
+/// like the sharper of the two and is not a special value at all: the
+/// permission it carries makes the advertised set *empty*, so both requests
+/// fail the same test — the unit is not in the set — and both are fixed the
+/// same way. The two branches survive because the two deserve different
+/// sentences, which is a fact about the message and not about the defect.
+static DECLARED: &[&ViolationDef] = &[&ACCEPT_RANGES_IGNORED];
 
 /// The range unit this request asks in, or `None` when the `Range` field is not
 /// something a unit may honestly be read out of.
@@ -51,18 +64,6 @@ fn requested_unit(headers: &hyper::HeaderMap) -> Option<String> {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_14_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("14.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
-    note: "`Accept-Ranges`: advice, in the section's own words, about which range units a resource supports — or `none`, which advises against attempting a range request on the same request path. A client MAY send range requests regardless, and MUST NOT assume the field means future range requests will be answered with partial responses, which no parser can check",
-};
-const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("14.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
-    note: "`Range`: `ranges-specifier`, and an origin server MUST ignore one whose range unit it does not understand — which is what a request in an unadvertised unit costs",
-};
 const RFC_9110_14_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("14.1"),
@@ -93,6 +94,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_14_3, RFC_9110_14_2, RFC_9110_14_1, RFC_9110_15_3_7]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -190,7 +195,7 @@ impl Rule for AcceptRangesOnPartialContent {
             //
             // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
             if advertised.advertises("none") {
-                return Some(self.cited(&RFC_9110_14_3, ctx.severity, "Previous response for this resource sent Accept-Ranges: none, advising against a range request on the same request path, and this request sends Range anyway (advice: nothing forbids it)".into()));
+                return Some(ctx.report_with(&ACCEPT_RANGES_IGNORED, "Previous response for this resource sent Accept-Ranges: none, advising against a range request on the same request path, and this request sends Range anyway (advice: nothing forbids it)".into()));
             }
 
             // A field line that could not be read may have been the one naming this
@@ -210,7 +215,7 @@ impl Rule for AcceptRangesOnPartialContent {
             //
             // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
             if !advertised.advertises(&unit) {
-                return Some(self.cited(&RFC_9110_14_2, ctx.severity, format!(
+                return Some(ctx.report_with(&ACCEPT_RANGES_IGNORED, format!(
                         "Range asks in '{}', a unit the previous response for this resource did not advertise, so a server that does not understand it will ignore the field and send the whole representation (advice: nothing forbids it)",
                         unit
                     )));
@@ -303,6 +308,21 @@ mod tests {
     }
 
     const RANGE: &[(&str, &[u8])] = &[("range", b"bytes=0-1".as_slice())];
+
+    /// Both branches draw one id, which is the commit's whole claim: `none` is
+    /// an *empty* advertised set rather than a special value, so a `Range` in
+    /// `bytes` after a `none` and a `Range` in `bytes` after a `pages` fail the
+    /// same test and take the same fix. They keep two messages because the two
+    /// deserve different sentences.
+    #[rstest]
+    #[case::after_none(&[("accept-ranges", b"none".as_slice())][..])]
+    #[case::after_another_unit(&[("accept-ranges", b"pages".as_slice())][..])]
+    fn an_unadvertised_unit_is_one_entry_however_the_set_was_written(
+        #[case] headers: &[(&str, &[u8])],
+    ) {
+        let found = judge(Previously::AResponse(200, headers, &[]), RANGE).expect("a finding");
+        assert_eq!(found.violation, "accept_ranges_ignored", "{headers:?}");
+    }
 
     #[rstest]
     #[case::advertised(200, &[("accept-ranges", b"bytes".as_slice())][..], false)]

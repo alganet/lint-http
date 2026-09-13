@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::accept_ranges::{
     ACCEPT_RANGES_MISSING, ACCEPT_RANGES_NONE_CONFLICTING, ACCEPT_RANGES_UNIT_MISSING,
-    RFC_9110_14_3,
+    RFC_9110_14_2, RFC_9110_14_3,
 };
 use crate::violations::ViolationDef;
 
@@ -36,12 +36,6 @@ const RFC_9110_15_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("15.3.7"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
     note: "`206 Partial Content`: the server successfully fulfilling a range request, which is what makes `Accept-Ranges: none` in the same response a contradiction. The section also lists the header fields a 206 MUST carry, and `Accept-Ranges` is not among them. RFC 7233 §4.1 defined the status code; RFC 9110 obsoleted RFC 7233",
-};
-const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("14.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
-    note: "`Range`: a 206 is the answer when the request's range unit is supported for the target resource, so the `Content-Range` unit is a unit the server supports",
 };
 const RFC_9110_14_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
