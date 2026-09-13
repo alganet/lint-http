@@ -1055,6 +1055,18 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[violations.accept_ranges_missing]
+# A partial response advertises no range units
+severity = "info"
+
+[violations.accept_ranges_none_conflicting]
+# Accept-Ranges says 'none' where range requests demonstrably work
+severity = "warn"
+
+[violations.accept_ranges_unit_missing]
+# A range unit in use is absent from what the response advertises
+severity = "info"
+
 [violations.alpn_protocol_name_length_invalid]
 # ALPN protocol name is longer than the vector that carries it
 severity = "warn"

@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::accept_ranges::{ACCEPT_RANGES_NONE_CONFLICTING, RFC_9110_14_3};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
@@ -24,14 +25,17 @@ pub struct AcceptRangesValuesValid;
 /// The field's own contribution is what the names mean, and that is the one
 /// finding this rule keeps: `none` beside a unit the server does support, which
 /// § 14.3 makes a contradiction about the resource rather than about the value.
-/// It stays at the rule's severity, and it is advice — nothing forbids the
-/// combination — so it was always the finding here that least deserved to share
-/// a level with an octet no `token` admits.
+/// It is advice — nothing forbids the combination — so it was always the
+/// finding here that least deserved to share a level with an octet no `token`
+/// admits, and it no longer does. **The entry is not this rule's**:
+/// `accept_ranges_and_206_consistent` reaches the same claim from the status
+/// code instead of from the value, and one defect with one fix is one id.
 ///
 /// The value is read as octets, so an octet outside visible US-ASCII is one of
 /// these two ids rather than a sentence of its own: a range unit name is a
 /// `token`, and every character of one is inside that set.
 static DECLARED: &[&ViolationDef] = &[
+    &ACCEPT_RANGES_NONE_CONFLICTING,
     &LIST_MEMBER_MISSING,
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -41,12 +45,6 @@ static DECLARED: &[&ViolationDef] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_14_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("14.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
-    note: "`Accept-Ranges`: `acceptable-ranges = 1#range-unit`, sent in a response to indicate whether an upstream server supports range requests for the target resource. It grants a MAY to a server that \"does not support any kind of range request for the target resource\" to send `none`, and reserves that name for the purpose — the condition on the MAY is what makes `none` beside another unit worth reporting, and the absence of any prohibition is why the report is advice. The field MAY also be sent in a trailer section, which is where the second field section this rule reads comes from, and the preference for the header section carries no modal. The section's remaining sentences are addressed to clients: the field is advice a client MAY ignore, and a client MUST NOT read it as a promise about the next request",
-};
 const RFC_9110_14_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("14.1"),
@@ -252,7 +250,7 @@ impl Rule for AcceptRangesValuesValid {
             }
         }
         if units.iter().any(|u| u == "none") && !others.is_empty() {
-            out.push(self.violation(ctx.severity, format!(
+            out.push(ctx.report_with(&ACCEPT_RANGES_NONE_CONFLICTING, format!(
                         "Accept-Ranges advertises '{}' beside 'none', which is reserved for advising that no kind of range request is supported: the field says both that this resource supports range requests and that it does not (advice: nothing forbids it)",
                         others.join("', '")
                     )));

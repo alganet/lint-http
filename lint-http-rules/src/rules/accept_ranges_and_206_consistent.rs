@@ -4,18 +4,33 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::accept_ranges::{
+    ACCEPT_RANGES_MISSING, ACCEPT_RANGES_NONE_CONFLICTING, ACCEPT_RANGES_UNIT_MISSING,
+    RFC_9110_14_3,
+};
+use crate::violations::ViolationDef;
 
 pub struct AcceptRangesAnd206Consistent;
+
+/// Every finding this rule makes is `Accept-Ranges`' own, and none of it is
+/// this rule's alone.
+///
+/// The three entries are ranked apart where the rule's one severity could not
+/// rank them: a response that advertises nothing and a response whose
+/// advertisement omits the unit it just used are both thin advice, and a
+/// response that says `none` while fulfilling a range request states the
+/// opposite of what it did. `accept_ranges_values_valid` reaches that middle
+/// entry from the field value instead of from the status code, which is what
+/// makes it one entry with two declarers rather than two.
+static DECLARED: &[&ViolationDef] = &[
+    &ACCEPT_RANGES_MISSING,
+    &ACCEPT_RANGES_NONE_CONFLICTING,
+    &ACCEPT_RANGES_UNIT_MISSING,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_14_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("14.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
-    note: "`Accept-Ranges`: `1#range-unit`, advertising which units a resource supports, or `none`. Sending it is not required — the section says so twice — and it MAY be sent in a trailer section",
-};
 const RFC_9110_15_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.7"),
@@ -52,6 +67,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_14_3, RFC_9110_15_3_7, RFC_9110_14_2, RFC_9110_14_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -137,7 +156,7 @@ impl Rule for AcceptRangesAnd206Consistent {
             // cite(RFC 9110 § 14.3): "to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path."
             // cite(RFC 9110 § 15.3.7): "A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary."
             if !advertised.present {
-                return Some(self.violation(ctx.severity, "206 Partial Content response carries no Accept-Ranges field, so a client resuming this transfer has nothing telling it which range units the resource supports (advice: nothing requires the field)".into()));
+                return Some(ctx.report_with(&ACCEPT_RANGES_MISSING, "206 Partial Content response carries no Accept-Ranges field, so a client resuming this transfer has nothing telling it which range units the resource supports (advice: nothing requires the field)".into()));
             }
 
             // The permission to send `none` belongs to a server that supports no kind
@@ -148,7 +167,7 @@ impl Rule for AcceptRangesAnd206Consistent {
             // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
             // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
             if advertised.advertises("none") {
-                return Some(self.cited(&RFC_9110_14_3, ctx.severity, "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into()));
+                return Some(ctx.report_with(&ACCEPT_RANGES_NONE_CONFLICTING, "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into()));
             }
 
             // A unit that could not be read may be the one the Content-Range names,
@@ -178,7 +197,7 @@ impl Rule for AcceptRangesAnd206Consistent {
             //
             // cite(RFC 9110 § 14.2): "If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested."
             if !advertised.advertises(unit) {
-                return Some(self.cited(&RFC_9110_14_2, ctx.severity, format!(
+                return Some(ctx.report_with(&ACCEPT_RANGES_UNIT_MISSING, format!(
                         "Content-Range describes a range in '{}', a unit this response's Accept-Ranges does not advertise (advice: nothing requires the two to agree)",
                         unit
                     )));
@@ -235,6 +254,53 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config(),
         )
+    }
+
+    /// The three findings and the ids they draw, so the ranking the subject
+    /// argues for is asserted somewhere a change would trip over it: two of
+    /// them are thin advice and one states the opposite of what the response
+    /// did.
+    #[rstest]
+    #[case::nothing_advertised(&[][..], "accept_ranges_missing")]
+    #[case::none(&[("content-range", b"bytes 0-0/1".as_slice()), ("accept-ranges", b"none".as_slice())][..], "accept_ranges_none_conflicting")]
+    #[case::unit_not_advertised(&[("content-range", b"bytes 0-0/1".as_slice()), ("accept-ranges", b"pages".as_slice())][..], "accept_ranges_unit_missing")]
+    fn each_finding_names_its_own_entry(#[case] headers: &[(&str, &[u8])], #[case] id: &str) {
+        let found = judge(&response(206, headers, &[])).expect("a finding");
+        assert_eq!(found.violation, id, "{headers:?}");
+    }
+
+    /// One defect, two rules, two kinds of evidence: this rule reads `none`
+    /// beside the status code that fulfilled a range request, and
+    /// `accept_ranges_values_valid` reads it beside a real unit in the value.
+    /// The fix is the same in both — delete `none` — so the id is too.
+    #[test]
+    fn the_none_contradiction_is_one_id_from_either_side() {
+        let from_the_status = judge(&response(
+            206,
+            &[
+                ("content-range", b"bytes 0-0/1".as_slice()),
+                ("accept-ranges", b"none".as_slice()),
+            ],
+            &[],
+        ))
+        .expect("a finding");
+
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut tx = tx;
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("accept-ranges", "bytes, none")]);
+        let from_the_value = crate::test_helpers::run_rule(
+            &super::super::accept_ranges_values_valid::AcceptRangesValuesValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "accept_ranges_values_valid",
+            ]),
+        )
+        .expect("a finding");
+
+        assert_eq!(from_the_status.violation, from_the_value.violation);
+        assert_eq!(from_the_status.violation, "accept_ranges_none_conflicting");
     }
 
     #[rstest]
