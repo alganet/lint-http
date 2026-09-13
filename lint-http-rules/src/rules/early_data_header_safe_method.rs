@@ -4,6 +4,27 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::early_data::{
+    EARLY_DATA_DUPLICATED, EARLY_DATA_FORBIDDEN, EARLY_DATA_INVALID, EARLY_DATA_METHOD_FORBIDDEN,
+    RFC_8470_4, RFC_8470_5_1,
+};
+use crate::violations::ViolationDef;
+
+/// Four entries, split by whether the finding is about what the mark means or
+/// about how it is written.
+///
+/// A method whose safety nobody here knows and a field named as a connection
+/// option are the two that matter: one request may take effect twice, and one
+/// signal disappears on the next hop. A second field line and a value that is
+/// not `1` leave the request marked exactly as the sender meant, because § 5.1
+/// has a server read both as `1` — which is a ranking this rule's single
+/// severity could not make.
+static DECLARED: &[&ViolationDef] = &[
+    &EARLY_DATA_FORBIDDEN,
+    &EARLY_DATA_METHOD_FORBIDDEN,
+    &EARLY_DATA_DUPLICATED,
+    &EARLY_DATA_INVALID,
+];
 
 /// The field name, in the lowercase spelling a `HeaderMap` indexes by.
 const FIELD: &str = "early-data";
@@ -91,7 +112,7 @@ impl EarlyDataHeaderSafeMethod {
     /// what a message's connection-options are.
     fn connection_names_early_data(
         &self,
-        config: &EarlyDataConfig,
+        ctx: &crate::rules::RuleContext<'_>,
         section: &str,
         headers: &hyper::HeaderMap,
     ) -> Option<Violation> {
@@ -100,8 +121,8 @@ impl EarlyDataHeaderSafeMethod {
         if !crate::helpers::field_placement::is_nominated_by_connection(FIELD, Some(&connection)) {
             return None;
         }
-        Some(self.violation(
-            config.severity,
+        Some(ctx.report_with(
+            &EARLY_DATA_FORBIDDEN,
             format!(
                 "The {section} names Early-Data as a connection-option in its Connection header field, so every intermediary removes the field before forwarding — which is what RFC 8470 §5.1 forbids an intermediary to do to it"
             ),
@@ -112,18 +133,6 @@ impl EarlyDataHeaderSafeMethod {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_8470_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8470",
-    section: Some("4"),
-    url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-4",
-    note: "Using Early Data in HTTP Clients — the MUST NOT that licenses this rule, and it covers two sets: unsafe methods, and methods whose safety is not known. It opens \"Absent other information\", an out-of-band state no message records",
-};
-const RFC_8470_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8470",
-    section: Some("5.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-5.1",
-    note: "The Early-Data Header Field — one valid value, at most one instance, invalid or repeated instances read as a single \"1\", added by an intermediary rather than by the user agent, and forbidden in a Connection field, in a response, and in a request's trailer section",
-};
 const RFC_8470_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 8470",
     section: Some("5.2"),
@@ -192,6 +201,10 @@ safe_methods = [
 
     fn description(&self) -> &'static str {
         "Reports a request that was conveyed in TLS early data — a request carrying an `Early-Data` header field — under a method this deployment does not list as safe. RFC 8470 §4: \"Absent other information, clients MAY send requests with safe HTTP methods … in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data.\" Early data can be captured and replayed by an attacker, so a request that changes state may take effect more than once.\n\n**The field's presence is the signal, not its value.** RFC 8470 §5.1 gives the field one valid value, `1`, and then says what a server does with anything else: \"Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server.\" So `Early-Data: 0`, an empty value, a value that is not US-ASCII, and two field lines all describe the same request — one a server must treat as having arrived through early data. The value and the line count are each reported separately, as what they are.\n\n**The sender of the message is usually not the party that broke the requirement.** §5.1: \"A request that is marked with Early-Data was sent in early data on a previous hop\", and the field \"is not intended for use by user agents (that is, the original initiator of a request)\" — an intermediary forwarding a request before its TLS handshake completed MUST add it. So a finding here says an unsafe method entered early data somewhere along the chain; which hop put it there is not in the message.\n\n**`safe_methods` is required, and the reason is that safety is a registry field.** RFC 9110 §16.1.1 makes `Safe (\"yes\" or \"no\")` a mandatory part of every method registration, and entries are added by IETF Review — `GET`, `HEAD`, `OPTIONS` and `TRACE` are only the ones RFC 9110 itself defines, while `PRI`, `PROPFIND`, `QUERY`, `REPORT` and `SEARCH` are registered safe by other documents. A list compiled into this rule would be a snapshot of that registry presented as though it were the grammar. The array is also where a deployment records what it knows about its own methods, which is the state §4's sentence opens with — \"Absent other information\".\n\nMethods are matched exactly. RFC 9110 §9.1: \"The method token is case-sensitive\", so `get` is not `GET` but a method this specification does not define, and §4's parenthetical — \"or methods whose safety is not known\" — is what covers it. A method absent from the array is reported for that reason, not for being unsafe.\n\n**Three further sentences of §5.1 are enforced here, because this rule is the field's only reader.** A client may send at most one instance. The field MUST NOT appear in a response. And it MUST NOT be named as a connection-option in a `Connection` header field, which would have every intermediary strip the one field §5.1 forbids removing. The remaining placement — the field arriving in a trailer section — is `trailer_fields_valid`'s finding, since that is where RFC 9110 §6.5.1 is applied.\n\n**Not checked here.** Whether a request was in fact sent in early data when no field marks it: a user agent that sends its own request in early data \"does not need to include the Early-Data header field\", so an unmarked early-data request is invisible to any observer of the message. Whether a server answered a request it could not safely process with 425 (Too Early), which turns on the origin's own judgement of replay risk for a resource. And whether \"other information\" existed: an out-of-band agreement that a particular resource tolerates replay leaves no trace in the message, which is why the deployment's array is the place to record it."
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -286,8 +299,8 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 // cite(RFC 8470 § 4): "Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data."
                 // cite(RFC 9110 § 9.2.1): "Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource."
                 if !config.safe_methods.iter().any(|m| m == &tx.request.method) {
-                    return Some(self.violation(
-                        config.severity,
+                    return Some(ctx.report_with(
+                        &EARLY_DATA_METHOD_FORBIDDEN,
                         format!(
                             "Request carrying an Early-Data header field was conveyed in TLS early data on a previous hop (RFC 8470 §5.1), and its method '{}' is not one this deployment lists as safe; RFC 8470 §4 has a client send only safe methods in early data, because a replayed unsafe request takes effect twice",
                             tx.request.method
@@ -299,8 +312,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 // has an intermediary write the field: it adds one only where there is none.
                 // cite(RFC 8470 § 5.1): "An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request)."
                 if instances > 1 {
-                    return Some(self.cited(&RFC_8470_5_1,
-                        config.severity,
+                    return Some(ctx.report_with(&EARLY_DATA_DUPLICATED,
                         format!(
                             "Request carries {instances} Early-Data header field lines, and a client may send at most one — the field holds a single bit. A server reads them as one instance with the value 1, so the extra lines change nothing about the request; an intermediary marking early data adds the field only when it is not already there"
                         ),
@@ -316,8 +328,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 if let Some(hv) = tx.request.headers.get(FIELD) {
                     let written = hv.as_bytes();
                     if written != b"1" {
-                        return Some(self.cited(&RFC_8470_5_1,
-                            config.severity,
+                        return Some(ctx.report_with(&EARLY_DATA_INVALID,
                             format!(
                                 "Early-Data header field carries {}, and the field has exactly one valid value, \"1\". A server treats an invalid instance as though it said 1, so the request is marked as early data all the same — the value is simply wrong",
                                 describe_value(written)
@@ -335,22 +346,18 @@ impl Rule for EarlyDataHeaderSafeMethod {
             // before this one forbids removing it.
             // cite(RFC 8470 § 5.1): "An intermediary MUST NOT remove this header field if it is present in a request."
             // cite(RFC 8470 § 5.1): "Early-Data MUST NOT appear in a Connection header field."
-            if let Some(v) =
-                self.connection_names_early_data(config, "request", &tx.request.headers)
-            {
+            if let Some(v) = self.connection_names_early_data(ctx, "request", &tx.request.headers) {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
                 // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
                 if resp.headers.contains_key(FIELD) {
-                    return Some(self.cited(&RFC_8470_5_1,
-                        config.severity,
+                    return Some(ctx.report_with(&EARLY_DATA_FORBIDDEN,
                         "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
                     ));
                 }
-                if let Some(v) = self.connection_names_early_data(config, "response", &resp.headers)
-                {
+                if let Some(v) = self.connection_names_early_data(ctx, "response", &resp.headers) {
                     return Some(v);
                 }
             }
@@ -437,6 +444,32 @@ mod tests {
         }
         tx.request.headers = hm;
         tx
+    }
+
+    /// Every finding and the id it draws, ranked in two pairs: what the mark
+    /// means against how it is written. § 5.1 has a server read a repeated line
+    /// and a wrong value as `1` alike, so those two leave the request marked
+    /// exactly as the sender meant.
+    #[rstest]
+    #[case::unsafe_method("POST", &[("early-data", "1")][..], "early_data_method_forbidden")]
+    #[case::connection_option(
+        "GET",
+        &[("early-data", "1"), ("connection", "early-data")][..],
+        "early_data_forbidden"
+    )]
+    #[case::two_lines(
+        "GET",
+        &[("early-data", "1"), ("early-data", "1")][..],
+        "early_data_duplicated"
+    )]
+    #[case::wrong_value("GET", &[("early-data", "0")][..], "early_data_invalid")]
+    fn each_finding_names_its_entry(
+        #[case] method: &str,
+        #[case] headers: &[(&str, &str)],
+        #[case] id: &str,
+    ) {
+        let found = check(&make_tx(method, headers)).expect("a finding");
+        assert_eq!(found.violation, id, "{method} {headers:?}");
     }
 
     #[rstest]

@@ -4671,55 +4671,63 @@ sources:
     snippet: Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 286
+      line: 299
+    - file: lint-http-rules/src/violations/early_data.rs
+      line: 103
   - label: early_data_header_safe_method (2)
     section: § 5.1
     snippet: A request that is marked with Early-Data was sent in early data on a previous hop.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 274
+      line: 287
   - label: early_data_header_safe_method (3)
     section: § 5.1
     snippet: An intermediary MUST NOT remove this header field if it is present in a request.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 336
+      line: 347
   - label: early_data_header_safe_method (4)
     section: § 5.1
     snippet: An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request).
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 300
+      line: 313
+    - file: lint-http-rules/src/violations/early_data.rs
+      line: 122
   - label: early_data_header_safe_method (5)
     section: § 5.1
     snippet: Early-Data MUST NOT appear in a Connection header field.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 337
+      line: 348
+    - file: lint-http-rules/src/violations/early_data.rs
+      line: 70
   - label: early_data_header_safe_method (6)
     section: § 5.1
     snippet: 'It has just one valid value: "1".'
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 315
+      line: 327
+    - file: lint-http-rules/src/violations/early_data.rs
+      line: 143
   - label: early_data_header_safe_method (7)
     section: § 5.1
     snippet: Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 273
+      line: 286
   - label: early_data_header_safe_method (8)
     section: § 5.1
     snippet: The Early-Data header field carries a single bit of information, and clients MUST include at most one instance.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 264
+      line: 277
   - label: early_data_header_safe_method (9)
     section: § 5.1
     snippet: The Early-Data request header field indicates that the request has been conveyed in early data and that a client understands the 425 (Too Early) status code.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 275
+      line: 288
   - label: lint-http-rules/src/helpers/field_placement.rs
     section: § 5.1
     snippet: An Early-Data header field MUST NOT be included in responses or request trailers.
@@ -4727,9 +4735,11 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 110
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 245
+      line: 258
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 345
+      line: 354
+    - file: lint-http-rules/src/violations/early_data.rs
+      line: 71
 - label: RFC 8594
   url: https://www.rfc-editor.org/rfc/rfc8594.html
   fragments:
@@ -5217,9 +5227,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 408
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 74
+      line: 95
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 280
+      line: 293
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 256
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
@@ -6153,19 +6163,19 @@ sources:
     snippet: 'HTTP method registrations MUST include the following fields:'
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 27
+      line: 48
   - label: early_data_header_safe_method (2)
     section: § 16.1.1
     snippet: Safe ("yes" or "no", see Section 9.2.1)
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 28
+      line: 49
   - label: early_data_header_safe_method (3)
     section: § 16.1.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 26
+      line: 47
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 31
   - label: early_data_header_safe_method (4)
@@ -6173,7 +6183,7 @@ sources:
     snippet: Values to be added to this namespace require IETF Review
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 29
+      line: 50
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 32
   - label: early_data_header_safe_method (5)
@@ -6181,7 +6191,7 @@ sources:
     snippet: Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource.
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 287
+      line: 300
   - label: weak indicator
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak       = %s"W/"

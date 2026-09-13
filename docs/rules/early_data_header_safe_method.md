@@ -24,8 +24,8 @@ Methods are matched exactly. RFC 9110 §9.1: "The method token is case-sensitive
 
 ## Specifications
 
-- [RFC 8470 §4](https://www.rfc-editor.org/rfc/rfc8470.html#section-4): Using Early Data in HTTP Clients — the MUST NOT that licenses this rule, and it covers two sets: unsafe methods, and methods whose safety is not known. It opens "Absent other information", an out-of-band state no message records
-- [RFC 8470 §5.1](https://www.rfc-editor.org/rfc/rfc8470.html#section-5.1): The Early-Data Header Field — one valid value, at most one instance, invalid or repeated instances read as a single "1", added by an intermediary rather than by the user agent, and forbidden in a Connection field, in a response, and in a request's trailer section
+- [RFC 8470 §4](https://www.rfc-editor.org/rfc/rfc8470.html#section-4): Using Early Data in HTTP Clients — the MUST NOT covering unsafe methods and methods whose safety is not known, opening with an "Absent other information" no message records
+- [RFC 8470 §5.1](https://www.rfc-editor.org/rfc/rfc8470.html#section-5.1): The Early-Data Header Field — one valid value, one instance added by an intermediary only where none is present, invalid or repeated instances read as a single "1", and the prohibitions on a Connection field, a response and a request trailer section
 - [RFC 8470 §5.2](https://www.rfc-editor.org/rfc/rfc8470.html#section-5.2): The 425 (Too Early) Status Code — what a server sends instead of processing a marked request it judges too risky. Nothing here reads it: whether a given resource tolerates replay is knowledge only the origin has
 - [RFC 9110 §9.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1): Safe Methods — the property RFC 8470 §4 names. GET, HEAD, OPTIONS and TRACE are the safe methods this document defines, which is a smaller set than the safe methods there are
 - [RFC 9110 §16.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.1.1): Method Registry — every registration MUST carry a Safe field, and entries are added by IETF Review. This is why the safe set is configured rather than compiled in
