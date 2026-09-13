@@ -4,6 +4,26 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::proxy_authenticate::{PROXY_AUTHENTICATE_REDUNDANT, RFC_9110_11_7_1};
+use crate::violations::status::{
+    RFC_9110_15_5_2, RFC_9110_15_5_8, STATUS_401_CHALLENGE_MISSING, STATUS_407_CHALLENGE_MISSING,
+};
+use crate::violations::ViolationDef;
+
+/// Three entries where the rule made five findings, and the merges are the two
+/// halves of two sentences.
+///
+/// § 15.5.2 asks a 401 for a `WWW-Authenticate` *and* for a challenge in it;
+/// § 15.5.8 asks the same of a 407 and its own field. A client is left the same
+/// way by either half — told to authenticate and given nothing to authenticate
+/// with — so each status is one entry and the message says whether the field
+/// was there. The two statuses stay apart because the sender does: one is an
+/// origin's configuration and the other a proxy's.
+static DECLARED: &[&ViolationDef] = &[
+    &STATUS_401_CHALLENGE_MISSING,
+    &STATUS_407_CHALLENGE_MISSING,
+    &PROXY_AUTHENTICATE_REDUNDANT,
+];
 
 pub struct StatusCodeSemantics;
 
@@ -44,29 +64,11 @@ fn carries_a_challenge(headers: &hyper::HeaderMap, name: &str) -> bool {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.5.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
-    note: "401 (Unauthorized) — the MUST for a `WWW-Authenticate` header field containing at least one challenge",
-};
 const RFC_9110_11_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("11.6.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
     note: "`WWW-Authenticate` — the field definition, the same MUST for a 401, and the MAY that permits the field on any other response (which is why this rule reports no such response)",
-};
-const RFC_9110_15_5_8: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.5.8"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.8",
-    note: "407 (Proxy Authentication Required) — the MUST for a `Proxy-Authenticate` header field containing a challenge applicable to that proxy",
-};
-const RFC_9110_11_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.7.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.1",
-    note: "`Proxy-Authenticate` — at least one field in each 407 the proxy generates, and the sentence limiting the field to the next outbound client, which is all that stands behind the advisory finding on other statuses",
 };
 const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -98,6 +100,10 @@ severity = "warn"
 
     fn description(&self) -> &'static str {
         "Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it — plus, advisorily, a `Proxy-Authenticate` arriving on any other status.\n\n- `401 Unauthorized` — a server generating one **MUST** send a `WWW-Authenticate` header field containing at least one challenge applicable to the target resource (RFC 9110 §15.5.2, §11.6.1)\n- `407 Proxy Authentication Required` — the proxy generating one **MUST** send at least one `Proxy-Authenticate` header field, containing a challenge applicable to that proxy for the request (RFC 9110 §15.5.8, §11.7.1)\n\nBoth MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an empty `WWW-Authenticate:` is reported too. That case is not a syntax defect: both fields are defined as `#challenge`, a `#` list is permitted to hold no elements at all, and a recipient is required to accept the empty ones it does hold — so the value is well-formed, and what it fails is its status definition. Whether an element that *is* present is a well-formed challenge belongs to `www_authenticate_challenge_syntax`; this rule only asks whether one is there at all.\n\n**A `WWW-Authenticate` on any other status is not reported.** §11.6.1 says a server **MAY** generate one in other responses, to indicate that supplying credentials (or different credentials) might affect the response — so the field is permitted anywhere and a rule reporting it would be reporting a permission being used.\n\n**A `Proxy-Authenticate` outside a 407 is reported, and no requirement is violated by such a response.** §11.7.1 gives that field no matching permission, but it states no prohibition either; what it does say is that the field addresses the one client that chose this proxy, and outside a 407 nothing tells that client what to do with the challenge. The finding is advisory — configure the severity accordingly. The two fields are treated differently here on purpose, and the difference is one sentence in §11.6.1 that §11.7.1 does not have.\n\nThe response status and those two fields are the whole input — whether a challenge is there, never what it says. A 401 is measured from the response as it arrived rather than as it was generated, which §11.6.1 makes the same question by forbidding an intermediary from modifying the field; for the 407 no such sentence exists, and §11.7.1 addresses that field to a single hop, so an absence there is weaker evidence about the proxy that generated the status. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response."
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -190,8 +196,8 @@ impl Rule for StatusCodeSemantics {
                 // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
                 if !resp.headers.contains_key("www-authenticate") {
                     return Some(
-                        self.violation(
-                            ctx.severity,
+                        ctx.report_with(
+                            &STATUS_401_CHALLENGE_MISSING,
                             "401 Unauthorized response carries no WWW-Authenticate field; a \
                                   server generating a 401 MUST send one containing at least one \
                                   challenge applicable to the target resource"
@@ -210,7 +216,7 @@ impl Rule for StatusCodeSemantics {
                 // cite(RFC 9110 § A): "WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]"
                 // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
                 if !carries_a_challenge(&resp.headers, "www-authenticate") {
-                    return Some(self.violation(ctx.severity, "401 Unauthorized response carries a WWW-Authenticate field with no \
+                    return Some(ctx.report_with(&STATUS_401_CHALLENGE_MISSING, "401 Unauthorized response carries a WWW-Authenticate field with no \
                                   challenge in it (the value is empty, or every element of it is); a \
                                   server generating a 401 MUST send at least one challenge applicable \
                                   to the target resource"
@@ -236,7 +242,7 @@ impl Rule for StatusCodeSemantics {
                 // cite(RFC 9110 § 15.5.8): "The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request."
                 // cite(RFC 9110 § 11.7.1): "A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates."
                 if !resp.headers.contains_key("proxy-authenticate") {
-                    return Some(self.violation(ctx.severity, "407 Proxy Authentication Required response carries no \
+                    return Some(ctx.report_with(&STATUS_407_CHALLENGE_MISSING, "407 Proxy Authentication Required response carries no \
                                   Proxy-Authenticate field; the proxy generating a 407 MUST send at \
                                   least one, containing a challenge applicable to that proxy for the \
                                   request"
@@ -248,7 +254,7 @@ impl Rule for StatusCodeSemantics {
                 // cite(RFC 9110 § A): "Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]"
                 // cite(RFC 9110 § 15.5.8): "The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request."
                 if !carries_a_challenge(&resp.headers, "proxy-authenticate") {
-                    return Some(self.violation(ctx.severity, "407 Proxy Authentication Required response carries a \
+                    return Some(ctx.report_with(&STATUS_407_CHALLENGE_MISSING, "407 Proxy Authentication Required response carries a \
                                   Proxy-Authenticate field with no challenge in it (the value is \
                                   empty, or every element of it is); the proxy generating a 407 MUST \
                                   send a challenge applicable to that proxy for the request"
@@ -269,7 +275,7 @@ impl Rule for StatusCodeSemantics {
             // an operator reads it.
             // cite(RFC 9110 § 11.7.1): "Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain."
             if resp.headers.contains_key("proxy-authenticate") {
-                return Some(self.cited(&RFC_9110_11_7_1, ctx.severity, format!(
+                return Some(ctx.report_with(&PROXY_AUTHENTICATE_REDUNDANT, format!(
                         "Proxy-Authenticate arrived on status {status}; RFC 9110 pairs this field \
                          with 407 Proxy Authentication Required, the one response a proxy MUST send \
                          it in. No requirement forbids it here — the field's definition puts no \
@@ -309,6 +315,37 @@ mod tests {
         headers: &[(&str, &str)],
     ) -> crate::http_transaction::HttpTransaction {
         crate::test_helpers::make_test_transaction_with_response(status, headers)
+    }
+
+    /// Five findings, three ids. The two rows per status are the two halves of
+    /// one sentence — no field, and a field with no challenge in it — and a
+    /// client is left the same way by either; the two statuses stay apart
+    /// because the sender does.
+    #[test]
+    fn each_finding_names_its_entry() {
+        for (status, headers, id) in [
+            (401u16, &[][..], "status_401_challenge_missing"),
+            (
+                401,
+                &[("www-authenticate", "")][..],
+                "status_401_challenge_missing",
+            ),
+            (407, &[][..], "status_407_challenge_missing"),
+            (
+                407,
+                &[("proxy-authenticate", ",")][..],
+                "status_407_challenge_missing",
+            ),
+            (
+                200,
+                &[("proxy-authenticate", "Basic realm=\"r\"")][..],
+                "proxy_authenticate_redundant",
+            ),
+        ] {
+            let found = judge(&response_with(status, headers))
+                .unwrap_or_else(|| panic!("a finding for {status} {headers:?}"));
+            assert_eq!(found.violation, id, "{status} {headers:?}");
+        }
     }
 
     #[test]

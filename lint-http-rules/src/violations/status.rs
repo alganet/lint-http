@@ -142,6 +142,22 @@ pub const RFC_9114_4_5: SpecRef = SpecRef {
 /// a server having done the opposite.
 /// `If-None-Match`: the MUST that answers a false condition with a `304` for
 /// `GET` and `HEAD`, and a `412` for everything else.
+/// 401 (Unauthorized): the MUST that makes a challenge part of the status.
+pub const RFC_9110_15_5_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
+    note: "401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource",
+};
+
+/// 407 (Proxy Authentication Required): the same MUST, one hop in.
+pub const RFC_9110_15_5_8: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.8",
+    note: "407 (Proxy Authentication Required) — the proxy generating one MUST send a `Proxy-Authenticate` containing a challenge applicable to that proxy for the request",
+};
+
 pub const RFC_9110_13_1_2: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("13.1.2"),
@@ -500,6 +516,61 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_13_1_2, crate::violations::conditional::RFC_9110_13_1_3],
+    }
+
+    /// A `401 (Unauthorized)` that presents no challenge: no
+    /// `WWW-Authenticate` at all, or one whose value holds none.
+    ///
+    /// **One entry for the two halves of one sentence.** § 15.5.2 asks for the
+    /// field *and* for at least one challenge in it, and a client is left the
+    /// same way by either failure — told to authenticate and given nothing to
+    /// authenticate with. `_missing` names what is absent, which is the
+    /// challenge; the message says whether the field was there.
+    ///
+    /// **The empty-value half is not a syntax finding, and the field's own
+    /// grammar is why.** `WWW-Authenticate = [ challenge *( OWS "," OWS
+    /// challenge ) ]` brackets the whole list, so a value with nothing in it is
+    /// a conforming field line. What it fails is the status definition, which
+    /// is exactly the kind of requirement this subject holds: a status code
+    /// whose meaning depends on a field, read against the field it depends on.
+    ///
+    /// `warn`. Nothing about the response is unreadable and a client may still
+    /// have credentials to retry with; what is lost is the one branch of the
+    /// exchange the status exists to open.
+    ///
+    // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
+    STATUS_401_CHALLENGE_MISSING = {
+        id: "status_401_challenge_missing",
+        title: "A 401 presents no challenge to authenticate against",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_5_2],
+    }
+
+    /// A `407 (Proxy Authentication Required)` that presents no challenge: no
+    /// `Proxy-Authenticate`, or one whose value holds none.
+    ///
+    /// **The 401's mirror, and two entries rather than one because the sender
+    /// is a different party.** § 15.5.2 addresses the server generating the
+    /// response and § 15.5.8 the proxy generating it; an operator chasing one
+    /// looks at an origin's configuration and an operator chasing the other
+    /// looks at a proxy's. Two senders, two places to fix, two ids — which is
+    /// the only reason this catalogue has ever kept a mirror pair apart.
+    ///
+    /// **The evidence is weaker here, and the entry does not pretend
+    /// otherwise.** § 11.6.1 forbids a proxy from modifying a `WWW-Authenticate`
+    /// it forwards, so a 401 arriving without one was generated without one.
+    /// Nothing says that about `Proxy-Authenticate`, and § 11.7.1 has the field
+    /// address only the next outbound client — so a hop between here and the
+    /// generator is entitled to have answered for itself.
+    ///
+    // cite(RFC 9110 § 15.5.8): "The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request."
+    STATUS_407_CHALLENGE_MISSING = {
+        id: "status_407_challenge_missing",
+        title: "A 407 presents no challenge to authenticate against",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_5_8],
     }
 }
 

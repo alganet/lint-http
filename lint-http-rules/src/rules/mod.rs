@@ -1454,7 +1454,13 @@ severity = "warn"
         /// fall is three sites becoming three defs with the same reference,
         /// which is this list's most common shape and the one it exists to
         /// distinguish from a loss.
-        const FLOOR: usize = 78;
+        /// **`status_code_semantics` gave up one and gained four.** Its single
+        /// cited site was § 11.7.1, and the entry that holds it names that
+        /// section — while the four findings beside it, which cited nothing,
+        /// now carry § 15.5.2 and § 15.5.8 from the two entries they collapsed
+        /// into. The count falls by one and the rule's *cited findings* go from
+        /// one to five.
+        const FLOOR: usize = 77;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

@@ -1999,6 +1999,10 @@ severity = "warn"
 # Percent-encoding is not two hexadecimal digits
 severity = "warn"
 
+[violations.proxy_authenticate_redundant]
+# Proxy-Authenticate arrives on a status that gives it nothing to do
+severity = "info"
+
 [violations.quic_connection_flow_control_invalid]
 # QUIC parameters advertise no connection-level flow control
 severity = "warn"
@@ -2209,6 +2213,14 @@ severity = "warn"
 
 [violations.status_304_missing]
 # A false precondition is answered with 200 rather than 304
+severity = "warn"
+
+[violations.status_401_challenge_missing]
+# A 401 presents no challenge to authenticate against
+severity = "warn"
+
+[violations.status_407_challenge_missing]
+# A 407 presents no challenge to authenticate against
 severity = "warn"
 
 [violations.status_416_unsolicited]

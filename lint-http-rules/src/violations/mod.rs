@@ -76,6 +76,7 @@ pub mod multipart_body;
 pub mod node;
 pub mod origin_agent_cluster;
 pub mod parameter;
+pub mod proxy_authenticate;
 pub mod quic_transport_parameters;
 pub mod quoted_pair;
 pub mod quoted_string;
@@ -475,7 +476,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 329;
+        const FLOOR: usize = 332;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
