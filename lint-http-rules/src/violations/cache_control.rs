@@ -38,6 +38,31 @@ use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
+/// Freshness and age calculations, and the sentence about a directive given
+/// more than one value.
+pub const RFC_9111_4_2_1: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1",
+    note: "Calculating Freshness Lifetime — the order a cache consults `s-maxage`, `max-age` and `Expires` in, and what it may do when one directive is present more than once",
+};
+
+/// The `public` response directive.
+pub const RFC_9111_5_2_2_9: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.9"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.9",
+    note: "`public` — a cache MAY store the response even where it would otherwise be prohibited",
+};
+
+/// The `no-store` response directive.
+pub const RFC_9111_5_2_2_5: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5",
+    note: "`no-store` — a cache MUST NOT store any part of the request or the response, and MUST NOT use the response to satisfy another request",
+};
+
 /// The `no-cache` directive: its argument syntax, the qualified form defined as
 /// listing field names, and the Note that caches commonly treat that form as
 /// the unqualified one.
@@ -98,6 +123,61 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9111_5_2_2_7],
+    }
+
+    /// Two directives in one field value that say opposite things about
+    /// storing the response: `public` beside an unqualified `private`, or
+    /// `no-store` beside either of them.
+    ///
+    /// **One entry over both pairs, because a sender fixes either by deleting
+    /// one directive** and a cache resolves either the same way — § 4.2.1 has
+    /// it honour the most restrictive, so the response is stored less than one
+    /// of the two directives asked for and the server does not know which of
+    /// them it meant. The entry names the three sections that define the
+    /// directives involved and carries a citation onto neither pair; the
+    /// message says which two were written.
+    ///
+    /// **Only the *unqualified* `private` contradicts `public`.** A
+    /// `private="Set-Cookie"` lets a shared cache store the rest of the
+    /// response, so it says nothing `public` disagrees with — which is why this
+    /// is a reading of the argument and not a name comparison.
+    ///
+    /// `warn`: nothing is malformed and no cache is confused, but one of the
+    /// two directives is dead text in every deployment that reads the field.
+    ///
+    // cite(RFC 9111 § 5.2.2.9): "The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3."
+    // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
+    CACHE_CONTROL_STORAGE_CONFLICTING = {
+        id: "cache_control_storage_conflicting",
+        title: "Two Cache-Control directives disagree about storing the response",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2_2_9, RFC_9111_5_2_2_7, RFC_9111_5_2_2_5],
+    }
+
+    /// A `max-age` or `s-maxage` written more than once in one field section
+    /// with more than one value.
+    ///
+    /// **The field is a list, so the repetition itself derives** — this is not
+    /// `_duplicated`, which is for appearing more times than a grammar allows.
+    /// What fails is that a freshness lifetime is one number and the response
+    /// states two, and § 4.2.1 does not choose between them: it offers a cache
+    /// the first occurrence *or* treating the response as stale. Two caches
+    /// reading the same response may therefore keep it for different lengths of
+    /// time, or one of them may not keep it at all.
+    ///
+    /// `_conflicting` and not `_ambiguous` for that reason. The ambiguity
+    /// ending is for a value that derives from two productions with nothing to
+    /// choose between them; here one construct is written twice and the two
+    /// writings disagree, which is the plainer of the two claims.
+    ///
+    // cite(RFC 9111 § 4.2.1): "When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale."
+    CACHE_CONTROL_FRESHNESS_CONFLICTING = {
+        id: "cache_control_freshness_conflicting",
+        title: "A Cache-Control freshness directive is given more than one value",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_4_2_1],
     }
 }
 

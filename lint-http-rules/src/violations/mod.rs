@@ -465,7 +465,16 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 318;
+        ///
+        /// **It sat at 318 through four commits that said they had raised it**,
+        /// because those commits edited this line by *number* in a file whose
+        /// numbering they had just changed, and a floor is a one-way assertion:
+        /// nothing fails when it is left too low. The gate stayed green and the
+        /// catalogue grew past it unwatched. Two things follow — never address
+        /// this constant by line, and read a ratchet's *number* when a commit
+        /// claims to have moved it, because the only evidence that a floor
+        /// moved is the floor.
+        const FLOOR: usize = 325;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

@@ -6953,7 +6953,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 802
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 103
+      line: 121
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 89
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
@@ -9690,7 +9690,7 @@ sources:
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names
     cited_by:
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 77
+      line: 102
   - label: cache_control_and_pragma_consistent
     section: § 5.4
     snippet: However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma.
@@ -9726,7 +9726,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 278
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 94
+      line: 119
   - label: private argument syntax
     section: § 5.2.2.7
     snippet: This directive uses the quoted-string form of the argument syntax.
@@ -9768,13 +9768,15 @@ sources:
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 158
+      line: 176
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 174
   - label: caching_directive_interaction (2)
     section: § 5.2.2.7
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 133
+      line: 151
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 129
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
@@ -9784,7 +9786,9 @@ sources:
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 132
+      line: 150
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 148
   - label: expires_and_cache_control_consistent
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
@@ -9916,11 +9920,13 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 269
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 148
+      line: 166
     - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 169
     - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 194
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 149
   - label: lint-http-rules/src/helpers/vary.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.

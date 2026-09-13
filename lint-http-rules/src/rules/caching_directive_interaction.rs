@@ -4,6 +4,25 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{
+    CACHE_CONTROL_FRESHNESS_CONFLICTING, CACHE_CONTROL_STORAGE_CONFLICTING, RFC_9111_4_2_1,
+    RFC_9111_5_2_2_5, RFC_9111_5_2_2_7, RFC_9111_5_2_2_9,
+};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::ViolationDef;
+
+/// Three entries, and only two of them are this field's own.
+///
+/// A member written blank is the list construct's defect, reported here with
+/// the id twenty other `#`-list fields report it with — this rule reads the
+/// raw members precisely so it can see one, since the directive walk drops it.
+/// What is left are two disagreements: about whether the response may be
+/// stored, and about how long it stays fresh.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &CACHE_CONTROL_STORAGE_CONFLICTING,
+    &CACHE_CONTROL_FRESHNESS_CONFLICTING,
+];
 
 /// Detect obvious contradictions in Cache-Control directives. Flagged:
 /// - `public` and `private` present simultaneously (contradictory visibility)
@@ -23,18 +42,6 @@ const RFC_9111_5_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2",
     note: "Response directives: public (§5.2.2.9), private (§5.2.2.7), no-store (§5.2.2.5), max-age/s-maxage",
 };
-const RFC_9111_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("4.2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1",
-    note: "Conflicting directives are resolved by the most restrictive; multiple values for a directive → first or stale",
-};
-const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
-    note: "List (`#rule`) syntax: a sender MUST NOT generate empty list elements",
-};
 
 impl RuleMeta for CachingDirectiveInteraction {
     fn id(&self) -> &'static str {
@@ -52,7 +59,18 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2_2, RFC_9111_4_2_1, RFC_9110_5_6_1]
+        &[
+            RFC_9111_5_2_2,
+            RFC_9111_5_2_2_5,
+            RFC_9111_5_2_2_7,
+            RFC_9111_5_2_2_9,
+            RFC_9111_4_2_1,
+            RFC_9110_5_6_1_1,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -102,8 +120,8 @@ impl Rule for CachingDirectiveInteraction {
                 // what the raw reader is for.
                 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                 if crate::helpers::cache_control::members(&lines).any(str::is_empty) {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &LIST_MEMBER_EMPTY,
                         "Cache-Control header contains empty member".into(),
                     ));
                 }
@@ -135,7 +153,7 @@ impl Rule for CachingDirectiveInteraction {
                     .get("private")
                     .is_some_and(|vs| vs.iter().any(|v| v.is_none()));
                 if seen.contains_key("public") && private_unqualified {
-                    return Some(self.violation(ctx.severity, "Cache-Control contains both 'public' and 'private' directives (contradictory visibility)".into()));
+                    return Some(ctx.report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'public' (RFC 9111 \u{a7}5.2.2.9) and an unqualified 'private' (\u{a7}5.2.2.7): a shared cache MAY store the response and MUST NOT store it".into()));
                 }
 
                 // no-store with public/private
@@ -146,7 +164,7 @@ impl Rule for CachingDirectiveInteraction {
                     // only job is to say *which* caches may store is a contradiction: one of
                     // the two is dead text, and the server does not know which it meant.
                     // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                    return Some(self.violation(ctx.severity, "Cache-Control contains 'no-store' together with 'public' or 'private' (contradiction)".into()));
+                    return Some(ctx.report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains 'no-store' (RFC 9111 \u{a7}5.2.2.5) together with 'public' or 'private', whose only job is to say which caches may store what no-store forbids storing at all".into()));
                 }
 
                 // Note: combinations like 'no-cache' with 'max-age=0' are allowed per RFC 9111 §3
@@ -175,7 +193,7 @@ impl Rule for CachingDirectiveInteraction {
                             // if at least two are different, flag
                             let first = &nums[0];
                             if nums.iter().any(|x| x != first) {
-                                return Some(self.violation(ctx.severity, format!("Cache-Control contains multiple '{}' directives with differing values", key)));
+                                return Some(ctx.report_with(&CACHE_CONTROL_FRESHNESS_CONFLICTING, format!("Cache-Control contains multiple '{}' directives with differing values, and RFC 9111 \u{a7}4.2.1 leaves a cache free to use the first or to treat the response as stale", key)));
                             }
                         }
                     }
@@ -213,6 +231,35 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("cache-control", cc)]);
         tx
+    }
+
+    /// The three findings and the ids they draw. The two storage rows are one
+    /// entry because a sender deletes one directive either way and a cache
+    /// honours the most restrictive either way; the empty member is not this
+    /// field's defect at all.
+    #[rstest]
+    #[case(",max-age=1", "list_member_empty")]
+    #[case("public, private", "cache_control_storage_conflicting")]
+    #[case("no-store, public", "cache_control_storage_conflicting")]
+    #[case("max-age=60, max-age=120", "cache_control_freshness_conflicting")]
+    #[case("s-maxage=60, s-maxage=120", "cache_control_freshness_conflicting")]
+    // A qualified `private` exempts named fields and lets a shared cache store
+    // the rest, so it says nothing `public` disagrees with.
+    #[case("public, private=\"Set-Cookie\"", "")]
+    fn each_finding_names_its_entry(#[case] cc: &str, #[case] expected: &str) {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "caching_directive_interaction",
+        ]);
+        let found = crate::test_helpers::run_rule(
+            &CachingDirectiveInteraction,
+            &make_req(cc),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        match expected {
+            "" => assert!(found.is_none(), "{cc:?}: {found:?}"),
+            id => assert_eq!(found.expect("a finding").violation, id, "{cc:?}"),
+        }
     }
 
     fn make_resp(cc: &str) -> crate::http_transaction::HttpTransaction {
@@ -313,11 +360,7 @@ mod tests {
 
         assert!(run(&[0xff]).is_none(), "the octet alone is not this rule's");
         let found = run(b"public, private, \xff").expect("the contradiction");
-        assert!(
-            found.message.contains("contradictory visibility"),
-            "{}",
-            found.message
-        );
+        assert_eq!(found.violation, "cache_control_storage_conflicting");
     }
 
     #[test]
