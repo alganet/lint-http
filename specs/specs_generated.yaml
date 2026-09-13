@@ -1198,7 +1198,7 @@ sources:
     snippet: This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 222
+      line: 226
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.html
   fragments:
@@ -3971,25 +3971,25 @@ sources:
     snippet: 'For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 271
+      line: 275
   - label: digest_auth_valid (2)
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 270
+      line: 274
   - label: digest_auth_valid (3)
     section: § 3.4
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 179
+      line: 183
   - label: cnonce
     section: § 3.4
     snippet: This parameter MUST be used by all implementations.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 221
+      line: 225
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 3.5
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
@@ -6843,15 +6843,17 @@ sources:
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
       line: 109
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 154
+      line: 158
     - file: lint-http-rules/src/violations/auth_scheme.rs
       line: 51
-  - label: lint-http-rules/src/helpers/auth.rs (2)
+  - label: auth-param grammar
     section: § 11.2
     snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 698
+    - file: lint-http-rules/src/violations/auth_param.rs
+      line: 57
     - file: lint-http-rules/src/violations/challenge.rs
       line: 126
     - file: lint-http-rules/src/violations/challenge.rs
@@ -6860,7 +6862,7 @@ sources:
       line: 153
     - file: lint-http-rules/src/violations/challenge.rs
       line: 167
-  - label: lint-http-rules/src/helpers/auth.rs (3)
+  - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
@@ -6872,7 +6874,7 @@ sources:
       line: 88
     - file: lint-http-rules/src/violations/challenge.rs
       line: 114
-  - label: lint-http-rules/src/helpers/auth.rs (4)
+  - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.4
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
@@ -6882,7 +6884,7 @@ sources:
       line: 52
     - file: lint-http-rules/src/violations/credentials.rs
       line: 82
-  - label: lint-http-rules/src/helpers/auth.rs (5)
+  - label: lint-http-rules/src/helpers/auth.rs (4)
     section: § 11.6.1
     snippet: 'WWW-Authenticate = #challenge'
     cited_by:
@@ -6912,7 +6914,7 @@ sources:
       line: 288
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 306
-  - label: lint-http-rules/src/helpers/auth.rs (6)
+  - label: lint-http-rules/src/helpers/auth.rs (5)
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:

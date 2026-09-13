@@ -1147,6 +1147,10 @@ severity = "warn"
 # Alt-Svc protocol-id is not the one spelling this field allows for its ALPN name
 severity = "warn"
 
+[violations.auth_param_equals_missing]
+# An authentication parameter is written without its '='
+severity = "warn"
+
 [violations.auth_scheme_character_forbidden]
 # Authentication scheme holds a character outside token
 severity = "warn"

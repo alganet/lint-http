@@ -124,30 +124,34 @@ pub fn cache_directive_member(defect: CacheControlMemberDefect<'_>) -> &'static 
     }
 }
 
-/// The defect one `#auth-param` member reports as — `None` where the answer is
-/// the production's own.
+/// The defect one `#auth-param` member reports as.
 ///
 /// The reader is [`crate::helpers::auth::parse_auth_params`], called by four
 /// rules of the authentication cluster, and three of its four defects belong
 /// elsewhere: the empty member to this subject, the empty name and the bad
 /// character to the `token` an `auth-param` name has to be.
 ///
-/// The `None` is the fourth, and it is refused rather than unwritten.
-/// § 11.2 writes `auth-param = token BWS "=" BWS ( token / quoted-string )`,
-/// so a member with no `=` breaks *that* sentence — not
+/// **The fourth had no answer here for as long as this function returned an
+/// `Option`, and the refusal was right.** § 11.2 writes `auth-param = token
+/// BWS "=" BWS ( token / quoted-string )`, so a member with no `=` breaks
+/// *that* sentence — not
 /// [`crate::violations::parameter::PARAMETER_EQUALS_MISSING`]'s, which carries
 /// § 5.6.6's `parameter` and its Note refusing the whitespace this production
-/// prints. Two documents' worth of the same-looking construct, and the third
-/// time in this catalogue that difference has decided an id.
+/// prints. Two documents' worth of the same-looking construct. What the
+/// `Option` recorded was that the right id did not exist yet, and
+/// [`crate::violations::auth_param`] is that id: the mapping is total now, and
+/// a caller can no longer be handed a verdict it has to word itself.
 ///
 /// It lives here for the reason `cache_directive_member` does: the first thing
 /// the reader measures is the list member.
-pub fn auth_param_member(defect: AuthParamsDefect<'_>) -> Option<&'static ViolationDef> {
+pub fn auth_param_member(defect: AuthParamsDefect<'_>) -> &'static ViolationDef {
     match defect {
-        AuthParamsDefect::Empty => Some(&LIST_MEMBER_EMPTY),
-        AuthParamsDefect::NameEmpty => Some(&TOKEN_EMPTY),
-        AuthParamsDefect::NameCharacter(c) => Some(token_character(c)),
-        AuthParamsDefect::ValueMissing(_) => None,
+        AuthParamsDefect::Empty => &LIST_MEMBER_EMPTY,
+        AuthParamsDefect::NameEmpty => &TOKEN_EMPTY,
+        AuthParamsDefect::NameCharacter(c) => token_character(c),
+        AuthParamsDefect::ValueMissing(_) => {
+            &crate::violations::auth_param::AUTH_PARAM_EQUALS_MISSING
+        }
     }
 }
 
@@ -176,25 +180,30 @@ mod tests {
         }
     }
 
-    /// Four variants and one of them has no answer here, which is the decision
-    /// the `Option` exists to record: `auth-param` requires its `=`, and the
-    /// def that looks like it answers carries a production with no `BWS` in it.
+    /// Four variants and four subjects, the last of them written only once the
+    /// other three had made the argument for it: three of these ids come from
+    /// productions an `auth-param` *borrows*, and the fourth from the one it
+    /// is. The mapping is total, so a verdict cannot reach a caller with no
+    /// name on it.
     #[test]
     fn an_auth_param_member_answers_with_the_production_it_failed() {
         for (defect, id) in [
-            (AuthParamsDefect::Empty, Some("list_member_empty")),
-            (AuthParamsDefect::NameEmpty, Some("token_empty")),
+            (AuthParamsDefect::Empty, "list_member_empty"),
+            (AuthParamsDefect::NameEmpty, "token_empty"),
             (
                 AuthParamsDefect::NameCharacter('@'),
-                Some("token_character_forbidden"),
+                "token_character_forbidden",
             ),
             (
                 AuthParamsDefect::NameCharacter(' '),
-                Some("token_whitespace_or_control_forbidden"),
+                "token_whitespace_or_control_forbidden",
             ),
-            (AuthParamsDefect::ValueMissing("username"), None),
+            (
+                AuthParamsDefect::ValueMissing("username"),
+                "auth_param_equals_missing",
+            ),
         ] {
-            assert_eq!(auth_param_member(defect).map(|d| d.id), id, "{defect:?}");
+            assert_eq!(auth_param_member(defect).id, id, "{defect:?}");
         }
     }
 
@@ -204,15 +213,11 @@ mod tests {
     fn a_cache_directive_and_an_auth_param_fail_the_list_alike() {
         assert_eq!(
             cache_directive_member(CacheControlMemberDefect::Empty).id,
-            auth_param_member(AuthParamsDefect::Empty)
-                .expect("named")
-                .id,
+            auth_param_member(AuthParamsDefect::Empty).id,
         );
         assert_eq!(
             cache_directive_member(CacheControlMemberDefect::NameCharacter('@')).id,
-            auth_param_member(AuthParamsDefect::NameCharacter('@'))
-                .expect("named")
-                .id,
+            auth_param_member(AuthParamsDefect::NameCharacter('@')).id,
         );
     }
 
