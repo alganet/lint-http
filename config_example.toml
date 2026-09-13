@@ -2099,6 +2099,10 @@ severity = "warn"
 # A 304 sends representation metadata beyond the fields it owes
 severity = "warn"
 
+[violations.status_304_missing]
+# A false precondition is answered with 200 rather than 304
+severity = "warn"
+
 [violations.status_416_unsolicited]
 # 416 Range Not Satisfiable answers a request that named no range
 severity = "warn"

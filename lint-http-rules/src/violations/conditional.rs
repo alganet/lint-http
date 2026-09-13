@@ -37,7 +37,7 @@ pub const RFC_9110_13_1_3: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("13.1.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
-    note: "`If-Modified-Since`: the recipient MUST ignore it when an `If-None-Match` is present, and MUST ignore it when the value is no HTTP-date, has more than one member, or the method is neither GET nor HEAD",
+    note: "`If-Modified-Since`: the recipient MUST ignore it when an `If-None-Match` is present, MUST ignore it when the value is no HTTP-date or has more than one member or the method is neither GET nor HEAD, and SHOULD answer a false condition with a 304 rather than performing the method",
 };
 
 /// `If-Unmodified-Since`: the mirror sentence, discarding it beside an

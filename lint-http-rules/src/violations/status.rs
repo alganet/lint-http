@@ -140,6 +140,15 @@ pub const RFC_9114_4_5: SpecRef = SpecRef {
 /// match for a server to accept it, and the sentence saying what a server does
 /// with one that does not. The entry it carries is the second half — a `101` is
 /// a server having done the opposite.
+/// `If-None-Match`: the MUST that answers a false condition with a `304` for
+/// `GET` and `HEAD`, and a `412` for everything else.
+pub const RFC_9110_13_1_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
+    note: "`If-None-Match`: an origin server MUST NOT perform the method when the condition is false and MUST answer with a 304 for GET or HEAD, or a 412 otherwise",
+};
+
 pub const RFC_6455_4_2_1: SpecRef = SpecRef {
     spec: "RFC 6455",
     section: Some("4.2.1"),
@@ -456,11 +465,59 @@ defects! {
         default_severity: Severity::Info,
         spec: &[],
     }
+
+    /// A `GET` or `HEAD` whose precondition evaluated false, answered with a
+    /// `200` and a whole representation instead of a `304`.
+    ///
+    /// **One entry over a MUST and a SHOULD, which is a decision and not an
+    /// oversight.** § 13.1.2 says an origin server evaluating a false
+    /// `If-None-Match` MUST NOT perform the method and MUST answer `304`;
+    /// § 13.1.3 says the same about `If-Modified-Since` with `SHOULD NOT` and
+    /// `SHOULD`. Two sentences, two strengths — and one sender, one repair, and
+    /// one loss: the client already holds the representation and receives it
+    /// again. This catalogue ranks by what a finding costs, so a difference in
+    /// modal with no difference in consequence is a difference in *wording*,
+    /// and an entry whose split rests on wording is the split this campaign
+    /// undoes wherever it finds one.
+    ///
+    /// The cost is that neither section governs a finding, so none carries a
+    /// citation and each message names the one it was read from. That is the
+    /// trade the shape always makes, and it is the right way round here:
+    /// splitting to keep the references would put two ids in front of an
+    /// operator for one thing to fix.
+    ///
+    /// **Distinct from [`STATUS_METADATA_REDUNDANT`]'s reason for *not*
+    /// merging.** That entry stands apart from
+    /// [`STATUS_304_METADATA_FORBIDDEN`] because one quotes a sentence and the
+    /// other quotes nothing — evidence differing in kind. Here both are stated
+    /// sentences about the same act, which is the case where merging is safe.
+    ///
+    /// `warn`: the exchange is complete and correct, and what was spent is the
+    /// bandwidth the conditional request existed to save.
+    STATUS_304_MISSING = {
+        id: "status_304_missing",
+        title: "A false precondition is answered with 200 rather than 304",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_13_1_2, crate::violations::conditional::RFC_9110_13_1_3],
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The one entry here whose two references are two *strengths* of the same
+    /// instruction, which is the split this catalogue does not make: § 13.1.2's
+    /// MUST and § 13.1.3's SHOULD name one sender, one repair and one loss, so
+    /// the wording is all that differs and wording is not a defect. The
+    /// assertion is on the count, because splitting it would show up here
+    /// first.
+    #[test]
+    fn one_status_over_a_must_and_a_should() {
+        assert_eq!(STATUS_304_MISSING.spec.len(), 2);
+        assert_eq!(STATUS_304_MISSING.default_severity, Severity::Warn);
+    }
 
     /// The status code is the subject, and neither `Range` nor `Content-Range`
     /// is: both fields are well-formed or absent in these findings, and an
