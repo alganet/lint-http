@@ -52,7 +52,129 @@ pub const RFC_9530_4: SpecRef = SpecRef {
     note: "`Want-Content-Digest` / `Want-Repr-Digest`: a Dictionary whose values are Integers in the range 0 to 10 inclusive",
 };
 
+/// The legacy `instance-digest`: an algorithm, an `=`, and the encoded output
+/// of the digest.
+pub const RFC_3230_4_2: SpecRef = SpecRef {
+    spec: "RFC 3230",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3230.html#section-4.2",
+    note: "Instance digests: `instance-digest = digest-algorithm \"=\" <encoded digest output>`, the production a legacy `Digest` member is written in — three parts with nothing bracketed, and an encoding the algorithm's own definition supplies",
+};
+
+/// Where RFC 3230's two fields stopped existing.
+pub const RFC_9530: SpecRef = SpecRef {
+    spec: "RFC 9530",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc9530.html",
+    note: "Digest Fields, which obsoletes RFC 3230 and the `Digest` and `Want-Digest` fields with it — the sentence that makes a well-formed legacy field a finding rather than a style preference",
+};
+
+/// Where `Content-MD5` was removed from HTTP, which is neither RFC 9530 nor
+/// recent.
+pub const RFC_7231_APPENDIX_B: SpecRef = SpecRef {
+    spec: "RFC 7231",
+    section: Some("Appendix B"),
+    url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
+    note: "Where `Content-MD5` was removed from HTTP — RFC 9530 does not mention the field at all",
+};
+
 defects! {
+    /// A well-formed `Digest` or `Want-Digest`.
+    ///
+    /// **The field is gone, not discouraged.** RFC 9530 obsoletes RFC 3230 and
+    /// names both fields while doing it, so what a sender writes here is a
+    /// field no current specification defines — and a recipient that
+    /// implements only the current one computes no integrity check at all.
+    /// That is the whole finding: the value can be perfect.
+    ///
+    /// `_obsolete`, and one entry for the two fields because one sentence
+    /// retired both and the fix is the same pair of replacements.
+    ///
+    /// `warn`, with `Via`'s obsolete spelling rather than with
+    /// [`http_date`](crate::violations::http_date)'s: an RFC 850 timestamp is a
+    /// form every recipient is *obliged* to read, and nothing obliges anyone to
+    /// implement a field that was removed.
+    ///
+    // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
+    DIGEST_FIELD_OBSOLETE = {
+        id: "digest_field_obsolete",
+        title: "Digest or Want-Digest is a field RFC 9530 retired",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9530],
+    }
+
+    /// A `Content-MD5`.
+    ///
+    /// **Its own entry, because its own document retired it and the sentence
+    /// says why.** RFC 9530 never mentions the field — it cannot be what
+    /// removed it — and RFC 7231 took it out of HTTP years earlier for being
+    /// inconsistently implemented with respect to partial responses. An id
+    /// folded into [`DIGEST_FIELD_OBSOLETE`] would send an operator to the
+    /// wrong document for the reason.
+    ///
+    /// `warn`, with its sibling.
+    ///
+    // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
+    CONTENT_MD5_OBSOLETE = {
+        id: "content_md5_obsolete",
+        title: "Content-MD5 is a field HTTP removed",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7231_APPENDIX_B],
+    }
+
+    /// A comma with no member beside it in a legacy `Digest` or `Want-Digest`:
+    /// a trailing comma, or two commas in a row.
+    ///
+    /// **Uncited, and the reason is that the list permits it.** These fields
+    /// are RFC 2616's `#rule`, whose expansion generates null elements — the
+    /// reading `Sec-WebSocket-Extensions` settled — so
+    /// [`list_member_empty`](crate::violations::list), whose sentence is RFC
+    /// 9110 § 5.6.1.1's *sender MUST NOT*, would report a requirement these
+    /// fields do not carry. What refuses it here is this crate's reading that a
+    /// member naming no algorithm says nothing about any bytes.
+    ///
+    /// **Not the structured fields' emptiness either.** A Dictionary has no
+    /// list construct in it at all, and a comma with nothing beside it there is
+    /// a parse failure that costs the whole field — which is
+    /// [`structured_field_member_empty`](crate::violations::structured_fields),
+    /// a different sentence and a different consequence.
+    ///
+    /// `warn`, with the subject.
+    DIGEST_MEMBER_EMPTY = {
+        id: "digest_member_empty",
+        title: "Digest field writes a comma with no member beside it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[],
+    }
+
+    /// A legacy `Digest` member written without its `=`: `Digest: sha-256`.
+    ///
+    /// `instance-digest` prints three parts and brackets none of them, so a
+    /// member that is an algorithm and nothing else names a computation and
+    /// none of its output.
+    ///
+    /// **This entry is the legacy generation's alone**, and the structured
+    /// fields are the reason it has to be said. In a Dictionary a bare key is
+    /// not a member missing its value: § 4.2.2 gives it the Boolean true, so
+    /// what is wrong there is a value of the wrong type — reported as
+    /// [`DIGEST_VALUE_MALFORMED`] and [`DIGEST_PREFERENCE_MALFORMED`], each
+    /// against the type its own field defines. **The same spelling is two
+    /// defects because two grammars read it two ways.**
+    ///
+    /// `warn`, with the subject.
+    ///
+    // cite(RFC 3230 § 4.2): "instance-digest = digest-algorithm "=" <encoded digest output>"
+    DIGEST_EQUALS_MISSING = {
+        id: "digest_equals_missing",
+        title: "Digest member is written without its '='",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_3230_4_2],
+    }
+
     /// A digest field member whose value is not a Byte Sequence:
     /// `Content-Digest: sha-256=YWJj`, where the `:` delimiters are missing.
     ///

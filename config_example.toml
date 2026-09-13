@@ -1303,6 +1303,10 @@ severity = "error"
 # Content-Length numeral is too large to represent
 severity = "warn"
 
+[violations.content_md5_obsolete]
+# Content-MD5 is a field HTTP removed
+severity = "warn"
+
 [violations.content_range_complete_length_conflicting]
 # Content-Range complete-length does not exceed its last-pos
 severity = "error"
@@ -1457,6 +1461,18 @@ severity = "warn"
 
 [violations.delta_seconds_empty]
 # A time in seconds is stated with no digits
+severity = "warn"
+
+[violations.digest_equals_missing]
+# Digest member is written without its '='
+severity = "warn"
+
+[violations.digest_field_obsolete]
+# Digest or Want-Digest is a field RFC 9530 retired
+severity = "warn"
+
+[violations.digest_member_empty]
+# Digest field writes a comma with no member beside it
 severity = "warn"
 
 [violations.digest_preference_invalid]
@@ -2005,6 +2021,10 @@ severity = "warn"
 
 [violations.structured_field_key_malformed]
 # Structured field key is not a key production
+severity = "warn"
+
+[violations.structured_field_member_empty]
+# Structured field writes a comma with no member beside it
 severity = "warn"
 
 [violations.te_chunked_forbidden]

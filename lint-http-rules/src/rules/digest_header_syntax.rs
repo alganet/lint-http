@@ -6,12 +6,15 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::base64::{BASE64_MALFORMED, RFC_4648_3_3};
 use crate::violations::digest::{
+    CONTENT_MD5_OBSOLETE, DIGEST_EQUALS_MISSING, DIGEST_FIELD_OBSOLETE, DIGEST_MEMBER_EMPTY,
     DIGEST_PREFERENCE_INVALID, DIGEST_PREFERENCE_MALFORMED, DIGEST_VALUE_EMPTY,
-    DIGEST_VALUE_MALFORMED, RFC_9530_2, RFC_9530_4,
+    DIGEST_VALUE_MALFORMED, RFC_3230_4_2, RFC_7231_APPENDIX_B, RFC_9530, RFC_9530_2, RFC_9530_4,
 };
-use crate::violations::structured_fields::{RFC_9651_4_2_3_3, STRUCTURED_FIELD_KEY_MALFORMED};
+use crate::violations::structured_fields::{
+    RFC_9651_4_2_2, RFC_9651_4_2_3_3, STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+};
 use crate::violations::token::{
-    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
@@ -19,8 +22,9 @@ use base64::Engine;
 
 pub struct DigestHeaderSyntax;
 
-/// Nine defects, four of them productions this rule borrows and five statements
-/// the two digest documents make about their own members.
+/// Sixteen defects, seven of them productions this rule borrows and nine
+/// statements the digest documents make — about their own members, and about
+/// the two fields that no longer exist.
 ///
 /// RFC 3230 § 4.1.1 writes `digest-algorithm = token` and takes `token` from
 /// RFC 2616, whose character set is § 5.6.2's — the fourth reading of that
@@ -48,19 +52,29 @@ pub struct DigestHeaderSyntax;
 /// document gives the value, which is why the Byte Sequence and the preference
 /// entries name RFC 9530's sections and the empty one names nothing.
 ///
-/// **The empty member is refused on both halves, for two different reasons.**
-/// On the legacy side the list is RFC 2616's `#rule`, which *permits* null
-/// elements — the judgment `Sec-WebSocket-Extensions` settled — so
-/// `list_member_empty` would report a requirement the field does not carry. On
-/// the structured side there is no `#rule` at all. Both findings are this
-/// rule's own strictness and stay at its severity.
+/// **The empty member is refused on both halves, for two different reasons, and
+/// that is why it is two entries.** On the legacy side the list is RFC 2616's
+/// `#rule`, which *permits* null elements — the judgment
+/// `Sec-WebSocket-Extensions` settled — so `list_member_empty` would report a
+/// requirement the field does not carry, and `digest_member_empty` carries no
+/// reference at all. On the structured side there is no `#rule`: a comma with
+/// nothing beside it fails RFC 9651's parsing loop, which costs the whole
+/// field, and that is `structured_field_member_empty`. **One spelling, two
+/// documents, two entries** — the same split the missing `=` and the empty name
+/// take one line further down.
 static DECLARED: &[&ViolationDef] = &[
+    &DIGEST_FIELD_OBSOLETE,
+    &CONTENT_MD5_OBSOLETE,
+    &DIGEST_MEMBER_EMPTY,
+    &DIGEST_EQUALS_MISSING,
     &DIGEST_VALUE_MALFORMED,
     &DIGEST_VALUE_EMPTY,
     &DIGEST_PREFERENCE_MALFORMED,
     &DIGEST_PREFERENCE_INVALID,
     &BASE64_MALFORMED,
     &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 ];
@@ -71,23 +85,14 @@ static DECLARED: &[&ViolationDef] = &[
 /// Two of this rule's twenty-one findings are a borrowed production's; the rest
 /// are RFC 3230's list, RFC 9530's Dictionary, and four fields being obsolete.
 struct Defect {
-    def: Option<&'static ViolationDef>,
+    def: &'static ViolationDef,
     message: String,
 }
 
 impl Defect {
     /// A defect the catalogue names.
     fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self {
-            def: Some(def),
-            message,
-        }
-    }
-
-    /// A defect no subject has claimed, reported at the rule's severity the way
-    /// every finding here was before the catalogue existed.
-    fn unnamed(message: String) -> Self {
-        Self { def: None, message }
+        Self { def, message }
     }
 
     /// The same defect with its message read from further out — which field it
@@ -114,12 +119,6 @@ const RFC_3230_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.1.1"),
     url: "https://www.rfc-editor.org/rfc/rfc3230.html#section-4.1.1",
     note: "Historical `Digest` / `Want-Digest`, obsoleted by RFC 9530: `digest-algorithm = token`, case-insensitive — which is why uppercase is valid there and not in the structured fields",
-};
-const RFC_7231_APPENDIX_B: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7231",
-    section: Some("Appendix B"),
-    url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
-    note: "Where `Content-MD5` was removed from HTTP — RFC 9530 does not mention the field at all",
 };
 
 /// Which side of the exchange a field is read on.
@@ -190,22 +189,27 @@ struct Field {
     /// What a defect finding names as its authority, in parentheses.
     reference: &'static str,
     /// Set for a field that no longer exists: the finding a well-formed value
-    /// still earns.
-    // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
-    obsolete: Option<&'static str>,
+    /// still earns, and the entry that says which document retired it.
+    obsolete: Option<MemberDefect>,
 }
 
-const OBSOLETE_DIGEST: &str =
-    "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest";
-const OBSOLETE_WANT_DIGEST: &str =
-    "Want-Digest header is obsoleted by RFC 9530; prefer Want-Content-Digest or Want-Repr-Digest";
+const OBSOLETE_DIGEST: MemberDefect = MemberDefect {
+    def: &DIGEST_FIELD_OBSOLETE,
+    message: "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest",
+};
+const OBSOLETE_WANT_DIGEST: MemberDefect = MemberDefect {
+    def: &DIGEST_FIELD_OBSOLETE,
+    message:
+        "Want-Digest header is obsoleted by RFC 9530; prefer Want-Content-Digest or Want-Repr-Digest",
+};
 /// Content-MD5 is obsolete, but RFC 9530 is not what obsoleted it — that
 /// document never mentions the field. It was removed from HTTP by RFC 7231,
-/// years earlier, and the sentence in the citation below is the whole
-/// provenance. RFC 9530 is named only as what to use instead.
-// cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
-const OBSOLETE_CONTENT_MD5: &str =
-    "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead";
+/// years earlier, and the entry it reports as carries that sentence. RFC 9530
+/// is named only as what to use instead.
+const OBSOLETE_CONTENT_MD5: MemberDefect = MemberDefect {
+    def: &CONTENT_MD5_OBSOLETE,
+    message: "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead",
+};
 
 /// Every field this rule reads, in the order it reads them — which is the order
 /// findings are reported in, so it is the order the rule's tests pin.
@@ -318,6 +322,22 @@ const FIELDS: &[Field] = &[
     },
 ];
 
+/// One of the three things that can be wrong with a member before its value is
+/// read, as the entry and the wording its caller answers with.
+///
+/// The caller supplied the wording already; what it supplies now is the id, and
+/// it has to, because **the same spelling is a different defect in the two
+/// generations**. A comma with nothing beside it is this crate's strictness
+/// under RFC 2616's permissive `#rule` and a parse failure in a Dictionary; a
+/// bare name is a member missing its `=` in RFC 3230 and a member carrying the
+/// Boolean true in RFC 9651; an empty name is a `token` with no character in it
+/// and a `key` that starts where no key starts.
+#[derive(Clone, Copy)]
+struct MemberDefect {
+    def: &'static ViolationDef,
+    message: &'static str,
+}
+
 /// Split a comma-separated list of `key=value` members.
 ///
 /// Splitting on a bare comma is safe for every field routed through here: the
@@ -326,30 +346,33 @@ const FIELDS: &[Field] = &[
 /// in its alphabet either. A quote-aware split would find nothing extra.
 /// (Dictionary *parameters*, which could complicate this, are not defined for
 /// any of these fields.)
-/// **None of the three defects below is a subject's.** The legacy fields' list
-/// is RFC 2616's `#rule`, which permits the null element `list_member_empty`
-/// refuses, and the structured fields are Dictionaries with no list construct
-/// in them at all; the `=` and the algorithm in front of it are each document's
-/// own shape for a member. So this reader keeps its message templates and
-/// answers with an unnamed defect.
 fn key_value_members(
     value: &str,
-    empty_member: &str,
-    missing_eq: &str,
-    empty_algorithm: &str,
+    empty_member: MemberDefect,
+    missing_eq: MemberDefect,
+    empty_algorithm: MemberDefect,
 ) -> Result<Vec<(String, String)>, Defect> {
     let mut members = Vec::new();
     for member in value.split(',') {
         let member = member.trim();
         if member.is_empty() {
-            return Err(Defect::unnamed(empty_member.to_string()));
+            return Err(Defect::named(
+                empty_member.def,
+                empty_member.message.to_string(),
+            ));
         }
         let Some(eq) = member.find('=') else {
-            return Err(Defect::unnamed(missing_eq.replace("{}", member)));
+            return Err(Defect::named(
+                missing_eq.def,
+                missing_eq.message.replace("{}", member),
+            ));
         };
         let algorithm = member[..eq].trim();
         if algorithm.is_empty() {
-            return Err(Defect::unnamed(empty_algorithm.replace("{}", member)));
+            return Err(Defect::named(
+                empty_algorithm.def,
+                empty_algorithm.message.replace("{}", member),
+            ));
         }
         members.push((algorithm.to_string(), member[eq + 1..].trim().to_string()));
     }
@@ -362,7 +385,10 @@ fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> Result<Ve
     for member in value.split(',') {
         let member = member.trim();
         if member.is_empty() {
-            return Err(Defect::unnamed(empty_member.to_string()));
+            return Err(Defect::named(
+                &DIGEST_MEMBER_EMPTY,
+                empty_member.to_string(),
+            ));
         }
         // `digest-algorithm = token`, and the caller supplies only the wording:
         // which of the two `token` ids answers is decided by the character, the
@@ -384,9 +410,21 @@ fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> Result<Ve
 fn legacy_digest_defect(value: &str) -> Option<Defect> {
     let members = match key_value_members(
         value,
-        "Digest header contains empty member",
-        "Digest member '{}' missing '=' separator",
-        "Digest member '{}' has empty algorithm",
+        MemberDefect {
+            def: &DIGEST_MEMBER_EMPTY,
+            message: "Digest header contains empty member",
+        },
+        MemberDefect {
+            def: &DIGEST_EQUALS_MISSING,
+            message: "Digest member '{}' missing '=' separator",
+        },
+        // `digest-algorithm = token`, and `token = 1*tchar` derives no empty
+        // string -- the same id every other reader of that production answers
+        // with.
+        MemberDefect {
+            def: &TOKEN_EMPTY,
+            message: "Digest member '{}' has empty algorithm",
+        },
     ) {
         Err(defect) => return Some(defect),
         Ok(members) => members,
@@ -434,9 +472,21 @@ fn legacy_digest_defect(value: &str) -> Option<Defect> {
 fn structured_digest_defect(value: &str) -> Option<Defect> {
     let members = match key_value_members(
         value,
-        "Digest field contains empty member",
-        "Digest member '{}' missing '=' separator",
-        "Digest member '{}' has empty algorithm",
+        MemberDefect {
+            def: &STRUCTURED_FIELD_MEMBER_EMPTY,
+            message: "Digest field contains empty member",
+        },
+        // A bare key is not a member with no value: § 4.2.2 gives it the
+        // Boolean true, so what is wrong is the type of the value this field
+        // defines rather than a delimiter nobody wrote.
+        MemberDefect {
+            def: &DIGEST_VALUE_MALFORMED,
+            message: "Digest member '{}' missing '=' separator, so its value is the Boolean true and not a byte sequence",
+        },
+        MemberDefect {
+            def: &STRUCTURED_FIELD_KEY_MALFORMED,
+            message: "Digest member '{}' has empty algorithm",
+        },
     ) {
         Err(defect) => return Some(defect),
         Ok(members) => members,
@@ -510,9 +560,20 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
 fn want_preference_defect(value: &str) -> Option<Defect> {
     let members = match key_value_members(
         value,
-        "Want-* header contains empty member",
-        "Want member '{}' missing '=' separator",
-        "Want member '{}' has empty algorithm",
+        MemberDefect {
+            def: &STRUCTURED_FIELD_MEMBER_EMPTY,
+            message: "Want-* header contains empty member",
+        },
+        // The same Boolean true, measured against the type *this* field
+        // defines: § 4 asks for an Integer.
+        MemberDefect {
+            def: &DIGEST_PREFERENCE_MALFORMED,
+            message: "Want member '{}' missing '=' separator, so its value is the Boolean true and not an integer",
+        },
+        MemberDefect {
+            def: &STRUCTURED_FIELD_KEY_MALFORMED,
+            message: "Want member '{}' has empty algorithm",
+        },
     ) {
         Err(defect) => return Some(defect),
         Ok(members) => members,
@@ -577,7 +638,10 @@ severity = "warn"
             RFC_7231_APPENDIX_B,
             RFC_9110_5_6_2,
             RFC_9651_4_2_3_3,
+            RFC_9651_4_2_2,
             RFC_4648_3_3,
+            RFC_3230_4_2,
+            RFC_9530,
         ]
     }
 
@@ -653,16 +717,15 @@ impl Rule for DigestHeaderSyntax {
                                 field.display, field.side, message, field.reference
                             )
                         });
-                        return Some(match defect.def {
-                            Some(def) => ctx.report_with(def, defect.message),
-                            None => self.violation(ctx.severity, defect.message),
-                        });
+                        return Some(ctx.report_with(defect.def, defect.message));
                     }
 
                     // A well-formed obsolete field is still a finding: the field
-                    // itself is gone, not merely discouraged.
+                    // itself is gone, not merely discouraged. Which entry says so
+                    // is the field's, because the two were retired by two
+                    // documents for two reasons.
                     if let Some(obsolete) = field.obsolete {
-                        return Some(self.violation(ctx.severity, obsolete.into()));
+                        return Some(ctx.report_with(obsolete.def, obsolete.message.into()));
                     }
                 }
             }
@@ -709,8 +772,8 @@ mod tests {
     #[rstest]
     #[case::legacy_digest_algorithm("digest", "sha@1=YWJj", "token_character_forbidden")]
     #[case::legacy_want_digest_algorithm("want-digest", "sha@1", "token_character_forbidden")]
-    #[case::legacy_empty_member("digest", "sha-256=YWJj,", "")]
-    #[case::legacy_no_equals("digest", "sha-256", "")]
+    #[case::legacy_empty_member("digest", "sha-256=YWJj,", "digest_member_empty")]
+    #[case::legacy_no_equals("digest", "sha-256", "digest_equals_missing")]
     #[case::structured_key_case(
         "content-digest",
         "SHA-256=:YWJj:",
@@ -736,7 +799,17 @@ mod tests {
         "sha-256=11",
         "digest_preference_invalid"
     )]
-    #[case::structured_empty_member("content-digest", "sha-256=:YWJj:,", "")]
+    #[case::structured_empty_member(
+        "content-digest",
+        "sha-256=:YWJj:,",
+        "structured_field_member_empty"
+    )]
+    #[case::legacy_empty_algorithm("digest", "=YWJj", "token_empty")]
+    #[case::structured_empty_key("content-digest", "=:YWJj:", "structured_field_key_malformed")]
+    #[case::structured_bare_key("content-digest", "sha-256", "digest_value_malformed")]
+    #[case::legacy_field_is_obsolete("digest", "sha-256=YWJj", "digest_field_obsolete")]
+    #[case::content_md5_is_obsolete("content-md5", "YWJj", "content_md5_obsolete")]
+    #[case::want_bare_key("want-content-digest", "sha-256", "digest_preference_malformed")]
     fn only_the_legacy_algorithm_is_a_borrowed_production(
         #[case] field: &str,
         #[case] value: &str,
