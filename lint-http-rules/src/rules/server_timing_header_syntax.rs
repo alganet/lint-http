@@ -18,6 +18,10 @@ use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
+use crate::violations::server_timing::{
+    SERVER_TIMING_2, SERVER_TIMING_PARAM_EMPTY, SERVER_TIMING_PARAM_EQUALS_MISSING,
+    SERVER_TIMING_PARAM_VALUE_EMPTY, SERVER_TIMING_PARAM_VALUE_MALFORMED,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -140,8 +144,8 @@ fn is_valid_floating_point_number(s: &str) -> bool {
 /// § 2 prints.
 pub struct ServerTimingHeaderSyntax;
 
-/// Eight defects over three subjects, and the field's own document defines
-/// none of them.
+/// Twelve defects over four subjects, and the field's own document defines four
+/// of them.
 ///
 /// § 2 prints `Server-Timing = #server-timing-metric` and then a sentence
 /// naming where the notation comes from: *See [RFC7230] for definitions of #,
@@ -151,14 +155,17 @@ pub struct ServerTimingHeaderSyntax;
 /// a value may be, are all productions other fields in this catalogue already
 /// report through.
 ///
-/// **What the document adds is its own and stays unnamed** — four sentences and
-/// one absence. A `;` with no parameter behind it and a parameter with no `=`
-/// are `server-timing-param`'s assembly, which is the residue a borrowed
-/// construct leaves, for the fourth and fifth time; a parameter named twice is § 2's SHOULD NOT, the only
-/// sentence in the document measuring a server; a `dur` that is not a valid
-/// floating-point number and a `desc` spelled in another case are what the two
-/// getters do with what they are given. None of them is a shape a borrowed
-/// production can fail.
+/// **What the document adds is its own**, and the four entries in
+/// `violations/server_timing.rs` are the assembly half of it: a repetition that
+/// generates no bare semicolon, a parameter written as a bare name, a value
+/// half that derives no empty string, and one that derives nothing past the
+/// alternative it started in. That is the residue a borrowed construct leaves,
+/// for the fourth and fifth time.
+///
+/// **Three sentences stay unnamed**: a parameter named twice, which is § 2's
+/// SHOULD NOT and the only sentence in the document measuring a server, and the
+/// two the getters supply — a `dur` that is not a valid floating-point number,
+/// and a name spelled in a case that surfaces nothing.
 ///
 /// **`parameter_equals_missing` is deliberately not among these**, and the
 /// reason is written at the site: this parameter is not § 5.6.6's. Its value is
@@ -166,6 +173,12 @@ pub struct ServerTimingHeaderSyntax;
 /// § 5.6.6's Note forbids, so the def's sentence answers a different question
 /// from the one this field asks — a sentence in another document is not the
 /// same sentence, read here at a document that is not even an RFC.
+///
+/// **The modal is this rule's rather than any entry's.** Every one of those
+/// four names § 2, the section printing the production it fails, and none names
+/// RFC 9110 § 2.2 — the sentence that makes a grammar defect reportable when a
+/// document addresses every keyword it has to the recipient. An entry naming
+/// both would carry a citation onto no finding at all.
 ///
 /// Three of the four `quoted_string_*` defs are declared and unreachable
 /// through this rule, and the fourth is reached before any metric is read: a
@@ -176,6 +189,10 @@ pub struct ServerTimingHeaderSyntax;
 /// mapping is exhaustive because the grammar's reader is where the grammar's
 /// question is answered, which is the same reasoning the arm itself carries.
 static DECLARED: &[&ViolationDef] = &[
+    &SERVER_TIMING_PARAM_EMPTY,
+    &SERVER_TIMING_PARAM_EQUALS_MISSING,
+    &SERVER_TIMING_PARAM_VALUE_EMPTY,
+    &SERVER_TIMING_PARAM_VALUE_MALFORMED,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -226,12 +243,6 @@ impl Defect {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const SERVER_TIMING_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Server Timing",
-    section: Some("2"),
-    url: "https://www.w3.org/TR/server-timing/#the-server-timing-header-field",
-    note: "The `Server-Timing` Header Field: the ABNF this rule enforces, the two parameter names the specification establishes, and the user-agent parsing algorithm. Eight BCP 14 keywords: six addressed to the user agent, a MAY permitting a response to repeat a metric name, and a SHOULD NOT on a parameter name appearing twice in one metric — that last one is the only sentence in the whole document that measures what a server wrote. The section takes `#`, `*`, `OWS`, `token` and `quoted-string` from `[RFC7230]`, which is obsolete; the current productions are RFC 9110 § 5.6.1, § 5.6.3, § 5.6.2 and § 5.6.4 and are carried forward unchanged, so nothing this rule decides turns on which document is read. The document is a W3C Working Draft (7 April 2026) whose own Status section says \"It is inappropriate to cite this document as other than a work in progress\" — and it is nonetheless the field's only specification: the IANA HTTP Field Name Registry lists `Server-Timing` as **permanent** with this document as its sole reference, the same way it lists `Keep-Alive` against an obsoleted RFC. A work in progress is what there is to read",
-};
 const SERVER_TIMING_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "Server Timing",
     section: Some("3.2"),
@@ -579,10 +590,13 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
     // `protocol` residue was: no subject holds "this construct generates no such
     // separator", and one rule reading it is not a subject.
     if param.is_empty() {
-        return Some(Defect::unnamed(format!(
-            "Server-Timing metric '{}' has a ';' with no server-timing-param behind it: the repetition `*( OWS \";\" OWS server-timing-param )` generates no bare semicolon",
-            shown_in_finding(metric)
-        )));
+        return Some(Defect::named(
+            &SERVER_TIMING_PARAM_EMPTY,
+            format!(
+                "Server-Timing metric '{}' has a ';' with no server-timing-param behind it: the repetition `*( OWS \";\" OWS server-timing-param )` generates no bare semicolon",
+                shown_in_finding(metric)
+            ),
+        ));
     }
 
     // The first `=` is the production's, whatever follows it: a
@@ -599,10 +613,13 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
     // productions genuinely share `token` and `quoted-string`, and those are
     // borrowed below.
     let Some((raw_name, raw_value)) = param.split_once('=') else {
-        return Some(Defect::unnamed(format!(
-            "Server-Timing parameter '{}' has no '=': a server-timing-param is a name, an '=', and a value, and the value is not optional",
-            shown_in_finding(param)
-        )));
+        return Some(Defect::named(
+            &SERVER_TIMING_PARAM_EQUALS_MISSING,
+            format!(
+                "Server-Timing parameter '{}' has no '=': a server-timing-param is a name, an '=', and a value, and the value is not optional",
+                shown_in_finding(param)
+            ),
+        ));
     };
     // The `OWS` either side of the `=` is printed in the production, so taking
     // it off is reading the grammar rather than tolerating a sender.
@@ -675,11 +692,14 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
             // content after one of its alternatives finished. That is `word`'s
             // statement, and `word` owns no defect — the same `None` 2.17
             // settled, reached from the other end.
-            return Some(Defect::unnamed(format!(
-                "Server-Timing parameter '{}' has {} after the closing DQUOTE of its quoted-string; a user agent ignores those characters without signalling anything, but the value as written derives from neither alternative of `server-timing-param-value`",
-                shown_in_finding(name),
-                shown_in_finding(&value[end + 1..])
-            )));
+            return Some(Defect::named(
+                &SERVER_TIMING_PARAM_VALUE_MALFORMED,
+                format!(
+                    "Server-Timing parameter '{}' has {} after the closing DQUOTE of its quoted-string; a user agent ignores those characters without signalling anything, but the value as written derives from neither alternative of `server-timing-param-value`",
+                    shown_in_finding(name),
+                    shown_in_finding(&value[end + 1..])
+                ),
+            ));
         }
     }
 
@@ -711,10 +731,13 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
         // here because the six fields reading the production answered it four
         // ways, and two of them tolerate the value outright.
         Err(WordDefect::Empty) => {
-            return Some(Defect::unnamed(format!(
-                "Server-Timing parameter '{}' has an empty value: a server-timing-param-value is a token or a quoted-string, and neither of those is nothing",
-                shown_in_finding(param)
-            )))
+            return Some(Defect::named(
+                &SERVER_TIMING_PARAM_VALUE_EMPTY,
+                format!(
+                    "Server-Timing parameter '{}' has an empty value: a server-timing-param-value is a token or a quoted-string, and neither of those is nothing",
+                    shown_in_finding(param)
+                ),
+            ))
         }
         Err(WordDefect::NotToken(c)) => {
             return Some(Defect::named(
@@ -887,14 +910,14 @@ mod tests {
     /// Every finding this rule makes, with the sentence it says it in and the
     /// defect it reports as.
     ///
-    /// The third column is the whole of what the conversion decided, and it
-    /// splits the table in two. An id names a production the field borrowed —
-    /// the list around the metrics, the `token` three positions are, the
-    /// `quoted-string` a value may be — and an operator tunes it once for every
-    /// field in this catalogue written out of the same production. An empty one
-    /// is this document's own: the assembly of `server-timing-param`, § 2's
-    /// SHOULD NOT, and what the two getters do with what they are handed. There
-    /// is nothing in the middle, which is the claim.
+    /// The third column splits the table in three. Most ids name a production
+    /// the field borrowed — the list around the metrics, the `token` three
+    /// positions are, the `quoted-string` a value may be — and an operator
+    /// tunes those once for every field in this catalogue written out of the
+    /// same production. Four name this document's own assembly, which no
+    /// borrowed production can fail. An empty one is what is left: § 2's SHOULD
+    /// NOT, and what the two getters do with what they are handed. There is
+    /// nothing in the middle, which is the claim.
     #[rstest]
     #[case::leading_comma(b",miss", "empty list element", "list_member_empty")]
     #[case::trailing_comma(b"miss,", "empty list element", "list_member_empty")]
@@ -912,10 +935,18 @@ mod tests {
         "token_character_forbidden"
     )]
     #[case::empty_param_name(b"db;=5", "empty server-timing-param-name", "token_empty")]
-    #[case::bare_semicolon(b"db; ;dur=5", "with no server-timing-param behind it", "")]
-    #[case::trailing_semicolon(b"db;dur=5;", "with no server-timing-param behind it", "")]
-    #[case::param_without_equals(b"db;desc", "has no '='", "")]
-    #[case::empty_param_value(b"db;desc=", "empty value", "")]
+    #[case::bare_semicolon(
+        b"db; ;dur=5",
+        "with no server-timing-param behind it",
+        "server_timing_param_empty"
+    )]
+    #[case::trailing_semicolon(
+        b"db;dur=5;",
+        "with no server-timing-param behind it",
+        "server_timing_param_empty"
+    )]
+    #[case::param_without_equals(b"db;desc", "has no '='", "server_timing_param_equals_missing")]
+    #[case::empty_param_value(b"db;desc=", "empty value", "server_timing_param_value_empty")]
     #[case::value_not_a_token(
         b"db;desc=Cache Read",
         "and the value is not quoted",
@@ -931,7 +962,11 @@ mod tests {
         "never closes",
         "quoted_string_delimiter_missing"
     )]
-    #[case::junk_after_quote(b"db;desc=\"abc\"x", "after the closing DQUOTE", "")]
+    #[case::junk_after_quote(
+        b"db;desc=\"abc\"x",
+        "after the closing DQUOTE",
+        "server_timing_param_value_malformed"
+    )]
     // Advice, and every one of these was silence before.
     #[case::repeated_param(b"db;dur=50;dur=51", "more than once", "")]
     #[case::repeated_param_second_invalid(b"db;dur=50;dur=abc", "more than once", "")]

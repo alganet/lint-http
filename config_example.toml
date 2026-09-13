@@ -1895,6 +1895,22 @@ severity = "error"
 # WebSocket handshake carries no Sec-WebSocket-Version
 severity = "error"
 
+[violations.server_timing_param_empty]
+# Server-Timing writes a semicolon with no parameter behind it
+severity = "warn"
+
+[violations.server_timing_param_equals_missing]
+# Server-Timing parameter has no '=' and no value
+severity = "warn"
+
+[violations.server_timing_param_value_empty]
+# Server-Timing parameter is written with no value after its '='
+severity = "warn"
+
+[violations.server_timing_param_value_malformed]
+# Server-Timing parameter value carries content past the alternative it derives from
+severity = "warn"
+
 [violations.status_101_forbidden]
 # A 101 completes a WebSocket handshake the server had to refuse
 severity = "warn"
