@@ -1158,20 +1158,26 @@ sources:
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.html
   fragments:
+  - label: digest
+    section: § 4.2
+    snippet: instance-digest = digest-algorithm "=" <encoded digest output>
+    cited_by:
+    - file: lint-http-rules/src/violations/digest.rs
+      line: 169
   - label: digest_header_syntax
     section: § 4.1.1
     snippet: All digest-algorithm values are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 407
+      line: 445
   - label: digest_header_syntax (2)
     section: § 4.1.1
     snippet: digest-algorithm = token
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 370
+      line: 396
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 406
+      line: 444
 - label: RFC 3986
   url: https://www.rfc-editor.org/rfc/rfc3986.html
   fragments:
@@ -3313,8 +3319,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/content_md5_vs_digest_preference.rs
       line: 103
-    - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 206
+    - file: lint-http-rules/src/violations/digest.rs
+      line: 118
 - label: RFC 7234
   url: https://www.rfc-editor.org/rfc/rfc7234.html
   fragments:
@@ -11280,49 +11286,49 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/content_md5_vs_digest_preference.rs
       line: 86
-  - label: digest_header_syntax
+  - label: digest
     snippet: This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields.
     cited_by:
-    - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 194
+    - file: lint-http-rules/src/violations/digest.rs
+      line: 98
   - label: content-digest dictionary
     section: § 2
     snippet: 'It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:'
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 153
+      line: 152
     - file: lint-http-rules/src/violations/digest.rs
       line: 29
-  - label: digest_header_syntax (2)
+  - label: digest_header_syntax
     section: § 2
     snippet: key conveys the hashing algorithm (see Section 5) used to compute the digest;
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 453
-  - label: digest_header_syntax (3)
+      line: 503
+  - label: digest_header_syntax (2)
     section: § 2
     snippet: value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 468
+      line: 518
     - file: lint-http-rules/src/violations/digest.rs
-      line: 74
-  - label: digest_header_syntax (4)
+      line: 196
+  - label: digest_header_syntax (3)
     section: § 4
     snippet: 'Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:'
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 157
+      line: 156
   - label: want-digest preference type
     section: § 4
     snippet: value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 536
+      line: 597
     - file: lint-http-rules/src/violations/digest.rs
-      line: 119
+      line: 241
     - file: lint-http-rules/src/violations/digest.rs
-      line: 141
+      line: 263
 - label: RFC 9651
   url: https://www.rfc-editor.org/rfc/rfc9651.html
   fragments:
@@ -11341,7 +11347,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 228
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 62
+      line: 100
   - label: lint-http-rules/src/helpers/structured_fields.rs (2)
     section: § 3.1.2
     snippet: The keys are unique within the scope of the Parameters they occur within, and the values are bare items (i.e., they themselves cannot be parameterized; see Section 3.3).
@@ -11474,6 +11480,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 468
+    - file: lint-http-rules/src/violations/structured_fields.rs
+      line: 67
   - label: lint-http-rules/src/helpers/structured_fields.rs (23)
     section: § 4.2.2
     snippet: 'If the first character of input_string is "=":'

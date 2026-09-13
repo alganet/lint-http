@@ -36,7 +36,43 @@ pub const RFC_9651_4_2_3_3: SpecRef = SpecRef {
     note: "Parsing a Key: a `key` opens with `lcalpha` or `*` and continues with `lcalpha`, DIGIT, `_`, `-`, `.` or `*` — the production every Dictionary member name and every parameter name is written in, and the one an uppercase letter fails",
 };
 
+/// Parsing a Dictionary: the loop that reads member after member, and the two
+/// steps a comma with nothing beside it fails.
+pub const RFC_9651_4_2_2: SpecRef = SpecRef {
+    spec: "RFC 9651",
+    section: Some("4.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.2",
+    note: "Parsing a Dictionary: a member is a key and, optionally, an `=` and a value — a bare key carries the Boolean true rather than being a member without one — and the loop fails on a comma with nothing after it",
+};
+
 defects! {
+    /// A Dictionary written with a comma and no member beside it:
+    /// `a=1,,b=2`, or a value ending on its separator.
+    ///
+    /// The parsing loop fails twice over: a trailing comma is named in a step
+    /// of its own, and a comma in the middle leaves the *next* iteration
+    /// reading a key that does not start where a key starts. **One entry,
+    /// because what the sender wrote is one thing** — a separator with nothing
+    /// to separate — and because the outcome is identical: the field is not
+    /// parsed, so it is not there.
+    ///
+    /// **This is not [`list_member_empty`](crate::violations::list).** That
+    /// entry carries RFC 9110 § 5.6.1.1's requirement on a sender writing a
+    /// `#rule` list, and a Dictionary is not a list construct: it has no
+    /// `#element` expansion to generate a null element and no leniency to
+    /// spend. The two look alike on the wire and answer to different documents.
+    ///
+    /// `warn`, with the key: what it costs is the field.
+    ///
+    // cite(RFC 9651 § 4.2.2): "If input_string is empty, there is a trailing comma; fail parsing."
+    STRUCTURED_FIELD_MEMBER_EMPTY = {
+        id: "structured_field_member_empty",
+        title: "Structured field writes a comma with no member beside it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9651_4_2_2],
+    }
+
     /// A Dictionary member name or a parameter name that is not a `key`:
     /// `SHA-256`, `Report-To`, `2fa`.
     ///
@@ -53,11 +89,13 @@ defects! {
     /// failure and not a name outside some registry.
     ///
     /// **`warn`, and the ceiling is what keeps it there.** What a bad key costs
-    /// is the whole field — § 4.2 has a recipient ignore a field it cannot
-    /// parse, so the members written correctly go with the one that was not —
-    /// and that is more than any octet-level entry costs. It is still not the
-    /// exchange: a request or a response missing a field it meant to send is
-    /// answerable, so `error` would claim something the finding cannot show.
+    /// is the whole field — § 4.2 offers a recipient the choice of ignoring the
+    /// field value entirely or treating the message as malformed, so the
+    /// members written correctly go with the one that was not — and that is
+    /// more than any octet-level entry costs. The lenient answer is the one
+    /// deployments take, and under it a request or a response missing a field
+    /// it meant to send is still answerable, so `error` would claim something
+    /// the finding cannot show.
     ///
     // cite(RFC 9651 § 3.1.2): "Note that parameters are ordered, and parameter keys cannot contain uppercase letters."
     STRUCTURED_FIELD_KEY_MALFORMED = {
