@@ -1967,6 +1967,22 @@ severity = "warn"
 # Percent-encoding is not two hexadecimal digits
 severity = "warn"
 
+[violations.quic_connection_flow_control_invalid]
+# QUIC parameters advertise no connection-level flow control
+severity = "warn"
+
+[violations.quic_control_stream_limit_invalid]
+# QUIC parameters leave no room for HTTP/3's control streams
+severity = "warn"
+
+[violations.quic_idle_timeout_invalid]
+# QUIC idle timeout reclaims nothing
+severity = "info"
+
+[violations.quic_request_stream_limit_invalid]
+# QUIC parameters leave no room for an HTTP/3 request stream
+severity = "warn"
+
 [violations.quoted_pair_malformed]
 # Escape is not a quoted-pair
 severity = "warn"

@@ -11,11 +11,15 @@
 //!   `initial_max_stream_data_bidi_remote` (the window for those peer-initiated
 //!   request streams) — RFC 9114 §6.1's SHOULD.
 //! - `initial_max_stream_data_uni` (control/QPACK windows) — RFC 9114 §6.2.
-//! - `initial_max_stream_data_bidi_local` — server-initiated bidi, which HTTP/3
-//!   does not use (§6.1), so this is a reasonableness heuristic.
 //! - `initial_max_data` (connection flow control) and `max_idle_timeout_ms` —
 //!   reasonableness heuristics; RFC 9000 §18.2 permits 0/absent (raisable via
 //!   MAX_DATA, and a 0 idle timeout legally disables the timeout).
+//!
+//! `initial_max_stream_data_bidi_local` is deliberately not checked: it bounds
+//! streams the sender of these parameters initiates, and these are always the
+//! proxy's own, so it bounds server-initiated bidirectional streams — which
+//! §6.1 says HTTP/3 does not use. A zero there is a correct configuration, and
+//! the check that reported it quoted that sentence one line above the finding.
 //!
 //! Everything here is SHOULD-level or softer: the rule flags an explicit 0 — the
 //! functional breaker — not an absent (`None`) value, and not the §6.1 floor of
@@ -33,6 +37,12 @@
 use crate::lint::Violation;
 use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
 use crate::rules::{ProtocolRule, RuleMeta};
+use crate::violations::quic_transport_parameters::{
+    QUIC_CONNECTION_FLOW_CONTROL_INVALID, QUIC_CONTROL_STREAM_LIMIT_INVALID,
+    QUIC_IDLE_TIMEOUT_INVALID, QUIC_REQUEST_STREAM_LIMIT_INVALID, RFC_9000_18_2, RFC_9114_6_1,
+    RFC_9114_6_2,
+};
+use crate::violations::ViolationDef;
 
 pub struct QuicTransportParametersValid;
 
@@ -41,27 +51,20 @@ pub struct QuicTransportParametersValid;
 /// large timeouts waste server resources for idle connections.
 const MAX_REASONABLE_IDLE_TIMEOUT_MS: u64 = 600_000;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9000_18_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9000",
-    section: Some("18.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2",
-    note: "Transport Parameter Definitions",
-};
-const RFC_9114_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-6.1",
-    note: "Bidirectional Streams — servers SHOULD grant non-zero stream and flow-control limits",
-};
-const RFC_9114_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-6.2",
-    note: "Unidirectional Streams — restricting their flow-control window blocks control/QPACK",
-};
+/// Four entries, all of them about a value RFC 9000 permits.
+///
+/// § 18.2 defines every one of these limits and says what a zero means — the
+/// peer waits for a frame — so nothing here is a prohibition and the ranking is
+/// by what an endpoint is stopped from doing. A stalled exchange outranks a
+/// connection nobody reclaims, and the idle timeout's own entry names no
+/// sentence at all, because § 18.2 permits the disabled case and no section
+/// bounds the long one.
+static DECLARED: &[&ViolationDef] = &[
+    &QUIC_REQUEST_STREAM_LIMIT_INVALID,
+    &QUIC_CONNECTION_FLOW_CONTROL_INVALID,
+    &QUIC_CONTROL_STREAM_LIMIT_INVALID,
+    &QUIC_IDLE_TIMEOUT_INVALID,
+];
 
 impl RuleMeta for QuicTransportParametersValid {
     fn id(&self) -> &'static str {
@@ -84,6 +87,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9000_18_2, RFC_9114_6_1, RFC_9114_6_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -139,11 +146,10 @@ impl ProtocolRule for QuicTransportParametersValid {
             // cite(RFC 9114 § 6.1): "In order to permit these streams to open, an HTTP/3 server SHOULD configure non-zero minimum values for the number of permitted streams and the initial stream flow-control window."
             if params.initial_max_streams_bidi == Some(0) {
                 return Some(
-                    self.cited(
-                        &RFC_9114_6_1,
-                        ctx.severity,
+                    ctx.report_with(
+                        &QUIC_REQUEST_STREAM_LIMIT_INVALID,
                         "QUIC initial_max_streams_bidi is 0; HTTP/3 requires at least one \
-                         bidirectional stream for request/response exchange (RFC 9114 §6.1)"
+                     bidirectional stream for request/response exchange (RFC 9114 §6.1)"
                             .into(),
                     ),
                 );
@@ -156,32 +162,24 @@ impl ProtocolRule for QuicTransportParametersValid {
             // cite(RFC 9000 § 18.2): "the initial value for the maximum amount of data that can be sent on the connection"
             if params.initial_max_data == Some(0) {
                 return Some(
-                    self.cited(
-                        &RFC_9000_18_2,
-                        ctx.severity,
+                    ctx.report_with(
+                        &QUIC_CONNECTION_FLOW_CONTROL_INVALID,
                         "QUIC initial_max_data is 0; no data can be transferred on this \
-                         connection (RFC 9000 §18.2)"
+                     connection until a MAX_DATA frame raises the limit (RFC 9000 §18.2)"
                             .into(),
                     ),
                 );
             }
 
-            // 0x05 is *locally* initiated bidi — i.e. server-initiated, which HTTP/3
-            // does not use, so §6.1's request-stream SHOULD does not reach this window.
-            // The non-zero check here is a reasonableness heuristic on a window HTTP/3
-            // rarely exercises; the cite is the §18.2 definition, not a requirement.
-            // cite(RFC 9000 § 18.2): "the initial flow control limit for locally initiated bidirectional streams"
+            // 0x05 is *locally* initiated bidi, and these parameters are always
+            // the proxy's own — so this window bounds server-initiated
+            // bidirectional streams, which the sentence below says HTTP/3 does
+            // not use. A zero there is the right configuration for a protocol
+            // that never opens one, and the check that stood here reported it
+            // while quoting that sentence: the message even said
+            // "bidirectional streams cannot carry data", which is
+            // `initial_max_stream_data_bidi_remote`'s job two branches down.
             // cite(RFC 9114 § 6.1): "HTTP/3 does not use server-initiated bidirectional streams"
-            if params.initial_max_stream_data_bidi_local == Some(0) {
-                return Some(
-                    self.violation(
-                        ctx.severity,
-                        "QUIC initial_max_stream_data_bidi_local is 0; bidirectional streams \
-                         cannot carry data (RFC 9000 §18.2)"
-                            .into(),
-                    ),
-                );
-            }
 
             // 0x06 is *peer*-initiated bidi — from the server that is the client's
             // request streams, so THIS is the "initial stream flow-control window" of
@@ -189,11 +187,10 @@ impl ProtocolRule for QuicTransportParametersValid {
             // cite(RFC 9114 § 6.1): "In order to permit these streams to open, an HTTP/3 server SHOULD configure non-zero minimum values for the number of permitted streams and the initial stream flow-control window."
             if params.initial_max_stream_data_bidi_remote == Some(0) {
                 return Some(
-                    self.cited(
-                        &RFC_9114_6_1,
-                        ctx.severity,
+                    ctx.report_with(
+                        &QUIC_REQUEST_STREAM_LIMIT_INVALID,
                         "QUIC initial_max_stream_data_bidi_remote is 0; request streams \
-                         cannot carry data (RFC 9114 §6.1)"
+                     cannot carry data (RFC 9114 §6.1)"
                             .into(),
                     ),
                 );
@@ -204,11 +201,10 @@ impl ProtocolRule for QuicTransportParametersValid {
             // cite(RFC 9114 § 6.2): "Endpoints that excessively restrict the number of streams or the flow-control window of these streams will increase the chance that the remote peer reaches the limit early and becomes blocked."
             if params.initial_max_stream_data_uni == Some(0) {
                 return Some(
-                    self.cited(
-                        &RFC_9114_6_2,
-                        ctx.severity,
+                    ctx.report_with(
+                        &QUIC_CONTROL_STREAM_LIMIT_INVALID,
                         "QUIC initial_max_stream_data_uni is 0; HTTP/3 unidirectional streams \
-                         (control, QPACK) cannot carry data (RFC 9114 §6.2)"
+                     (control, QPACK) cannot carry data (RFC 9114 §6.2)"
                             .into(),
                     ),
                 );
@@ -221,21 +217,21 @@ impl ProtocolRule for QuicTransportParametersValid {
             match params.max_idle_timeout_ms {
                 Some(0) | None => {
                     return Some(
-                        self.cited(
-                            &RFC_9000_18_2,
-                            ctx.severity,
+                        ctx.report_with(
+                            &QUIC_IDLE_TIMEOUT_INVALID,
                             "QUIC max_idle_timeout is 0 or absent; connections may remain \
-                             idle indefinitely, consuming server resources (RFC 9000 §18.2)"
+                         idle indefinitely, consuming server resources (RFC 9000 §18.2)"
                                 .into(),
                         ),
                     );
                 }
                 Some(ms) if ms > MAX_REASONABLE_IDLE_TIMEOUT_MS => {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &QUIC_IDLE_TIMEOUT_INVALID,
                         format!(
                             "QUIC max_idle_timeout is {}ms (>{} ms); excessively large idle \
-                             timeouts waste server resources (RFC 9000 §18.2)",
+                             timeouts waste server resources, and no section bounds this \
+                             parameter — the ceiling is this crate's",
                             ms, MAX_REASONABLE_IDLE_TIMEOUT_MS
                         ),
                     ));
@@ -395,8 +391,14 @@ mod tests {
 
     // ── initial_max_stream_data_bidi_local ──────────────────────────────
 
+    /// The window HTTP/3 does not use, and the one this rule stopped
+    /// reporting. `initial_max_stream_data_bidi_local` bounds streams the
+    /// sender of these parameters initiates; these are always the proxy's own,
+    /// so it bounds server-initiated bidirectional streams, which §6.1 says
+    /// HTTP/3 does not use. A zero is the right value for a protocol that never
+    /// opens one.
     #[test]
-    fn zero_stream_data_bidi_local_fails() {
+    fn zero_stream_data_bidi_local_is_the_right_value_for_a_stream_nobody_opens() {
         let rule = QuicTransportParametersValid;
         let mut p = reasonable_params();
         p.initial_max_stream_data_bidi_local = Some(0);
@@ -407,11 +409,7 @@ mod tests {
             &ProtocolEventHistory::empty(),
             &make_config(),
         );
-        assert!(result.is_some());
-        assert!(result
-            .unwrap()
-            .message
-            .contains("initial_max_stream_data_bidi_local"));
+        assert!(result.is_none(), "{result:?}");
     }
 
     // ── initial_max_stream_data_bidi_remote ─────────────────────────────
