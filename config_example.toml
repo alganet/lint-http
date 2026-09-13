@@ -1055,6 +1055,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[violations.accept_patch_missing]
+# A response that should name the patch formats names none
+severity = "warn"
+
 [violations.accept_ranges_ignored]
 # A range is requested outside what the resource advertised
 severity = "info"

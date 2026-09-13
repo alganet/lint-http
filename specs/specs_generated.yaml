@@ -2075,72 +2075,72 @@ sources:
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.html
   fragments:
+  - label: accept_patch
+    section: § 2.2
+    snippet: Such a response SHOULD include an Accept-Patch response header as described in Section 3.1 to notify the client what patch document media types are supported.
+    cited_by:
+    - file: lint-http-rules/src/violations/accept_patch.rs
+      line: 75
   - label: accept_patch_header_valid
     section: § 2.2
     snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 424
+      line: 419
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 296
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 197
   - label: accept_patch_header_valid (2)
-    section: § 2.2
-    snippet: Such a response SHOULD include an Accept-Patch response header as described in Section 3.1 to notify the client what patch document media types are supported.
-    cited_by:
-    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 425
-  - label: accept_patch_header_valid (3)
     section: § 3
     snippet: A server can advertise its support for the PATCH method by adding it to the listing of allowed methods in the "Allow" OPTIONS response header defined in HTTP/1.1.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 234
-  - label: accept_patch_header_valid (4)
+      line: 247
+  - label: accept_patch_header_valid (3)
     section: § 3
     snippet: The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 466
+      line: 459
   - label: Accept-Patch grammar
     section: § 3.1
     snippet: Accept-Patch = "Accept-Patch" ":" 1#media-type
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 95
+      line: 102
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 86
-  - label: accept_patch_header_valid (5)
-    section: § 3.1
-    snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
-    cited_by:
-    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 465
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 51
-  - label: accept_patch_header_valid (6)
+  - label: accept_patch_header_valid (4)
     section: § 3.1
     snippet: The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 96
+      line: 103
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 87
-  - label: accept_patch_header_valid (7)
+  - label: accept_patch_header_valid (5)
     section: § 3.1
     snippet: The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 404
+      line: 399
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 257
-  - label: accept_patch_header_valid (8)
+  - label: accept_patch_header_valid (6)
     section: § 3.1
     snippet: This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 377
+      line: 372
+  - label: options_method_capabilities
+    section: § 3.1
+    snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
+    cited_by:
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 51
+    - file: lint-http-rules/src/violations/accept_patch.rs
+      line: 76
   - label: patch_method_content_type_match
     section: § 3.1
     snippet: The presence of a specific patch document format in this header indicates that that specific format is allowed on the resource identified by the Request-URI.
@@ -5103,7 +5103,7 @@ sources:
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 235
+      line: 248
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 53
     - file: lint-http-rules/src/rules/context_fields_direction.rs
@@ -5117,13 +5117,13 @@ sources:
     snippet: If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 427
+      line: 421
   - label: accept_patch_header_valid (3)
     section: § 15.5.16
     snippet: The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 426
+      line: 420
   - label: accept_patch_header_valid (4)
     section: § 5.6.1.2
     snippet: 'Empty elements do not contribute to the count of elements present.  A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism.'
@@ -5137,7 +5137,7 @@ sources:
     snippet: 'In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:'
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 201
+      line: 214
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 330
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -5151,9 +5151,9 @@ sources:
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 236
+      line: 249
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 413
+      line: 408
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 74
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
@@ -5197,7 +5197,7 @@ sources:
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 467
+      line: 460
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 244
   - label: accept_ranges_and_206_consistent
@@ -7597,7 +7597,7 @@ sources:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 88
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 150
+      line: 153
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 172
     - file: lint-http-rules/src/violations/media_type.rs
