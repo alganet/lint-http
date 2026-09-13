@@ -4,18 +4,26 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::accept_encoding::{
+    ACCEPT_ENCODING_EMPTY, ACCEPT_ENCODING_MISSING, RFC_9110_12_5_3,
+};
+use crate::violations::ViolationDef;
 
 pub struct AcceptEncodingPresent;
+
+/// Two entries for two states of one field, and the rule's single severity was
+/// the reason it once had only one.
+///
+/// Absence and emptiness are opposite statements — every coding acceptable
+/// against no coding wanted — and this rule reported the first under a
+/// rationale describing the second. Neither breaks a sentence, so both are
+/// `info`; what an operator gains is being able to tell a client that forgot
+/// the field from one that set it on purpose.
+static DECLARED: &[&ViolationDef] = &[&ACCEPT_ENCODING_MISSING, &ACCEPT_ENCODING_EMPTY];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_12_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
-    note: "Accept-Encoding — the grammar, and the two sentences this rule had backwards: absence means every coding is acceptable, while an empty value means none is wanted",
-};
 const RFC_9110_9_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("9.3.6"),
@@ -46,6 +54,10 @@ severity = "info"
 
     fn description(&self) -> &'static str {
         "Advice, not conformance: nothing in HTTP requires a client to send `Accept-Encoding`. The rule reports the two request shapes that will not receive compressed content, and they are different findings.\n\n**No `Accept-Encoding` at all.** RFC 9110 §12.5.3 is explicit that this is the *most permissive* state, not the least: \"If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.\" A server that compresses anyway is conforming. It is still worth reporting, but on honest ground — in practice most deployed servers will not compress without an explicit signal, and that is a fact about servers rather than about the protocol. This rule used to say the opposite, describing absence as meaning \"identity only\".\n\n**An empty `Accept-Encoding`.** This is the value that means what absence was being blamed for: \"An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.\" It used to pass without a word. A value listing no members — `,` — reads the same way, since an empty element is not an element (§5.6.1.2).\n\n**`identity` is a preference, not a silence.** §12.5.3 calls it \"a synonym for 'no encoding'\", so a client that sends it has expressed exactly what this field is for and is not reported.\n\n**`CONNECT` is skipped.** It asks for a tunnel rather than a representation (§9.3.6), so no content coding applies to what comes back."
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -144,15 +156,15 @@ impl Rule for AcceptEncodingPresent {
             }
 
             if !present {
-                return Some(self.violation(ctx.severity, "Request expresses no content-coding preference (no Accept-Encoding \
+                return Some(ctx.report_with(&ACCEPT_ENCODING_MISSING, "Request expresses no content-coding preference (no Accept-Encoding \
                               header); any coding is acceptable, but most servers will not compress \
                               without an explicit signal"
                         .into()));
             }
 
             if !any_coding {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &ACCEPT_ENCODING_EMPTY,
                     "Request declines all content codings (empty Accept-Encoding header)".into(),
                 ));
             }
@@ -195,6 +207,22 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The two opposite states and the two ids, asserted because a single
+    /// scalar over both is what let the rule describe one and report the other.
+    /// `,` is the empty case too: an empty member is not an element, so a value
+    /// of commas lists no codings.
+    #[rstest]
+    #[case::absent(&[][..], "accept_encoding_missing")]
+    #[case::blank(&[("accept-encoding", "")][..], "accept_encoding_empty")]
+    #[case::commas(&[("accept-encoding", ",")][..], "accept_encoding_empty")]
+    fn absence_and_emptiness_draw_opposite_ids(
+        #[case] headers: &[(&str, &str)],
+        #[case] expected: &str,
+    ) {
+        let found = run(&req(headers)).expect("a finding");
+        assert_eq!(found.violation, expected, "{headers:?}");
     }
 
     /// Every published snippet is run through the rule, each NonCompliant one

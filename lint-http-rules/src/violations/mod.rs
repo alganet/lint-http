@@ -30,6 +30,7 @@ use crate::rules::SpecRef;
 use linkme::distributed_slice;
 use std::sync::LazyLock;
 
+pub mod accept_encoding;
 pub mod accept_patch;
 pub mod accept_ranges;
 pub mod alpn;
@@ -456,7 +457,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 295;
+        const FLOOR: usize = 297;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

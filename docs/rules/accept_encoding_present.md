@@ -20,7 +20,7 @@ Advice, not conformance: nothing in HTTP requires a client to send `Accept-Encod
 
 ## Specifications
 
-- [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding — the grammar, and the two sentences this rule had backwards: absence means every coding is acceptable, while an empty value means none is wanted
+- [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): `Accept-Encoding`: `#( codings [ weight ] )`, and the two sentences that make absence the most permissive value the field has and an empty value the most restrictive
 - [RFC 9110 §9.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6): CONNECT — a tunnel rather than a representation, so nothing comes back for a content coding to apply to
 - [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Why a field value of `,` lists no codings and reads as empty
 
