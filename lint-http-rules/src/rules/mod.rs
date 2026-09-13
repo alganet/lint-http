@@ -1396,7 +1396,15 @@ severity = "warn"
         /// carries the reference, and `alt_svc_header_syntax` — a rule with
         /// fourteen findings this document writes about its own field — now has
         /// no cited site left to lose.
-        const FLOOR: usize = 103;
+        /// **The `qvalue` subject took two at once, and they were the same
+        /// site in two files.** `accept_encoding_parameter_valid` and
+        /// `accept_language_weight_valid` each cited § 12.4.2 from the arm
+        /// reporting that what follows a member's `;` is not a weight — one
+        /// sentence, quoted twice, for a defect neither rule owns alone. The
+        /// entry that replaced them names the same section, so both findings
+        /// are still cited; what the count lost is the *duplication*, which is
+        /// the one thing this floor cannot tell apart from a regression.
+        const FLOOR: usize = 101;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

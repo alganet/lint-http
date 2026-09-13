@@ -4,18 +4,28 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::qvalue::{QVALUE_MALFORMED, RFC_9110_12_4_2};
+use crate::violations::qvalue::{
+    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_MALFORMED, WEIGHT_MISSING,
+};
 use crate::violations::ViolationDef;
 
-/// The one defect this rule reports that is not about `Accept-Language`.
+/// Nothing this rule reports is about `Accept-Language` alone.
 ///
 /// A weight is § 12.4.2's number and four fields carry it, so a `q=1.5` here
-/// and a `q=1.5` in an `Accept` are one defect with one severity. Everything
-/// else the rule says is about the *assembly* this field admits — a `;` with
-/// no weight after it, a second weight, a parameter that is not `q` at a field
-/// whose grammar has no parameter list — and each of those is read by this
-/// rule alone, so no subject holds them.
-static DECLARED: &[&ViolationDef] = &[&QVALUE_MALFORMED];
+/// and a `q=1.5` in an `Accept` are one defect with one severity. The rest of
+/// what the rule says was filed under "the *assembly* this field admits" and
+/// read by this rule alone — a `;` with no weight after it, a second weight, a
+/// parameter that is not `q` at a field whose grammar has no parameter list.
+/// `accept_encoding_parameter_valid` says all three about its own field, in
+/// the same order and for the same reason: `#( language-range [ weight ] )`
+/// and `#( codings [ weight ] )` put `[ weight ]` after the primary and stop,
+/// so the only construct that can be malformed there is the weight.
+static DECLARED: &[&ViolationDef] = &[
+    &QVALUE_MALFORMED,
+    &WEIGHT_MISSING,
+    &WEIGHT_MALFORMED,
+    &WEIGHT_DUPLICATED,
+];
 
 pub struct AcceptLanguageWeightValid;
 
@@ -180,8 +190,8 @@ impl Rule for AcceptLanguageWeightValid {
                         // parameter slots, and `weight` brackets nothing, so a `;`
                         // with nothing after it introduces a weight that is absent.
                         if param.is_empty() {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                &WEIGHT_MISSING,
                                 format!(
                                     "Accept-Language member '{}' has a ';' with no weight after it",
                                     member
@@ -197,25 +207,35 @@ impl Rule for AcceptLanguageWeightValid {
                         let val_opt = nv.next();
 
                         if !name.eq_ignore_ascii_case("q") {
-                            return Some(self.cited(&RFC_9110_12_4_2, ctx.severity, format!(
+                            return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
                                     "'{}' is not a weight, and a weight is the only thing an Accept-Language range may carry (member '{}')",
                                     param, member
                                 )));
                         }
+                        // §12.5.4 brackets one `[ weight ]` after the range,
+                        // and the message names it because the entry cannot: the
+                        // same bracket is written once per field, and a shared
+                        // entry may only cite a sentence every rule declaring it
+                        // states.
                         if weight_seen {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                &WEIGHT_DUPLICATED,
                                 format!(
-                                    "More than one weight in Accept-Language member '{}'",
+                                    "More than one weight in Accept-Language member '{}': §12.5.4 brackets one",
                                     member
                                 ),
                             ));
                         }
                         weight_seen = true;
 
+                        // The name matched and the `=` did not, which is one
+                        // literal short of a weight rather than a parameter
+                        // missing its value: `"q="` is written as a single
+                        // string, so there is no `=` here to be absent from a
+                        // pair this field never had.
                         let Some(val) = val_opt else {
-                            return Some(self.violation(ctx.severity, format!(
-                                    "Missing parameter value for '{}' in Accept-Language member '{}'",
+                            return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
+                                    "'{}' is not a weight in Accept-Language member '{}': the production writes \"q=\" as one literal and this member stops at the name",
                                     name, member
                                 )));
                         };
@@ -305,6 +325,43 @@ mod tests {
         .expect("a finding");
         assert_eq!(found.violation, "qvalue_malformed", "{field}: {value}");
         assert!(found.message.contains("1.5"), "{}", found.message);
+    }
+
+    /// The assembly around the weight, which this rule's `DECLARED` used to
+    /// call its own. Two fields whose production puts `[ weight ]` after the
+    /// primary and stops, so the only construct that can go wrong after the
+    /// `;` is the weight — and the pair of values in each row is one defect
+    /// written twice, not two defects that resemble each other.
+    #[rstest]
+    #[case("accept-language", "en;", "weight_missing")]
+    #[case("accept-encoding", "gzip;", "weight_missing")]
+    #[case("accept-language", "en;charset=utf-8", "weight_malformed")]
+    #[case("accept-encoding", "gzip;charset=utf-8", "weight_malformed")]
+    // `"q="` is one literal, so a member stopping at the name has not written
+    // it — the same defect as writing another name entirely.
+    #[case("accept-language", "en;q", "weight_malformed")]
+    #[case("accept-encoding", "gzip;q", "weight_malformed")]
+    #[case("accept-language", "en;q=0.5;q=0.8", "weight_duplicated")]
+    #[case("accept-encoding", "gzip;q=0.5;q=0.8", "weight_duplicated")]
+    fn the_weights_assembly_is_the_same_defect_in_both_fields(
+        #[case] field: &str,
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
+        let rule: &dyn crate::rules::Rule = if field == "accept-language" {
+            &AcceptLanguageWeightValid
+        } else {
+            &super::super::accept_encoding_parameter_valid::AcceptEncodingParameterValid
+        };
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(field, value)]);
+        let found = crate::test_helpers::run_rule(
+            rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, expected, "{field}: {value}");
     }
 
     #[rstest]

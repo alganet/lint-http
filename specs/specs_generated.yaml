@@ -4921,19 +4921,21 @@ sources:
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 276
+      line: 285
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 404
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 194
+      line: 204
+    - file: lint-http-rules/src/violations/qvalue.rs
+      line: 169
   - label: the weight production
     section: § 12.4.2
     snippet: weight = OWS ";" OWS "q=" qvalue
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 179
+      line: 188
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 149
+      line: 159
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 238
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -4941,25 +4943,27 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 319
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 93
+      line: 108
+    - file: lint-http-rules/src/violations/qvalue.rs
+      line: 138
   - label: accept_encoding_parameter_valid (2)
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 178
+      line: 187
   - label: accept_encoding_parameter_valid (3)
     section: § 12.5.3
     snippet: An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 222
+      line: 231
   - label: accept_encoding_parameter_valid (4)
     section: § 12.5.3
     snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 200
+      line: 209
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 127
   - label: accept_encoding_parameter_valid (5)
@@ -4967,13 +4971,13 @@ sources:
     snippet: Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 255
+      line: 264
   - label: accept_encoding_parameter_valid (6)
     section: § 12.5.3
     snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 221
+      line: 230
     - file: lint-http-rules/src/violations/content_coding.rs
       line: 66
   - label: accept_encoding_parameter_valid (7)
@@ -4981,13 +4985,13 @@ sources:
     snippet: The field value is evaluated the same way as in a request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 161
+      line: 170
   - label: accept_encoding_parameter_valid (8)
     section: § 12.5.3
     snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 159
+      line: 168
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 119
   - label: accept_encoding_parameter_valid (9)
@@ -4995,13 +4999,13 @@ sources:
     snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 160
+      line: 169
   - label: accept_encoding_parameter_valid (10)
     section: § 8.4.1
     snippet: content-coding   = token
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 220
+      line: 229
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 147
   - label: accept_encoding_present
@@ -5087,19 +5091,19 @@ sources:
     snippet: 'Accept-Language = #( language-range [ weight ] )'
     cited_by:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 148
+      line: 158
   - label: accept_language_weight_valid (2)
     section: § 12.5.4
     snippet: Each language-range can be given an associated quality value representing an estimate of the user's preference for the languages specified by that range, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 176
+      line: 186
   - label: accept_language_weight_valid (3)
     section: § 12.5.4
     snippet: The "Accept-Language" header field can be used by user agents to indicate the set of natural languages that are preferred in the response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 132
+      line: 142
   - label: accept_patch_header_valid
     section: § 10.2.1
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
@@ -7371,11 +7375,11 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 84
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 201
+      line: 210
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 207
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 155
+      line: 165
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 775
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -7695,11 +7699,11 @@ sources:
     - file: lint-http-rules/src/helpers/qvalue.rs
       line: 34
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 305
+      line: 324
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 223
+      line: 243
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 61
+      line: 76
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.

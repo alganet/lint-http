@@ -2247,6 +2247,18 @@ severity = "warn"
 # Warning member carries no warn-text
 severity = "warn"
 
+[violations.weight_duplicated]
+# Member carries more than one weight
+severity = "warn"
+
 [violations.weight_equals_whitespace_forbidden]
 # Whitespace is written beside the weight's '='
+severity = "warn"
+
+[violations.weight_malformed]
+# Something other than a weight follows the member's ';'
+severity = "warn"
+
+[violations.weight_missing]
+# Member writes the weight's ';' and no weight after it
 severity = "warn"

@@ -434,14 +434,26 @@ mod tests {
     /// a specification nor this crate, and a reference on it would dress a
     /// deployment's policy as a requirement.
     ///
-    /// **What is left uncited is those three reasons only** — every one of them
+    /// **A fourth reason arrived with `weight_duplicated`, and it is the first
+    /// that is not about a missing sentence.** `[ weight ]` is bracketed once
+    /// per field — RFC 9110 § 10.1.4, § 12.5.1, § 12.5.3 and § 12.5.4 each
+    /// print it for their own — and one entry is declared by the rules that
+    /// read those fields. `every_violation_spec_is_declared_by_its_rule`
+    /// compares a def's references against *each* declaring rule's, so a
+    /// shared entry may only name a sentence every declarer states, and no
+    /// rule here states another field's production. **The slice answers a def
+    /// whose sections are all stated by one rule and cannot answer a def whose
+    /// sections are stated one per rule** — so this is the shape to look for
+    /// next time an entry has too many sentences rather than none.
+    ///
+    /// **What is left uncited is those four reasons only** — three of them
     /// about sentences that do not exist. An entry naming two is still the exception
     /// rather than a licence: no finding of one carries a citation, because
     /// none of the sentences governs the message on its own.
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 286;
+        const FLOOR: usize = 288;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
