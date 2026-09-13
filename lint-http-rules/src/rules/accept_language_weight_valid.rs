@@ -67,7 +67,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`: each member a language range, optionally followed by a weight whose value is a `qvalue` — `0` to `1` with at most three digits after the point.\n\n**There is no parameter list in this field.** A range may carry a weight and nothing else, so `en;charset=utf-8` is reported however well formed the pair looks in isolation. The rule used to check that parameter names were tokens and values were tokens or quoted-strings, which is the parameter grammar of a *different* kind of field; its own SpecRef note said it was following \"the same q/parameter validation semantics used across other headers in this project\".\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `en;` and `en;;q=0.5` are separators introducing a weight that is not there. `[ weight ]` is singular, so `en;q=0.5;q=0.8` is two of it. And a weight is optional — `en, fr` is as conforming as `en;q=1, fr;q=0.8`.\n\n**The language range itself is not checked here.** That is `language_tag_syntax`'s subject: it reports an empty range, whitespace inside one, and an over-long subtag, and lets `*` through.\n\n**A response's Accept-Language is read, but the spec does not describe one.** This is the asymmetry worth knowing about: §12.5.1 and §12.5.3 each say what `Accept` and `Accept-Encoding` mean when a server sends them in a response, and §12.5.4 says no such thing — it defines a request field and stops. The value is still checked, because a malformed one is malformed wherever it appears, but the finding is about syntax and claims nothing about meaning.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted, though `weight` spells the text as the literal `\"q=\"`. It can only miss a report, never invent one.\n\n**An octet outside visible US-ASCII is reported** rather than skipped: nothing in this grammar is a quoted-string, so no such octet can be a legal part of the field."
+        "Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`: each member a language range, optionally followed by a weight whose value is a `qvalue` — `0` to `1` with at most three digits after the point.\n\n**There is no parameter list in this field.** A range may carry a weight and nothing else, so `en;charset=utf-8` is reported however well formed the pair looks in isolation. The rule used to check that parameter names were tokens and values were tokens or quoted-strings, which is the parameter grammar of a *different* kind of field; its own SpecRef note said it was following \"the same q/parameter validation semantics used across other headers in this project\".\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `en;` and `en;;q=0.5` are separators introducing a weight that is not there. `[ weight ]` is singular, so `en;q=0.5;q=0.8` is two of it. And a weight is optional — `en, fr` is as conforming as `en;q=1, fr;q=0.8`.\n\n**The language range itself is not checked here.** That is `language_tag_syntax`'s subject: it reports an empty range, whitespace inside one, and an over-long subtag, and lets `*` through.\n\n**A response's Accept-Language is read, but the spec does not describe one.** This is the asymmetry worth knowing about: §12.5.1 and §12.5.3 each say what `Accept` and `Accept-Encoding` mean when a server sends them in a response, and §12.5.4 says no such thing — it defines a request field and stops. The value is still checked, because a malformed one is malformed wherever it appears, but the finding is about syntax and claims nothing about meaning.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted, though `weight` spells the text as the literal `\"q=\"`. It can only miss a report, never invent one.\n\n**The value is read as the octets the sender wrote**, and each is reported by whichever production it landed in. Nothing in this grammar is a quoted-string, so no octet outside visible US-ASCII is legal anywhere in the field — but this rule reads only what follows the `;`, where such an octet fails the `q` name or the `qvalue`. One inside the range is `language_tag_syntax`'s, which reads the same field the same way: the range's characters are deferred to the same place as the range's syntax. Refusing to decode the line reported the octet and put every other defect written beside it out of reach."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -164,8 +164,12 @@ impl Rule for AcceptLanguageWeightValid {
                 // elements are skipped, which §5.6.1.2 permits a recipient to do.
                 // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
                 for member in crate::helpers::list::list_members(hdr_value) {
-                    // Each member: language-range [; params]
-                    let mut iter = member.split(';').map(|s| s.trim());
+                    // Each member: language-range [; params]. `OWS`, not
+                    // `str::trim`: on a value read one `char` per octet the
+                    // wider trim removes %xA0 and %x85, which are `obs-text` —
+                    // octets this field admits nowhere, and ones the checks
+                    // below would then never see.
+                    let mut iter = member.split(';').map(crate::helpers::headers::trim_ows);
                     // The language-range itself is `language_tag_syntax`'s
                     // subject, and that deferral has been checked rather than
                     // assumed: it reports an empty range, whitespace inside one, and
@@ -202,7 +206,7 @@ impl Rule for AcceptLanguageWeightValid {
                         // the parameter that way, and this is the only name the
                         // field admits.
                         // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
-                        let mut nv = param.splitn(2, '=').map(|s| s.trim());
+                        let mut nv = param.splitn(2, '=').map(crate::helpers::headers::trim_ows);
                         let name = nv.next().unwrap();
                         let val_opt = nv.next();
 
@@ -255,13 +259,21 @@ impl Rule for AcceptLanguageWeightValid {
                 None
             };
 
-            // Request
-            for hv in tx.request.headers.get_all("accept-language").iter() {
-                let Ok(val) = hv.to_str() else {
-                    return Some(self.violation(ctx.severity, "Accept-Language contains an octet no part of this field's grammar admits"
-                                .into()));
-                };
-                if let Some(v) = validate_value(val) {
+            // Read as the octets the sender wrote, one `char` per octet, and
+            // the hand-off is what makes that safe. Nothing in this grammar is
+            // a quoted-string, so an octet outside visible US-ASCII is legal
+            // nowhere in the field — but this rule reads only what follows the
+            // `;`, and there such an octet fails the `q` name or the `qvalue`.
+            // One inside the range is `language_tag_syntax`'s, which reads the
+            // same field the same way and reports it there; the deferral of the
+            // range's *characters* is the same deferral as the range's syntax.
+            // Refusing the whole line reported the octet and hid every other
+            // defect written beside it.
+            for line in crate::helpers::headers::field_lines_as_written(
+                &tx.request.headers,
+                "accept-language",
+            ) {
+                if let Some(v) = validate_value(&line) {
                     return Some(v);
                 }
             }
@@ -272,12 +284,11 @@ impl Rule for AcceptLanguageWeightValid {
             // them echoed — but the finding is about syntax and says nothing about
             // what the field would mean here.
             if let Some(resp) = &tx.response {
-                for hv in resp.headers.get_all("accept-language").iter() {
-                    let Ok(val) = hv.to_str() else {
-                        return Some(self.violation(ctx.severity, "Accept-Language contains an octet no part of this field's grammar admits"
-                                    .into()));
-                    };
-                    if let Some(v) = validate_value(val) {
+                for line in crate::helpers::headers::field_lines_as_written(
+                    &resp.headers,
+                    "accept-language",
+                ) {
+                    if let Some(v) = validate_value(&line) {
                         return Some(v);
                     }
                 }
@@ -429,14 +440,22 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn non_utf8_header_value_is_violation() -> anyhow::Result<()> {
+    /// An octet outside visible US-ASCII no longer takes the line with it. The
+    /// value used to be refused whole — one finding about the octet, and every
+    /// other defect on the line unread — so this asserts the part that was
+    /// being lost: a weight written badly beside such an octet is reported, and
+    /// reported as the weight's defect.
+    #[rstest]
+    #[case(b"en\xff, fr;q=1.0000")]
+    #[case(b"\xff;q=1.0000")]
+    fn an_obs_text_octet_does_not_hide_the_weight_beside_it(
+        #[case] raw: &[u8],
+    ) -> anyhow::Result<()> {
         let rule = AcceptLanguageWeightValid;
         let mut tx = crate::test_helpers::make_test_transaction();
         use hyper::header::HeaderValue;
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        let bad = HeaderValue::from_bytes(&[0xff])?;
-        hm.append("accept-language", bad);
+        hm.append("accept-language", HeaderValue::from_bytes(raw)?);
         tx.request.headers = hm;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "accept_language_weight_valid",
@@ -447,8 +466,42 @@ mod tests {
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-        );
-        assert!(v.is_some());
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "qvalue_malformed", "{v:?}");
+        Ok(())
+    }
+
+    /// The other half of the hand-off, asserted so the deferral is a decision
+    /// and not an omission: an octet inside the *range* is nothing this rule
+    /// reads. It reports the range's syntax nowhere, so it reports the range's
+    /// characters nowhere either — `language_tag_syntax` reads the same field
+    /// as written and names the octet there.
+    #[test]
+    fn an_obs_text_octet_inside_the_range_belongs_to_the_other_rule() -> anyhow::Result<()> {
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.append("accept-language", HeaderValue::from_bytes(b"en\xff")?);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = hm;
+        let history = crate::transaction_history::TransactionHistory::empty();
+
+        assert!(crate::test_helpers::run_rule(
+            &AcceptLanguageWeightValid,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "accept_language_weight_valid",
+            ]),
+        )
+        .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &super::super::language_tag_syntax::LanguageTagSyntax,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["language_tag_syntax"]),
+        )
+        .is_some());
         Ok(())
     }
 
@@ -496,14 +549,18 @@ mod tests {
         assert!(v.is_some());
     }
 
+    /// The response arm reads the octets too, and the line survives there for
+    /// the same reason.
     #[test]
-    fn response_non_utf8_header_value_is_violation() -> anyhow::Result<()> {
+    fn a_response_line_with_an_obs_text_octet_is_still_read() -> anyhow::Result<()> {
         let rule = AcceptLanguageWeightValid;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         use hyper::header::HeaderValue;
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        let bad = HeaderValue::from_bytes(&[0xff])?;
-        hm.append("accept-language", bad);
+        hm.append(
+            "accept-language",
+            HeaderValue::from_bytes(b"en\xff, fr;q=1.0000")?,
+        );
         tx.response.as_mut().unwrap().headers = hm;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "accept_language_weight_valid",
@@ -514,8 +571,9 @@ mod tests {
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-        );
-        assert!(v.is_some());
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "qvalue_malformed", "{v:?}");
         Ok(())
     }
 

@@ -22,7 +22,7 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 
 **Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `"q="` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.
 
-**An octet outside visible US-ASCII is reported** rather than skipped, unlike the neighbouring `Accept` rules. Those decode such a value because `obs-text` is legal inside a quoted-string; there are no quoted-strings here, so no octet `to_str` refuses can be a legal part of this field.
+**The value is read as the octets the sender wrote**, and each is reported by the production it landed in. There are no quoted-strings in this field — a member is a `token`, one of two literals, and the weight's fixed text — so no octet outside visible US-ASCII is legal anywhere in it: one in a coding name is the `token`'s defect, one in a weight fails the `q` name or the `qvalue`. Refusing to decode the line named the octet and put every other defect written beside it out of reach.
 
 ## Specifications
 
