@@ -14,10 +14,10 @@
 //! value is a [`delta_seconds`](crate::violations::delta_seconds), read at both
 //! ends of that production.
 //!
-//! **What is left is what the field states for itself**, and two entries below
-//! are at opposite ends of it. One is the top production's
-//! alternation, where the document names the state it forbids and says what a
-//! recipient does about it. The other is what a number means: a freshness
+//! **What is left is what the field states for itself**, which is twelve
+//! entries, and two of them are at opposite ends of it. One is the top
+//! production's alternation, where the document names the state it forbids and
+//! says what a recipient does about it. The other is what a number means: a freshness
 //! lifetime that conforms to `delta-seconds` and cannot be what the sender
 //! intended. RFC 7838 sets no bound in either direction — zero is a legal
 //! `delta-seconds` and so is a run of forty digits — so that entry carries no
@@ -53,9 +53,11 @@
 //! no transport has are three senders with three fixes and one sentence between
 //! them.
 //!
-//! **What is still not written here** is the last of
-//! `alt_svc_header_syntax`'s reading: the A-labels § 8 asks an internationalized
-//! name to be written as. That is this subject's too.
+//! **The last entry is the only one whose sentence is not § 3's or § 3.1's**:
+//! § 8 tells a sender to write an internationalized domain name as A-labels, so
+//! an octet at or above %x80 inside an `alt-authority` is reported with the
+//! remedy rather than as an octet some production refused. With it the field's
+//! rule declares nothing this catalogue has not read.
 //
 // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
 
@@ -71,6 +73,15 @@ pub const RFC_7838_3_1: SpecRef = SpecRef {
     section: Some("3.1"),
     url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
     note: "Caching Alt-Svc Header Field Values: the `ma` parameter's delta-seconds value states how long the alternative is considered fresh, and `persist` has exactly one defined value — `\"1\"` — with clients required to ignore any other",
+};
+
+/// How a name that is not US-ASCII is written in this field, which is the one
+/// requirement here that is about neither the grammar nor a parameter.
+pub const RFC_7838_8: SpecRef = SpecRef {
+    spec: "RFC 7838",
+    section: Some("8"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-8",
+    note: "Internationalization Considerations: an internationalized domain name in this field is written as A-labels, which is what makes an octet at or above %x80 inside an `alt-authority` a defect with a remedy rather than only an octet no production admits",
 };
 
 /// The field: its grammar, the `clear` keyword, and what a recipient does with
@@ -261,6 +272,35 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_7838_3],
+    }
+
+    /// An octet at or above %x80 anywhere inside an `alt-authority`:
+    /// `h2="é.example.com:443"`.
+    ///
+    /// Every production the content derives from is US-ASCII — `reg-name` is
+    /// `*( unreserved / pct-encoded / sub-delims )` and `port` is `*DIGIT` — so
+    /// nothing here admits the octet wherever it sits. What makes the entry
+    /// this field's rather than
+    /// [`uri`](crate::violations::uri)'s is the sentence it reports: § 8 names
+    /// the reason such an octet is usually there and says what to write
+    /// instead, which is an A-label. **`uri_host_character_forbidden` would be
+    /// true and would answer a different question** — that one says the octet
+    /// derives from no `reg-name`, and this one says an internationalized
+    /// domain name in *this* field is spelled some other way.
+    ///
+    /// It is also asked of the whole `alt-authority` before the colon is found,
+    /// which is the second reason the host's entry cannot carry it: the octet
+    /// may sit where a port would, and there is no host to have failed.
+    ///
+    /// `warn`, with everything else the alternative can be unreachable for.
+    ///
+    // cite(RFC 7838 § 8): "An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1)."
+    ALT_SVC_AUTHORITY_CHARACTER_FORBIDDEN = {
+        id: "alt_svc_authority_character_forbidden",
+        title: "Alt-Svc alt-authority holds an octet no production of it admits",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7838_8],
     }
 
     /// An `alt-authority` with no colon in it: `h2="example.com"`.
