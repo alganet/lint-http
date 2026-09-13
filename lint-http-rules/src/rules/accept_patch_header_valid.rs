@@ -8,8 +8,12 @@ use crate::helpers::media_type::{media_type_parts_defect, parse_media_type};
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::accept_patch::{ACCEPT_PATCH_MISSING, RFC_5789_2_2, RFC_5789_3_1};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
+use crate::violations::media_type::{
+    media_type_error, MEDIA_TYPE_EMPTY, MEDIA_TYPE_MALFORMED, RFC_9110_8_3_1,
 };
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
@@ -57,6 +61,9 @@ pub struct AcceptPatchHeaderValid;
 /// where the field belongs. Those are the list construct's and RFC 5789's,
 /// which are subjects nothing has written yet.
 static DECLARED: &[&ViolationDef] = &[
+    &ACCEPT_PATCH_MISSING,
+    &MEDIA_TYPE_EMPTY,
+    &MEDIA_TYPE_MALFORMED,
     &LIST_MEMBER_MISSING,
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -95,13 +102,6 @@ impl AcceptPatchHeaderValid {
     /// cite(RFC 5789 § 3.1, label: Accept-Patch grammar): "Accept-Patch = "Accept-Patch" ":" 1#media-type"
     /// cite(RFC 5789 § 3.1): "The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7."
     fn check_value(&self, value: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
-        // The two APIs coexist inside this one reading: a member's *parts*
-        // report declared defects and resolve their own severity, while the
-        // list's own findings — an empty element, a `1#` naming nothing, a
-        // member with no `/` — still emit at the rule's. The closure keeps the
-        // unconverted branches byte-identical.
-        let violation = |message: String| Some(self.violation(ctx.severity, message));
-
         let mut saw_an_empty_element = false;
         let mut members_present = 0usize;
 
@@ -147,12 +147,25 @@ impl AcceptPatchHeaderValid {
             // member is escaped for display: a value that failed a grammar check
             // is exactly the kind that carries an octet which would break the
             // line the finding is printed on.
+            // § 8.3.1 is where RFC 5789 § 3.1's pointer at `[RFC2616], Section
+            // 3.7` resolves today; the obsolete name stays byte-exact inside
+            // that quote above because it is the RFC's own wording.
             // cite(RFC 9110 § 8.3.1, label: media-type grammar): "media-type = type "/" subtype parameters"
-            let Ok(parsed) = parse_media_type(member) else {
-                return violation(format!(
-                    "Accept-Patch member '{}' derives from no media-type: the production is a type and a subtype separated by '/', and neither may be empty",
-                    shown_in_finding(member)
-                ));
+            // The same reader `content_type_valid` and the `Accept` rule ask,
+            // and the same two ids. Its third verdict cannot arrive here: an
+            // empty member was counted as the list's defect above and skipped,
+            // so what reaches this call is a non-empty run that is or is not a
+            // pair. The mapping is asked for it anyway, because a reader that
+            // grows a fourth verdict should not compile until this caller has
+            // read it.
+            let parsed = match parse_media_type(member) {
+                Ok(parsed) => parsed,
+                Err(defect) => {
+                    return Some(ctx.report_with(media_type_error(defect), format!(
+                        "Accept-Patch member '{}' derives from no media-type: the production is a type and a subtype separated by '/', and neither may be empty",
+                        shown_in_finding(member)
+                    )))
+                }
             };
 
             // What the two halves and the parameters after them must *be* is the
@@ -242,29 +255,11 @@ fn allow_names_patch(headers: &hyper::HeaderMap) -> bool {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_5789_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5789",
-    section: Some("3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
-    note: "The field: its grammar, its definition as a response header, its meaning in a response to any method, and the SHOULD that asks for it — in the OPTIONS response, not in the response to a PATCH. This reference said §2.2, which is Error Handling — and §2.2 turned out to hold a second SHOULD, listed below",
-};
 const RFC_5789_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 5789",
     section: Some("3"),
     url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3",
     note: "Advertising support in OPTIONS — how a resource says it supports PATCH, which is the antecedent §3.1's SHOULD needs, and the sentence that leaves an Allow listing conforming without the field while naming what its absence costs",
-};
-const RFC_5789_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5789",
-    section: Some("2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
-    note: "Error handling — the second SHOULD: a 415 answering a PATCH is told to carry the field, and what a 415 means is the whole of that requirement's condition",
-};
-const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-    note: "`media-type`, transcribed once in `helpers::headers` and shared with the Content-Type rule. It is where RFC 5789 §3.1's pointer at `[RFC2616], Section 3.7` resolves today; the obsolete name stays byte-exact inside the quote because it is the RFC's own wording",
 };
 const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -422,11 +417,10 @@ impl Rule for AcceptPatchHeaderValid {
                 // finding down; a 415 about a coding that names none is the residue,
                 // and `description()` says so.
                 // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
-                // cite(RFC 5789 § 2.2): "Such a response SHOULD include an Accept-Patch response header as described in Section 3.1 to notify the client what patch document media types are supported."
                 // cite(RFC 9110 § 15.5.16): "The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly."
                 // cite(RFC 9110 § 15.5.16): "If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used"
                 if resp.status == 415 && !resp.headers.contains_key("accept-encoding") {
-                    return Some(self.violation(ctx.severity, "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into()));
+                    return Some(ctx.report_with(&ACCEPT_PATCH_MISSING, "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into()));
                 }
 
                 return None;
@@ -462,11 +456,10 @@ impl Rule for AcceptPatchHeaderValid {
                 // rebuilds a URI from the pseudo-headers and a `:path` of `*` is
                 // recorded as an authority with the asterisk swallowed into it.
                 //
-                // cite(RFC 5789 § 3.1): "Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method."
                 // cite(RFC 5789 § 3): "The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised."
                 // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
                 if tx.request.uri != "*" && allow_names_patch(&resp.headers) {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&ACCEPT_PATCH_MISSING, format!(
                             "OPTIONS response ({}) advertises PATCH in Allow and carries no Accept-Patch; RFC 5789 § 3.1 says Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method. § 3 leaves the Allow listing conforming without it and names what is lost: the list of allowed patch documents is not advertised",
                             resp.status
                         )));
@@ -541,6 +534,33 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// Two sections ask for this field and one entry answers both, because the
+    /// omission and its repair are the same on either occasion. Each message
+    /// still names the section it was read from, which is what an uncited
+    /// finding owes its reader.
+    #[rstest]
+    #[case::a_415_answering_a_patch("PATCH", 415, &[][..])]
+    #[case::an_options_advertising_patch("OPTIONS", 200, &[("allow", b"GET, PATCH".as_slice())][..])]
+    fn a_response_owing_the_formats_draws_one_id(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] lines: &[(&str, &[u8])],
+    ) {
+        let found = check(method, status, lines).expect("a finding");
+        assert_eq!(found.violation, "accept_patch_missing");
+    }
+
+    /// A member that is no `type/subtype` pair draws the shared reader's id,
+    /// the one `Content-Type` and `Accept` draw for the same shape.
+    #[rstest]
+    #[case(b"text")]
+    #[case(b"text/")]
+    #[case(b"/plain")]
+    fn a_member_that_is_no_pair_draws_the_shared_readers_id(#[case] value: &[u8]) {
+        let found = check("PATCH", 200, &[("accept-patch", value)]).expect("a finding");
+        assert_eq!(found.violation, "media_type_malformed");
     }
 
     fn accept_patch(value: &str) -> Option<Violation> {
