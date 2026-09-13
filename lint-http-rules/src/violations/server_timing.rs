@@ -31,7 +31,15 @@
 //! recovery — take the first, ignore the rest, signal nothing — so nothing but
 //! that entry will ever tell a server the later values were discarded.
 //!
-//! **Every entry here names the section that prints the production, and none
+//! **Two entries name no sentence at all**, and they are the two the getters
+//! supply: a `dur` that is not a *valid floating-point number* and a name
+//! spelled in a case the exact-string lookup will not match. § 3.2 and § 3.3
+//! say what an attribute returns — zero, and the empty string — which is a
+//! consequence rather than a requirement, and the production measuring the
+//! first is HTML's rather than this document's. **A measurement borrowed from
+//! another document does not make that document the requirement.**
+//!
+//! **Every other entry names the section that prints the production, and none
 //! names the modal.** The Server Timing specification holds nine BCP 14
 //! keywords and eight of them are addressed to the user agent; the one that
 //! measures a server is § 2's SHOULD NOT about a repeated parameter name. So
@@ -133,6 +141,71 @@ defects! {
         spec: &[SERVER_TIMING_2],
     }
 
+    /// A parameter named `DUR` or `Desc`: one of the two established names in
+    /// every respect but case.
+    ///
+    /// `params` is an ordered map keyed by the name as the sender wrote it, and
+    /// the two getters index it with a literal — `params["dur"]`,
+    /// `params["desc"]` — so a name differing only in case is a name neither of
+    /// them finds. Nothing forbids it: the document has a user agent ignore a
+    /// name it does not recognise, without signalling an error. What is wrong
+    /// is that the server almost certainly meant the one it did not write.
+    ///
+    /// **`_invalid` for a value nothing refuses**, which is the reading
+    /// `Alt-Svc`'s `protocol-id` settled: a spelling that a recipient's exact
+    /// comparison will not match is grammatical and unusable as meant, one
+    /// level past the grammar. An id built on the *lookup* would have named
+    /// what the user agent did, which is correct behaviour and not a defect.
+    ///
+    /// **Uncited, and the reason is the first of the three**: no sentence
+    /// states this. § 3.3 defines what the getter returns and § 2 tells a
+    /// recipient to ignore what it does not know — a meaning and a recovery,
+    /// neither of them a requirement on the name — so a reference here would
+    /// dress a consequence as a rule. The same argument `Alt-Svc`'s freshness
+    /// lifetime carries, at a document whose every modal is the reader's.
+    ///
+    /// `info`. Nothing is unreadable, nothing else is affected, and one
+    /// parameter of one metric is invisible to the API that would have shown
+    /// it.
+    SERVER_TIMING_PARAM_NAME_INVALID = {
+        id: "server_timing_param_name_invalid",
+        title: "Server-Timing names an established parameter in a case no getter matches",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
+
+    /// A `dur` whose value is not a *valid floating-point number*: `dur=abc`,
+    /// `dur=+5`, `dur=NaN`, `dur=5.`.
+    ///
+    /// **No sentence requires `dur` to be a number**, which is the whole shape
+    /// of this entry. § 3.2 parses the value with HTML's *rules for parsing
+    /// floating-point number values* and returns 0 if that is an error — a
+    /// consequence rather than a requirement — so what the finding reports is
+    /// that the metric arrives saying a duration of zero, or a duration that
+    /// stops at the first character the parser cannot use.
+    ///
+    /// **The production measuring it is the rule's reference, not this
+    /// entry's.** HTML keeps two definitions deliberately apart: the *valid
+    /// floating-point number* a conforming author writes, and the parsing rules
+    /// a user agent runs over whatever arrived. A rule measuring a sender wants
+    /// the first, and neither of them is `f64::from_str`, which admits
+    /// Infinity, NaN and a leading `+` and refuses `53abc` that the parser
+    /// reads as 53. **A measurement borrowed from another document does not
+    /// make that document the requirement** — the requirement does not exist,
+    /// so the entry names nothing.
+    ///
+    /// `_invalid`: every octet derives from `token`, and what fails is what the
+    /// value means. `info`, with its sibling — the metric is a diagnostic, and
+    /// a diagnostic that reads zero costs nobody a request.
+    SERVER_TIMING_DUR_INVALID = {
+        id: "server_timing_dur_invalid",
+        title: "Server-Timing writes a dur that is not a valid floating-point number",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
+
     /// One `server-timing-param-name` written twice in one metric:
     /// `db;dur=50;dur=51`.
     ///
@@ -219,6 +292,22 @@ mod tests {
         ] {
             assert_eq!(def.spec, [SERVER_TIMING_2], "{}", def.id);
             assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+        }
+    }
+
+    /// The two entries the getters supply are the two with no sentence, and
+    /// they rank below everything the grammar answers for: an attribute
+    /// returning zero or an empty string is a consequence the document
+    /// describes, not a requirement it states.
+    #[test]
+    fn what_the_getters_do_is_uncited_and_ranks_lowest() {
+        for def in [
+            &SERVER_TIMING_PARAM_NAME_INVALID,
+            &SERVER_TIMING_DUR_INVALID,
+        ] {
+            assert!(def.spec.is_empty(), "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Info, "{}", def.id);
+            assert!(def.default_severity < SERVER_TIMING_PARAM_DUPLICATED.default_severity);
         }
     }
 

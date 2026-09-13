@@ -1895,6 +1895,10 @@ severity = "error"
 # WebSocket handshake carries no Sec-WebSocket-Version
 severity = "error"
 
+[violations.server_timing_dur_invalid]
+# Server-Timing writes a dur that is not a valid floating-point number
+severity = "info"
+
 [violations.server_timing_param_duplicated]
 # Server-Timing metric names one parameter more than once
 severity = "warn"
@@ -1906,6 +1910,10 @@ severity = "warn"
 [violations.server_timing_param_equals_missing]
 # Server-Timing parameter has no '=' and no value
 severity = "warn"
+
+[violations.server_timing_param_name_invalid]
+# Server-Timing names an established parameter in a case no getter matches
+severity = "info"
 
 [violations.server_timing_param_value_empty]
 # Server-Timing parameter is written with no value after its '='
