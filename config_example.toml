@@ -1623,6 +1623,10 @@ severity = "warn"
 # Language tag holds whitespace or a control character
 severity = "error"
 
+[violations.link_attribute_duplicated]
+# Link member writes one of the bounded attributes more than once
+severity = "warn"
+
 [violations.link_member_malformed]
 # Link member carries content the production does not continue with
 severity = "warn"
@@ -1633,6 +1637,18 @@ severity = "warn"
 
 [violations.link_param_value_empty]
 # Link parameter writes an '=' with no value after it
+severity = "warn"
+
+[violations.link_preload_as_invalid]
+# A response's preload link names no preload destination in its as
+severity = "warn"
+
+[violations.link_preload_as_missing]
+# A response's preload link carries no as parameter
+severity = "warn"
+
+[violations.link_rel_duplicated]
+# Link member writes rel more than once
 severity = "warn"
 
 [violations.link_rel_empty]
@@ -1653,6 +1669,10 @@ severity = "warn"
 
 [violations.link_target_delimiter_missing]
 # Link member's target is not inside angle brackets
+severity = "warn"
+
+[violations.link_type_malformed]
+# Link type attribute does not derive from type-name "/" subtype-name
 severity = "warn"
 
 [violations.list_member_empty]
