@@ -4,6 +4,9 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::conditional::{
+    CONDITIONAL_DATE_IGNORED, CONDITIONAL_DATE_REDUNDANT, RFC_9110_13_1_3, RFC_9110_13_1_4,
+};
 use crate::violations::etag::{
     entity_tag_defect, ETAG_CHARACTER_FORBIDDEN, ETAG_DELIMITER_MISSING,
     ETAG_WEAK_INDICATOR_INVALID, RFC_9110_8_8_3,
@@ -37,6 +40,8 @@ use crate::violations::ViolationDef;
 /// where the grammar admits one.
 static DECLARED: &[&ViolationDef] = &[
     &FIELD_LINE_DUPLICATED,
+    &CONDITIONAL_DATE_REDUNDANT,
+    &CONDITIONAL_DATE_IGNORED,
     &IF_RANGE_FORBIDDEN,
     &IF_RANGE_VALIDATOR_WEAK_FORBIDDEN,
     &IF_RANGE_EMPTY,
@@ -101,6 +106,8 @@ severity = "warn"
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9110_13_1,
+            RFC_9110_13_1_3,
+            RFC_9110_13_1_4,
             RFC_9110_13_1_5,
             RFC_9110_13_2,
             RFC_9110_14_2,
@@ -172,14 +179,14 @@ impl Rule for ConditionalHeadersConsistent {
             let has_if_modified_since = req.headers.get("if-modified-since").is_some();
             // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field"
             if has_if_none_match && has_if_modified_since {
-                return Some(self.violation(ctx.severity, "If-Modified-Since MUST be ignored when If-None-Match is present; prefer entity-tag conditionals".into()));
+                return Some(ctx.report_with(&CONDITIONAL_DATE_REDUNDANT, "If-Modified-Since MUST be ignored when If-None-Match is present (RFC 9110 \u{a7}13.1.3); prefer entity-tag conditionals".into()));
             }
 
             let has_if_match = req.headers.get("if-match").is_some();
             let has_if_unmodified_since = req.headers.get("if-unmodified-since").is_some();
             // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field"
             if has_if_match && has_if_unmodified_since {
-                return Some(self.violation(ctx.severity, "If-Unmodified-Since MUST be ignored when If-Match is present; prefer entity-tag conditionals".into()));
+                return Some(ctx.report_with(&CONDITIONAL_DATE_REDUNDANT, "If-Unmodified-Since MUST be ignored when If-Match is present (RFC 9110 \u{a7}13.1.4); prefer entity-tag conditionals".into()));
             }
 
             // If-Range should only be sent in requests that contain Range
@@ -275,7 +282,7 @@ impl Rule for ConditionalHeadersConsistent {
                 && !(req.method.eq_ignore_ascii_case("GET")
                     || req.method.eq_ignore_ascii_case("HEAD"))
             {
-                return Some(self.violation(ctx.severity, "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into()));
+                return Some(ctx.report_with(&CONDITIONAL_DATE_IGNORED, "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into()));
             }
 
             None
@@ -325,6 +332,47 @@ mod tests {
         let v = v.unwrap_or_else(|| panic!("expected violation for two {} lines", label));
         assert!(v.message.contains(label));
         assert!(v.message.contains("list of dates"));
+    }
+
+    /// One MUST-ignore predicate, two entries, split on what the request still
+    /// carries afterwards. Beside its entity-tag counterpart the date field did
+    /// nothing and the stronger validator decides — `_redundant`, `info`. On a
+    /// method the field is not defined over there is no validator behind it,
+    /// and a request the sender believed was conditional is answered as an
+    /// unconditional one.
+    #[rstest]
+    #[case::beside_if_none_match(
+        "GET",
+        &[("if-none-match", "\"a\""), ("if-modified-since", "Wed, 21 Oct 2015 07:28:00 GMT")][..],
+        "conditional_date_redundant"
+    )]
+    #[case::beside_if_match(
+        "PUT",
+        &[("if-match", "\"a\""), ("if-unmodified-since", "Wed, 21 Oct 2015 07:28:00 GMT")][..],
+        "conditional_date_redundant"
+    )]
+    #[case::wrong_method(
+        "PUT",
+        &[("if-modified-since", "Wed, 21 Oct 2015 07:28:00 GMT")][..],
+        "conditional_date_ignored"
+    )]
+    fn a_discarded_date_conditional_is_two_entries(
+        #[case] method: &str,
+        #[case] headers: &[(&str, &str)],
+        #[case] expected: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = method.into();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(headers);
+        let rule = ConditionalHeadersConsistent;
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, expected, "{method} {headers:?}");
     }
 
     /// The three findings this field makes on its own, each pinned to the id

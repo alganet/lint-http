@@ -46,6 +46,7 @@ pub mod cache_control;
 pub mod challenge;
 pub mod charset;
 pub mod comment;
+pub mod conditional;
 pub mod content_coding;
 pub mod content_length;
 pub mod content_range;
@@ -459,7 +460,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 301;
+        const FLOOR: usize = 303;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
