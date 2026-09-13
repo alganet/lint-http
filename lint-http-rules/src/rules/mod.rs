@@ -1404,7 +1404,13 @@ severity = "warn"
         /// entry that replaced them names the same section, so both findings
         /// are still cited; what the count lost is the *duplication*, which is
         /// the one thing this floor cannot tell apart from a regression.
-        const FLOOR: usize = 101;
+        /// **`accept_header_media_type_syntax` gave up its last two**, both
+        /// § 12.5.1's and both moved onto the `media_range` subject the commit
+        /// opened — a wildcard type beside a concrete subtype, and a parameter
+        /// written past the weight. The rule now cites nothing at a finding
+        /// site and every one of its findings carries a reference, which is the
+        /// end state this ratchet is counting down *to* rather than a fall.
+        const FLOOR: usize = 99;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

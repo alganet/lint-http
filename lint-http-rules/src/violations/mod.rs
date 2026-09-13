@@ -59,6 +59,7 @@ pub mod language;
 pub mod link;
 pub mod list;
 pub mod mailbox;
+pub mod media_range;
 pub mod media_type;
 pub mod multipart_body;
 pub mod node;
@@ -453,7 +454,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 288;
+        const FLOOR: usize = 290;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
