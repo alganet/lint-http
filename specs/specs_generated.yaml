@@ -3947,25 +3947,25 @@ sources:
     snippet: A case-insensitive flag indicating that the previous request from the client was rejected because the nonce value was stale.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_nonce_handling.rs
-      line: 315
+      line: 322
   - label: digest_auth_nonce_handling (2)
     section: § 3.3
     snippet: A string of data, specified by the server, that SHOULD be returned by the client unchanged in the Authorization header field of subsequent requests
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_nonce_handling.rs
-      line: 247
+      line: 256
   - label: digest_auth_nonce_handling (3)
     section: § 3.3
     snippet: The nonce is opaque to the client.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_nonce_handling.rs
-      line: 202
+      line: 211
   - label: digest_auth_nonce_handling (4)
     section: § 3.4
     snippet: if the same nc value is seen twice, then the request is a replay.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_nonce_handling.rs
-      line: 303
+      line: 311
   - label: digest_auth_valid
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc.'
@@ -3979,7 +3979,7 @@ sources:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
       line: 265
     - file: lint-http-rules/src/violations/digest_credentials.rs
-      line: 127
+      line: 146
   - label: digest_auth_valid (3)
     section: § 3.4
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
@@ -3987,19 +3987,27 @@ sources:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
       line: 174
     - file: lint-http-rules/src/violations/digest_credentials.rs
-      line: 99
+      line: 118
   - label: cnonce
     section: § 3.4
     snippet: This parameter MUST be used by all implementations.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
       line: 216
+  - label: digest_credentials
+    section: § 3.4
+    snippet: The values of the opaque and algorithm fields must be those supplied in the WWW-Authenticate response header field for the entity being requested.
+    cited_by:
+    - file: lint-http-rules/src/violations/digest_credentials.rs
+      line: 206
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 3.5
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 741
+    - file: lint-http-rules/src/violations/digest_credentials.rs
+      line: 230
 - label: RFC 7617
   url: https://www.rfc-editor.org/rfc/rfc7617.html
   fragments:

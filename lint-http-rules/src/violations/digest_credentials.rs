@@ -40,6 +40,24 @@ pub const RFC_7616_3_4: SpecRef = SpecRef {
     note: "The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the \"MUST be used by all implementations\" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced in both directions",
 };
 
+/// The WWW-Authenticate challenge: where the `nonce`, `opaque` and `stale`
+/// parameters this subject reads a credential against are defined.
+pub const RFC_7616_3_3: SpecRef = SpecRef {
+    spec: "RFC 7616",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3",
+    note: "The WWW-Authenticate Response Header Field — the server challenge, its `nonce` and `opaque` and the case-insensitive `stale` flag a client answers by restarting the count",
+};
+
+/// Authentication-Info, and the one sentence in the document that fixes the
+/// width of `nc`.
+pub const RFC_7616_3_5: SpecRef = SpecRef {
+    spec: "RFC 7616",
+    section: Some("3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.5",
+    note: "The Authentication-Info Header Field — where the nc value's width is written down; § 3.4 introduces `nc` as \"the hexadecimal count\" and never fixes it, and this section requires the field's nc to be the client's, so it is one value with one width",
+};
+
 /// RFC 2617's conditional on the same two parameters, which is the half of the
 /// requirement a qop-carrying credential meets by itself.
 pub const RFC_2617_3_2_2: SpecRef = SpecRef {
@@ -52,8 +70,9 @@ pub const RFC_2617_3_2_2: SpecRef = SpecRef {
 defects! {
     /// A `Digest` credential that does not carry a parameter it owes:
     /// `username`, `realm`, `nonce`, `uri` or `response`, or — where the
-    /// credential carries a `qop` — `cnonce` or `nc`. A bare `Digest` with no
-    /// parameters at all is the degenerate case and draws this id too.
+    /// credential carries a `qop` — `cnonce` or `nc`, or an `opaque` the
+    /// challenge supplied. A bare `Digest` with no parameters at all is the
+    /// degenerate case and draws this id too.
     ///
     /// **Two antecedents, one entry.** §3.4 lists the parameters and names the
     /// consequence for the required ones being absent; for `cnonce` and `nc` it
@@ -131,6 +150,115 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_7616_3_4],
+    }
+
+    /// A credential naming a `nonce` no challenge in this exchange offered:
+    /// no `Digest` challenge observed at all, or one whose `nonce` was a
+    /// different string.
+    ///
+    /// **The same shape as
+    /// [`conditional_validator_missing`](crate::violations::conditional::CONDITIONAL_VALIDATOR_MISSING),
+    /// and uncited for the same reason.** A `nonce` is the server's to issue
+    /// and opaque to the client, so a credential naming one nobody offered is
+    /// worth a look — but nothing in RFC 7616 requires a client to answer the
+    /// *most recent* challenge, a server may keep several nonces live at once,
+    /// and a proxy that came up mid-conversation never saw the challenge that
+    /// issued this one. The heuristic is this crate's and a reference on it
+    /// would dress it as a requirement.
+    ///
+    /// One entry for both situations, because the claim is the same: this
+    /// exchange cannot account for the nonce. The message says whether a
+    /// challenge was seen.
+    ///
+    /// `info`, with the legitimate explanation available in every case.
+    DIGEST_CREDENTIALS_CHALLENGE_MISSING = {
+        id: "digest_credentials_challenge_missing",
+        title: "Digest credentials name a nonce no observed challenge offered",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
+
+    /// An `opaque` that is not the string the challenge supplied: returned
+    /// changed, or not returned at all.
+    ///
+    /// **Both, under one sentence, and the gate is what found that.** The
+    /// omitted case was first written as
+    /// [`DIGEST_CREDENTIALS_PARAMETER_MISSING`], which was wrong for a reason
+    /// worth keeping: that entry names RFC 2617 § 3.2.2 as well, a conditional
+    /// about `cnonce` and `nc` that has nothing to say about an `opaque` —
+    /// and `every_violation_spec_is_declared_by_its_rule` refused it, because
+    /// the rule reading challenges does not state that section and should not.
+    /// § 3.4 says the value *must be* the one supplied, which a credential
+    /// omitting it fails exactly as squarely as one changing it, and the repair
+    /// is the same sentence's: return what the challenge sent.
+    ///
+    /// **Cited where the nonce's counterpart is not, and the difference is the
+    /// evidence rather than the fix.** § 3.4 says outright that the values of
+    /// the `opaque` and `algorithm` fields must be those supplied in the
+    /// `WWW-Authenticate`; nothing in the document says the same about the
+    /// `nonce`, which is why a nonce that does not match is
+    /// [`DIGEST_CREDENTIALS_CHALLENGE_MISSING`]'s heuristic and this is a
+    /// stated requirement. *Where the evidence differs in kind, the entry
+    /// differs too, even when the repair is the same.*
+    ///
+
+    // cite(RFC 7616 § 3.4): "The values of the opaque and algorithm fields must be those supplied in the WWW-Authenticate response header field for the entity being requested."
+    DIGEST_CREDENTIALS_OPAQUE_CONFLICTING = {
+        id: "digest_credentials_opaque_conflicting",
+        title: "Digest credentials do not return the opaque the challenge supplied",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7616_3_4],
+    }
+
+    /// An `nc` that is not eight hexadecimal digits: `nc=1`, `nc=0000000g`,
+    /// `nc=000000001`.
+    ///
+    /// **The width is written in § 3.5 and nowhere else**, which is worth
+    /// knowing before reading the reference: § 3.4 introduces `nc` as "the
+    /// hexadecimal count" and never fixes its length, and the sentence that
+    /// does sits in the section about `Authentication-Info` — a field whose own
+    /// `nc` that section requires to be the one from the client's request. One
+    /// value, one width, and the document writes it down once on the far side
+    /// of the exchange.
+    ///
+    /// `warn`: a server that cannot read the count cannot use it to detect the
+    /// replays the parameter exists for, and the credential's response value is
+    /// computed over the count as written.
+    ///
+    // cite(RFC 7616 § 3.5): "For historical reasons, the nc value MUST be exactly 8 hexadecimal digits."
+    DIGEST_CREDENTIALS_NC_MALFORMED = {
+        id: "digest_credentials_nc_malformed",
+        title: "A Digest nonce-count is not eight hexadecimal digits",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7616_3_5],
+    }
+
+    /// Eight good hex digits naming the wrong number: a count that did not
+    /// increase for a nonce already seen, or one that did not restart at
+    /// `00000001` after a challenge said `stale=true`.
+    ///
+    /// **`_invalid`, because the value derives and the exchange refuses it.**
+    /// Both halves are the same claim — the count is not the number this
+    /// exchange calls for — and a sender fixes either by sending the number the
+    /// protocol says. § 3.4 supplies the first (a repeated count *is* the
+    /// replay signature the parameter exists to produce) and § 3.3 the second
+    /// (a `stale` challenge is answered by keeping the new nonce and starting
+    /// its count again), so the entry names both and neither governs; the
+    /// message says which.
+    ///
+    /// `warn` rather than `error`, and the reason is what this rule can see: a
+    /// proxy that missed requests holds a lower count than the server does, so
+    /// a repeat is evidence and not proof. What the finding says is that a
+    /// server is entitled to reject the request as a replay.
+    DIGEST_CREDENTIALS_NC_INVALID = {
+        id: "digest_credentials_nc_invalid",
+        title: "A Digest nonce-count is not the number the exchange calls for",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7616_3_4, RFC_7616_3_3],
     }
 }
 

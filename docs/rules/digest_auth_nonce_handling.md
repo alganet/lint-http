@@ -14,8 +14,9 @@ This rule ensures that an observed stream of transactions follows these lifecycl
 
 ## Specifications
 
-- [RFC 7616 §3.3](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3): The WWW-Authenticate Response Header Field — the server challenge (nonce, opaque, stale)
-- [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the client response parameters (nonce, nc, opaque)
+- [RFC 7616 §3.3](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3): The WWW-Authenticate Response Header Field — the server challenge, its `nonce` and `opaque` and the case-insensitive `stale` flag a client answers by restarting the count
+- [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the "MUST be used by all implementations" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced in both directions
+- [RFC 7616 §3.5](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.5): The Authentication-Info Header Field — where the nc value's width is written down; § 3.4 introduces `nc` as "the hexadecimal count" and never fixes it, and this section requires the field's nc to be the client's, so it is one value with one width
 
 ## Configuration
 

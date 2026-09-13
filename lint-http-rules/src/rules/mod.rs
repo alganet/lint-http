@@ -1432,7 +1432,14 @@ severity = "warn"
         /// names the same section, and so do the two beside it — so the rule
         /// has *more* cited findings after the fall than before it, which is
         /// the difference between counting sites and counting defects.
-        const FLOOR: usize = 91;
+        /// **`digest_auth_nonce_handling` gave up the last three of the auth
+        /// cluster's**, all RFC 7616 — § 3.3 for an `opaque` returned changed
+        /// and for the count a `stale` challenge restarts, § 3.4 for the count
+        /// a server reads as a replay. Two of the entries that replaced them
+        /// name one section each and keep their reference; the third names two
+        /// and keeps none, which is the trade an entry makes when one defect
+        /// has two governing sentences.
+        const FLOOR: usize = 88;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
