@@ -166,13 +166,13 @@ sources:
     snippet: A preload destination is "fetch", "font", "image", "script", "style", or "track".
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1003
+      line: 1024
   - label: link_header_valid (2)
     section: § 4.6.8.20
     snippet: If destination is not a preload destination, then return null.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1004
+      line: 1025
 - label: HTML Speculative Loading
   url: https://html.spec.whatwg.org/multipage/speculative-loading.html
   type: text/html
@@ -236,37 +236,37 @@ sources:
     snippet: Apply link options from parsed header attributes to options given attribs
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 959
+      line: 980
   - label: link_header_valid (2)
     section: § 4.2.4.4
     snippet: If attribs["as"] does not exist, then return false.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 960
+      line: 981
   - label: link_header_valid (3)
     section: § 4.2.4.4
     snippet: If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 980
+      line: 1001
   - label: link_header_valid (4)
     section: § 4.2.4.4
     snippet: If destination is null, then return false.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 979
+      line: 1000
   - label: link_header_valid (5)
     section: § 4.2.4.4
     snippet: Let destination be the result of translating attribs["as"].
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 978
+      line: 999
   - label: link_header_valid (6)
     section: § 4.2.4.4
     snippet: To process link headers given a Document doc, a response response, and a "pre-media" or "media" phase
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 958
+      line: 979
   - label: refresh_header_syntax
     section: § 4.2.5.3
     snippet: 'For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:'
@@ -1310,7 +1310,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 357
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 662
+      line: 668
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 272
   - label: lint-http-rules/src/helpers/uri.rs (9)
@@ -1370,7 +1370,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1069
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1077
+      line: 1098
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 393
     - file: lint-http-rules/src/violations/uri.rs
@@ -3262,7 +3262,7 @@ sources:
     snippet: 'Type and subtype names MUST conform to the following ABNF:'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1172
+      line: 1193
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 188
   - label: link_header_valid (2)
@@ -3270,7 +3270,7 @@ sources:
     snippet: restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1173
+      line: 1194
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 202
   - label: link_header_valid (3)
@@ -3278,13 +3278,13 @@ sources:
     snippet: restricted-name-chars = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "-" / "^" / "_"
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1174
+      line: 1195
   - label: link_header_valid (4)
     section: § 4.2
     snippet: restricted-name-chars =/ "+" ; Characters after last plus always ; specify a structured syntax suffix
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1176
+      line: 1197
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 196
   - label: link_header_valid (5)
@@ -3292,13 +3292,13 @@ sources:
     snippet: restricted-name-chars =/ "." ; Characters before first dot always ; specify a facet name
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1175
+      line: 1196
   - label: link_header_valid (6)
     section: § 4.2
     snippet: type-name = restricted-name subtype-name = restricted-name
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1149
+      line: 1170
   - label: media_type_suffix_valid
     section: § 4.2.8
     snippet: '"+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions.'
@@ -4307,175 +4307,185 @@ sources:
     snippet: 'This document uses the Augmented Backus-Naur Form (ABNF) [RFC5234] notation of [RFC7230], including the #rule, and explicitly includes the following rules from it'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 800
+      line: 818
   - label: link_header_valid (2)
     section: § 1.2
     snippet: The requirements regarding conformance and error handling highlighted in [RFC7230], Section 2.5 apply to this document.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 589
+      line: 595
   - label: link_header_valid (3)
     section: § 2.1.1
     snippet: Registered relation type names MUST conform to the reg-rel-type rule (see Section 3.3) and MUST be compared character by character in a case-insensitive fashion.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 945
+      line: 966
   - label: link_header_valid (4)
     section: § 2.1.2
     snippet: When extension relation types are compared, they MUST be compared as strings (after converting to URIs if serialised in a different format) in a case-insensitive fashion, character by character.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1067
+      line: 1088
   - label: link_header_valid (5)
     section: § 2.2
     snippet: The names of target attributes SHOULD conform to the token rule, but SHOULD NOT include any of the characters "%", "'", or "*", for portability across serialisations and MUST be compared in a case-insensitive fashion.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 837
+      line: 858
   - label: link_header_valid (6)
     section: § 3
     snippet: Individual link-params specify their syntax in terms of the value after any necessary unquoting
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 799
+      line: 817
   - label: link_header_valid (7)
     section: § 3
     snippet: 'Link       = #link-value link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 591
+      line: 597
   - label: link_header_valid (8)
     section: § 3
     snippet: Note that any link-param can be generated with values using either the token or the quoted-string syntax; therefore, recipients MUST be able to parse both forms.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 798
+      line: 816
   - label: link_header_valid (9)
     section: § 3
     snippet: The Link header field provides a means for serialising one or more links into HTTP headers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 521
-  - label: link_header_valid (10)
+      line: 527
+  - label: link-param optional group
     section: § 3
     snippet: link-param = token BWS [ "=" BWS ( token / quoted-string ) ]
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 797
-  - label: link_header_valid (11)
+      line: 815
+    - file: lint-http-rules/src/violations/link.rs
+      line: 135
+  - label: link-value assembly
     section: § 3
     snippet: link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 661
+      line: 667
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 722
-  - label: link_header_valid (12)
+      line: 728
+    - file: lint-http-rules/src/violations/link.rs
+      line: 35
+    - file: lint-http-rules/src/violations/link.rs
+      line: 88
+    - file: lint-http-rules/src/violations/link.rs
+      line: 111
+  - label: link_header_valid (10)
     section: § 3.1
     snippet: Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>").
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 750
-  - label: link_header_valid (13)
+      line: 762
+    - file: lint-http-rules/src/violations/link.rs
+      line: 67
+  - label: link_header_valid (11)
     section: § 3.3
     snippet: Note that extension relation types are REQUIRED to be absolute URIs in Link header fields and MUST be quoted when they contain characters not allowed in tokens
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1066
-  - label: link_header_valid (14)
+      line: 1087
+  - label: link_header_valid (12)
     section: § 3.3
     snippet: The rel parameter MUST be present but MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 714
+      line: 720
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1012
-  - label: link_header_valid (15)
+      line: 1033
+  - label: link_header_valid (13)
     section: § 3.3
     snippet: The rel parameter can, however, contain multiple link relation types.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1028
-  - label: link_header_valid (16)
+      line: 1049
+  - label: link_header_valid (14)
     section: § 3.3
     snippet: The relation type of a link conveyed in the Link header field is conveyed in the "rel" parameter's value.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1011
-  - label: link_header_valid (17)
+      line: 1032
+  - label: link_header_valid (15)
     section: § 3.3
     snippet: ext-rel-type   = URI ; Section 3 of [RFC3986]
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1065
-  - label: link_header_valid (18)
+      line: 1086
+  - label: link_header_valid (16)
     section: § 3.3
     snippet: reg-rel-type   = LOALPHA *( LOALPHA / DIGIT / "." / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1064
+      line: 1085
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1126
-  - label: link_header_valid (19)
+      line: 1147
+  - label: link_header_valid (17)
     section: § 3.3
     snippet: relation-type  = reg-rel-type / ext-rel-type
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1063
-  - label: link_header_valid (20)
+      line: 1084
+  - label: link_header_valid (18)
     section: § 3.3
     snippet: relation-type *( 1*SP relation-type )
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1027
-  - label: link_header_valid (21)
+      line: 1048
+  - label: link_header_valid (19)
     section: § 3.4.1
     snippet: Its value MUST be quoted if it contains a semicolon (";") or comma (",").
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 923
-  - label: link_header_valid (22)
+      line: 944
+  - label: link_header_valid (20)
     section: § 3.4.1
     snippet: 'The ABNF for the hreflang parameter''s value is:'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 888
-  - label: link_header_valid (23)
+      line: 909
+  - label: link_header_valid (21)
     section: § 3.4.1
     snippet: 'The ABNF for the media parameter''s value is:'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 922
-  - label: link_header_valid (24)
+      line: 943
+  - label: link_header_valid (22)
     section: § 3.4.1
     snippet: 'The ABNF for the type parameter''s value is:'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 902
-  - label: link_header_valid (25)
+      line: 923
+  - label: link_header_valid (23)
     section: § 3.4.1
     snippet: The title attribute MUST NOT appear more than once in a given link; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 716
-  - label: link_header_valid (26)
+      line: 722
+  - label: link_header_valid (24)
     section: § 3.4.1
     snippet: The title* link-param MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 717
-  - label: link_header_valid (27)
+      line: 723
+  - label: link_header_valid (25)
     section: § 3.4.1
     snippet: The type attribute MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 718
-  - label: link_header_valid (28)
+      line: 724
+  - label: link_header_valid (26)
     section: § 3.4.1
     snippet: There MUST NOT be more than one media attribute in a link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 715
+      line: 721
 - label: RFC 8297
   url: https://www.rfc-editor.org/rfc/rfc8297.html
   fragments:
@@ -5365,7 +5375,7 @@ sources:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 521
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 590
+      line: 596
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 211
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -6457,7 +6467,7 @@ sources:
     snippet: A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 826
+      line: 847
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 400
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -6469,7 +6479,7 @@ sources:
     snippet: A sender MUST NOT generate BWS in messages.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 825
+      line: 846
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 399
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -6847,7 +6857,7 @@ sources:
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
       line: 173
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 609
+      line: 615
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
       line: 186
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -7075,7 +7085,7 @@ sources:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 524
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 593
+      line: 599
     - file: lint-http-rules/src/rules/refresh_header_syntax.rs
       line: 324
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -7351,7 +7361,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 775
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 601
+      line: 607
   - label: lint-http-rules/src/helpers/list.rs (2)
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements:'
@@ -7391,7 +7401,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 542
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 682
+      line: 688
     - file: lint-http-rules/src/violations/quoted_pair.rs
       line: 38
   - label: lint-http-rules/src/helpers/list.rs (5)

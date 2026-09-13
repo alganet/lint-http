@@ -1623,6 +1623,22 @@ severity = "warn"
 # Language tag holds whitespace or a control character
 severity = "error"
 
+[violations.link_member_malformed]
+# Link member carries content the production does not continue with
+severity = "warn"
+
+[violations.link_param_empty]
+# Link member writes a semicolon with no link-param behind it
+severity = "warn"
+
+[violations.link_param_value_empty]
+# Link parameter writes an '=' with no value after it
+severity = "warn"
+
+[violations.link_target_delimiter_missing]
+# Link member's target is not inside angle brackets
+severity = "warn"
+
 [violations.list_member_empty]
 # List holds an empty element
 severity = "warn"

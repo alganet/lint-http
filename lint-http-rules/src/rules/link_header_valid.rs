@@ -15,6 +15,10 @@ use crate::violations::language::{
     LANGUAGE_TAG_EMPTY, LANGUAGE_TAG_LEADING_LETTER_MISSING, LANGUAGE_TAG_SUBTAG_EMPTY,
     LANGUAGE_TAG_SUBTAG_LENGTH_INVALID, LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_5646_2_1,
 };
+use crate::violations::link::{
+    LINK_MEMBER_MALFORMED, LINK_PARAM_EMPTY, LINK_PARAM_VALUE_EMPTY, LINK_TARGET_DELIMITER_MISSING,
+    RFC_8288_3,
+};
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -33,7 +37,8 @@ use crate::violations::ViolationDef;
 
 pub struct LinkHeaderValid;
 
-/// Every production this field is assembled from, and none of its assembly.
+/// Every production this field is assembled from, and the first four entries of
+/// its assembly.
 ///
 /// `Link = #link-value` with `link-value = "<" URI-Reference ">" *( OWS ";"
 /// OWS link-param )` and `link-param = token BWS [ "=" BWS ( token /
@@ -45,13 +50,24 @@ pub struct LinkHeaderValid;
 /// are imported the same way: an `hreflang` is RFC 5646's `Language-Tag`, the
 /// same production `Content-Language` carries.
 ///
-/// What stays this rule's own is everything the *serialisation* says about how
-/// those parts go together — a target with no brackets around it, content
-/// after the one that closed, a `;` owing a parameter, `rel` missing or
-/// written twice, a relation type deriving from neither of § 3.3's
-/// alternatives — and the two findings HTML states about a `preload`, which no
-/// RFC asks for at all.
+/// What is this document's own is everything the *serialisation* says about how
+/// those parts go together, and four of it are written: the angle brackets as
+/// one entry for two delimiters, a member continuing with something the
+/// production does not, a `;` owing a parameter, and an `=` written with no
+/// value after it. **The `;` is the entry to read twice** — § 5.6.1.1's
+/// sentence about empty elements is about the `#` construct's commas, and this
+/// repetition is RFC 8288's own, so the two separators of one field answer to
+/// two documents.
+///
+/// **What is still unnamed** is what the parameters *mean*: `rel` missing,
+/// empty, written twice or naming a relation type deriving from neither of
+/// § 3.3's alternatives, a `type` value that is no media type — and the two
+/// findings HTML states about a `preload`, which no RFC asks for at all.
 static DECLARED: &[&ViolationDef] = &[
+    &LINK_TARGET_DELIMITER_MISSING,
+    &LINK_MEMBER_MALFORMED,
+    &LINK_PARAM_EMPTY,
+    &LINK_PARAM_VALUE_EMPTY,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -115,16 +131,6 @@ impl Defect {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_8288_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8288",
-    section: Some("3"),
-    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3",
-    note: "The serialisation: `Link = #link-value`, the angle-bracketed \
-           `URI-Reference`, and `link-param = token BWS [ \"=\" BWS ( token / \
-           quoted-string ) ]` — whose optional group is what makes a valueless \
-           parameter conforming. Also the sentence equating the token and \
-           quoted-string forms, which is why a value is judged after unquoting",
-};
 const RFC_8288_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 8288",
     section: Some("3.1"),
@@ -722,20 +728,26 @@ const AT_MOST_ONCE: &[&str] = &["rel", "media", "title", "title*", "type"];
 // cite(RFC 8288 § 3): "link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
 fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
     let Some(rest) = member.strip_prefix('<') else {
-        return Err(Defect::unnamed(format!(
-            "'{}' does not open with the '<' the production prints before its URI-Reference",
-            shown_in_finding(member)
-        )));
+        return Err(Defect::named(
+            &LINK_TARGET_DELIMITER_MISSING,
+            format!(
+                "'{}' does not open with the '<' the production prints before its URI-Reference",
+                shown_in_finding(member)
+            ),
+        ));
     };
 
     // `<` and `>` are neither of them URI characters, so the first `>` is the
     // one that closes the target -- there is no component of a `URI-Reference`
     // it could be sitting inside.
     let Some(close) = rest.find('>') else {
-        return Err(Defect::unnamed(format!(
-            "'{}' has no '>' closing its URI-Reference",
-            shown_in_finding(member)
-        )));
+        return Err(Defect::named(
+            &LINK_TARGET_DELIMITER_MISSING,
+            format!(
+                "'{}' has no '>' closing its URI-Reference",
+                shown_in_finding(member)
+            ),
+        ));
     };
     let (target, after) = rest.split_at(close);
 
@@ -769,11 +781,14 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         return missing_rel(member);
     }
     let Some(params_src) = after.strip_prefix(';') else {
-        return Err(Defect::unnamed(format!(
-            "'{}' has '{}' after its '>', where the production admits only ';'-delimited parameters",
-            shown_in_finding(member),
-            shown_in_finding(after)
-        )));
+        return Err(Defect::named(
+            &LINK_MEMBER_MALFORMED,
+            format!(
+                "'{}' has '{}' after its '>', where the production admits only ';'-delimited parameters",
+                shown_in_finding(member),
+                shown_in_finding(after)
+            ),
+        ));
     };
 
     let mut seen: Vec<String> = Vec::new();
@@ -788,10 +803,13 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         // carries nothing. So the missing parameter is this serialisation's
         // finding and the missing member above is the shared one.
         if segment.is_empty() {
-            return Err(Defect::unnamed(format!(
-                "'{}' has a ';' with no link-param after it",
-                shown_in_finding(member)
-            )));
+            return Err(Defect::named(
+                &LINK_PARAM_EMPTY,
+                format!(
+                    "'{}' has a ';' with no link-param after it",
+                    shown_in_finding(member)
+                ),
+            ));
         }
 
         // cite(RFC 8288 § 3): "link-param = token BWS [ "=" BWS ( token / quoted-string ) ]"
@@ -811,9 +829,12 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
                 shown_in_finding(segment),
                 defect.message(segment)
             );
+            // The `None` is the empty value, which the shared mapping leaves
+            // to the field: here the optional group makes the `=` itself
+            // optional, so a member that writes one owes a `word` after it.
             match token_bws_word_defect(&defect) {
                 Some(def) => Defect::named(def, message),
-                None => Defect::unnamed(message),
+                None => Defect::named(&LINK_PARAM_VALUE_EMPTY, message),
             }
         })?;
 
@@ -1517,11 +1538,12 @@ mod tests {
     // the one that closed, a `;` owing a parameter, `rel` absent, empty,
     // repeated, or naming a value neither of §3.3's alternatives generates —
     // and the two findings HTML states about a preload.
-    #[case(b"https://example/; rel=next", None)]
-    #[case(b"</a> junk; rel=next", None)]
-    #[case(b"</a>; rel=next;", None)]
+    #[case(b"https://example/; rel=next", Some("link_target_delimiter_missing"))]
+    #[case(b"</a; rel=next", Some("link_target_delimiter_missing"))]
+    #[case(b"</a> junk; rel=next", Some("link_member_malformed"))]
+    #[case(b"</a>; rel=next;", Some("link_param_empty"))]
     #[case(b"</a>; title=\"Home\"", None)]
-    #[case(b"</a>; rel=", None)]
+    #[case(b"</a>; rel=", Some("link_param_value_empty"))]
     #[case(b"</a>; rel=next; rel=prev", None)]
     #[case(b"</a>; rel=Next", None)]
     #[case(b"</a>; rel=alternate; type=text", None)]
