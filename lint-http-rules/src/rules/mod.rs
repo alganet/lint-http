@@ -1421,7 +1421,12 @@ severity = "warn"
         /// *defects* named falls by one. A floor on sites cannot see a merge,
         /// which is the second thing on this list it cannot tell apart from a
         /// regression.
-        const FLOOR: usize = 95;
+        /// **The `if_range` subject took three at once**, all § 13.1.5 cited
+        /// from `conditional_headers_consistent` — a field sent with no
+        /// `Range`, a weak entity-tag, and a value that chose neither
+        /// alternative. Three entries name the same section, so all three
+        /// findings keep their reference.
+        const FLOOR: usize = 92;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

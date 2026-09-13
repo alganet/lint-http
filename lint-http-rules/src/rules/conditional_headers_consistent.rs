@@ -13,6 +13,9 @@ use crate::violations::http_date::{
     http_date_defect, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN,
     RFC_9110_5_6_7,
 };
+use crate::violations::if_range::{
+    IF_RANGE_EMPTY, IF_RANGE_FORBIDDEN, IF_RANGE_VALIDATOR_WEAK_FORBIDDEN, RFC_9110_13_1_5,
+};
 use crate::violations::ViolationDef;
 
 /// `If-Range = entity-tag / HTTP-date`, and both alternatives are somebody
@@ -34,6 +37,9 @@ use crate::violations::ViolationDef;
 /// where the grammar admits one.
 static DECLARED: &[&ViolationDef] = &[
     &FIELD_LINE_DUPLICATED,
+    &IF_RANGE_FORBIDDEN,
+    &IF_RANGE_VALIDATOR_WEAK_FORBIDDEN,
+    &IF_RANGE_EMPTY,
     &ETAG_WEAK_INDICATOR_INVALID,
     &ETAG_DELIMITER_MISSING,
     &ETAG_CHARACTER_FORBIDDEN,
@@ -63,12 +69,6 @@ const RFC_9110_13_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("13.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
     note: "Preconditions",
-};
-const RFC_9110_13_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("13.1.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
-    note: "If-Range — `If-Range = entity-tag / HTTP-date`, the three-character DQUOTE test that says which alternative a value chose, no If-Range without Range, and no weak entity-tag in one",
 };
 const RFC_9110_13_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -191,7 +191,7 @@ impl Rule for ConditionalHeadersConsistent {
                 // If-Range exists
                 // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field."
                 if req.headers.get("range").is_none() {
-                    return Some(self.cited(&RFC_9110_13_1_5, ctx.severity, "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into()));
+                    return Some(ctx.report_with(&IF_RANGE_FORBIDDEN, "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into()));
                 }
 
                 // Read as the octets the sender wrote: `etagc` admits `obs-text`,
@@ -205,9 +205,8 @@ impl Rule for ConditionalHeadersConsistent {
                 // entity-tag that § 13.1.5 forbids here specifically.
                 // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
                 if trimmed.starts_with("W/") {
-                    return Some(self.cited(
-                        &RFC_9110_13_1_5,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &IF_RANGE_VALIDATOR_WEAK_FORBIDDEN,
                         "If-Range MUST not contain a weak entity-tag (W/...)".into(),
                     ));
                 }
@@ -221,9 +220,8 @@ impl Rule for ConditionalHeadersConsistent {
                 // cite(RFC 9110 § 13.1.5, label: If-Range grammar): "If-Range = entity-tag / HTTP-date"
                 // cite(RFC 9110 § 13.1.5): "A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE."
                 if trimmed.is_empty() {
-                    return Some(self.cited(
-                        &RFC_9110_13_1_5,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &IF_RANGE_EMPTY,
                         "If-Range is empty, which is neither an entity-tag nor an HTTP-date".into(),
                     ));
                 }
@@ -327,6 +325,30 @@ mod tests {
         let v = v.unwrap_or_else(|| panic!("expected violation for two {} lines", label));
         assert!(v.message.contains(label));
         assert!(v.message.contains("list of dates"));
+    }
+
+    /// The three findings this field makes on its own, each pinned to the id
+    /// it draws. What a value *is* belongs to `etag` and `http_date`; these are
+    /// § 13.1.5's two client-side MUST NOTs and the alternation's own floor.
+    #[rstest]
+    #[case::no_range(&[("if-range", "\"a\"")][..], "if_range_forbidden")]
+    #[case::weak(&[("if-range", "W/\"a\""), ("range", "bytes=0-1")][..], "if_range_validator_weak_forbidden")]
+    #[case::blank(&[("if-range", ""), ("range", "bytes=0-1")][..], "if_range_empty")]
+    fn the_fields_own_findings_name_the_fields_own_entries(
+        #[case] headers: &[(&str, &str)],
+        #[case] expected: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(headers);
+        let rule = ConditionalHeadersConsistent;
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, expected, "{headers:?}");
     }
 
     #[rstest]
