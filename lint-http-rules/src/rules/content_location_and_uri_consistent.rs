@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_location::{
+    CONTENT_LOCATION_AMBIGUOUS, CONTENT_LOCATION_EMPTY, CONTENT_LOCATION_FRAGMENT_FORBIDDEN,
+    RFC_9110_4_1, RFC_9110_8_7,
+};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::uri::{
     scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2,
     RFC_3986_2_1, RFC_3986_3_1, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
@@ -31,6 +36,10 @@ pub struct ContentLocationAndUriConsistent;
 /// the id is the same one a `Location`, a `Referer` and an absolute-form request
 /// target answer with.
 static DECLARED: &[&ViolationDef] = &[
+    &CONTENT_LOCATION_FRAGMENT_FORBIDDEN,
+    &CONTENT_LOCATION_EMPTY,
+    &CONTENT_LOCATION_AMBIGUOUS,
+    &FIELD_LINE_DUPLICATED,
     &URI_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
@@ -43,29 +52,11 @@ static DECLARED: &[&ViolationDef] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.7"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7",
-    note: "Content-Location: the grammar, and what a value equal to or different from the target URI means. Attaches no requirement to a difference, which is why the mismatch report is an advisory",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
-};
 const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
     note: "Field Values: singleton fields, and the US-ASCII range field values are constrained to",
-};
-const RFC_9110_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
-    note: "URI References: a `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF production is what says which forms it allows — the sentence behind reporting a fragment in this field",
 };
 const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -240,7 +231,7 @@ impl Rule for ContentLocationAndUriConsistent {
                     "content-location",
                 )
                 .expect("the branch is reached only when the field has more than one line");
-                return Some(self.violation(ctx.severity, format!(
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                         "{}. The comma a recipient joins them with is a `sub-delims` character both alternatives admit inside a path or a query (RFC 3986 §2.2), so the joined value is a well-formed reference to a resource neither line named",
                         crate::helpers::headers::singleton_field_preamble(
                             "Content-Location",
@@ -271,8 +262,8 @@ impl Rule for ContentLocationAndUriConsistent {
                 // a sender that emits `Content-Location:` with nothing after it is
                 // stating nothing, and means to state something.
                 if s.trim().is_empty() {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CONTENT_LOCATION_EMPTY,
                         "Content-Location header must not be empty".into(),
                     ));
                 }
@@ -368,7 +359,7 @@ impl Rule for ContentLocationAndUriConsistent {
                 // cite(RFC 3986 § 4.3): "Some protocol elements allow only the absolute form of a URI without a fragment identifier."
                 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
                 if let Some(hash) = s.find('#') {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&CONTENT_LOCATION_FRAGMENT_FORBIDDEN, format!(
                             "Content-Location value '{}' carries the fragment component '{}': neither alternative of `Content-Location = absolute-URI / partial-URI` generates one — each is a URI rule with the `[ \"#\" fragment ]` group dropped (RFC 9110 §4.1, RFC 3986 §4.3) — so the value derives from no reading of the grammar (RFC 9110 §2.2)",
                             crate::helpers::shown::shown_in_finding(s),
                             crate::helpers::shown::shown_in_finding(&s[hash..])
@@ -471,7 +462,7 @@ impl Rule for ContentLocationAndUriConsistent {
                     // cite(RFC 9110 § 8.7): "For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation."
                     // cite(RFC 9110 § 8.7): "Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP."
                     if !matches {
-                        return Some(self.cited(&RFC_9110_8_7, ctx.severity, "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into()));
+                        return Some(ctx.report_with(&CONTENT_LOCATION_AMBIGUOUS, "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into()));
                     }
                 }
             }
@@ -507,6 +498,48 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    /// The four findings that are the field's own, and three kinds between
+    /// them: a production refuses the fragment, no document complains about the
+    /// empty value, and the mismatch is a claim rather than a value. The
+    /// repeated line is not the field's at all.
+    #[rstest]
+    #[case::fragment("/a/b#frag", "content_location_fragment_forbidden")]
+    #[case::blank("", "content_location_empty")]
+    #[case::mismatch("/somewhere/else", "content_location_ambiguous")]
+    fn each_finding_of_the_field_names_its_entry(#[case] value: &str, #[case] id: &str) {
+        let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", value)]);
+        let found = crate::test_helpers::run_rule(
+            &ContentLocationAndUriConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_location_and_uri_consistent",
+            ]),
+        )
+        .unwrap_or_else(|| panic!("a finding for {value:?}"));
+        assert_eq!(found.violation, id, "{value:?}");
+    }
+
+    /// A second field line is § 5.3's rather than this field's, and twenty
+    /// other fields report it under the same id.
+    #[test]
+    fn a_second_field_line_is_the_field_orders_defect() {
+        let mut tx = make_tx_with_req_uri("/foo", 200, &[]);
+        let headers = &mut tx.response.as_mut().expect("a response").headers;
+        headers.append("content-location", HeaderValue::from_static("/a"));
+        headers.append("content-location", HeaderValue::from_static("/b"));
+        let found = crate::test_helpers::run_rule(
+            &ContentLocationAndUriConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_location_and_uri_consistent",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "field_line_duplicated");
     }
 
     /// The field claims a representation at a URI, and a scheme with no host

@@ -1367,6 +1367,18 @@ severity = "error"
 # Content-Length numeral is too large to represent
 severity = "warn"
 
+[violations.content_location_ambiguous]
+# Content-Location names a resource other than the request target
+severity = "info"
+
+[violations.content_location_empty]
+# Content-Location is written with nothing in it
+severity = "info"
+
+[violations.content_location_fragment_forbidden]
+# Content-Location carries a fragment component
+severity = "warn"
+
 [violations.content_md5_obsolete]
 # Content-MD5 is a field HTTP removed
 severity = "warn"

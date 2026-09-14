@@ -1471,7 +1471,12 @@ severity = "warn"
         /// them — a request with no authority anywhere, and a repeated field
         /// line — carried nothing and now carry § 7.2 and § 5.3. A rule can
         /// leave this count and arrive with more references than it had.
-        const FLOOR: usize = 74;
+        /// **`content_location_and_uri_consistent` did it again**, giving up
+        /// its one § 8.7 site while three findings that cited nothing picked up
+        /// § 8.7, § 4.1 and § 5.3. Twice in two commits, which is enough to say
+        /// plainly: *this floor measures a construct, not coverage.* The
+        /// coverage number is the one on the entries.
+        const FLOOR: usize = 73;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
