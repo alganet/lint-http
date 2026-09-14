@@ -222,6 +222,30 @@ defects! {
         spec: &[RFC_3986_3_2_2],
     }
 
+    /// An IPv6 address written with no brackets at all: `fe80::1`,
+    /// `fe80::1:8080`.
+    ///
+    /// **Told apart from [`URI_HOST_CLOSING_BRACKET_MISSING`] by what a reader
+    /// can see.** There an opening bracket says a literal was intended and only
+    /// its end is missing; here nothing marks the value as one, so a generic
+    /// host reader splits at the first colon and reports a port full of colons
+    /// — or, for an address with no colon it could take as a delimiter, finds
+    /// nothing wrong at all. The finding has to be made before the grammar runs
+    /// for the answer to name what is actually wrong.
+    ///
+    /// The brackets are not decoration: § 3.2.2 makes them the thing that
+    /// *distinguishes* an IP literal, and they are the only place in the URI
+    /// syntax where a square bracket is allowed.
+    ///
+    // cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
+    URI_HOST_IP_LITERAL_DELIMITER_MISSING = {
+        id: "uri_host_ip_literal_delimiter_missing",
+        title: "An IPv6 address is written without the brackets that mark it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_3986_3_2_2],
+    }
+
     /// A bracket somewhere other than around an IP literal — a closing one with
     /// nothing that opened it, most often, in a value assembled from an address
     /// and a port by string concatenation. Told apart from the two above
