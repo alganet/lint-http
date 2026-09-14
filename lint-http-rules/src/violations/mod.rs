@@ -56,6 +56,7 @@ pub mod content_length;
 pub mod content_location;
 pub mod content_range;
 pub mod content_security_policy;
+pub mod content_type;
 pub mod cookie;
 pub mod credentials;
 pub mod delta_seconds;
@@ -491,7 +492,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 397;
+        const FLOOR: usize = 399;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

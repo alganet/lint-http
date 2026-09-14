@@ -19,7 +19,7 @@ The parameter list is read quote-aware, so a `;` inside a quoted value does not 
 ## Specifications
 
 - [RFC 9110 §8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1): `media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here
-- [RFC 9110 §8.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2): What `charset` is for. Note it mandates nothing: no requirement to send the parameter exists, so flagging its absence is this linter's policy
+- [RFC 9110 §8.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2): What `charset` is for. Note it mandates nothing: no requirement to send the parameter exists, so reporting its absence is this crate's policy
 - [MDN Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type): Content-Type
 
 ## Configuration
