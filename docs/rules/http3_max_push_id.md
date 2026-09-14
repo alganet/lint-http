@@ -18,7 +18,7 @@ The first `MAX_PUSH_ID` on a connection establishes the initial limit and is alw
 
 ## Specifications
 
-- [RFC 9114 §7.2.7](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7): `MAX_PUSH_ID` frame
+- [RFC 9114 §7.2.7](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7): MAX_PUSH_ID — a client-only frame that raises the push limit, the prohibition on a server sending one, and the rule that a later frame cannot reduce the maximum
 - [RFC 9114 §8.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-8.1): HTTP/3 error codes (`H3_ID_ERROR`)
 
 ## Configuration

@@ -15,18 +15,20 @@ use crate::protocol_event::{
     MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
 use crate::rules::{ProtocolRule, RuleMeta};
+use crate::violations::http3_max_push_id::{
+    HTTP3_MAX_PUSH_ID_FORBIDDEN, HTTP3_MAX_PUSH_ID_INVALID, RFC_9114_7_2_7,
+};
+use crate::violations::ViolationDef;
+
+/// The two misuses of one frame: the wrong endpoint sent it, or the value went
+/// backwards. The first frame on a connection is neither.
+static DECLARED: &[&ViolationDef] = &[&HTTP3_MAX_PUSH_ID_FORBIDDEN, &HTTP3_MAX_PUSH_ID_INVALID];
 
 pub struct Http3MaxPushId;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9114_7_2_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("7.2.7"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7",
-    note: "`MAX_PUSH_ID` frame",
-};
 const RFC_9114_8_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9114",
     section: Some("8.1"),
@@ -55,6 +57,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9114_7_2_7, RFC_9114_8_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -101,11 +107,9 @@ impl ProtocolRule for Http3MaxPushId {
             // violation, whatever its value. This became checkable once the upstream
             // leg is observed with a sender direction — a `Server` MAX_PUSH_ID is one
             // the origin sent to this proxy, which as the receiving client must reject.
-            // cite(RFC 9114 § 7.2.7): "A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED."
             if direction == MessageDirection::Server {
-                return Some(self.cited(
-                    &RFC_9114_7_2_7,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &HTTP3_MAX_PUSH_ID_FORBIDDEN,
                     format!(
                         "HTTP/3 MAX_PUSH_ID (push_id {}) sent by a server; a server MUST NOT \
                          send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)",
@@ -117,16 +121,14 @@ impl ProtocolRule for Http3MaxPushId {
             // A value strictly smaller than one already received is the violation;
             // the comparison is `<`, not `<=`, because equal does not reduce the
             // maximum and is a legitimate idempotent re-send.
-            // cite(RFC 9114 § 7.2.7): "A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR"
             for prev in history.iter() {
                 if let ProtocolEventKind::H3MaxPushId {
                     push_id: prev_id, ..
                 } = &prev.kind
                 {
                     if current < *prev_id {
-                        return Some(self.cited(
-                            &RFC_9114_7_2_7,
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &HTTP3_MAX_PUSH_ID_INVALID,
                             format!(
                                 "HTTP/3 MAX_PUSH_ID {} decreased from previous {} \
                                  (RFC 9114 §7.2.7, H3_ID_ERROR)",
@@ -190,13 +192,15 @@ mod tests {
     }
 
     fn make_max_push_id(conn: Uuid, push_id: u64) -> ProtocolEvent {
-        make_event(
-            conn,
-            ProtocolEventKind::H3MaxPushId {
-                push_id,
-                direction: MessageDirection::Client,
-            },
-        )
+        make_max_push_id_from(conn, push_id, MessageDirection::Client)
+    }
+
+    fn make_max_push_id_from(
+        conn: Uuid,
+        push_id: u64,
+        direction: MessageDirection,
+    ) -> ProtocolEvent {
+        make_event(conn, ProtocolEventKind::H3MaxPushId { push_id, direction })
     }
 
     // ── A server MUST NOT send MAX_PUSH_ID (RFC 9114 §7.2.7) ──────────────
@@ -588,26 +592,42 @@ mod tests {
 
     // ── Severity propagation ─────────────────────────────────────────────
 
+    /// **Severity is the defect's now, not the rule's.** Both entries default
+    /// to `error` because § 7.2.7 makes each a connection error, and the key
+    /// that moves one is `[violations.<id>]` — a `[rules.http3_max_push_id]`
+    /// severity no longer reaches either finding, and tuning one entry leaves
+    /// the other where it was.
     #[test]
-    fn violation_propagates_configured_severity() {
+    fn each_entry_carries_its_own_severity() {
         let rule = Http3MaxPushId;
         let conn = Uuid::new_v4();
-        let prev = make_max_push_id(conn, 10);
-        let history = ProtocolEventHistory::new(vec![prev]);
-        let evt = make_max_push_id(conn, 5);
+        let history = ProtocolEventHistory::new(vec![make_max_push_id(conn, 10)]);
+        let decrease = make_max_push_id(conn, 5);
+        let from_server = make_max_push_id_from(conn, 5, MessageDirection::Server);
 
-        for (sev, sev_str) in [
-            (crate::lint::Severity::Info, "info"),
-            (crate::lint::Severity::Warn, "warn"),
-            (crate::lint::Severity::Error, "error"),
+        let mut cfg = make_config();
+        for (event, id) in [
+            (&decrease, "http3_max_push_id_invalid"),
+            (&from_server, "http3_max_push_id_forbidden"),
         ] {
-            let cfg =
-                crate::test_helpers::make_test_config_with_severity("http3_max_push_id", sev_str);
-            let v = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &cfg)
+            let v = crate::test_helpers::run_protocol_rule(&rule, event, &history, &cfg)
                 .expect("expected violation");
-            assert_eq!(v.severity, sev);
+            assert_eq!(v.violation, id);
+            assert_eq!(v.severity, crate::lint::Severity::Error);
             assert_eq!(v.rule, "http3_max_push_id");
         }
+
+        crate::test_helpers::override_violation_severity(
+            &mut cfg,
+            "http3_max_push_id_invalid",
+            "info",
+        );
+        let tuned = crate::test_helpers::run_protocol_rule(&rule, &decrease, &history, &cfg)
+            .expect("expected violation");
+        assert_eq!(tuned.severity, crate::lint::Severity::Info);
+        let untouched = crate::test_helpers::run_protocol_rule(&rule, &from_server, &history, &cfg)
+            .expect("expected violation");
+        assert_eq!(untouched.severity, crate::lint::Severity::Error);
     }
 
     // ── Long idempotent chain followed by decrease ───────────────────────
