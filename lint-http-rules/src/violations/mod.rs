@@ -48,6 +48,7 @@ pub mod bws;
 pub mod cache_control;
 pub mod challenge;
 pub mod charset;
+pub mod clear_site_data;
 pub mod comment;
 pub mod conditional;
 pub mod content_coding;
@@ -113,6 +114,8 @@ pub mod transfer_coding;
 pub mod transfer_encoding;
 pub mod upgrade;
 pub mod uri;
+pub mod user_agent;
+pub mod validator;
 pub mod vary;
 pub mod via;
 pub mod warning;
@@ -492,7 +495,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 399;
+        const FLOOR: usize = 401;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

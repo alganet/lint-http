@@ -1572,6 +1572,11 @@ severity = "warn"
         /// cited an MDN page, and the entry that replaced it names RFC 9110
         /// § 8.3.2 — the section that says what a `charset` is for and asks for
         /// nothing, which is exactly the footing the finding stands on.
+        /// **Three policy rules gave up nothing here** —
+        /// `user_agent_present`, `clear_site_data_present` and
+        /// `etag_or_last_modified_present` all reported through
+        /// `self.violation`, so the count does not move, and two of their three
+        /// findings are cited now where none was.
         const FLOOR: usize = 41;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");

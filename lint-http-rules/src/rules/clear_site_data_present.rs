@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::clear_site_data::{CLEAR_SITE_DATA_3_1, CLEAR_SITE_DATA_MISSING};
+use crate::violations::ViolationDef;
+
+/// One entry, and it rests on two guesses this crate makes and no
+/// requirement any document states.
+static DECLARED: &[&ViolationDef] = &[&CLEAR_SITE_DATA_MISSING];
 
 pub struct ClearSiteDataPresent;
 
@@ -76,12 +82,6 @@ paths = ["/logout"]"#
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const CLEAR_SITE_DATA_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Clear-Site-Data",
-    section: Some("3.1"),
-    url: "https://www.w3.org/TR/clear-site-data/#header",
-    note: "The `Clear-Site-Data` HTTP response header field (its purpose; §1.1.1 is the sign-out example this rule encodes)",
-};
 const MDN_CLEAR_SITE_DATA: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Clear-Site-Data",
     section: None,
@@ -120,6 +120,10 @@ paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[CLEAR_SITE_DATA_3_1, MDN_CLEAR_SITE_DATA]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -182,7 +186,7 @@ impl Rule for ClearSiteDataPresent {
             // sign-out that omits it leaves the session's data behind.
             // cite(Clear-Site-Data § 3.1): "The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types."
             if is_logout_path && !resp.headers.contains_key("clear-site-data") {
-                Some(self.violation(config.severity, format!(
+                Some(ctx.report_with(&CLEAR_SITE_DATA_MISSING, format!(
                         "Logout endpoint '{}' should include Clear-Site-Data header to properly clear client-side storage",
                         resource_path
                     )))
@@ -288,7 +292,10 @@ mod tests {
                 panic!("Expected violation but got None");
             };
             assert_eq!(v.rule, "clear_site_data_present");
-            assert_eq!(v.severity, crate::lint::Severity::Warn);
+            // The entry rests on two guesses and no requirement, and is ranked
+            // for that rather than for the rule's old configured level.
+            assert_eq!(v.violation, "clear_site_data_missing");
+            assert_eq!(v.severity, crate::lint::Severity::Info);
             if let Some(msg) = expected_message_contains {
                 assert!(v.message.contains(msg));
             }
