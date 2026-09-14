@@ -5509,9 +5509,9 @@ sources:
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 303
     - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 124
+      line: 127
     - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 170
+      line: 173
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 521
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -10331,7 +10331,7 @@ sources:
     snippet: Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 171
+      line: 174
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 222
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
@@ -10341,13 +10341,13 @@ sources:
     snippet: A request-line begins with a method token, followed by a single space (SP), the request-target, and another single space (SP), and ends with the protocol version.
     cited_by:
     - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 142
+      line: 145
   - label: http_version_syntax (3)
     section: § 4
     snippet: The first line of a response message is the status-line, consisting of the protocol version, a space (SP), the status code, and another space and ending with an OPTIONAL textual phrase describing the status code.
     cited_by:
     - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 143
+      line: 146
   - label: if_modified_since_date_syntax
     section: § 5
     snippet: field-line   = field-name ":" OWS field-value OWS
@@ -10370,6 +10370,8 @@ sources:
       line: 299
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 202
+    - file: lint-http-rules/src/violations/http_version.rs
+      line: 45
   - label: lint-http-core/src/http_version.rs
     section: § 2.3
     snippet: HTTP-version is case-sensitive.
@@ -10385,7 +10387,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 63
     - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 162
+      line: 165
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 298
   - label: HTTP-name
@@ -10938,7 +10940,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 71
     - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 163
+      line: 166
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
     section: § 8.3.2
     snippet: HTTP/2 responses implicitly have a protocol version of "2.0".
@@ -11215,7 +11217,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 76
     - file: lint-http-rules/src/rules/http_version_syntax.rs
-      line: 164
+      line: 167
   - label: lint-http-core/src/http_version.rs (2)
     section: § 4.3.1
     snippet: HTTP/3 requests implicitly have a protocol version of "3.0".

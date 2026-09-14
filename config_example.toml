@@ -1859,6 +1859,10 @@ severity = "info"
 # Timestamp is padded with whitespace the grammar does not print
 severity = "warn"
 
+[violations.http_version_malformed]
+# A protocol version derives from no reading of HTTP-version
+severity = "warn"
+
 [violations.if_range_empty]
 # If-Range is written with no validator in it
 severity = "warn"
