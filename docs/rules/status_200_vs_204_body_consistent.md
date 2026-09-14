@@ -12,7 +12,7 @@ Reports a `200 (OK)` response that carries no content, so an operator can check 
 
 ## Specifications
 
-- [RFC 9110 §15.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1): 200 (OK) — the whole basis of this rule, and both of its sentences matter: a 200 is expected to contain content "unless the message framing explicitly indicates that the content has zero length" (the reported state is that exception, not a breach), and the 204 advice is an "ought to" conditioned on the request preferring no content, which is not observable. The same paragraph excludes CONNECT
+- [RFC 9110 §15.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1): 200 (OK): a 200 is expected to contain content "unless the message framing explicitly indicates that the content has zero length" — the reported state is that exception, not a breach — and the 204 advice is an "ought to" conditioned on the request preferring no content, which is not observable
 - [RFC 9110 §15.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5): 204 (No Content) — the alternative the advice names: success, no content, and terminated by the end of the header section
 - [RFC 9110 §6.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1): Content Semantics — which responses have no content (HEAD, 2xx to CONNECT, 1xx, 204, 304) and, for every other response, that its content "might be of zero length": a zero-length 200 is contemplated by the specification
 - [RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2): HEAD — "the server MUST NOT send content in the response", so an empty response to HEAD says nothing about what the server intended
