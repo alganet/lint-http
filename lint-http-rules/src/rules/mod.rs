@@ -1527,7 +1527,10 @@ severity = "warn"
         /// applies to the same message, so every finding it could make was
         /// already made — with the *same* section quoted. Nothing lost a
         /// citation here; a duplicate stopped being counted twice.
-        const FLOOR: usize = 60;
+        /// **`retry_after_status_valid` gave up its one**, § 10.2.3, and the
+        /// entry holding it names that section — one site off, the same finding
+        /// cited from the entry instead of from the site.
+        const FLOOR: usize = 59;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

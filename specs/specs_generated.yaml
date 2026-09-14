@@ -3228,7 +3228,7 @@ sources:
     snippet: The response representations SHOULD include details explaining the condition, and MAY include a Retry-After header indicating how long to wait before making a new request.
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_status_valid.rs
-      line: 40
+      line: 46
 - label: RFC 6749
   url: https://www.rfc-editor.org/rfc/rfc6749.html
   fragments:
@@ -6181,9 +6181,9 @@ sources:
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
       line: 86
     - file: lint-http-rules/src/rules/retry_after_status_valid.rs
-      line: 165
-    - file: lint-http-rules/src/rules/retry_after_status_valid.rs
-      line: 189
+      line: 169
+    - file: lint-http-rules/src/violations/retry_after.rs
+      line: 51
   - label: context_fields_direction (9)
     section: § 10.2.4
     snippet: The "Server" header field contains information about the software used by the origin server to handle the request
@@ -8983,25 +8983,25 @@ sources:
     snippet: When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client.
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_status_valid.rs
-      line: 25
+      line: 31
   - label: retry_after_status_valid (2)
     section: § 10.2.3
     snippet: When sent with any 3xx (Redirection) response, Retry-After indicates the minimum time that the user agent is asked to wait before issuing the redirected request.
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_status_valid.rs
-      line: 18
+      line: 24
   - label: retry_after_status_valid (3)
     section: § 15.5.14
     snippet: If the condition is temporary, the server SHOULD generate a Retry-After header field to indicate that it is temporary and after what time the client MAY try again.
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_status_valid.rs
-      line: 34
+      line: 40
   - label: retry_after_status_valid (4)
     section: § 15.6.4
     snippet: The server MAY send a Retry-After header field (Section 10.2.3) to suggest an appropriate amount of time for the client to wait before retrying the request.
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_status_valid.rs
-      line: 26
+      line: 32
   - label: server_header_product_valid
     section: § 10.2.4
     snippet: An origin server MAY generate a Server header field in its responses.

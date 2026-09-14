@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::retry_after::{RETRY_AFTER_REDUNDANT, RFC_9110_10_2_3};
+use crate::violations::ViolationDef;
+
+/// One entry, and it condemns nothing: a field arriving where no sentence says
+/// what a recipient should do with it.
+static DECLARED: &[&ViolationDef] = &[&RETRY_AFTER_REDUNDANT];
 
 pub struct RetryAfterStatusValid;
 
@@ -44,12 +50,6 @@ fn status_defines_retry_after(status: u16) -> bool {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_10_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.2.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3",
-    note: "Defines Retry-After generally, with no condition on the status code, then says what it indicates on a 503 and on any 3xx",
-};
 const RFC_9110_15_5_14: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.5.14"),
@@ -95,6 +95,10 @@ severity = "warn"
             RFC_9110_15_6_4,
             RFC_6585_4,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -186,8 +190,7 @@ impl Rule for RetryAfterStatusValid {
             // neither RFC 9110 nor RFC 6585 says what a user agent should do with
             // it, which is an interoperability observation and not a requirement.
             // `description()` says the same where an operator reads it.
-            // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
-            Some(self.cited(&RFC_9110_10_2_3, ctx.severity, format!(
+            Some(ctx.report_with(&RETRY_AFTER_REDUNDANT, format!(
                     "Retry-After arrived on status {status}, which neither RFC 9110 nor RFC 6585 pairs with \
                      this field; the two documents pair it with any 3xx redirection, 413 Content Too Large, \
                      429 Too Many Requests, and 503 Service Unavailable. No requirement forbids sending it \
@@ -228,6 +231,16 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The one entry, at the severity the ending starts from: nothing forbids
+    /// the field here, and what the finding says is that a client reading it
+    /// has been told to wait by a response that names nothing to retry.
+    #[test]
+    fn the_finding_names_its_entry_and_condemns_nothing() {
+        let found = judge(&response_with(404, Some("120"))).expect("a finding");
+        assert_eq!(found.violation, "retry_after_redundant");
+        assert_eq!(found.severity, crate::lint::Severity::Info);
     }
 
     #[rstest]
