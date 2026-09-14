@@ -25,6 +25,28 @@ use crate::protocol_event::{
     MessageDirection, NegotiatedExtensions, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
 use crate::rules::{ProtocolRule, RuleMeta};
+use crate::violations::websocket_frame::{
+    RFC_6455_11_8, RFC_6455_5_2_OPCODES, RFC_6455_5_4, RFC_6455_5_5, RFC_6455_5_5_1,
+    WEBSOCKET_FRAME_CLOSE_BODY_MALFORMED, WEBSOCKET_FRAME_CONTINUATION_UNSOLICITED,
+    WEBSOCKET_FRAME_CONTROL_FRAGMENTATION_FORBIDDEN, WEBSOCKET_FRAME_CONTROL_PAYLOAD_INVALID,
+    WEBSOCKET_FRAME_DATA_AFTER_CLOSE_FORBIDDEN, WEBSOCKET_FRAME_MESSAGE_INTERLEAVING_FORBIDDEN,
+    WEBSOCKET_FRAME_OPCODE_MALFORMED, WEBSOCKET_FRAME_OPCODE_UNREGISTERED,
+};
+use crate::violations::ViolationDef;
+
+/// Eight entries over three groups, in the order a receiving endpoint reaches
+/// them: what the opcode is, what its class requires of this frame, and what
+/// the frames before it leave it free to be.
+static DECLARED: &[&ViolationDef] = &[
+    &WEBSOCKET_FRAME_OPCODE_MALFORMED,
+    &WEBSOCKET_FRAME_OPCODE_UNREGISTERED,
+    &WEBSOCKET_FRAME_CONTROL_PAYLOAD_INVALID,
+    &WEBSOCKET_FRAME_CONTROL_FRAGMENTATION_FORBIDDEN,
+    &WEBSOCKET_FRAME_CLOSE_BODY_MALFORMED,
+    &WEBSOCKET_FRAME_DATA_AFTER_CLOSE_FORBIDDEN,
+    &WEBSOCKET_FRAME_CONTINUATION_UNSOLICITED,
+    &WEBSOCKET_FRAME_MESSAGE_INTERLEAVING_FORBIDDEN,
+];
 
 /// The frame fields this rule reads, lifted out of the event.
 ///
@@ -109,12 +131,15 @@ impl WebsocketFrameOpcodeSequence {
     // cite(RFC 6455 § 11.8): "WebSocket Opcode numbers are subject to the "Standards Action" IANA registration policy [RFC5226]."
     // cite(RFC 6455 § 5.8): "This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions."
     // cite(RFC 6455 § 5.8): "The endpoints of a connection MUST negotiate the use of any extensions during the opening handshake."
-    fn opcode_defect(frame: &Frame) -> Option<String> {
+    fn opcode_defect(frame: &Frame) -> Option<(&'static ViolationDef, String)> {
         if frame.opcode > 15 {
-            return Some(format!(
-                "carries the opcode {}, which is outside the range a four-bit opcode field can \
-                 hold, so no frame header on any wire carried this value",
-                frame.opcode
+            return Some((
+                &WEBSOCKET_FRAME_OPCODE_MALFORMED,
+                format!(
+                    "carries the opcode {}, which is outside the range a four-bit opcode field can \
+                     hold, so no frame header on any wire carried this value",
+                    frame.opcode
+                ),
             ));
         }
 
@@ -129,22 +154,28 @@ impl WebsocketFrameOpcodeSequence {
             return None;
         }
 
-        // cite(RFC 6455 § 5.2): "If an unknown opcode is received, the receiving endpoint MUST _Fail the WebSocket Connection_."
-        // cite(RFC 6455 § 5.2): "%x3-7 are reserved for further non-control frames"
+        // The two ranges reserve for two different things, so the message says
+        // which — but the sender, the repair and the loss are one, and the
+        // entry is one.
         if (3..=7).contains(&frame.opcode) {
-            return Some(format!(
-                "carries the opcode {}, which is reserved for further non-control frames and \
-                 denotes no frame type this document defines",
-                frame.opcode
+            return Some((
+                &WEBSOCKET_FRAME_OPCODE_UNREGISTERED,
+                format!(
+                    "carries the opcode {}, which is reserved for further non-control frames and \
+                     denotes no frame type this document defines",
+                    frame.opcode
+                ),
             ));
         }
 
-        // cite(RFC 6455 § 5.2): "%xB-F are reserved for further control frames"
         if (11..=15).contains(&frame.opcode) {
-            return Some(format!(
-                "carries the opcode {}, which is reserved for further control frames and denotes \
-                 no frame type this document defines",
-                frame.opcode
+            return Some((
+                &WEBSOCKET_FRAME_OPCODE_UNREGISTERED,
+                format!(
+                    "carries the opcode {}, which is reserved for further control frames and denotes \
+                     no frame type this document defines",
+                    frame.opcode
+                ),
             ));
         }
 
@@ -171,38 +202,44 @@ impl WebsocketFrameOpcodeSequence {
     /// byte for the body under any extension — the finding does not depend on
     /// there being none.
     // cite(RFC 6455 § 5.5): "Control frames are identified by opcodes where the most significant bit of the opcode is 1."
-    fn control_frame_defect(frame: &Frame) -> Option<String> {
+    fn control_frame_defect(frame: &Frame) -> Option<(&'static ViolationDef, String)> {
         if frame.opcode < 8 {
             return None;
         }
 
-        // cite(RFC 6455 § 5.5): "All control frames MUST have a payload length of 125 bytes or less and MUST NOT be fragmented."
         if frame.payload_length > 125 {
-            return Some(format!(
-                "is a control frame (opcode {}) carrying {} bytes of payload, where a control \
-                 frame's payload is 125 bytes or less",
-                frame.opcode, frame.payload_length
+            return Some((
+                &WEBSOCKET_FRAME_CONTROL_PAYLOAD_INVALID,
+                format!(
+                    "is a control frame (opcode {}) carrying {} bytes of payload, where a control \
+                     frame's payload is 125 bytes or less",
+                    frame.opcode, frame.payload_length
+                ),
             ));
         }
 
-        // cite(RFC 6455 § 5.4): "Control frames themselves MUST NOT be fragmented."
         if !frame.fin {
-            return Some(format!(
-                "is a control frame (opcode {}) with the FIN bit clear, and a control frame is \
-                 never fragmented",
-                frame.opcode
+            return Some((
+                &WEBSOCKET_FRAME_CONTROL_FRAGMENTATION_FORBIDDEN,
+                format!(
+                    "is a control frame (opcode {}) with the FIN bit clear, and a control frame is \
+                     never fragmented",
+                    frame.opcode
+                ),
             ));
         }
 
+        // The permission is what makes the length measurable, and it stays here
+        // because it is the rule's own reason for reading only a payload of 1.
         // cite(RFC 6455 § 5.5.1): "The Close frame contains an opcode of 0x8."
         // cite(RFC 6455 § 5.5.1): "The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing"
-        // cite(RFC 6455 § 5.5.1): "If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4."
         if frame.opcode == 8 && frame.payload_length == 1 {
-            return Some(
+            return Some((
+                &WEBSOCKET_FRAME_CLOSE_BODY_MALFORMED,
                 "is a Close frame carrying a single payload byte, where a Close body that exists \
                  opens with a two-byte status code"
                     .into(),
-            );
+            ));
         }
 
         None
@@ -232,7 +269,10 @@ impl WebsocketFrameOpcodeSequence {
     /// a session long enough for its Close to fall out of the bounded store
     /// stops producing the finding. That direction is silence, not a false
     /// report, and the bound is the operator's `max_protocol_event_history`.
-    fn sequence_defect(frame: &Frame, history: &ProtocolEventHistory) -> Option<String> {
+    fn sequence_defect(
+        frame: &Frame,
+        history: &ProtocolEventHistory,
+    ) -> Option<(&'static ViolationDef, String)> {
         // Both sentences below are about what an endpoint may *send as data*, so
         // the class test is the gate for the whole function.
         // cite(RFC 6455 § 5.6): "Data frames (e.g., non-control frames) are identified by opcodes where the most significant bit of the opcode is 0."
@@ -269,24 +309,26 @@ impl WebsocketFrameOpcodeSequence {
             }
         }
 
-        // cite(RFC 6455 § 5.5.1): "The application MUST NOT send any more data frames after sending a Close frame."
         // cite(RFC 6455 § 5.1): "A data frame MAY be transmitted by either the client or the server at any time after opening handshake completion and before that endpoint has sent a Close frame (Section 5.5.1)."
         if closed {
-            return Some(format!(
-                "is a data frame (opcode {}) sent after this same endpoint's Close frame, which \
-                 is where what it may send ends",
-                frame.opcode
+            return Some((
+                &WEBSOCKET_FRAME_DATA_AFTER_CLOSE_FORBIDDEN,
+                format!(
+                    "is a data frame (opcode {}) sent after this same endpoint's Close frame, which \
+                     is where what it may send ends",
+                    frame.opcode
+                ),
             ));
         }
 
         // cite(RFC 6455 § 5.2): "%x0 denotes a continuation frame"
-        // cite(RFC 6455 § 5.4): "A fragmented message consists of a single frame with the FIN bit clear and an opcode other than 0, followed by zero or more frames with the FIN bit clear and the opcode set to 0, and terminated by a single frame with the FIN bit set and an opcode of 0."
         if frame.opcode == 0 && open_fragment != Some(true) {
-            return Some(
+            return Some((
+                &WEBSOCKET_FRAME_CONTINUATION_UNSOLICITED,
                 "is a continuation frame, and this endpoint has no fragmented message open for it \
                  to continue"
                     .into(),
-            );
+            ));
         }
 
         // A second message started before the first was terminated. The escape
@@ -294,14 +336,16 @@ impl WebsocketFrameOpcodeSequence {
         // negotiated one now travels with the frame -- so this finding stands
         // down for a session that accepted one, on the same terms as the
         // reserved opcodes above.
-        // cite(RFC 6455 § 5.4): "The fragments of one message MUST NOT be interleaved between the fragments of another message unless an extension has been negotiated that can interpret the interleaving."
         // cite(RFC 6455 § 5.4): "An unfragmented message consists of a single frame with the FIN bit set (Section 5.2) and an opcode other than 0."
         if frame.opcode != 0 && open_fragment == Some(true) && !frame.an_extension_was_negotiated()
         {
-            return Some(format!(
-                "opens a second message (opcode {}) while this endpoint's previous message is \
-                 still fragmented and unterminated",
-                frame.opcode
+            return Some((
+                &WEBSOCKET_FRAME_MESSAGE_INTERLEAVING_FORBIDDEN,
+                format!(
+                    "opens a second message (opcode {}) while this endpoint's previous message is \
+                     still fragmented and unterminated",
+                    frame.opcode
+                ),
             ));
         }
 
@@ -318,30 +362,6 @@ const RFC_6455_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1",
     note: "Overview: when an endpoint may transmit a data frame",
 };
-const RFC_6455_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("5.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
-    note: "Base Framing Protocol, opcode definitions and reserved ranges",
-};
-const RFC_6455_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("5.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.4",
-    note: "Fragmentation: what a fragmented message is made of",
-};
-const RFC_6455_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("5.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5",
-    note: "Control Frames: the class test and its two constraints",
-};
-const RFC_6455_5_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("5.5.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1",
-    note: "Close: the body's first two bytes, and the end of what a sender may send",
-};
 const RFC_6455_5_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
     section: Some("5.6"),
@@ -353,12 +373,6 @@ const RFC_6455_5_8: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("5.8"),
     url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.8",
     note: "Extensibility: what the reserved opcodes are reserved for",
-};
-const RFC_6455_11_8: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("11.8"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.8",
-    note: "WebSocket Opcode Registry: the field's range and its registration policy",
 };
 
 impl RuleMeta for WebsocketFrameOpcodeSequence {
@@ -383,7 +397,7 @@ severity = "warn"
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_6455_5_1,
-            RFC_6455_5_2,
+            RFC_6455_5_2_OPCODES,
             RFC_6455_5_4,
             RFC_6455_5_5,
             RFC_6455_5_5_1,
@@ -391,6 +405,10 @@ severity = "warn"
             RFC_6455_5_8,
             RFC_6455_11_8,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -471,7 +489,7 @@ impl ProtocolRule for WebsocketFrameOpcodeSequence {
             // reaches the questions: an opcode that names no frame type leaves the
             // class questions nothing to be about, and a frame the class already
             // rejects is not yet a member of any sequence.
-            let defect = Self::opcode_defect(&frame)
+            let (def, defect) = Self::opcode_defect(&frame)
                 .or_else(|| Self::control_frame_defect(&frame))
                 .or_else(|| Self::sequence_defect(&frame, history))?;
 
@@ -479,8 +497,8 @@ impl ProtocolRule for WebsocketFrameOpcodeSequence {
             // several map probes and a hash of the id — so only a frame about to be
             // reported pays for it.
 
-            Some(self.violation(
-                ctx.severity,
+            Some(ctx.report_with(
+                def,
                 format!("A WebSocket frame the {} sent {}", frame.sender(), defect),
             ))
         };
@@ -564,6 +582,133 @@ mod tests {
             &make_config(),
         )
         .map(|v| v.message)
+    }
+
+    /// Every entry this rule declares, reached through the three groups in the
+    /// order a receiving endpoint reaches them — and the ranking with them:
+    /// `error` is only the unknown opcode, the one finding here whose section
+    /// says the receiving endpoint fails the connection.
+    #[rstest]
+    #[case::wide_opcode(
+        16,
+        0,
+        true,
+        "websocket_frame_opcode_malformed",
+        crate::lint::Severity::Warn
+    )]
+    #[case::reserved_data(
+        5,
+        0,
+        true,
+        "websocket_frame_opcode_unregistered",
+        crate::lint::Severity::Error
+    )]
+    #[case::reserved_control(
+        11,
+        0,
+        true,
+        "websocket_frame_opcode_unregistered",
+        crate::lint::Severity::Error
+    )]
+    #[case::large_control(
+        9,
+        200,
+        true,
+        "websocket_frame_control_payload_invalid",
+        crate::lint::Severity::Warn
+    )]
+    #[case::fragmented_control(
+        10,
+        4,
+        false,
+        "websocket_frame_control_fragmentation_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    #[case::short_close(
+        8,
+        1,
+        true,
+        "websocket_frame_close_body_malformed",
+        crate::lint::Severity::Warn
+    )]
+    #[case::orphan_continuation(
+        0,
+        8,
+        true,
+        "websocket_frame_continuation_unsolicited",
+        crate::lint::Severity::Warn
+    )]
+    fn each_finding_names_its_entry(
+        #[case] opcode: u8,
+        #[case] payload_length: u64,
+        #[case] fin: bool,
+        #[case] id: &str,
+        #[case] severity: crate::lint::Severity,
+    ) {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let evt = make_ws_frame(
+            conn,
+            session,
+            MessageDirection::Client,
+            opcode,
+            payload_length,
+            fin,
+        );
+        let found = crate::test_helpers::run_protocol_rule(
+            &WebsocketFrameOpcodeSequence,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        )
+        .unwrap_or_else(|| panic!("a finding for opcode {opcode}"));
+        assert_eq!(found.violation, id, "opcode {opcode}");
+        assert_eq!(found.severity, severity, "opcode {opcode}");
+    }
+
+    /// The two sequence findings, each needing a history to be about.
+    #[test]
+    fn a_data_frame_after_a_close_and_an_interleaved_message_name_their_entries() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let after_close = history_of(vec![make_ws_event(
+            conn,
+            session,
+            MessageDirection::Client,
+            8,
+            2,
+        )]);
+        let evt = make_ws_event(conn, session, MessageDirection::Client, 1, 50);
+        let found = crate::test_helpers::run_protocol_rule(
+            &WebsocketFrameOpcodeSequence,
+            &evt,
+            &after_close,
+            &make_config(),
+        )
+        .expect("a finding");
+        assert_eq!(
+            found.violation,
+            "websocket_frame_data_after_close_forbidden"
+        );
+
+        let still_open = history_of(vec![make_ws_frame(
+            conn,
+            session,
+            MessageDirection::Client,
+            1,
+            12,
+            false,
+        )]);
+        let evt = make_ws_event(conn, session, MessageDirection::Client, 2, 30);
+        let found = crate::test_helpers::run_protocol_rule(
+            &WebsocketFrameOpcodeSequence,
+            &evt,
+            &still_open,
+            &make_config(),
+        )
+        .expect("a finding");
+        assert_eq!(
+            found.violation,
+            "websocket_frame_message_interleaving_forbidden"
+        );
     }
 
     #[test]

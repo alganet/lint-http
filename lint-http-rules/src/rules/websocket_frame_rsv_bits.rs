@@ -19,7 +19,7 @@ use crate::protocol_event::{
 };
 use crate::rules::{ProtocolRule, RuleMeta};
 use crate::violations::websocket_frame::{
-    RFC_6455_5_2, WEBSOCKET_FRAME_RSV_FORBIDDEN, WEBSOCKET_FRAME_RSV_MALFORMED,
+    RFC_6455_5_2_RSV_BITS, WEBSOCKET_FRAME_RSV_FORBIDDEN, WEBSOCKET_FRAME_RSV_MALFORMED,
 };
 use crate::violations::ViolationDef;
 
@@ -87,7 +87,7 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6455_5_2, RFC_6455_5_8, RFC_6455_9_1]
+        &[RFC_6455_5_2_RSV_BITS, RFC_6455_5_8, RFC_6455_9_1]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {

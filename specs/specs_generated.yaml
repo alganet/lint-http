@@ -2587,7 +2587,7 @@ sources:
     - file: lint-http-core/src/protocol_event.rs
       line: 72
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 111
+      line: 133
   - label: lint-http-core/src/protocol_event.rs (2)
     section: § 9.1
     snippet: Note that the client is only offering to use any advertised extensions and MUST NOT use them unless the server indicates that it wishes to use the extension.
@@ -2610,16 +2610,16 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/frame.rs
       line: 34
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 133
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 249
   - label: lint-http-proxy/src/proxy/websocket/frame.rs (2)
     section: § 5.2
     snippet: '%xB-F are reserved for further control frames'
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/frame.rs
       line: 35
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 142
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 250
   - label: lint-http-proxy/src/proxy/websocket/frame.rs (3)
     section: § 5.2
     snippet: 'RSV1, RSV2, RSV3:  1 bit each'
@@ -2627,7 +2627,7 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket/frame.rs
       line: 30
     - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 132
+      line: 196
   - label: lint-http-proxy/src/proxy/websocket/frame.rs (4)
     section: § 5.3
     snippet: Octet i of the transformed data ("transformed-octet-i") is the XOR of octet i of the original data ("original-octet-i") with octet at index i modulo 4 of the masking key
@@ -2640,8 +2640,8 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/frame.rs
       line: 64
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 179
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 273
   - label: lint-http-proxy/src/proxy/websocket/frame.rs (6)
     section: § 5.5
     snippet: Control frames are identified by opcodes where the most significant bit of the opcode is 1.
@@ -2649,7 +2649,7 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket/frame.rs
       line: 187
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 173
+      line: 204
   - label: lint-http-proxy/src/proxy/websocket/mod.rs
     section: § 4.1
     snippet: The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token.
@@ -2672,8 +2672,8 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/observer.rs
       line: 98
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 199
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 307
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: (as a string, not base64-decoded) with the string
@@ -2933,25 +2933,55 @@ sources:
     snippet: A server MUST NOT mask any frames that it sends to the client.
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 84
+      line: 148
   - label: websocket_frame (2)
     section: § 5.1
     snippet: To avoid confusing network intermediaries (such as intercepting proxies) and for security reasons that are further discussed in Section 10.3, a client MUST mask all frames that it sends to the server (see Section 5.3 for further details).
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 63
+      line: 127
   - label: the recipient's answer to a bit nothing defines
     section: § 5.2
     snippet: If a nonzero value is received and none of the negotiated extensions defines the meaning of such a nonzero value, the receiving endpoint MUST _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 110
+      line: 174
+  - label: the recipient's answer to an unknown opcode
+    section: § 5.2
+    snippet: If an unknown opcode is received, the receiving endpoint MUST _Fail the WebSocket Connection_.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 251
   - label: websocket_frame (3)
     section: § 5.2
     snippet: MUST be 0 unless an extension is negotiated that defines meanings for non-zero values.
     cited_by:
     - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 109
+      line: 173
+  - label: websocket_frame (4)
+    section: § 5.4
+    snippet: A fragmented message consists of a single frame with the FIN bit clear and an opcode other than 0, followed by zero or more frames with the FIN bit clear and the opcode set to 0, and terminated by a single frame with the FIN bit set and an opcode of 0.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 341
+  - label: websocket_frame (5)
+    section: § 5.4
+    snippet: Control frames themselves MUST NOT be fragmented.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 289
+  - label: websocket_frame (6)
+    section: § 5.4
+    snippet: The fragments of one message MUST NOT be interleaved between the fragments of another message unless an extension has been negotiated that can interpret the interleaving.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 359
+  - label: websocket_frame (7)
+    section: § 5.5.1
+    snippet: The application MUST NOT send any more data frames after sending a Close frame.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 324
   - label: the recipient's answer to a masked frame
     section: § 5.1
     snippet: A client MUST close a connection if it detects a masked frame.
@@ -2959,7 +2989,7 @@ sources:
     - file: lint-http-rules/src/rules/websocket_frame_masking.rs
       line: 161
     - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 85
+      line: 149
   - label: the recipient's answer to an unmasked frame
     section: § 5.1
     snippet: The server MUST close the connection upon receiving a frame that is not masked.
@@ -2967,99 +2997,71 @@ sources:
     - file: lint-http-rules/src/rules/websocket_frame_masking.rs
       line: 152
     - file: lint-http-rules/src/violations/websocket_frame.rs
-      line: 64
+      line: 128
   - label: websocket_frame_opcode_sequence
     section: § 11.8
     snippet: The opcode is an integer number between 0 and 15, inclusive.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 108
+      line: 130
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 216
   - label: websocket_frame_opcode_sequence (2)
     section: § 11.8
     snippet: WebSocket Opcode numbers are subject to the "Standards Action" IANA registration policy [RFC5226].
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 109
+      line: 131
   - label: websocket_frame_opcode_sequence (3)
     section: § 5.1
     snippet: A data frame MAY be transmitted by either the client or the server at any time after opening handshake completion and before that endpoint has sent a Close frame (Section 5.5.1).
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 273
+      line: 312
   - label: websocket_frame_opcode_sequence (4)
     section: § 5.2
     snippet: '%x0 denotes a continuation frame'
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 282
+      line: 324
   - label: websocket_frame_opcode_sequence (5)
-    section: § 5.2
-    snippet: If an unknown opcode is received, the receiving endpoint MUST _Fail the WebSocket Connection_.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 132
-  - label: websocket_frame_opcode_sequence (6)
-    section: § 5.4
-    snippet: A fragmented message consists of a single frame with the FIN bit clear and an opcode other than 0, followed by zero or more frames with the FIN bit clear and the opcode set to 0, and terminated by a single frame with the FIN bit set and an opcode of 0.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 283
-  - label: websocket_frame_opcode_sequence (7)
     section: § 5.4
     snippet: An unfragmented message consists of a single frame with the FIN bit set (Section 5.2) and an opcode other than 0.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 298
-  - label: websocket_frame_opcode_sequence (8)
+      line: 339
+  - label: websocket_frame_opcode_sequence (6)
     section: § 5.4
     snippet: Control frames (see Section 5.5) MAY be injected in the middle of a fragmented message.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 266
-  - label: websocket_frame_opcode_sequence (9)
-    section: § 5.4
-    snippet: Control frames themselves MUST NOT be fragmented.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 188
-  - label: websocket_frame_opcode_sequence (10)
-    section: § 5.4
-    snippet: The fragments of one message MUST NOT be interleaved between the fragments of another message unless an extension has been negotiated that can interpret the interleaving.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 297
-  - label: websocket_frame_opcode_sequence (11)
+      line: 306
+  - label: websocket_frame_opcode_sequence (7)
     section: § 5.5.1
     snippet: The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 198
-  - label: websocket_frame_opcode_sequence (12)
+      line: 235
+  - label: websocket_frame_opcode_sequence (8)
     section: § 5.5.1
     snippet: The Close frame contains an opcode of 0x8.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 197
+      line: 234
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 259
-  - label: websocket_frame_opcode_sequence (13)
-    section: § 5.5.1
-    snippet: The application MUST NOT send any more data frames after sending a Close frame.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 272
-  - label: websocket_frame_opcode_sequence (14)
+      line: 299
+  - label: websocket_frame_opcode_sequence (9)
     section: § 5.6
     snippet: Data frames (e.g., non-control frames) are identified by opcodes where the most significant bit of the opcode is 0.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 238
-  - label: websocket_frame_opcode_sequence (15)
+      line: 278
+  - label: websocket_frame_opcode_sequence (10)
     section: § 5.8
     snippet: This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 110
+      line: 132
     - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
       line: 191
   - label: frame-rsv1 production
