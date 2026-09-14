@@ -7,6 +7,14 @@ use crate::helpers::list::list_members;
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::status::{
+    RFC_9110_15_5_6, STATUS_405_ALLOW_CONFLICTING, STATUS_405_ALLOW_MISSING,
+};
+use crate::violations::ViolationDef;
+
+/// The two halves of one MUST: the field the status asks for, and what that
+/// field is asked to hold.
+static DECLARED: &[&ViolationDef] = &[&STATUS_405_ALLOW_MISSING, &STATUS_405_ALLOW_CONFLICTING];
 
 pub struct Status405AllowValid;
 
@@ -55,12 +63,6 @@ impl Status405AllowValid {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_5_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.5.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6",
-    note: "The status code and its MUST — including the clause after \"containing\", which asks the field to hold the methods the target resource supports and so contradicts a list naming the method this response refuses",
-};
 const RFC_9110_10_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("10.2.1"),
@@ -123,6 +125,10 @@ severity = "warn"
             RFC_9110_5_6_2,
             RFC_9110_6_5_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -216,8 +222,6 @@ impl Rule for Status405AllowValid {
                 return None;
             }
 
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
-
             // One field section is one value however many lines carry it, and the join
             // is over the octets: a value carrying `obs-text` is a value that is there,
             // and reading it through a UTF-8 decode would fold the whole field into "no
@@ -243,14 +247,14 @@ impl Rule for Status405AllowValid {
                     .as_ref()
                     .is_some_and(|trailers| trailers.contains_key("allow"));
 
-                return violation(format!(
+                return Some(ctx.report_with(&STATUS_405_ALLOW_MISSING, format!(
                     "405 Method Not Allowed with no Allow header field. An origin server must generate one in this response, listing the methods the target resource currently supports; a resource that supports none says so with an empty field value, which is not the same as leaving the field out{}",
                     if in_trailer_section {
                         ". This response's trailer section carries an Allow, and a trailer field does not answer a requirement on the header section"
                     } else {
                         ""
                     }
-                ));
+                )));
             };
 
             // The MUST does not stop at the field's name. Its object clause is the first
@@ -280,11 +284,11 @@ impl Rule for Status405AllowValid {
                 // The value is quoted as the section's *combined* value and the message
                 // says so, because where two field lines carried it the commas between
                 // them are the join's rather than anything a sender wrote.
-                return violation(format!(
+                return Some(ctx.report_with(&STATUS_405_ALLOW_CONFLICTING, format!(
                     "405 Method Not Allowed answering the method '{}', whose Allow header field advertises that same method: the status says the target resource does not support it and the field says it does. The section's field lines combine to '{}'",
                     shown_in_finding(&tx.request.method),
                     shown_in_finding(&advertised)
-                ));
+                )));
             }
 
             None
@@ -358,6 +362,19 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The two halves of one MUST, each naming its own entry: the field the
+    /// status asks for, and what that field is asked to hold.
+    #[test]
+    fn each_half_of_the_must_names_its_entry() {
+        let missing = check("DELETE", 405, &[]).expect("a finding");
+        assert_eq!(missing.violation, "status_405_allow_missing");
+        assert_eq!(missing.severity, crate::lint::Severity::Warn);
+
+        let conflicting = check("DELETE", 405, &[("allow", b"GET, DELETE")]).expect("a finding");
+        assert_eq!(conflicting.violation, "status_405_allow_conflicting");
+        assert_eq!(conflicting.severity, crate::lint::Severity::Warn);
     }
 
     #[rstest]

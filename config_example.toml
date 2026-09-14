@@ -2339,6 +2339,14 @@ severity = "warn"
 # A 401 presents no challenge to authenticate against
 severity = "warn"
 
+[violations.status_405_allow_conflicting]
+# A 405 advertises the method it refuses
+severity = "warn"
+
+[violations.status_405_allow_missing]
+# A 405 answers without the Allow field it must generate
+severity = "warn"
+
 [violations.status_407_challenge_missing]
 # A 407 presents no challenge to authenticate against
 severity = "warn"

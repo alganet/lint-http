@@ -199,6 +199,15 @@ pub const RFC_9110_15: SpecRef = SpecRef {
     note: "Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, and what a client does with an invalid code",
 };
 
+/// 405 Method Not Allowed: what the status states, and the field it requires
+/// with the clause naming what that field must hold.
+pub const RFC_9110_15_5_6: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6",
+    note: "The status code and its MUST — including the clause after \"containing\", which asks the field to hold the methods the target resource supports and so contradicts a list naming the method this response refuses",
+};
+
 defects! {
     /// A 206 answering a request that named no range. The status code is
     /// defined as a range request being fulfilled, so a response carrying it
@@ -673,6 +682,54 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15],
+    }
+
+    /// A `405` carrying no `Allow` header field.
+    ///
+    /// The third entry of the shape the two challenge statuses have: a status
+    /// whose own definition asks for a field, answering without it. A client
+    /// that got here is told its method is not supported and is told nothing
+    /// about what would be.
+    ///
+    /// **An empty value is not this entry.** § 10.2.1 gives `Allow:` a meaning
+    /// — the resource allows no methods — and names this very response as where
+    /// it is likeliest to be read, so a blank field answers the requirement.
+    /// Only a header section with no such line reaches here. **Nor does a
+    /// trailer field answer it**: § 6.5.1 forbids one unless the field's own
+    /// definition permits it, and § 10.2.1 does not — the message says so when
+    /// the capture kept one, because that sender has a different thing to fix.
+    ///
+    // cite(RFC 9110 § 15.5.6): "The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods."
+    STATUS_405_ALLOW_MISSING = {
+        id: "status_405_allow_missing",
+        title: "A 405 answers without the Allow field it must generate",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_5_6],
+    }
+
+    /// A `405` whose `Allow` names the very method the response refuses.
+    ///
+    /// **The MUST does not stop at the field's name**, and that is where this
+    /// entry comes from: its object clause asks the field to list *the target
+    /// resource's currently supported methods*, and the status says the method
+    /// in the request-line is not one of them. One message, one target
+    /// resource, two statements that cannot both hold — so a recipient has
+    /// nothing to act on.
+    ///
+    /// **The comparison is exact**, because a method token is case-sensitive,
+    /// and it is confined to this one exchange: which methods the list *should*
+    /// have held is the origin server's answer at the time of each request and
+    /// moves under the resource, so no other captured message disagrees with
+    /// this one.
+    ///
+    // cite(RFC 9110 § 15.5.6): "The 405 (Method Not Allowed) status code indicates that the method received in the request-line is known by the origin server but not supported by the target resource."
+    STATUS_405_ALLOW_CONFLICTING = {
+        id: "status_405_allow_conflicting",
+        title: "A 405 advertises the method it refuses",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_5_6],
     }
 
 }
