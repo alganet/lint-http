@@ -18,8 +18,8 @@ A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single reques
 
 ## Specifications
 
-- [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): The requirement this rule rests on: a single request's interim responses are followed by exactly one final response — the sentence RFC 8297 never states, and the reason the finding is about one request rather than two transactions
-- [RFC 9110 §15.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2): What makes a 103 interim, and the only MUST NOT in reach that is addressed to the sender: HTTP/1.0 defined no 1xx status codes, so a server must not send one to an HTTP/1.0 client
+- [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, what a client does with an invalid code, and that a request's interim responses are followed by exactly one final response
+- [RFC 9110 §15.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2): Informational 1xx — the class is interim, such a response is terminated by the end of the header section and cannot contain content or trailers, and a server must not send one to an HTTP/1.0 client, which defined no 1xx status codes
 - [RFC 8297 §2](https://www.rfc-editor.org/rfc/rfc8297.html#section-2): The status code's definition, which is the scope gate — and every one of the document's BCP 14 keywords: three requirements addressed to the client and two MAYs addressed to the server, so nothing here is a requirement this rule could enforce
 - [RFC 8297 §3](https://www.rfc-editor.org/rfc/rfc8297.html#section-3): Why an interim response recorded as the answer is worth reporting rather than shrugging at: the document's Security Considerations are about a recipient mishandling an informational response as a final one
 

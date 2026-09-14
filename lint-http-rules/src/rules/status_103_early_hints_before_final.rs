@@ -54,6 +54,14 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::status::{
+    RFC_9110_15, RFC_9110_15_2, STATUS_103_AMBIGUOUS, STATUS_1XX_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
+
+/// Two entries: the interim response a version cannot place at all, and the
+/// interim response standing where the final one goes.
+static DECLARED: &[&ViolationDef] = &[&STATUS_1XX_FORBIDDEN, &STATUS_103_AMBIGUOUS];
 
 /// Report a `103 (Early Hints)` recorded as a request's response.
 pub struct Status103EarlyHintsBeforeFinal;
@@ -61,18 +69,6 @@ pub struct Status103EarlyHintsBeforeFinal;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
-    note: "The requirement this rule rests on: a single request's interim responses are followed by exactly one final response — the sentence RFC 8297 never states, and the reason the finding is about one request rather than two transactions",
-};
-const RFC_9110_15_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
-    note: "What makes a 103 interim, and the only MUST NOT in reach that is addressed to the sender: HTTP/1.0 defined no 1xx status codes, so a server must not send one to an HTTP/1.0 client",
-};
 const RFC_8297_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 8297",
     section: Some("2"),
@@ -103,6 +99,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_15, RFC_9110_15_2, RFC_8297_2, RFC_8297_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -176,9 +176,8 @@ impl Rule for Status103EarlyHintsBeforeFinal {
                 Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
             ) {
                 return Some(
-                    self.cited(
-                        &RFC_9110_15_2,
-                        ctx.severity,
+                    ctx.report_with(
+                        &STATUS_1XX_FORBIDDEN,
                         "103 (Early Hints) answering an HTTP/1.0 request: HTTP/1.0 defined no \
                               1xx status codes, so a server must not send one to that client"
                             .into(),
@@ -195,7 +194,7 @@ impl Rule for Status103EarlyHintsBeforeFinal {
             // response for the final one records exactly this.
             // cite(RFC 9110 § 15.2): "The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response."
             // cite(RFC 8297 § 3): "In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response."
-            Some(self.violation(ctx.severity, format!(
+            Some(ctx.report_with(&STATUS_103_AMBIGUOUS, format!(
                     "103 (Early Hints) is recorded as the response to '{}', and a 103 is an interim \
                      response that exactly one final response has to follow: either the final \
                      response never arrived, or the interim one was taken for it",
@@ -235,6 +234,18 @@ mod tests {
         tx.request.uri = "/resource".to_string();
         tx.request.version = version.to_string();
         tx
+    }
+
+    /// The two entries, and which sentence each rests on: the class a version
+    /// cannot place at all, and the interim response standing where the one
+    /// final response goes.
+    #[rstest]
+    #[case::http_1_0("HTTP/1.0", "status_1xx_forbidden")]
+    #[case::in_the_final_slot("HTTP/1.1", "status_103_ambiguous")]
+    fn each_finding_names_its_entry(#[case] version: &str, #[case] id: &str) {
+        let found = run(&tx_with(103, version)).expect("a finding");
+        assert_eq!(found.violation, id);
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
     }
 
     #[test]

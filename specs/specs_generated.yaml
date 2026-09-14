@@ -4654,7 +4654,7 @@ sources:
     snippet: In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response.
     cited_by:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
-      line: 197
+      line: 196
 - label: RFC 8441
   url: https://www.rfc-editor.org/rfc/rfc8441.html
   fragments:
@@ -6704,6 +6704,8 @@ sources:
       line: 64
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 24
+    - file: lint-http-rules/src/violations/status.rs
+      line: 943
   - label: lint-http-core/src/http_version.rs
     section: § 2.5
     snippet: HTTP's version number consists of two decimal digits separated by a "." (period or decimal point).
@@ -9124,12 +9126,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 173
+    - file: lint-http-rules/src/violations/status.rs
+      line: 918
   - label: status_103_early_hints_before_final (2)
     section: § 15.2
     snippet: The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response.
     cited_by:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
-      line: 196
+      line: 195
   - label: status_200_vs_204_body_consistent
     section: § 15.3.1
     snippet: Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length.

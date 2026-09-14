@@ -1530,7 +1530,11 @@ severity = "warn"
         /// **`retry_after_status_valid` gave up its one**, § 10.2.3, and the
         /// entry holding it names that section — one site off, the same finding
         /// cited from the entry instead of from the site.
-        const FLOOR: usize = 59;
+        /// **`status_103_early_hints_before_final` gave up one and both of its
+        /// findings are cited now**: the § 15.2 site became an entry naming that
+        /// section, and the finding beside it — an interim response standing
+        /// where the final one goes, which cited nothing — picked up § 15.
+        const FLOOR: usize = 58;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
