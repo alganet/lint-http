@@ -4,6 +4,14 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::status::{
+    RFC_9110_15_4_2, RFC_9110_15_4_3, STATUS_301_AMBIGUOUS, STATUS_302_AMBIGUOUS,
+};
+use crate::violations::ViolationDef;
+
+/// One entry per status, because the answer the document names differs: `308`
+/// for the permanent redirect, `307` for the temporary one.
+static DECLARED: &[&ViolationDef] = &[&STATUS_301_AMBIGUOUS, &STATUS_302_AMBIGUOUS];
 
 /// A `301` or a `302` answering a `POST` leaves the method undetermined.
 ///
@@ -22,15 +30,15 @@ pub struct Status3xxVsRequestMethod;
 /// answers a `302` with `307`, so the *permanence* of the redirect survives the
 /// advice. Offering "307/308" for either one, which this rule used to do, tells half
 /// of the servers it reports to change what their redirect means.
-fn unambiguous_alternative(status: u16) -> Option<(&'static str, &'static str)> {
+fn unambiguous_alternative(
+    status: u16,
+) -> Option<(&'static ViolationDef, &'static str, &'static str)> {
     match status {
         // The two notes are the same sentence with the status swapped, and the
         // quotes below are deliberately identical apart from it: what differs
         // between a 301 and a 302 here is only which redirect preserves the method.
-        // cite(RFC 9110 § 15.4.2): "For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 308 (Permanent Redirect) status code can be used instead."
-        301 => Some(("308 (Permanent Redirect)", "§15.4.2")),
-        // cite(RFC 9110 § 15.4.3): "For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 307 (Temporary Redirect) status code can be used instead."
-        302 => Some(("307 (Temporary Redirect)", "§15.4.3")),
+        301 => Some((&STATUS_301_AMBIGUOUS, "308 (Permanent Redirect)", "§15.4.2")),
+        302 => Some((&STATUS_302_AMBIGUOUS, "307 (Temporary Redirect)", "§15.4.3")),
         // No other status is in the same position, and every §15.4.x subsection was
         // read to say so rather than only the two above. 307 says the method is kept
         // with a MUST NOT of its own; 303 says it changes, by being defined as a
@@ -49,18 +57,6 @@ fn unambiguous_alternative(status: u16) -> Option<(&'static str, &'static str)> 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2",
-    note: "301 Moved Permanently: a user agent MAY change the method from POST to GET, and 308 is the status named for a server that does not want that",
-};
-const RFC_9110_15_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3",
-    note: "302 Found: the same permission, answered by 307 rather than by 308 — the alternative is per status",
-};
 const RFC_9110_15_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.4"),
@@ -123,6 +119,10 @@ severity = "warn"
         ]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -179,7 +179,7 @@ impl Rule for Status3xxVsRequestMethod {
             // engine skips a transaction that has no response yet.
             let resp = tx.response.as_ref()?;
 
-            let (alternative, section) = unambiguous_alternative(resp.status)?;
+            let (def, alternative, section) = unambiguous_alternative(resp.status)?;
 
             // A method is only rewritten by a user agent that *follows* the redirect, and
             // what it follows is the `Location`. Presence is the whole question here:
@@ -205,12 +205,12 @@ impl Rule for Status3xxVsRequestMethod {
                 return None;
             }
 
-            // No cite of its own: what makes this worth saying is the note matched by
-            // `unambiguous_alternative`, cited at the arm that matched it and carried into
-            // the message from there. The 303 clause is §9.3.3's MAY, and it travels with
-            // the condition that sentence puts on it.
+            // The entry `unambiguous_alternative` returned carries the sentence for
+            // the status that matched, so the two arms cite one section each rather
+            // than sharing one. The 303 clause in the message is §9.3.3's MAY, and it
+            // travels with the condition that sentence puts on it.
             // cite(RFC 9110 § 9.3.3): "If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field."
-            Some(self.cited(&RFC_9110_9_3_3, ctx.severity, format!(
+            Some(ctx.report_with(def, format!(
                     "{status} response to a POST request: for historical reasons a user agent MAY \
                      change the method to GET before following this redirect (RFC 9110 {section}), so \
                      the response does not say which method reaches the Location. Send {alternative} \
@@ -375,18 +375,39 @@ mod tests {
         assert!(judge(&crate::test_helpers::make_test_transaction()).is_none());
     }
 
-    #[test]
-    fn the_configured_severity_is_carried() {
+    /// One entry per status, because the answer each section names is a
+    /// different status — and the severity is the entry's, so a
+    /// `[violations.<id>]` key tunes one redirect without touching the other.
+    #[rstest]
+    #[case(301, "status_301_ambiguous", "308 (Permanent Redirect)")]
+    #[case(302, "status_302_ambiguous", "307 (Temporary Redirect)")]
+    fn each_status_names_its_own_entry_and_its_own_answer(
+        #[case] status: u16,
+        #[case] id: &str,
+        #[case] alternative: &str,
+    ) {
         let rule = Status3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        let v = crate::test_helpers::run_rule(
+        let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let found = crate::test_helpers::run_rule(
             &rule,
-            &exchange("POST", 302, Some("/new")),
+            &exchange("POST", status, Some("/new")),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         )
         .expect("expected a finding");
-        assert_eq!(v.severity, crate::lint::Severity::Error);
+        assert_eq!(found.violation, id);
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
+        assert!(found.message.contains(alternative), "{}", found.message);
+
+        crate::test_helpers::override_violation_severity(&mut cfg, id, "error");
+        let tuned = crate::test_helpers::run_rule(
+            &rule,
+            &exchange("POST", status, Some("/new")),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("expected a finding");
+        assert_eq!(tuned.severity, crate::lint::Severity::Error);
     }
 
     #[test]

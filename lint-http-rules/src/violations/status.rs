@@ -172,6 +172,24 @@ pub const RFC_6455_4_2_1: SpecRef = SpecRef {
     note: "Reading the Client's Opening Handshake — the description a handshake has to match, and the requirement to refuse one that does not, which is what makes a 101 over a malformed key the server's defect",
 };
 
+/// 301 Moved Permanently: the permission that lets a user agent change a POST
+/// to a GET, and the status named for a server that does not want that.
+pub const RFC_9110_15_4_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2",
+    note: "301 Moved Permanently: a user agent MAY change the method from POST to GET, and 308 is the status named for a server that does not want that",
+};
+
+/// 302 Found: the same permission, answered by a different status — the
+/// alternative is per status, not one shared sentence.
+pub const RFC_9110_15_4_3: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3",
+    note: "302 Found: the same permission, answered by 307 rather than by 308 — the alternative is per status",
+};
+
 defects! {
     /// A 206 answering a request that named no range. The status code is
     /// defined as a range request being fulfilled, so a response carrying it
@@ -572,6 +590,53 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_5_8],
     }
+    /// A `301` answering a `POST`, with a `Location` for the user agent to
+    /// follow.
+    ///
+    /// **`_ambiguous` because nothing chooses.** § 15.4.2 permits a user agent
+    /// to change the method from `POST` to `GET` before following the
+    /// redirect, and permits it to keep the method; the response says which
+    /// only by the status code it chose, and this one does not say. So two
+    /// conforming clients issue two different requests to the same `Location`,
+    /// and the server that sent it cannot know which arrived.
+    ///
+    /// **Separate from the `302` entry beside it, and the repair is why.** The
+    /// two sections state the same permission and name *different* answers —
+    /// `308` for the permanent redirect, `307` for the temporary one — so one
+    /// entry would tell half the servers it reports to change what their
+    /// redirect means. Same shape as the two challenge statuses: one sentence,
+    /// two senders, two fixes, two ids.
+    ///
+    /// `warn` rather than the `info` this ending sometimes takes: what a
+    /// recipient does depends on the answer, which is the line
+    /// `content_location_ambiguous` drew from the other side.
+    ///
+    // cite(RFC 9110 § 15.4.2): "For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 308 (Permanent Redirect) status code can be used instead."
+    STATUS_301_AMBIGUOUS = {
+        id: "status_301_ambiguous",
+        title: "A 301 answers a POST, leaving the redirected method undetermined",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_4_2],
+    }
+
+    /// A `302` answering a `POST`, with a `Location` for the user agent to
+    /// follow.
+    ///
+    /// The same permission as the entry above, one section away, and the
+    /// alternative it names is `307` rather than `308` — the temporary
+    /// redirect that preserves the method. That difference is the whole reason
+    /// the pair is two entries.
+    ///
+    // cite(RFC 9110 § 15.4.3): "For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 307 (Temporary Redirect) status code can be used instead."
+    STATUS_302_AMBIGUOUS = {
+        id: "status_302_ambiguous",
+        title: "A 302 answers a POST, leaving the redirected method undetermined",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_4_3],
+    }
+
 }
 
 #[cfg(test)]
