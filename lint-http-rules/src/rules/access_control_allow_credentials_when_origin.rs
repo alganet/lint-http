@@ -4,6 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::access_control_allow_credentials::{
+    ACCESS_CONTROL_ALLOW_CREDENTIALS_CONFLICTING, ACCESS_CONTROL_ALLOW_CREDENTIALS_INVALID,
+    FETCH_4_10,
+};
+use crate::violations::ViolationDef;
+
+/// Both findings are this field's: the value that shares nothing, and the
+/// `true` that is dead beside a wildcard origin. The origin field is scanned
+/// for a `*` and never reported on — what its value may be is
+/// `access_control_allow_origin_valid`'s.
+static DECLARED: &[&ViolationDef] = &[
+    &ACCESS_CONTROL_ALLOW_CREDENTIALS_INVALID,
+    &ACCESS_CONTROL_ALLOW_CREDENTIALS_CONFLICTING,
+];
 
 pub struct AccessControlAllowCredentialsWhenOrigin;
 
@@ -21,12 +35,6 @@ const MDN_ACCESS_CONTROL_ALLOW_ORIGIN: crate::rules::SpecRef = crate::rules::Spe
     section: None,
     url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
     note: "Access-Control-Allow-Origin",
-};
-const FETCH_4_10: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Fetch",
-    section: Some("4.10"),
-    url: "https://fetch.spec.whatwg.org/#concept-cors-check",
-    note: "Fetch CORS check — `*` succeeds only for non-credentialed requests, so `*` paired with `Access-Control-Allow-Credentials: true` can never authorize a credentialed request (the two cited steps)",
 };
 
 impl RuleMeta for AccessControlAllowCredentialsWhenOrigin {
@@ -54,6 +62,10 @@ severity = "warn"
             MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
             FETCH_4_10,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -150,12 +162,10 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             // an operator that `TRUE` had turned credentialed sharing on, and
             // reported the `*` pairing for a combination no user agent ever
             // reaches.
-            // cite(Fetch § 4.10): "If credentials is `true`, then return success."
             // cite(Fetch § 4.10, label: CORS check reads the field): "Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list."
             if acc_val != "true" {
-                return Some(self.cited(
-                    &FETCH_4_10,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &ACCESS_CONTROL_ALLOW_CREDENTIALS_INVALID,
                     format!(
                         "Access-Control-Allow-Credentials is '{}', which is not the byte sequence `true`: the CORS check shares nothing with credentials for any other value",
                         crate::helpers::shown::shown_in_finding(acc_val)
@@ -169,9 +179,8 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             // credentialed request must instead match the byte-serialized origin
             // — which `*` is not. A server sending both is advertising a sharing
             // it will never get.
-            // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
             if acao_has_star {
-                return Some(self.cited(&FETCH_4_10, ctx.severity, "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'".into()));
+                return Some(ctx.report(&ACCESS_CONTROL_ALLOW_CREDENTIALS_CONFLICTING));
             }
 
             None
@@ -302,6 +311,34 @@ mod tests {
             v.expect("a finding").message,
             "Access-Control-Allow-Credentials is 'ÿ', which is not the byte sequence `true`: the CORS check shares nothing with credentials for any other value"
         );
+    }
+
+    /// The two findings, and which field each one asks to change. A value that
+    /// is not `true` is the field's own; a `true` beside a wildcard origin is
+    /// the pairing, and it is reported on this field because deleting this
+    /// field is what makes the response correct again.
+    #[rstest]
+    #[case::not_true("false", "access_control_allow_credentials_invalid")]
+    #[case::case_folded("TRUE", "access_control_allow_credentials_invalid")]
+    #[case::blank("", "access_control_allow_credentials_invalid")]
+    #[case::wildcard("true", "access_control_allow_credentials_conflicting")]
+    fn each_finding_names_its_entry(#[case] value: &str, #[case] id: &str) {
+        let rule = AccessControlAllowCredentialsWhenOrigin;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("access-control-allow-origin", "*"),
+                ("access-control-allow-credentials", value),
+            ],
+        );
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap_or_else(|| panic!("a finding for {value:?}"));
+        assert_eq!(found.violation, id, "{value:?}");
     }
 
     #[test]

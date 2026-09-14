@@ -1087,6 +1087,22 @@ severity = "warn"
 # A range unit in use is absent from what the response advertises
 severity = "info"
 
+[violations.access_control_allow_credentials_conflicting]
+# Access-Control-Allow-Credentials claims `true` beside a wildcard origin
+severity = "warn"
+
+[violations.access_control_allow_credentials_invalid]
+# Access-Control-Allow-Credentials states a value that is not `true`
+severity = "warn"
+
+[violations.access_control_allow_origin_empty]
+# Access-Control-Allow-Origin is written with no value on it
+severity = "warn"
+
+[violations.access_control_allow_origin_malformed]
+# Access-Control-Allow-Origin states a value that is none of `*`, `null` and a serialized origin
+severity = "warn"
+
 [violations.alpn_protocol_name_length_invalid]
 # ALPN protocol name is longer than the vector that carries it
 severity = "warn"
