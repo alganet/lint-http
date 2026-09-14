@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::status::{RFC_9110_15_3_1, STATUS_200_AMBIGUOUS};
+use crate::violations::ViolationDef;
+
+/// One entry, and it makes no verdict: two readings of an empty success, with
+/// nothing on the wire to choose between them.
+static DECLARED: &[&ViolationDef] = &[&STATUS_200_AMBIGUOUS];
 
 pub struct Status200Vs204BodyConsistent;
 
@@ -12,7 +18,7 @@ impl Status200Vs204BodyConsistent {
     /// the message and differ only in what showed the content to be empty, so
     /// `evidence` is the clause that distinguishes them and the clause a test keys
     /// on.
-    fn report(&self, severity: crate::lint::Severity, evidence: &str) -> Violation {
+    fn report(ctx: &crate::rules::RuleContext<'_>, evidence: &str) -> Violation {
         // This is the sentence the whole rule rests on, and it is worth reading
         // twice. Its modal is "ought to", weaker than a SHOULD; its condition is
         // about the *request*, and no field on the wire records whether a client
@@ -25,8 +31,8 @@ impl Status200Vs204BodyConsistent {
         // "succeeded" as a 200 and says the emptiness on purpose.
         // cite(RFC 9110 § 15.3.5): "The 204 (No Content) status code indicates that the server has successfully fulfilled the request and that there is no additional content to send in the response content."
         // cite(RFC 9110 § 15.3.5): "A 204 response is terminated by the end of the header section; it cannot contain content or trailers."
-        self.violation(
-            severity,
+        ctx.report_with(
+            &STATUS_200_AMBIGUOUS,
             format!(
                 "200 (OK) response carries no content ({evidence}); RFC 9110 §15.3.1 says an origin server ought to send 204 (No Content) instead if some aspect of the request indicates a preference for no content upon success. That condition is about the request and is not observable here, so this is advice: a 200 whose framing says the content is empty violates nothing"
             ),
@@ -37,12 +43,6 @@ impl Status200Vs204BodyConsistent {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1",
-    note: "200 (OK) — the whole basis of this rule, and both of its sentences matter: a 200 is expected to contain content \"unless the message framing explicitly indicates that the content has zero length\" (the reported state is that exception, not a breach), and the 204 advice is an \"ought to\" conditioned on the request preferring no content, which is not observable. The same paragraph excludes CONNECT",
-};
 const RFC_9110_15_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.5"),
@@ -105,6 +105,10 @@ severity = "warn"
             RFC_9110_9_3_7,
             RFC_9112_6_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -206,7 +210,7 @@ impl Rule for Status200Vs204BodyConsistent {
                 // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
                 match crate::helpers::content_length::validate_content_length(&resp.headers) {
                     // Zero octets, said by the sender rather than counted by the capture.
-                    Ok(Some(0)) => return Some(self.report(ctx.severity, "Content-Length: 0")),
+                    Ok(Some(0)) => return Some(Self::report(ctx, "Content-Length: 0")),
                     // A declared length above zero is content, and the expectation quoted
                     // at the status gate is met.
                     Ok(Some(_)) => return None,
@@ -225,7 +229,7 @@ impl Rule for Status200Vs204BodyConsistent {
                 // count is of content, not of framing: chunk sizes and the trailer section
                 // are not in it.
                 // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
-                Some(0) => Some(self.report(ctx.severity, "captured length 0")),
+                Some(0) => Some(Self::report(ctx, "captured length 0")),
                 // Content was counted.
                 Some(_) => None,
                 // Neither the sender nor the capture says how long the content is (a
@@ -255,6 +259,25 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, headers);
         tx.request.method = method.into();
         tx
+    }
+
+    /// The one entry, and the severity that goes with an ending making no
+    /// verdict: a client reads zero octets either way, so nothing it does
+    /// depends on which of the two readings is right.
+    #[test]
+    fn the_finding_names_its_entry_and_makes_no_verdict() {
+        let tx = make_tx_with_response(200, "GET", &[("content-length", "0")]);
+        let found = crate::test_helpers::run_rule(
+            &Status200Vs204BodyConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "status_200_vs_204_body_consistent",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "status_200_ambiguous");
+        assert_eq!(found.severity, crate::lint::Severity::Info);
     }
 
     #[rstest]

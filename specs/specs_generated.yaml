@@ -2855,7 +2855,7 @@ sources:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 156
     - file: lint-http-rules/src/violations/status.rs
-      line: 419
+      line: 428
   - label: Sec-WebSocket-Protocol-Client
     section: § 4.3
     snippet: Sec-WebSocket-Protocol-Client = 1#token
@@ -5291,7 +5291,7 @@ sources:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
       line: 167
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 167
+      line: 171
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
       line: 203
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
@@ -5389,7 +5389,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 131
     - file: lint-http-rules/src/violations/status.rs
-      line: 224
+      line: 233
   - label: accept_ranges_on_partial_content
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
@@ -5947,7 +5947,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 236
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 206
+      line: 210
   - label: content_location_and_uri_consistent
     section: § 4.1
     snippet: A "partial-URI" rule is defined for protocol elements that can contain a relative URI but not a fragment component.
@@ -6093,7 +6093,7 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 255
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 171
+      line: 175
   - label: content_type_valid
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -6283,7 +6283,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 310
     - file: lint-http-rules/src/violations/status.rs
-      line: 452
+      line: 461
   - label: expect_header_valid (4)
     section: § 10.1.1
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
@@ -6425,7 +6425,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 145
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 178
+      line: 182
   - label: head_response_headers_match_get (6)
     section: § 8.8
     snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
@@ -8237,7 +8237,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 180
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 27
+      line: 33
   - label: no_body_for_1xx_204_304 (2)
     section: § 15.4.5
     snippet: A 304 response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -8253,7 +8253,7 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 257
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 227
+      line: 231
   - label: no_body_for_1xx_204_304 (4)
     section: § 6.4.1
     snippet: All 1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content.
@@ -8751,7 +8751,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 59
     - file: lint-http-rules/src/violations/status.rs
-      line: 678
+      line: 687
   - label: referer_uri_valid
     section: § 10.1.3
     snippet: A user agent MUST NOT include the fragment and userinfo components of the URI reference [URI], if any, when generating the Referer field value.
@@ -9063,49 +9063,49 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 384
+      line: 393
   - label: status (2)
     section: § 15.3.7.2
     snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 271
+      line: 280
   - label: status (3)
     section: § 15.4.2
     snippet: For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 308 (Permanent Redirect) status code can be used instead.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 632
+      line: 641
   - label: status (4)
     section: § 15.4.3
     snippet: For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 307 (Temporary Redirect) status code can be used instead.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 649
+      line: 658
   - label: status (5)
     section: § 15.4.5
     snippet: Since the goal of a 304 response is to minimize information transfer when the recipient already has one or more cached representations, a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates (e.g., Last-Modified might be useful if the response does not have an ETag field).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 478
+      line: 487
   - label: status (6)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 244
+      line: 253
   - label: status (7)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 348
+      line: 357
   - label: status (8)
     section: § 7.8
     snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 311
+      line: 320
   - label: status_101_switching_protocols
     section: § 7.8
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
@@ -9129,43 +9129,45 @@ sources:
     snippet: Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 159
+      line: 163
   - label: status_200_vs_204_body_consistent (2)
     section: § 15.3.1
     snippet: For CONNECT, there is no content because the successful result is a tunnel, which begins immediately after the 200 response header section.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 187
+      line: 191
   - label: status_200_vs_204_body_consistent (3)
     section: § 15.3.1
     snippet: If some aspect of the request indicates a preference for no content upon success, the origin server ought to send a 204 (No Content) response instead.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 22
+      line: 28
+    - file: lint-http-rules/src/violations/status.rs
+      line: 765
   - label: status_200_vs_204_body_consistent (4)
     section: § 15.3.1
     snippet: The 200 (OK) status code indicates that the request has succeeded.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 158
+      line: 162
   - label: status_200_vs_204_body_consistent (5)
     section: § 15.3.5
     snippet: The 204 (No Content) status code indicates that the server has successfully fulfilled the request and that there is no additional content to send in the response content.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 26
+      line: 32
   - label: status_200_vs_204_body_consistent (6)
     section: § 6.4.1
     snippet: 2xx (Successful) responses to a CONNECT request method (Section 9.3.6) switch the connection to tunnel mode instead of having content.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 188
+      line: 192
   - label: status_200_vs_204_body_consistent (7)
     section: § 6.4.1
     snippet: Responses to the HEAD request method (Section 9.3.2) never include content; the associated response header fields indicate only what their values would have been if the request method had been GET (Section 9.3.1).
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 172
+      line: 176
   - label: status_3xx_vs_request_method
     section: § 15.4
     snippet: 307 (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] were later added to unambiguously indicate method-preserving redirects, and status codes 301 and 302 have been adjusted to allow a POST request to be redirected as GET.
@@ -9191,7 +9193,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 279
     - file: lint-http-rules/src/violations/status.rs
-      line: 726
+      line: 735
   - label: status_405_allow_valid (3)
     section: § 15.5.6
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
@@ -9201,7 +9203,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 278
     - file: lint-http-rules/src/violations/status.rs
-      line: 702
+      line: 711
   - label: status_405_allow_valid (4)
     section: § 9.1
     snippet: However, the set of allowed methods can change dynamically.
@@ -9299,7 +9301,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 217
     - file: lint-http-rules/src/violations/status.rs
-      line: 577
+      line: 586
   - label: status_code_semantics (9)
     section: § 15.5.8
     snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
@@ -9315,7 +9317,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 255
     - file: lint-http-rules/src/violations/status.rs
-      line: 603
+      line: 612
   - label: status_code_semantics (11)
     section: § A
     snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
@@ -9335,7 +9337,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 139
     - file: lint-http-rules/src/violations/status.rs
-      line: 677
+      line: 686
   - label: status_code_valid_range (2)
     section: § 15
     snippet: Implementations often use three-digit integer values outside of that range (i.e., 600..999) for internal communication of non-HTTP status (e.g., library errors).
@@ -10183,7 +10185,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 211
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 203
+      line: 207
   - label: content_transfer_encoding_valid
     section: § B.5
     snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
@@ -10415,7 +10417,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 212
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 205
+      line: 209
   - label: proxy_connection_discouraged
     section: § C.2.2
     snippet: As a result, clients are encouraged not to send the Proxy-Connection header field in any requests.
@@ -10952,7 +10954,7 @@ sources:
     snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 312
+      line: 321
   - label: the TE exception
     section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
@@ -11293,7 +11295,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 181
     - file: lint-http-rules/src/violations/status.rs
-      line: 313
+      line: 322
   - label: the TE exception
     section: § 4.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".

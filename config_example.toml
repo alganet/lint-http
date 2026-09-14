@@ -2315,6 +2315,10 @@ severity = "error"
 # 101 Switching Protocols is sent on a version with no upgrade mechanism
 severity = "warn"
 
+[violations.status_200_ambiguous]
+# A 200 carries no content, where a 204 would say so on purpose
+severity = "info"
+
 [violations.status_206_multipart_forbidden]
 # A multipart 206 answers a request that asked for a single range
 severity = "warn"

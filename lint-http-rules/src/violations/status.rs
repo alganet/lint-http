@@ -208,6 +208,15 @@ pub const RFC_9110_15_5_6: SpecRef = SpecRef {
     note: "The status code and its MUST — including the clause after \"containing\", which asks the field to hold the methods the target resource supports and so contradicts a list naming the method this response refuses",
 };
 
+/// 200 OK: what the status states, the expectation about its content and the
+/// exception carved out of it, and the advice naming 204.
+pub const RFC_9110_15_3_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1",
+    note: "200 (OK): a 200 is expected to contain content \"unless the message framing explicitly indicates that the content has zero length\" — the reported state is that exception, not a breach — and the 204 advice is an \"ought to\" conditioned on the request preferring no content, which is not observable",
+};
+
 defects! {
     /// A 206 answering a request that named no range. The status code is
     /// defined as a range request being fulfilled, so a response carrying it
@@ -730,6 +739,36 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_5_6],
+    }
+
+    /// A `200` whose framing says the content is empty.
+    ///
+    /// **`_ambiguous` in its exact sense: two readings, and nothing on the wire
+    /// chooses.** § 6.4.1 says of every response that is not a HEAD response, a
+    /// CONNECT tunnel, a 1xx, a 204 or a 304 that it does include content
+    /// "although that content might be of zero length" — so this message is
+    /// either a success returning an empty representation, which is
+    /// conforming, or the one § 15.3.1 says ought to have been a `204`. The
+    /// sentence that would tell them apart is about *the request*, and no field
+    /// records whether a client preferred an empty success.
+    ///
+    /// **The modal is weaker than a SHOULD** — "ought to" — and the state
+    /// reported is the very exception § 15.3.1's preceding sentence carves out
+    /// of its own expectation. Nothing here is violated, and the entry exists
+    /// so an operator can decide which of the two readings their server meant.
+    ///
+    /// `info`, on
+    /// [`content_location_ambiguous`](crate::violations::content_location::CONTENT_LOCATION_AMBIGUOUS)'s
+    /// line: nothing a recipient does depends on the answer, since it reads
+    /// zero octets either way.
+    ///
+    // cite(RFC 9110 § 15.3.1): "If some aspect of the request indicates a preference for no content upon success, the origin server ought to send a 204 (No Content) response instead."
+    STATUS_200_AMBIGUOUS = {
+        id: "status_200_ambiguous",
+        title: "A 200 carries no content, where a 204 would say so on purpose",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_9110_15_3_1],
     }
 
 }
