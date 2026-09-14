@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_MUST_REVALIDATE_IGNORED, RFC_9111_5_2_2_2};
+use crate::violations::ViolationDef;
+
+/// One entry: a stale response the directive said to validate first,
+/// reused without a validator.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_MUST_REVALIDATE_IGNORED];
 
 /// Ensure that responses containing the `must-revalidate` cache directive are
 /// never reused once they are stale without first performing revalidation.
@@ -36,12 +42,6 @@ pub struct MustRevalidateEnforced;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_2_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.2.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2",
-    note: "`must-revalidate`",
-};
 const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("4.2"),
@@ -82,6 +82,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_5_2_2_2, RFC_9111_4_2, RFC_9111_4_2_3, RFC_9111_4_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -163,7 +167,7 @@ impl Rule for MustRevalidateEnforced {
                     || prev_resp.headers.contains_key("last-modified");
                 // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
                 if has_validator {
-                    return Some(self.cited(&RFC_9111_5_2_2_2, ctx.severity, format!(
+                    return Some(ctx.report_with(&CACHE_CONTROL_MUST_REVALIDATE_IGNORED, format!(
                             "Cached response with 'must-revalidate' directive is stale (age {} >= freshness {}) and was reused without conditional request",
                             current_age, freshness_lifetime
                         )));
@@ -324,7 +328,12 @@ mod tests {
                 "must_revalidate_enforced",
             ]),
         );
-        assert!(v.is_some());
+        // The entry an operator configures, and the ending that says who is
+        // at fault: the response stated the directive correctly and a cache
+        // did not honour it.
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "cache_control_must_revalidate_ignored");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
     }
 
     #[test]

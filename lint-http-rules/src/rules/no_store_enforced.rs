@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_NO_STORE_IGNORED, RFC_9111_5_2_2_5};
+use crate::violations::ViolationDef;
+
+/// One entry, and two ways of noticing it: a validator kept from a response
+/// the directive said to keep no part of.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_NO_STORE_IGNORED];
 
 /// Ensure that responses marked `no-store` are never reused for later
 /// conditional requests.  The `no-store` directive (RFC 9111 §5.2.2.5) tells
@@ -34,12 +40,6 @@ pub struct NoStoreEnforced;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_2_2_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.2.2.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5",
-    note: "`no-store`",
-};
 const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("4.3"),
@@ -68,6 +68,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_5_2_2_5, RFC_9111_4_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -168,9 +172,8 @@ impl Rule for NoStoreEnforced {
                     // stored the thing it was told not to store.
                     // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
                     if no_store_etags.contains(&normalized) {
-                        return Some(self.cited(
-                            &RFC_9111_5_2_2_5,
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &CACHE_CONTROL_NO_STORE_IGNORED,
                             format!(
                                 "Conditional request uses ETag '{}' from a no-store response",
                                 member
@@ -198,9 +201,8 @@ impl Rule for NoStoreEnforced {
                             .values()
                             .any(|lm_dt| lm_dt == &candidate_dt.unwrap()))
                 {
-                    return Some(self.cited(
-                        &RFC_9111_5_2_2_5,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CACHE_CONTROL_NO_STORE_IGNORED,
                         format!(
                             "Conditional request uses Last-Modified '{}' from a no-store response",
                             candidate
@@ -303,8 +305,13 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("ETag"));
+        // The entry an operator configures, and the ending that says who is
+        // at fault: the response stated the directive correctly and a cache
+        // did not honour it.
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "cache_control_no_store_ignored");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert!(v.message.contains("ETag"));
     }
 
     #[test]

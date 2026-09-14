@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_PRIVATE_IGNORED, RFC_9111_5_2_2_7};
+use crate::violations::ViolationDef;
+
+/// One entry: a validator from a response meant for one user, arriving from
+/// a second.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_PRIVATE_IGNORED];
 
 /// Ensure responses marked `Cache-Control: private` are not reused by a
 /// different client, which would indicate a shared cache has stored the
@@ -17,15 +23,8 @@ use crate::rules::{Rule, RuleMeta};
 /// a shared cache has handed off a private response to another client.
 pub struct PrivateCacheVisibility;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_2_2_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.2.2.7"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7",
-    note: "`private` — a shared cache MUST NOT store an unqualified-private response",
-};
+// The one section this rule names now lives on the `cache_control` subject
+// beside the entry that quotes it, and is imported back for `specifications()`.
 
 impl RuleMeta for PrivateCacheVisibility {
     fn id(&self) -> &'static str {
@@ -48,6 +47,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_5_2_2_7]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -136,9 +139,8 @@ impl Rule for PrivateCacheVisibility {
                 .flat_map(crate::helpers::list::list_members)
             {
                 if private_etags.contains(&crate::helpers::validator::normalize_etag(member)) {
-                    return Some(self.cited(
-                        &RFC_9111_5_2_2_7,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CACHE_CONTROL_PRIVATE_IGNORED,
                         format!(
                             "Validator '{}' from a private response seen by a different client",
                             member
@@ -163,9 +165,8 @@ impl Rule for PrivateCacheVisibility {
                     continue;
                 };
                 if private_last_modified.contains(&candidate_dt) {
-                    return Some(self.cited(
-                        &RFC_9111_5_2_2_7,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CACHE_CONTROL_PRIVATE_IGNORED,
                         format!(
                             "Validator '{}' from a private response seen by a different client",
                             candidate
@@ -291,8 +292,13 @@ mod tests {
                 "private_cache_visibility",
             ]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Validator '"));
+        // The entry an operator configures, and the ending that says who is
+        // at fault: the response stated the directive correctly and a cache
+        // did not honour it.
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "cache_control_private_ignored");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert!(v.message.contains("Validator '"));
     }
 
     #[test]

@@ -16,7 +16,7 @@ The check is scoped to resource histories (the engine filters transactions by UR
 
 ## Specifications
 
-- [RFC 9111 §5.2.2.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5): `no-store`
+- [RFC 9111 §5.2.2.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5): `no-store` — a cache MUST NOT store any part of the request or the response, and MUST NOT use the response to satisfy another request
 - [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Validation (conditional requests carry the validators this rule tracks)
 
 ## Configuration
