@@ -16,7 +16,7 @@ That is why the reported set stops at the three generic media types. A subtype e
 
 ## Specifications
 
-- [RFC 9457 §1](https://www.rfc-editor.org/rfc/rfc9457.html#section-1): Which status codes problem details suit, and the two sentences saying an application-specific format is often the better answer — between them the reason this rule's finding is advice and not a defect
+- [RFC 9457 §1](https://www.rfc-editor.org/rfc/rfc9457.html#section-1): Which status codes problem details suit, and the two sentences saying an application-specific format is often the better answer — between them the reason this finding is advice and not a defect
 - [RFC 9457 §3](https://www.rfc-editor.org/rfc/rfc9457.html#section-3): The problem details JSON object, and the media type that identifies it: `application/problem+json`
 - [RFC 9457 §B](https://www.rfc-editor.org/rfc/rfc9457.html#appendix-B): The equivalent XML format and its media type, `application/problem+xml` — the second value this rule accepts is defined in an appendix, not in the body of the document
 - [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): The field this rule reads: that it is a singleton and what recipients do when it is sent twice (the reason a duplicated field line is declined), and, in §8.3.1, that its type and subtype tokens are case-insensitive

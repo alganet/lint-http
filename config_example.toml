@@ -2087,6 +2087,22 @@ severity = "warn"
 # Percent-encoding is not two hexadecimal digits
 severity = "warn"
 
+[violations.problem_details_empty]
+# A response labelled as problem details carries no content
+severity = "warn"
+
+[violations.problem_details_invalid]
+# Content labelled as problem details is a JSON value other than an object
+severity = "warn"
+
+[violations.problem_details_malformed]
+# Content labelled as problem details is not a JSON document
+severity = "warn"
+
+[violations.problem_details_missing]
+# An error response carries a generic media type and no error format
+severity = "info"
+
 [violations.proxy_authenticate_redundant]
 # Proxy-Authenticate arrives on a status that gives it nothing to do
 severity = "info"

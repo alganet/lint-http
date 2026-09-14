@@ -1500,7 +1500,12 @@ severity = "warn"
         /// The rule keeps the § 11.2.2 quote on the reserved-identifier table
         /// it transcribes, which is the rule's own statement rather than a
         /// requirement any entry enforces.
-        const FLOOR: usize = 65;
+        /// **`problem_details_content_type` gave up its one**, RFC 9457 § 1,
+        /// and the entry holding it names that section — while the three
+        /// findings of the rule beside it, which cited nothing through a shared
+        /// message builder, now carry RFC 8259 § 2 and RFC 9457 § 3. One site
+        /// off the count, four cited findings on.
+        const FLOOR: usize = 64;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
