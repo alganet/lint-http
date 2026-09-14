@@ -2135,6 +2135,14 @@ severity = "warn"
 # Percent-encoding is not two hexadecimal digits
 severity = "warn"
 
+[violations.pragma_conflicting]
+# A request asks for no-cache in the field its Cache-Control overrides
+severity = "warn"
+
+[violations.pragma_obsolete]
+# A response carries a field this specification deprecates
+severity = "info"
+
 [violations.problem_details_empty]
 # A response labelled as problem details carries no content
 severity = "warn"

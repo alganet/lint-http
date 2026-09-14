@@ -4,18 +4,18 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::pragma::{PRAGMA_CONFLICTING, PRAGMA_OBSOLETE, RFC_9111_5_4};
+use crate::violations::ViolationDef;
+
+/// Two entries, both about the deprecated field being there: on a response,
+/// where it never had a meaning, and in a request whose `Cache-Control`
+/// overrides it.
+static DECLARED: &[&ViolationDef] = &[&PRAGMA_OBSOLETE, &PRAGMA_CONFLICTING];
 
 pub struct CacheControlAndPragmaConsistent;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.4",
-    note: "`Pragma` and its relationship to `Cache-Control`",
-};
+// The sections this rule names now live on the subject beside the entries that
+// quote them, and are imported back for `specifications()`.
 
 impl RuleMeta for CacheControlAndPragmaConsistent {
     fn id(&self) -> &'static str {
@@ -34,6 +34,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_5_4]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -97,7 +101,7 @@ impl Rule for CacheControlAndPragmaConsistent {
                         // in the tracker.
                         if crate::helpers::cache_control::has(&tx.request.headers, "only-if-cached")
                         {
-                            return Some(self.violation(ctx.severity, "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)".to_string()));
+                            return Some(ctx.report(&PRAGMA_CONFLICTING));
                         }
                     }
                 }
@@ -110,7 +114,7 @@ impl Rule for CacheControlAndPragmaConsistent {
             // cite(RFC 9111 § 5.4): "However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma."
             if let Some(resp) = &tx.response {
                 if resp.headers.contains_key("pragma") {
-                    return Some(self.cited(&RFC_9111_5_4, ctx.severity, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead (RFC 9111 §5.4)".into()));
+                    return Some(ctx.report_with(&PRAGMA_OBSOLETE, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead (RFC 9111 §5.4)".into()));
                 }
             }
 
@@ -194,8 +198,40 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Pragma"));
+        // The rarest ending in the vocabulary, on the direction that makes the
+        // clearest case: § 5.4 defines `Pragma` as a request header field, so a
+        // response carrying one is a field with no definition here at all.
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "pragma_obsolete");
+        assert_eq!(v.severity, crate::lint::Severity::Info);
+        assert!(v.message.contains("Pragma"));
+    }
+
+    /// The other entry: the client asked for a fresh copy in the field a cache
+    /// stops reading once `Cache-Control` is there, and for a cached copy in
+    /// the field it does read.
+    #[test]
+    fn the_request_contradiction_names_its_entry() {
+        let rule = CacheControlAndPragmaConsistent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "cache_control_and_pragma_consistent",
+        ]);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("pragma", "no-cache"),
+            ("cache-control", "only-if-cached"),
+        ]);
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "pragma_conflicting");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
     }
 
     #[test]

@@ -1557,7 +1557,11 @@ severity = "warn"
         /// list of heuristically cacheable statuses. *A finding can end up
         /// better cited than its site was*, because a def has to name the
         /// sentence the defect fails and a site only has to name one nearby.
-        const FLOOR: usize = 46;
+        /// **`cache_control_and_pragma_consistent` gave up its one** and both
+        /// of its findings are cited now: the § 5.4 site became an entry naming
+        /// that section, and the contradiction beside it — which cited nothing
+        /// — names the same section from its own entry.
+        const FLOOR: usize = 45;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
