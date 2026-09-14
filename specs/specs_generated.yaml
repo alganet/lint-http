@@ -11024,26 +11024,26 @@ sources:
       line: 435
     - file: lint-http-rules/src/violations/authority.rs
       line: 405
-  - label: http3_goaway_semantics
+  - label: http3_goaway
     section: § 5.2
     snippet: Endpoints MUST NOT initiate new requests or promise new pushes on the connection after receipt of a GOAWAY frame from the peer.
     cited_by:
-    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
-      line: 152
-  - label: http3_goaway_semantics (2)
+    - file: lint-http-rules/src/violations/http3_goaway.rs
+      line: 76
+  - label: http3_goaway (2)
     section: § 5.2
     snippet: Receiving a GOAWAY containing a larger identifier than previously received MUST be treated as a connection error of type H3_ID_ERROR.
     cited_by:
-    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
-      line: 117
-  - label: http3_goaway_semantics (3)
+    - file: lint-http-rules/src/violations/http3_goaway.rs
+      line: 51
+  - label: http3_goaway_semantics
     section: § 5.2
     snippet: The server sends a client-initiated bidirectional stream ID; the client sends a push ID.
     cited_by:
     - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
-      line: 110
+      line: 111
     - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
-      line: 145
+      line: 148
   - label: http3_max_push_id
     section: § 7.2.7
     snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
@@ -11195,7 +11195,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 131
     - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
-      line: 93
+      line: 94
   - label: lint-http-proxy/src/h3_instrument.rs (4)
     section: § 7.2.7
     snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
