@@ -514,10 +514,6 @@ severity = "error"
 enabled = true
 severity = "error"
 
-[rules.http3_status_code_valid]
-enabled = true
-severity = "error"
-
 [rules.http_version_syntax]
 enabled = true
 severity = "error"

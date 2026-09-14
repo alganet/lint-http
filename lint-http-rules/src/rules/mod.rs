@@ -1521,7 +1521,13 @@ severity = "warn"
         /// **`redirect_chain_valid` gave up its one**, § 15.4, and the entry
         /// holding it names that section — one site off the count, one finding
         /// cited exactly as it was.
-        const FLOOR: usize = 61;
+        /// **And one fall is a rule leaving the tree.** `http3_status_code_valid`
+        /// was deleted: its last check reported a `101` over HTTP/3 behind a
+        /// gate narrower than the one `status_101_switching_protocols` already
+        /// applies to the same message, so every finding it could make was
+        /// already made — with the *same* section quoted. Nothing lost a
+        /// citation here; a duplicate stopped being counted twice.
+        const FLOOR: usize = 60;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

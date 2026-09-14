@@ -208,12 +208,12 @@ impl Rule for NoBodyFor1xx204304 {
             // reaches its check only behind `validate_content_length(...).ok()??`, so a
             // 204 answering with a chunked body and no declared length -- precisely the
             // case chunked framing produces -- was invisible to it; it has handed the
-            // three statuses over. `http3_status_code_valid` had all three of
+            // three statuses over. A now-deleted HTTP/3 rule had all three of
             // the checks below, for 1xx only, behind a gate requiring both the request
             // and the response to be HTTP/3, which left the same defect over HTTP/1.1
             // unreported and would now double-report the HTTP/3 one; the sentence it
-            // enforced is § 15.2's and says nothing about HTTP/3, so it kept § 4.5's
-            // 101 and surrendered these.
+            // enforced is § 15.2's and says nothing about HTTP/3, so it surrendered
+            // these — and once it had, its one remaining check was a second rule's too
             if let Some(n) = resp.body_length {
                 if n > 0 {
                     return Some(self.report(
@@ -237,7 +237,7 @@ impl Rule for NoBodyFor1xx204304 {
             //
             // `trailer_fields_valid` judges *which* fields a trailer section
             // may hold. Whether the response was allowed a trailer section at all is
-            // this rule's question. `http3_status_code_valid` asked it for
+            // this rule's question. The deleted HTTP/3 rule asked it for
             // HTTP/3 1xx responses, empty section included, and reached the same
             // answer -- that `#[test]` is the reason the empty case is pinned here.
             if resp.trailers.is_some() {

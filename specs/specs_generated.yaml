@@ -6808,8 +6808,6 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/handshake.rs
       line: 167
-    - file: lint-http-rules/src/rules/http3_status_code_valid.rs
-      line: 135
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 179
   - label: lint-http-rules/src/helpers/accept_ranges.rs
@@ -9113,7 +9111,7 @@ sources:
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 234
+      line: 235
   - label: status_103_early_hints_before_final
     section: § 15.2
     snippet: Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client.
@@ -11146,16 +11144,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/http3_settings_frame.rs
       line: 136
-  - label: http3_status_code_valid
-    section: § 4.5
-    snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
-    cited_by:
-    - file: lint-http-rules/src/rules/http3_status_code_valid.rs
-      line: 125
-    - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 181
-    - file: lint-http-rules/src/violations/status.rs
-      line: 295
   - label: lint-http-core/src/http_version.rs
     section: § 4.3.1
     snippet: HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line.
@@ -11292,6 +11280,14 @@ sources:
       line: 210
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 161
+  - label: status_426_upgrade_valid
+    section: § 4.5
+    snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
+      line: 181
+    - file: lint-http-rules/src/violations/status.rs
+      line: 295
   - label: the TE exception
     section: § 4.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
