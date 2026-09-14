@@ -20,8 +20,7 @@ use crate::violations::ViolationDef;
 /// Additionally:
 /// - HTTP/1.0 does not support the Upgrade mechanism (RFC 9110 §7.8).
 /// - HTTP/2 forbids 101 entirely (RFC 9113 §8.6).
-/// - HTTP/3 forbids 101 (already covered by `http3_status_code_valid`
-///   but checked here for completeness).
+/// - HTTP/3 forbids 101 (RFC 9114 §4.5).
 /// - After a successful 101 exchange on a connection, no further HTTP messages
 ///   should appear (the connection has been handed off to the upgraded protocol).
 pub struct Status101SwitchingProtocols;
@@ -166,8 +165,10 @@ impl Rule for Status101SwitchingProtocols {
             // enumerating them nor guessing which arrives is the question.
             //
             // RFC 9114 § 4.5 is the only place that document mentions 101 at
-            // all, and `http3_status_code_valid` reports the same message from
-            // the status code's own side.
+            // all. A second rule used to report the same message from the status
+            // code's own side, behind a narrower gate that also required the
+            // response to be HTTP/3; every finding it could make was one of
+            // these, so it was deleted rather than declared beside this one.
             if matches!(
                 crate::http_version::parse(&tx.request.version),
                 Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })

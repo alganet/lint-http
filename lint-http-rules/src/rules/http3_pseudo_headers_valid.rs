@@ -542,8 +542,8 @@ impl Rule for Http3PseudoHeadersValid {
             // own. Behind the major-version gate above, the same out-of-range
             // status over HTTP/1.1 or HTTP/2 went unreported here and the HTTP/3 one was
             // reported twice — `status_code_valid_range` asks it of every
-            // version. Same shape as the three checks `http3_status_code_valid`
-            // surrendered for RFC 9110 § 15.2.
+            // version. Same shape as the three checks the HTTP/3 status rule
+            // surrendered for RFC 9110 § 15.2 before it was deleted outright.
             //
             // What RFC 9114 § 4.3.2 does require of a response — that the field be
             // present at all — cannot fail in this model: `ResponseInfo.status` is a
