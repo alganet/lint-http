@@ -190,6 +190,15 @@ pub const RFC_9110_15_4_3: SpecRef = SpecRef {
     note: "302 Found: the same permission, answered by 307 rather than by 308 — the alternative is per status",
 };
 
+/// Status Codes: the three-digit code, the range, and what a client does with
+/// a value outside it.
+pub const RFC_9110_15: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
+    note: "Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, and what a client does with an invalid code",
+};
+
 defects! {
     /// A 206 answering a request that named no range. The status code is
     /// defined as a range request being fulfilled, so a response carrying it
@@ -635,6 +644,35 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_4_3],
+    }
+
+    /// A status code outside 100..599.
+    ///
+    /// **One entry over three arms**, and the arms differ only in how the value
+    /// got here: below 100 the status parser refuses it, so it arrived from a
+    /// capture record; 600..999 is three writable digits and § 15 names what is
+    /// usually in them, an internal library status that escaped onto the wire;
+    /// above 999 no `status-code` can express it at all. Same sender, same
+    /// repair, same loss — the message says which arm was in front of the rule.
+    ///
+    /// **`_invalid` is the document's own word**, and it is the right one past
+    /// the grammar too: `600` is a perfectly good `3DIGIT`, and what refuses it
+    /// is the range rather than the production. The one arm the production does
+    /// refuse takes the same id, because the operator's fix is the same.
+    ///
+    /// `warn` rather than `error`: § 15 states the recipient's answer and it is
+    /// not the end of anything — a client processes the response as though it
+    /// were a `5xx`. What is lost is whatever the sender meant, which arrives as
+    /// a server error.
+    ///
+    // cite(RFC 9110 § 15): "All valid status codes are within the range of 100 to 599, inclusive."
+    // cite(RFC 9110 § 15, label: what a recipient does with one): "A client that receives a response with an invalid status code SHOULD process the response as if it had a 5xx (Server Error) status code."
+    STATUS_INVALID = {
+        id: "status_invalid",
+        title: "The status code is outside the range 100..599",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15],
     }
 
 }

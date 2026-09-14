@@ -2351,6 +2351,10 @@ severity = "warn"
 # A request repeats an expectation a 417 already refused
 severity = "warn"
 
+[violations.status_invalid]
+# The status code is outside the range 100..599
+severity = "warn"
+
 [violations.status_metadata_redundant]
 # A response that cannot carry content sends representation metadata
 severity = "info"

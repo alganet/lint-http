@@ -4,18 +4,18 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::status::{RFC_9110_15, STATUS_INVALID};
+use crate::violations::ViolationDef;
+
+/// One entry over three arms: what differs between them is how a value outside
+/// the range reached the linter, not what is wrong with it.
+static DECLARED: &[&ViolationDef] = &[&STATUS_INVALID];
 
 pub struct StatusCodeValidRange;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
-    note: "Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, and what a client does with an invalid code",
-};
 const RFC_9110_15_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.1"),
@@ -64,6 +64,10 @@ severity = "error"
             RFC_9112_4,
             RFC_9110_2_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -154,7 +158,6 @@ impl Rule for StatusCodeValidRange {
             // The written form bounds two of the three arms, so the grammar sits above
             // them: three digits, no more and no fewer.
             //
-            // cite(RFC 9110 § 15): "A client that receives a response with an invalid status code SHOULD process the response as if it had a 5xx (Server Error) status code."
             // cite(RFC 9112 § 4): "status-code    = 3DIGIT"
             let detail = match status {
                 // Below 100. `3DIGIT` would admit `007`, so the grammar is not what stops
@@ -180,7 +183,7 @@ impl Rule for StatusCodeValidRange {
                 _ => "No `status-code` can express a value above 999 at all (RFC 9112 §4: `status-code = 3DIGIT`), so this value reached the linter from a capture record rather than from a parsed status-line.",
             };
 
-            Some(self.violation(ctx.severity, format!(
+            Some(ctx.report_with(&STATUS_INVALID, format!(
                     "Response status code {status} is outside the range 100-599; RFC 9110 §15 states that values outside it are invalid, and directs a client that receives one to process the response as if it had a 5xx (Server Error) status code. {detail}"
                 )))
         };
@@ -196,6 +199,38 @@ static REGISTRATION: &dyn crate::rules::Rule = &StatusCodeValidRange;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Three arms, one entry. What differs is how the value reached the linter
+    /// — the status parser refuses everything below 100, `600..999` is three
+    /// writable digits, and nothing above 999 fits `3DIGIT` at all — and the
+    /// message is where that difference is said.
+    #[rstest]
+    #[case::below(99, "status parser")]
+    #[case::internal(600, "internal communication")]
+    #[case::unwritable(1000, "above 999")]
+    fn every_arm_reports_one_entry_and_names_its_own_arm(
+        #[case] status: u16,
+        #[case] detail: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status,
+            version: "HTTP/1.1".into(),
+            headers: hyper::HeaderMap::new(),
+            body_length: None,
+            trailers: None,
+        });
+        let found = crate::test_helpers::run_rule(
+            &StatusCodeValidRange,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["status_code_valid_range"]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "status_invalid");
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
+        assert!(found.message.contains(detail), "{}", found.message);
+    }
 
     #[rstest]
     #[case(200, false)]
