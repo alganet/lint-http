@@ -5651,7 +5651,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 128
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 156
+      line: 158
   - label: cached_validators_reused
     section: § 13.1.2
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
@@ -6553,7 +6553,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 50
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 132
+      line: 134
   - label: if_modified_since_date_syntax (2)
     section: § 5.5
     snippet: A field value does not include leading or trailing whitespace
@@ -6571,7 +6571,7 @@ sources:
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
       line: 145
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 155
+      line: 157
   - label: if_unmodified_since_date_syntax
     section: § 13.1.4
     snippet: If-Unmodified-Since = HTTP-date
@@ -7379,7 +7379,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 268
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 133
+      line: 135
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
       line: 117
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
@@ -9764,7 +9764,7 @@ sources:
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names
     cited_by:
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 102
+      line: 111
   - label: cache_control_and_pragma_consistent
     section: § 5.4
     snippet: However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma.
@@ -9800,7 +9800,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 278
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 119
+      line: 128
   - label: private argument syntax
     section: § 5.2.2.7
     snippet: This directive uses the quoted-string form of the argument syntax.
@@ -9844,7 +9844,7 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 176
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 174
+      line: 183
   - label: caching_directive_interaction (2)
     section: § 5.2.2.7
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
@@ -9862,7 +9862,7 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 150
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 148
+      line: 157
   - label: expires_and_cache_control_consistent
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
@@ -10000,7 +10000,7 @@ sources:
     - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 194
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 149
+      line: 158
   - label: lint-http-rules/src/helpers/vary.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
@@ -10008,9 +10008,11 @@ sources:
     - file: lint-http-rules/src/helpers/vary.rs
       line: 80
     - file: lint-http-rules/src/rules/vary_and_cache_consistent.rs
-      line: 99
+      line: 103
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 228
+      line: 230
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 212
   - label: max_age_directive_valid
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
@@ -10056,7 +10058,7 @@ sources:
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 133
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 111
+      line: 113
   - label: must_revalidate_enforced (3)
     section: § 5.2.2.2
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
@@ -10131,12 +10133,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 109
-  - label: vary_header_cache_valid
+  - label: vary
     section: § 4.1
     snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
     cited_by:
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 249
+    - file: lint-http-rules/src/violations/vary.rs
+      line: 50
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.html
   fragments:

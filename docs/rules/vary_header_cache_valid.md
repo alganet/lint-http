@@ -20,7 +20,7 @@ The rule is intentionally forgiving:
 
 ## Specifications
 
-- [RFC 9111 §4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1): Calculating Cache Keys with the Vary Header Field (all Vary-nominated request fields must match for reuse)
+- [RFC 9111 §4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1): Calculating Cache Keys with the Vary Header Field — a stored response may only be reused without revalidation where every request field the response nominated matches the original request's
 
 ## Configuration
 
