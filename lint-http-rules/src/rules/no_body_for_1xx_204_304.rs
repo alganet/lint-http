@@ -4,6 +4,21 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::status::{
+    RFC_9110_15_2, RFC_9110_15_3_5, RFC_9110_15_4_5, RFC_9110_6_4_1, RFC_9110_8_6, RFC_9112_6_1,
+    STATUS_CONTENT_FORBIDDEN, STATUS_CONTENT_LENGTH_FORBIDDEN, STATUS_TRAILERS_FORBIDDEN,
+    STATUS_TRANSFER_ENCODING_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
+
+/// Four things a bodyless status may not carry, and four sentences: the
+/// content, the trailer section, and the two framing fields.
+static DECLARED: &[&ViolationDef] = &[
+    &STATUS_CONTENT_FORBIDDEN,
+    &STATUS_TRAILERS_FORBIDDEN,
+    &STATUS_CONTENT_LENGTH_FORBIDDEN,
+    &STATUS_TRANSFER_ENCODING_FORBIDDEN,
+];
 
 pub struct NoBodyFor1xx204304;
 
@@ -13,44 +28,19 @@ impl NoBodyFor1xx204304 {
     /// only in `detail`, which names the evidence and the sentence behind it. That
     /// clause is what a test keys on, because the rest of the message is a rule
     /// invariant and asserting it asserts nothing.
-    fn report(&self, severity: crate::lint::Severity, status: u16, detail: &str) -> Violation {
-        self.violation(severity, format!("A {status} response {detail}"))
+    fn report(
+        ctx: &crate::rules::RuleContext<'_>,
+        def: &'static ViolationDef,
+        status: u16,
+        detail: &str,
+    ) -> Violation {
+        ctx.report_with(def, format!("A {status} response {detail}"))
     }
 }
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
-    note: "Informational 1xx — \"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers\"",
-};
-const RFC_9110_15_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.3.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5",
-    note: "204 (No Content) — the same sentence, written again for this status",
-};
-const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
-    note: "304 (Not Modified) — the same sentence a third time. It forbids content and trailers, and says nothing against the two header fields that describe the 200 that was not sent",
-};
-const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-    note: "Content-Length — a MUST NOT on 1xx and 204 at any value, and a MAY on a 304 to a conditional GET. That MAY's own MUST NOT (the value must equal the unsent 200's content length) is undecidable from one exchange and is left unenforced",
-};
-const RFC_9110_6_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("6.4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1",
-    note: "Content Semantics — the summary this rule is named after. It is about content, not about header fields; taking it for a rule about fields is what put the 304 in front of two prohibitions that exempt it",
-};
 const RFC_9110_15_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.6"),
@@ -62,12 +52,6 @@ const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("6.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
     note: "Message body length, item 1 — these responses end at the first empty line \"regardless of the header fields present\", which is why a field's presence is its own defect rather than evidence of a body",
-};
-const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
-    note: "Transfer-Encoding — a MUST NOT on 1xx and 204, and a MAY on a 304 to a GET. HTTP/1.1's document, so the check does not run on later versions",
 };
 const RFC_9113_8_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9113",
@@ -114,6 +98,10 @@ severity = "error"
             RFC_9113_8_2_2,
             RFC_9114_4_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -216,8 +204,9 @@ impl Rule for NoBodyFor1xx204304 {
             // these — and once it had, its one remaining check was a second rule's too
             if let Some(n) = resp.body_length {
                 if n > 0 {
-                    return Some(self.report(
-                        ctx.severity,
+                    return Some(Self::report(
+                        ctx,
+                        &STATUS_CONTENT_FORBIDDEN,
                         status,
                         &format!(
                             "is terminated by the end of its header section and cannot contain \
@@ -241,8 +230,9 @@ impl Rule for NoBodyFor1xx204304 {
             // HTTP/3 1xx responses, empty section included, and reached the same
             // answer -- that `#[test]` is the reason the empty case is pinned here.
             if resp.trailers.is_some() {
-                return Some(self.report(
-                    ctx.severity,
+                return Some(Self::report(
+                    ctx,
+                    &STATUS_TRAILERS_FORBIDDEN,
                     status,
                     "is terminated by the end of its header section and cannot contain trailers, \
                      but a trailer section was received",
@@ -280,8 +270,9 @@ impl Rule for NoBodyFor1xx204304 {
                     // another instance of the same forbidden field, not a second
                     // finding, and nothing here is measuring a length.
                     let shown = crate::helpers::headers::field_line_as_written(value);
-                    return Some(self.report(
-                        ctx.severity,
+                    return Some(Self::report(
+                        ctx,
+                        &STATUS_CONTENT_LENGTH_FORBIDDEN,
                         status,
                         &format!(
                             "must not carry a Content-Length header field at any value, \
@@ -319,8 +310,9 @@ impl Rule for NoBodyFor1xx204304 {
                 && a_version_that_has_the_field
                 && resp.headers.contains_key("transfer-encoding")
             {
-                return Some(self.report(
-                    ctx.severity,
+                return Some(Self::report(
+                    ctx,
+                    &STATUS_TRANSFER_ENCODING_FORBIDDEN,
                     status,
                     "must not carry a Transfer-Encoding header field",
                 ));
@@ -367,11 +359,32 @@ mod tests {
             &NoBodyFor1xx204304,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
-                "no_body_for_1xx_204_304",
-                "error",
-            ),
+            // The severity a finding carries is its entry's now; the four
+            // entries this rule declares all default to `error`, which is the
+            // level the rule had chosen for itself.
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_body_for_1xx_204_304"]),
         )
+    }
+
+    /// The four entries, one per thing a bodyless status may not carry, and
+    /// all four at the `error` the rule had already chosen for itself.
+    #[rstest]
+    #[case(204, "HTTP/1.1", &[], Some(5), None, "status_content_forbidden")]
+    #[case(204, "HTTP/1.1", &[], None, Some(&[("x", "y")][..]), "status_trailers_forbidden")]
+    #[case(204, "HTTP/1.1", &[("content-length", "0")], None, None, "status_content_length_forbidden")]
+    #[case(204, "HTTP/1.1", &[("transfer-encoding", "chunked")], None, None, "status_transfer_encoding_forbidden")]
+    fn each_prohibition_names_its_entry(
+        #[case] status: u16,
+        #[case] version: &str,
+        #[case] header_pairs: &[(&str, &str)],
+        #[case] body_length: Option<u64>,
+        #[case] trailer_pairs: Option<&[(&str, &str)]>,
+        #[case] id: &str,
+    ) {
+        let tx = make_tx(status, version, header_pairs, body_length, trailer_pairs);
+        let found = run(&tx).unwrap_or_else(|| panic!("a finding for {id}"));
+        assert_eq!(found.violation, id);
+        assert_eq!(found.severity, crate::lint::Severity::Error);
     }
 
     #[rstest]
