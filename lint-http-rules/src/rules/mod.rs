@@ -1518,7 +1518,10 @@ severity = "warn"
         /// finding rests on — that quote stays at the site. The two entries
         /// that replaced the finding name § 15.4.2 and § 15.4.3, one per
         /// status, so each finding now cites the sentence that governs it.
-        const FLOOR: usize = 62;
+        /// **`redirect_chain_valid` gave up its one**, § 15.4, and the entry
+        /// holding it names that section — one site off the count, one finding
+        /// cited exactly as it was.
+        const FLOOR: usize = 61;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

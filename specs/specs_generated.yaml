@@ -1642,7 +1642,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 429
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 303
+      line: 306
   - label: lint-http-rules/src/helpers/uri.rs (36)
     section: § 6.2.2.2
     snippet: These URIs should be normalized by decoding any percent-encoded octet that corresponds to an unreserved character, as described in Section 2.3.
@@ -5465,7 +5465,7 @@ sources:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 162
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 206
+      line: 209
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 165
     - file: lint-http-rules/src/violations/field.rs
@@ -6171,7 +6171,7 @@ sources:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 208
     - file: lint-http-rules/src/violations/location.rs
-      line: 134
+      line: 142
   - label: context_fields_direction (8)
     section: § 10.2.3
     snippet: Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request.
@@ -7619,7 +7619,7 @@ sources:
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 177
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 243
+      line: 246
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 288
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
@@ -7847,7 +7847,7 @@ sources:
     - file: lint-http-rules/src/helpers/status.rs
       line: 7
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 79
+      line: 84
   - label: lint-http-rules/src/helpers/token.rs
     section: § 5.6.2
     snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
@@ -7905,7 +7905,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 508
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 266
+      line: 269
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 223
   - label: Host grammar
@@ -8008,6 +8008,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/word.rs
       line: 207
+  - label: location
+    section: § 15.4
+    snippet: A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops).
+    cited_by:
+    - file: lint-http-rules/src/violations/location.rs
+      line: 168
   - label: location_header_uri_valid
     section: § 10.2.2
     snippet: A Location field value cannot allow a list of members because the comma list separator is a valid data character within a URI-reference.
@@ -8047,7 +8053,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 151
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 88
+      line: 93
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 39
   - label: location_on_redirect_present (2)
@@ -8057,7 +8063,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 225
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 30
+      line: 35
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 49
   - label: location_on_redirect_present (3)
@@ -8069,7 +8075,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 137
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 89
+      line: 94
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 40
   - label: location_on_redirect_present (4)
@@ -8079,7 +8085,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 234
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 78
+      line: 83
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 51
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
@@ -8097,7 +8103,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 46
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 34
+      line: 39
   - label: location_on_redirect_present (7)
     section: § 15.4.2
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
@@ -8117,11 +8123,11 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 67
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 47
+      line: 52
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
       line: 52
     - file: lint-http-rules/src/violations/location.rs
-      line: 100
+      line: 108
   - label: location_on_redirect_present (10)
     section: § 15.4.8
     snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
@@ -8661,85 +8667,79 @@ sources:
     snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 276
+      line: 279
   - label: redirect_chain_valid (2)
     section: § 10.2.2
     snippet: When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 267
+      line: 270
   - label: redirect_chain_valid (3)
     section: § 15
     snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 77
+      line: 82
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 50
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 145
   - label: redirect_chain_valid (4)
-    section: § 15.4
-    snippet: A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops).
-    cited_by:
-    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 342
-  - label: redirect_chain_valid (5)
     section: § 15.4.1
     snippet: the target resource has more than one representation, each with its own more specific identifier
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 33
-  - label: redirect_chain_valid (6)
+      line: 38
+  - label: redirect_chain_valid (5)
     section: § 15.4.2
     snippet: The 301 (Moved Permanently) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 38
-  - label: redirect_chain_valid (7)
+      line: 43
+  - label: redirect_chain_valid (6)
     section: § 15.4.3
     snippet: The 302 (Found) status code indicates that the target resource resides temporarily under a different URI.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 42
-  - label: redirect_chain_valid (8)
+      line: 47
+  - label: redirect_chain_valid (7)
     section: § 15.4.4
     snippet: Note that the new URI in the Location header field is not considered equivalent to the target URI.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 48
-  - label: redirect_chain_valid (9)
+      line: 53
+  - label: redirect_chain_valid (8)
     section: § 15.4.5
     snippet: the server is therefore redirecting the client to make use of that stored representation as if it were the content of a 200 (OK) response
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 67
-  - label: redirect_chain_valid (10)
+      line: 72
+  - label: redirect_chain_valid (9)
     section: § 15.4.6
     snippet: The 305 (Use Proxy) status code was defined in a previous version of this specification and is now deprecated (Appendix B of [RFC7231]).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 69
-  - label: redirect_chain_valid (11)
+      line: 74
+  - label: redirect_chain_valid (10)
     section: § 15.4.7
     snippet: The 306 status code was defined in a previous version of this specification, is no longer used, and the code is reserved.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 71
-  - label: redirect_chain_valid (12)
+      line: 76
+  - label: redirect_chain_valid (11)
     section: § 15.4.8
     snippet: The 307 (Temporary Redirect) status code indicates that the target resource resides temporarily under a different URI and the user agent MUST NOT change the request method if it performs an automatic redirection to that URI.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 52
+      line: 57
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
       line: 51
-  - label: redirect_chain_valid (13)
+  - label: redirect_chain_valid (12)
     section: § 15.4.9
     snippet: The 308 (Permanent Redirect) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 56
+      line: 61
   - label: redirect_status_and_location_valid
     section: § 10.2.2
     snippet: The type of relationship is defined by the combination of request method and status code semantics.
@@ -10387,7 +10387,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 161
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 330
+      line: 333
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -10429,7 +10429,7 @@ sources:
     snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 331
+      line: 334
   - label: Content-Length not in a transfer-coded message
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.

@@ -1923,6 +1923,10 @@ severity = "warn"
 # A status that asks for Location carries none
 severity = "warn"
 
+[violations.location_redirect_redundant]
+# A redirect names the target URI of the request it answers
+severity = "warn"
+
 [violations.location_redundant]
 # Location is sent on a status that gives it no referent
 severity = "info"

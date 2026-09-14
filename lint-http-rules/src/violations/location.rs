@@ -79,6 +79,14 @@ pub const RFC_9110_15_4_9: SpecRef = SpecRef {
     note: "308 Permanent Redirect: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
 };
 
+/// Redirection: what a client is asked to do about a redirection that loops.
+pub const RFC_9110_15_4: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
+    note: "Redirection 3xx: a client SHOULD detect and intervene in cyclical redirections, and MAY follow a Location even where the specific status code is not understood",
+};
+
 defects! {
     /// A response on a status whose own definition asks for `Location`, with no
     /// such field line on it.
@@ -139,6 +147,33 @@ defects! {
         default_severity: Severity::Info,
         spec: &[RFC_9110_10_2_2],
     }
+    /// A `Location` that resolves to the target URI of the request it answers.
+    ///
+    /// **`_redundant`, and the vocabulary's own words fit it exactly**:
+    /// permitted, and almost certainly not what was meant. No sentence forbids
+    /// a response naming its own target; what § 15.4 does is ask the *client*
+    /// to detect and intervene in cyclical redirections, and this is the
+    /// shortest one there is — a client that obeys issues the request it just
+    /// issued. The work the message does twice is the request itself.
+    ///
+    /// **`warn` rather than the `info` this ending starts at**, which is the
+    /// argument the convention asks for on the page: the entry beside it costs
+    /// a reader a moment's confusion, and this one costs a client a loop.
+    ///
+    /// Separated from [`LOCATION_REDUNDANT`] by its part rather than by a
+    /// second ending: that entry is about the field being there at all on a
+    /// status that gives it nothing to mean, this one about the redirect
+    /// arriving where it started.
+    ///
+    // cite(RFC 9110 § 15.4): "A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops)."
+    LOCATION_REDIRECT_REDUNDANT = {
+        id: "location_redirect_redundant",
+        title: "A redirect names the target URI of the request it answers",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_4],
+    }
+
 }
 
 #[cfg(test)]
@@ -152,6 +187,16 @@ mod tests {
     fn the_absence_outranks_the_field_no_sentence_forbids() {
         assert_eq!(LOCATION_MISSING.default_severity, Severity::Warn);
         assert_eq!(LOCATION_REDUNDANT.default_severity, Severity::Info);
+    }
+
+    /// Two entries share the ending that condemns nothing, and they are told
+    /// apart by their part and by their severity: one costs a reader a
+    /// moment's confusion, the other costs a client a loop.
+    #[test]
+    fn the_two_redundancies_differ_by_part_and_by_what_they_cost() {
+        assert!(LOCATION_REDUNDANT.id.ends_with("_redundant"));
+        assert!(LOCATION_REDIRECT_REDUNDANT.id.ends_with("_redundant"));
+        assert!(LOCATION_REDUNDANT.default_severity < LOCATION_REDIRECT_REDUNDANT.default_severity);
     }
 
     /// One entry names five sections and is therefore cited on none of them;

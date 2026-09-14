@@ -5,6 +5,11 @@
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::location::{LOCATION_REDIRECT_REDUNDANT, RFC_9110_15_4};
+use crate::violations::ViolationDef;
+
+/// One entry: a redirect that arrives where the request started.
+static DECLARED: &[&ViolationDef] = &[&LOCATION_REDIRECT_REDUNDANT];
 
 /// Reports a redirect whose `Location` names the resource the request already
 /// addressed — a redirection to where the client already is.
@@ -94,12 +99,6 @@ fn location_names_another_resource(status: u16) -> Option<&'static str> {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
-    note: "Redirection 3xx: a client SHOULD detect and intervene in cyclical redirections, and MAY follow a Location even where the specific status code is not understood",
-};
 const RFC_9110_10_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("10.2.2"),
@@ -159,6 +158,10 @@ severity = "warn"
             RFC_3986_5,
             RFC_3986_6_2_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -339,8 +342,7 @@ impl Rule for RedirectChainValid {
                 _ => {}
             }
 
-            // cite(RFC 9110 § 15.4): "A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops)."
-            Some(self.cited(&RFC_9110_15_4, ctx.severity, format!(
+            Some(ctx.report_with(&LOCATION_REDIRECT_REDUNDANT, format!(
                     "Location '{}' resolves to '{}', the target URI of the request it answers, so the response redirects the client to where it already was: {}. A client that follows it issues the same request again — RFC 9110 §15.4 asks one to detect and intervene in cyclical redirections, and this is the shortest one there is",
                     value.escape_debug(),
                     location_path_and_query.escape_debug(),
@@ -414,6 +416,17 @@ mod tests {
             crate::rules::Rule::scope(&RedirectChainValid),
             crate::rules::RuleScope::Server
         );
+    }
+
+    /// The one entry, and the ending that condemns nothing carrying `warn`
+    /// rather than the `info` it starts at: nothing forbids a response naming
+    /// its own target, and a client that follows it issues the request again.
+    #[test]
+    fn the_self_redirect_names_its_entry() {
+        let found =
+            judge(&exchange("/here", Some("example.com"), 302, &["/here"])).expect("a finding");
+        assert_eq!(found.violation, "location_redirect_redundant");
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
     }
 
     /// Each of the six statuses whose definition names another resource, with
