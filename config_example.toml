@@ -2319,6 +2319,14 @@ severity = "warn"
 # 206 Partial Content answers a request that asked for no range
 severity = "warn"
 
+[violations.status_301_ambiguous]
+# A 301 answers a POST, leaving the redirected method undetermined
+severity = "warn"
+
+[violations.status_302_ambiguous]
+# A 302 answers a POST, leaving the redirected method undetermined
+severity = "warn"
+
 [violations.status_304_metadata_forbidden]
 # A 304 sends representation metadata beyond the fields it owes
 severity = "warn"

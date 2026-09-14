@@ -1512,7 +1512,13 @@ severity = "warn"
         /// state it, one per status, so no finding of it may carry one — the
         /// same trade `field_connection_specific_forbidden` makes, seen at a
         /// status instead of a protocol version.
-        const FLOOR: usize = 63;
+        /// **`status_3xx_vs_request_method` gave up one and gained two.** Its
+        /// single cited site was § 9.3.3, the `303` clause its *message*
+        /// offers, which is advice about a repair rather than the sentence the
+        /// finding rests on — that quote stays at the site. The two entries
+        /// that replaced the finding name § 15.4.2 and § 15.4.3, one per
+        /// status, so each finding now cites the sentence that governs it.
+        const FLOOR: usize = 62;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
