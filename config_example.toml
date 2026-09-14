@@ -1335,6 +1335,14 @@ severity = "warn"
 # The Accept-Encoding wildcard is written where a coding belongs
 severity = "warn"
 
+[violations.content_disposition_parameter_duplicated]
+# Content-Disposition names one parameter twice
+severity = "warn"
+
+[violations.content_disposition_size_invalid]
+# A Content-Disposition size parameter is not a number
+severity = "info"
+
 [violations.content_length_character_forbidden]
 # Content-Length value holds an octet DIGIT does not admit
 severity = "error"
@@ -1689,6 +1697,10 @@ severity = "warn"
 
 [violations.expires_conflicting]
 # Expires and the Cache-Control freshness directives disagree
+severity = "warn"
+
+[violations.ext_value_malformed]
+# An extended parameter value is no ext-value
 severity = "warn"
 
 [violations.field_connection_specific_forbidden]
