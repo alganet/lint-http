@@ -23,13 +23,13 @@ Reads each WebSocket frame the relay observed and asks three groups of questions
 ## Specifications
 
 - [RFC 6455 §5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1): Overview: when an endpoint may transmit a data frame
-- [RFC 6455 §5.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2): Base Framing Protocol, opcode definitions and reserved ranges
-- [RFC 6455 §5.4](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.4): Fragmentation: what a fragmented message is made of
-- [RFC 6455 §5.5](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5): Control Frames: the class test and its two constraints
-- [RFC 6455 §5.5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1): Close: the body's first two bytes, and the end of what a sender may send
+- [RFC 6455 §5.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2): Base Framing Protocol — the opcode definitions, the two reserved ranges and what each is reserved for, and the MUST-fail a receiving endpoint owes an unknown opcode
+- [RFC 6455 §5.4](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.4): Fragmentation — what a fragmented message is made of, the MUST NOT against fragmenting a control frame stated in its own right, and the MUST NOT against interleaving two messages with its extension escape
+- [RFC 6455 §5.5](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5): Control Frames — the class test, and the sentence bounding a control frame's payload at 125 bytes
+- [RFC 6455 §5.5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1): Close — the body is optional, a body that exists opens with a two-byte status code, and a sender's own Close ends what it may send
 - [RFC 6455 §5.6](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.6): Data Frames: the class test for the sequence questions
 - [RFC 6455 §5.8](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.8): Extensibility: what the reserved opcodes are reserved for
-- [RFC 6455 §11.8](https://www.rfc-editor.org/rfc/rfc6455.html#section-11.8): WebSocket Opcode Registry: the field's range and its registration policy
+- [RFC 6455 §11.8](https://www.rfc-editor.org/rfc/rfc6455.html#section-11.8): WebSocket Opcode Registry — the field's range, and the Standards Action policy that makes an unassigned value one no deployment can outrun
 
 ## Configuration
 

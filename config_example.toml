@@ -2499,12 +2499,44 @@ severity = "warn"
 # Warning member carries no warn-text
 severity = "warn"
 
+[violations.websocket_frame_close_body_malformed]
+# A Close body is too short to hold the status code it opens with
+severity = "warn"
+
+[violations.websocket_frame_continuation_unsolicited]
+# A continuation frame has no fragmented message to continue
+severity = "warn"
+
+[violations.websocket_frame_control_fragmentation_forbidden]
+# A control frame is fragmented
+severity = "warn"
+
+[violations.websocket_frame_control_payload_invalid]
+# A control frame carries more payload than its class allows
+severity = "warn"
+
+[violations.websocket_frame_data_after_close_forbidden]
+# A data frame follows the same endpoint's Close frame
+severity = "warn"
+
 [violations.websocket_frame_mask_forbidden]
 # A server frame is masked
 severity = "error"
 
 [violations.websocket_frame_mask_missing]
 # A client frame is not masked
+severity = "error"
+
+[violations.websocket_frame_message_interleaving_forbidden]
+# A second message opens while a fragmented one is unterminated
+severity = "warn"
+
+[violations.websocket_frame_opcode_malformed]
+# The recorded opcode does not fit the four bits the header holds
+severity = "warn"
+
+[violations.websocket_frame_opcode_unregistered]
+# The opcode is in a reserved range and denotes no frame type
 severity = "error"
 
 [violations.websocket_frame_rsv_forbidden]
