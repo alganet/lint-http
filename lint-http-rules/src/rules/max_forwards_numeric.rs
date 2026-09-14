@@ -6,24 +6,23 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::shown::describe_octet;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::max_forwards::{MAX_FORWARDS_EMPTY, MAX_FORWARDS_MALFORMED, RFC_9110_7_6_2};
+use crate::violations::ViolationDef;
+
+/// The grammar's two failures, plus the one a singleton field always has
+/// available: its own repetition.
+static DECLARED: &[&ViolationDef] = &[
+    &MAX_FORWARDS_EMPTY,
+    &MAX_FORWARDS_MALFORMED,
+    &FIELD_LINE_DUPLICATED,
+];
 
 pub struct MaxForwardsNumeric;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_7_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("7.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2",
-    note: "The field: its grammar (`1*DIGIT`), the methods it works with, and the recipient's permission to ignore it on the others. The section's requirements on intermediaries — check and update the value, do not forward at zero — are stated here and are not measurable from one captured leg; this rule reads the syntax only",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "A sender MUST NOT generate multiple field lines with the same name unless the field's definition allows them to be recombined as a comma-separated list. `Max-Forwards` has no such alternative, so two lines are reported",
-};
 const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.2"),
@@ -66,6 +65,10 @@ severity = "warn"
             RFC_9110_5_5,
             RFC_9110_9_3_7,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -123,8 +126,6 @@ impl Rule for MaxForwardsNumeric {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
-
             // No method gate, and the field is read before anything about the request
             // line is. The mechanism is defined for TRACE and OPTIONS, and what the
             // section says about the field on other methods is addressed to the
@@ -161,11 +162,14 @@ impl Rule for MaxForwardsNumeric {
                 // only one of the five callers with nothing to append to it: a comma is
                 // not a `DIGIT`, so the joined value is simply malformed, which the
                 // production named in the preamble already tells the reader.
-                return violation(crate::helpers::headers::singleton_field_preamble(
-                    "Max-Forwards",
-                    lines,
-                    &value.escape_debug().to_string(),
-                    "`Max-Forwards = 1*DIGIT` has no comma-separated-list alternative",
+                return Some(ctx.report_with(
+                    &FIELD_LINE_DUPLICATED,
+                    crate::helpers::headers::singleton_field_preamble(
+                        "Max-Forwards",
+                        lines,
+                        &value.escape_debug().to_string(),
+                        "`Max-Forwards = 1*DIGIT` has no comma-separated-list alternative",
+                    ),
                 ));
             }
 
@@ -186,20 +190,18 @@ impl Rule for MaxForwardsNumeric {
             //
             // cite(RFC 9110 § 7.6.2, label: Max-Forwards grammar): "Max-Forwards = 1*DIGIT"
             if value.is_empty() {
-                return violation(
-                    "Max-Forwards is present with no digits; the field is `Max-Forwards = 1*DIGIT`, which requires at least one".to_string(),
-                );
+                return Some(ctx.report(&MAX_FORWARDS_EMPTY));
             }
 
             if let Some(ch) = value.chars().find(|c| !c.is_ascii_digit()) {
                 // Every `char` here came from one octet and goes back to it unchanged;
                 // the finding names the octet that stopped the parse rather than writing
                 // it through, since by definition the production did not admit it.
-                return violation(format!(
+                return Some(ctx.report_with(&MAX_FORWARDS_MALFORMED, format!(
                     "Max-Forwards value '{}' holds {}, which is not a DIGIT; the field is `Max-Forwards = 1*DIGIT`",
                     value.escape_debug(),
                     describe_octet(ch as u8)
-                ));
+                )));
             }
 
             // Where the rule stops, and it is not an oversight. The value is a decimal
@@ -291,6 +293,9 @@ mod tests {
     #[case(b"\t")]
     fn a_value_of_no_digits_is_not_a_value(#[case] value: &[u8]) {
         let v = max_forwards(&[value]).expect("violation");
+        // Separate from the entry below because the senders differ: one wrote a
+        // number wrong, the other wrote no number at all.
+        assert_eq!(v.violation, "max_forwards_empty");
         assert!(v.message.contains("no digits"), "{}", v.message);
     }
 
@@ -306,6 +311,7 @@ mod tests {
         #[case] expected: &str,
     ) {
         let v = max_forwards(&[value]).expect("violation");
+        assert_eq!(v.violation, "max_forwards_malformed");
         assert!(v.message.contains("not a DIGIT"), "{}", v.message);
         assert!(v.message.contains(expected), "{}", v.message);
     }
@@ -342,6 +348,9 @@ mod tests {
         #[case] joined: &str,
     ) {
         let v = max_forwards(lines).expect("violation");
+        // The repetition is § 5.3's rather than this field's, and it is the
+        // entry twenty other fields report it under.
+        assert_eq!(v.violation, "field_line_duplicated");
         // This is the only one of the five callers of the shared preamble with
         // nothing to append, so the pin is the preamble exactly -- which is also
         // what makes it the case that would notice the shared sentence changing

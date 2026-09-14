@@ -2067,6 +2067,14 @@ severity = "warn"
 # Mailbox is followed by something else
 severity = "warn"
 
+[violations.max_forwards_empty]
+# Max-Forwards is written with no digits on it
+severity = "warn"
+
+[violations.max_forwards_malformed]
+# Max-Forwards holds something that is not a digit
+severity = "warn"
+
 [violations.media_range_parameter_forbidden]
 # Accept member writes a parameter after the weight
 severity = "warn"
