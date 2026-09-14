@@ -1255,12 +1255,20 @@ severity = "info"
 # A Cache-Control freshness directive is given more than one value
 severity = "warn"
 
+[violations.cache_control_freshness_missing]
+# A status no cache stores by default states no freshness
+severity = "info"
+
 [violations.cache_control_immutable_ignored]
 # A still-fresh immutable response is revalidated anyway
 severity = "info"
 
 [violations.cache_control_immutable_redundant]
 # immutable sits on a response with no freshness lifetime
+severity = "info"
+
+[violations.cache_control_missing]
+# A 200 leaves its freshness lifetime to be guessed
 severity = "info"
 
 [violations.cache_control_must_revalidate_ignored]

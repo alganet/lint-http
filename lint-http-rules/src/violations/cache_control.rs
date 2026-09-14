@@ -117,6 +117,24 @@ pub const RFC_8246_2: SpecRef = SpecRef {
     note: "`immutable` — clients SHOULD NOT revalidate during the response's freshness lifetime, and the extension applies during that lifetime only, so a response with none is outside it entirely",
 };
 
+/// Calculating Heuristic Freshness: what a cache may do when the origin server
+/// says nothing.
+pub const RFC_9111_4_2_2: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.2",
+    note: "Calculating Heuristic Freshness — without an explicit expiration time a cache MAY assign one of its own, estimated from other field values",
+};
+
+/// Overview of Status Codes: which status codes a cache may reuse on a
+/// heuristic alone.
+pub const RFC_9110_15_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1",
+    note: "Overview of Status Codes — the status codes defined as heuristically cacheable, which is the set a response outside it has to state its own freshness to join",
+};
+
 defects! {
     /// `no-cache=""`: the qualified form written with an argument that lists no
     /// field name at all.
@@ -380,6 +398,49 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_8246_2],
+    }
+
+    /// A `200` carrying no `Cache-Control` at all.
+    ///
+    /// **Nothing requires the field**, and the entry is about what its absence
+    /// hands to somebody else: § 4.2.2 lets a cache assign an expiration time
+    /// of its own, estimated from whatever other fields it can see. So the
+    /// origin has not declined to be cached — it has left the lifetime to be
+    /// guessed, by each cache separately.
+    ///
+    /// `_missing` rather than `_empty`: the field was never written.
+    ///
+    /// `info`. No sentence is broken, the guess is permitted, and the finding
+    /// is worth making only because the guess is invisible from the origin.
+    ///
+    // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
+    CACHE_CONTROL_MISSING = {
+        id: "cache_control_missing",
+        title: "A 200 leaves its freshness lifetime to be guessed",
+        message: "Response 200 without Cache-Control header",
+        default_severity: Severity::Info,
+        spec: &[RFC_9111_4_2_2],
+    }
+
+    /// A response on a status outside the heuristically cacheable set, carrying
+    /// no explicit freshness of its own.
+    ///
+    /// **The opposite outcome to the entry above, from the same silence.**
+    /// There a cache invents a lifetime; here § 15.1's list does not cover the
+    /// status, so nothing stores the response at all unless it says how long it
+    /// is good for. Two entries because a sender reading one of them learns the
+    /// wrong thing about the other.
+    ///
+    /// `info`, and for the plainest of reasons: not being cached is a perfectly
+    /// good outcome, and the finding says only that it was not chosen.
+    ///
+    // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
+    CACHE_CONTROL_FRESHNESS_MISSING = {
+        id: "cache_control_freshness_missing",
+        title: "A status no cache stores by default states no freshness",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_9110_15_1],
     }
 
 }

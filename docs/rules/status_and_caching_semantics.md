@@ -15,7 +15,7 @@ This rule warns when a response status that is not cacheable by default does not
 ## Specifications
 
 - [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3): Storing Responses in Caches (the freshness signals a cache requires: Expires, max-age, s-maxage, or a heuristically cacheable status)
-- [RFC 9110 §15.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1): Overview of Status Codes (which status codes are defined as heuristically cacheable)
+- [RFC 9110 §15.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1): Overview of Status Codes — the status codes defined as heuristically cacheable, which is the set a response outside it has to state its own freshness to join
 
 ## Configuration
 

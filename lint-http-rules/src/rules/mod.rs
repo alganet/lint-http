@@ -1550,7 +1550,14 @@ severity = "warn"
         /// same sections — one of them named by two entries, since one sentence
         /// of § 2 says what `immutable` asks and the next says the window it
         /// asks it in.
-        const FLOOR: usize = 48;
+        /// **`cache_control_present` and `status_and_caching_semantics` gave up
+        /// one each**, and the second is the shape worth noticing: it cited
+        /// RFC 9111 § 3 — the sentence saying when a cache may store at all —
+        /// and the entry that replaced it names RFC 9110 § 15.1 instead, the
+        /// list of heuristically cacheable statuses. *A finding can end up
+        /// better cited than its site was*, because a def has to name the
+        /// sentence the defect fails and a site only has to name one nearby.
+        const FLOOR: usize = 46;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

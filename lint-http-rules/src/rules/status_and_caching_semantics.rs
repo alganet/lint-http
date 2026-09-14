@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_FRESHNESS_MISSING, RFC_9110_15_1};
+use crate::violations::ViolationDef;
+
+/// One entry: a status no cache stores by default, saying nothing about how
+/// long it would be good for.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_FRESHNESS_MISSING];
 
 /// Ensures responses that are not cacheable by default include explicit
 /// freshness information (e.g., `Cache-Control: max-age=...` / `s-maxage=...` or `Expires`).
@@ -18,12 +24,6 @@ const RFC_9111_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("3"),
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
     note: "Storing Responses in Caches (the freshness signals a cache requires: Expires, max-age, s-maxage, or a heuristically cacheable status)",
-};
-const RFC_9110_15_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1",
-    note: "Overview of Status Codes (which status codes are defined as heuristically cacheable)",
 };
 
 impl RuleMeta for StatusAndCachingSemantics {
@@ -47,6 +47,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_3, RFC_9110_15_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -129,7 +133,7 @@ impl Rule for StatusAndCachingSemantics {
             // None of the storability signals §3 requires are present, and the status is not
             // heuristically cacheable — so a cache cannot store this response.
             // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless"
-            Some(self.cited(&RFC_9111_3, ctx.severity, format!(
+            Some(ctx.report_with(&CACHE_CONTROL_FRESHNESS_MISSING, format!(
                     "Response {} is not cacheable by default and lacks explicit freshness information (Cache-Control: max-age/s-maxage or Expires)",
                     status
                 )))
@@ -205,7 +209,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        // Both of this subject's "said nothing" entries default to `info`:
+        // nothing is broken, and what the finding reports is which of the two
+        // opposite outcomes the silence bought.
+        let found = v.expect("a finding");
+        assert_eq!(found.violation, "cache_control_freshness_missing");
+        assert_eq!(found.severity, crate::lint::Severity::Info);
         Ok(())
     }
 
