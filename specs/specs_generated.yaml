@@ -5467,7 +5467,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 206
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 161
+      line: 165
     - file: lint-http-rules/src/violations/field.rs
       line: 236
   - label: allow_header_method_tokens_valid (2)
@@ -6170,8 +6170,8 @@ sources:
       line: 61
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 208
-    - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 184
+    - file: lint-http-rules/src/violations/location.rs
+      line: 134
   - label: context_fields_direction (8)
     section: § 10.2.3
     snippet: Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request.
@@ -8043,45 +8043,45 @@ sources:
     snippet: For 201 (Created) responses, the Location value refers to the primary resource created by the request.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 28
+      line: 37
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 151
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 88
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 33
+      line: 39
   - label: location_on_redirect_present (2)
     section: § 10.2.2
     snippet: For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 242
+      line: 225
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 30
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 43
+      line: 49
   - label: location_on_redirect_present (3)
     section: § 15.3.2
     snippet: The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 27
+      line: 36
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 137
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 89
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 34
+      line: 40
   - label: location_on_redirect_present (4)
     section: § 15.4
     snippet: If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 251
+      line: 234
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 78
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 45
+      line: 51
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
       line: 190
   - label: location_on_redirect_present (5)
@@ -8089,13 +8089,13 @@ sources:
     snippet: For request methods other than HEAD, the server SHOULD generate content in the 300 response containing a list of representation metadata and URI reference(s) from which the user or user agent can choose the one most preferred.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 38
+      line: 47
   - label: location_on_redirect_present (6)
     section: § 15.4.1
     snippet: If the server has a preferred choice, the server SHOULD generate a Location header field containing a preferred choice's URI reference.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 37
+      line: 46
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 34
   - label: location_on_redirect_present (7)
@@ -8103,35 +8103,37 @@ sources:
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 43
+      line: 52
   - label: location_on_redirect_present (8)
     section: § 15.4.3
     snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 50
+      line: 59
   - label: location_on_redirect_present (9)
     section: § 15.4.4
     snippet: The 303 (See Other) status code indicates that the server is redirecting the user agent to a different resource, as indicated by a URI in the Location header field, which is intended to provide an indirect response to the original request.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 58
+      line: 67
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 47
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
       line: 44
+    - file: lint-http-rules/src/violations/location.rs
+      line: 100
   - label: location_on_redirect_present (10)
     section: § 15.4.8
     snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 68
+      line: 77
   - label: location_on_redirect_present (11)
     section: § 15.4.9
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
     cited_by:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
-      line: 74
+      line: 83
   - label: max_forwards_numeric
     section: § 7.6.2
     snippet: A recipient MAY ignore a Max-Forwards header field received with any other request methods.
@@ -8673,7 +8675,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 77
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 44
+      line: 50
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 145
   - label: redirect_chain_valid (4)
@@ -8743,13 +8745,13 @@ sources:
     snippet: The type of relationship is defined by the combination of request method and status code semantics.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 168
+      line: 172
   - label: redirect_status_and_location_valid (2)
     section: § 15
     snippet: A client that receives a response with an invalid status code SHOULD process the response as if it had a 5xx (Server Error) status code.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
-      line: 53
+      line: 59
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 157
   - label: referer_uri_valid

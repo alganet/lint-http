@@ -4,6 +4,15 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::location::{
+    LOCATION_MISSING, RFC_9110_15_4_2, RFC_9110_15_4_3, RFC_9110_15_4_4, RFC_9110_15_4_8,
+    RFC_9110_15_4_9,
+};
+use crate::violations::ViolationDef;
+
+/// One entry, and the sentence behind it is whichever the status matched — so
+/// the entry names all five and the message names the one.
+static DECLARED: &[&ViolationDef] = &[&LOCATION_MISSING];
 
 pub struct LocationOnRedirectPresent;
 
@@ -105,36 +114,6 @@ const RFC_9110_15_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.1",
     note: "300 Multiple Choices: the SHOULD applies only if the server has a preferred choice, so this rule does not report a 300",
 };
-const RFC_9110_15_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2",
-    note: "301 Moved Permanently: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
-};
-const RFC_9110_15_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3",
-    note: "302 Found: the server SHOULD generate a Location header field containing a URI reference for the different URI",
-};
-const RFC_9110_15_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4",
-    note: "303 See Other: the status is defined as a redirection to the resource indicated by a URI in the Location header field",
-};
-const RFC_9110_15_4_8: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4.8"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8",
-    note: "307 Temporary Redirect: the server SHOULD generate a Location header field containing a URI reference for the different URI",
-};
-const RFC_9110_15_4_9: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.4.9"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.9",
-    note: "308 Permanent Redirect: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
-};
 const RFC_9110_15_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.2"),
@@ -173,6 +152,10 @@ severity = "warn"
             RFC_9110_15_4_9,
             RFC_9110_15_3_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -253,11 +236,12 @@ impl Rule for LocationOnRedirectPresent {
                 return None;
             }
 
-            // No cite of its own: what makes this a violation is the sentence
+            // No cite of its own, and the entry names all five sections for the
+            // same reason: what makes this a violation is the sentence
             // `location_asked_for` matched, cited at the branch that matched it and
             // carried into the message from there.
-            Some(self.violation(
-                ctx.severity,
+            Some(ctx.report_with(
+                &LOCATION_MISSING,
                 format!(
                     "Response with status {status} carries no Location header field, and {reason}. \
                      A user agent has no target to redirect to",
@@ -295,6 +279,25 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// All five statuses report one entry, and each message names the section
+    /// it was read from — which is what the entry naming five sections buys: no
+    /// finding carries a reference to another status's sentence.
+    #[rstest]
+    #[case(301, "§15.4.2")]
+    #[case(302, "§15.4.3")]
+    #[case(303, "§15.4.4")]
+    #[case(307, "§15.4.8")]
+    #[case(308, "§15.4.9")]
+    fn one_entry_over_five_statuses_each_naming_its_own_section(
+        #[case] status: u16,
+        #[case] section: &str,
+    ) {
+        let found = judge(&response_with(status, None)).expect("a finding");
+        assert_eq!(found.violation, "location_missing");
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
+        assert!(found.message.contains(section), "{}", found.message);
     }
 
     /// One case per arm of `location_asked_for`, in both directions.
