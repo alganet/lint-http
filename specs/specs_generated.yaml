@@ -11048,20 +11048,20 @@ sources:
     section: § 7.2.7
     snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
     cited_by:
-    - file: lint-http-rules/src/rules/http3_max_push_id.rs
-      line: 120
+    - file: lint-http-rules/src/violations/http3_max_push_id.rs
+      line: 72
   - label: http3_max_push_id (2)
     section: § 7.2.7
     snippet: A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED.
     cited_by:
-    - file: lint-http-rules/src/rules/http3_max_push_id.rs
-      line: 104
+    - file: lint-http-rules/src/violations/http3_max_push_id.rs
+      line: 52
   - label: http3_max_push_id (3)
     section: § 7.2.7
     snippet: The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame
     cited_by:
     - file: lint-http-rules/src/rules/http3_max_push_id.rs
-      line: 151
+      line: 153
   - label: http3_pseudo_headers_valid
     section: § 4.3.1
     snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
@@ -11203,7 +11203,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 128
     - file: lint-http-rules/src/rules/http3_max_push_id.rs
-      line: 94
+      line: 100
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
     section: § 4.3.2
     snippet: HTTP/3 does not define a way to carry the version or reason phrase that is included in an HTTP/1.1 status line.

@@ -69,6 +69,7 @@ pub mod expires;
 pub mod ext_value;
 pub mod field;
 pub mod host;
+pub mod http3_max_push_id;
 pub mod http_date;
 pub mod if_range;
 pub mod keep_alive;
@@ -483,7 +484,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 357;
+        const FLOOR: usize = 359;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

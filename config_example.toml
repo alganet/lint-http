@@ -1759,6 +1759,14 @@ severity = "error"
 # A Host field value carries the userinfo subcomponent
 severity = "error"
 
+[violations.http3_max_push_id_forbidden]
+# A server sent a MAX_PUSH_ID frame
+severity = "error"
+
+[violations.http3_max_push_id_invalid]
+# A MAX_PUSH_ID reduces a maximum already set on the connection
+severity = "error"
+
 [violations.http_date_malformed]
 # Timestamp derives from no HTTP-date format
 severity = "warn"

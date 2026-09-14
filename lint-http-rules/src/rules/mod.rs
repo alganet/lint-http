@@ -1490,7 +1490,11 @@ severity = "warn"
         /// findings become four. What stayed in the rules is the *recipient's*
         /// MUST beside the wording that states it, and the production that says
         /// what a zero means, which are the rules' own statements.
-        const FLOOR: usize = 69;
+        /// **`http3_max_push_id` gave up two**, both § 7.2.7 and both from the
+        /// only rule that reads that frame; the two entries replacing them name
+        /// that same section, so the fall is two sites becoming two defs with
+        /// the same reference — this list's most common shape.
+        const FLOOR: usize = 67;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
