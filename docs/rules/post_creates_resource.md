@@ -26,7 +26,7 @@ RFC 9110 §9.3.3 asks an origin server that has created one or more resources wh
 
 ## Specifications
 
-- [RFC 9110 §9.3.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3): POST: the SHOULD this rule enforces — an origin server that created one or more resources sends a 201 containing a Location field that provides an identifier for the primary resource created
+- [RFC 9110 §9.3.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3): POST — the SHOULD asking an origin server that created a resource to answer 201 with a Location naming it, which is the sentence that makes a 201 without one a finding
 - [RFC 9110 §15.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2): 201 Created: the status indicates one or more new resources were created, which is what makes §9.3.3's condition observable, and the primary resource is identified by the Location field or, if none is received, by the target URI
 - [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2): Location: on a 201 (Created) response the value refers to the primary resource created by the request. The field's relationship to any other status is left to "the combination of request method and status code semantics", which is why a Location on a non-201 is not reported here
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): The method token is case-sensitive, which is why `POST` is matched exactly and a lowercase `post` is not a POST

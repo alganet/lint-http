@@ -22,7 +22,7 @@ Reports a `PATCH` request whose `Content-Type` names a patch document format tha
 
 ## Specifications
 
-- [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): The `Accept-Patch` header — the patch document formats a server accepts, advertised per resource and readable from a response to any method. This reference said §2.2, which is Error Handling
+- [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): `Accept-Patch`: `1#media-type`, defined as a response header, and the SHOULD that asks for it in the OPTIONS response of any resource supporting PATCH
 - [RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2): Error handling — `415 (Unsupported Media Type)` is what a server may answer a format it does not support with, which is the consequence this rule anticipates rather than a requirement it enforces
 - [RFC 9110 §12.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.3): Request content negotiation — enrols `Accept-Patch` among the preferences a server sends to influence the content of subsequent requests, which is what lets §12.4.3 reach it
 - [RFC 9110 §12.4.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.3): Wildcard values — a field has one only where its own definition indicates one, and where none is present the values not mentioned are considered unacceptable. Both halves of this rule

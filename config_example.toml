@@ -1063,6 +1063,10 @@ severity = "info"
 # Response sends a media type the request did not accept
 severity = "info"
 
+[violations.accept_patch_ignored]
+# A PATCH sends a format the resource never advertised
+severity = "warn"
+
 [violations.accept_patch_missing]
 # A response that should name the patch formats names none
 severity = "warn"
@@ -2099,12 +2103,24 @@ severity = "warn"
 # A media range is written where one media type belongs
 severity = "warn"
 
+[violations.method_head_conflicting]
+# A HEAD response disagrees with the GET it stands in for
+severity = "warn"
+
 [violations.method_options_capabilities_missing]
 # A successful OPTIONS answers with none of the capabilities it was asked for
 severity = "info"
 
 [violations.method_options_content_type_missing]
 # An OPTIONS request carries content without saying what it is
+severity = "warn"
+
+[violations.method_patch_content_type_missing]
+# A PATCH request does not name its patch document format
+severity = "warn"
+
+[violations.method_post_location_missing]
+# A 201 answering a POST does not say what it created
 severity = "warn"
 
 [violations.method_trace_content_forbidden]
