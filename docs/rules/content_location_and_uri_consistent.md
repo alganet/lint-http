@@ -18,10 +18,10 @@ For 2xx responses the rule additionally compares the value against the request t
 
 ## Specifications
 
-- [RFC 9110 §8.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7): Content-Location: the grammar, and what a value equal to or different from the target URI means. Attaches no requirement to a difference, which is why the mismatch report is an advisory
-- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative
+- [RFC 9110 §8.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7): Content-Location — `absolute-URI / partial-URI`, the three meanings a value differing from the target URI carries, and the sentence saying such a claim can only be trusted between identifiers with one resource owner, which HTTP cannot determine
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): Field Values: singleton fields, and the US-ASCII range field values are constrained to
-- [RFC 9110 §4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1): URI References: a `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF production is what says which forms it allows — the sentence behind reporting a fragment in this field
+- [RFC 9110 §4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1): URI References — `partial-URI` is the rule for protocol elements carrying a relative URI but no fragment, and an element's own ABNF says which forms of reference it allows
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The sender MUST NOT behind the fragment finding: unlike Referer's, this field's section names no component, so a fragment is a protocol element matching no ABNF rule and nothing more
 - [RFC 3986 §4.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-4.3): Absolute URI: the form without a fragment identifier — the other half of the alternation, saying the same thing about its half
 - [RFC 3986 §5.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-5.2): Relative Resolution: the transform, merge and remove_dot_segments routines used to convert a partial-URI to absolute form before comparing it
