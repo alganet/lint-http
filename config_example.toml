@@ -2199,6 +2199,10 @@ severity = "error"
 # A request-target carries whitespace
 severity = "error"
 
+[violations.retry_after_redundant]
+# Retry-After is sent on a status no document pairs it with
+severity = "info"
+
 [violations.sec_websocket_accept_conflicting]
 # Sec-WebSocket-Accept is not the value the request's key derives
 severity = "error"
