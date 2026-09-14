@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_NO_CACHE_IGNORED, RFC_9111_5_2_2_4};
+use crate::violations::ViolationDef;
+
+/// One entry: a response the unqualified directive said to revalidate,
+/// reused without a conditional request.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_NO_CACHE_IGNORED];
 
 /// Ensure that responses marked `no-cache` are not reused without performing
 /// a conditional revalidation when a validator is available.
@@ -38,12 +44,6 @@ pub struct NoCacheRevalidation;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_2_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.2.2.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.4",
-    note: "`no-cache`",
-};
 const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("4.3"),
@@ -72,6 +72,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_5_2_2_4, RFC_9111_4_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -133,7 +137,7 @@ impl Rule for NoCacheRevalidation {
 
             // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
             if !has_conditional {
-                return Some(self.cited(&RFC_9111_5_2_2_4, ctx.severity, "Possible reuse of response marked 'no-cache' without conditional revalidation: subsequent request lacked If-None-Match/If-Modified-Since despite earlier no-cache response with a validator".into()));
+                return Some(ctx.report_with(&CACHE_CONTROL_NO_CACHE_IGNORED, "Possible reuse of response marked 'no-cache' without conditional revalidation: subsequent request lacked If-None-Match/If-Modified-Since despite earlier no-cache response with a validator".into()));
             }
 
             None
@@ -263,8 +267,13 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("no-cache"));
+        // The entry an operator configures, and the ending that says who is
+        // at fault: the response stated the directive correctly and a cache
+        // did not honour it.
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "cache_control_no_cache_ignored");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert!(v.message.contains("no-cache"));
     }
 
     #[test]

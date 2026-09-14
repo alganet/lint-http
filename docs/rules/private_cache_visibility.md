@@ -16,7 +16,7 @@ The rule relies on a cross-client history; the engine handles this by scoping th
 
 ## Specifications
 
-- [RFC 9111 §5.2.2.7](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7): `private` — a shared cache MUST NOT store an unqualified-private response
+- [RFC 9111 §5.2.2.7](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7): private — the unqualified form's prohibition on a shared cache storing the response at all, the argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified private
 
 ## Configuration
 

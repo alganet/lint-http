@@ -1255,13 +1255,29 @@ severity = "info"
 # A Cache-Control freshness directive is given more than one value
 severity = "warn"
 
+[violations.cache_control_must_revalidate_ignored]
+# A stale must-revalidate response is reused without validation
+severity = "warn"
+
 [violations.cache_control_no_cache_argument_empty]
 # Cache-Control no-cache is qualified by no field name
 severity = "info"
 
+[violations.cache_control_no_cache_ignored]
+# A no-cache response is reused without being revalidated
+severity = "warn"
+
+[violations.cache_control_no_store_ignored]
+# A validator from a no-store response comes back on a later request
+severity = "warn"
+
 [violations.cache_control_private_argument_empty]
 # Cache-Control private is qualified by no field name
 severity = "info"
+
+[violations.cache_control_private_ignored]
+# A validator from a private response reaches a second client
+severity = "warn"
 
 [violations.cache_control_redundant]
 # A reuse directive sits on a response no cache may select

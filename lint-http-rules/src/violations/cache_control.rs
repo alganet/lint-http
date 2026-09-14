@@ -70,7 +70,7 @@ pub const RFC_9111_5_2_2_4: SpecRef = SpecRef {
     spec: "RFC 9111",
     section: Some("5.2.2.4"),
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.4",
-    note: "no-cache — argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified no-cache",
+    note: "no-cache — the unqualified form's prohibition on reuse without forwarding for validation, the argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified no-cache",
 };
 
 /// The `private` directive, written to the same shape: an argument syntax, a
@@ -80,7 +80,7 @@ pub const RFC_9111_5_2_2_7: SpecRef = SpecRef {
     spec: "RFC 9111",
     section: Some("5.2.2.7"),
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7",
-    note: "private — argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified private",
+    note: "private — the unqualified form's prohibition on a shared cache storing the response at all, the argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified private",
 };
 
 /// Calculating Cache Keys with the Vary Header Field: what a `Vary: *` does to
@@ -90,6 +90,14 @@ pub const RFC_9111_4_1: SpecRef = SpecRef {
     section: Some("4.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
     note: "Calculating Cache Keys with the Vary Header Field — a `Vary: *` never matches, so no stored response of that resource can be selected and a directive advertising reuse has nothing to act on",
+};
+
+/// The `must-revalidate` response directive.
+pub const RFC_9111_5_2_2_2: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2",
+    note: "`must-revalidate` — once the response is stale, a cache MUST NOT reuse it until it has been successfully validated by the origin",
 };
 
 defects! {
@@ -216,6 +224,80 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_4_1],
+    }
+
+    /// A validator from a `no-store` response used on a later conditional
+    /// request.
+    ///
+    /// **One entry, two pieces of evidence** — an `ETag` or a `Last-Modified`
+    /// carried forward — because which validator gave it away is a fact about
+    /// what the response happened to carry, not about the defect: something
+    /// kept part of a response the directive said to keep no part of. 2.226's
+    /// line, at a cache instead of at a body.
+    ///
+    /// **The finding is about a store this proxy cannot see**, and reconstructs
+    /// it from the only evidence on the wire: a validator can only be sent back
+    /// by a client that kept the response it came from. That makes it a
+    /// heuristic about a third party rather than a claim about either endpoint,
+    /// which is why the message names the value it recognised.
+    ///
+    // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
+    CACHE_CONTROL_NO_STORE_IGNORED = {
+        id: "cache_control_no_store_ignored",
+        title: "A validator from a no-store response comes back on a later request",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2_2_5],
+    }
+
+    /// A stale response carrying `must-revalidate`, reused without a
+    /// conditional request.
+    ///
+    /// The directive's whole content is what happens *after* the response goes
+    /// stale, so freshness is the antecedent and the finding needs both: an age
+    /// past the freshness lifetime, and a reuse that carried no validator.
+    ///
+    // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
+    CACHE_CONTROL_MUST_REVALIDATE_IGNORED = {
+        id: "cache_control_must_revalidate_ignored",
+        title: "A stale must-revalidate response is reused without validation",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2_2_2],
+    }
+
+    /// A response marked `no-cache` reused without forwarding the later request
+    /// for validation.
+    ///
+    /// **The unqualified form is the one this entry is about.** § 5.2.2.4's
+    /// qualified form — an argument listing field names — permits a cache to
+    /// use the response, so a finding against it would report a permission.
+    ///
+    // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
+    CACHE_CONTROL_NO_CACHE_IGNORED = {
+        id: "cache_control_no_cache_ignored",
+        title: "A no-cache response is reused without being revalidated",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2_2_4],
+    }
+
+    /// A validator from an unqualified-`private` response arriving from a
+    /// different client.
+    ///
+    /// The directive says the response is intended for a single user, so a
+    /// shared cache must not store it at all — and a validator reaching a
+    /// second client is the shape that shows one did. Like the `no-store`
+    /// entry, this is a reconstruction of a store nobody here can see, and the
+    /// second client is the whole of the evidence.
+    ///
+    // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
+    CACHE_CONTROL_PRIVATE_IGNORED = {
+        id: "cache_control_private_ignored",
+        title: "A validator from a private response reaches a second client",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2_2_7],
     }
 
 }

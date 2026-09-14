@@ -1538,7 +1538,14 @@ severity = "warn"
         /// the entry holding it names that section — while the rule beside it,
         /// which cited nothing, now carries the same section from the entry it
         /// declares on a different subject.
-        const FLOOR: usize = 57;
+        /// **The four cache-enforcement rules gave up six between them** —
+        /// `no_store_enforced` two, `private_cache_visibility` two,
+        /// `must_revalidate_enforced` and `no_cache_revalidation` one each —
+        /// and the four entries that replaced them name the same four
+        /// directive sections. This is the shape the list exists to
+        /// distinguish from a loss, at its largest so far: six sites become
+        /// four defs, and every finding keeps the reference it had.
+        const FLOOR: usize = 51;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
