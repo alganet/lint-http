@@ -4,6 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::method::{
+    METHOD_TRACE_CONTENT_FORBIDDEN, METHOD_TRACE_DISCLOSURE_FORBIDDEN, RFC_9110_9_3_8,
+};
+use crate::violations::ViolationDef;
+
+/// The section's two client prohibitions, kept apart because the sender's
+/// mistake and the repair differ.
+static DECLARED: &[&ViolationDef] = &[
+    &METHOD_TRACE_CONTENT_FORBIDDEN,
+    &METHOD_TRACE_DISCLOSURE_FORBIDDEN,
+];
 
 /// Report a TRACE request that carries what § 9.3.8 forbids it to carry:
 /// content, or a field holding the data that section names when it says a
@@ -54,12 +65,6 @@ fn carries_a_value(headers: &hyper::HeaderMap, name: &str) -> bool {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_9_3_8: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.8"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8",
-    note: "TRACE — the two client `MUST NOT`s this rule reports, the example naming credentials and cookies, and the `SHOULD` to reflect the message, which is addressed to a recipient no message identifies",
-};
 const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("9.1"),
@@ -121,6 +126,10 @@ severity = "warn"
             RFC_6265_4_2_1,
             RFC_9110_B_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -185,7 +194,7 @@ impl Rule for TraceMethodEcho {
             &tx.request.headers,
             tx.request.body_length,
         ) {
-            out.push(self.cited(&RFC_9110_9_3_8, ctx.severity, format!(
+            out.push(ctx.report_with(&METHOD_TRACE_CONTENT_FORBIDDEN, format!(
                         "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"
                     )));
         }
@@ -205,7 +214,7 @@ impl Rule for TraceMethodEcho {
         // disclosed by the same loop-back. Naming them together is what an
         // operator acts on — this request must not have been sent as it was.
         if !present.is_empty() {
-            out.push(self.violation(ctx.severity, format!(
+            out.push(ctx.report_with(&METHOD_TRACE_DISCLOSURE_FORBIDDEN, format!(
                         "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names credentials and cookies as its example",
                         present.join(", ")
                     )));
@@ -263,6 +272,11 @@ mod tests {
             Some(4),
         ));
         assert_eq!(all.len(), 2, "{all:?}");
+        // Two prohibitions from one section, kept apart because the sender's
+        // mistake and the repair differ: a body on a request that may not have
+        // one, and a secret on a request that echoes.
+        assert_eq!(all[0].violation, "method_trace_content_forbidden");
+        assert_eq!(all[1].violation, "method_trace_disclosure_forbidden");
         assert!(
             all[0].message.contains("MUST NOT send content"),
             "{}",

@@ -4,6 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::method::{
+    METHOD_OPTIONS_CAPABILITIES_MISSING, METHOD_OPTIONS_CONTENT_TYPE_MISSING, RFC_9110_9_3_7,
+};
+use crate::violations::ViolationDef;
+
+/// The method's own MUST about content, and the open-ended SHOULD about what
+/// a successful answer advertises.
+static DECLARED: &[&ViolationDef] = &[
+    &METHOD_OPTIONS_CONTENT_TYPE_MISSING,
+    &METHOD_OPTIONS_CAPABILITIES_MISSING,
+];
 
 /// Report the two things § 9.3.7 asks of an OPTIONS exchange that a captured
 /// message can answer: a request carrying content with no `Content-Type`, and a
@@ -55,12 +66,6 @@ const ADVERTISED_CAPABILITIES: [(&str, &str, bool); 3] = [
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_9_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.7"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
-    note: "OPTIONS — the client `MUST` about `Content-Type`, the `SHOULD` to advertise, which names a class ending \"including potential extensions not defined by this specification\" rather than a field, the asterisk target that names no resource, and the `Max-Forwards` `MUST NOT` no capture can attribute",
-};
 const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("9.1"),
@@ -127,6 +132,10 @@ severity = "warn"
             RFC_9110_14_3,
             RFC_5789_3_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -217,7 +226,7 @@ impl Rule for OptionsMethodCapabilities {
             tx.request.body_length,
         ) {
             if !tx.request.headers.contains_key("content-type") {
-                out.push(self.cited(&RFC_9110_9_3_7, ctx.severity, format!(
+                out.push(ctx.report_with(&METHOD_OPTIONS_CONTENT_TYPE_MISSING, format!(
                             "OPTIONS request carries content ({evidence}) with no Content-Type header field; RFC 9110 § 9.3.7 says a client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type"
                         )));
             }
@@ -271,7 +280,7 @@ impl Rule for OptionsMethodCapabilities {
             })
         {
             let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
-            out.push(self.violation(ctx.severity, format!(
+            out.push(ctx.report_with(&METHOD_OPTIONS_CAPABILITIES_MISSING, format!(
                         "Successful OPTIONS response ({}) carries none of {}; RFC 9110 § 9.3.7 says a server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource",
                         resp.status,
                         named.join(", ")
@@ -343,6 +352,11 @@ mod tests {
         );
         let all = run_all(&tx);
         assert_eq!(all.len(), 2, "{all:?}");
+        // The method's own MUST, and the open-ended SHOULD ranked below it.
+        assert_eq!(all[0].violation, "method_options_content_type_missing");
+        assert_eq!(all[0].severity, crate::lint::Severity::Warn);
+        assert_eq!(all[1].violation, "method_options_capabilities_missing");
+        assert_eq!(all[1].severity, crate::lint::Severity::Info);
         assert!(
             all[0].message.contains("no Content-Type"),
             "{}",

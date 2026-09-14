@@ -87,6 +87,7 @@ pub mod mailbox;
 pub mod max_forwards;
 pub mod media_range;
 pub mod media_type;
+pub mod method;
 pub mod multipart_body;
 pub mod node;
 pub mod origin_agent_cluster;
@@ -500,7 +501,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 409;
+        const FLOOR: usize = 413;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
