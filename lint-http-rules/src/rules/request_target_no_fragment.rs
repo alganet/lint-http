@@ -4,18 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::request_target::{REQUEST_TARGET_FRAGMENT_FORBIDDEN, RFC_3986_3_5};
+use crate::violations::ViolationDef;
+
+/// One entry: the one URI component a request target never carries.
+static DECLARED: &[&ViolationDef] = &[&REQUEST_TARGET_FRAGMENT_FORBIDDEN];
 
 pub struct RequestTargetNoFragment;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_3986_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("3.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.5",
-    note: "Fragment: indicated by a number sign and terminated by the end of the URI; separated from the rest of the URI before a dereference and resolved solely by the user agent",
-};
 const RFC_3986_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 3986",
     section: Some("2.2"),
@@ -95,6 +94,10 @@ severity = "error"
         ]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -161,11 +164,9 @@ impl Rule for RequestTargetNoFragment {
             // cite(RFC 3986 § 2.2): "If data for a URI component would conflict with a reserved character's purpose as a delimiter, then the conflicting data must be percent-encoded before the URI is formed."
             let hash = target.find('#')?;
 
-            // Read after the finding is certain: parsing the config is several map
-            // probes and a hash of the rule id, where the test above is one scan of
-            // a string the transaction already holds, and every return above this
-            // one ends the rule.
-            let severity = ctx.severity;
+            // The severity is the entry's now, so nothing is read from the
+            // configuration here at all — the deferral this comment used to
+            // explain is gone with the level it deferred.
 
             // A target read back from a capture can hold characters that print as
             // nothing or, worse, print as something else: an escape sequence in a
@@ -223,8 +224,8 @@ impl Rule for RequestTargetNoFragment {
             // cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
             // cite(RFC 9110 § 7.1): "The target URI excludes the reference's fragment component, if any, since fragment identifiers are reserved for client-side processing"
             // cite(RFC 3986 § 3.5): "the fragment identifier is separated from the rest of the URI prior to a dereference, and thus the identifying information within the fragment itself is dereferenced solely by the user agent, regardless of the URI scheme"
-            Some(self.violation(
-                severity,
+            Some(ctx.report_with(
+                &REQUEST_TARGET_FRAGMENT_FORBIDDEN,
                 format!(
                     "Request target '{shown}' carries a fragment identifier, '{fragment}' -- \
                      the number sign and everything after it to the end of the value. A client \
@@ -296,6 +297,10 @@ mod tests {
     fn fragment_is_named(#[case] uri: &str, #[case] expected: &str) {
         let v = judge(uri, "HTTP/1.1").expect("a fragment is reported");
         assert_eq!(v.rule, "request_target_no_fragment");
+        // The one URI component a request target never carries, on every major
+        // version — and a `%23` is path data rather than this finding.
+        assert_eq!(v.violation, "request_target_fragment_forbidden");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
         assert!(
             v.message.contains(&format!("'{expected}'")),
             "the fragment itself belongs in the finding: {}",

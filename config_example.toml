@@ -2271,6 +2271,10 @@ severity = "error"
 # A request-target derives from two of the four forms at once
 severity = "warn"
 
+[violations.request_target_fragment_forbidden]
+# A request target carries a fragment identifier
+severity = "warn"
+
 [violations.request_target_malformed]
 # A request-target derives from none of the four forms
 severity = "error"
