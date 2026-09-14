@@ -106,25 +106,29 @@ sources:
     snippet: If values[0] is an ASCII case-insensitive match for "nosniff", then return true.
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 152
+      line: 161
+    - file: lint-http-rules/src/violations/x_content_type_options.rs
+      line: 61
   - label: x_content_type_options_present (2)
     section: § 3.6
     snippet: The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request.
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 176
+      line: 185
   - label: x_content_type_options_present (3)
     section: § 3.6
     snippet: X-Content-Type-Options = "nosniff" ; case-insensitive
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 151
+      line: 160
+    - file: lint-http-rules/src/violations/x_content_type_options.rs
+      line: 42
   - label: x_content_type_options_present (4)
     section: § 3.6.1
     snippet: Only request destinations that are script-like or "style" are considered as any exploits pertain to them.
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 182
+      line: 191
 - label: HTML
   url: https://html.spec.whatwg.org/multipage/browsers.html
   type: text/html

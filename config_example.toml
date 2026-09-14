@@ -2746,3 +2746,11 @@ severity = "warn"
 [violations.weight_missing]
 # Member writes the weight's ';' and no weight after it
 severity = "warn"
+
+[violations.x_content_type_options_invalid]
+# X-Content-Type-Options carries a value that is not nosniff
+severity = "warn"
+
+[violations.x_content_type_options_missing]
+# A response does not ask for its content type to be respected
+severity = "info"

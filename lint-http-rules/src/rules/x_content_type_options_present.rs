@@ -4,6 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::x_content_type_options::{
+    FETCH_3_6, X_CONTENT_TYPE_OPTIONS_INVALID, X_CONTENT_TYPE_OPTIONS_MISSING,
+};
+use crate::violations::ViolationDef;
+
+/// The two things that can be wrong with a field that has one useful value:
+/// another value, or none.
+static DECLARED: &[&ViolationDef] = &[
+    &X_CONTENT_TYPE_OPTIONS_INVALID,
+    &X_CONTENT_TYPE_OPTIONS_MISSING,
+];
 
 pub struct XContentTypeOptionsPresent;
 
@@ -59,12 +70,6 @@ fn parse_x_content_type_options_config(
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const FETCH_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Fetch",
-    section: Some("3.6"),
-    url: "https://fetch.spec.whatwg.org/#x-content-type-options-header",
-    note: "`X-Content-Type-Options`: the conformance value ABNF (`\"nosniff\" ; case-insensitive`) and the determine-nosniff algorithm",
-};
 const MDN_X_CONTENT_TYPE_OPTIONS: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN X-Content-Type-Options",
     section: None,
@@ -106,6 +111,10 @@ content_types = ["text/html", "application/javascript", "application/json"]
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[FETCH_3_6, MDN_X_CONTENT_TYPE_OPTIONS]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -155,7 +164,7 @@ impl Rule for XContentTypeOptionsPresent {
             {
                 let first = xcto.split(',').next().unwrap_or("").trim();
                 if !first.eq_ignore_ascii_case("nosniff") {
-                    return Some(self.cited(&FETCH_3_6, config.severity, format!(
+                    return Some(ctx.report_with(&X_CONTENT_TYPE_OPTIONS_INVALID, format!(
                             "X-Content-Type-Options value '{}' does not enable nosniff (the value must be `nosniff`, case-insensitive)",
                             xcto.trim()
                         )));
@@ -184,10 +193,7 @@ impl Rule for XContentTypeOptionsPresent {
                     && config.content_types.contains(&content_type)
                     && !resp.headers.contains_key("x-content-type-options")
                 {
-                    return Some(self.violation(
-                        config.severity,
-                        "Missing X-Content-Type-Options: nosniff header".into(),
-                    ));
+                    return Some(ctx.report(&X_CONTENT_TYPE_OPTIONS_MISSING));
                 }
             }
             None
@@ -268,11 +274,23 @@ mod tests {
         );
 
         if expect_violation {
-            assert!(violation.is_some());
-            assert_eq!(
-                violation.map(|v| v.message),
-                expected_message.map(|s| s.to_string())
-            );
+            let found = violation.expect("a finding");
+            // Two entries and two levels: a server that wrote the field meant
+            // to opt in and did not, a server that wrote nothing never did.
+            let (id, severity) = if found.message.starts_with("Missing") {
+                (
+                    "x_content_type_options_missing",
+                    crate::lint::Severity::Info,
+                )
+            } else {
+                (
+                    "x_content_type_options_invalid",
+                    crate::lint::Severity::Warn,
+                )
+            };
+            assert_eq!(found.violation, id);
+            assert_eq!(found.severity, severity);
+            assert_eq!(Some(found.message), expected_message.map(|s| s.to_string()));
         } else {
             assert!(violation.is_none());
         }
@@ -414,7 +432,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         );
-        assert!(violation.is_some());
+        // The absent field, at the level an absence no sentence asks about
+        // takes — a server that never wrote it never opted in.
+        let found = violation.expect("a finding");
+        assert_eq!(found.violation, "x_content_type_options_missing");
+        assert_eq!(found.severity, crate::lint::Severity::Info);
         Ok(())
     }
 
