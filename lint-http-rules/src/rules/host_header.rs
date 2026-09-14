@@ -4,10 +4,13 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::host::{HOST_MISSING, HOST_USERINFO_FORBIDDEN, RFC_9110_7_2, RFC_9112_3_2};
 use crate::violations::uri::{
     host_and_port, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
     RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN,
-    URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
+    URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_DELIMITER_MISSING,
+    URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
 
@@ -27,6 +30,10 @@ pub struct HostHeader;
 /// written without its brackets is a value the reader would otherwise have to
 /// guess at.
 static DECLARED: &[&ViolationDef] = &[
+    &HOST_MISSING,
+    &HOST_USERINFO_FORBIDDEN,
+    &FIELD_LINE_DUPLICATED,
+    &URI_HOST_IP_LITERAL_DELIMITER_MISSING,
     &URI_HOST_CLOSING_BRACKET_MISSING,
     &URI_HOST_IP_LITERAL_MALFORMED,
     &URI_HOST_BRACKET_FORBIDDEN,
@@ -63,24 +70,6 @@ fn sends_authority_as_control_data(tx: &crate::http_transaction::HttpTransaction
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("7.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
-    note: "Host and :authority — the grammar, the MUST, and the pseudo-header the MUST excepts. The SHOULD to send Host first is not checked: the capture does not preserve field order.",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order — a sender MUST NOT repeat a field name unless the field is a comma-separated list, and Host is not one",
-};
-const RFC_9112_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
-    note: "Request Target — Host is required in all HTTP/1.1 requests, its value excludes userinfo, and it is empty when the target URI has no authority",
-};
 impl RuleMeta for HostHeader {
     fn id(&self) -> &'static str {
         "host_header"
@@ -186,8 +175,8 @@ impl Rule for HostHeader {
                 if sends_authority_as_control_data(tx) {
                     return None;
                 }
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &HOST_MISSING,
                     "Request carries no Host header field and no :authority pseudo-header".into(),
                 ));
             }
@@ -199,7 +188,7 @@ impl Rule for HostHeader {
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             // cite(RFC 9112 § 3.2): "A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value."
             if host_count > 1 {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                         "{} Host header field lines: the field is not defined as a list, so they are not one value",
                         host_count
                     )));
@@ -243,7 +232,7 @@ impl Rule for HostHeader {
             // field value is neither: it is a `uri-host` and a port.
             // cite(RFC 9112 § 3.2): "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP])."
             if s.contains('@') {
-                return Some(self.cited(&RFC_9112_3_2, ctx.severity, format!(
+                return Some(ctx.report_with(&HOST_USERINFO_FORBIDDEN, format!(
                         "Host field value '{}' carries a userinfo subcomponent and its '@' delimiter",
                         s
                     )));
@@ -258,7 +247,7 @@ impl Rule for HostHeader {
             if s.parse::<std::net::Ipv6Addr>().is_ok()
                 || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(s)
             {
-                return Some(self.cited(&RFC_3986_3_2_2, ctx.severity, format!(
+                return Some(ctx.report_with(&URI_HOST_IP_LITERAL_DELIMITER_MISSING, format!(
                         "IPv6 literal '{}' in a Host field value must be enclosed in square brackets",
                         s
                     )));
@@ -312,6 +301,31 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .map(|v| v.message)
+    }
+
+    /// The four findings that are the *field's* rather than a borrowed
+    /// production's, each pinned to its entry. Two of them are HTTP/1.1's own
+    /// half of a requirement RFC 9113 and RFC 9114 state for `:authority`, and
+    /// the entries are separate for the reason `violations/host.rs` gives.
+    #[rstest]
+    #[case::no_authority(vec![], "host_missing")]
+    #[case::userinfo(vec![("host", "user@example.com")], "host_userinfo_forbidden")]
+    #[case::two_lines(vec![("host", "a.example"), ("host", "b.example")], "field_line_duplicated")]
+    #[case::bare_ipv6(vec![("host", "fe80::1")], "uri_host_ip_literal_delimiter_missing")]
+    fn each_finding_of_the_field_names_its_entry(
+        #[case] headers: Vec<(&str, &str)>,
+        #[case] id: &str,
+    ) {
+        let rule = HostHeader;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&headers);
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap_or_else(|| panic!("a finding for {headers:?}"));
+        assert_eq!(found.violation, id, "{headers:?}");
     }
 
     #[rstest]

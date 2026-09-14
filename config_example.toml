@@ -1723,6 +1723,14 @@ severity = "info"
 # A response context field is written in a request
 severity = "info"
 
+[violations.host_missing]
+# A request names its authority in neither Host nor :authority
+severity = "error"
+
+[violations.host_userinfo_forbidden]
+# A Host field value carries the userinfo subcomponent
+severity = "error"
+
 [violations.http_date_malformed]
 # Timestamp derives from no HTTP-date format
 severity = "warn"
@@ -2406,6 +2414,10 @@ severity = "warn"
 [violations.uri_host_empty]
 # An http or https reference names no host
 severity = "error"
+
+[violations.uri_host_ip_literal_delimiter_missing]
+# An IPv6 address is written without the brackets that mark it
+severity = "warn"
 
 [violations.uri_host_ip_literal_malformed]
 # Host brackets something that is not an IP literal

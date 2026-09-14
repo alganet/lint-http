@@ -1465,7 +1465,13 @@ severity = "warn"
         /// names § 5.3 and § 5.4 together, so that finding trades its citation
         /// for an entry naming both sentences it fails — the shape 2.204's
         /// note describes, seen once more.
-        const FLOOR: usize = 76;
+        /// **`host_header` gave up two and every one of its four findings is
+        /// cited now.** § 9112 3.2 and RFC 3986 § 3.2.2 came off two sites and
+        /// went onto two entries that name them, while the two findings beside
+        /// them — a request with no authority anywhere, and a repeated field
+        /// line — carried nothing and now carry § 7.2 and § 5.3. A rule can
+        /// leave this count and arrive with more references than it had.
+        const FLOOR: usize = 74;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
