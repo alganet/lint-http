@@ -898,7 +898,10 @@ severity = "warn"
         let mut temp = crate::temp_files::TempFiles::new();
         use lint_http_core::test_helpers::make_test_transaction_with_response;
 
-        // The config rates the rule `warn`, so an `error` gate filters it out…
+        // The finding this produces is `cache_control_missing`, whose entry
+        // defaults to `info` — the level is the defect's, not the rule's, so
+        // the `[rules.*]` table in the config no longer decides it. A `warn`
+        // gate filters it out…
         let cfg = write_cache_control_config(&mut temp).await?;
         let caps =
             write_capture_file(&[make_test_transaction_with_response(200, &[])], &mut temp).await?;
@@ -907,17 +910,17 @@ severity = "warn"
             cfg.to_str().unwrap(),
             caps.to_str().unwrap(),
             OutputFormat::Text,
-            lint::Severity::Error,
+            lint::Severity::Warn,
         )
         .await?;
-        assert_eq!(found, 0, "warn finding must not survive an error gate");
+        assert_eq!(found, 0, "info finding must not survive a warn gate");
 
-        // …while a `warn` gate keeps it.
+        // …while an `info` gate keeps it.
         let found = lint_app(
             cfg.to_str().unwrap(),
             caps.to_str().unwrap(),
             OutputFormat::Text,
-            lint::Severity::Warn,
+            lint::Severity::Info,
         )
         .await?;
         assert_eq!(found, 1);

@@ -4,18 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_MISSING, RFC_9111_4_2_2};
+use crate::violations::ViolationDef;
+
+/// One entry: a lifetime left to be guessed, separately, by every cache.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_MISSING];
 
 pub struct CacheControlPresent;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_4_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("4.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.2",
-    note: "Calculating Heuristic Freshness — without an explicit expiration time a cache MAY guess one, which is what this rule asks the origin to avoid",
-};
 const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("5.2"),
@@ -44,6 +43,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_4_2_2, RFC_9111_5_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -93,11 +96,7 @@ impl Rule for CacheControlPresent {
                 // same advice applies to those too. 200 is the overwhelmingly common case and
                 // the least noisy to flag; widening the set is a behavior change, left out.
                 if resp.status == 200 && !resp.headers.contains_key("cache-control") {
-                    return Some(self.cited(
-                        &RFC_9111_4_2_2,
-                        ctx.severity,
-                        "Response 200 without Cache-Control header".into(),
-                    ));
+                    return Some(ctx.report(&CACHE_CONTROL_MISSING));
                 }
             }
             None
@@ -141,7 +140,12 @@ mod tests {
         );
 
         if expect_violation {
-            assert!(violation.is_some());
+            // Both of this subject's "said nothing" entries default to `info`:
+            // nothing is broken, and what the finding reports is which of the two
+            // opposite outcomes the silence bought.
+            let found = violation.clone().expect("a finding");
+            assert_eq!(found.violation, "cache_control_missing");
+            assert_eq!(found.severity, crate::lint::Severity::Info);
             assert_eq!(
                 violation.map(|v| v.message),
                 expected_message.map(|s| s.to_string())
