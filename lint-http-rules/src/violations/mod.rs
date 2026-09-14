@@ -120,6 +120,7 @@ pub mod vary;
 pub mod via;
 pub mod warning;
 pub mod websocket_frame;
+pub mod x_content_type_options;
 
 /// One reportable defect.
 ///
@@ -495,7 +496,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 401;
+        const FLOOR: usize = 403;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

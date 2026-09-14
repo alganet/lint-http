@@ -1577,7 +1577,10 @@ severity = "warn"
         /// `etag_or_last_modified_present` all reported through
         /// `self.violation`, so the count does not move, and two of their three
         /// findings are cited now where none was.
-        const FLOOR: usize = 41;
+        /// **`x_content_type_options_present` gave up its one**, Fetch § 3.6,
+        /// and both of its entries name that section — so the finding beside
+        /// the cited one, which cited nothing, is cited too.
+        const FLOOR: usize = 40;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
