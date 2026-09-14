@@ -19,8 +19,8 @@ Identifiers outside the reserved set — including the `0x1f * N + 0x21` greasin
 
 ## Specifications
 
-- [RFC 9114 §7.2.4](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4): SETTINGS
-- [RFC 9114 §7.2.4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4.1): Defined SETTINGS Parameters
+- [RFC 9114 §7.2.4](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4): SETTINGS — the frame each peer sends first on its control stream and never again, and the prohibition on one identifier occurring twice inside it
+- [RFC 9114 §7.2.4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4.1): Defined SETTINGS Parameters — the reserved identifiers must not be sent, and their receipt is a connection error of type H3_SETTINGS_ERROR
 - [RFC 9114 §11.2.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-11.2.2): Settings Parameters (Table 3: the Reserved rows)
 
 ## Configuration

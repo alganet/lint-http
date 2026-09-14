@@ -11108,42 +11108,42 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 260
+  - label: http3_settings
+    section: § 7.2.4
+    snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
+    cited_by:
+    - file: lint-http-rules/src/violations/http3_settings.rs
+      line: 60
+  - label: http3_settings (2)
+    section: § 7.2.4
+    snippet: The same setting identifier MUST NOT occur more than once in the SETTINGS frame
+    cited_by:
+    - file: lint-http-rules/src/violations/http3_settings.rs
+      line: 99
+  - label: http3_settings (3)
+    section: § 7.2.4.1
+    snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
+    cited_by:
+    - file: lint-http-rules/src/violations/http3_settings.rs
+      line: 80
   - label: http3_settings_frame
     section: § 11.2.2
     snippet: The entries in Table 3 are registered by this document
     cited_by:
     - file: lint-http-rules/src/rules/http3_settings_frame.rs
-      line: 27
+      line: 40
   - label: http3_settings_frame (2)
-    section: § 7.2.4
-    snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
-    cited_by:
-    - file: lint-http-rules/src/rules/http3_settings_frame.rs
-      line: 137
-  - label: http3_settings_frame (3)
     section: § 7.2.4
     snippet: An implementation MUST ignore any parameter with an identifier it does not understand
     cited_by:
     - file: lint-http-rules/src/rules/http3_settings_frame.rs
-      line: 196
-  - label: http3_settings_frame (4)
+      line: 189
+  - label: http3_settings_frame (3)
     section: § 7.2.4
     snippet: SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream
     cited_by:
     - file: lint-http-rules/src/rules/http3_settings_frame.rs
-      line: 131
-  - label: http3_settings_frame (5)
-    section: § 7.2.4
-    snippet: The same setting identifier MUST NOT occur more than once in the SETTINGS frame
-    cited_by:
-    - file: lint-http-rules/src/rules/http3_settings_frame.rs
-      line: 179
-  - label: http3_settings_frame (6)
-    section: § 7.2.4.1
-    snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
-    cited_by:
-    - file: lint-http-rules/src/rules/http3_settings_frame.rs
-      line: 160
+      line: 136
   - label: http3_status_code_valid
     section: § 4.5
     snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
@@ -11187,7 +11187,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 125
     - file: lint-http-rules/src/rules/http3_settings_frame.rs
-      line: 120
+      line: 125
   - label: lint-http-proxy/src/h3_instrument.rs (3)
     section: § 7.2.6
     snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
