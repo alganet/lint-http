@@ -217,6 +217,49 @@ pub const RFC_9110_15_3_1: SpecRef = SpecRef {
     note: "200 (OK): a 200 is expected to contain content \"unless the message framing explicitly indicates that the content has zero length\" — the reported state is that exception, not a breach — and the 204 advice is an \"ought to\" conditioned on the request preferring no content, which is not observable",
 };
 
+/// Informational 1xx: the sentence that ends the response at its header
+/// section.
+pub const RFC_9110_15_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
+    note: "Informational 1xx — \"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers\"",
+};
+
+/// 204 No Content: the same sentence, written again for this status.
+pub const RFC_9110_15_3_5: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5",
+    note: "204 (No Content) — the same sentence, written again for this status",
+};
+
+/// Content Semantics: the one sentence that names all three bodyless statuses
+/// together.
+pub const RFC_9110_6_4_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1",
+    note: "Content Semantics — the summary that names 1xx, 204 and 304 in one sentence. It is about content, not about header fields; taking it for a rule about fields is what put the 304 in front of two prohibitions that exempt it",
+};
+
+/// Content-Length: forbidden outright on two of the three statuses, permitted
+/// by name on the third.
+pub const RFC_9110_8_6: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+    note: "Content-Length — a MUST NOT on 1xx and 204 at any value, and a MAY on a 304 to a conditional GET. That MAY's own MUST NOT (the value must equal the unsent 200's content length) is undecidable from one exchange and is left unenforced",
+};
+
+/// Transfer-Encoding: HTTP/1.1's prohibition, with the same 304 carve-out.
+pub const RFC_9112_6_1: SpecRef = SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+    note: "Transfer-Encoding — a MUST NOT on 1xx and 204, and a MAY on a 304 to a GET. HTTP/1.1's document, so the check does not run on later versions",
+};
+
 defects! {
     /// A 206 answering a request that named no range. The status code is
     /// defined as a range request being fulfilled, so a response carrying it
@@ -769,6 +812,97 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9110_15_3_1],
+    }
+
+    /// Content octets on a `1xx`, a `204` or a `304`.
+    ///
+    /// **One sentence names all three statuses**, which is why this is one
+    /// entry with one reference where its trailer sibling below needs three:
+    /// § 6.4.1 says of these responses that they do not include content, in one
+    /// breath, and each status then repeats it in its own section.
+    ///
+    /// **`error`, with the four entries of this group, and framing is the
+    /// argument.** RFC 9112 § 6.3 has such a response end at the first empty
+    /// line *regardless of the header fields present* — so octets written after
+    /// it are not content a recipient ignores, they are the beginning of
+    /// whatever it reads next on that connection. The rule reporting this had
+    /// already chosen `error` for itself, and this is the sentence behind that
+    /// choice.
+    ///
+    // cite(RFC 9110 § 6.4.1): "All 1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content."
+    STATUS_CONTENT_FORBIDDEN = {
+        id: "status_content_forbidden",
+        title: "A status that cannot carry content carries some",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_6_4_1],
+    }
+
+    /// A trailer section on a `1xx`, a `204` or a `304`.
+    ///
+    /// **Three sections and no citation on the finding**, the shape
+    /// [`location_missing`](crate::violations::location::LOCATION_MISSING)
+    /// has: § 6.4.1's summary is about content only, and what forbids trailers
+    /// is each status's own sentence — § 15.2, § 15.3.5, § 15.4.5 — so no one
+    /// of them governs a finding about another status, and the message names
+    /// the one in front of the rule.
+    ///
+    /// **What is forbidden is the section, not its members.** The three
+    /// sentences say "content or trailers" and RFC 9112 § 6.3 says "message
+    /// body or trailer section", so an empty trailer section is this finding
+    /// too — a trailer section exists only inside a message body's framing.
+    /// Which fields a trailer section may hold is `trailer_fields_valid`'s.
+    ///
+    // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
+    STATUS_TRAILERS_FORBIDDEN = {
+        id: "status_trailers_forbidden",
+        title: "A status that ends at its header section carries a trailer section",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_15_2, RFC_9110_15_3_5, RFC_9110_15_4_5],
+    }
+
+    /// A `Content-Length` on a `1xx` or a `204`, at any value.
+    ///
+    /// **Presence is the whole test and `0` is not an exception** — which is
+    /// the entry's reason for existing, because `204` with `Content-Length: 0`
+    /// is the form a server writes precisely believing it is being explicit
+    /// about emptiness. No value is parsed here; the field's syntax is
+    /// `content_length_valid`'s.
+    ///
+    /// **The `304` is deliberately outside this entry.** § 8.6 permits the
+    /// field on one by name and gives it a defined meaning, the length of the
+    /// `200` that was not sent — and that permission's own MUST NOT compares
+    /// against octets no capture holds, so it is left unenforced rather than
+    /// reported as though the permission were a defect.
+    ///
+    // cite(RFC 9110 § 8.6): "A server MUST NOT send a Content-Length header field in any response with a status code of 1xx (Informational) or 204 (No Content)."
+    STATUS_CONTENT_LENGTH_FORBIDDEN = {
+        id: "status_content_length_forbidden",
+        title: "A 1xx or 204 carries a Content-Length field",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_8_6],
+    }
+
+    /// A `Transfer-Encoding` on a `1xx` or a `204` over a version that has the
+    /// field.
+    ///
+    /// The same shape as the entry above, one document over and with the same
+    /// `304` carve-out. **The version condition is not in the sentence** — it
+    /// has none — it is in which document the sentence is in: RFC 9112 is
+    /// HTTP/1.1's, and over HTTP/2 and HTTP/3 the field must not appear at all,
+    /// whatever the status, which
+    /// [`field_connection_specific_forbidden`](crate::violations::field) is
+    /// for. Reporting it here as well would be two findings for one field.
+    ///
+    // cite(RFC 9112 § 6.1): "A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content)."
+    STATUS_TRANSFER_ENCODING_FORBIDDEN = {
+        id: "status_transfer_encoding_forbidden",
+        title: "A 1xx or 204 carries a Transfer-Encoding field",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9112_6_1],
     }
 
 }

@@ -2367,6 +2367,14 @@ severity = "warn"
 # A request repeats an expectation a 417 already refused
 severity = "warn"
 
+[violations.status_content_forbidden]
+# A status that cannot carry content carries some
+severity = "error"
+
+[violations.status_content_length_forbidden]
+# A 1xx or 204 carries a Content-Length field
+severity = "error"
+
 [violations.status_invalid]
 # The status code is outside the range 100..599
 severity = "warn"
@@ -2374,6 +2382,14 @@ severity = "warn"
 [violations.status_metadata_redundant]
 # A response that cannot carry content sends representation metadata
 severity = "info"
+
+[violations.status_trailers_forbidden]
+# A status that ends at its header section carries a trailer section
+severity = "error"
+
+[violations.status_transfer_encoding_forbidden]
+# A 1xx or 204 carries a Transfer-Encoding field
+severity = "error"
 
 [violations.strict_transport_security_directive_duplicated]
 # A directive is written more than once in one policy
