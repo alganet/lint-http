@@ -1539,6 +1539,10 @@ severity = "warn"
 # A quoted source expression is written with nothing in it
 severity = "warn"
 
+[violations.content_transfer_encoding_forbidden]
+# A MIME field HTTP does not use survived into an HTTP message
+severity = "warn"
+
 [violations.content_type_charset_missing]
 # A text media type does not say which character encoding it used
 severity = "info"

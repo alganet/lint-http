@@ -4,18 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_transfer_encoding::{
+    CONTENT_TRANSFER_ENCODING_FORBIDDEN, RFC_9112_B_5,
+};
+use crate::violations::ViolationDef;
+
+/// One entry, and the value is not what it is about: the field survived a hop
+/// that was asked to strip it.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_TRANSFER_ENCODING_FORBIDDEN];
 
 pub struct ContentTransferEncodingValid;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9112_B_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("B.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#appendix-B.5",
-    note: "Why the field is reported at all: HTTP does not use Content-Transfer-Encoding, and gateways from MIME-compliant protocols must remove it",
-};
 const RFC_2045_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 2045",
     section: Some("5.1"),
@@ -52,6 +54,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9112_B_5, RFC_2045_5_1, RFC_2045_6_1, RFC_2045_6_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -164,7 +170,7 @@ impl Rule for ContentTransferEncodingValid {
                 let hv = headers.get_all("content-transfer-encoding").iter().next()?;
                 let shown = hv.to_str().unwrap_or("<non-UTF-8>");
                 let detail = describe_value(shown).map(|d| format!("; {}", d));
-                Some(self.cited(&RFC_9112_B_5, ctx.severity, format!(
+                Some(ctx.report_with(&CONTENT_TRANSFER_ENCODING_FORBIDDEN, format!(
                         "Content-Transfer-Encoding: {} present in {}; HTTP does not use this field and a gateway is required to remove it{}",
                         shown.trim(),
                         which,
@@ -232,7 +238,11 @@ mod tests {
             &cfg,
         );
         if expect_violation {
-            assert!(violation.is_some());
+            // One entry however the value reads: what is wrong is that the
+            // field survived a hop that was asked to strip it.
+            let found = violation.expect("a finding");
+            assert_eq!(found.violation, "content_transfer_encoding_forbidden");
+            assert_eq!(found.severity, crate::lint::Severity::Warn);
         } else {
             assert!(violation.is_none());
         }
