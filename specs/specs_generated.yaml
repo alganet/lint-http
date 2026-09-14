@@ -2626,8 +2626,8 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/frame.rs
       line: 30
-    - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
-      line: 159
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 132
   - label: lint-http-proxy/src/proxy/websocket/frame.rs (4)
     section: § 5.3
     snippet: Octet i of the transformed data ("transformed-octet-i") is the XOR of octet i of the original data ("original-octet-i") with octet at index i modulo 4 of the masking key
@@ -2928,30 +2928,46 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 62
-  - label: websocket_frame_masking
+  - label: websocket_frame
+    section: § 5.1
+    snippet: A server MUST NOT mask any frames that it sends to the client.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 84
+  - label: websocket_frame (2)
+    section: § 5.1
+    snippet: To avoid confusing network intermediaries (such as intercepting proxies) and for security reasons that are further discussed in Section 10.3, a client MUST mask all frames that it sends to the server (see Section 5.3 for further details).
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 63
+  - label: the recipient's answer to a bit nothing defines
+    section: § 5.2
+    snippet: If a nonzero value is received and none of the negotiated extensions defines the meaning of such a nonzero value, the receiving endpoint MUST _Fail the WebSocket Connection_.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 110
+  - label: websocket_frame (3)
+    section: § 5.2
+    snippet: MUST be 0 unless an extension is negotiated that defines meanings for non-zero values.
+    cited_by:
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 109
+  - label: the recipient's answer to a masked frame
     section: § 5.1
     snippet: A client MUST close a connection if it detects a masked frame.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_masking.rs
-      line: 150
-  - label: websocket_frame_masking (2)
-    section: § 5.1
-    snippet: A server MUST NOT mask any frames that it sends to the client.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_masking.rs
-      line: 137
-  - label: websocket_frame_masking (3)
+      line: 161
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 85
+  - label: the recipient's answer to an unmasked frame
     section: § 5.1
     snippet: The server MUST close the connection upon receiving a frame that is not masked.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_masking.rs
-      line: 144
-  - label: websocket_frame_masking (4)
-    section: § 5.1
-    snippet: To avoid confusing network intermediaries (such as intercepting proxies) and for security reasons that are further discussed in Section 10.3, a client MUST mask all frames that it sends to the server (see Section 5.3 for further details).
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_masking.rs
-      line: 136
+      line: 152
+    - file: lint-http-rules/src/violations/websocket_frame.rs
+      line: 64
   - label: websocket_frame_opcode_sequence
     section: § 11.8
     snippet: The opcode is an integer number between 0 and 15, inclusive.
@@ -3045,25 +3061,13 @@ sources:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 110
     - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
-      line: 186
-  - label: websocket_frame_rsv_bits
-    section: § 5.2
-    snippet: If a nonzero value is received and none of the negotiated extensions defines the meaning of such a nonzero value, the receiving endpoint MUST _Fail the WebSocket Connection_.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
-      line: 185
-  - label: websocket_frame_rsv_bits (2)
-    section: § 5.2
-    snippet: MUST be 0 unless an extension is negotiated that defines meanings for non-zero values.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
-      line: 184
+      line: 191
   - label: frame-rsv1 production
     section: § 5.2
     snippet: frame-rsv1 = %x0 / %x1 ; 1 bit in length, MUST be 0 unless ; negotiated otherwise
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
-      line: 142
+      line: 150
   - label: websocket_handshake_valid
     section: § 4.1
     snippet: If the response includes a |Sec-WebSocket-Extensions| header field and this header field indicates the use of an extension that was not present in the client's handshake (the server has indicated an extension not requested by the client), the client MUST _Fail the WebSocket Connection_.

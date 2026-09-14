@@ -2499,6 +2499,22 @@ severity = "warn"
 # Warning member carries no warn-text
 severity = "warn"
 
+[violations.websocket_frame_mask_forbidden]
+# A server frame is masked
+severity = "error"
+
+[violations.websocket_frame_mask_missing]
+# A client frame is not masked
+severity = "error"
+
+[violations.websocket_frame_rsv_forbidden]
+# A reserved bit is set and no extension was negotiated to give it a meaning
+severity = "error"
+
+[violations.websocket_frame_rsv_malformed]
+# The recorded reserved bits do not fit the three the header holds
+severity = "warn"
+
 [violations.weight_duplicated]
 # Member carries more than one weight
 severity = "warn"

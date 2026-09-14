@@ -16,19 +16,23 @@ use crate::protocol_event::{
     MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
 use crate::rules::{ProtocolRule, RuleMeta};
+use crate::violations::websocket_frame::{
+    RFC_6455_5_1, WEBSOCKET_FRAME_MASK_FORBIDDEN, WEBSOCKET_FRAME_MASK_MISSING,
+};
+use crate::violations::ViolationDef;
+
+/// The two sentences, one per direction. No frame reaches both, so the pair is
+/// the whole of what this rule can report.
+static DECLARED: &[&ViolationDef] = &[
+    &WEBSOCKET_FRAME_MASK_MISSING,
+    &WEBSOCKET_FRAME_MASK_FORBIDDEN,
+];
 
 pub struct WebsocketFrameMasking;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6455_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("5.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1",
-    note: "Overview — both masking MUSTs, the reason the client's exists, and the two \
-           recipient MUSTs that say what a conforming peer does about a breach",
-};
 const RFC_6455_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
     section: Some("5.2"),
@@ -72,6 +76,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_6455_5_1, RFC_6455_5_2, RFC_6455_5_3, RFC_6455_10_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -133,33 +141,35 @@ impl ProtocolRule for WebsocketFrameMasking {
             // specification.)"* is about a future document, not about a negotiation
             // this one permits.
             //
-            // cite(RFC 6455 § 5.1): "To avoid confusing network intermediaries (such as intercepting proxies) and for security reasons that are further discussed in Section 10.3, a client MUST mask all frames that it sends to the server (see Section 5.3 for further details)."
-            // cite(RFC 6455 § 5.1): "A server MUST NOT mask any frames that it sends to the client."
-            let defect = match (direction, masked) {
+            // Each entry carries the sentence it enforces; what stays here is the
+            // *recipient's* MUST, because the wording below is what states it.
+            let (def, defect) = match (direction, masked) {
                 (MessageDirection::Client, false) => {
                     // The consequence is the recipient's, and it is a MUST too: an
                     // unmasked frame from a client does not merely violate a
                     // sentence, it ends the connection at a conforming server.
                     //
                     // cite(RFC 6455 § 5.1): "The server MUST close the connection upon receiving a frame that is not masked."
-                    "the client sent an unmasked frame: RFC 6455 §5.1 has a client mask all frames it \
-                     sends to the server, whether or not the connection is running over TLS, and a \
-                     conforming server must close the connection on receiving one"
+                    (
+                        &WEBSOCKET_FRAME_MASK_MISSING,
+                        "the client sent an unmasked frame: RFC 6455 §5.1 has a client mask all frames it \
+                         sends to the server, whether or not the connection is running over TLS, and a \
+                         conforming server must close the connection on receiving one",
+                    )
                 }
                 (MessageDirection::Server, true) => {
                     // cite(RFC 6455 § 5.1): "A client MUST close a connection if it detects a masked frame."
-                    "the server sent a masked frame: RFC 6455 §5.1 has a server mask none of the \
-                     frames it sends to the client, and a conforming client must close the connection \
-                     on detecting one"
+                    (
+                        &WEBSOCKET_FRAME_MASK_FORBIDDEN,
+                        "the server sent a masked frame: RFC 6455 §5.1 has a server mask none of the \
+                         frames it sends to the client, and a conforming client must close the connection \
+                         on detecting one",
+                    )
                 }
                 _ => return None,
             };
 
-            Some(self.cited(
-                &RFC_6455_5_1,
-                ctx.severity,
-                format!("A WebSocket frame where {defect}"),
-            ))
+            Some(ctx.report_with(def, format!("A WebSocket frame where {defect}")))
         };
         Vec::from_iter(finding())
     }
@@ -221,6 +231,21 @@ mod tests {
             expect_violation,
             "{direction:?} {masked}: {v:?}"
         );
+    }
+
+    /// Two opposite sentences, two entries, and both are `error` because a
+    /// conforming peer closes the connection rather than reporting the frame.
+    #[rstest]
+    #[case(MessageDirection::Client, false, "websocket_frame_mask_missing")]
+    #[case(MessageDirection::Server, true, "websocket_frame_mask_forbidden")]
+    fn each_direction_names_its_entry(
+        #[case] direction: MessageDirection,
+        #[case] masked: bool,
+        #[case] id: &str,
+    ) {
+        let v = judge(&frame(direction, Some(masked))).expect("violation");
+        assert_eq!(v.violation, id);
+        assert_eq!(v.severity, crate::lint::Severity::Error);
     }
 
     /// Each finding names the sender and what the *peer* is required to do,

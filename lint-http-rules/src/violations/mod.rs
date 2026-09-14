@@ -107,6 +107,7 @@ pub mod upgrade;
 pub mod uri;
 pub mod via;
 pub mod warning;
+pub mod websocket_frame;
 
 /// One reportable defect.
 ///
@@ -482,7 +483,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 345;
+        const FLOOR: usize = 349;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

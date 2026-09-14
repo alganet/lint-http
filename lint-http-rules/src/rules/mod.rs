@@ -1483,7 +1483,14 @@ severity = "warn"
         /// keeps the third quote of that section for itself: the step that says
         /// where the field is read at all, which is the statement the *rule*
         /// makes rather than one of the two it enforces.
-        const FLOOR: usize = 71;
+        /// **The two `websocket_frame_*` rules gave up two between them**, and
+        /// this pair is the clearest case yet of the distinction above: each
+        /// rule cited one sentence from one site, and the four entries that
+        /// replaced them carry § 5.1 and § 5.2 across four ids — so two cited
+        /// findings become four. What stayed in the rules is the *recipient's*
+        /// MUST beside the wording that states it, and the production that says
+        /// what a zero means, which are the rules' own statements.
+        const FLOOR: usize = 69;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
