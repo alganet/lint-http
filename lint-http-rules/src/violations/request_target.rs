@@ -93,6 +93,15 @@ pub const RFC_9110_7_1: SpecRef = SpecRef {
     note: "Determining the Target Resource — the two method-specific forms, the MUST NOT that keeps each to its method, and the reconstruction being specific to each major protocol version",
 };
 
+/// Fragment: how it is indicated, and that it is separated from the rest of the
+/// URI before a dereference.
+pub const RFC_3986_3_5: SpecRef = SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.5",
+    note: "Fragment: indicated by a number sign and terminated by the end of the URI; separated from the rest of the URI before a dereference and resolved solely by the user agent",
+};
+
 defects! {
     /// A request whose target is the asterisk and whose method is not `OPTIONS`.
     /// The asterisk names no resource: it is the server as a whole, which is a
@@ -330,6 +339,29 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_2_2],
     }
+    /// A request target carrying a fragment: the number sign and everything
+    /// after it.
+    ///
+    /// **The fragment is the one URI component a request target never has**,
+    /// on every major version: a client resolves the reference it started from
+    /// into a target URI that excludes it, and resolves the fragment itself
+    /// against the representation it gets back. So a `#` here is a client that
+    /// sent the user's whole reference instead of the target it derived.
+    ///
+    /// **A `%23` is not this finding**, and the difference is the point of
+    /// § 2.2: data that would conflict with a delimiter's purpose is
+    /// percent-encoded before the URI is formed, so an encoded number sign is
+    /// path data and not a component boundary.
+    ///
+    // cite(RFC 3986 § 3.5): "A fragment identifier component is indicated by the presence of a number sign ("#") character and terminated by the end of the URI."
+    REQUEST_TARGET_FRAGMENT_FORBIDDEN = {
+        id: "request_target_fragment_forbidden",
+        title: "A request target carries a fragment identifier",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_3986_3_5],
+    }
+
 }
 
 #[cfg(test)]

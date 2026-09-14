@@ -1584,7 +1584,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 136
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 206
+      line: 207
   - label: lint-http-rules/src/helpers/uri.rs (27)
     section: § 5.2.3
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
@@ -1692,25 +1692,27 @@ sources:
     snippet: If data for a URI component would conflict with a reserved character's purpose as a delimiter, then the conflicting data must be percent-encoded before the URI is formed.
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 161
+      line: 164
   - label: URI
     section: § 3
     snippet: URI         = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 205
+      line: 206
   - label: request_target_no_fragment (2)
     section: § 3.5
     snippet: A fragment identifier component is indicated by the presence of a number sign ("#") character and terminated by the end of the URI.
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 160
+      line: 163
+    - file: lint-http-rules/src/violations/request_target.rs
+      line: 356
   - label: request_target_no_fragment (3)
     section: § 3.5
     snippet: the fragment identifier is separated from the rest of the URI prior to a dereference, and thus the identifying information within the fragment itself is dereferenced solely by the user agent, regardless of the URI scheme
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 225
+      line: 226
   - label: request_uri_percent_encoding_valid
     section: § 2
     snippet: The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII].
@@ -5533,7 +5535,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 487
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 221
+      line: 222
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 169
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
@@ -5541,9 +5543,9 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 378
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 305
+      line: 314
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 325
+      line: 334
   - label: Allow grammar, sender-expanded
     section: § A
     snippet: Allow = [ method *( OWS "," OWS method ) ]
@@ -6745,7 +6747,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 295
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 201
+      line: 202
   - label: lint-http-core/src/http_version.rs (3)
     section: § 2.5
     snippet: The first digit (major version) indicates the messaging syntax, whereas the second digit (minor version) indicates the highest minor version within that major version to which the sender is conformant (able to understand for future communication).
@@ -7929,7 +7931,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 269
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 223
+      line: 224
   - label: Host grammar
     section: § 7.2
     snippet: Host = uri-host [ ":" port ]
@@ -8867,7 +8869,7 @@ sources:
     snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
     cited_by:
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 116
+      line: 125
   - label: absolute-path
     section: § 4.1
     snippet: absolute-path = 1*( "/" segment )
@@ -8881,7 +8883,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 376
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 150
+      line: 159
   - label: request_target_form_valid (2)
     section: § 7.1
     snippet: For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field
@@ -8889,7 +8891,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 296
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 151
+      line: 154
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 159
   - label: request_target_form_valid (3)
@@ -8905,9 +8907,9 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 364
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 117
+      line: 126
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 151
+      line: 160
   - label: request_target_form_valid (5)
     section: § 7.1
     snippet: This reconstruction is specific to each major protocol version.
@@ -8919,25 +8921,25 @@ sources:
     snippet: Some protocol elements that refer to a URI allow inclusion of a fragment, while others do not.
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 203
+      line: 204
   - label: request_target_no_fragment (2)
     section: § 4.2.5
     snippet: They are distinguished by use of the ABNF rule for elements where fragment is allowed; otherwise, a specific rule that excludes fragments is used.
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 204
+      line: 205
   - label: request_target_no_fragment (3)
     section: § 7.1
     snippet: The target URI excludes the reference's fragment component, if any, since fragment identifiers are reserved for client-side processing
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 224
+      line: 225
   - label: request_target_no_fragment (4)
     section: § 7.1
     snippet: To perform an action on a "target resource", the client sends a request message containing enough components of its parsed target URI to enable recipients to identify that same resource.
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 132
+      line: 135
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 137
   - label: request_uri_percent_encoding_valid
@@ -10337,7 +10339,7 @@ sources:
     - file: lint-http-rules/src/rules/http_version_syntax.rs
       line: 174
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 222
+      line: 223
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 181
   - label: http_version_syntax (2)
@@ -10373,7 +10375,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 299
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 202
+      line: 203
     - file: lint-http-rules/src/violations/http_version.rs
       line: 45
   - label: lint-http-core/src/http_version.rs
@@ -10555,7 +10557,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 332
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 281
+      line: 290
   - label: request_target_form_valid (3)
     section: § 3.2
     snippet: Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded.
@@ -10583,7 +10585,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 133
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 208
+      line: 209
   - label: request_target_form_valid (6)
     section: § 3.2.2
     snippet: A server MUST accept the absolute-form in requests even though most HTTP/1.1 clients will only send the absolute-form to a proxy.
@@ -10603,7 +10605,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 134
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 207
+      line: 208
   - label: request_target_form_valid (8)
     section: § 3.2.3
     snippet: It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":").
@@ -10633,7 +10635,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 403
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 219
+      line: 228
   - label: request_target_form_valid (12)
     section: § 3.2.4
     snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
@@ -10994,7 +10996,7 @@ sources:
     snippet: All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5).
     cited_by:
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 251
+      line: 260
   - label: request_target_form_valid
     section: § 8.3.1
     snippet: Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information
@@ -11006,7 +11008,7 @@ sources:
     snippet: The ":path" pseudo-header field includes the path and query parts of the target URI
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 209
+      line: 210
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 160
   - label: status
@@ -11333,7 +11335,7 @@ sources:
     snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f).
     cited_by:
     - file: lint-http-rules/src/violations/request_target.rs
-      line: 252
+      line: 261
   - label: request_target_form_valid
     section: § 4.3.1
     snippet: An OPTIONS request that does not include a path component includes the value * (ASCII 0x2a) for the :path pseudo-header field
@@ -11345,7 +11347,7 @@ sources:
     snippet: Contains the path and query parts of the target URI
     cited_by:
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 210
+      line: 211
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 161
   - label: status_426_upgrade_valid
