@@ -2099,6 +2099,22 @@ severity = "warn"
 # A media range is written where one media type belongs
 severity = "warn"
 
+[violations.method_options_capabilities_missing]
+# A successful OPTIONS answers with none of the capabilities it was asked for
+severity = "info"
+
+[violations.method_options_content_type_missing]
+# An OPTIONS request carries content without saying what it is
+severity = "warn"
+
+[violations.method_trace_content_forbidden]
+# A TRACE request carries content
+severity = "warn"
+
+[violations.method_trace_disclosure_forbidden]
+# A TRACE request carries a field that echoes back a secret
+severity = "warn"
+
 [violations.multipart_body_delimiter_missing]
 # The body carries no delimiter line for its boundary
 severity = "warn"

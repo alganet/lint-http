@@ -22,7 +22,7 @@ Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that
 
 ## Specifications
 
-- [RFC 9110 §9.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7): OPTIONS — the client `MUST` about `Content-Type`, the `SHOULD` to advertise, which names a class ending "including potential extensions not defined by this specification" rather than a field, the asterisk target that names no resource, and the `Max-Forwards` `MUST NOT` no capture can attribute
+- [RFC 9110 §9.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7): OPTIONS — the client `MUST` about `Content-Type`, and the `SHOULD` to advertise, which names a class ending "including potential extensions not defined by this specification" rather than a field
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): The method token is case-sensitive, which is why `OPTIONS` is matched exactly and a lowercase `options` is not an OPTIONS
 - [RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4): Content — the octet stream left after framing is removed, which is what the `Content-Type` check measures instead of the presence of a framing field
 - [RFC 9110 §15.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3): 2xx is the class named Successful, which is the range "a successful response to OPTIONS" means
