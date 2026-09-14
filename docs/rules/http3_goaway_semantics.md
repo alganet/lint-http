@@ -15,7 +15,7 @@ Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  A GOAWAY's
 
 ## Specifications
 
-- [RFC 9114 §5.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-5.2): Connection Shutdown (GOAWAY)
+- [RFC 9114 §5.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-5.2): Connection Shutdown — the GOAWAY identifier and whose id space it is drawn from, the connection error a larger one draws, and the prohibition on starting anything new past it
 
 ## Configuration
 
