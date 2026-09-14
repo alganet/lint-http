@@ -196,7 +196,7 @@ pub const RFC_9110_15: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("15"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
-    note: "Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, and what a client does with an invalid code",
+    note: "Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, what a client does with an invalid code, and that a request's interim responses are followed by exactly one final response",
 };
 
 /// 405 Method Not Allowed: what the status states, and the field it requires
@@ -223,7 +223,7 @@ pub const RFC_9110_15_2: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("15.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
-    note: "Informational 1xx — \"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers\"",
+    note: "Informational 1xx — the class is interim, such a response is terminated by the end of the header section and cannot contain content or trailers, and a server must not send one to an HTTP/1.0 client, which defined no 1xx status codes",
 };
 
 /// 204 No Content: the same sentence, written again for this status.
@@ -903,6 +903,50 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9112_6_1],
+    }
+
+    /// A `1xx` answering an HTTP/1.0 request.
+    ///
+    /// **The id names the class because the sentence does.** § 15.2's MUST NOT
+    /// is about any 1xx, not about the one status the rule reading it happens
+    /// to check — HTTP/1.0 defined none of them, so a client on that version
+    /// cannot place any interim response at all.
+    ///
+    /// Both digits decide it, not the major one: HTTP/1.1 is the version that
+    /// has 1xx, so the minor digit is the whole gate.
+    ///
+    // cite(RFC 9110 § 15.2): "Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client."
+    STATUS_1XX_FORBIDDEN = {
+        id: "status_1xx_forbidden",
+        title: "An interim response answers a client whose version has none",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_2],
+    }
+
+    /// A `103 (Early Hints)` recorded as *the* response to a request.
+    ///
+    /// **`_ambiguous` in the table's own sense, and the message says both
+    /// readings out loud**: § 15 has a request's interim responses followed by
+    /// exactly one final response, and this model records one response per
+    /// request — so either the final response never arrived, or a recipient
+    /// took the interim one for it. Nothing in the record chooses.
+    ///
+    /// **The second reading is why the entry is worth having**, and RFC 8297's
+    /// Security Considerations are about exactly it: a client that mishandles
+    /// an informational response as a final one goes on to read the responses
+    /// to later requests on that connection as part of it.
+    ///
+    /// `warn` rather than the `info` this ending takes where nothing depends on
+    /// the answer — here a great deal does.
+    ///
+    // cite(RFC 9110 § 15): "A single request can have multiple associated responses: zero or more "interim" (non-final) responses with status codes in the "informational" (1xx) range, followed by exactly one "final" response with a status code in one of the other ranges."
+    STATUS_103_AMBIGUOUS = {
+        id: "status_103_ambiguous",
+        title: "A 103 stands where the one final response should be",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15],
     }
 
 }

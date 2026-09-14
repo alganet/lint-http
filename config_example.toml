@@ -2315,6 +2315,14 @@ severity = "error"
 # 101 Switching Protocols is sent on a version with no upgrade mechanism
 severity = "warn"
 
+[violations.status_103_ambiguous]
+# A 103 stands where the one final response should be
+severity = "warn"
+
+[violations.status_1xx_forbidden]
+# An interim response answers a client whose version has none
+severity = "warn"
+
 [violations.status_200_ambiguous]
 # A 200 carries no content, where a 204 would say so on purpose
 severity = "info"
