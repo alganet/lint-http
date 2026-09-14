@@ -12,7 +12,7 @@ Checks that configured logout paths include a `Clear-Site-Data` header so client
 
 ## Specifications
 
-- [Clear-Site-Data §3.1](https://www.w3.org/TR/clear-site-data/#header): The `Clear-Site-Data` HTTP response header field (its purpose; §1.1.1 is the sign-out example this rule encodes)
+- [Clear-Site-Data §3.1](https://www.w3.org/TR/clear-site-data/#header): The `Clear-Site-Data` HTTP response header field (its purpose; §1.1.1 is the sign-out example this finding encodes)
 - [MDN Clear-Site-Data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Clear-Site-Data): Clear-Site-Data
 
 ## Configuration

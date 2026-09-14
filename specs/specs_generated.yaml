@@ -503,13 +503,15 @@ sources:
     snippet: A user signs out of Super Secret Social Network via a CSRF-protected POST to https://supersecretsocialnetwork.example.com/logout, and the site author wishes to ensure that locally stored data is removed as a result
     cited_by:
     - file: lint-http-rules/src/rules/clear_site_data_present.rs
-      line: 180
+      line: 184
   - label: clear_site_data_present (2)
     section: § 3.1
     snippet: The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types.
     cited_by:
     - file: lint-http-rules/src/rules/clear_site_data_present.rs
-      line: 183
+      line: 187
+    - file: lint-http-rules/src/violations/clear_site_data.rs
+      line: 40
 - label: Fetch Metadata
   url: https://www.w3.org/TR/fetch-metadata/
   type: text/html
@@ -6167,9 +6169,11 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 33
     - file: lint-http-rules/src/rules/user_agent_present.rs
-      line: 85
+      line: 88
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 138
+    - file: lint-http-rules/src/violations/user_agent.rs
+      line: 42
   - label: context_fields_direction (7)
     section: § 10.2.2
     snippet: The "Location" header field is used in some responses to refer to a specific resource in relation to the response.
@@ -6255,13 +6259,17 @@ sources:
     snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
     cited_by:
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
-      line: 95
+      line: 91
+    - file: lint-http-rules/src/violations/validator.rs
+      line: 59
   - label: etag_or_last_modified_present (2)
     section: § 8.8.3.1
     snippet: An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined
     cited_by:
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
-      line: 96
+      line: 92
+    - file: lint-http-rules/src/violations/validator.rs
+      line: 60
   - label: etag_syntax
     section: § 8.8.3
     snippet: The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request.
@@ -7315,7 +7323,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 117
     - file: lint-http-rules/src/rules/user_agent_present.rs
-      line: 111
+      line: 114
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 173
   - label: lint-http-rules/src/helpers/field_placement.rs (6)
@@ -7767,7 +7775,7 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 176
     - file: lint-http-rules/src/rules/user_agent_present.rs
-      line: 118
+      line: 121
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 155
   - label: lint-http-rules/src/helpers/product.rs (2)
@@ -9575,13 +9583,13 @@ sources:
     snippet: A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.
     cited_by:
     - file: lint-http-rules/src/rules/user_agent_present.rs
-      line: 105
+      line: 108
   - label: user_agent_present (2)
     section: § 3.5
     snippet: The term "user agent" refers to any of the various client programs that initiate a request.
     cited_by:
     - file: lint-http-rules/src/rules/user_agent_present.rs
-      line: 86
+      line: 89
   - label: user_agent_token_valid
     section: § 10.1.5
     snippet: A sender SHOULD NOT generate information in product-version that is not a version identifier

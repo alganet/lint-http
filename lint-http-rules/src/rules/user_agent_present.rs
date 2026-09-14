@@ -4,18 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::user_agent::{RFC_9110_10_1_5, USER_AGENT_MISSING};
+use crate::violations::ViolationDef;
+
+/// One entry: a request that does not say what sent it.
+static DECLARED: &[&ViolationDef] = &[&USER_AGENT_MISSING];
 
 pub struct UserAgentPresent;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_10_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.1.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
-    note: "`A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.` The exception is a fact about the sender's configuration rather than about the request, so a conforming suppression and a plain omission are the same absence here and both are reported",
-};
 const RFC_9110_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("3.5"),
@@ -50,6 +49,10 @@ severity = "info"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_10_1_5, RFC_9110_3_5, RFC_9110_17_13]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -117,7 +120,7 @@ impl Rule for UserAgentPresent {
             // the wrong defect and report one field twice.
             // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
             if !tx.request.headers.contains_key("user-agent") {
-                Some(self.violation(ctx.severity, "Request missing User-Agent header".into()))
+                Some(ctx.report(&USER_AGENT_MISSING))
             } else {
                 None
             }
@@ -154,7 +157,11 @@ mod tests {
         );
 
         if expect_violation {
-            assert!(violation.is_some());
+            // `info`: the conforming case and the defect are the same bytes,
+            // because the exception the sentence carries is not on the wire.
+            let found = violation.clone().expect("a finding");
+            assert_eq!(found.violation, "user_agent_missing");
+            assert_eq!(found.severity, crate::lint::Severity::Info);
             assert_eq!(
                 violation.map(|v| v.message),
                 expected_message.map(|s| s.to_string())

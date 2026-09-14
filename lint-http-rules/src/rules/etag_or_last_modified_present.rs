@@ -4,24 +4,16 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::validator::{RFC_9110_8_8_2_1, RFC_9110_8_8_3_1, VALIDATOR_MISSING};
+use crate::violations::ViolationDef;
+
+/// One entry: a response that hands a later request nothing to condition on.
+static DECLARED: &[&ViolationDef] = &[&VALIDATOR_MISSING];
 
 pub struct EtagOrLastModifiedPresent;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_8_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.8.2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2.1",
-    note: "Generation: an origin server SHOULD send Last-Modified",
-};
-const RFC_9110_8_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.8.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3.1",
-    note: "Generation: an origin server SHOULD send an ETag",
-};
+// The sections this rule names now live on the subject beside the entries that
+// quote them, and are imported back for `specifications()`.
 
 impl RuleMeta for EtagOrLastModifiedPresent {
     fn id(&self) -> &'static str {
@@ -44,6 +36,10 @@ severity = "info"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_8_8_2_1, RFC_9110_8_8_3_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -98,10 +94,7 @@ impl Rule for EtagOrLastModifiedPresent {
                 && !resp.headers.contains_key("etag")
                 && !resp.headers.contains_key("last-modified")
             {
-                Some(self.violation(
-                    ctx.severity,
-                    "Response 200 without ETag or Last-Modified validator".into(),
-                ))
+                Some(ctx.report(&VALIDATOR_MISSING))
             } else {
                 None
             }
@@ -148,7 +141,11 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         if expect_violation {
-            assert!(violation.is_some());
+            // `info`: the conforming case and the defect are the same bytes,
+            // because the exception the sentence carries is not on the wire.
+            let found = violation.clone().expect("a finding");
+            assert_eq!(found.violation, "validator_missing");
+            assert_eq!(found.severity, crate::lint::Severity::Info);
             assert_eq!(
                 violation.map(|v| v.message),
                 Some("Response 200 without ETag or Last-Modified validator".to_string())

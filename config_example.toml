@@ -1351,6 +1351,10 @@ severity = "warn"
 # Charset name is not one the deployment recognises
 severity = "warn"
 
+[violations.clear_site_data_missing]
+# A sign-out response does not ask the client to clear its storage
+severity = "info"
+
 [violations.comment_character_forbidden]
 # Comment holds a character ctext does not admit
 severity = "warn"
@@ -2634,6 +2638,14 @@ severity = "warn"
 [violations.uri_scheme_leading_letter_missing]
 # URI scheme does not begin with a letter
 severity = "warn"
+
+[violations.user_agent_missing]
+# A request does not say what sent it
+severity = "info"
+
+[violations.validator_missing]
+# A response gives a later request nothing to validate against
+severity = "info"
 
 [violations.vary_ignored]
 # A response is reused across a dimension its Vary nominated
