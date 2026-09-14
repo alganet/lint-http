@@ -1494,7 +1494,13 @@ severity = "warn"
         /// only rule that reads that frame; the two entries replacing them name
         /// that same section, so the fall is two sites becoming two defs with
         /// the same reference — this list's most common shape.
-        const FLOOR: usize = 67;
+        /// **`http3_settings_frame` gave up two**, § 7.2.4.1 and § 7.2.4, and
+        /// the three entries replacing them name those two sections — so the
+        /// third finding, a duplicate frame that cited nothing, is cited now.
+        /// The rule keeps the § 11.2.2 quote on the reserved-identifier table
+        /// it transcribes, which is the rule's own statement rather than a
+        /// requirement any entry enforces.
+        const FLOOR: usize = 65;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

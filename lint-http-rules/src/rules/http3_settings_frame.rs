@@ -17,6 +17,19 @@
 use crate::lint::Violation;
 use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
 use crate::rules::{ProtocolRule, RuleMeta};
+use crate::violations::http3_settings::{
+    HTTP3_SETTINGS_DUPLICATED, HTTP3_SETTINGS_IDENTIFIER_DUPLICATED,
+    HTTP3_SETTINGS_IDENTIFIER_FORBIDDEN, RFC_9114_7_2_4, RFC_9114_7_2_4_1,
+};
+use crate::violations::ViolationDef;
+
+/// Three entries over one frame: the frame sent twice, an identifier the
+/// protocol reserves, and an identifier stated twice inside one frame.
+static DECLARED: &[&ViolationDef] = &[
+    &HTTP3_SETTINGS_DUPLICATED,
+    &HTTP3_SETTINGS_IDENTIFIER_FORBIDDEN,
+    &HTTP3_SETTINGS_IDENTIFIER_DUPLICATED,
+];
 
 pub struct Http3SettingsFrame;
 
@@ -36,18 +49,6 @@ const RESERVED_SETTING_IDS: &[u64] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9114_7_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("7.2.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4",
-    note: "SETTINGS",
-};
-const RFC_9114_7_2_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("7.2.4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4.1",
-    note: "Defined SETTINGS Parameters",
-};
 const RFC_9114_11_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9114",
     section: Some("11.2.2"),
@@ -76,6 +77,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9114_7_2_4, RFC_9114_7_2_4_1, RFC_9114_11_2_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -134,7 +139,6 @@ impl ProtocolRule for Http3SettingsFrame {
             // subsequently, which is the violation. The rule is per peer ("by each
             // peer"), so the other peer's SETTINGS — now observable on the upstream
             // leg — is its own legitimate first frame, not a duplicate of this one.
-            // cite(RFC 9114 § 7.2.4): "A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently"
             for prev in history.iter() {
                 if let ProtocolEventKind::H3SettingsReceived {
                     direction: prev_dir,
@@ -144,25 +148,16 @@ impl ProtocolRule for Http3SettingsFrame {
                     if *prev_dir != direction {
                         continue;
                     }
-                    return Some(
-                        self.violation(
-                            ctx.severity,
-                            "HTTP/3 duplicate SETTINGS frame from the same peer on one connection \
-                             (RFC 9114 §7.2.4)"
-                                .into(),
-                        ),
-                    );
+                    return Some(ctx.report(&HTTP3_SETTINGS_DUPLICATED));
                 }
             }
 
             // Receipt of any reserved identifier is the violation; the sender was
             // forbidden from putting it on the wire.
-            // cite(RFC 9114 § 7.2.4.1): "These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR"
             for &(id, _) in settings {
                 if RESERVED_SETTING_IDS.contains(&id) {
-                    return Some(self.cited(
-                        &RFC_9114_7_2_4_1,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &HTTP3_SETTINGS_IDENTIFIER_FORBIDDEN,
                         format!(
                             "HTTP/3 SETTINGS contains reserved HTTP/2 setting identifier \
                              0x{:02X} (RFC 9114 §7.2.4.1)",
@@ -176,12 +171,10 @@ impl ProtocolRule for Http3SettingsFrame {
             // sender committed; the receiver MAY reject it, but the MUST NOT is on
             // the sender, so we report it.  Checked after the per-identifier scan so
             // a reserved identifier is named for what it is even when repeated.
-            // cite(RFC 9114 § 7.2.4): "The same setting identifier MUST NOT occur more than once in the SETTINGS frame"
             for (i, &(id, _)) in settings.iter().enumerate() {
                 if settings[..i].iter().any(|&(prev_id, _)| prev_id == id) {
-                    return Some(self.cited(
-                        &RFC_9114_7_2_4,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &HTTP3_SETTINGS_IDENTIFIER_DUPLICATED,
                         format!(
                             "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \
                              than once (RFC 9114 §7.2.4)",
@@ -252,6 +245,49 @@ mod tests {
                 direction: MessageDirection::Server,
             },
         )
+    }
+
+    /// The three entries, and the ranking with them: only the reserved
+    /// identifier's section names a connection error, so only that one is
+    /// `error`. The two repetitions share an ending and are told apart by
+    /// their part.
+    #[test]
+    fn each_finding_names_its_entry() {
+        let rule = Http3SettingsFrame;
+        let conn = Uuid::new_v4();
+
+        let repeated_frame = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &make_settings(conn, vec![(0x06, 4096)]),
+            &ProtocolEventHistory::new(vec![make_settings(conn, vec![(0x06, 8192)])]),
+            &make_config(),
+        )
+        .expect("a finding");
+        assert_eq!(repeated_frame.violation, "http3_settings_duplicated");
+        assert_eq!(repeated_frame.severity, crate::lint::Severity::Warn);
+
+        let reserved = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &make_settings(conn, vec![(0x02, 1)]),
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        )
+        .expect("a finding");
+        assert_eq!(reserved.violation, "http3_settings_identifier_forbidden");
+        assert_eq!(reserved.severity, crate::lint::Severity::Error);
+
+        let repeated_id = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &make_settings(conn, vec![(0x06, 8192), (0x06, 4096)]),
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        )
+        .expect("a finding");
+        assert_eq!(
+            repeated_id.violation,
+            "http3_settings_identifier_duplicated"
+        );
+        assert_eq!(repeated_id.severity, crate::lint::Severity::Warn);
     }
 
     #[test]
