@@ -22,7 +22,7 @@ Reports a `PATCH` request that carries content without a `Content-Type` naming t
 
 ## Specifications
 
-- [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2): The PATCH method — a patch document is identified by a media type, the request's fields describe that document rather than the resource, and no patch format is one implementations must support, which is why this rule reports the field's absence and does not judge its value
+- [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2): PATCH — the set of changes is represented in a format identified by a media type, and no single default patch document format exists for a recipient to assume
 - [RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2): Error Handling — `415 (Unsupported Media Type)` is offered, not required, for a patch format the server does not support; it is the recipient's side of the media type this rule asks for
 - [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): The `Accept-Patch` header — how a server says which patch formats it takes. It is a response field, so a lone request cannot be measured against it; `patch_method_content_type_match` is the rule that has one
 - [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type — the SHOULD this rule enforces, the exception excusing a sender that does not know its own media type, and the two guesses a recipient is left with when the field is absent

@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::method::{METHOD_HEAD_CONFLICTING, RFC_9110_9_3_2};
+use crate::violations::ViolationDef;
+
+/// One entry: two answers about one resource that do not agree.
+static DECLARED: &[&ViolationDef] = &[&METHOD_HEAD_CONFLICTING];
 
 /// Whether a difference in *presence* of this field between the two responses
 /// is licensed, in either direction.
@@ -121,12 +126,6 @@ pub struct HeadResponseHeadersMatchGet;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-    note: "The rule's sentence, quoted whole: \"The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET. However, a server MAY omit header fields for which a value is determined only while generating the content.\" The MAY names a class, and the section prints Content-Length and Vary as examples of it rather than as its membership",
-};
 const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("8.6"),
@@ -190,6 +189,10 @@ headers = ["etag", "content-type", "content-length"]
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_9_3_2, RFC_9110_8_6, RFC_9110_8_8, RFC_9112_6_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -295,7 +298,7 @@ impl Rule for HeadResponseHeadersMatchGet {
             // non-HEAD transactions (the common case) skip the allocation entirely.
             let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
 
-            let report = |message: String| Some(self.violation(ctx.severity, message));
+            let report = |message: String| Some(ctx.report_with(&METHOD_HEAD_CONFLICTING, message));
 
             // For each configured header, enforce presence/value equivalence between GET and HEAD
             for name in &config.headers {
@@ -497,7 +500,9 @@ mod tests {
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
-        assert!(v.is_some());
+        // Two answers about one resource that do not agree.
+        let found = v.clone().expect("a finding");
+        assert_eq!(found.violation, "method_head_conflicting");
         assert!(v.unwrap().message.contains("missing header"));
     }
 

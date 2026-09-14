@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::method::{METHOD_PATCH_CONTENT_TYPE_MISSING, RFC_5789_2};
+use crate::violations::ViolationDef;
+
+/// One entry: a patch document whose format nothing names, where no default
+/// format exists to assume.
+static DECLARED: &[&ViolationDef] = &[&METHOD_PATCH_CONTENT_TYPE_MISSING];
 
 /// A PATCH request's content is a patch document, and RFC 5789 § 2 says a patch document
 /// is identified by a media type. This rule reports a PATCH request that carries content
@@ -19,12 +25,6 @@ pub struct PatchPartialUpdate;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_5789_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5789",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2",
-    note: "The PATCH method — a patch document is identified by a media type, the request's fields describe that document rather than the resource, and no patch format is one implementations must support, which is why this rule reports the field's absence and does not judge its value",
-};
 const RFC_5789_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 5789",
     section: Some("2.2"),
@@ -87,6 +87,10 @@ severity = "warn"
             RFC_9110_9_1,
             RFC_9110_12_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -196,7 +200,7 @@ impl Rule for PatchPartialUpdate {
             // cite(RFC 5789 § 2): "Servers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI."
             // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
             // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
-            Some(self.violation(ctx.severity, format!(
+            Some(ctx.report_with(&METHOD_PATCH_CONTENT_TYPE_MISSING, format!(
                     "PATCH request carries content ({evidence}) with no Content-Type naming the patch document format"
                 )))
         };
@@ -296,7 +300,9 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        let msg = v.expect("expected a violation").message;
+        let found = v.expect("expected a violation");
+        assert_eq!(found.violation, "method_patch_content_type_missing");
+        let msg = found.message;
         assert!(msg.contains("5 octets captured"), "message was: {msg}");
     }
 

@@ -39,6 +39,33 @@ pub const RFC_9110_9_3_7: SpecRef = SpecRef {
     note: "OPTIONS — the client `MUST` about `Content-Type`, and the `SHOULD` to advertise, which names a class ending \"including potential extensions not defined by this specification\" rather than a field",
 };
 
+/// POST: what a status says about a resource the request created, and the
+/// SHOULD that names the field carrying its identifier.
+pub const RFC_9110_9_3_3: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3",
+    note: "POST — the SHOULD asking an origin server that created a resource to answer 201 with a Location naming it, which is the sentence that makes a 201 without one a finding",
+};
+
+/// HEAD: identical to GET but for the content, with the exception that keeps
+/// content-derived fields out of the comparison.
+pub const RFC_9110_9_3_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+    note: "HEAD — the SHOULD to send the same header fields a GET would have carried, and the MAY that excuses fields whose value is determined only while generating the content",
+};
+
+/// PATCH: the patch document is identified by a media type, and there is no
+/// default format to fall back on.
+pub const RFC_5789_2: SpecRef = SpecRef {
+    spec: "RFC 5789",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2",
+    note: "PATCH — the set of changes is represented in a format identified by a media type, and no single default patch document format exists for a recipient to assume",
+};
+
 defects! {
     /// Content on a `TRACE` request.
     ///
@@ -109,6 +136,60 @@ defects! {
         default_severity: Severity::Info,
         spec: &[RFC_9110_9_3_7],
     }
+    /// A `201 (Created)` answering a `POST`, with no `Location`.
+    ///
+    /// **This is the sentence `location_missing` deliberately does not
+    /// cover.** The five statuses that ask for `Location` ask in their own
+    /// definitions; a `201` does not — § 15.3.2 describes it *without* the
+    /// field, saying the resource created is then the target URI. The one
+    /// sentence asking a `201` for one is § 9.3.3's, and it is about `POST`, so
+    /// only a rule holding the request method can report it. The subject is the
+    /// method for exactly that reason.
+    ///
+    // cite(RFC 9110 § 9.3.3): "If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created"
+    METHOD_POST_LOCATION_MISSING = {
+        id: "method_post_location_missing",
+        title: "A 201 answering a POST does not say what it created",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_9_3_3],
+    }
+
+    /// A `PATCH` request carrying content with no `Content-Type`.
+    ///
+    /// The same shape as the `OPTIONS` entry and a stronger reason: RFC 5789
+    /// says the set of changes is represented in a format *identified by a
+    /// media type*, and that **no single default patch document format
+    /// exists** — so a recipient has nothing to fall back on and the content
+    /// cannot be applied at all.
+    ///
+    // cite(RFC 5789 § 2): "Therefore, there is no single default patch document format that implementations are required to support."
+    METHOD_PATCH_CONTENT_TYPE_MISSING = {
+        id: "method_patch_content_type_missing",
+        title: "A PATCH request does not name its patch document format",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_5789_2],
+    }
+
+    /// A `HEAD` response whose header fields differ from the `GET` response for
+    /// the same resource.
+    ///
+    /// `_conflicting`, because what is reported is two answers about one
+    /// resource that do not agree — and the comparison is narrower than the
+    /// SHOULD on purpose, since § 9.3.2's own MAY excuses fields whose value is
+    /// determined only while generating the content, which a `HEAD` never
+    /// generates.
+    ///
+    // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
+    METHOD_HEAD_CONFLICTING = {
+        id: "method_head_conflicting",
+        title: "A HEAD response disagrees with the GET it stands in for",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_9_3_2],
+    }
+
 }
 
 #[cfg(test)]

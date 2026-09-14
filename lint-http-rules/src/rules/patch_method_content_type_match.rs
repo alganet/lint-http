@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::accept_patch::{ACCEPT_PATCH_IGNORED, RFC_5789_3_1};
+use crate::violations::ViolationDef;
+
+/// One entry, and it is the advertisement's rather than the method's: the
+/// finding needs a stored `Accept-Patch` to disagree with.
+static DECLARED: &[&ViolationDef] = &[&ACCEPT_PATCH_IGNORED];
 
 /// Reports a `PATCH` whose `Content-Type` names a patch document format no
 /// response for this resource has advertised in `Accept-Patch`.
@@ -100,12 +106,6 @@ fn advertised_formats(headers: &hyper::HeaderMap) -> Option<Vec<String>> {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_5789_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5789",
-    section: Some("3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
-    note: "The `Accept-Patch` header — the patch document formats a server accepts, advertised per resource and readable from a response to any method. This reference said §2.2, which is Error Handling",
-};
 const RFC_5789_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 5789",
     section: Some("2.2"),
@@ -165,6 +165,10 @@ severity = "warn"
             RFC_9110_8_3,
             RFC_9110_8_3_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -294,7 +298,7 @@ impl Rule for PatchMethodContentTypeMatch {
             // cite(RFC 9110 § 12.3): "When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource."
             // cite(RFC 9110 § 12.4.3): "If no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable."
             // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
-            Some(self.violation(ctx.severity, format!(
+            Some(ctx.report_with(&ACCEPT_PATCH_IGNORED, format!(
                     "PATCH request sends Content-Type '{}', which no Accept-Patch for this resource has mentioned; the most recent advertisement listed {}. A format the advertisement does not mention is one the server has said it does not accept, and 415 (Unsupported Media Type) is the answer RFC 5789 offers for it{}",
                     sent,
                     advertised.join(", "),
@@ -478,15 +482,19 @@ mod tests {
     /// it, and it does not expire when another request goes past.
     #[test]
     fn an_older_advertisement_still_counts() {
-        assert!(judge_history(
+        let found = judge_history(
             "PATCH",
             &[b"application/json"],
             &[
                 Some(&[][..]),
-                Some(&[b"application/merge-patch+json" as &[u8]][..])
+                Some(&[b"application/merge-patch+json" as &[u8]][..]),
             ],
         )
-        .is_some());
+        .expect("a finding");
+        // The entry is the advertisement's rather than the method's: the server
+        // said what it accepts and the request did not read it.
+        assert_eq!(found.violation, "accept_patch_ignored");
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
     }
 
     /// § 8.3: with two field lines the media type the peer acts on is not the one

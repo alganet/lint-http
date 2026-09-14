@@ -4,18 +4,18 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::method::{METHOD_POST_LOCATION_MISSING, RFC_9110_9_3_3};
+use crate::violations::ViolationDef;
+
+/// One entry, and the only sentence asking a 201 for a `Location` is about
+/// POST — so only a rule holding the method can report it.
+static DECLARED: &[&ViolationDef] = &[&METHOD_POST_LOCATION_MISSING];
 
 pub struct PostCreatesResource;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_9_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3",
-    note: "POST: the SHOULD this rule enforces — an origin server that created one or more resources sends a 201 containing a Location field that provides an identifier for the primary resource created",
-};
 const RFC_9110_15_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.2"),
@@ -61,6 +61,10 @@ severity = "warn"
             RFC_9110_10_2_2,
             RFC_9110_9_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -160,8 +164,8 @@ impl Rule for PostCreatesResource {
             // printing a path under the words "the target URI".
             // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
             // cite(RFC 9112 § 3.3): "Otherwise, the target URI's combined path and query component is the request-target."
-            Some(self.violation(
-                ctx.severity,
+            Some(ctx.report_with(
+                &METHOD_POST_LOCATION_MISSING,
                 format!(
                     "201 Created response to a POST request carries no Location header field. \
                      RFC 9110 §9.3.3 asks an origin server that has created one or more resources \
@@ -305,6 +309,10 @@ mod tests {
     #[test]
     fn the_message_names_the_request_target_the_created_resource_falls_back_to() {
         let v = run(&make_tx(201, vec![])).expect("a 201 with no Location is the finding");
+        // The subject is the method, because §9.3.3 is the one sentence asking a
+        // 201 for the field and it is about POST.
+        assert_eq!(v.violation, "method_post_location_missing");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
         assert!(
             v.message.contains("http://example/"),
             "message should name the request-target: {}",

@@ -81,6 +81,29 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_5789_2_2, RFC_5789_3_1],
     }
+    /// A `PATCH` whose `Content-Type` names a format no `Accept-Patch` for this
+    /// resource has advertised.
+    ///
+    /// **`_ignored` because the server stated what it accepts and the client
+    /// sent something else** — the field is an advertisement, and this is a
+    /// request that did not read it. § 3.1 says the presence of a specific
+    /// format in the header indicates that that format is allowed, so a format
+    /// the advertisement does not mention is one the resource has not said it
+    /// takes, and `415 (Unsupported Media Type)` is the answer RFC 5789 offers.
+    ///
+    /// **The evidence is an earlier response**, which is what keeps this on the
+    /// advertisement's subject rather than on the method's: the finding needs a
+    /// stored `Accept-Patch`, and without one there is nothing to disagree with.
+    ///
+    // cite(RFC 5789 § 3.1): "The presence of a specific patch document format in this header indicates that that specific format is allowed on the resource identified by the Request-URI."
+    ACCEPT_PATCH_IGNORED = {
+        id: "accept_patch_ignored",
+        title: "A PATCH sends a format the resource never advertised",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_5789_3_1],
+    }
+
 }
 
 #[cfg(test)]
