@@ -1505,7 +1505,14 @@ severity = "warn"
         /// findings of the rule beside it, which cited nothing through a shared
         /// message builder, now carry RFC 8259 § 2 and RFC 9457 § 3. One site
         /// off the count, four cited findings on.
-        const FLOOR: usize = 64;
+        /// **`redirect_status_and_location_valid` gave up its one**, § 10.2.2,
+        /// and the entry holding it names that section — so the finding is
+        /// cited exactly as it was. The rule beside it lost nothing here and
+        /// gained nothing: `location_missing` names the five sections that
+        /// state it, one per status, so no finding of it may carry one — the
+        /// same trade `field_connection_specific_forbidden` makes, seen at a
+        /// status instead of a protocol version.
+        const FLOOR: usize = 63;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

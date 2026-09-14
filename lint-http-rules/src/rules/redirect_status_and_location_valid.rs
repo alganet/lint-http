@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::location::{LOCATION_REDUNDANT, RFC_9110_10_2_2};
+use crate::violations::ViolationDef;
+
+/// One entry, and it condemns nothing: the field is there and no sentence in
+/// the document gives it anything to mean.
+static DECLARED: &[&ViolationDef] = &[&LOCATION_REDUNDANT];
 
 pub struct RedirectStatusAndLocationValid;
 
@@ -57,12 +63,6 @@ fn location_has_a_referent(status: u16) -> bool {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_10_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
-    note: "`Location = URI-reference`; the value's referent is defined for 201 (Created) and for 3xx (Redirection) responses, and for no other status",
-};
 const RFC_9110_15_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.2"),
@@ -103,6 +103,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_10_2_2, RFC_9110_15_3_2, RFC_9110_15_4, RFC_9110_15]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -181,10 +185,9 @@ impl Rule for RedirectStatusAndLocationValid {
             // definitional: `Location` is *used in some responses*, and §10.2.2 names
             // which. It does not forbid the others, which is why the finding is advisory
             // and says so in `description()`.
-            // cite(RFC 9110 § 10.2.2): "The "Location" header field is used in some responses to refer to a specific resource in relation to the response."
             resp.headers.get_all("location").iter().next()?;
 
-            Some(self.cited(&RFC_9110_10_2_2, ctx.severity, format!(
+            Some(ctx.report_with(&LOCATION_REDUNDANT, format!(
                     "Response with status {status} carries a Location header field. RFC 9110 §10.2.2 \
                      defines what the value refers to on a 201 (Created) response and on a 3xx \
                      (Redirection) response, and on no other status — so on a {status} the field has \
@@ -222,6 +225,15 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The one entry, and its `info`: the ending that condemns nothing, for a
+    /// field no sentence forbids on a status that gives it nothing to mean.
+    #[test]
+    fn the_finding_names_its_entry_and_condemns_nothing() {
+        let found = judge(&response_with(202, Some("/status/9001"))).expect("a finding");
+        assert_eq!(found.violation, "location_redundant");
+        assert_eq!(found.severity, crate::lint::Severity::Info);
     }
 
     /// §10.2.2 names the 3xx *class*, so every code in it is exempt — including the

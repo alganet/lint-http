@@ -78,6 +78,7 @@ pub mod keep_alive;
 pub mod language;
 pub mod link;
 pub mod list;
+pub mod location;
 pub mod mailbox;
 pub mod media_range;
 pub mod media_type;
@@ -487,7 +488,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 368;
+        const FLOOR: usize = 370;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
