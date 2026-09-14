@@ -140,6 +140,53 @@ defects! {
         default_severity: Severity::Info,
         spec: &[],
     }
+    /// A precondition naming a validator other than the most recent one this
+    /// exchange saw for the resource.
+    ///
+    /// **Uncited beside its sibling, and for the same reason widened by one
+    /// more**: no sentence requires a client to condition on the *latest*
+    /// validator, and holding an older one is exactly what a cache that has not
+    /// revalidated looks like. So the legitimate explanation is not merely
+    /// available, it is the common case, and the finding is worth making only
+    /// because the alternative — a validator assembled rather than kept — looks
+    /// identical from here.
+    ///
+    /// **Separate from
+    /// [`CONDITIONAL_VALIDATOR_MISSING`] because the exchange did provide
+    /// one.** That entry is about a precondition this observer cannot account
+    /// for at all; this one is about a precondition it can account for and
+    /// which does not line up, which is a different thing for an operator to
+    /// look at and a different thing to silence.
+    ///
+    /// `info`, with everything else in this subject that rests on a
+    /// reconstruction rather than a sentence.
+    CONDITIONAL_VALIDATOR_CONFLICTING = {
+        id: "conditional_validator_conflicting",
+        title: "A precondition names a validator older than the last one seen",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
+
+    /// A repeated request for a resource whose stored response carried a
+    /// validator, sent with no precondition on it.
+    ///
+    /// The mirror of the two entries above: there a client conditions on
+    /// something this exchange cannot place, here it declines to condition on
+    /// something the exchange handed it. **Nothing requires a client to make a
+    /// request conditional** — an `ETag` is an offer — so the entry names no
+    /// sentence and reports a round trip that could have been a `304`.
+    ///
+    /// `info`. What is lost is a body that need not have been sent, and the
+    /// client may have had every reason to want a fresh one.
+    CONDITIONAL_MISSING = {
+        id: "conditional_missing",
+        title: "A repeat request declines a validator the server provided",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
+
 }
 
 #[cfg(test)]

@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::conditional::CONDITIONAL_MISSING;
+use crate::violations::ViolationDef;
+
+/// One entry: a repeat request that declined the validator it was given.
+static DECLARED: &[&ViolationDef] = &[&CONDITIONAL_MISSING];
 
 pub struct CachedValidatorsReused;
 
@@ -40,6 +45,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_13_1_2, RFC_9110_13_1_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -137,8 +146,8 @@ impl Rule for CachedValidatorsReused {
             // cite(RFC 9110 § 13.1.2): "When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request"
             // cite(RFC 9110 § 13.1.3): "If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag"
             if !has_if_none_match && !has_if_modified_since {
-                Some(self.violation(
-                    ctx.severity,
+                Some(ctx.report_with(
+                    &CONDITIONAL_MISSING,
                     format!(
                         "Client re-requesting resource without conditional headers. \
                          Server provided validators (ETag: {}, Last-Modified: {}) but client \
@@ -220,10 +229,13 @@ mod tests {
         );
 
         if expect_violation {
-            assert!(violation.is_some());
             let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
             assert_eq!(v.rule, "cached_validators_reused");
-            assert_eq!(v.severity, crate::lint::Severity::Warn);
+            // The entry names no sentence and defaults to `info`: nothing
+            // requires a client to make a request conditional, and an `ETag` is
+            // an offer rather than an instruction.
+            assert_eq!(v.violation, "conditional_missing");
+            assert_eq!(v.severity, crate::lint::Severity::Info);
             assert!(v.message.contains("conditional headers"));
         } else {
             assert!(violation.is_none());

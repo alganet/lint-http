@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::conditional::CONDITIONAL_VALIDATOR_CONFLICTING;
+use crate::violations::ViolationDef;
+
+/// One entry, and two ways of reaching it: an entity-tag precondition or a
+/// date one, neither matching the last validator this exchange saw.
+static DECLARED: &[&ViolationDef] = &[&CONDITIONAL_VALIDATOR_CONFLICTING];
 
 /// Stateful check ensuring that conditional requests use the most recently
 /// observed validator for a given resource.
@@ -69,6 +75,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_4_3_1, RFC_9110_13_1_2, RFC_9110_13_1_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -166,7 +176,7 @@ impl Rule for CacheValidationChain {
                 {
                     let reported = inm_lines.first().map_or("", String::as_str);
                     // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
-                    return Some(self.cited(&RFC_9111_4_3_1, ctx.severity, format!(
+                    return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_CONFLICTING, format!(
                             "Conditional request uses If-None-Match '{}' which does not match most recent validator '{}' from history; cache validation chain may be broken",
                             crate::helpers::headers::trim_ows(reported),
                             known_etag
@@ -203,7 +213,7 @@ impl Rule for CacheValidationChain {
             // Last-Modified signals a broken chain.
             // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
             if mismatch {
-                return Some(self.cited(&RFC_9111_4_3_1, ctx.severity, format!(
+                return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_CONFLICTING, format!(
                         "Conditional request uses If-Modified-Since '{}' which does not match most recent Last-Modified '{}' from history; cache validation chain may be broken",
                         ims,
                         known_last_modified
@@ -370,7 +380,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cache_validation_chain"]),
         );
-        assert!(v.is_some());
+        // Separate from the entry about a validator this exchange never saw:
+        // here it did see one, and the precondition names another. `info`,
+        // because an older cached copy is the common explanation.
+        let found = v.expect("a finding");
+        assert_eq!(found.violation, "conditional_validator_conflicting");
+        assert_eq!(found.severity, crate::lint::Severity::Info);
     }
 
     #[test]
