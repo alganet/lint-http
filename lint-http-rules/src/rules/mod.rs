@@ -1476,7 +1476,14 @@ severity = "warn"
         /// § 8.7, § 4.1 and § 5.3. Twice in two commits, which is enough to say
         /// plainly: *this floor measures a construct, not coverage.* The
         /// coverage number is the one on the entries.
-        const FLOOR: usize = 73;
+        /// **`access_control_allow_credentials_when_origin` gave up two**, both
+        /// Fetch § 4.10 — one for the value the CORS check compares against
+        /// `true`, one for the step that makes `*` and credentials mutually
+        /// exclusive. Both entries that replaced them name § 4.10, and the rule
+        /// keeps the third quote of that section for itself: the step that says
+        /// where the field is read at all, which is the statement the *rule*
+        /// makes rather than one of the two it enforces.
+        const FLOOR: usize = 71;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

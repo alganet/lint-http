@@ -34,6 +34,8 @@ pub mod accept;
 pub mod accept_encoding;
 pub mod accept_patch;
 pub mod accept_ranges;
+pub mod access_control_allow_credentials;
+pub mod access_control_allow_origin;
 pub mod alpn;
 pub mod alt_svc;
 pub mod auth_param;
@@ -480,7 +482,7 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 341;
+        const FLOOR: usize = 345;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

@@ -3,34 +3,30 @@ sources:
   url: https://fetch.spec.whatwg.org/
   type: text/html
   fragments:
-  - label: access_control_allow_credentials_when_origin
+  - label: access_control_allow_credentials
     section: § 4.10
     snippet: If credentials is `true`, then return success.
     cited_by:
-    - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 153
-  - label: access_control_allow_credentials_when_origin (2)
-    section: § 4.10
-    snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
-    cited_by:
-    - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 172
-    - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 209
+    - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
+      line: 66
   - label: CORS check reads the field
     section: § 4.10
     snippet: Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 154
+      line: 165
   - label: access_control_allow_origin_valid
     section: § 3.3.3
     snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_origin_valid.rs
-      line: 149
+      line: 148
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
       line: 184
+    - file: lint-http-rules/src/violations/access_control_allow_origin.rs
+      line: 51
+    - file: lint-http-rules/src/violations/access_control_allow_origin.rs
+      line: 73
   - label: cross_origin_resource_policy_valid
     section: § 3.7
     snippet: Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive
@@ -62,6 +58,14 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1432
   - label: origin_matching_for_cors
+    section: § 4.10
+    snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
+    cited_by:
+    - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
+      line: 209
+    - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
+      line: 89
+  - label: origin_matching_for_cors (2)
     section: § 4.10
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:

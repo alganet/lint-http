@@ -4,14 +4,19 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::access_control_allow_origin::{
+    ACCESS_CONTROL_ALLOW_ORIGIN_EMPTY, ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED, FETCH_3_3_3,
+};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::ViolationDef;
 
-/// The one entry a field with no list form always has available: its own
-/// repetition. What the *value* may be is this rule's own three-way
-/// alternation, which no subject can name — so the repetition is the only
-/// finding here the catalogue holds.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+/// The field's two findings, plus the one a field with no list form always has
+/// available: its own repetition.
+static DECLARED: &[&ViolationDef] = &[
+    &ACCESS_CONTROL_ALLOW_ORIGIN_EMPTY,
+    &ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED,
+    &FIELD_LINE_DUPLICATED,
+];
 
 pub struct AccessControlAllowOriginValid;
 
@@ -23,12 +28,6 @@ const MDN_ACCESS_CONTROL_ALLOW_ORIGIN: crate::rules::SpecRef = crate::rules::Spe
     section: None,
     url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
     note: "Access-Control-Allow-Origin",
-};
-const FETCH_3_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Fetch",
-    section: Some("3.3.3"),
-    url: "https://fetch.spec.whatwg.org/#http-access-control-allow-origin",
-    note: "`Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`",
 };
 const FETCH_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "Fetch",
@@ -59,7 +58,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks that the `Access-Control-Allow-Origin` response header is syntactically valid: it must be a single value and that value must be either `*`, `null`, or a valid serialized-origin (scheme://host[:port]). Multiple header fields or comma-separated lists are not allowed per the CORS semantics and will be flagged as violations."
+        "This rule checks that the `Access-Control-Allow-Origin` response header is syntactically valid: it must be a single value and that value must be either `*`, `null`, or a valid serialized-origin (scheme://host[:port]).\n\nThe field has no list form, so a comma-separated value is not a broken list — it is a value the CORS check's byte comparison matches against no origin at all, which is what a bare host such as `example.com` is too. Both are reported as the same defect, and the message names the shape that arrived.\n\nA line written with nothing on it is reported separately: that sender meant to state an origin and stated none. Repeated field lines are the field-order defect twenty other fields report."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -167,12 +166,26 @@ impl Rule for AccessControlAllowOriginValid {
             let line = crate::helpers::headers::field_line_as_written(hv);
             let s = crate::helpers::headers::trim_ows(&line);
 
-            // Must be a single value (not a comma-separated list)
+            // Must be a single value (not a comma-separated list). The two
+            // arms are one defect and two senders: a line with nothing on it
+            // (or nothing but commas) is a server that meant to state an origin
+            // and stated none, and a line with two members is a server that
+            // stated one the byte comparison below will match against nothing.
             let members: Vec<String> = crate::helpers::list::list_members(s)
                 .map(|m| m.to_string())
                 .collect();
-            if members.len() != 1 {
-                return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin must be a single value ('*', 'null', or a serialized origin)".into()));
+            if members.is_empty() {
+                return Some(ctx.report(&ACCESS_CONTROL_ALLOW_ORIGIN_EMPTY));
+            }
+            if members.len() > 1 {
+                return Some(ctx.report_with(
+                    &ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED,
+                    format!(
+                        "Access-Control-Allow-Origin is '{}', which holds {} comma-separated members: the field carries a single value ('*', 'null', or a serialized origin) and has no list form",
+                        crate::helpers::shown::shown_in_finding(s),
+                        members.len(),
+                    ),
+                ));
             }
 
             let member = members.into_iter().next().unwrap();
@@ -181,8 +194,8 @@ impl Rule for AccessControlAllowOriginValid {
             }
 
             if !crate::helpers::uri::is_valid_serialized_origin(&member) {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED,
                     format!(
                         "Access-Control-Allow-Origin contains invalid origin: '{}'",
                         crate::helpers::shown::shown_in_finding(&member)
@@ -315,8 +328,39 @@ mod tests {
         assert!(v.unwrap().message.contains("invalid origin"));
     }
 
+    /// The two findings the field's own subject holds, and the line between
+    /// them: a value was written, or it was not. Everything on the wrong side
+    /// of that line is one id however it is wrong — the field has no list form,
+    /// so a comma produces a value the CORS check matches against nothing,
+    /// exactly as a bare host does.
+    #[rstest]
+    #[case::blank("", "access_control_allow_origin_empty")]
+    #[case::only_commas(",,", "access_control_allow_origin_empty")]
+    #[case::two_members("https://a, https://b", "access_control_allow_origin_malformed")]
+    #[case::no_scheme("example.com", "access_control_allow_origin_malformed")]
+    #[case::uppercase_null("NULL", "access_control_allow_origin_malformed")]
+    fn each_finding_of_the_field_names_its_entry(#[case] value: &str, #[case] id: &str) {
+        let rule = AccessControlAllowOriginValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("access-control-allow-origin", value)],
+        );
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap_or_else(|| panic!("a finding for {value:?}"));
+        assert_eq!(found.violation, id, "{value:?}");
+    }
+
+    /// The id is shared with the bare host above, so the message is what tells
+    /// the two apart: it names the whole value and how many members were cut
+    /// out of it, which is the fact a sender needs and the one the id cannot
+    /// carry.
     #[test]
-    fn comma_separated_values_are_violation() {
+    fn a_comma_separated_value_says_how_many_members_arrived() {
         let rule = AccessControlAllowOriginValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -328,8 +372,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("single value"));
+        let message = v.expect("a finding").message;
+        assert!(message.contains("'https://a, https://b'"), "{message}");
+        assert!(message.contains("2 comma-separated members"), "{message}");
+        assert!(message.contains("single value"), "{message}");
     }
 
     #[test]
@@ -359,8 +405,9 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Multiple"));
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "field_line_duplicated");
+        assert!(v.message.contains("Multiple"));
     }
 
     #[test]

@@ -8,7 +8,11 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule checks that the `Access-Control-Allow-Origin` response header is syntactically valid: it must be a single value and that value must be either `*`, `null`, or a valid serialized-origin (scheme://host[:port]). Multiple header fields or comma-separated lists are not allowed per the CORS semantics and will be flagged as violations.
+This rule checks that the `Access-Control-Allow-Origin` response header is syntactically valid: it must be a single value and that value must be either `*`, `null`, or a valid serialized-origin (scheme://host[:port]).
+
+The field has no list form, so a comma-separated value is not a broken list — it is a value the CORS check's byte comparison matches against no origin at all, which is what a bare host such as `example.com` is too. Both are reported as the same defect, and the message names the shape that arrived.
+
+A line written with nothing on it is reported separately: that sender meant to state an origin and stated none. Repeated field lines are the field-order defect twenty other fields report.
 
 ## Specifications
 
