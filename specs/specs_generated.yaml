@@ -2477,12 +2477,18 @@ sources:
 - label: RFC 6266
   url: https://www.rfc-editor.org/rfc/rfc6266.html
   fragments:
+  - label: content_disposition
+    section: § 4.1
+    snippet: Content-Disposition header field values with multiple instances of the same parameter name are invalid.
+    cited_by:
+    - file: lint-http-rules/src/violations/content_disposition.rs
+      line: 47
   - label: content_disposition_parameter_valid
     section: § 4.1
     snippet: content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
-      line: 145
+      line: 147
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 168
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
@@ -4307,6 +4313,12 @@ sources:
 - label: RFC 8187
   url: https://www.rfc-editor.org/rfc/rfc8187.html
   fragments:
+  - label: ext_value
+    section: § 3.2.1
+    snippet: ext-value     = charset  "'" [ language ] "'" value-chars
+    cited_by:
+    - file: lint-http-rules/src/violations/ext_value.rs
+      line: 53
   - label: lint-http-rules/src/helpers/parameter.rs
     section: § 3.2.1
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )

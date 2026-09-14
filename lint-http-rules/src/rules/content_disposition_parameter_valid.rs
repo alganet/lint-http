@@ -6,6 +6,10 @@ use std::collections::HashSet;
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_disposition::{
+    CONTENT_DISPOSITION_PARAMETER_DUPLICATED, CONTENT_DISPOSITION_SIZE_INVALID, RFC_6266_4_1,
+};
+use crate::violations::ext_value::{EXT_VALUE_MALFORMED, RFC_8187_3_2_1};
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
 };
@@ -43,6 +47,9 @@ pub struct ContentDispositionParameterValid;
 /// `ext-value` is RFC 8187's production with no subject written — both are
 /// named here so the omission is a decision rather than an oversight.
 static DECLARED: &[&ViolationDef] = &[
+    &CONTENT_DISPOSITION_PARAMETER_DUPLICATED,
+    &CONTENT_DISPOSITION_SIZE_INVALID,
+    &EXT_VALUE_MALFORMED,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -63,12 +70,6 @@ const RFC_6266_4: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4",
     note:
         "Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes)",
-};
-const RFC_8187_3_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8187",
-    section: Some("3.2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc8187.html#section-3.2.1",
-    note: "`ext-value` syntax used for `filename*` (obsoletes RFC 5987, which this reference named; the production is unchanged)",
 };
 
 impl RuleMeta for ContentDispositionParameterValid {
@@ -93,6 +94,7 @@ severity = "warn"
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_6266_4,
+            RFC_6266_4_1,
             RFC_8187_3_2_1,
             RFC_9110_5_6_6,
             RFC_9110_5_6_2,
@@ -201,8 +203,8 @@ impl Rule for ContentDispositionParameterValid {
 
                     // check duplicates (case-insensitive, include '*')
                     if seen.contains(&name_lc) {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &CONTENT_DISPOSITION_PARAMETER_DUPLICATED,
                             format!("{} contains duplicate parameter: '{}'", hdr_name, name),
                         ));
                     }
@@ -252,8 +254,8 @@ impl Rule for ContentDispositionParameterValid {
                         // here said RFC 5987; RFC 8187 obsoletes it and moved it to
                         // Historic, though the production itself is byte-for-byte the same.
                         if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                &EXT_VALUE_MALFORMED,
                                 format!("{} filename* extended value invalid: {}", hdr_name, e),
                             ));
                         }
@@ -278,8 +280,8 @@ impl Rule for ContentDispositionParameterValid {
                         };
 
                         if !raw_val.chars().all(|c| c.is_ascii_digit()) {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                &CONTENT_DISPOSITION_SIZE_INVALID,
                                 format!(
                                     "{} size parameter must be numeric: '{}'",
                                     hdr_name, raw_val
@@ -291,8 +293,8 @@ impl Rule for ContentDispositionParameterValid {
                         if is_ext {
                             // extended parameter value must be ext-value
                             if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
-                                return Some(self.violation(
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    &EXT_VALUE_MALFORMED,
                                     format!(
                                         "{} extended parameter '{}' invalid: {}",
                                         hdr_name, name, e
@@ -373,10 +375,11 @@ mod tests {
     /// defect a `Content-Type` parameter would draw for the same shape, out of
     /// a rule that finds its parameters with its own hand-rolled cut.
     ///
-    /// The last two rows are the ones that stay this rule's own — a parameter
-    /// written twice is a requirement about the set rather than about one
-    /// parameter, and `size` carries a number by RFC 6266's sentence and not by
-    /// any grammar § 5.6.6 writes.
+    /// The last three rows are the field's own rather than a borrowed
+    /// production's: a parameter written twice is a requirement about the *set*
+    /// and § 4.1 states it in prose; `size` carries a number by a meaning RFC
+    /// 6266 inherited and then omitted; and an `ext-value` is RFC 8187's, which
+    /// is neither of the two alternatives § 5.6.6 gives a `parameter-value`.
     #[rstest]
     #[case("attachment; badparam", Some("parameter_equals_missing"))]
     #[case("attachment; =value", Some("token_empty"))]
@@ -387,8 +390,12 @@ mod tests {
         Some("quoted_string_delimiter_missing")
     )]
     #[case("attachment; filename=bad@name", Some("token_character_forbidden"))]
-    #[case("attachment; filename=a; filename=b", None)]
-    #[case("attachment; size=12a", None)]
+    #[case(
+        "attachment; filename=a; filename=b",
+        Some("content_disposition_parameter_duplicated")
+    )]
+    #[case("attachment; size=12a", Some("content_disposition_size_invalid"))]
+    #[case("attachment; filename*=no-separators", Some("ext_value_malformed"))]
     fn a_disposition_parameter_reports_the_productions_it_borrows(
         #[case] value: &str,
         #[case] id: Option<&str>,
