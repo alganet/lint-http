@@ -18,6 +18,17 @@ use crate::protocol_event::{
     MessageDirection, NegotiatedExtensions, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
 use crate::rules::{ProtocolRule, RuleMeta};
+use crate::violations::websocket_frame::{
+    RFC_6455_5_2, WEBSOCKET_FRAME_RSV_FORBIDDEN, WEBSOCKET_FRAME_RSV_MALFORMED,
+};
+use crate::violations::ViolationDef;
+
+/// The bit nothing gives a meaning to, and the recorded value no header could
+/// have carried — one about the wire and one about the record.
+static DECLARED: &[&ViolationDef] = &[
+    &WEBSOCKET_FRAME_RSV_FORBIDDEN,
+    &WEBSOCKET_FRAME_RSV_MALFORMED,
+];
 
 pub struct WebsocketFrameRsvBits;
 
@@ -41,13 +52,6 @@ impl WebsocketFrameRsvBits {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6455_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6455",
-    section: Some("5.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
-    note: "Base Framing Protocol — the three reserved bits, their width, the \
-           conditional MUST on the sender and the MUST-fail on the recipient",
-};
 const RFC_6455_5_8: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6455",
     section: Some("5.8"),
@@ -84,6 +88,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_6455_5_2, RFC_6455_5_8, RFC_6455_9_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -156,9 +164,8 @@ impl ProtocolRule for WebsocketFrameRsvBits {
             // before the negotiation question because no extension can license a
             // bit the header has no room for.
             //
-            // cite(RFC 6455 § 5.2): "RSV1, RSV2, RSV3:  1 bit each"
             if *rsv > 0b111 {
-                return Some(self.cited(&RFC_6455_5_2, ctx.severity, format!(
+                return Some(ctx.report_with(&WEBSOCKET_FRAME_RSV_MALFORMED, format!(
                         "A WebSocket frame the {sender} sent records the reserved bits as {rsv:#05b}, \
                          and the frame header holds three of them — one bit each — so no frame on any \
                          wire carried this value"
@@ -181,17 +188,12 @@ impl ProtocolRule for WebsocketFrameRsvBits {
             // is the honest answer for the same reason the finding below is honest
             // when the handshake is known: the antecedent is not in evidence.
             //
-            // cite(RFC 6455 § 5.2): "MUST be 0 unless an extension is negotiated that defines meanings for non-zero values."
-            // cite(RFC 6455 § 5.2): "If a nonzero value is received and none of the negotiated extensions defines the meaning of such a nonzero value, the receiving endpoint MUST _Fail the WebSocket Connection_."
             // cite(RFC 6455 § 5.8): "This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions."
             if !matches!(extensions, NegotiatedExtensions::NoneAccepted) {
                 return None;
             }
 
-            // `Rule::violation` is a trait default on the *transaction* trait; a
-            // `ProtocolRule` builds the struct, as every other one in this
-            // catalogue does.
-            Some(self.violation(ctx.severity, format!(
+            Some(ctx.report_with(&WEBSOCKET_FRAME_RSV_FORBIDDEN, format!(
                     "A WebSocket frame the {sender} sent has {} set, and the 101 that opened this \
                      session accepted no extension: RFC 6455 §5.2 makes a reserved bit non-zero only \
                      under an extension that defines a meaning for it, and it has the receiving \
@@ -264,6 +266,22 @@ mod tests {
         let v = judge(&frame(rsv, NegotiatedExtensions::NoneAccepted)).expect("violation");
         assert!(v.message.contains(named), "{}", v.message);
         assert!(v.message.contains("accepted no extension"), "{}", v.message);
+    }
+
+    /// Two findings and two entries: one about the wire, one about the record.
+    /// The ranking follows — a peer fails the connection over the first and
+    /// never saw the second.
+    #[rstest]
+    #[case(0b100, "websocket_frame_rsv_forbidden", crate::lint::Severity::Error)]
+    #[case(0b1000, "websocket_frame_rsv_malformed", crate::lint::Severity::Warn)]
+    fn each_finding_names_its_entry(
+        #[case] rsv: u8,
+        #[case] id: &str,
+        #[case] severity: crate::lint::Severity,
+    ) {
+        let v = judge(&frame(rsv, NegotiatedExtensions::NoneAccepted)).expect("violation");
+        assert_eq!(v.violation, id);
+        assert_eq!(v.severity, severity);
     }
 
     /// The same bit under an accepted extension is what `permessage-deflate`
