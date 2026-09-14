@@ -14,7 +14,7 @@ This rule reconstructs a small piece of cache state for a given client and resou
 
 ## Specifications
 
-- [RFC 8246 §2](https://www.rfc-editor.org/rfc/rfc8246.html#section-2): The Immutable Cache-Control Extension — the directive definition and its SHOULD NOT-revalidate-while-fresh behavior
+- [RFC 8246 §2](https://www.rfc-editor.org/rfc/rfc8246.html#section-2): `immutable` — clients SHOULD NOT revalidate during the response's freshness lifetime, and the extension applies during that lifetime only, so a response with none is outside it entirely
 - [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Freshness — Calculating Freshness Lifetime (§4.2.1) and Calculating Age (§4.2.3)
 
 ## Configuration

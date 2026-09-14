@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_IMMUTABLE_REDUNDANT, RFC_8246_2};
+use crate::violations::ViolationDef;
+
+/// One entry: the extension on a response it has no window to apply in.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_IMMUTABLE_REDUNDANT];
 
 /// `immutable` only acts while a response is fresh, so pairing it with a directive that
 /// leaves the promise nothing to act on is a contradiction. Each flagged directive nullifies
@@ -29,12 +34,6 @@ const NEVER_FRESH: &[&str] = &["no-store", "no-cache", "max-age=0", "s-maxage=0"
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_8246_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8246",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-2",
-    note: "The `immutable` Cache-Control extension — applies only during the freshness lifetime",
-};
 const RFC_9111_5_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("5.2.2"),
@@ -63,6 +62,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_8246_2, RFC_9111_5_2_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -156,7 +159,7 @@ impl Rule for ImmutableRequiresFreshness {
             // cite(RFC 8246 § 2): "The immutable extension only applies during the freshness lifetime of the stored response."
             // cite(RFC 8246 § 2): "Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload)."
             if let (true, Some(conflict)) = (found_immutable, conflicting) {
-                return Some(self.cited(&RFC_8246_2, ctx.severity, format!(
+                return Some(ctx.report_with(&CACHE_CONTROL_IMMUTABLE_REDUNDANT, format!(
                         "Cache-Control pairs 'immutable' with '{}', which leaves the response no freshness lifetime; 'immutable' only applies during one, so it has no effect here",
                         conflict
                     )));
@@ -262,7 +265,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
+        // The entry, and the severity that goes with what the miss costs.
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "cache_control_immutable_redundant");
+        assert_eq!(v.severity, crate::lint::Severity::Info);
     }
 
     /// The octet is not this rule's finding, and `immutable` beside a directive
