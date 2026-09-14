@@ -1255,6 +1255,14 @@ severity = "info"
 # A Cache-Control freshness directive is given more than one value
 severity = "warn"
 
+[violations.cache_control_immutable_ignored]
+# A still-fresh immutable response is revalidated anyway
+severity = "info"
+
+[violations.cache_control_immutable_redundant]
+# immutable sits on a response with no freshness lifetime
+severity = "info"
+
 [violations.cache_control_must_revalidate_ignored]
 # A stale must-revalidate response is reused without validation
 severity = "warn"
@@ -1281,6 +1289,10 @@ severity = "warn"
 
 [violations.cache_control_redundant]
 # A reuse directive sits on a response no cache may select
+severity = "warn"
+
+[violations.cache_control_s_maxage_ignored]
+# A cache s-maxage does not address used it for freshness
 severity = "warn"
 
 [violations.cache_control_storage_conflicting]

@@ -14,7 +14,7 @@ Note: `immutable` together with `must-revalidate` is **not** flagged. Those dire
 
 ## Specifications
 
-- [RFC 8246 §2](https://www.rfc-editor.org/rfc/rfc8246.html#section-2): The `immutable` Cache-Control extension — applies only during the freshness lifetime
+- [RFC 8246 §2](https://www.rfc-editor.org/rfc/rfc8246.html#section-2): `immutable` — clients SHOULD NOT revalidate during the response's freshness lifetime, and the extension applies during that lifetime only, so a response with none is outside it entirely
 - [RFC 9111 §5.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2): Response directives: `no-store`, `no-cache`, `max-age`, `s-maxage`
 
 ## Configuration

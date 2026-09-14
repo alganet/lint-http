@@ -100,6 +100,23 @@ pub const RFC_9111_5_2_2_2: SpecRef = SpecRef {
     note: "`must-revalidate` — once the response is stale, a cache MUST NOT reuse it until it has been successfully validated by the origin",
 };
 
+/// The `s-maxage` response directive, and the cache it is addressed to.
+pub const RFC_9111_5_2_2_10: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.10"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.10",
+    note: "`s-maxage` — the directive is defined for a shared cache, where it overrides the maximum age given by `max-age` or `Expires`; it says nothing to any other kind of cache",
+};
+
+/// The `immutable` extension: what it asks of a client, and the window it
+/// applies in.
+pub const RFC_8246_2: SpecRef = SpecRef {
+    spec: "RFC 8246",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-2",
+    note: "`immutable` — clients SHOULD NOT revalidate during the response's freshness lifetime, and the extension applies during that lifetime only, so a response with none is outside it entirely",
+};
+
 defects! {
     /// `no-cache=""`: the qualified form written with an argument that lists no
     /// field name at all.
@@ -298,6 +315,71 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_5_2_2_7],
+    }
+
+    /// A response revalidated at its `s-maxage` boundary by a cache the
+    /// directive does not address.
+    ///
+    /// **What went unhonoured is the directive's scope, not its value.** § 5.2.2.10
+    /// defines `s-maxage` *for a shared cache*, where it overrides `max-age`
+    /// and `Expires`; it says nothing to any other kind, so a cache outside
+    /// that description has `max-age` as its freshness lifetime and this one
+    /// used a shorter number that was never addressed to it.
+    ///
+    /// The part names the directive an operator would search for, and the
+    /// ending says a stated requirement was not honoured — here the sentence
+    /// that says *which* caches the directive is for.
+    ///
+    // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
+    CACHE_CONTROL_S_MAXAGE_IGNORED = {
+        id: "cache_control_s_maxage_ignored",
+        title: "A cache s-maxage does not address used it for freshness",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2_2_10],
+    }
+
+    /// `immutable` beside a directive that leaves the response no freshness
+    /// lifetime at all — `no-store`, `no-cache`, `max-age=0`, `s-maxage=0`.
+    ///
+    /// **`_redundant`, and the extension's own scope is the argument**: it
+    /// applies during the freshness lifetime and there is none, so the word is
+    /// on the wire and does nothing. Nothing is broken — the paired directive
+    /// is the stronger statement and the deployment behaves as it says.
+    ///
+    /// `info`, the ending's starting point, and the difference from
+    /// [`CACHE_CONTROL_REDUNDANT`] is what the mistake costs: there an operator
+    /// believes the deployment has a cache and it has none, here an operator
+    /// believes reloads skip a round trip and they do not.
+    ///
+    // cite(RFC 8246 § 2): "The immutable extension only applies during the freshness lifetime of the stored response."
+    CACHE_CONTROL_IMMUTABLE_REDUNDANT = {
+        id: "cache_control_immutable_redundant",
+        title: "immutable sits on a response with no freshness lifetime",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_8246_2],
+    }
+
+    /// A conditional request for an `immutable` response that is still fresh.
+    ///
+    /// The extension exists to stop exactly this, and the client did it anyway.
+    /// `_ignored` with the four directive entries above, and **`info` where
+    /// those are `warn`**, because the ranking follows what the miss costs: a
+    /// cache reusing a `no-store` response keeps something it was told to keep
+    /// no part of, and this spends one conditional request.
+    ///
+    /// A user's explicit reload is the case the sentence exempts, and nothing
+    /// on the wire distinguishes it — which is a second reason not to rank this
+    /// higher.
+    ///
+    // cite(RFC 8246 § 2): "Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload)."
+    CACHE_CONTROL_IMMUTABLE_IGNORED = {
+        id: "cache_control_immutable_ignored",
+        title: "A still-fresh immutable response is revalidated anyway",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_8246_2],
     }
 
 }

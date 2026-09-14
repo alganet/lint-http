@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_IMMUTABLE_IGNORED, RFC_8246_2};
+use crate::violations::ViolationDef;
+
+/// One entry: the revalidation the extension exists to prevent.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_IMMUTABLE_IGNORED];
 
 /// Ensure that responses labelled `Cache-Control: immutable` are not
 /// needlessly revalidated while still within their advertised freshness
@@ -32,12 +37,6 @@ pub struct ImmutableCacheNeverStale;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_8246_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8246",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-2",
-    note: "The Immutable Cache-Control Extension — the directive definition and its SHOULD NOT-revalidate-while-fresh behavior",
-};
 const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("4.2"),
@@ -66,6 +65,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_8246_2, RFC_9111_4_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -138,7 +141,7 @@ impl Rule for ImmutableCacheNeverStale {
             // cite(RFC 8246 § 2): "Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload)."
             // cite(RFC 8246 § 2): "The immutable extension only applies during the freshness lifetime of the stored response."
             if has_conditional && current_age < freshness_lifetime {
-                return Some(self.cited(&RFC_8246_2, ctx.severity, format!(
+                return Some(ctx.report_with(&CACHE_CONTROL_IMMUTABLE_IGNORED, format!(
                         "Unnecessary revalidation of immutable response while still fresh (age {} < freshness {})",
                         current_age, freshness_lifetime
                     )));
@@ -284,8 +287,11 @@ mod tests {
                 "immutable_cache_never_stale",
             ]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Unnecessary revalidation"));
+        // The entry, and the severity that goes with what the miss costs.
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "cache_control_immutable_ignored");
+        assert_eq!(v.severity, crate::lint::Severity::Info);
+        assert!(v.message.contains("Unnecessary revalidation"));
     }
 
     #[test]

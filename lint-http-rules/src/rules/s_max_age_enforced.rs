@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_S_MAXAGE_IGNORED, RFC_9111_5_2_2_10};
+use crate::violations::ViolationDef;
+
+/// One entry: a cache outside the directive's description using it anyway.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_S_MAXAGE_IGNORED];
 
 /// Ensure that `Cache-Control: s-maxage` is not treated as the freshness
 /// lifetime by *private* clients or caches.
@@ -24,15 +29,8 @@ use crate::rules::{Rule, RuleMeta};
 /// the entry as fresh until `max-age` expired.
 pub struct SMaxAgeEnforced;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_2_2_10: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.2.2.10"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.10",
-    note: "`s-maxage` — applies only to shared caches and overrides `max-age`/`Expires` for those caches",
-};
+// The sections this rule names now live on the subject beside the entries that
+// quote them, and are imported back for `specifications()`.
 
 impl RuleMeta for SMaxAgeEnforced {
     fn id(&self) -> &'static str {
@@ -55,6 +53,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_5_2_2_10]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -141,7 +143,7 @@ impl Rule for SMaxAgeEnforced {
             // assumes the observed client is private, which cannot be verified from traffic).
             // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
             if has_conditional && current_age >= s_max_age && current_age < max_age {
-                return Some(self.cited(&RFC_9111_5_2_2_10, ctx.severity, format!(
+                return Some(ctx.report_with(&CACHE_CONTROL_S_MAXAGE_IGNORED, format!(
                         "Resource revalidated after s-maxage={} but before max-age={} (age {}) — private caches must ignore s-maxage and use max-age for freshness",
                         s_max_age, max_age, current_age
                     )));
@@ -277,8 +279,11 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["s_max_age_enforced"]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("s-maxage=10"));
+        // The entry, and the severity that goes with what the miss costs.
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "cache_control_s_maxage_ignored");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert!(v.message.contains("s-maxage=10"));
     }
 
     #[test]

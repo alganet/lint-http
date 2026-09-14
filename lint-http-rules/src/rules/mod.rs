@@ -1545,7 +1545,12 @@ severity = "warn"
         /// directive sections. This is the shape the list exists to
         /// distinguish from a loss, at its largest so far: six sites become
         /// four defs, and every finding keeps the reference it had.
-        const FLOOR: usize = 51;
+        /// **The three freshness rules gave up one each**, § 5.2.2.10 and
+        /// RFC 8246 § 2 twice, and the three entries replacing them name those
+        /// same sections — one of them named by two entries, since one sentence
+        /// of § 2 says what `immutable` asks and the next says the window it
+        /// asks it in.
+        const FLOOR: usize = 48;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
