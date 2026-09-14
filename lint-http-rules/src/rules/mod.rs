@@ -1585,7 +1585,10 @@ severity = "warn"
         /// of the five traps this campaign recorded against borrowing
         /// `token`'s ids, closed by finding that the def was never about the
         /// value at all.
-        const FLOOR: usize = 39;
+        /// **`proxy_connection_discouraged` gave up its one**, RFC 9112
+        /// App. C.2.2, and the entry holding it names that appendix — the same
+        /// section, from the entry instead of the site.
+        const FLOOR: usize = 38;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
