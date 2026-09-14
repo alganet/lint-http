@@ -25,7 +25,7 @@ Scope: this rule reads a request's header section. Where the field appears on se
 
 ## Specifications
 
-- [RFC 9112 §C.2.2](https://www.rfc-editor.org/rfc/rfc9112.html#appendix-C.2.2): Keep-Alive Connections — the only description of the field in either core document, and it states no requirement: the section carries no BCP 14 keyword
+- [RFC 9112 §C.2.2](https://www.rfc-editor.org/rfc/rfc9112.html#appendix-C.2.2): Keep-Alive Connections — the only description of the field in either core document: an attempted fix for HTTP/1.0 proxies that did not understand Connection, recorded as unworkable, with clients encouraged not to send it in any request
 - [RFC 9110 §7.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1): Connection — lists the field among those intermediaries are asked to remove before forwarding, and names Appendix C.2.2 as its definition
 
 ## Configuration

@@ -5,23 +5,18 @@
 use crate::helpers::headers::combined_field_value_as_written;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::proxy_connection::{PROXY_CONNECTION_OBSOLETE, RFC_9112_C_2_2};
+use crate::violations::ViolationDef;
+
+/// One entry, and it claims no prohibition: the field is described in one
+/// appendix, in the past tense.
+static DECLARED: &[&ViolationDef] = &[&PROXY_CONNECTION_OBSOLETE];
 
 pub struct ProxyConnectionDiscouraged;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9112_C_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("C.2.2"),
-    // An appendix anchors as `appendix-C.2.2`, not `section-c.2.2`,
-    // and the letter is case-sensitive -- the `section-` prefix
-    // every other `SpecRef` in the tree uses scrolls nowhere here.
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#appendix-C.2.2",
-    note: "Keep-Alive Connections — the only description of the field in either core \
-           document, and it states no requirement: the section carries no BCP 14 \
-           keyword",
-};
 const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.6.1"),
@@ -51,6 +46,10 @@ severity = "info"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9112_C_2_2, RFC_9110_7_6_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -143,8 +142,8 @@ impl Rule for ProxyConnectionDiscouraged {
             // several, so it reproduces the problem it was meant to solve.
             //
             // cite(RFC 9112 § C.2.2): "One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above."
-            Some(self.cited(&RFC_9112_C_2_2,
-                ctx.severity,
+            Some(ctx.report_with(
+                &PROXY_CONNECTION_OBSOLETE,
                 format!(
                     "Request carries a Proxy-Connection header field: '{}'. RFC 9112 Appendix C.2.2 \
                      encourages clients not to send it in any request — it was an attempted fix for \
@@ -191,6 +190,10 @@ mod tests {
     #[case("HTTP/1.0")]
     fn the_field_is_reported_on_the_versions_that_have_a_connection_field(#[case] version: &str) {
         let v = request(version, &[("proxy-connection", "keep-alive")]).expect("violation");
+        // The entry claims no prohibition, because the strongest thing said
+        // about this field anywhere is "encouraged not to".
+        assert_eq!(v.violation, "proxy_connection_obsolete");
+        assert_eq!(v.severity, crate::lint::Severity::Info);
         assert!(
             v.message
                 .contains("Proxy-Connection header field: 'keep-alive'"),
