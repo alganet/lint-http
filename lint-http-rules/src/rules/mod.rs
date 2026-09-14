@@ -1561,7 +1561,13 @@ severity = "warn"
         /// of its findings are cited now: the § 5.4 site became an entry naming
         /// that section, and the contradiction beside it — which cited nothing
         /// — names the same section from its own entry.
-        const FLOOR: usize = 45;
+        /// **`cache_validation_chain` gave up two and its entry names
+        /// nothing**, which is the one shape on this list that *is* a loss and
+        /// is still right: no sentence requires a client to condition on the
+        /// latest validator it was given, so the two § 4.3.1 sites were citing
+        /// a section near the heuristic rather than one behind it. The quotes
+        /// stay in the rule, where they describe how it reads history.
+        const FLOOR: usize = 43;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

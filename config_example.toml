@@ -1367,6 +1367,14 @@ severity = "warn"
 # A date conditional is sent beside the entity-tag conditional that supersedes it
 severity = "info"
 
+[violations.conditional_missing]
+# A repeat request declines a validator the server provided
+severity = "info"
+
+[violations.conditional_validator_conflicting]
+# A precondition names a validator older than the last one seen
+severity = "info"
+
 [violations.conditional_validator_missing]
 # A precondition names a validator this exchange never provided
 severity = "info"
