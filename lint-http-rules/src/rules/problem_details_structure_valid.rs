@@ -4,6 +4,19 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::problem_details::{
+    PROBLEM_DETAILS_EMPTY, PROBLEM_DETAILS_INVALID, PROBLEM_DETAILS_MALFORMED, RFC_8259_2,
+    RFC_9457_3,
+};
+use crate::violations::ViolationDef;
+
+/// Three ways content contradicts the format its own `Content-Type` names:
+/// nothing there, not a JSON document, not a JSON object.
+static DECLARED: &[&ViolationDef] = &[
+    &PROBLEM_DETAILS_EMPTY,
+    &PROBLEM_DETAILS_MALFORMED,
+    &PROBLEM_DETAILS_INVALID,
+];
 
 pub struct ProblemDetailsStructureValid;
 
@@ -36,9 +49,13 @@ impl ProblemDetailsStructureValid {
     // cite(RFC 9110 § 8.1): "The representation data is in a format and encoding defined by the representation metadata header fields."
     // cite(RFC 9110 § 8.3): "The indicated media type defines both the data format and how that data is intended to be processed by a recipient, within the scope of the received message semantics, after any content codings indicated by Content-Encoding are decoded."
     // cite(RFC 9110 § 8.3): "In practice, resource owners do not always properly configure their origin server to provide the correct Content-Type for a given representation."
-    fn report(&self, severity: crate::lint::Severity, detail: &str) -> Violation {
-        self.violation(
-            severity,
+    fn report(
+        ctx: &crate::rules::RuleContext<'_>,
+        def: &'static ViolationDef,
+        detail: &str,
+    ) -> Violation {
+        ctx.report_with(
+            def,
             format!(
                 "Response declares 'application/problem+json' but {detail}; the content is not the problem details JSON object that media type identifies"
             ),
@@ -49,12 +66,6 @@ impl ProblemDetailsStructureValid {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9457_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9457",
-    section: Some("3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-3",
-    note: "The problem details JSON object and the media type that identifies it; §3.1 and §3.1.1 are where every member is made optional and `type` is given a value for its own absence",
-};
 const RFC_9457_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9457",
     section: Some("4.2.1"),
@@ -66,12 +77,6 @@ const RFC_9110_8_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.1",
     note: "Representation data is in the format its metadata names — the sentence that makes a mismatch between the content and the `Content-Type` a contradiction rather than a preference; §8.3 adds what the recipient does with the indicated media type, and §8.4 that a content coding has to be undone first",
-};
-const RFC_8259_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8259",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc8259.html#section-2",
-    note: "What a JSON text is — the measure for content that is empty or does not parse; §8.1 adds the UTF-8 requirement the parser also enforces",
 };
 
 impl RuleMeta for ProblemDetailsStructureValid {
@@ -91,6 +96,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9457_3, RFC_9457_4_2_1, RFC_9110_8_1, RFC_8259_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -200,9 +209,12 @@ impl Rule for ProblemDetailsStructureValid {
             {
                 // Zero octets is not a JSON document. The sentence is about what a
                 // JSON text is, and an empty octet sequence serializes no value.
-                // cite(RFC 8259 § 2): "A JSON text is a serialized value."
                 if b.is_empty() {
-                    return Some(self.report(ctx.severity, "its content is empty"));
+                    return Some(Self::report(
+                        ctx,
+                        &PROBLEM_DETAILS_EMPTY,
+                        "its content is empty",
+                    ));
                 }
                 if coded {
                     return None;
@@ -218,9 +230,9 @@ impl Rule for ProblemDetailsStructureValid {
                     // cite(RFC 9457 § 4.2.1): "Consequently, any problem details object not carrying an explicit "type" member implicitly uses this URI."
                     Ok(serde_json::Value::Object(_)) => None,
                     // Well-formed JSON, but not the structure the media type names.
-                    // cite(RFC 9457 § 3): "The canonical model for problem details is a JSON [JSON] object."
-                    Ok(other) => Some(self.report(
-                        ctx.severity,
+                    Ok(other) => Some(Self::report(
+                        ctx,
+                        &PROBLEM_DETAILS_INVALID,
                         &format!(
                             "its content is a JSON {}, not a JSON object",
                             json_kind(&other)
@@ -229,9 +241,12 @@ impl Rule for ProblemDetailsStructureValid {
                     // Not JSON at all. `from_slice` also refuses octets that are not
                     // UTF-8, which is the second sentence: this is content the
                     // recipient cannot decode, let alone parse.
-                    // cite(RFC 8259 § 2): "A JSON text is a serialized value."
                     // cite(RFC 8259 § 8.1): "JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8"
-                    Err(_) => Some(self.report(ctx.severity, "its content is not a JSON document")),
+                    Err(_) => Some(Self::report(
+                        ctx,
+                        &PROBLEM_DETAILS_MALFORMED,
+                        "its content is not a JSON document",
+                    )),
                 };
             }
 
@@ -241,8 +256,13 @@ impl Rule for ProblemDetailsStructureValid {
             // zero here is zero octets of representation.
             // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
             if let Some(len) = resp.body_length {
-                return (len == 0)
-                    .then(|| self.report(ctx.severity, "the capture counted zero content octets"));
+                return (len == 0).then(|| {
+                    Self::report(
+                        ctx,
+                        &PROBLEM_DETAILS_EMPTY,
+                        "the capture counted zero content octets",
+                    )
+                });
             }
 
             // Nothing counted either -- a transaction deserialized from a capture
@@ -260,7 +280,11 @@ impl Rule for ProblemDetailsStructureValid {
                     Ok(Some(0))
                 )
             {
-                return Some(self.report(ctx.severity, "it declares a Content-Length of zero"));
+                return Some(Self::report(
+                    ctx,
+                    &PROBLEM_DETAILS_EMPTY,
+                    "it declares a Content-Length of zero",
+                ));
             }
 
             // A declared length above zero, an unreadable one, or none at all: the
@@ -312,6 +336,28 @@ mod tests {
     }
 
     const PJ: (&str, &str) = ("content-type", "application/problem+json");
+
+    /// Three ways the content contradicts the media type, and three entries —
+    /// while the three pieces of evidence for an empty body are one. Which
+    /// reading answered is a fact about the record, and the record is not the
+    /// defect.
+    #[rstest]
+    #[case::no_bytes(Some(b"".as_slice()), Some(0), &[PJ], "problem_details_empty")]
+    #[case::counted_zero(None, Some(0), &[PJ], "problem_details_empty")]
+    #[case::declared_zero(None, None, &[PJ, ("content-length", "0")], "problem_details_empty")]
+    #[case::not_json(Some(b"Internal Server Error".as_slice()), Some(21), &[PJ], "problem_details_malformed")]
+    #[case::wrong_json(Some(b"[1,2]".as_slice()), Some(5), &[PJ], "problem_details_invalid")]
+    fn each_finding_names_its_entry(
+        #[case] body: Option<&'static [u8]>,
+        #[case] body_length: Option<u64>,
+        #[case] headers: &[(&str, &str)],
+        #[case] id: &str,
+    ) {
+        let tx = fixture(500, headers, body, body_length);
+        let found = check(&tx).unwrap_or_else(|| panic!("a finding for {id}"));
+        assert_eq!(found.violation, id);
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
+    }
 
     /// Every member of a problem details object is optional, so `{}` is a
     /// conforming one: it means "no semantics beyond the status code". §3.1

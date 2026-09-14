@@ -4,18 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::problem_details::{PROBLEM_DETAILS_MISSING, RFC_9457_1};
+use crate::violations::ViolationDef;
+
+/// One entry, and it is advice: an error response with no error format on it.
+static DECLARED: &[&ViolationDef] = &[&PROBLEM_DETAILS_MISSING];
 
 pub struct ProblemDetailsContentType;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9457_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9457",
-    section: Some("1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-1",
-    note: "Which status codes problem details suit, and the two sentences saying an application-specific format is often the better answer — between them the reason this rule's finding is advice and not a defect",
-};
 const RFC_9457_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9457",
     section: Some("3"),
@@ -52,6 +51,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9457_1, RFC_9457_3, RFC_9457_B, RFC_9110_8_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -162,8 +165,7 @@ impl Rule for ProblemDetailsContentType {
             // the document's own exemptions are honoured is the case it was written
             // for, an application with no error format of its own. So the finding is
             // advice and the message says so.
-            // cite(RFC 9457 § 1): "This specification's aim is to define common error formats for applications that need one so that they aren't required to define their own or, worse, tempted to redefine the semantics of existing HTTP status codes."
-            Some(self.cited(&RFC_9457_1, ctx.severity, format!(
+            Some(ctx.report_with(&PROBLEM_DETAILS_MISSING, format!(
                     "Error response carries the generic media type '{}'; problem details (RFC 9457) would describe the error in a machine-readable form, as 'application/problem+json' or 'application/problem+xml'. Advisory: no RFC requires them, and an application that already has an error format of its own should keep using it",
                     ct_str
                 )))
@@ -180,6 +182,27 @@ static REGISTRATION: &dyn crate::rules::Rule = &ProblemDetailsContentType;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// The one entry, and its severity: `info`, because no sentence is broken
+    /// and the message contradicts nothing. A `[violations.*]` key is what
+    /// raises it for an operator who wants problem details everywhere.
+    #[test]
+    fn the_advisory_finding_names_its_entry_and_carries_its_severity() {
+        let rule = ProblemDetailsContentType;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            500,
+            &[("content-type", "application/json")],
+        );
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "problem_details_missing");
+        assert_eq!(found.severity, crate::lint::Severity::Info);
+    }
 
     #[rstest]
     #[case(400, Some("application/problem+json"), false)]
