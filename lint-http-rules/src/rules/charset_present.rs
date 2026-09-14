@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_type::{CONTENT_TYPE_CHARSET_MISSING, RFC_9110_8_3_2};
+use crate::violations::ViolationDef;
+
+/// One entry: a text media type that does not say which encoding it used.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_TYPE_CHARSET_MISSING];
 
 pub struct CharsetPresent;
 
@@ -15,12 +20,6 @@ const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.3.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
     note: "`media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here",
-};
-const RFC_9110_8_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
-    note: "What `charset` is for. Note it mandates nothing: no requirement to send the parameter exists, so flagging its absence is this linter's policy",
 };
 const MDN_CONTENT_TYPE: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Content-Type",
@@ -46,6 +45,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_8_3_1, RFC_9110_8_3_2, MDN_CONTENT_TYPE]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -141,11 +144,7 @@ impl Rule for CharsetPresent {
                         // not have.
                         // cite(MDN Content-Type): "Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred."
                         if !has_charset {
-                            return Some(self.cited(
-                                &MDN_CONTENT_TYPE,
-                                ctx.severity,
-                                "Text-based Content-Type header missing charset parameter.".into(),
-                            ));
+                            return Some(ctx.report(&CONTENT_TYPE_CHARSET_MISSING));
                         }
                     }
                 }
@@ -232,7 +231,11 @@ mod tests {
         );
 
         if expect_violation {
-            assert!(violation.is_some());
+            // The absence one sentence asks about outranks the one no sentence
+            // asks about, which is the whole of this subject's ranking.
+            let found = violation.clone().expect("a finding");
+            assert_eq!(found.violation, "content_type_charset_missing");
+            assert_eq!(found.severity, crate::lint::Severity::Info);
             assert_eq!(
                 violation.map(|v| v.message),
                 expected_message.map(|s| s.to_string())

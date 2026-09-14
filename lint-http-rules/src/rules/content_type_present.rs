@@ -4,18 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_type::{CONTENT_TYPE_MISSING, RFC_9110_8_3};
+use crate::violations::ViolationDef;
+
+/// One entry: content with nothing saying how to read it.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_TYPE_MISSING];
 
 pub struct ContentTypePresent;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-    note: "Content-Type — the SHOULD, the exception that excuses a sender who does not know the type, the recipient's two fallbacks, and what sniffing costs",
-};
 const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
     section: Some("6.3"),
@@ -56,6 +55,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_8_3, RFC_9112_6_3, RFC_9110_15_3_6, RFC_9110_9_3_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -185,11 +188,7 @@ impl Rule for ContentTypePresent {
             // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
             // cite(RFC 9110 § 8.3): "This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation")."
             if has_content {
-                return Some(self.cited(
-                    &RFC_9110_8_3,
-                    ctx.severity,
-                    "Response contains content but no Content-Type header".into(),
-                ));
+                return Some(ctx.report(&CONTENT_TYPE_MISSING));
             }
 
             None
@@ -249,7 +248,11 @@ mod tests {
         );
 
         if expect_violation {
-            assert!(violation.is_some());
+            // The absence one sentence asks about outranks the one no sentence
+            // asks about, which is the whole of this subject's ranking.
+            let found = violation.clone().expect("a finding");
+            assert_eq!(found.violation, "content_type_missing");
+            assert_eq!(found.severity, crate::lint::Severity::Warn);
             assert_eq!(
                 violation.map(|v| v.message),
                 expected_message.map(|s| s.to_string())

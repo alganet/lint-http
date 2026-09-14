@@ -1567,7 +1567,12 @@ severity = "warn"
         /// latest validator it was given, so the two § 4.3.1 sites were citing
         /// a section near the heuristic rather than one behind it. The quotes
         /// stay in the rule, where they describe how it reads history.
-        const FLOOR: usize = 43;
+        /// **`content_type_present` and `charset_present` gave up one each**,
+        /// and the second is a *better* reference rather than the same one: it
+        /// cited an MDN page, and the entry that replaced it names RFC 9110
+        /// § 8.3.2 — the section that says what a `charset` is for and asks for
+        /// nothing, which is exactly the footing the finding stands on.
+        const FLOOR: usize = 41;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

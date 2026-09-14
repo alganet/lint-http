@@ -1535,6 +1535,14 @@ severity = "warn"
 # A quoted source expression is written with nothing in it
 severity = "warn"
 
+[violations.content_type_charset_missing]
+# A text media type does not say which character encoding it used
+severity = "info"
+
+[violations.content_type_missing]
+# A message carries content and does not say what it is
+severity = "warn"
+
 [violations.cookie_domain_empty]
 # Set-Cookie Domain attribute is empty
 severity = "warn"

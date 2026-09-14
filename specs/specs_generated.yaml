@@ -856,7 +856,7 @@ sources:
     snippet: Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 142
+      line: 145
 - label: MDN X-XSS-Protection
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
   fragments:
@@ -5685,7 +5685,9 @@ sources:
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 105
+      line: 108
+    - file: lint-http-rules/src/violations/content_type.rs
+      line: 74
   - label: charset_registered
     section: § 8.3
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
@@ -6051,7 +6053,7 @@ sources:
     snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 117
+      line: 120
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 182
   - label: content_type_present (2)
@@ -6059,15 +6061,17 @@ sources:
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 178
+      line: 181
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 161
+    - file: lint-http-rules/src/violations/content_type.rs
+      line: 56
   - label: content_type_present (3)
     section: § 8.3
     snippet: Content-Type = media-type
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 179
+      line: 182
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 212
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
@@ -6077,7 +6081,7 @@ sources:
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 185
+      line: 188
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 198
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
@@ -6087,13 +6091,13 @@ sources:
     snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 186
+      line: 189
   - label: content_type_present (6)
     section: § 9.3.2
     snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 128
+      line: 131
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 255
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
@@ -7699,7 +7703,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 308
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 97
+      line: 100
     - file: lint-http-rules/src/rules/content_type_registered.rs
       line: 158
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -10237,7 +10241,7 @@ sources:
     snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 133
+      line: 136
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 198
   - label: content_type_present (2)
@@ -10245,7 +10249,7 @@ sources:
     snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 109
+      line: 112
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 175
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
@@ -10255,7 +10259,7 @@ sources:
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 155
+      line: 158
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 231
   - label: head_response_headers_match_get
