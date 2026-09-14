@@ -1580,7 +1580,12 @@ severity = "warn"
         /// **`x_content_type_options_present` gave up its one**, Fetch § 3.6,
         /// and both of its entries name that section — so the finding beside
         /// the cited one, which cited nothing, is cited too.
-        const FLOOR: usize = 40;
+        /// **`content_transfer_encoding_valid` gave up its one**, RFC 9112
+        /// App. B.5, and the entry holding it names that appendix — the last
+        /// of the five traps this campaign recorded against borrowing
+        /// `token`'s ids, closed by finding that the def was never about the
+        /// value at all.
+        const FLOOR: usize = 39;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
