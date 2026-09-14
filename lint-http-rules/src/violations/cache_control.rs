@@ -83,6 +83,15 @@ pub const RFC_9111_5_2_2_7: SpecRef = SpecRef {
     note: "private — argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified private",
 };
 
+/// Calculating Cache Keys with the Vary Header Field: what a `Vary: *` does to
+/// every stored response of a resource.
+pub const RFC_9111_4_1: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
+    note: "Calculating Cache Keys with the Vary Header Field — a `Vary: *` never matches, so no stored response of that resource can be selected and a directive advertising reuse has nothing to act on",
+};
+
 defects! {
     /// `no-cache=""`: the qualified form written with an argument that lists no
     /// field name at all.
@@ -179,6 +188,36 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9111_4_2_1],
     }
+    /// A directive advertising reuse — `max-age`, `s-maxage`, `public` — on a
+    /// response whose `Vary` is `*`.
+    ///
+    /// **The subject is this field because this field is the one that is
+    /// dead.** A `Vary: *` alone is a server saying its responses are never to
+    /// be selected from a cache, which is a coherent thing to say; the
+    /// directive alone is a server saying how long they may be. Together, § 4.1
+    /// makes the wildcard never match, so no stored response is ever selected
+    /// and the directive has nothing to act on — the tie-break
+    /// [`access_control_allow_credentials`](crate::violations::access_control_allow_credentials)
+    /// used, applied to a cache.
+    ///
+    /// **`_redundant`, because no sentence is broken**: nothing forbids the
+    /// pairing and both fields are well-formed. `warn` rather than the `info`
+    /// the ending starts at, and the argument is the size of the surprise — an
+    /// operator reading `max-age=86400` believes the deployment has a cache,
+    /// and it has none.
+    ///
+    /// `no-cache` is not this entry: it promises no reuse, so pairing it with
+    /// the wildcard states the same thing twice rather than contradicting it.
+    ///
+    // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
+    CACHE_CONTROL_REDUNDANT = {
+        id: "cache_control_redundant",
+        title: "A reuse directive sits on a response no cache may select",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_4_1],
+    }
+
 }
 
 #[cfg(test)]

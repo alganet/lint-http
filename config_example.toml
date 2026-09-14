@@ -1263,6 +1263,10 @@ severity = "info"
 # Cache-Control private is qualified by no field name
 severity = "info"
 
+[violations.cache_control_redundant]
+# A reuse directive sits on a response no cache may select
+severity = "warn"
+
 [violations.cache_control_storage_conflicting]
 # Two Cache-Control directives disagree about storing the response
 severity = "warn"
@@ -2569,6 +2573,10 @@ severity = "warn"
 
 [violations.uri_scheme_leading_letter_missing]
 # URI scheme does not begin with a letter
+severity = "warn"
+
+[violations.vary_ignored]
+# A response is reused across a dimension its Vary nominated
 severity = "warn"
 
 [violations.via_comment_duplicated]

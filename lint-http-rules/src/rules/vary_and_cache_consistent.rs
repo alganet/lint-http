@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_REDUNDANT, RFC_9111_4_1};
+use crate::violations::ViolationDef;
+
+/// One entry, and it is on the field that is dead: a directive advertising
+/// reuse beside a `Vary` no stored response can match.
+static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_REDUNDANT];
 
 /// Responses that include `Vary: *` cannot be selected by caches for
 /// subsequent requests (a `Vary: *` always fails to match; see RFC 9111 §4.1).
@@ -16,12 +22,6 @@ pub struct VaryAndCacheConsistent;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
-    note: "Calculating Cache Keys with the Vary Header Field (a `Vary: *` never matches)",
-};
 const RFC_9111_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("3"),
@@ -50,6 +50,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_4_1, RFC_9111_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -115,7 +119,7 @@ impl Rule for VaryAndCacheConsistent {
             for directive in crate::helpers::cache_control::directives_in(&lines) {
                 if ADVERTISES_REUSE.iter().any(|name| directive.is(name)) {
                     let name = directive.name.to_ascii_lowercase();
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&CACHE_CONTROL_REDUNDANT, format!(
                             "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
                             name, name
                         )));
@@ -136,6 +140,28 @@ static REGISTRATION: &dyn crate::rules::Rule = &VaryAndCacheConsistent;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// The one entry, and it is on the field the pairing kills: a directive
+    /// advertising reuse that no cache can act on, because the wildcard beside
+    /// it never matches.
+    #[test]
+    fn the_finding_names_the_entry_of_the_field_that_is_dead() {
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("vary", "*"), ("cache-control", "max-age=86400")],
+        );
+        let found = crate::test_helpers::run_rule(
+            &VaryAndCacheConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "vary_and_cache_consistent",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "cache_control_redundant");
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
+    }
 
     fn make_tx(vary: Option<&str>, cc: Option<&str>) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);

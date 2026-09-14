@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::vary::{RFC_9111_4_1, VARY_IGNORED};
+use crate::violations::ViolationDef;
+
+/// One entry: a stored response reused across a dimension it nominated itself.
+static DECLARED: &[&ViolationDef] = &[&VARY_IGNORED];
 
 /// Stateful check ensuring that caches (and caching clients) treat `Vary`
 /// dimensions as part of their cache key.
@@ -34,15 +39,8 @@ use crate::rules::{Rule, RuleMeta};
 ///   semantics.
 pub struct VaryHeaderCacheValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-spec: "RFC 9111",
-section: Some("4.1"),
-url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
-note: "Calculating Cache Keys with the Vary Header Field (all Vary-nominated request fields must match for reuse)",
-        };
+// The one section this rule names now lives on the `vary` subject beside the
+// entry that quotes it, and is imported back for `specifications()`.
 
 impl RuleMeta for VaryHeaderCacheValid {
     fn id(&self) -> &'static str {
@@ -61,6 +59,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_4_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -246,10 +248,9 @@ impl Rule for VaryHeaderCacheValid {
                 // line-combining, and semantic normalization (ordering/case where insignificant); this
                 // rule does not apply those, so it can over-report when the values differ only in a
                 // §4.1-permitted normalization — a deliberate simplification.
-                // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
                 if past_val != curr_val {
                     let reported_validator = matched_validator.as_deref().unwrap_or("<unknown>");
-                    return Some(self.cited(&RFC_9111_4_1, ctx.severity, format!(
+                    return Some(ctx.report_with(&VARY_IGNORED, format!(
                             "Conditional request with validator '{}' differs in Vary field '{}'; cache key must incorporate all Vary dimensions",
                             reported_validator, field
                         )));
@@ -550,12 +551,12 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
         );
-        assert!(v.is_some());
-        assert!(v
-            .unwrap()
-            .message
-            .to_lowercase()
-            .contains("accept-encoding"));
+        let v = v.expect("a finding");
+        // The ending says who is at fault: the response nominated the dimension
+        // correctly, and something reused it across that dimension anyway.
+        assert_eq!(v.violation, "vary_ignored");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert!(v.message.to_lowercase().contains("accept-encoding"));
     }
 
     #[test]

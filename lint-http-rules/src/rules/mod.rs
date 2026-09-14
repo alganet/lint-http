@@ -1534,7 +1534,11 @@ severity = "warn"
         /// findings are cited now**: the § 15.2 site became an entry naming that
         /// section, and the finding beside it — an interim response standing
         /// where the final one goes, which cited nothing — picked up § 15.
-        const FLOOR: usize = 58;
+        /// **`vary_header_cache_valid` gave up its one**, RFC 9111 § 4.1, and
+        /// the entry holding it names that section — while the rule beside it,
+        /// which cited nothing, now carries the same section from the entry it
+        /// declares on a different subject.
+        const FLOOR: usize = 57;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
