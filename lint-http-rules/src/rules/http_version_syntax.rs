@@ -4,18 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::http_version::{HTTP_VERSION_MALFORMED, RFC_9112_2_3};
+use crate::violations::ViolationDef;
+
+/// One entry for one production, whichever start-line carried it.
+static DECLARED: &[&ViolationDef] = &[&HTTP_VERSION_MALFORMED];
 
 pub struct HttpVersionSyntax;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9112_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("2.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-2.3",
-    note: "The production, the sentence saying it is case-sensitive, and the sentence saying only an HTTP/1.x message carries it in a start-line",
-};
 const RFC_9110_2_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("2.5"),
@@ -87,6 +86,10 @@ severity = "error"
         ]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -146,7 +149,7 @@ impl Rule for HttpVersionSyntax {
                 judge("response", &resp.version)
             })?;
 
-            Some(self.violation(ctx.severity, finding))
+            Some(ctx.report_with(&HTTP_VERSION_MALFORMED, finding))
         };
         Vec::from_iter(finding())
     }
@@ -194,6 +197,33 @@ static REGISTRATION: &dyn crate::rules::Rule = &HttpVersionSyntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// One entry for one production: the direction lives in the message,
+    /// because splitting by start-line would be two ids for one grammar.
+    #[test]
+    fn either_start_line_reports_the_one_entry() {
+        for (request, response) in [("HTTP/1.x", None), ("HTTP/1.1", Some("http/1.1"))] {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.version = request.into();
+            tx.response = response.map(|v: &str| crate::http_transaction::ResponseInfo {
+                status: 200,
+                version: v.into(),
+                headers: crate::test_helpers::make_headers_from_pairs(&[]),
+                body_length: None,
+                trailers: None,
+            });
+            let rule = HttpVersionSyntax;
+            let found = crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .unwrap_or_else(|| panic!("a finding for {request} / {response:?}"));
+            assert_eq!(found.violation, "http_version_malformed");
+            assert_eq!(found.severity, crate::lint::Severity::Warn);
+        }
+    }
 
     fn judge_tx(request: &str, response: Option<&str>) -> Option<String> {
         let mut tx = crate::test_helpers::make_test_transaction();
