@@ -302,6 +302,15 @@ fn validate_structured_field(s: &str) -> Option<String> {
         return None;
     };
 
+    // Three typed answers arrive here and none of them is taken, which is the
+    // same limit stated once more: each names the defect *its* reading stopped
+    // on, and nothing in the message says which reading the field was written
+    // for. A rule that knows its field is a Dictionary keeps the one answer it
+    // asked for and reports the entry behind it; this one keeps the wording of
+    // all three and reports the coarse entry, which is what that entry is for.
+    let (as_item, as_list, as_dictionary) =
+        (as_item.message, as_list.message, as_dictionary.message);
+
     // All three readings failed, so all three are reported. Picking one would
     // be picking a field_type, and choosing the shortest complaint or the first
     // one would name a type the field may well not have -- a Dictionary told it
@@ -1019,8 +1028,8 @@ mod tests {
         // list member that is neither an item nor a key=value should be rejected
         let v = validate_structured_field("a, ???");
         assert!(v.is_some());
-        if let Some(msg) = v {
-            assert!(msg.contains("invalid list member"));
+        if let Some(message) = v {
+            assert!(message.contains("invalid list member"));
         }
     }
 
@@ -1029,8 +1038,9 @@ mod tests {
         // an unrecognized bare-item type is reported as an invalid item
         let v = parse_item("@foo");
         assert!(v.is_some());
-        let msg = v.unwrap();
-        assert!(msg.contains("invalid item"));
+        let defect = v.unwrap();
+        assert!(defect.message.contains("invalid item"));
+        assert_eq!(defect.kind, SfDefectKind::ValueMalformed);
     }
 
     #[rstest]
@@ -1038,8 +1048,9 @@ mod tests {
         // trailing semicolon after an item should be treated as an empty parameter
         let v = parse_item("foo;");
         assert!(v.is_some());
-        let msg = v.unwrap();
-        assert!(msg.contains("empty parameter"));
+        let defect = v.unwrap();
+        assert!(defect.message.contains("empty parameter"));
+        assert_eq!(defect.kind, SfDefectKind::MemberEmpty);
     }
 
     #[rstest]

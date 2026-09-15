@@ -2567,6 +2567,10 @@ severity = "warn"
 # Structured field holds an octet outside US-ASCII
 severity = "warn"
 
+[violations.structured_field_inner_list_malformed]
+# Structured field Inner List has no closing parenthesis
+severity = "warn"
+
 [violations.structured_field_key_duplicated]
 # Structured field gives one Dictionary key more than once
 severity = "warn"
@@ -2581,6 +2585,14 @@ severity = "warn"
 
 [violations.structured_field_member_empty]
 # Structured field writes a comma with no member beside it
+severity = "warn"
+
+[violations.structured_field_value_empty]
+# Structured field writes a value slot with nothing in it
+severity = "warn"
+
+[violations.structured_field_value_malformed]
+# Structured field value is none of the bare item types
 severity = "warn"
 
 [violations.te_chunked_forbidden]

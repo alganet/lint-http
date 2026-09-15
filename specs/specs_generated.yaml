@@ -11410,25 +11410,25 @@ sources:
     snippet: For both the Priority header field and the PRIORITY_UPDATE frame, the set of priority parameters is encoded as a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 307
+      line: 315
   - label: priority_header_syntax (2)
     section: § 4
     snippet: Receivers parse the Dictionary as described in Section 4.2 of [STRUCTURED-FIELDS].
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 308
+      line: 316
   - label: priority_header_syntax (3)
     section: § 4
     snippet: When receiving an HTTP request that does not carry these priority parameters, a server SHOULD act as if their default values were specified.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 62
+      line: 70
   - label: priority_header_syntax (4)
     section: § 4
     snippet: Where the Dictionary is successfully parsed, this document places the additional requirement that unknown priority parameters, priority parameters with out-of-range values, or values of unexpected types MUST be ignored.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 361
+      line: 374
     - file: lint-http-rules/src/violations/priority.rs
       line: 29
   - label: priority_header_syntax (5)
@@ -11436,7 +11436,7 @@ sources:
     snippet: The urgency (u) parameter value is Integer (see Section 3.3.1 of [STRUCTURED-FIELDS]), between 0 and 7 inclusive, in descending order of priority.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 384
+      line: 397
     - file: lint-http-rules/src/violations/priority.rs
       line: 77
   - label: priority_header_syntax (6)
@@ -11444,7 +11444,7 @@ sources:
     snippet: between 0 and 7 inclusive, in descending order of priority. The default is 3.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 415
+      line: 428
     - file: lint-http-rules/src/violations/priority.rs
       line: 102
   - label: priority_header_syntax (7)
@@ -11452,13 +11452,13 @@ sources:
     snippet: The default value of the incremental parameter is false (0).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 431
+      line: 444
   - label: priority_header_syntax (8)
     section: § 4.2
     snippet: The incremental (i) parameter value is Boolean (see Section 3.3.6 of [STRUCTURED-FIELDS]).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 424
+      line: 437
     - file: lint-http-rules/src/violations/priority.rs
       line: 125
   - label: priority_header_syntax (9)
@@ -11466,31 +11466,31 @@ sources:
     snippet: Since unknown priority parameters are ignored, new priority parameters should not change the interpretation of, or modify, the urgency (see Section 4.1) or incremental (see Section 4.2) priority parameters in a way that is not backwards compatible or fallback safe.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 453
+      line: 466
   - label: priority_header_syntax (10)
     section: § 4.3.1
     snippet: New priority parameters can be defined by registering them in the "HTTP Priority" registry.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 452
+      line: 465
   - label: priority_header_syntax (11)
     section: § 5
     snippet: The Priority HTTP header field is a Dictionary that carries priority parameters (see Section 4).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 226
+      line: 231
   - label: priority_header_syntax (12)
     section: § 8
     snippet: The absence of a priority parameter in an HTTP response indicates the server's disinterest in changing the client-provided value.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 44
+      line: 52
   - label: priority_header_syntax (13)
     section: § 8
     snippet: This is different from the request header field, in which omission of a priority parameter implies the use of its default value (see Section 4).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 45
+      line: 53
 - label: RFC 9220
   url: https://www.rfc-editor.org/rfc/rfc9220.html
   fragments:
@@ -11637,13 +11637,13 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 228
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 173
+      line: 200
   - label: lint-http-rules/src/helpers/structured_fields.rs (2)
     section: § 3.1.2
     snippet: The keys are unique within the scope of the Parameters they occur within, and the values are bare items (i.e., they themselves cannot be parameterized; see Section 3.3).
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 608
+      line: 692
   - label: lint-http-rules/src/helpers/structured_fields.rs (3)
     section: § 3.3.2
     snippet: Decimals are numbers with an integer and a fractional component.
@@ -11677,13 +11677,13 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 118
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 81
+      line: 100
   - label: lint-http-rules/src/helpers/structured_fields.rs (8)
     section: § 4.2
     snippet: Discard any leading SP characters from input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 456
+      line: 521
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 275
   - label: lint-http-rules/src/helpers/structured_fields.rs (9)
@@ -11697,7 +11697,7 @@ sources:
     snippet: Append the result of running Parsing an Item or Inner List (Section 4.2.1.1) with input_string to members.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 516
+      line: 589
   - label: lint-http-rules/src/helpers/structured_fields.rs (11)
     section: § 4.2.1
     snippet: Given an ASCII string as input_string, return an array of (item_or_inner_list, parameters) tuples.
@@ -11709,31 +11709,33 @@ sources:
     snippet: If input_string is empty, there is a trailing comma; fail parsing.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 512
+      line: 585
   - label: lint-http-rules/src/helpers/structured_fields.rs (13)
     section: § 4.2.1.1
     snippet: If the first character of input_string is "(", return the result of running Parsing an Inner List (Section 4.2.1.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 532
+      line: 606
   - label: lint-http-rules/src/helpers/structured_fields.rs (14)
     section: § 4.2.1.2
     snippet: Discard any leading SP characters from input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 566
+      line: 646
   - label: lint-http-rules/src/helpers/structured_fields.rs (15)
     section: § 4.2.1.2
     snippet: Let item be the result of running Parsing an Item (Section 4.2.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 579
+      line: 659
   - label: lint-http-rules/src/helpers/structured_fields.rs (16)
     section: § 4.2.1.2
     snippet: The end of the Inner List was not found; fail parsing.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 548
+      line: 625
+    - file: lint-http-rules/src/violations/structured_fields.rs
+      line: 310
   - label: lint-http-rules/src/helpers/structured_fields.rs (17)
     section: § 4.2.10
     snippet: If char is in the range %x00-1f or %x7f-ff (i.e., it is not in VCHAR or SP), fail parsing.
@@ -11769,43 +11771,43 @@ sources:
     snippet: If input_string is empty, there is a trailing comma; fail parsing.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 468
+      line: 533
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 108
+      line: 135
   - label: lint-http-rules/src/helpers/structured_fields.rs (23)
     section: § 4.2.2
     snippet: 'If the first character of input_string is "=":'
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 479
+      line: 547
   - label: lint-http-rules/src/helpers/structured_fields.rs (24)
     section: § 4.2.2
     snippet: Let member be the result of running Parsing an Item or Inner List (Section 4.2.1.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 492
+      line: 563
   - label: lint-http-rules/src/helpers/structured_fields.rs (25)
     section: § 4.2.2
     snippet: Let this_key be the result of running Parsing a Key (Section 4.2.3.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 476
+      line: 544
   - label: lint-http-rules/src/helpers/structured_fields.rs (26)
     section: § 4.2.2
     snippet: Let value be Boolean true.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 485
+      line: 553
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 258
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 391
+      line: 404
   - label: lint-http-rules/src/helpers/structured_fields.rs (27)
     section: § 4.2.2
     snippet: No structured data has been found; return dictionary (which is empty).
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 461
+      line: 526
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 144
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
@@ -11815,43 +11817,47 @@ sources:
     snippet: Let bare_item be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 594
+      line: 675
   - label: lint-http-rules/src/helpers/structured_fields.rs (29)
     section: § 4.2.3
     snippet: Let parameters be the result of running Parsing Parameters (Section 4.2.3.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 598
+      line: 682
   - label: lint-http-rules/src/helpers/structured_fields.rs (30)
     section: § 4.2.3.1
     snippet: Otherwise, the item type is unrecognized; fail parsing.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 394
+    - file: lint-http-rules/src/violations/structured_fields.rs
+      line: 260
+    - file: lint-http-rules/src/violations/structured_fields.rs
+      line: 285
   - label: lint-http-rules/src/helpers/structured_fields.rs (31)
     section: § 4.2.3.2
     snippet: Discard any leading SP characters from input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 558
+      line: 638
   - label: lint-http-rules/src/helpers/structured_fields.rs (32)
     section: § 4.2.3.2
     snippet: Let param_key be the result of running Parsing a Key (Section 4.2.3.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 619
+      line: 709
   - label: lint-http-rules/src/helpers/structured_fields.rs (33)
     section: § 4.2.3.2
     snippet: Let param_value be Boolean true.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 630
+      line: 726
   - label: lint-http-rules/src/helpers/structured_fields.rs (34)
     section: § 4.2.3.2
     snippet: Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 623
+      line: 716
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 469
   - label: lint-http-rules/src/helpers/structured_fields.rs (35)
@@ -12023,11 +12029,11 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 165
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 315
+      line: 323
     - file: lint-http-rules/src/violations/structured_fields.rs
       line: 25
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 204
+      line: 231
   - label: permissions_policy_directives_valid (4)
     section: § 4.2
     snippet: When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly.
@@ -12035,7 +12041,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 82
+      line: 90
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 34
   - label: permissions_policy_directives_valid (5)
@@ -12045,15 +12051,15 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 292
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 330
+      line: 343
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 140
+      line: 167
   - label: priority_header_syntax
     section: § 3.3.1
     snippet: While it is possible to serialize Integers with leading zeros (e.g., "0002", "-01") and signed zero ("-0"), these distinctions may not be preserved by implementations.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 385
+      line: 398
   - label: structured_headers_valid
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:

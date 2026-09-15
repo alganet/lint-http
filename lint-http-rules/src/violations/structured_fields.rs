@@ -24,9 +24,10 @@
 //
 // cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
 
+use crate::helpers::structured_fields::SfDefectKind;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
-use crate::violations::defects;
+use crate::violations::{defects, ViolationDef};
 
 /// The `key` production, and the parsing algorithm that reads one.
 pub const RFC_9651_4_2_3_3: SpecRef = SpecRef {
@@ -43,6 +44,24 @@ pub const RFC_9651_4_2_2: SpecRef = SpecRef {
     section: Some("4.2.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.2",
     note: "Parsing a Dictionary: a member is a key and, optionally, an `=` and a value — a bare key carries the Boolean true rather than being a member without one — and the loop fails on a comma with nothing after it",
+};
+
+/// Parsing a Bare Item: the dispatch on the seven types, and the one step that
+/// fails when a value is none of them.
+pub const RFC_9651_4_2_3_1: SpecRef = SpecRef {
+    spec: "RFC 9651",
+    section: Some("4.2.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.1",
+    note: "Parsing a Bare Item — seven types chosen by the value's first character, and a single step for a value that is none of them",
+};
+
+/// Parsing an Inner List: the loop between the parentheses, and the step that
+/// runs out of input before finding the closing one.
+pub const RFC_9651_4_2_1_2: SpecRef = SpecRef {
+    spec: "RFC 9651",
+    section: Some("4.2.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.1.2",
+    note: "Parsing an Inner List — space-separated Items between a `(` and a `)`, and the failure when the closing parenthesis never arrives",
 };
 
 /// The parsing algorithm every Structured Field is read by: the byte
@@ -96,6 +115,14 @@ defects! {
     /// because what the sender wrote is one thing** — a separator with nothing
     /// to separate — and because the outcome is identical: the field is not
     /// parsed, so it is not there.
+    ///
+    /// **The parameter separator is here too, and it fails by a third door.**
+    /// `u=3;;i` writes a `;` with no parameter after it, and § 4.2.3.2 consumes
+    /// the `;` and then runs Parsing a Key on what is left — so it is
+    /// § 4.2.3.3 that refuses the empty string, not the sentence quoted below.
+    /// The sender still wrote one thing, and the entry that names it is this
+    /// one; the quote stays the comma's because that is the sentence written
+    /// about a separator rather than about a name.
     ///
     /// **This is not [`list_member_empty`](crate::violations::list).** That
     /// entry carries RFC 9110 § 5.6.1.1's requirement on a sender writing a
@@ -208,6 +235,104 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9651_4_2],
+    }
+
+    /// A value that is none of the seven bare item types: `u=+1`, `a=)))`,
+    /// `x=1abc`.
+    ///
+    /// **One entry for seven productions, because the algorithm fails them at
+    /// one step.** § 4.2.3.1 chooses which type to parse from the value's first
+    /// character and has a single "otherwise" for a first character that
+    /// chooses nothing — so an Integer written with a leading `+`, a Token
+    /// opening on a digit and a Byte Sequence missing its second colon all
+    /// arrive here, and the message names the value. Splitting them would need
+    /// a reader that guesses which type was *meant*, which is the guess
+    /// § 4.2.3.1 declines to make.
+    ///
+    /// **Distinct from [`STRUCTURED_FIELD_VALUE_EMPTY`], which is the sender
+    /// leaving the slot blank.** Both stop at this same step — an empty string
+    /// has no first character to dispatch on either — and they are two entries
+    /// because they are two senders: one wrote something wrong, the other
+    /// wrote nothing, and the repairs share no words.
+    ///
+    /// `warn`, with the rest of the subject: what it costs is the field.
+    ///
+    // cite(RFC 9651 § 4.2.3.1): "Otherwise, the item type is unrecognized; fail parsing."
+    STRUCTURED_FIELD_VALUE_MALFORMED = {
+        id: "structured_field_value_malformed",
+        title: "Structured field value is none of the bare item types",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9651_4_2_3_1],
+    }
+
+    /// A value slot written and left with nothing in it: `a=`, or a member
+    /// that opens on its first `;`.
+    ///
+    /// `_empty` against [`STRUCTURED_FIELD_VALUE_MALFORMED`]'s `_malformed`,
+    /// the same pair every subject in this catalogue draws between a sender
+    /// that wrote the thing wrong and one that wrote it and put nothing in it.
+    /// The two share § 4.2.3.1's step, since an empty string dispatches on no
+    /// first character, and they do not share a repair.
+    ///
+    /// **Not [`STRUCTURED_FIELD_MEMBER_EMPTY`]**, which is a *separator* with
+    /// nothing to separate. `a=,b=1` has both in it: a value slot left blank
+    /// and, if the comma had nothing after it, a member that was never
+    /// written.
+    ///
+    /// `warn`, with the rest of the subject: what it costs is the field.
+    ///
+    // cite(RFC 9651 § 4.2.3.1): "Otherwise, the item type is unrecognized; fail parsing."
+    STRUCTURED_FIELD_VALUE_EMPTY = {
+        id: "structured_field_value_empty",
+        title: "Structured field writes a value slot with nothing in it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9651_4_2_3_1],
+    }
+
+    /// An Inner List that opened on a `(` and never closed: `a=(self "x"`.
+    ///
+    /// **Its own entry rather than [`STRUCTURED_FIELD_VALUE_MALFORMED`]'s,
+    /// because a different sentence refuses it.** § 4.2.3.1 never runs here —
+    /// the `(` is what sends the parser to § 4.2.1.2 instead — and that
+    /// algorithm fails by running out of input rather than by finding a
+    /// character it does not recognise. An entry folding the two would carry a
+    /// quote that governs half its findings.
+    ///
+    /// **A member *inside* the list is not this.** § 4.2.1.2 parses each of
+    /// them as an Item, so a bad one is the value entry's and the message says
+    /// which member it was — which is also why an Inner List does not nest:
+    /// the dispatch there has no branch for a `(`.
+    ///
+    /// `warn`, with the rest of the subject: what it costs is the field.
+    ///
+    // cite(RFC 9651 § 4.2.1.2): "The end of the Inner List was not found; fail parsing."
+    STRUCTURED_FIELD_INNER_LIST_MALFORMED = {
+        id: "structured_field_inner_list_malformed",
+        title: "Structured field Inner List has no closing parenthesis",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9651_4_2_1_2],
+    }
+}
+
+/// The entry a parsed [`SfDefect`](crate::helpers::structured_fields::SfDefect)
+/// reports as.
+///
+/// The reader's kinds and the catalogue's entries are one to one here, which is
+/// the exception rather than the rule in this crate — `quoted_string`'s two
+/// escape variants share an id, and `token`'s single "not a `tchar`" answer
+/// fans out into two. It is one to one because the enum was written from these
+/// entries rather than from the algorithms: § 4.2 has a failure step in seven
+/// places and the sender has four mistakes to make.
+pub fn structured_field_defect(kind: SfDefectKind) -> &'static ViolationDef {
+    match kind {
+        SfDefectKind::MemberEmpty => &STRUCTURED_FIELD_MEMBER_EMPTY,
+        SfDefectKind::KeyMalformed => &STRUCTURED_FIELD_KEY_MALFORMED,
+        SfDefectKind::ValueEmpty => &STRUCTURED_FIELD_VALUE_EMPTY,
+        SfDefectKind::ValueMalformed => &STRUCTURED_FIELD_VALUE_MALFORMED,
+        SfDefectKind::InnerListMalformed => &STRUCTURED_FIELD_INNER_LIST_MALFORMED,
     }
 }
 

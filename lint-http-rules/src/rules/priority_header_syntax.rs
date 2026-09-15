@@ -11,24 +11,32 @@ use crate::violations::priority::{
     PRIORITY_INCREMENTAL_MALFORMED, PRIORITY_URGENCY_INVALID, PRIORITY_URGENCY_MALFORMED,
     RFC_9218_4_1, RFC_9218_4_2,
 };
-use crate::violations::structured_fields::{RFC_9651_4_2_2, STRUCTURED_FIELD_KEY_DUPLICATED};
+use crate::violations::structured_fields::{
+    structured_field_defect, RFC_9651_4_2, RFC_9651_4_2_1_2, RFC_9651_4_2_2, RFC_9651_4_2_3_1,
+    RFC_9651_4_2_3_3, STRUCTURED_FIELD_CHARACTER_FORBIDDEN, STRUCTURED_FIELD_INNER_LIST_MALFORMED,
+    STRUCTURED_FIELD_KEY_DUPLICATED, STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY,
+    STRUCTURED_FIELD_VALUE_EMPTY, STRUCTURED_FIELD_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 pub struct PriorityHeaderSyntax;
 
-/// The four this rule reports about a Dictionary that parsed. Three belong to
-/// the field, because RFC 9218 states what each of its two parameters must be;
-/// the fourth belongs to the Dictionary, because a key written twice loses its
-/// earlier member in every field written as one.
-///
-/// The whole-field failures above them are not here yet: the reader that finds
-/// one answers in prose, so the site cannot say which member of the production
-/// subject it met.
+/// Three belong to the field, because RFC 9218 states what each of its two
+/// parameters must be. The other six belong to the Dictionary, and this rule
+/// can name them because RFC 9218 tells it the field is one: § 4.2's algorithm
+/// takes a `field_type`, and a rule that has been given one gets a single
+/// answer back rather than three that disagree.
 static DECLARED: &[&ViolationDef] = &[
     &PRIORITY_URGENCY_MALFORMED,
     &PRIORITY_URGENCY_INVALID,
     &PRIORITY_INCREMENTAL_MALFORMED,
     &STRUCTURED_FIELD_KEY_DUPLICATED,
+    &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_VALUE_EMPTY,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
+    &STRUCTURED_FIELD_INNER_LIST_MALFORMED,
 ];
 
 /// Which message the field was read from.
@@ -96,8 +104,8 @@ impl PriorityHeaderSyntax {
             // The one finding this section can have: nothing below it parsed,
             // so there are no members to say anything else about.
             let Ok(v) = hv.to_str() else {
-                return vec![self.violation(
-                    ctx.severity,
+                return vec![ctx.report_with(
+                    &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
                     whole_field(section, "contains a byte outside ASCII"),
                 )];
             };
@@ -107,10 +115,10 @@ impl PriorityHeaderSyntax {
             return Vec::new();
         }
         match validate_priority(&lines.join(", "), section) {
-            // A whole-field failure is one message and the only one, which is
-            // now the return type rather than a comment: nothing parsed, so
-            // there are no members left to describe.
-            Err(message) => vec![self.violation(ctx.severity, message)],
+            // A whole-field failure is one finding and the only one, which is
+            // the return type rather than a comment: nothing parsed, so there
+            // are no members left to describe.
+            Err(finding) => vec![ctx.report_with(finding.0, finding.1)],
             Ok(findings) => findings
                 .into_iter()
                 .map(|(def, message)| ctx.report_with(def, message))
@@ -140,12 +148,6 @@ const RFC_9218_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.3.1",
     note: "The \"HTTP Priority\" registry — open, and holding only u and i, which is why an unrecognised key is not a finding",
 };
-const RFC_9651_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9651",
-    section: Some("4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
-    note: "Structured Fields parsing — the MUST to join field lines, and the discard rule that makes one malformed parameter cost the whole field",
-};
 
 impl RuleMeta for PriorityHeaderSyntax {
     fn id(&self) -> &'static str {
@@ -171,6 +173,9 @@ severity = "warn"
             RFC_9218_4_3_1,
             RFC_9651_4_2,
             RFC_9651_4_2_2,
+            RFC_9651_4_2_3_1,
+            RFC_9651_4_2_3_3,
+            RFC_9651_4_2_1_2,
         ]
     }
 
@@ -289,7 +294,7 @@ fn ignored(section: Section, key: &str, name: &str, reason: &str, default: &str)
 fn validate_priority(
     s: &str,
     section: Section,
-) -> Result<Vec<(&'static ViolationDef, String)>, String> {
+) -> Result<Vec<(&'static ViolationDef, String)>, (&'static ViolationDef, String)> {
     // The byte-level half of § 4.2's step 1, which precedes any type.
     //
     // Dead behind `check_section`, like every other octet check in this crate
@@ -297,7 +302,10 @@ fn validate_priority(
     // %x00-%x1F, %x7F and everything at or above %x80 alike, so the value
     // arriving here is visible US-ASCII already.
     if let Some(msg) = sf_field_bytes_invalid(s) {
-        return Err(whole_field(section, msg));
+        return Err((
+            &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
+            whole_field(section, msg),
+        ));
     }
 
     // One reading, not three: unlike a rule pointed at a configured header
@@ -313,7 +321,12 @@ fn validate_priority(
         // ignore-this-parameter requirement is scoped to a Dictionary that
         // parsed, which is the sentence that separates the two findings here.
         // cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
-        Err(msg) => return Err(whole_field(section, &msg)),
+        Err(defect) => {
+            return Err((
+                structured_field_defect(defect.kind),
+                whole_field(section, &defect.message),
+            ))
+        }
     };
 
     let mut out: Vec<(&'static ViolationDef, String)> = Vec::new();
@@ -715,6 +728,29 @@ mod tests {
     #[case("i=5", "priority_incremental_malformed")]
     fn the_urgency_split_is_the_documents_own(#[case] value: &str, #[case] id: &str) {
         assert_eq!(check_req(&[value]).expect("a finding").violation, id);
+    }
+
+    /// A field that did not parse is one finding, and it now names *which*
+    /// member of the Structured Fields production stopped the parser —
+    /// something this rule could not say while the reader answered in prose,
+    /// and something `structured_headers_valid` still cannot, because it is
+    /// never told which type the field was defined as.
+    #[rstest]
+    #[case("U=3", "structured_field_key_malformed")]
+    #[case("u=1, ,i", "structured_field_member_empty")]
+    #[case("u=3;;i", "structured_field_member_empty")]
+    #[case("u=+1", "structured_field_value_malformed")]
+    #[case("u=3;x=)))", "structured_field_value_malformed")]
+    #[case("u=", "structured_field_value_empty")]
+    #[case("u=(a", "structured_field_inner_list_malformed")]
+    fn a_lost_field_names_what_stopped_the_parser(#[case] value: &str, #[case] id: &str) {
+        let v = check_req(&[value]).expect("a finding");
+        assert_eq!(v.violation, id, "{}", v.message);
+        assert!(
+            v.message.contains("discards every priority parameter"),
+            "{}",
+            v.message
+        );
     }
 
     /// § 8: only a request has a default to fall back to.
