@@ -124,6 +124,42 @@ defects! {
         spec: &[RFC_7231_APPENDIX_B],
     }
 
+    /// A message carrying a `Content-Digest` *and* a `Content-MD5`.
+    ///
+    /// **Its own entry beside [`CONTENT_MD5_OBSOLETE`], and the difference is
+    /// what an operator would silence.** That entry is about the field: it is
+    /// not part of HTTP, and it fires on every `Content-MD5` there is. A
+    /// gateway that keeps the legacy field for a legacy client silences it and
+    /// means to. This one fires only on the pair, and what it reports survives
+    /// that decision — two integrity values over the same content, computed by
+    /// different algorithms, with **no document saying which a recipient
+    /// validates**. Where they disagree, nothing resolves it.
+    ///
+    /// **Uncited, because no sentence states it.** RFC 9530 never mentions
+    /// `Content-MD5` and so cannot rank the two; RFC 7231 removed the field
+    /// years before `Content-Digest` existed and says nothing about carrying
+    /// both. What refuses the pair is this crate's reading, and a reference
+    /// here would dress it as a requirement.
+    ///
+    /// `_redundant`, the ending's own case: the message did twice what doing
+    /// once was the whole intent, and neither `_duplicated` (no definition is
+    /// exceeded — these are two different fields) nor `_conflicting` (nothing
+    /// shows that the two values disagree, only that nothing would settle it if
+    /// they did) is true.
+    ///
+    /// `info`, the ending's starting point, and the sibling is why it stays
+    /// there: the substantive claim about this field is already being made at
+    /// `warn` by an entry that fires on every message this one does. What is
+    /// added here is the ambiguity, which costs nothing at all when the two
+    /// values agree.
+    CONTENT_MD5_REDUNDANT = {
+        id: "content_md5_redundant",
+        title: "A message carries two integrity values over one content",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
+
     /// A comma with no member beside it in a legacy `Digest` or `Want-Digest`:
     /// a trailing comma, or two commas in a row.
     ///
