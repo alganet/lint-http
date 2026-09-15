@@ -10032,7 +10032,7 @@ sources:
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 86
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 141
+      line: 143
   - label: lint-http-rules/src/helpers/cache_control.rs (5)
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
@@ -10110,7 +10110,7 @@ sources:
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
     cited_by:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 172
+      line: 174
   - label: max_age_directive_valid (2)
     section: § 4.2
     snippet: When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency
@@ -10118,17 +10118,11 @@ sources:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
       line: 180
   - label: max_age_directive_valid (3)
-    section: § 4.3
-    snippet: it can use the conditional request mechanism
-    cited_by:
-    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 196
-  - label: max_age_directive_valid (4)
     section: § 5.2.2.1
     snippet: The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds.
     cited_by:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 171
+      line: 173
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 112
   - label: must_revalidate_enforced

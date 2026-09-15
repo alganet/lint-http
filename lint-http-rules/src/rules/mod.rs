@@ -1610,7 +1610,13 @@ severity = "warn"
         /// entry that replaced it is the production's rather than the field's:
         /// what the site cited was RFC 9651 § 4.2's discard rule, which is what
         /// `structured_field_character_forbidden` was opened on.
-        const FLOOR: usize = 31;
+        /// **`max_age_directive_valid` gave up two and only one became an
+        /// entry**, which is `cookie_domain_matching`'s shape again: its stale
+        /// arm was a narrower window on `cached_validators_reused`'s finding
+        /// and went with its § 4.3 citation, and the arm that stayed reports
+        /// through an entry naming no sentence — RFC 9111 offers fresh reuse as
+        /// an efficiency rather than owing it.
+        const FLOOR: usize = 29;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

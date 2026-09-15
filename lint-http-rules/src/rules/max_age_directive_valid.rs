@@ -4,6 +4,14 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::conditional::CONDITIONAL_REDUNDANT;
+use crate::violations::ViolationDef;
+
+/// One entry, and it used to be two findings. The other half — a stale entry
+/// refetched without a conditional request — is `cached_validators_reused`'s,
+/// whose gate is the wider one, so it went rather than being declared beside
+/// it.
+static DECLARED: &[&ViolationDef] = &[&CONDITIONAL_REDUNDANT];
 
 /// Ensure that the freshness lifetime advertised by
 /// `Cache-Control: max-age=<seconds>` is actually respected by a client or
@@ -13,21 +21,17 @@ use crate::rules::{Rule, RuleMeta};
 /// client+resource that carried a valid `max-age` directive.  It computes an
 /// approximate current "age" for that response based on the captured
 /// timestamp, any `Age` header, and the elapsed time since the response was
-/// seen.  Two kinds of misbehaviour are flagged:
+/// seen, and reports one thing: a conditional request
+/// (`If-None-Match`/`If-Modified-Since`) issued while the stored response is
+/// still within its freshness lifetime, which revalidates a copy nothing had
+/// made doubtful.
 ///
-/// * A conditional request (`If-None-Match`/`If-Modified-Since`) is issued
-///   while the stored response is still within its freshness lifetime.  Our
-///   view of the same resource should have been fresh and therefore there is
-///   no need to revalidate yet.
-/// * An unconditional request is issued **after** the freshness lifetime has
-///   expired *and* the previous response carried at least one validator
-///   (ETag/Last-Modified).  In that case the client/cache should have
-///   revalidated rather than blindly reuse a stale entry.
-///
-/// This stateful check complements the stateless `cached_validators_reused` rule
-/// (which merely ensures that conditional headers are included when validators
-/// exist) by tying the presence of those headers to the actual freshness
-/// lifetime of a cached response.
+/// The other side of that comparison — a stale entry refetched with no
+/// conditional request — was reported here too, and is
+/// `cached_validators_reused`'s: that rule asks for a validator on the stored
+/// response and no precondition on this request and never consults freshness,
+/// so its gate is the wider one and every finding this arm could make it makes
+/// already.
 pub struct MaxAgeDirectiveValid;
 
 /// The specification references this rule declares, each named so a finding
@@ -38,12 +42,6 @@ const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
     note: "Freshness — fresh/stale definitions, and reuse without contacting the origin as an efficiency opportunity (age itself is calculated per §4.2.3)",
-};
-const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("4.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-    note: "Validation — a cache that cannot serve a stored response can use a conditional request to revalidate it",
 };
 
 impl RuleMeta for MaxAgeDirectiveValid {
@@ -62,11 +60,15 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.  Caches and clients that ignore this lifespan risk serving stale content or incurring unnecessary round‑trips.\n\nThis rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate \"age\" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.\n\nTwo types of violations are reported:\n\n* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip: a fresh response can be reused without contacting the origin at all.\n* Issuing an **unconditional request** after the cached entry has become stale (age > max‑age) *when the prior response provided a validator (ETag or Last-Modified)*.  Refetching in full discards the validator already held, and with it the chance of a small `304`. (Clients that lack a validator are simply forced to fetch anew, which is not flagged.)\n\nBoth are efficiency findings rather than protocol violations: RFC 9111 frames fresh reuse and conditional revalidation as things a cache *can* do, not obligations.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is checked by a separate rule.\n\nThe stateful check augments the stateless [`cached_validators_reused`](cached_validators_reused.md) rule, which merely ensures conditional headers are included when validators exist regardless of age."
+        "Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.\n\nThis rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate \"age\" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.\n\nOne thing is reported: sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip — a fresh response can be reused without contacting the origin at all.\n\nIt is an efficiency finding rather than a protocol violation: RFC 9111 §4.2 frames fresh reuse as something a cache *can* do, not an obligation, so the entry names no sentence.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is [a separate rule](immutable_cache_never_stale.md).\n\n**The other side of the comparison is not reported here.** A stale entry refetched without a conditional request is [`cached_validators_reused`](cached_validators_reused.md)'s finding, from the same evidence: that rule asks for a validator on the stored response and no precondition on this request, without consulting freshness at all, so it makes every report this rule could make and does not need the freshness estimate to make it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_4_2, RFC_9111_4_3]
+        &[RFC_9111_4_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -170,36 +172,33 @@ impl Rule for MaxAgeDirectiveValid {
             // seconds is exactly what makes the stored response stale.
             // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
             // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime"
-            if current_age < max_age {
-                if has_conditional {
-                    // Efficiency heuristic, not a violation: no sentence forbids revalidating
-                    // early. §4.2 frames reuse-while-fresh as an opportunity ("can"), so a
-                    // conditional request inside the freshness window is a wasted round-trip
-                    // — which is what this reports. (`immutable` is the one directive that
-                    // turns this into a SHOULD NOT, and that is a separate rule.)
-                    // cite(RFC 9111 § 4.2): "When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency"
-                    return Some(self.cited(&RFC_9111_4_2, ctx.severity, format!(
-                            "Request revalidated resource while response is still fresh (age {} < max-age {})",
-                            current_age, max_age
-                        )));
-                }
-            } else if !has_conditional {
-                // only warn if there was something to validate against
-                let resp = prev_tx.response.as_ref().unwrap();
-                let has_validator =
-                    resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
-                if has_validator {
-                    // Also an efficiency heuristic: §4.3 says a cache that cannot serve a
-                    // stored response *can* revalidate, not that it must. Refetching
-                    // unconditionally is legal — it just discards the validator already held
-                    // and the 304 it could have earned.
-                    // cite(RFC 9111 § 4.3): "it can use the conditional request mechanism"
-                    return Some(self.cited(&RFC_9111_4_3, ctx.severity, format!(
-                            "Stale cached entry (age {} >= max-age {}) refetched without a conditional request, though a validator was available to revalidate with",
-                            current_age, max_age
-                        )));
-                }
+            // Efficiency heuristic, not a violation: no sentence forbids revalidating
+            // early. §4.2 frames reuse-while-fresh as an opportunity ("can"), so a
+            // conditional request inside the freshness window is a wasted round-trip
+            // — which is what this reports. (`immutable` is the one directive that
+            // turns this into a SHOULD NOT, and that is a separate rule.)
+            // cite(RFC 9111 § 4.2): "When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency"
+            if current_age < max_age && has_conditional {
+                return Some(ctx.report_with(&CONDITIONAL_REDUNDANT, format!(
+                        "Request revalidated resource while response is still fresh (age {} < max-age {})",
+                        current_age, max_age
+                    )));
             }
+
+            // The other side of the comparison was a second finding here: a stale
+            // entry refetched with no conditional request though the stored
+            // response carried a validator. That is `cached_validators_reused`'s
+            // `conditional_missing`, and its gate is the wider one — it asks for a
+            // validator on the previous response and no precondition on this
+            // request, without consulting freshness at all, so every finding this
+            // arm could make it makes already. What the freshness test added was
+            // not a second defect but a narrower window on the same one.
+            //
+            // It also made a report this rule had no business making: with no
+            // method gate, a POST re-request without an `If-None-Match` was
+            // reported as a missed revalidation, where §13.1.2's SHOULD is written
+            // about a GET and a POST's preconditions are `If-Match` and
+            // `If-Unmodified-Since`.
 
             None
         };
@@ -250,31 +249,16 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// `age == max-age` is stale, so the freshness window has closed and there
+    /// is nothing left for this rule to report — the unconditional half of this
+    /// test asserted the finding that moved to `cached_validators_reused`.
     #[test]
-    fn boundary_age_equal_unconditional_reports() {
+    fn a_conditional_at_the_exact_boundary_is_not_early() {
         let rule = MaxAgeDirectiveValid;
         let base = Utc::now();
 
-        // age == max-age should count as stale
         let prev =
             make_prev_with_headers(&[("cache-control", "max-age=10"), ("etag", "\"a\"")], base);
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.client = crate::test_helpers::make_test_client();
-        tx.request.uri = "/resource".to_string();
-        tx.timestamp = base + chrono::Duration::seconds(10);
-
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &history,
-            &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
-        );
-        assert!(
-            v.is_some(),
-            "unconditional fetch at exact boundary should warn"
-        );
 
         // conditional at boundary should be permitted
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
@@ -320,8 +304,9 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("still fresh"));
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "conditional_redundant");
+        assert!(v.message.contains("still fresh"), "{}", v.message);
     }
 
     #[test]
@@ -348,8 +333,13 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// A stale entry refetched without a conditional request is
+    /// `cached_validators_reused`'s finding, from the same evidence and with a
+    /// wider gate — it asks for a validator on the stored response and no
+    /// precondition on this request, and never consults freshness. This rule
+    /// stopped making it.
     #[test]
-    fn stale_unconditional_reports_when_validator_present() {
+    fn a_stale_refetch_belongs_to_the_validator_rule() {
         let rule = MaxAgeDirectiveValid;
         let base = Utc::now();
 
@@ -367,8 +357,7 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Stale cached entry"));
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]
@@ -462,8 +451,12 @@ mod tests {
         assert!(v.is_some(), "expected violation because still fresh");
     }
 
+    /// The `Age` seeding still decides freshness, which is what this pins now
+    /// that the stale half is another rule's: 15 seconds of stored age against
+    /// a `max-age` of 10 closes the window, so a request arriving with no
+    /// precondition is nothing this rule has to say.
     #[test]
-    fn age_header_makes_stale_unconditional() {
+    fn the_age_header_closes_the_window() {
         let rule = MaxAgeDirectiveValid;
         let base = Utc::now();
 
@@ -488,10 +481,7 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
         );
-        assert!(
-            v.is_some(),
-            "should flag stale unconditional with age header"
-        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]
@@ -508,15 +498,16 @@ mod tests {
         tx.timestamp = base;
         let history =
             crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
-        // age == max-age should be treated as stale; unconditional request
-        // should therefore be flagged since validator exists.
+        // `age == max-age` is stale, so there is no freshness window at all and
+        // neither request below is early. The unconditional one used to be
+        // reported here; it is `cached_validators_reused`'s.
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
         );
-        assert!(v.is_some(), "unconditional fetch at boundary should warn");
+        assert!(v.is_none(), "{v:?}");
 
         // conditional at same moment is appropriate (entry stale) and should NOT trigger a violation
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
