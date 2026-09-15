@@ -18,8 +18,8 @@ Where the stored response carried only a `Last-Modified` date the rule is silent
 
 ## Specifications
 
-- [RFC 9111 §4.3.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1): The requirement, and it is a MUST: send the stored response's entity tags, using `If-Match`, `If-None-Match` **or** `If-Range`. The `Last-Modified` bullets are a SHOULD that excludes subranges and a MAY that covers them
-- [RFC 9110 §13.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5): `If-Range` precondition to `Range` requests, its exact-match comparison, and the MUST NOT against putting a date there while holding an entity tag. RFC 7233 §3.2 defined the field; RFC 9110 obsoleted RFC 7233, and this reference had not moved
+- [RFC 9111 §4.3.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1): Sending a Validation Request — a cache MUST send the entity tags of the stored responses it is validating, in `If-Match`, `If-None-Match` or `If-Range`, and SHOULD send the `Last-Modified` value where the conditions for it hold
+- [RFC 9110 §13.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5): `If-Range`: `entity-tag / HTTP-date`, the first-three-characters DQUOTE test that tells them apart, the MUST NOT on a request with no `Range`, the MUST NOT on a weak entity-tag, and the strong comparison a recipient evaluates the condition with
 - [RFC 9110 §15.3.7.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.3): Partial responses combine only when they share the same strong validator — the client-side premise, and the reason a weak tag is skipped
 - [RFC 9111 §3.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-3.4): Combining partial content requires a shared strong validator
 - [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): GET is the only method for which range handling is defined, which is what bounds this rule to GET

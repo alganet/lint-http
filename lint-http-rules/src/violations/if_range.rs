@@ -83,6 +83,36 @@ defects! {
         spec: &[RFC_9110_13_1_5],
     }
 
+    /// An `If-Range` carrying an `HTTP-date` for a representation the client
+    /// was given an entity tag for.
+    ///
+    /// **The alternation is not a free choice**, and this is the sentence that
+    /// says so: a date is permitted there only when the client has no entity
+    /// tag for the representation *and* the date is a strong validator. A
+    /// client holding a tag has one of those conditions against it, so the
+    /// alternative it picked is the one it was not allowed to pick.
+    ///
+    /// **Third of the field's `_forbidden` entries and the only one needing a
+    /// second message to make.** That an `If-Range` sits on a request with no
+    /// `Range`, or carries a weak tag, is visible in the request alone; that
+    /// the client *had* a tag is visible only in what the server sent it
+    /// earlier — so a rule reporting this needs the history, and a capture
+    /// beginning after the `206` cannot produce it.
+    ///
+    /// `warn`, with its siblings, and for the same reason: the recipient's
+    /// answer to a validator it cannot honour is the whole representation,
+    /// which costs the transfer the field existed to avoid rather than the
+    /// wrong bytes.
+    ///
+    // cite(RFC 9110 § 13.1.5): "Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
+    IF_RANGE_VALIDATOR_DATE_FORBIDDEN = {
+        id: "if_range_validator_date_forbidden",
+        title: "If-Range carries a date for a representation with an entity tag",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_13_1_5],
+    }
+
     /// An `If-Range` written and left blank.
     ///
     /// **The one finding here that neither half of the alternation can make**,

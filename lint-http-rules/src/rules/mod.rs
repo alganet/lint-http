@@ -1633,7 +1633,12 @@ severity = "warn"
         /// declares — a `+` with nothing after it and a `+` with nothing before
         /// it — now name § 4.2 apiece where one site cited it and the other
         /// cited nothing.
-        const FLOOR: usize = 23;
+        /// **`range_request_and_caching` gave up three and wrote two entries**,
+        /// which is the shape a rule reaches when one of its findings was
+        /// already in the catalogue: the third is
+        /// `conditional_validator_conflicting`, shared with
+        /// `cache_validation_chain` on disjoint fields.
+        const FLOOR: usize = 20;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

@@ -1379,6 +1379,10 @@ severity = "warn"
 # A date conditional is sent beside the entity-tag conditional that supersedes it
 severity = "info"
 
+[violations.conditional_entity_tag_missing]
+# A revalidating request omits the entity tags it holds
+severity = "warn"
+
 [violations.conditional_missing]
 # A repeat request declines a validator the server provided
 severity = "info"
@@ -1889,6 +1893,10 @@ severity = "warn"
 
 [violations.if_range_forbidden]
 # If-Range is sent in a request with no Range
+severity = "warn"
+
+[violations.if_range_validator_date_forbidden]
+# If-Range carries a date for a representation with an entity tag
 severity = "warn"
 
 [violations.if_range_validator_weak_forbidden]

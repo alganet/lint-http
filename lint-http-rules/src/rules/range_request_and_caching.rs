@@ -49,18 +49,22 @@ pub struct RangeRequestAndCaching;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("4.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1",
-    note: "The requirement, and it is a MUST: send the stored response's entity tags, using `If-Match`, `If-None-Match` **or** `If-Range`. The `Last-Modified` bullets are a SHOULD that excludes subranges and a MAY that covers them",
+use crate::violations::conditional::{
+    CONDITIONAL_ENTITY_TAG_MISSING, CONDITIONAL_VALIDATOR_CONFLICTING, RFC_9111_4_3_1,
 };
-const RFC_9110_13_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("13.1.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
-    note: "`If-Range` precondition to `Range` requests, its exact-match comparison, and the MUST NOT against putting a date there while holding an entity tag. RFC 7233 §3.2 defined the field; RFC 9110 obsoleted RFC 7233, and this reference had not moved",
-};
+use crate::violations::if_range::{IF_RANGE_VALIDATOR_DATE_FORBIDDEN, RFC_9110_13_1_5};
+use crate::violations::ViolationDef;
+
+/// Three, and only one is this field's own. Which validator an `If-Range` may
+/// carry is `if_range`'s; that a revalidating request carry one at all, and
+/// that the one it carries be current, are the conditional subject's — and the
+/// second of those is shared with `cache_validation_chain`, which asks the same
+/// question of the two fields this rule declines to read.
+static DECLARED: &[&ViolationDef] = &[
+    &CONDITIONAL_ENTITY_TAG_MISSING,
+    &IF_RANGE_VALIDATOR_DATE_FORBIDDEN,
+    &CONDITIONAL_VALIDATOR_CONFLICTING,
+];
 const RFC_9110_15_3_7_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.7.3"),
@@ -103,6 +107,10 @@ severity = "warn"
             RFC_9111_3_4,
             RFC_9110_14_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     /// Each snippet is a two-message sequence in the order it happened: the
@@ -255,7 +263,7 @@ impl Rule for RangeRequestAndCaching {
             }
 
             let Some(raw_if_range) = req.headers.get("if-range") else {
-                return Some(self.cited(&RFC_9111_4_3_1, ctx.severity, format!(
+                return Some(ctx.report_with(&CONDITIONAL_ENTITY_TAG_MISSING, format!(
                         "Range request for a resource this client holds a 206 of, whose stored entity tag is {stored_etag}, carries none of If-Range, If-Match or If-None-Match; the entity tags of the stored response being validated have to be sent in one of those three"
                     )));
             };
@@ -287,14 +295,14 @@ impl Rule for RangeRequestAndCaching {
                 // The client was given an entity tag for this representation, so the
                 // date is the one validator it was not permitted to choose.
                 // cite(RFC 9110 § 13.1.5): "Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
-                return Some(self.cited(&RFC_9110_13_1_5, ctx.severity, format!(
+                return Some(ctx.report_with(&IF_RANGE_VALIDATOR_DATE_FORBIDDEN, format!(
                         "If-Range carries the date '{if_range}' although entity tag {stored_etag} was provided for this representation; a date is only permitted there when the client has no entity tag"
                     )));
             }
 
             // cite(RFC 9110 § 13.1.5): "Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional."
             if if_range != stored_etag {
-                return Some(self.cited(&RFC_9110_13_1_5, ctx.severity, format!(
+                return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_CONFLICTING, format!(
                         "If-Range entity tag {if_range} is not {stored_etag}, the tag most recently provided for this representation; a server still holding that tag will ignore Range and send the whole representation"
                     )));
             }
@@ -381,6 +389,7 @@ mod tests {
     fn range_without_any_precondition_after_partial_reports() {
         let (tx, history) = sequence(&[(206, &[("etag", "\"a\"")])], &[("range", "bytes=0-0")]);
         let v = judge(&tx, &history).expect("the stored tag has nowhere to have been sent");
+        assert_eq!(v.violation, "conditional_entity_tag_missing");
         assert!(v.message.contains("carries none of If-Range"));
     }
 
@@ -420,6 +429,9 @@ mod tests {
             &[("range", "bytes=0-0"), ("if-range", "\"b\"")],
         );
         let v = judge(&tx, &history).expect("\"b\" was never provided for this resource");
+        // Shared with `cache_validation_chain`, which asks the same question of
+        // the two fields this rule declines to read.
+        assert_eq!(v.violation, "conditional_validator_conflicting");
         assert!(v.message.contains("is not \"a\""));
     }
 
@@ -462,6 +474,7 @@ mod tests {
             ],
         );
         let v = judge(&tx, &history).expect("the client holds an entity tag");
+        assert_eq!(v.violation, "if_range_validator_date_forbidden");
         assert!(v.message.contains("only permitted there when"));
     }
 
