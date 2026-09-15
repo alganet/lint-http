@@ -4,25 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::deprecation::{DEPRECATION_MALFORMED, RFC_9745_2_1};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::ViolationDef;
 
 /// § 5.3's repeated field line, which this rule reports for its own field.
 /// The sentence is the catalogue's; what stays here is the reading that says
 /// this field's definition has no comma-separated-list alternative.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED, &DEPRECATION_MALFORMED];
 
 pub struct DeprecationHeaderSyntax;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9745_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9745",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
-    note: "Syntax: `Deprecation` is an Item Structured Header Field whose value MUST be a `Date`",
-};
 const RFC_9651_3_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9651",
     section: Some("3.3.7"),
@@ -127,19 +122,19 @@ impl Rule for DeprecationHeaderSyntax {
             // HTTP-date detections below are diagnostics that produce a more helpful message
             // (both are legacy draft-era forms). Recorded as heuristics in the tracker.
             if s.eq_ignore_ascii_case("true") {
-                return Some(self.violation(ctx.severity, "Deprecation header uses legacy token 'true'; RFC 9745 defines Deprecation as a structured date '@<epoch>' (prefer '@<seconds>' form)".into()));
+                return Some(ctx.report_with(&DEPRECATION_MALFORMED, "Deprecation header uses legacy token 'true'; RFC 9745 defines Deprecation as a structured date '@<epoch>' (prefer '@<seconds>' form)".into()));
             }
 
             // Accept legacy HTTP-date but report it as deprecated (helpful message)
             if crate::http_date::is_valid_http_date(s) {
-                return Some(self.violation(ctx.severity, "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>' (see RFC 9745 §2.1)".into()));
+                return Some(ctx.report_with(&DEPRECATION_MALFORMED, "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>' (see RFC 9745 §2.1)".into()));
             }
 
             // Otherwise it's invalid
             // Escaped on the way in: the value is read as octets, so an
             // `obs-text` byte would otherwise be printed into the finding as
             // the character it is a reading of.
-            Some(self.violation(ctx.severity, format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", crate::helpers::shown::shown_in_finding(s))))
+            Some(ctx.report_with(&DEPRECATION_MALFORMED, format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", crate::helpers::shown::shown_in_finding(s))))
         };
         Vec::from_iter(finding())
     }

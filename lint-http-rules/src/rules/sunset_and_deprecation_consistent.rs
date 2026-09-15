@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::deprecation::{RFC_9745_2_1, RFC_9745_4, SUNSET_CONFLICTING};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
 use crate::violations::ViolationDef;
 use chrono::TimeZone;
@@ -23,7 +24,7 @@ pub struct SunsetAndDeprecationConsistent;
 /// The `Deprecation` half is a Structured Field `Date` and not an `HTTP-date`,
 /// so nothing here answers for it; its non-UTF-8 line stays on the older API
 /// for the reason every such site does.
-static DECLARED: &[&ViolationDef] = &[&HTTP_DATE_MALFORMED];
+static DECLARED: &[&ViolationDef] = &[&HTTP_DATE_MALFORMED, &SUNSET_CONFLICTING];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -33,18 +34,6 @@ const RFC_8594_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("3"),
     url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
     note: "`Sunset` header semantics (HTTP-date)",
-};
-const RFC_9745_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9745",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
-    note: "`Deprecation` is a Structured Field Date (`@<seconds>`)",
-};
-const RFC_9745_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9745",
-    section: Some("4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-4",
-    note: "Sunset MUST NOT be earlier than Deprecation",
 };
 const RFC_9651_3_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9651",
@@ -196,7 +185,7 @@ impl Rule for SunsetAndDeprecationConsistent {
             {
                 let allowed_skew = chrono::Duration::seconds(60);
                 if dep_dt > sun_dt + allowed_skew {
-                    return Some(self.cited(&RFC_9745_4, ctx.severity, format!(
+                    return Some(ctx.report_with(&SUNSET_CONFLICTING, format!(
                             "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
                             dep_raw, sun_raw
                         )));

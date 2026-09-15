@@ -1723,6 +1723,10 @@ severity = "warn"
 # A time in seconds is stated with no digits
 severity = "warn"
 
+[violations.deprecation_malformed]
+# A Deprecation is not a Structured Field Date
+severity = "warn"
+
 [violations.digest_credentials_challenge_missing]
 # Digest credentials name a nonce no observed challenge offered
 severity = "info"
@@ -2793,6 +2797,10 @@ severity = "warn"
 
 [violations.structured_field_value_malformed]
 # Structured field value is none of the bare item types
+severity = "warn"
+
+[violations.sunset_conflicting]
+# A Sunset names a time before the Deprecation beside it
 severity = "warn"
 
 [violations.te_chunked_forbidden]

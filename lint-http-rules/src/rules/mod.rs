@@ -1659,7 +1659,10 @@ severity = "warn"
         /// the catalogue could already have named** — an `ETag: *` is the
         /// wildcard the conditional fields take, and reporting it as a quoted
         /// string with no DQUOTEs describes the octets instead of the mistake.
-        const FLOOR: usize = 7;
+        /// **`sunset_and_deprecation_consistent` gave up one to an entry on the
+        /// field the MUST NOT is addressed to** — the `Sunset`, not the
+        /// `Deprecation` the rule is named after first.
+        const FLOOR: usize = 6;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
