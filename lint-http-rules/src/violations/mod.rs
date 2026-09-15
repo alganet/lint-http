@@ -74,6 +74,7 @@ pub mod expect;
 pub mod expires;
 pub mod ext_value;
 pub mod field;
+pub mod forwarded;
 pub mod host;
 pub mod http3_goaway;
 pub mod http3_max_push_id;
@@ -538,9 +539,10 @@ mod tests {
         /// family's six — of which two name nothing, for the reason above — and
         /// 470 of 497 with the three cross-origin policies' four, and 477 of
         /// 505 with the `Prefer` exchange's seven, and 480 of 508 with the
-        /// three one-site fields, 482 of 510 with the deprecation pair, and 484
-        /// of 513 with the three timestamp comparisons.
-        const FLOOR: usize = 484;
+        /// three one-site fields, 482 of 510 with the deprecation pair, 484
+        /// of 513 with the three timestamp comparisons, and 489 of 518 with the
+        /// `Forwarded` field's own grammar.
+        const FLOOR: usize = 489;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

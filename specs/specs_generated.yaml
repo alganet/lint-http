@@ -3545,114 +3545,120 @@ sources:
 - label: RFC 7239
   url: https://www.rfc-editor.org/rfc/rfc7239.html
   fragments:
+  - label: forwarded
+    section: § 4
+    snippet: '"Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses.'
+    cited_by:
+    - file: lint-http-rules/src/violations/forwarded.rs
+      line: 184
+  - label: forwarded-element grammar
+    section: § 4
+    snippet: forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )
+    cited_by:
+    - file: lint-http-rules/src/violations/forwarded.rs
+      line: 74
+  - label: forwarded-pair grammar
+    section: § 4
+    snippet: forwarded-pair = token "=" value value          = token / quoted-string
+    cited_by:
+    - file: lint-http-rules/src/violations/forwarded.rs
+      line: 100
+    - file: lint-http-rules/src/violations/forwarded.rs
+      line: 131
+  - label: forwarded (2)
+    section: § 8.2
+    snippet: This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client.
+    cited_by:
+    - file: lint-http-rules/src/violations/forwarded.rs
+      line: 185
   - label: forwarded_header_valid
     section: § 3
     snippet: This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 339
+      line: 374
+    - file: lint-http-rules/src/violations/forwarded.rs
+      line: 28
   - label: forwarded_header_valid (2)
-    section: § 4
-    snippet: '"Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses.'
-    cited_by:
-    - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 513
-  - label: forwarded_header_valid (3)
     section: § 4
     snippet: Each parameter MUST NOT occur more than once per field-value.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 198
+      line: 217
+    - file: lint-http-rules/src/violations/forwarded.rs
+      line: 157
   - label: Forwarded grammar
     section: § 4
     snippet: Forwarded   = 1#forwarded-element
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 340
-  - label: forwarded_header_valid (4)
+      line: 375
+  - label: forwarded_header_valid (3)
     section: § 4
     snippet: Note that as ":" and "[]" are not valid characters in "token", IPv6 addresses are written as "quoted-string".
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 252
-  - label: forwarded_header_valid (5)
+      line: 278
+  - label: forwarded_header_valid (4)
     section: § 4
     snippet: The parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 235
-  - label: forwarded-element grammar
-    section: § 4
-    snippet: forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )
-    cited_by:
-    - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 185
-  - label: forwarded-pair grammar
-    section: § 4
-    snippet: forwarded-pair = token "=" value value          = token / quoted-string
-    cited_by:
-    - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 208
-  - label: forwarded_header_valid (6)
+      line: 258
+  - label: forwarded_header_valid (5)
     section: § 5.1
     snippet: The syntax of a "by" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 115
-  - label: forwarded_header_valid (7)
+      line: 134
+  - label: forwarded_header_valid (6)
     section: § 5.2
     snippet: The syntax of a "for" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 114
-  - label: forwarded_header_valid (8)
+      line: 133
+  - label: forwarded_header_valid (7)
     section: § 5.3
     snippet: The syntax for a "host" value, after potential quoted-string unescaping, MUST conform to the Host ABNF described in Section 5.4 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 128
+      line: 147
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 176
-  - label: forwarded_header_valid (9)
+  - label: forwarded_header_valid (8)
     section: § 5.4
     snippet: The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 152
+      line: 171
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 158
-  - label: forwarded_header_valid (10)
+  - label: forwarded_header_valid (9)
     section: § 5.5
     snippet: All extension parameters SHOULD be registered in the "HTTP Forwarded Parameter" registry.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 302
-  - label: forwarded_header_valid (11)
+      line: 339
+  - label: forwarded_header_valid (10)
     section: § 6
     snippet: It is important to note that an IPv6 address and any nodename with node-port specified MUST be quoted, since ":" is not an allowed character in "token".
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 253
-  - label: forwarded_header_valid (12)
+      line: 279
+  - label: forwarded_header_valid (11)
     section: § 7.1
     snippet: Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 184
+      line: 201
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 495
-  - label: forwarded_header_valid (13)
-    section: § 8.2
-    snippet: This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client.
-    cited_by:
-    - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 514
-  - label: forwarded_header_valid (14)
+      line: 527
+  - label: forwarded_header_valid (12)
     section: § 9
     snippet: New parameters and their values MUST conform with the forwarded-pair as defined in ABNF in Section 4.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 303
+      line: 340
   - label: lint-http-rules/src/helpers/forwarded_node.rs
     section: § 6
     snippet: To distinguish an "obfport" from a port, the "obfport" MUST have a leading underscore. Further, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-".
@@ -7001,7 +7007,7 @@ sources:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
       line: 128
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 358
+      line: 393
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 300
     - file: lint-http-rules/src/rules/status_code_semantics.rs
@@ -7131,7 +7137,7 @@ sources:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 89
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 341
+      line: 376
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
       line: 176
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
@@ -7681,7 +7687,7 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 192
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 542
+      line: 574
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 669
     - file: lint-http-rules/src/violations/quoted_pair.rs
@@ -7943,7 +7949,7 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 191
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 102
+      line: 121
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 424
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
@@ -8039,7 +8045,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1334
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 129
+      line: 148
     - file: lint-http-rules/src/rules/host_header.rs
       line: 261
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs

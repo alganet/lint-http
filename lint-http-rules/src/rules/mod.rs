@@ -1665,6 +1665,10 @@ severity = "warn"
         /// **`date_and_time_headers_consistent` gave up its one**, and the
         /// three entries it now declares are one shape read three ways: two
         /// timestamps in a message that cannot both be right.
+        /// **`forwarded_header_valid` gave up no cited site and every uncited
+        /// one**, which is the shape to expect from here: what a converted rule
+        /// keeps back is the arm nothing else could name, and this one was
+        /// waiting on a subject for §4's own grammar.
         const FLOOR: usize = 5;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");

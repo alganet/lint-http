@@ -16,6 +16,14 @@ use crate::helpers::quoted_string::unescape_quoted_string;
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::forwarded::{
+    FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN, FORWARDED_PAIR_EQUALS_MISSING,
+    FORWARDED_PAIR_VALUE_EMPTY, FORWARDED_PARAMETER_DUPLICATED, FORWARDED_RESPONSE_FORBIDDEN,
+    RFC_7239_4,
+};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
 use crate::violations::node::{
     node_defect, NODE_IPV4_ADDRESS_MALFORMED, NODE_IPV6_ADDRESS_MALFORMED,
     NODE_IPV6_BRACKETS_MISSING, NODE_IPV6_CLOSING_BRACKET_MISSING,
@@ -28,7 +36,7 @@ use crate::violations::quoted_string::{
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::token::{
-    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::uri::{
@@ -57,10 +65,13 @@ use crate::violations::ViolationDef;
 /// and no DEL — which is a fact about the transport rather than about this
 /// field's grammar.
 ///
-/// What is not converted is the field's own grammar — the element, the pair, the
-/// name, the duplicate parameter, the empty list member, and the response
-/// carrying the field at all. Those are §4's and belong to a `forwarded` subject
-/// that nothing has written.
+/// **The field's own grammar is the last block, and it is five entries and three
+/// borrows.** The element and the pair are §4's, so
+/// [`crate::violations::forwarded`] holds them; the empty parameter *name* is
+/// not, because §4 writes that half as `token` unmodified and
+/// `token = 1*tchar` has a floor of its own; and the two list defects are
+/// HTTP's, because §3 says the field borrows the list rule extension rather
+/// than defining one.
 static DECLARED: &[&ViolationDef] = &[
     &NODE_IPV6_BRACKETS_MISSING,
     &NODE_IPV6_CLOSING_BRACKET_MISSING,
@@ -85,6 +96,14 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_EMPTY,
+    &FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN,
+    &FORWARDED_PAIR_EQUALS_MISSING,
+    &FORWARDED_PAIR_VALUE_EMPTY,
+    &FORWARDED_PARAMETER_DUPLICATED,
+    &LIST_MEMBER_MISSING,
+    &LIST_MEMBER_EMPTY,
+    &FORWARDED_RESPONSE_FORBIDDEN,
 ];
 
 /// Every octet of a field line as the `char` of the same value.
@@ -173,8 +192,6 @@ impl ForwardedHeaderValid {
     /// its commas. Everything inside it is the element's own production, which
     /// has no `OWS` in it anywhere.
     fn check_element(&self, elem: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
-        let violation = |message: String| Some(self.violation(ctx.severity, message));
-
         // §7.1's whitespace is the list's, between elements; the element itself
         // is `[ forwarded-pair ] *( ";" [ forwarded-pair ] )` and generates none
         // — not around a semicolon, not around the `=`. Asked here, quote-aware,
@@ -182,11 +199,13 @@ impl ForwardedHeaderValid {
         // conforming.
         //
         // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
-        // cite(RFC 7239 § 4, label: forwarded-element grammar): "forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )"
         if let Some(c) = whitespace_outside_quotes(elem) {
-            return violation(format!(
-                "Forwarded element holds whitespace its grammar does not admit ({:?} in '{}')",
-                c, elem
+            return Some(ctx.report_with(
+                &FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN,
+                format!(
+                    "Forwarded element holds whitespace its grammar does not admit ({:?} in '{}')",
+                    c, elem
+                ),
             ));
         }
 
@@ -205,18 +224,22 @@ impl ForwardedHeaderValid {
                 continue;
             }
 
-            // cite(RFC 7239 § 4, label: forwarded-pair grammar): "forwarded-pair = token "=" value value          = token / quoted-string"
             let Some((name, raw_value)) = param.split_once('=') else {
-                return violation(format!(
-                    "Forwarded parameter '{}' has no '=' and no value",
-                    param
+                return Some(ctx.report_with(
+                    &FORWARDED_PAIR_EQUALS_MISSING,
+                    format!("Forwarded parameter '{}' has no '=' and no value", param),
                 ));
             };
 
             // `token` is `1*tchar`: a name is never empty, and `find_invalid_token_char`
             // says nothing about a string that has no characters to be wrong.
+            // The floor belongs to the production and not to this field, which
+            // is the same reading that sends the character below to `token`.
             if name.is_empty() {
-                return violation(format!("Forwarded parameter '{}' has no name", param));
+                return Some(ctx.report_with(
+                    &TOKEN_EMPTY,
+                    format!("Forwarded parameter '{}' has no name", param),
+                ));
             }
             // The name production is `token`, whole and unmodified, so the
             // character that fails it is the `token` subject's defect and not
@@ -235,9 +258,12 @@ impl ForwardedHeaderValid {
             // cite(RFC 7239 § 4): "The parameter names are case-insensitive."
             let name_lc = name.to_ascii_lowercase();
             if seen.contains(&name_lc) {
-                return violation(format!(
-                    "Forwarded element names the '{}' parameter more than once: '{}'",
-                    name_lc, elem
+                return Some(ctx.report_with(
+                    &FORWARDED_PARAMETER_DUPLICATED,
+                    format!(
+                        "Forwarded element names the '{}' parameter more than once: '{}'",
+                        name_lc, elem
+                    ),
                 ));
             }
             seen.push(name_lc.clone());
@@ -271,8 +297,16 @@ impl ForwardedHeaderValid {
                     }
                 }
             } else {
+                // The unquoted half of `value = token / quoted-string`, with
+                // nothing in it: it derives from neither alternative, where the
+                // `""` below derives from the second and unescapes to the same
+                // nothing. One entry, and the parameter named in the message is
+                // what tells the two apart.
                 if raw_value.is_empty() {
-                    return violation(format!("Forwarded parameter '{}' has no value", param));
+                    return Some(ctx.report_with(
+                        &FORWARDED_PAIR_VALUE_EMPTY,
+                        format!("Forwarded parameter '{}' has no value", param),
+                    ));
                 }
                 if let Some(c) = find_invalid_token_char(raw_value) {
                     return Some(ctx.report_with(
@@ -287,7 +321,10 @@ impl ForwardedHeaderValid {
             };
 
             if value.is_empty() {
-                return violation(format!("Forwarded parameter '{}' has no value", param));
+                return Some(ctx.report_with(
+                    &FORWARDED_PAIR_VALUE_EMPTY,
+                    format!("Forwarded parameter '{}' has no value", param),
+                ));
             }
 
             let finding = match name_lc.as_str() {
@@ -321,8 +358,6 @@ impl ForwardedHeaderValid {
         line: &str,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let violation = |message: String| Some(self.violation(ctx.severity, message));
-
         // Quote-aware, because a comma inside a quoted-string is `qdtext` and
         // not a member separator: the recipient's list reader used here before
         // cut `foo="a,b"` in two and reported both halves of a conforming value.
@@ -366,14 +401,15 @@ impl ForwardedHeaderValid {
         }
 
         if !carried_an_element {
-            return violation(
+            return Some(ctx.report_with(
+                &LIST_MEMBER_MISSING,
                 "Forwarded field line carries no forwarded-element, and the field is a list of at least one".into(),
-            );
+            ));
         }
         if saw_an_empty_element {
-            return violation(format!(
-                "Forwarded field line holds an empty element: '{}'",
-                line
+            return Some(ctx.report_with(
+                &LIST_MEMBER_EMPTY,
+                format!("Forwarded field line holds an empty element: '{}'", line),
             ));
         }
 
@@ -384,12 +420,6 @@ impl ForwardedHeaderValid {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7239_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7239",
-    section: Some("4"),
-    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-4",
-    note: "The field's grammar, the case-insensitivity of parameter names, the MUST NOT on naming a parameter twice in one element, and the sentence restricting the field to requests",
-};
 const RFC_7239_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7239",
     section: Some("5"),
@@ -438,6 +468,8 @@ severity = "warn"
             RFC_3986_2_1,
             RFC_9110_5_6_4,
             RFC_9110_5_6_2,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
         ]
     }
 
@@ -509,22 +541,22 @@ impl Rule for ForwardedHeaderValid {
             //
             // Both of the response's field sections, because §8.2's copy is a copy
             // wherever it lands.
-            //
-            // cite(RFC 7239 § 4): ""Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses."
-            // cite(RFC 7239 § 8.2): "This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client."
             if let Some(resp) = &tx.response {
                 let in_trailers = resp
                     .trailers
                     .as_ref()
                     .is_some_and(|t| t.contains_key("forwarded"));
                 if resp.headers.contains_key("forwarded") || in_trailers {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(
+                        &FORWARDED_RESPONSE_FORBIDDEN,
+                        format!(
                             "Response carries a Forwarded field in its {} section: the field is only for use in HTTP requests, and copying it into a response reveals the proxy chain to the client",
                             match in_trailers && !resp.headers.contains_key("forwarded") {
                                 true => "trailer",
                                 false => "header",
                             }
-                        )));
+                        ),
+                    ));
                 }
             }
 
@@ -679,6 +711,35 @@ mod tests {
         for value in ["@=1", "foo=bad@value"] {
             let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value}"));
             assert_eq!(violation, "token_character_forbidden", "{value}");
+            assert_eq!(severity, crate::lint::Severity::Warn, "{value}");
+        }
+    }
+
+    /// What is left after the five borrowed productions have taken their share:
+    /// §4's element and pair, the `token` floor a parameter name has because
+    /// §4 writes that half unmodified, and the two list ids §3 says this field
+    /// takes from HTTP rather than defines — so an operator who silenced the
+    /// stray comma in a `Vary` has silenced it here too.
+    #[test]
+    fn the_fields_own_grammar_reports_the_subjects_it_is_written_from() {
+        for (value, id) in [
+            (
+                "for=192.0.2.1; proto=https",
+                "forwarded_element_whitespace_forbidden",
+            ),
+            ("for=192.0.2.1;proto", "forwarded_pair_equals_missing"),
+            ("=192.0.2.1", "token_empty"),
+            ("for=", "forwarded_pair_value_empty"),
+            ("for=\"\"", "forwarded_pair_value_empty"),
+            (
+                "for=192.0.2.1;FOR=192.0.2.2",
+                "forwarded_parameter_duplicated",
+            ),
+            ("for=192.0.2.1,,for=192.0.2.2", "list_member_empty"),
+            (",", "list_member_missing"),
+        ] {
+            let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value}"));
+            assert_eq!(violation, id, "{value}");
             assert_eq!(severity, crate::lint::Severity::Warn, "{value}");
         }
     }
@@ -987,18 +1048,21 @@ mod tests {
             200,
             &[("forwarded", "for=192.0.2.1")],
         );
-        let message = crate::test_helpers::run_rule(
+        let finding = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         )
-        .expect("a finding")
-        .message;
+        .expect("a finding");
         assert!(
-            message.contains("only for use in HTTP requests"),
-            "{message}"
+            finding.message.contains("only for use in HTTP requests"),
+            "{}",
+            finding.message
         );
+        // Its own entry and not the field subject's `_misdirected`: §4
+        // prohibits the arrival rather than leaving the direction unremarked.
+        assert_eq!(finding.violation, "forwarded_response_forbidden");
 
         // Including in the trailer section: a copy is a copy wherever it lands,
         // and the message names the section it was found in.
