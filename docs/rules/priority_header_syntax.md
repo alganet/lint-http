@@ -25,11 +25,12 @@ Reports a `Priority` header field (RFC 9218) carrying a priority parameter that 
 ## Specifications
 
 - [RFC 9218 §4](https://www.rfc-editor.org/rfc/rfc9218.html#section-4): Priority Parameters — the Dictionary encoding, and the MUST to ignore an unknown parameter, an out-of-range value or a value of unexpected type rather than treat it as an error
-- [RFC 9218 §4.1](https://www.rfc-editor.org/rfc/rfc9218.html#section-4.1): Urgency — an Integer between 0 and 7 inclusive, defaulting to 3
-- [RFC 9218 §4.2](https://www.rfc-editor.org/rfc/rfc9218.html#section-4.2): Incremental — a Boolean, defaulting to false
+- [RFC 9218 §4.1](https://www.rfc-editor.org/rfc/rfc9218.html#section-4.1): Urgency — an Integer between 0 and 7 inclusive, in descending order of priority, defaulting to 3
+- [RFC 9218 §4.2](https://www.rfc-editor.org/rfc/rfc9218.html#section-4.2): Incremental — a Boolean saying whether the response can be processed as it arrives, defaulting to false
 - [RFC 9218 §8](https://www.rfc-editor.org/rfc/rfc9218.html#section-8): Why an ignored parameter costs different things in a request and in a response: only in a request does omission imply the default
 - [RFC 9218 §4.3.1](https://www.rfc-editor.org/rfc/rfc9218.html#section-4.3.1): The "HTTP Priority" registry — open, and holding only u and i, which is why an unrecognised key is not a finding
 - [RFC 9651 §4.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2): Structured Fields parsing — the MUST to join field lines, and the discard rule that makes one malformed parameter cost the whole field
+- [RFC 9651 §4.2.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.2): Parsing a Dictionary: a member is a key and, optionally, an `=` and a value — a bare key carries the Boolean true rather than being a member without one — and the loop fails on a comma with nothing after it
 
 ## Configuration
 

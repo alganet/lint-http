@@ -2215,6 +2215,18 @@ severity = "warn"
 # A response carries a field this specification deprecates
 severity = "info"
 
+[violations.priority_incremental_malformed]
+# Priority incremental is not a Boolean
+severity = "warn"
+
+[violations.priority_urgency_invalid]
+# Priority urgency is outside 0 to 7
+severity = "warn"
+
+[violations.priority_urgency_malformed]
+# Priority urgency is not an Integer
+severity = "warn"
+
 [violations.problem_details_empty]
 # A response labelled as problem details carries no content
 severity = "warn"
@@ -2553,6 +2565,10 @@ severity = "warn"
 
 [violations.structured_field_character_forbidden]
 # Structured field holds an octet outside US-ASCII
+severity = "warn"
+
+[violations.structured_field_key_duplicated]
+# Structured field gives one Dictionary key more than once
 severity = "warn"
 
 [violations.structured_field_key_malformed]

@@ -11410,79 +11410,87 @@ sources:
     snippet: For both the Priority header field and the PRIORITY_UPDATE frame, the set of priority parameters is encoded as a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 274
+      line: 307
   - label: priority_header_syntax (2)
     section: § 4
     snippet: Receivers parse the Dictionary as described in Section 4.2 of [STRUCTURED-FIELDS].
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 275
+      line: 308
   - label: priority_header_syntax (3)
     section: § 4
     snippet: When receiving an HTTP request that does not carry these priority parameters, a server SHOULD act as if their default values were specified.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 41
+      line: 62
   - label: priority_header_syntax (4)
     section: § 4
     snippet: Where the Dictionary is successfully parsed, this document places the additional requirement that unknown priority parameters, priority parameters with out-of-range values, or values of unexpected types MUST be ignored.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 322
+      line: 361
+    - file: lint-http-rules/src/violations/priority.rs
+      line: 29
   - label: priority_header_syntax (5)
     section: § 4.1
     snippet: The urgency (u) parameter value is Integer (see Section 3.3.1 of [STRUCTURED-FIELDS]), between 0 and 7 inclusive, in descending order of priority.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 345
+      line: 384
+    - file: lint-http-rules/src/violations/priority.rs
+      line: 77
   - label: priority_header_syntax (6)
     section: § 4.1
     snippet: between 0 and 7 inclusive, in descending order of priority. The default is 3.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 367
+      line: 415
+    - file: lint-http-rules/src/violations/priority.rs
+      line: 102
   - label: priority_header_syntax (7)
     section: § 4.2
     snippet: The default value of the incremental parameter is false (0).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 379
+      line: 431
   - label: priority_header_syntax (8)
     section: § 4.2
     snippet: The incremental (i) parameter value is Boolean (see Section 3.3.6 of [STRUCTURED-FIELDS]).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 376
+      line: 424
+    - file: lint-http-rules/src/violations/priority.rs
+      line: 125
   - label: priority_header_syntax (9)
     section: § 4.3
     snippet: Since unknown priority parameters are ignored, new priority parameters should not change the interpretation of, or modify, the urgency (see Section 4.1) or incremental (see Section 4.2) priority parameters in a way that is not backwards compatible or fallback safe.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 398
+      line: 453
   - label: priority_header_syntax (10)
     section: § 4.3.1
     snippet: New priority parameters can be defined by registering them in the "HTTP Priority" registry.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 397
+      line: 452
   - label: priority_header_syntax (11)
     section: § 5
     snippet: The Priority HTTP header field is a Dictionary that carries priority parameters (see Section 4).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 206
+      line: 226
   - label: priority_header_syntax (12)
     section: § 8
     snippet: The absence of a priority parameter in an HTTP response indicates the server's disinterest in changing the client-provided value.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 23
+      line: 44
   - label: priority_header_syntax (13)
     section: § 8
     snippet: This is different from the request header field, in which omission of a priority parameter implies the use of its default value (see Section 4).
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 24
+      line: 45
 - label: RFC 9220
   url: https://www.rfc-editor.org/rfc/rfc9220.html
   fragments:
@@ -11629,7 +11637,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 228
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 141
+      line: 173
   - label: lint-http-rules/src/helpers/structured_fields.rs (2)
     section: § 3.1.2
     snippet: The keys are unique within the scope of the Parameters they occur within, and the values are bare items (i.e., they themselves cannot be parameterized; see Section 3.3).
@@ -11791,7 +11799,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 258
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 351
+      line: 391
   - label: lint-http-rules/src/helpers/structured_fields.rs (27)
     section: § 4.2.2
     snippet: No structured data has been found; return dictionary (which is empty).
@@ -12015,11 +12023,11 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 165
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 282
+      line: 315
     - file: lint-http-rules/src/violations/structured_fields.rs
       line: 25
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 172
+      line: 204
   - label: permissions_policy_directives_valid (4)
     section: § 4.2
     snippet: When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly.
@@ -12027,7 +12035,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 61
+      line: 82
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 34
   - label: permissions_policy_directives_valid (5)
@@ -12037,13 +12045,15 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 292
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 297
+      line: 330
+    - file: lint-http-rules/src/violations/structured_fields.rs
+      line: 140
   - label: priority_header_syntax
     section: § 3.3.1
     snippet: While it is possible to serialize Integers with leading zeros (e.g., "0002", "-01") and signed zero ("-0"), these distinctions may not be preserved by implementations.
     cited_by:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
-      line: 346
+      line: 385
   - label: structured_headers_valid
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:

@@ -7,8 +7,29 @@ use crate::helpers::structured_fields::{
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::priority::{
+    PRIORITY_INCREMENTAL_MALFORMED, PRIORITY_URGENCY_INVALID, PRIORITY_URGENCY_MALFORMED,
+    RFC_9218_4_1, RFC_9218_4_2,
+};
+use crate::violations::structured_fields::{RFC_9651_4_2_2, STRUCTURED_FIELD_KEY_DUPLICATED};
+use crate::violations::ViolationDef;
 
 pub struct PriorityHeaderSyntax;
+
+/// The four this rule reports about a Dictionary that parsed. Three belong to
+/// the field, because RFC 9218 states what each of its two parameters must be;
+/// the fourth belongs to the Dictionary, because a key written twice loses its
+/// earlier member in every field written as one.
+///
+/// The whole-field failures above them are not here yet: the reader that finds
+/// one answers in prose, so the site cannot say which member of the production
+/// subject it met.
+static DECLARED: &[&ViolationDef] = &[
+    &PRIORITY_URGENCY_MALFORMED,
+    &PRIORITY_URGENCY_INVALID,
+    &PRIORITY_INCREMENTAL_MALFORMED,
+    &STRUCTURED_FIELD_KEY_DUPLICATED,
+];
 
 /// Which message the field was read from.
 ///
@@ -63,7 +84,7 @@ impl PriorityHeaderSyntax {
         &self,
         headers: &hyper::HeaderMap,
         section: Section,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
         let mut lines: Vec<&str> = Vec::new();
         for hv in headers.get_all("priority").iter() {
@@ -76,7 +97,7 @@ impl PriorityHeaderSyntax {
             // so there are no members to say anything else about.
             let Ok(v) = hv.to_str() else {
                 return vec![self.violation(
-                    severity,
+                    ctx.severity,
                     whole_field(section, "contains a byte outside ASCII"),
                 )];
             };
@@ -85,10 +106,16 @@ impl PriorityHeaderSyntax {
         if lines.is_empty() {
             return Vec::new();
         }
-        validate_priority(&lines.join(", "), section)
-            .into_iter()
-            .map(|message| self.violation(severity, message))
-            .collect()
+        match validate_priority(&lines.join(", "), section) {
+            // A whole-field failure is one message and the only one, which is
+            // now the return type rather than a comment: nothing parsed, so
+            // there are no members left to describe.
+            Err(message) => vec![self.violation(ctx.severity, message)],
+            Ok(findings) => findings
+                .into_iter()
+                .map(|(def, message)| ctx.report_with(def, message))
+                .collect(),
+        }
     }
 }
 
@@ -100,18 +127,6 @@ const RFC_9218_4: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4"),
     url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4",
     note: "Priority Parameters — the Dictionary encoding, and the MUST to ignore an unknown parameter, an out-of-range value or a value of unexpected type rather than treat it as an error",
-};
-const RFC_9218_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9218",
-    section: Some("4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.1",
-    note: "Urgency — an Integer between 0 and 7 inclusive, defaulting to 3",
-};
-const RFC_9218_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9218",
-    section: Some("4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.2",
-    note: "Incremental — a Boolean, defaulting to false",
 };
 const RFC_9218_8: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9218",
@@ -155,7 +170,12 @@ severity = "warn"
             RFC_9218_8,
             RFC_9218_4_3_1,
             RFC_9651_4_2,
+            RFC_9651_4_2_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -224,9 +244,9 @@ impl Rule for PriorityHeaderSyntax {
         // default while an ignored response parameter loses the server's view
         // outright -- and returning at the request's finding described one
         // signal and left the other unmeasured.
-        let mut out = self.check_section(&tx.request.headers, Section::Request, ctx.severity);
+        let mut out = self.check_section(&tx.request.headers, Section::Request, ctx);
         if let Some(resp) = &tx.response {
-            out.extend(self.check_section(&resp.headers, Section::Response, ctx.severity));
+            out.extend(self.check_section(&resp.headers, Section::Response, ctx));
         }
         out
     }
@@ -256,15 +276,28 @@ fn ignored(section: Section, key: &str, name: &str, reason: &str, default: &str)
 
 /// Every way the joined field value will not be honoured.
 ///
-/// A whole-field failure is one message and the only one: nothing parsed, so
-/// there are no members left to describe. Past that point the messages are
-/// per-member and independent -- § 4's requirement is to ignore *a* parameter --
-/// so a field with two unusable parameters is two findings rather than one
-/// finding and a silence.
-fn validate_priority(s: &str, section: Section) -> Vec<String> {
+/// **The two scopes are the two arms of the return type**, which is what the
+/// `Result` is doing here rather than an error: a whole-field failure is one
+/// message and the only one, since nothing parsed and there are no members left
+/// to describe. Past that point the findings are per-member and independent --
+/// § 4's requirement is to ignore *a* parameter -- so a field with two unusable
+/// parameters is two findings rather than one finding and a silence.
+///
+/// Only the `Ok` arm names defects. The reader that finds a whole-field failure
+/// answers in prose, so this cannot say which member of the Structured Fields
+/// production the field died on, and the message it returns is all there is.
+fn validate_priority(
+    s: &str,
+    section: Section,
+) -> Result<Vec<(&'static ViolationDef, String)>, String> {
     // The byte-level half of § 4.2's step 1, which precedes any type.
+    //
+    // Dead behind `check_section`, like every other octet check in this crate
+    // that sits under `HeaderValue::to_str`: that conversion refuses
+    // %x00-%x1F, %x7F and everything at or above %x80 alike, so the value
+    // arriving here is visible US-ASCII already.
     if let Some(msg) = sf_field_bytes_invalid(s) {
-        return vec![whole_field(section, msg)];
+        return Err(whole_field(section, msg));
     }
 
     // One reading, not three: unlike a rule pointed at a configured header
@@ -280,10 +313,10 @@ fn validate_priority(s: &str, section: Section) -> Vec<String> {
         // ignore-this-parameter requirement is scoped to a Dictionary that
         // parsed, which is the sentence that separates the two findings here.
         // cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
-        Err(msg) => return vec![whole_field(section, &msg)],
+        Err(msg) => return Err(whole_field(section, &msg)),
     };
 
-    let mut out: Vec<String> = Vec::new();
+    let mut out: Vec<(&'static ViolationDef, String)> = Vec::new();
 
     // Duplicates first, and in their own pass, because a repeated key is a fact
     // about the field rather than about either copy: reporting that `u=8` is out
@@ -303,11 +336,17 @@ fn validate_priority(s: &str, section: Section) -> Vec<String> {
             // is one dead-text fact about `u`, not two.
             if !reported.contains(&m.key) {
                 reported.push(m.key);
-                out.push(format!(
-                    "the {} Priority field gives '{}' more than once; all but the last are \
-                     ignored, so the earlier one has no effect",
-                    section.name(),
-                    m.key
+                // The Dictionary's defect and not the field's: any field
+                // written as one loses all but the last member of a repeated
+                // key, and RFC 9218 says nothing about it.
+                out.push((
+                    &STRUCTURED_FIELD_KEY_DUPLICATED,
+                    format!(
+                        "the {} Priority field gives '{}' more than once; all but the last are \
+                         ignored, so the earlier one has no effect",
+                        section.name(),
+                        m.key
+                    ),
                 ));
             }
             continue;
@@ -347,25 +386,34 @@ fn validate_priority(s: &str, section: Section) -> Vec<String> {
                 let reason = match m.value {
                     // The one parameter for which a missing value is a defect.
                     // § 4.2.2 reads a bare key as the Boolean true, which is a
-                    // perfectly good Dictionary member and not an Integer.
+                    // perfectly good Dictionary member and not an Integer -- so
+                    // it reports as the wrong type rather than as an absence.
                     // cite(RFC 9651 § 4.2.2): "Let value be Boolean true."
-                    None => {
-                        Some("has no value, which is the Boolean true and not an Integer".into())
-                    }
-                    Some(v) if !is_integer(v) => {
-                        Some(format!("is '{}', which is not an Integer", v))
-                    }
+                    None => Some((
+                        &PRIORITY_URGENCY_MALFORMED,
+                        "has no value, which is the Boolean true and not an Integer".to_string(),
+                    )),
+                    Some(v) if !is_integer(v) => Some((
+                        &PRIORITY_URGENCY_MALFORMED,
+                        format!("is '{}', which is not an Integer", v),
+                    )),
                     Some(v) if !matches!(v.parse::<i64>(), Ok(n) if (0..=7).contains(&n)) => {
-                        Some(format!("is '{}', which is outside 0 to 7 inclusive", v))
+                        Some((
+                            &PRIORITY_URGENCY_INVALID,
+                            format!("is '{}', which is outside 0 to 7 inclusive", v),
+                        ))
                     }
                     Some(_) => None,
                 };
-                if let Some(reason) = reason {
-                    // The default is the second sentence below; the first is
-                    // carried with it only because "The default is 3." alone is
-                    // three characters short of being quotable evidence.
+                if let Some((def, reason)) = reason {
+                    // The default the message names, for the same reason the
+                    // incremental arm below states its own: the entries answer
+                    // for the type and the bound, and what a request falls back
+                    // to is a third sentence. The first half is carried with it
+                    // only because "The default is 3." alone is three characters
+                    // short of being quotable evidence.
                     // cite(RFC 9218 § 4.1): "between 0 and 7 inclusive, in descending order of priority. The default is 3."
-                    out.push(ignored(section, "u", "urgency", &reason, "3"));
+                    out.push((def, ignored(section, "u", "urgency", &reason, "3")));
                 }
             }
             "i" => {
@@ -376,13 +424,20 @@ fn validate_priority(s: &str, section: Section) -> Vec<String> {
                 // cite(RFC 9218 § 4.2): "The incremental (i) parameter value is Boolean (see Section 3.3.6 of [STRUCTURED-FIELDS])."
                 if let Some(v) = m.value {
                     if !is_boolean(v) {
+                        // The default the message names, which is the site's to
+                        // state: the entry answers for the *type*, and what a
+                        // request falls back to when the parameter is ignored is
+                        // § 4.2's other sentence.
                         // cite(RFC 9218 § 4.2): "The default value of the incremental parameter is false (0)."
-                        out.push(ignored(
-                            section,
-                            "i",
-                            "incremental",
-                            &format!("is '{}', which is not a Boolean", v),
-                            "false",
+                        out.push((
+                            &PRIORITY_INCREMENTAL_MALFORMED,
+                            ignored(
+                                section,
+                                "i",
+                                "incremental",
+                                &format!("is '{}', which is not a Boolean", v),
+                                "false",
+                            ),
                         ));
                     }
                 }
@@ -400,7 +455,7 @@ fn validate_priority(s: &str, section: Section) -> Vec<String> {
         }
     }
 
-    out
+    Ok(out)
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -476,11 +531,13 @@ mod tests {
         let all = check_all(&tx);
         assert_eq!(all.len(), 2, "{all:?}");
         assert!(all[0].message.contains("urgency (u)"), "{}", all[0].message);
+        assert_eq!(all[0].violation, "priority_urgency_invalid");
         assert!(
             all[1].message.contains("incremental (i)"),
             "{}",
             all[1].message
         );
+        assert_eq!(all[1].violation, "priority_incremental_malformed");
     }
 
     /// A whole-field failure is the only finding a section can have: nothing
@@ -516,6 +573,10 @@ mod tests {
             "{}",
             all[0].message
         );
+        // The Dictionary's entry, not the field's: RFC 9218 says nothing about
+        // a key written twice, and every Structured Field written as a
+        // Dictionary loses all but the last.
+        assert_eq!(all[0].violation, "structured_field_key_duplicated");
         assert!(
             all[1].message.contains("incremental (i)"),
             "{}",
@@ -637,6 +698,23 @@ mod tests {
             "{one}"
         );
         assert!(!one.contains("discards every"), "{one}");
+    }
+
+    /// § 4 names a value out of range and a value of unexpected type
+    /// separately, and so does the catalogue: `u=8` derives from the
+    /// production and breaks the bound past it, while `u=abc` and a bare `u`
+    /// derive from a different production altogether. The bare key is the one
+    /// place in this field where leaving a value out is the wrong *type*
+    /// rather than an absence — RFC 9651 reads it as the Boolean true.
+    #[rstest]
+    #[case("u=8", "priority_urgency_invalid")]
+    #[case("u=-1", "priority_urgency_invalid")]
+    #[case("u=abc", "priority_urgency_malformed")]
+    #[case("u=3.0", "priority_urgency_malformed")]
+    #[case("u", "priority_urgency_malformed")]
+    #[case("i=5", "priority_incremental_malformed")]
+    fn the_urgency_split_is_the_documents_own(#[case] value: &str, #[case] id: &str) {
+        assert_eq!(check_req(&[value]).expect("a finding").violation, id);
     }
 
     /// § 8: only a request has a default to fall back to.
