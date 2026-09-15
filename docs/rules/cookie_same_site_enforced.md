@@ -18,7 +18,7 @@ If the relationship cannot be determined (e.g. missing `Sec-Fetch-Site`), the ru
 
 ## Specifications
 
-- [draft-ietf-httpbis-rfc6265bis](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis): `SameSite` cookie semantics. No section: a draft renumbers between revisions — this one cited §5.3.4, where `SameSite` has not lived for some time
+- [draft-ietf-httpbis-rfc6265bis](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis): `SameSite` value grammar and the `SameSite=None` requires `Secure` rule. No section: a draft renumbers between revisions
 - [Fetch](https://fetch.spec.whatwg.org/#sec-fetch-site): Fetch `Sec-Fetch-Site` (cross-site detection) and `Sec-Fetch-Mode` (the `navigate` mode gating the Lax carve-out)
 
 ## Configuration
