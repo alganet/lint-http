@@ -21,10 +21,10 @@ Reports a request that carries content under a method whose definition gives con
 ## Specifications
 
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): Methods overview — the method token is case-sensitive, which is why the four names below are matched exactly and a lowercase `get` is not a GET
-- [RFC 9110 §9.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1): GET — the SHOULD NOT, its `unless` clause, and the sentence that declines to rely on the private agreement the clause describes. Also the statement that framing is independent of the method, which is why a Transfer-Encoding alone is not content
-- [RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2): HEAD — the same paragraph, word for word
-- [RFC 9110 §9.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5): DELETE — the same paragraph again
-- [RFC 9110 §9.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6): CONNECT — a definition rather than a modal, and the sentence that makes the octets after the header section tunnel payload instead of content
+- [RFC 9110 §9.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1): GET — the client `SHOULD NOT` on content, its `unless` clause, the sentence declining to rely on the private agreement that clause describes, and the statement that framing is independent of the method
+- [RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2): HEAD — the SHOULD to send the same header fields a GET would have carried, the MAY that excuses fields whose value is determined only while generating the content, and GET's content paragraph repeated word for word
+- [RFC 9110 §9.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5): DELETE — the same content paragraph as GET and HEAD, word for word again
+- [RFC 9110 §9.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6): CONNECT — the request message does not have content, and the interpretation of anything after its header section is specific to the version of HTTP in use
 - [RFC 9110 §8.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6): Content-Length as the amount of data enclosed — the fallback evidence when no body was captured
 
 ## Configuration

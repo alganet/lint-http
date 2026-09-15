@@ -48,13 +48,40 @@ pub const RFC_9110_9_3_3: SpecRef = SpecRef {
     note: "POST — the SHOULD asking an origin server that created a resource to answer 201 with a Location naming it, which is the sentence that makes a 201 without one a finding",
 };
 
+/// GET: content in one has no defined semantics, and the paragraph saying so
+/// is repeated word for word under HEAD and DELETE.
+pub const RFC_9110_9_3_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1",
+    note: "GET — the client `SHOULD NOT` on content, its `unless` clause, the sentence declining to rely on the private agreement that clause describes, and the statement that framing is independent of the method",
+};
+
 /// HEAD: identical to GET but for the content, with the exception that keeps
-/// content-derived fields out of the comparison.
+/// content-derived fields out of the comparison — and the same content
+/// paragraph GET carries.
 pub const RFC_9110_9_3_2: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("9.3.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-    note: "HEAD — the SHOULD to send the same header fields a GET would have carried, and the MAY that excuses fields whose value is determined only while generating the content",
+    note: "HEAD — the SHOULD to send the same header fields a GET would have carried, the MAY that excuses fields whose value is determined only while generating the content, and GET's content paragraph repeated word for word",
+};
+
+/// DELETE: GET's content paragraph a third time.
+pub const RFC_9110_9_3_5: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5",
+    note: "DELETE — the same content paragraph as GET and HEAD, word for word again",
+};
+
+/// CONNECT: a definition rather than a modal, and the sentence that makes what
+/// follows the header section tunnel traffic rather than content.
+pub const RFC_9110_9_3_6: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+    note: "CONNECT — the request message does not have content, and the interpretation of anything after its header section is specific to the version of HTTP in use",
 };
 
 /// PATCH: the patch document is identified by a media type, and there is no
@@ -80,6 +107,71 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_9_3_8],
+    }
+
+    /// Content on a `GET`, a `HEAD` or a `DELETE`.
+    ///
+    /// **One entry for three sections, because it is one paragraph printed
+    /// three times.** § 9.3.1, § 9.3.2 and § 9.3.5 carry the same words, the
+    /// same `unless` clause and the same reason — content received under these
+    /// methods has no generally defined semantics — so a client that put a body
+    /// on a `GET` and one that put a body on a `DELETE` made one mistake with
+    /// one repair. The message names the method and the section.
+    ///
+    /// **Which is why no finding of it is cited.** The entry names all three,
+    /// and a def naming several carries none onto its findings: no one of them
+    /// governs a message, and choosing at the site would put § 9.3.1's number
+    /// on a `DELETE`.
+    ///
+    /// **Separate from [`METHOD_TRACE_CONTENT_FORBIDDEN`], which is content on
+    /// a method that says no for a different reason.** § 9.3.8's is a flat
+    /// `MUST NOT` about a request that is *echoed*, so the body comes back;
+    /// these three are a `SHOULD NOT` about a request whose body means nothing.
+    /// A sender told to stop echoing secrets and a sender told its body will be
+    /// ignored are reading different sentences.
+    ///
+    /// **The `unless` clause is not a way out, and the same paragraph says
+    /// so.** It excuses content sent to an origin server that has previously
+    /// indicated support "in or out of band" — a private agreement no observer
+    /// can confirm — and the next sentence tells that origin server not to rely
+    /// on one, because participants are often unaware of intermediaries along
+    /// the request chain.
+    ///
+    /// `warn`, with the subject: the request is well formed and will be
+    /// answered; what is lost is whatever the client meant by the body.
+    ///
+    METHOD_CONTENT_FORBIDDEN = {
+        id: "method_content_forbidden",
+        title: "A GET, HEAD or DELETE request carries content",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_9_3_1, RFC_9110_9_3_2, RFC_9110_9_3_5],
+    }
+
+    /// A `CONNECT` request declaring content in its header section.
+    ///
+    /// **The one entry in this subject standing on a definition rather than a
+    /// modal.** § 9.3.6 does not tell a client not to send content; it says a
+    /// CONNECT request message does not have any. So the finding is that the
+    /// message contradicts the definition of the method it names, and
+    /// `_forbidden` is the ending for a message holding what the specification
+    /// does not admit — whether the sentence spends a MUST NOT on saying so.
+    ///
+    /// **The evidence is the header section and never the octets after it**,
+    /// which is the same section's doing: what follows a CONNECT's header
+    /// section is specific to the version of HTTP in use, and where the tunnel
+    /// was established it is the tunnel's own traffic. A reader counting those
+    /// bytes as content would report every successful CONNECT there is.
+    ///
+    /// `warn`, with the subject.
+    ///
+    // cite(RFC 9110 § 9.3.6): "A CONNECT request message does not have content."
+    METHOD_CONNECT_CONTENT_FORBIDDEN = {
+        id: "method_connect_content_forbidden",
+        title: "A CONNECT request declares content its definition has no room for",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_9_3_6],
     }
 
     /// A field carrying sensitive data on a `TRACE` request — credentials or
