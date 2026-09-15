@@ -17,6 +17,22 @@ pub struct WellKnownUriSyntax;
 /// segment removed, because the checks below walk segments rather than match a
 /// prefix: `/.well-knownfoo` begins with the same eleven characters and is an
 /// ordinary path that has nothing to do with this document.
+use crate::violations::well_known::{
+    RFC_3986_3_3, RFC_8615_1, RFC_8615_3, WELL_KNOWN_NAME_EMPTY, WELL_KNOWN_NAME_MALFORMED,
+    WELL_KNOWN_PATH_INVALID, WELL_KNOWN_PREFIX_MALFORMED,
+};
+use crate::violations::ViolationDef;
+
+/// Four, one per way a path can look like a well-known URI and not be one:
+/// the prefix at the wrong depth, the prefix one character short, the name
+/// left out, and the name written with an octet `pchar` has no room for.
+static DECLARED: &[&ViolationDef] = &[
+    &WELL_KNOWN_PATH_INVALID,
+    &WELL_KNOWN_PREFIX_MALFORMED,
+    &WELL_KNOWN_NAME_EMPTY,
+    &WELL_KNOWN_NAME_MALFORMED,
+];
+
 const WELL_KNOWN_SEGMENT: &str = ".well-known";
 
 /// The first character of `name` that `pchar` does not generate, or `None`.
@@ -79,23 +95,11 @@ fn is_well_known_segment(segment: &str) -> bool {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_8615_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8615",
-    section: Some("1"),
-    url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-1",
-    note: "Introduction — the prefix this memo reserves, trailing slash included; that other schemes carry well-known URIs only where their definitions allow it; and the origin's control over its own URI space",
-};
 const RFC_8615_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 8615",
     section: Some("2"),
     url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-2",
     note: "Notational Conventions — the BCP 14 keywords apply when, and only when, they appear in all capitals, which is why §3's lowercase \"should not expect a resource\" is declined",
-};
-const RFC_8615_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8615",
-    section: Some("3"),
-    url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-3",
-    note: "Well-Known URIs — the definition and its scheme proviso, the `segment-nz` MUST on a registered name, the MAY for additional path components, and the sentence saying a `.well-known` elsewhere in the path is not one",
 };
 const RFC_8615_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 8615",
@@ -114,12 +118,6 @@ const RFC_8615_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("5.2"),
     url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-5.2",
     note: "The URI Schemes Registry — the \"Well-Known URI Support\" column that tracks which schemes carry well-known URIs",
-};
-const RFC_3986_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("3.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.3",
-    note: "Path — `segment-nz = 1*pchar`, what a `pchar` is, and where the path component ends",
 };
 const RFC_3986_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 3986",
@@ -179,6 +177,10 @@ severity = "warn"
             RFC_3986_6_2_2_3,
             RFC_9112_3_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -340,7 +342,8 @@ impl Rule for WellKnownUriSyntax {
             // The config after the probe: a request whose path holds no such segment
             // — every request but a handful — should not pay a map lookup and a hash
             // of the rule id to learn that there is nothing to say.
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
+            let violation =
+                |def: &'static ViolationDef, message: String| Some(ctx.report_with(def, message));
 
             // A path is reported as written; when normalizing it moved the segment
             // being talked about, the normalized form is named beside it, so the
@@ -369,7 +372,7 @@ impl Rule for WellKnownUriSyntax {
                 // cite(RFC 8615 § 3): "Well-known URIs are rooted in the top of the path's hierarchy; they are not well-known by definition in other parts of the path."
                 // cite(RFC 8615 § 3): "For example, "/.well-known/example" is a well-known URI, whereas "/foo/.well-known/example" is not."
                 // cite(RFC 8615 § 1): "Furthermore, defining well-known locations usurps the origin's control over its own URI space [RFC7320]."
-                return violation(format!(
+                return violation(&WELL_KNOWN_PATH_INVALID, format!(
                     "Request target path {shown} carries a `.well-known` segment inside the path rather than at the top of its hierarchy, so it is not a well-known URI: RFC 8615 §3 defines one as a URI whose path component *begins with* the characters \"/.well-known/\", and says of this exact shape that \"/.well-known/example\" is a well-known URI, whereas \"/foo/.well-known/example\" is not. The path names an ordinary resource the origin controls (RFC 8615 §1), and RFC 8615 states no requirement on a request target, so this is advice — an application looking for site-wide metadata will not find it here — and not a violation"
                 ));
             }
@@ -381,7 +384,7 @@ impl Rule for WellKnownUriSyntax {
                 // above: the sentence it fails is a definition.
                 //
                 // cite(RFC 8615 § 1): "To address these uses, this memo reserves a path prefix in HTTP, HTTPS, WebSocket (WS), and Secure WebSocket (WSS) URIs for these "well-known locations", "/.well-known/"."
-                None => violation(format!(
+                None => violation(&WELL_KNOWN_PREFIX_MALFORMED, format!(
                     "Request target path {shown} is the reserved prefix one character short: RFC 8615 §1 reserves \"/.well-known/\" with its trailing slash, and §3 defines a well-known URI as one whose path component begins with those characters, so this path names an ordinary resource rather than a well-known one. RFC 8615 states no requirement on a request target, so this is advice, not a violation"
                 )),
 
@@ -400,7 +403,7 @@ impl Rule for WellKnownUriSyntax {
                 // cite(RFC 8615 § 3): "Registered names MUST conform to the "segment-nz" production in [RFC3986]."
                 // cite(RFC 3986 § 3.3, label: segment-nz): "segment-nz    = 1*pchar"
                 // cite(RFC 8615 § 3): "Also, this specification does not define a format or media type for the resource located at "/.well-known/", and clients should not expect a resource to exist at that location."
-                Some(&"") => violation(format!(
+                Some(&"") => violation(&WELL_KNOWN_NAME_EMPTY, format!(
                     "Request target path {shown} carries the reserved prefix with an empty name after it: a registered name MUST conform to `segment-nz` (RFC 8615 §3), which is `1*pchar` (RFC 3986 §3.3) and generates no empty segment, so no conforming registration could answer this path — and RFC 8615 §3 defines no format or media type for the resource located at \"/.well-known/\" either. That MUST is addressed to the application registering the name rather than to this client, so this is advice about the path, not a violation"
                 )),
 
@@ -416,7 +419,7 @@ impl Rule for WellKnownUriSyntax {
                 // cite(RFC 8615 § 3): "Registrations MAY also contain additional information, such as the syntax of additional path components, query strings, and/or fragment identifiers to be appended to the well-known URI"
                 Some(name) => {
                     let c = first_non_pchar(name)?;
-                    violation(format!(
+                    violation(&WELL_KNOWN_NAME_MALFORMED, format!(
                         "Request target path {shown} names the well-known resource '{}', which holds {}: a registered name MUST conform to `segment-nz` (RFC 8615 §3) — `segment-nz = 1*pchar` and `pchar = unreserved / pct-encoded / sub-delims / \":\" / \"@\"` (RFC 3986 §3.3) — so no conforming registration could hold this name. That MUST is addressed to the application registering the name rather than to this client, so this is advice about the name, not a violation",
                         shown_in_finding(name),
                         describe_char(c)
@@ -490,6 +493,7 @@ mod tests {
     fn a_segment_below_the_root_is_advice_not_a_violation() {
         let v = check("/foo/.well-known/example").expect("reported");
         assert_eq!(v.rule, "well_known_uri_syntax");
+        assert_eq!(v.violation, "well_known_path_invalid");
         assert_eq!(
             v.message,
             "Request target path '/foo/.well-known/example' carries a `.well-known` segment inside the path rather than at the top of its hierarchy, so it is not a well-known URI: RFC 8615 §3 defines one as a URI whose path component *begins with* the characters \"/.well-known/\", and says of this exact shape that \"/.well-known/example\" is a well-known URI, whereas \"/foo/.well-known/example\" is not. The path names an ordinary resource the origin controls (RFC 8615 §1), and RFC 8615 states no requirement on a request target, so this is advice — an application looking for site-wide metadata will not find it here — and not a violation"
@@ -547,6 +551,7 @@ mod tests {
     #[test]
     fn the_prefix_without_its_trailing_slash_is_advice() {
         let v = check("/.well-known").expect("reported");
+        assert_eq!(v.violation, "well_known_prefix_malformed");
         assert_eq!(
             v.message,
             "Request target path '/.well-known' is the reserved prefix one character short: RFC 8615 §1 reserves \"/.well-known/\" with its trailing slash, and §3 defines a well-known URI as one whose path component begins with those characters, so this path names an ordinary resource rather than a well-known one. RFC 8615 states no requirement on a request target, so this is advice, not a violation"
@@ -561,6 +566,7 @@ mod tests {
     #[case("/.well-known//name")]
     fn an_empty_name_names_no_registration(#[case] uri: &str) {
         let v = check(uri).expect("reported");
+        assert_eq!(v.violation, "well_known_name_empty");
         assert!(
             v.message.contains(
                 "carries the reserved prefix with an empty name after it: a registered name MUST conform to `segment-nz` (RFC 8615 §3), which is `1*pchar` (RFC 3986 §3.3) and generates no empty segment"
@@ -578,6 +584,7 @@ mod tests {
     #[test]
     fn a_name_no_registration_could_hold_is_reported_by_its_character() {
         let v = check("/.well-known/a[b]").expect("reported");
+        assert_eq!(v.violation, "well_known_name_malformed");
         assert_eq!(
             v.message,
             "Request target path '/.well-known/a[b]' names the well-known resource 'a[b]', which holds '[': a registered name MUST conform to `segment-nz` (RFC 8615 §3) — `segment-nz = 1*pchar` and `pchar = unreserved / pct-encoded / sub-delims / \":\" / \"@\"` (RFC 3986 §3.3) — so no conforming registration could hold this name. That MUST is addressed to the application registering the name rather than to this client, so this is advice about the name, not a violation"
