@@ -4,25 +4,23 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cross_origin::{CROSS_ORIGIN_RESOURCE_POLICY_INVALID, FETCH_3_7};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
 /// repetition. The value on each line here is measured by the checks below;
 /// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &CROSS_ORIGIN_RESOURCE_POLICY_INVALID,
+];
 
 pub struct CrossOriginResourcePolicyValid;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const FETCH_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Fetch",
-    section: Some("3.7"),
-    url: "https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header",
-    note: "`Cross-Origin-Resource-Policy` — the case-sensitive `same-origin`/`same-site`/`cross-origin` grammar, and unrecognized values set to null",
-};
 const MDN_CROSS_ORIGIN_RESOURCE_POLICY: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Cross-Origin-Resource-Policy",
     section: None,
@@ -135,8 +133,11 @@ impl Rule for CrossOriginResourcePolicyValid {
 
             // Must not be a comma-separated list
             if crate::helpers::list::list_members(val).count() != 1 {
-                return Some(self.violation(
-                    ctx.severity,
+                // The field carries one value and has no list form, so a comma
+                // produces none of the three literals — the same finding a typo
+                // makes, and the same null policy a user agent is left with.
+                return Some(ctx.report_with(
+                    &CROSS_ORIGIN_RESOURCE_POLICY_INVALID,
                     "Cross-Origin-Resource-Policy must be a single value".into(),
                 ));
             }
@@ -152,9 +153,8 @@ impl Rule for CrossOriginResourcePolicyValid {
                 return None;
             }
 
-            Some(self.cited(
-                &FETCH_3_7,
-                ctx.severity,
+            Some(ctx.report_with(
+                &CROSS_ORIGIN_RESOURCE_POLICY_INVALID,
                 format!(
                     "Cross-Origin-Resource-Policy contains unsupported value: '{}'",
                     crate::helpers::shown::shown_in_finding(val)

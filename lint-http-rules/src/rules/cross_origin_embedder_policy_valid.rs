@@ -4,13 +4,21 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cross_origin::{
+    CROSS_ORIGIN_EMBEDDER_POLICY_INVALID, CROSS_ORIGIN_EMBEDDER_POLICY_ISOLATION_MISSING,
+    HTML_7_1_4,
+};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
 /// repetition. The value on each line here is measured by the checks below;
 /// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &CROSS_ORIGIN_EMBEDDER_POLICY_INVALID,
+    &CROSS_ORIGIN_EMBEDDER_POLICY_ISOLATION_MISSING,
+];
 
 pub struct CrossOriginEmbedderPolicyValid;
 
@@ -22,12 +30,6 @@ const MDN_CROSS_ORIGIN_EMBEDDER_POLICY: crate::rules::SpecRef = crate::rules::Sp
     section: None,
     url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy",
     note: "Cross-Origin-Embedder-Policy",
-};
-const HTML_7_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "HTML",
-    section: Some("7.1.4"),
-    url: "https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-embedder-policy",
-    note: "The `Cross-Origin-Embedder-Policy` header — its value is one of the three embedder policy strings `unsafe-none`, `require-corp`, `credentialless`",
 };
 
 impl RuleMeta for CrossOriginEmbedderPolicyValid {
@@ -140,8 +142,11 @@ impl Rule for CrossOriginEmbedderPolicyValid {
 
             // Must not be a comma-separated list
             if crate::helpers::list::list_members(val).count() != 1 {
-                return Some(self.violation(
-                    ctx.severity,
+                // A comma yields none of the three embedder policy strings, so
+                // it is the same finding a typo makes rather than a list defect
+                // in a field that has no list.
+                return Some(ctx.report_with(
+                    &CROSS_ORIGIN_EMBEDDER_POLICY_INVALID,
                     "Cross-Origin-Embedder-Policy must be a single value".into(),
                 ));
             }
@@ -158,8 +163,17 @@ impl Rule for CrossOriginEmbedderPolicyValid {
                 return None;
             }
 
-            Some(self.cited(&HTML_7_1_4, ctx.severity, format!(
-                    "Cross-Origin-Embedder-Policy value '{}' does not enable cross-origin isolation (use 'require-corp' or 'credentialless')",
+            // The one value the document defines and this rule would rather not
+            // see is reported apart from the values the document does not define
+            // at all. They are two things to silence: a deployment that chose
+            // `unsafe-none` made a decision, and a deployment that wrote
+            // `require_corp` made a typo.
+            if val.eq_ignore_ascii_case("unsafe-none") {
+                return Some(ctx.report(&CROSS_ORIGIN_EMBEDDER_POLICY_ISOLATION_MISSING));
+            }
+
+            Some(ctx.report_with(&CROSS_ORIGIN_EMBEDDER_POLICY_INVALID, format!(
+                    "Cross-Origin-Embedder-Policy value '{}' is none of the three embedder policy strings, so it enables no cross-origin isolation (use 'require-corp' or 'credentialless')",
                     crate::helpers::shown::shown_in_finding(val)
                 )))
         };
@@ -291,7 +305,7 @@ mod tests {
         );
         assert_eq!(
             v.expect("a finding").message,
-            "Cross-Origin-Embedder-Policy value 'ÿ' does not enable cross-origin isolation (use 'require-corp' or 'credentialless')"
+            "Cross-Origin-Embedder-Policy value 'ÿ' is none of the three embedder policy strings, so it enables no cross-origin isolation (use 'require-corp' or 'credentialless')"
         );
     }
 

@@ -1650,7 +1650,12 @@ severity = "warn"
         /// six uncited ones**, and the entries replacing the two shared ones
         /// name no sentence at all: four rules declare them and each states a
         /// different section of one document, so there is none they all state.
-        const FLOOR: usize = 11;
+        /// **The three `cross_origin_*` policy rules gave up three cited sites
+        /// and three uncited ones**, and one of the four entries replacing them
+        /// names no sentence on purpose: `unsafe-none` is a *valid* embedder
+        /// policy, so what refuses it is this crate's preference and a
+        /// reference there would dress a preference as a requirement.
+        const FLOOR: usize = 8;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
