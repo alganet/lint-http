@@ -5,24 +5,19 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::retry_after::{RETRY_AFTER_MALFORMED, RFC_9110_10_2_3};
 use crate::violations::ViolationDef;
 
 /// § 5.3's repeated field line, which this rule reports for its own field.
 /// The sentence is the catalogue's; what stays here is the reading that says
 /// this field's definition has no comma-separated-list alternative.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED, &RETRY_AFTER_MALFORMED];
 
 pub struct RetryAfterDateOrDelay;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_10_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.2.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3",
-    note: "Retry-After header",
-};
+// Both references this rule names live on the subjects it reports through and
+// are imported back for `specifications()`, so a def's citation and the rule's
+// documented reading are the same value rather than two copies of it.
 
 impl RuleMeta for RetryAfterDateOrDelay {
     fn id(&self) -> &'static str {
@@ -121,7 +116,7 @@ impl Rule for RetryAfterDateOrDelay {
                     continue;
                 }
 
-                return Some(self.violation(ctx.severity, format!(
+                return Some(ctx.report_with(&RETRY_AFTER_MALFORMED, format!(
                         "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
                         crate::helpers::shown::shown_in_finding(s)
                     )));

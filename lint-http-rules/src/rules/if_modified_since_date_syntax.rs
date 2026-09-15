@@ -5,8 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
-    http_date_defect, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN,
-    RFC_9110_5_6_7,
+    http_date_defect, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
+    HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_9110_5_6_7,
 };
 use crate::violations::ViolationDef;
 
@@ -26,6 +26,7 @@ static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_OBSOLETE,
     &HTTP_DATE_WHITESPACE_FORBIDDEN,
+    &HTTP_DATE_EMPTY,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -118,8 +119,8 @@ impl Rule for IfModifiedSinceDateSyntax {
                     // and say "contains only whitespace" about a value holding one.
                     // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
                     if crate::helpers::headers::trim_ows(s).is_empty() {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &HTTP_DATE_EMPTY,
                             "If-Modified-Since header is empty or contains only whitespace".into(),
                         ));
                     }

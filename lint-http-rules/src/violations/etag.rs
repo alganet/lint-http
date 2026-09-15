@@ -87,6 +87,29 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9110_8_8_3],
     }
+
+    /// An `ETag` whose whole value is `*`.
+    ///
+    /// **Worth an id of its own although [`ETAG_DELIMITER_MISSING`] would
+    /// catch it**, and the reason is which mistake it is: `*` is the one
+    /// non-tag an `ETag` plausibly holds, written by a server copying the shape
+    /// of the conditional fields that *do* take it. `If-Match: *` and
+    /// `If-None-Match: *` are conforming values with meanings of their own, and
+    /// a server that has read those and not § 8.8.3 writes this.
+    ///
+    /// **`_forbidden` rather than `_malformed`** for the same reason: reporting
+    /// it as a quoted string with no DQUOTEs describes the octets and not the
+    /// mistake, and a sender reading that finding would go looking for a
+    /// missing quote instead of a wildcard that this field has no place for.
+    ///
+    // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
+    ETAG_WILDCARD_FORBIDDEN = {
+        id: "etag_wildcard_forbidden",
+        title: "An ETag carries the wildcard the conditional fields take",
+        message: "ETag header value '*' is invalid for responses; ETag must be an entity-tag",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_8_8_3],
+    }
 }
 
 /// The defect a parsed [`EntityTagDefect`] reports as.

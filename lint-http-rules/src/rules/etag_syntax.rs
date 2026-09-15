@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::etag::{
     entity_tag_defect, ETAG_CHARACTER_FORBIDDEN, ETAG_DELIMITER_MISSING,
-    ETAG_WEAK_INDICATOR_INVALID, RFC_9110_8_8_3,
+    ETAG_WEAK_INDICATOR_INVALID, ETAG_WILDCARD_FORBIDDEN, RFC_9110_8_8_3,
 };
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::ViolationDef;
@@ -24,6 +24,7 @@ static DECLARED: &[&ViolationDef] = &[
     &ETAG_WEAK_INDICATOR_INVALID,
     &ETAG_DELIMITER_MISSING,
     &ETAG_CHARACTER_FORBIDDEN,
+    &ETAG_WILDCARD_FORBIDDEN,
 ];
 
 /// Validate `ETag` header values: must be a single entity-tag (strong or weak
@@ -137,8 +138,7 @@ impl Rule for EtagSyntax {
                 // the conditional fields that do take it.
                 // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
                 if t == "*" {
-                    return Some(self.cited(&RFC_9110_8_8_3, ctx.severity, "ETag header value '*' is invalid for responses; ETag must be an entity-tag"
-                                .into()));
+                    return Some(ctx.report(&ETAG_WILDCARD_FORBIDDEN));
                 }
 
                 // The entity-tag grammar itself (§8.8.3) is owned by `check_entity_tag`.

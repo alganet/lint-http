@@ -60,6 +60,33 @@ defects! {
         spec: &[RFC_9110_5_6_7],
     }
 
+    /// A date-valued field written with nothing on it, or with nothing but
+    /// `OWS`.
+    ///
+    /// **Distinct from [`HTTP_DATE_MALFORMED`] beside it, and the sender is
+    /// why.** A value that does not derive from any of the three date formats
+    /// is a sender that wrote a timestamp and got it wrong; an empty one is a
+    /// sender that meant to write one and emitted nothing — a template that
+    /// expanded to nothing, a proxy that dropped a value and kept the line. The
+    /// closed vocabulary separates the two everywhere and the evidence supports
+    /// it here: both are in the capture.
+    ///
+    /// **`OWS` and not `str::trim`** is what "nothing but whitespace" means: an
+    /// `obs-text` octet is not whitespace of any kind, and trimming it would
+    /// call a value that holds one empty.
+    ///
+    /// `warn`, with the rest of the subject: the field states no time, and a
+    /// recipient's answer is to act as though it were not there.
+    ///
+    // cite(RFC 9110 § 5.6.7): "HTTP-date = IMF-fixdate / obs-date"
+    HTTP_DATE_EMPTY = {
+        id: "http_date_empty",
+        title: "A date field is written with no timestamp on it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_5_6_7],
+    }
+
     /// A timestamp written in RFC 850's or asctime's format. Both parse, both
     /// name the instant they mean, and a recipient is required to read them —
     /// so this is the sender's requirement alone, and `info` says that the

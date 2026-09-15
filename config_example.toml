@@ -1831,6 +1831,10 @@ severity = "warn"
 # Weakness indicator is not written W/
 severity = "warn"
 
+[violations.etag_wildcard_forbidden]
+# An ETag carries the wildcard the conditional fields take
+severity = "warn"
+
 [violations.expect_100_continue_forbidden]
 # A 100-continue expectation is sent in a request with no content
 severity = "warn"
@@ -1910,6 +1914,10 @@ severity = "warn"
 [violations.http3_settings_identifier_forbidden]
 # SETTINGS carries an identifier HTTP/3 reserves
 severity = "error"
+
+[violations.http_date_empty]
+# A date field is written with no timestamp on it
+severity = "warn"
 
 [violations.http_date_malformed]
 # Timestamp derives from no HTTP-date format
@@ -2494,6 +2502,10 @@ severity = "error"
 [violations.request_target_whitespace_forbidden]
 # A request-target carries whitespace
 severity = "error"
+
+[violations.retry_after_malformed]
+# A Retry-After is neither a date nor a delay
+severity = "warn"
 
 [violations.retry_after_redundant]
 # Retry-After is sent on a status no document pairs it with

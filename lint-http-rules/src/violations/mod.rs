@@ -535,8 +535,9 @@ mod tests {
         /// CORS origin rules' five, and 467 of 493 with the Fetch Metadata
         /// family's six — of which two name nothing, for the reason above — and
         /// 470 of 497 with the three cross-origin policies' four, and 477 of
-        /// 505 with the `Prefer` exchange's seven.
-        const FLOOR: usize = 477;
+        /// 505 with the `Prefer` exchange's seven, and 480 of 508 with the
+        /// three one-site fields.
+        const FLOOR: usize = 480;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

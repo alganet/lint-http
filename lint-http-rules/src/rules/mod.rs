@@ -1655,7 +1655,11 @@ severity = "warn"
         /// names no sentence on purpose: `unsafe-none` is a *valid* embedder
         /// policy, so what refuses it is this crate's preference and a
         /// reference there would dress a preference as a requirement.
-        const FLOOR: usize = 8;
+        /// **`etag_syntax` gave up the last cited site that stood for a value
+        /// the catalogue could already have named** — an `ETag: *` is the
+        /// wildcard the conditional fields take, and reporting it as a quoted
+        /// string with no DQUOTEs describes the octets instead of the mistake.
+        const FLOOR: usize = 7;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
