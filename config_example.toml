@@ -2207,6 +2207,18 @@ severity = "warn"
 # Node identifier holds something that is not a node-port
 severity = "warn"
 
+[violations.oauth2_callback_state_missing]
+# An authorization callback carries a code and no state
+severity = "warn"
+
+[violations.oauth2_request_state_missing]
+# An authorization request carries no state to bind against
+severity = "warn"
+
+[violations.oauth2_state_conflicting]
+# A callback's state matches no request that was seen
+severity = "warn"
+
 [violations.origin_agent_cluster_empty]
 # Origin-Agent-Cluster is written with no boolean on it
 severity = "warn"

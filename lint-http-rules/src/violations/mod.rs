@@ -90,6 +90,7 @@ pub mod media_type;
 pub mod method;
 pub mod multipart_body;
 pub mod node;
+pub mod oauth2;
 pub mod origin_agent_cluster;
 pub mod parameter;
 pub mod permissions_policy;
@@ -521,8 +522,9 @@ mod tests {
         /// and 437 of 461 with the shared realm, and 439 of 463 with the two
         /// method-content entries, and 443 of 467 with the well-known
         /// subject's four, and 446 of 470 with `Refresh`'s three, and
-        /// 449 of 473 with the media type's suffix entries.
-        const FLOOR: usize = 449;
+        /// 449 of 473 with the media type's suffix entries, and 452 of 476
+        /// with the OAuth 2.0 `state` subject.
+        const FLOOR: usize = 452;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
