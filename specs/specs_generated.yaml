@@ -219,36 +219,36 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/refresh_header_syntax.rs
       line: 298
-  - label: x_frame_options_value_valid
+  - label: x_frame_options
     section: § 7.7
     snippet: For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions.
     cited_by:
-    - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 140
-  - label: x_frame_options_value_valid (2)
+    - file: lint-http-rules/src/violations/x_frame_options.rs
+      line: 59
+  - label: x_frame_options (2)
+    section: § 7.7
+    snippet: In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented.
+    cited_by:
+    - file: lint-http-rules/src/violations/x_frame_options.rs
+      line: 89
+  - label: x_frame_options (3)
+    section: § 7.7
+    snippet: X-Frame-Options = "DENY" / "SAMEORIGIN"
+    cited_by:
+    - file: lint-http-rules/src/violations/x_frame_options.rs
+      line: 58
+  - label: x_frame_options_value_valid
     section: § 7.7
     snippet: HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable
     cited_by:
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 105
-  - label: x_frame_options_value_valid (3)
-    section: § 7.7
-    snippet: In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented.
-    cited_by:
-    - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 150
-  - label: x_frame_options_value_valid (4)
+      line: 107
+  - label: x_frame_options_value_valid (2)
     section: § 7.7
     snippet: It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document.
     cited_by:
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 104
-  - label: x_frame_options_value_valid (5)
-    section: § 7.7
-    snippet: X-Frame-Options = "DENY" / "SAMEORIGIN"
-    cited_by:
-    - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 139
+      line: 106
 - label: HTML Semantics
   url: https://html.spec.whatwg.org/multipage/semantics.html
   type: text/html
@@ -916,22 +916,28 @@ sources:
     snippet: Disables XSS filtering.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 145
+      line: 148
+    - file: lint-http-rules/src/violations/x_xss_protection.rs
+      line: 50
   - label: x_xss_protection_value_valid (2)
     snippet: Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 151
+      line: 154
   - label: x_xss_protection_value_valid (3)
     snippet: Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 144
+      line: 147
+    - file: lint-http-rules/src/violations/x_xss_protection.rs
+      line: 49
   - label: x_xss_protection_value_valid (4)
     snippet: response header was a feature of Internet Explorer, Chrome and Safari that stopped pages from loading when they detected reflected cross-site scripting
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 109
+      line: 112
+    - file: lint-http-rules/src/violations/x_xss_protection.rs
+      line: 24
 - label: RFC 1035
   url: https://www.rfc-editor.org/rfc/rfc1035.html
   fragments:
@@ -7509,9 +7515,9 @@ sources:
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 135
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 117
+      line: 119
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 120
+      line: 123
     - file: lint-http-rules/src/violations/field.rs
       line: 130
   - label: lint-http-rules/src/helpers/headers.rs (5)
