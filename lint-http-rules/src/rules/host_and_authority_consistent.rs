@@ -134,18 +134,16 @@ impl HostAndAuthorityConsistent {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9113_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9113",
-    section: Some("8.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
-    note: "HTTP/2's half: the client's MUST NOT, the server's SHOULD-treat-as-malformed, and the two sentences that define the comparison over *normalized* values — which is why a default or empty port is not a difference on this version",
+use crate::violations::authority::{
+    AUTHORITY_CONFLICTING, AUTHORITY_VALUE_CONFLICTING, RFC_9113_8_3_1, RFC_9114_4_3_1,
 };
-const RFC_9114_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("4.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
-    note: "HTTP/3's half: both fields present MUST contain the same value and MUST NOT be empty, with no normalization named anywhere in the document — the sentence that makes one pair of values conforming over HTTP/2 and malformed here",
-};
+use crate::violations::ViolationDef;
+
+/// Two, and the second exists because the two documents do not define the
+/// comparison the same way: one pair of values is conforming over HTTP/2 and
+/// refused over HTTP/3, and an operator on one version silences a thing the
+/// other cannot.
+static DECLARED: &[&ViolationDef] = &[&AUTHORITY_CONFLICTING, &AUTHORITY_VALUE_CONFLICTING];
 const RFC_9110_4_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("4.2.3"),
@@ -228,6 +226,10 @@ severity = "error"
             RFC_9110_7_2,
             RFC_9112_3_2_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -399,7 +401,8 @@ impl Rule for HostAndAuthorityConsistent {
 
             // Every gate above ends the rule, and a request carrying both fields is
             // the only one this can report.
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
+            let violation =
+                |def: &'static ViolationDef, message: String| Some(ctx.report_with(def, message));
 
             // Both fields are present, and one of them names no authority — which
             // is a difference like any other, and is why this branch is about the
@@ -415,7 +418,7 @@ impl Rule for HostAndAuthorityConsistent {
             // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
             // cite(RFC 9114 § 4.3.1): "If these fields are present, they MUST NOT be empty."
             if host.is_empty() {
-                return violation(format!(
+                return violation(&AUTHORITY_CONFLICTING, format!(
                     "The request's Host field value is empty while its ':authority' is '{}': both fields are present and one of them names no authority",
                     shown_in_finding(&authority)
                 ));
@@ -451,7 +454,7 @@ impl Rule for HostAndAuthorityConsistent {
                 // cite(RFC 9113 § 8.3.1): "An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields."
                 // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
                 Comparison::NormalizationApart => match version {
-                    3 => violation(format!(
+                    3 => violation(&AUTHORITY_VALUE_CONFLICTING, format!(
                         "':authority' '{}' and Host '{}' are one authority only after scheme-based normalization, which puts both in the normal form '{}'. HTTP/3 asks the two fields to contain the same value and names no normalization; the same pair over HTTP/2 is not reported, because that version's requirement is defined over normalized values",
                         shown_in_finding(&authority),
                         shown_in_finding(host),
@@ -472,7 +475,7 @@ impl Rule for HostAndAuthorityConsistent {
                 // cite(RFC 9113 § 8.3.1): "Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field."
                 // cite(RFC 9113 § 8.3.1): "A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the ":authority" pseudo-header field."
                 // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
-                Comparison::Different => violation(format!(
+                Comparison::Different => violation(&AUTHORITY_CONFLICTING, format!(
                     "':authority' '{}' and Host '{}' name different authorities: {}",
                     shown_in_finding(&authority),
                     shown_in_finding(host),
@@ -594,6 +597,10 @@ mod tests {
 
         let violation = check("HTTP/3.0", uri, &[host.as_bytes()])
             .expect("HTTP/3 asks the two fields to contain the same value");
+        assert_eq!(violation.violation, "authority_value_conflicting");
+        // One document names the normalization and the other does not, so this
+        // finding is cited where its sibling cannot be.
+        assert!(violation.cite.is_some());
         assert!(
             violation
                 .message
@@ -644,7 +651,8 @@ mod tests {
             let violation = check(version, "https://example.com/path", &[host])
                 .expect("both fields are present");
             assert!(
-                violation.message.contains("names no authority"),
+                violation.violation == "authority_conflicting"
+                    && violation.message.contains("names no authority"),
                 "{}",
                 violation.message
             );
@@ -663,7 +671,8 @@ mod tests {
         )
         .expect("an octet no uri-host admits is not whitespace");
         assert!(
-            violation.message.contains("name different authorities"),
+            violation.violation == "authority_conflicting"
+                && violation.message.contains("name different authorities"),
             "{}",
             violation.message
         );
@@ -687,7 +696,8 @@ mod tests {
         let violation = check("HTTP/2.0", "https://example.com/p", &[b"example.com\xA0"])
             .expect("an obs-text octet is not part of this authority");
         assert!(
-            violation.message.contains("name different authorities"),
+            violation.violation == "authority_conflicting"
+                && violation.message.contains("name different authorities"),
             "{}",
             violation.message
         );

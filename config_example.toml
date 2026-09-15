@@ -1175,6 +1175,10 @@ severity = "warn"
 # Authentication scheme is not one the deployment recognises
 severity = "warn"
 
+[violations.authority_conflicting]
+# A request's :authority and Host name different authorities
+severity = "error"
+
 [violations.authority_empty]
 # A request's authority field is present and empty
 severity = "error"
@@ -1210,6 +1214,10 @@ severity = "error"
 [violations.authority_userinfo_forbidden]
 # An :authority carries the deprecated userinfo subcomponent
 severity = "error"
+
+[violations.authority_value_conflicting]
+# An :authority and Host are one authority in two spellings
+severity = "warn"
 
 [violations.base64_character_forbidden]
 # Value holds an octet outside the base64 alphabet

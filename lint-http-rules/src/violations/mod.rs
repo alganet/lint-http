@@ -526,8 +526,9 @@ mod tests {
         /// 449 of 473 with the media type's suffix entries, and 452 of 476
         /// with the OAuth 2.0 `state` subject, and 453 of 477 with `Vary`'s
         /// `Prefer` entry, and 455 of 479 with the range request's two, and 456
-        /// of 480 with the first entry whose subject is a cache.
-        const FLOOR: usize = 456;
+        /// of 480 with the first entry whose subject is a cache, and 458 of 482
+        /// with the last unconverted rule's two.
+        const FLOOR: usize = 458;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

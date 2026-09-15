@@ -410,6 +410,72 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9114_4_3_1],
     }
+
+    /// A request carrying both an `:authority` and a `Host` that name different
+    /// authorities — including the one whose `Host` is blank.
+    ///
+    /// **The clause's third half**, and [`AUTHORITY_EMPTY`]'s doc names it: that
+    /// entry is for a request naming an authority *nowhere*, this one for a
+    /// request naming two.
+    ///
+    /// **A blank `Host` beside an `:authority` belongs here and not there**,
+    /// which is a decision about what the sender did rather than about what the
+    /// field holds. Both fields are present and they do not agree; that one of
+    /// them is empty is what the *message* says, and it is not a second defect
+    /// because the repair is the repair either way — make the two name one
+    /// authority.
+    ///
+    /// **Two documents, one per version, and neither governs**, so no finding
+    /// of this entry carries a citation. RFC 9113 gives the requirement two
+    /// voices — a client MUST NOT generate the mismatch, a server SHOULD treat
+    /// it as malformed — and RFC 9114 states it as a flat MUST on the values.
+    /// The message names the version's own sentence, which is what it did while
+    /// this was a rule-owned finding.
+    ///
+    /// `error`, with the rest of this subject. A recipient reads one of the two
+    /// and a recipient further along may read the other, so the request can be
+    /// routed to an origin the sender did not name — which is the shape every
+    /// entry here ranks on.
+    ///
+    AUTHORITY_CONFLICTING = {
+        id: "authority_conflicting",
+        title: "A request's :authority and Host name different authorities",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9113_8_3_1, RFC_9114_4_3_1],
+    }
+
+    /// An `:authority` and a `Host` that are one authority written two ways,
+    /// on an HTTP/3 request: a default port on one side, a case difference, a
+    /// percent-encoded unreserved character.
+    ///
+    /// **The one entry in this catalogue whose defect depends on which document
+    /// is in force**, and the split is real rather than an oversight. RFC 9113
+    /// § 8.3.1 says outright that the values are compared *normalized* and
+    /// names scheme-based normalization as the floor for everyone but an origin
+    /// server; RFC 9114 asks for the same value and the word "normalize"
+    /// appears nowhere in that document. So one pair of values is conforming
+    /// over HTTP/2 and refused over HTTP/3, and harmonising the two would mean
+    /// choosing which document to stop reading.
+    ///
+    /// **Separate from [`AUTHORITY_CONFLICTING`] because nothing is
+    /// misrouted.** The two fields name the same origin; what they do not share
+    /// is a spelling, and only a recipient comparing them as strings notices.
+    /// An operator on an HTTP/2-only deployment silences this and keeps the
+    /// other, which is the test that made it an id of its own.
+    ///
+    /// `warn` where its sibling is `error`, and the reason is exactly that: a
+    /// request refused for a spelling is a request that did not happen, not one
+    /// that happened somewhere else.
+    ///
+    // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
+    AUTHORITY_VALUE_CONFLICTING = {
+        id: "authority_value_conflicting",
+        title: "An :authority and Host are one authority in two spellings",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9114_4_3_1],
+    }
 }
 
 #[cfg(test)]

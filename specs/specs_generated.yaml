@@ -1398,7 +1398,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 227
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 357
+      line: 359
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 649
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
@@ -1538,7 +1538,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 290
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 356
+      line: 358
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 219
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
@@ -5333,7 +5333,7 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 259
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 355
+      line: 357
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 438
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
@@ -7437,7 +7437,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 156
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 369
+      line: 371
     - file: lint-http-rules/src/rules/host_header.rs
       line: 188
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
@@ -7689,7 +7689,7 @@ sources:
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 293
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 397
+      line: 399
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 251
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
@@ -8003,7 +8003,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 510
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 316
+      line: 318
     - file: lint-http-rules/src/rules/host_header.rs
       line: 59
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
@@ -10393,7 +10393,7 @@ sources:
     snippet: When an origin server receives a request with an absolute-form of request-target, the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 317
+      line: 319
   - label: host_header
     section: § 3.2
     snippet: A client MUST send a Host header field (Section 7.2 of [HTTP]) in all HTTP/1.1 request messages.
@@ -10908,7 +10908,7 @@ sources:
     snippet: A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 354
+      line: 356
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 501
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -10918,27 +10918,27 @@ sources:
     snippet: A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the ":authority" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 473
+      line: 476
   - label: host_and_authority_consistent (3)
     section: § 8.3.1
     snippet: An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 451
+      line: 454
   - label: host_and_authority_consistent (4)
     section: § 8.3.1
     snippet: Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 291
+      line: 293
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 472
+      line: 475
   - label: host_and_authority_consistent (5)
     section: § 8.3.1
     snippet: The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 337
+      line: 339
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 541
   - label: host_and_authority_consistent (6)
@@ -10946,7 +10946,7 @@ sources:
     snippet: The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986]).
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 450
+      line: 453
   - label: http2_pseudo_headers_valid
     section: § 8.2.1
     snippet: A field value MUST NOT start or end with an ASCII whitespace character (ASCII SP or HTAB, 0x20 or 0x09).
@@ -11163,17 +11163,19 @@ sources:
     snippet: If both fields are present, they MUST contain the same value.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 452
+      line: 455
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 474
+      line: 477
+    - file: lint-http-rules/src/violations/authority.rs
+      line: 471
   - label: host_and_authority_consistent (2)
     section: § 4.3.1
     snippet: If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 368
+      line: 370
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 415
+      line: 418
     - file: lint-http-rules/src/violations/authority.rs
       line: 367
   - label: host_and_authority_consistent (3)
@@ -11181,7 +11183,7 @@ sources:
     snippet: If these fields are present, they MUST NOT be empty.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 416
+      line: 419
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 435
     - file: lint-http-rules/src/violations/authority.rs
