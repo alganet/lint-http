@@ -103,6 +103,7 @@ pub mod quoted_pair;
 pub mod quoted_string;
 pub mod qvalue;
 pub mod range;
+pub mod refresh;
 pub mod request_target;
 pub mod retry_after;
 pub mod sec_websocket_accept;
@@ -519,8 +520,8 @@ mod tests {
         /// section's three, and 436 of 460 with the authentication loop's one,
         /// and 437 of 461 with the shared realm, and 439 of 463 with the two
         /// method-content entries, and 443 of 467 with the well-known
-        /// subject's four.
-        const FLOOR: usize = 443;
+        /// subject's four, and 446 of 470 with `Refresh`'s three.
+        const FLOOR: usize = 446;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

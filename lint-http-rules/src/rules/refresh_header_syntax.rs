@@ -4,6 +4,23 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::refresh::{
+    HTML_SEMANTICS_4_2_5_3, REFRESH_URL_EMPTY, REFRESH_URL_MALFORMED, REFRESH_VALUE_MALFORMED,
+    URL_4_3,
+};
+use crate::violations::ViolationDef;
+
+/// Three of the field's own, and one that is not: a second `Refresh` field line
+/// is RFC 9110 § 5.3's defect about any field whose definition offers no list
+/// alternative, and HTML's note that it specifies no handling for more than one
+/// is the reason this field's definition offers none.
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &REFRESH_VALUE_MALFORMED,
+    &REFRESH_URL_EMPTY,
+    &REFRESH_URL_MALFORMED,
+];
 
 pub struct RefreshHeaderSyntax;
 
@@ -115,7 +132,7 @@ fn is_ascii_whitespace(c: char) -> bool {
 /// trailing whitespace already removed. The production is the authoring
 /// conformance requirement for the `meta` pragma, which § 7.8 makes this field's
 /// too — two forms, and everything else is a finding.
-fn refresh_value_error(s: &str) -> Option<String> {
+fn refresh_value_error(s: &str) -> Option<(&'static ViolationDef, String)> {
     // cite(HTML Semantics § 4.2.5.3): "For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:"
     // cite(HTML Semantics § 4.2.5.3): "just a valid non-negative integer, or"
     // cite(HTML Semantics § 4.2.5.3): "a valid non-negative integer, followed by a U+003B SEMICOLON character (;), followed by one or more ASCII whitespace, followed by a substring that is an ASCII case-insensitive match for the string "URL", followed by a U+003D EQUALS SIGN character (=), followed by a valid URL string"
@@ -136,9 +153,12 @@ fn refresh_value_error(s: &str) -> Option<String> {
     // One or more ASCII digits and nothing else — no sign, no radix point. This
     // is why the check is not `parse::<u64>()`, which accepts a leading `+`.
     if time.is_empty() || !time.chars().all(|c| c.is_ascii_digit()) {
-        return Some(format!(
-            "'{time}' is not a valid non-negative integer; the value is a delay in seconds, \
-             optionally followed by `; URL=<url>`"
+        return Some((
+            &REFRESH_VALUE_MALFORMED,
+            format!(
+                "'{time}' is not a valid non-negative integer; the value is a delay in seconds, \
+                 optionally followed by `; URL=<url>`"
+            ),
         ));
     }
 
@@ -147,14 +167,18 @@ fn refresh_value_error(s: &str) -> Option<String> {
 
     let after_ws = after_semicolon.trim_start_matches(is_ascii_whitespace);
     if after_ws.is_empty() {
-        return Some(
+        return Some((
+            &REFRESH_VALUE_MALFORMED,
             "the ';' is followed by nothing; the second form is `<seconds>; URL=<url>`".into(),
-        );
+        ));
     }
     if !after_semicolon.starts_with(is_ascii_whitespace) {
-        return Some(format!(
-            "the ';' is not followed by whitespace; the second form is `<seconds>; URL=<url>`, \
-             not `;{after_ws}`"
+        return Some((
+            &REFRESH_VALUE_MALFORMED,
+            format!(
+                "the ';' is not followed by whitespace; the second form is `<seconds>; URL=<url>`, \
+                 not `;{after_ws}`"
+            ),
         ));
     }
 
@@ -163,15 +187,18 @@ fn refresh_value_error(s: &str) -> Option<String> {
     let is_url_eq = matches!(keyword, (Some(u), Some(r), Some(l), Some('='))
         if u.eq_ignore_ascii_case(&'U') && r.eq_ignore_ascii_case(&'R') && l.eq_ignore_ascii_case(&'L'));
     if !is_url_eq {
-        return Some(format!(
-            "'{after_ws}' is not a `URL=` parameter; `URL` is the only name the second form \
-             admits, and no whitespace is permitted around its '='"
+        return Some((
+            &REFRESH_VALUE_MALFORMED,
+            format!(
+                "'{after_ws}' is not a `URL=` parameter; `URL` is the only name the second form \
+                 admits, and no whitespace is permitted around its '='"
+            ),
         ));
     }
 
     let url: String = it.collect();
     if url.is_empty() {
-        return Some("`URL=` carries no URL".into());
+        return Some((&REFRESH_URL_EMPTY, "`URL=` carries no URL".into()));
     }
     // cite(HTML Semantics § 4.2.5.3): "that does not start with a literal U+0027 APOSTROPHE (') or U+0022 QUOTATION MARK"
     // The rest of the second form's sentence, above. A quoted URL is not a
@@ -180,15 +207,17 @@ fn refresh_value_error(s: &str) -> Option<String> {
     // so a sender who quotes a URL loses whatever followed the second mark.
     // cite(HTML Semantics § 4.2.5.3): "If quote is not the empty string, and there is a code point in urlString equal to quote, then truncate urlString at that code point, so that it and all subsequent code points are removed."
     if url.starts_with('\'') || url.starts_with('"') {
-        return Some(format!(
-            "the URL {url:?} starts with a quote character, which the value may not do"
+        return Some((
+            &REFRESH_URL_MALFORMED,
+            format!("the URL {url:?} starts with a quote character, which the value may not do"),
         ));
     }
     // cite(URL § 4.3): "A valid URL string must be either a relative-URL-with-fragment string or an absolute-URL-with-fragment string."
     // Relative is a conforming form, which is why nothing here asks for a
     // scheme: `1http://example/` names none and is an ordinary relative path,
     // not a malformed absolute URL.
-    find_invalid_url_unit(&url).map(|why| format!("the URL {url:?} {why}"))
+    find_invalid_url_unit(&url)
+        .map(|why| (&REFRESH_URL_MALFORMED, format!("the URL {url:?} {why}")))
 }
 
 /// The specification references this rule declares, each named so a finding
@@ -200,23 +229,11 @@ const HTML_SPECULATIVE_LOADING_7_8: crate::rules::SpecRef = crate::rules::SpecRe
     url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-refresh-header",
     note: "The `Refresh` header. Three sentences: it is the `meta` pragma's HTTP equivalent, it takes the same value, and its processing model is elsewhere. It states no requirement of its own",
 };
-const HTML_SEMANTICS_4_2_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "HTML Semantics",
-    section: Some("4.2.5.3"),
-    url: "https://html.spec.whatwg.org/multipage/semantics.html#attr-meta-http-equiv-refresh",
-    note: "Refresh state: the shared declarative refresh steps, and the authoring conformance requirement this rule enforces — the only sentence in HTML that says what a conforming value looks like",
-};
 const HTML_DOCUMENT_LIFECYCLE_7_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "HTML Document Lifecycle",
     section: Some("7.5.1"),
     url: "https://html.spec.whatwg.org/multipage/document-lifecycle.html#initialise-the-document-object",
     note: "Create and initialize a Document object: the field is isomorphic-decoded before parsing, and a note records that multiple field lines are unspecified",
-};
-const URL_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "URL",
-    section: Some("4.3"),
-    url: "https://url.spec.whatwg.org/#url-writing",
-    note: "URL writing: valid URL string, URL code points and URL units — the alphabet the `URL=` value is judged against, which is not RFC 3986's",
 };
 const MDN_REFRESH: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Refresh",
@@ -251,7 +268,12 @@ severity = "warn"
             HTML_DOCUMENT_LIFECYCLE_7_5_1,
             URL_4_3,
             MDN_REFRESH,
+            RFC_9110_5_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -302,8 +324,8 @@ impl Rule for RefreshHeaderSyntax {
             // measured after this: judging the first line would judge something no
             // recipient reads.
             if count > 1 {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &FIELD_LINE_DUPLICATED,
                     format!(
                         "Response carries {count} Refresh header field lines; HTML specifies no \
                          handling for more than one, so what a recipient does with them is not \
@@ -331,12 +353,8 @@ impl Rule for RefreshHeaderSyntax {
             // The conformance requirement `refresh_value_error` implements is written
             // for the `meta` pragma's content attribute; this is the sentence that
             // makes it this field's requirement too.
-            refresh_value_error(value).map(|why| {
-                self.cited(
-                    &HTML_SPECULATIVE_LOADING_7_8,
-                    ctx.severity,
-                    format!("Refresh header value '{value}': {why}"),
-                )
+            refresh_value_error(value).map(|(def, why)| {
+                ctx.report_with(def, format!("Refresh header value '{value}': {why}"))
             })
         };
         Vec::from_iter(finding())
@@ -448,6 +466,21 @@ mod tests {
         assert!(v.message.contains(expected), "{}", v.message);
     }
 
+    /// Which entry answers for which failure — the structure of the value, the
+    /// slot left blank, and the URL itself.
+    #[rstest]
+    #[case(b"bad", "refresh_value_malformed")]
+    #[case(b"5;", "refresh_value_malformed")]
+    #[case(b"10;url=/new", "refresh_value_malformed")]
+    #[case(b"5; foo=bar", "refresh_value_malformed")]
+    #[case(b"5; url=", "refresh_url_empty")]
+    #[case(b"5; url='/new'", "refresh_url_malformed")]
+    #[case(b"5; url=/x<y>", "refresh_url_malformed")]
+    fn each_failure_names_the_entry_that_answers_it(#[case] value: &[u8], #[case] id: &str) {
+        let v = judge(&make_tx_with_refresh(&[value])).expect("a finding");
+        assert_eq!(v.violation, id, "{}", v.message);
+    }
+
     #[test]
     fn std_agrees_on_ascii_whitespace() {
         // The doc comment on `is_ascii_whitespace` says std's set is the same
@@ -469,6 +502,9 @@ mod tests {
         // Both lines are conforming on their own. What a recipient parses is
         // neither of them, and HTML does not say what it is.
         let v = judge(&make_tx_with_refresh(&[b"5", b"10; url=/x"])).expect("expected a finding");
+        // Not this field's entry: two field lines of a name whose definition
+        // offers no list alternative is § 5.3's defect wherever it happens.
+        assert_eq!(v.violation, "field_line_duplicated");
         assert!(
             v.message.contains("2 Refresh header field lines"),
             "{}",
