@@ -14,6 +14,10 @@ use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
+use crate::violations::prefer::{
+    PREFERENCE_APPLIED_CONFLICTING, PREFERENCE_APPLIED_PARAMETER_FORBIDDEN,
+    PREFERENCE_APPLIED_UNSOLICITED, PREFERENCE_APPLIED_VALUE_EMPTY, RFC_7240_2, RFC_7240_3,
+};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
@@ -52,6 +56,10 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &PREFERENCE_APPLIED_VALUE_EMPTY,
+    &PREFERENCE_APPLIED_PARAMETER_FORBIDDEN,
+    &PREFERENCE_APPLIED_UNSOLICITED,
+    &PREFERENCE_APPLIED_CONFLICTING,
 ];
 
 /// The preferences a request asked for, keyed by the lowercased token.
@@ -144,18 +152,6 @@ fn read_prefer(headers: &hyper::HeaderMap) -> PreferSection {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7240_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7240",
-    section: Some("3"),
-    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
-    note: "`Preference-Applied` — the field's definition, its grammar, and the sentence saying it is the `Prefer` grammar without parameters",
-};
-const RFC_7240_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7240",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
-    note: "`Prefer` — the multi-line equivalence, the first-instance rule, the case rules for names and values, and the equivalence of an empty value with no value",
-};
 const RFC_7240_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7240",
     section: Some("1.1"),
@@ -263,7 +259,8 @@ impl Rule for PreferenceAppliedHeaderValid {
         let finding = || -> Option<Violation> {
             let resp = tx.response.as_ref()?;
 
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
+            let violation =
+                |def: &'static ViolationDef, message: String| Some(ctx.report_with(def, message));
 
             // Read as octets, one `char` each, and joined across the field's lines.
             // A `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and
@@ -321,7 +318,7 @@ impl Rule for PreferenceAppliedHeaderValid {
                 //
                 // cite(RFC 7240 § 3): "The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included."
                 if split_semicolons_respecting_quotes(member).len() > 1 {
-                    return violation(format!(
+                    return violation(&PREFERENCE_APPLIED_PARAMETER_FORBIDDEN, format!(
                         "Preference-Applied member '{}' carries parameters, which its grammar does not include",
                         shown_in_finding(member)
                     ));
@@ -341,7 +338,7 @@ impl Rule for PreferenceAppliedHeaderValid {
                         );
                         return Some(match token_bws_word_defect(&defect) {
                             Some(def) => ctx.report_with(def, message),
-                            None => self.violation(ctx.severity, message),
+                            None => ctx.report_with(&PREFERENCE_APPLIED_VALUE_EMPTY, message),
                         });
                     }
                 };
@@ -388,7 +385,7 @@ impl Rule for PreferenceAppliedHeaderValid {
                 // guarantee — `qdtext` admits HTAB and `obs-text` — so the two
                 // values below go through [`shown_in_finding`] and the name does not.
                 let Some(requested) = prefer.prefs.get(&name) else {
-                    return violation(format!(
+                    return violation(&PREFERENCE_APPLIED_UNSOLICITED, format!(
                         "Preference-Applied names '{}', which the request's Prefer header did not ask for",
                         parsed.name
                     ));
@@ -401,7 +398,7 @@ impl Rule for PreferenceAppliedHeaderValid {
                 // token or quoted-string values are used".
                 if let (Some(applied_value), Some(requested_value)) = (&value, requested) {
                     if applied_value != requested_value {
-                        return violation(format!(
+                        return violation(&PREFERENCE_APPLIED_CONFLICTING, format!(
                             "Preference-Applied reports '{}' applied with value '{}', where the request asked for '{}'",
                             parsed.name,
                             shown_in_finding(applied_value),
