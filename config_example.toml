@@ -1695,6 +1695,22 @@ severity = "warn"
 # Credentials are absent after the scheme
 severity = "warn"
 
+[violations.cross_origin_embedder_policy_invalid]
+# Cross-Origin-Embedder-Policy names no embedder policy
+severity = "warn"
+
+[violations.cross_origin_embedder_policy_isolation_missing]
+# A Cross-Origin-Embedder-Policy is set to the value that does not isolate
+severity = "info"
+
+[violations.cross_origin_opener_policy_invalid]
+# Cross-Origin-Opener-Policy names no opener policy
+severity = "warn"
+
+[violations.cross_origin_resource_policy_invalid]
+# Cross-Origin-Resource-Policy names no resource policy
+severity = "warn"
+
 [violations.delta_seconds_character_forbidden]
 # A time in seconds holds an octet DIGIT does not admit
 severity = "warn"

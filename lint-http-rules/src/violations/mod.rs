@@ -62,6 +62,7 @@ pub mod content_transfer_encoding;
 pub mod content_type;
 pub mod cookie;
 pub mod credentials;
+pub mod cross_origin;
 pub mod delta_seconds;
 pub mod digest;
 pub mod digest_credentials;
@@ -531,8 +532,9 @@ mod tests {
         /// of 480 with the first entry whose subject is a cache, and 458 of 482
         /// with the last unconverted rule's two, and 463 of 487 with the two
         /// CORS origin rules' five, and 467 of 493 with the Fetch Metadata
-        /// family's six — of which two name nothing, for the reason above.
-        const FLOOR: usize = 467;
+        /// family's six — of which two name nothing, for the reason above — and
+        /// 470 of 497 with the three cross-origin policies' four.
+        const FLOOR: usize = 470;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

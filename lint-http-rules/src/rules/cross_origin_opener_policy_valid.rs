@@ -4,13 +4,14 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cross_origin::{CROSS_ORIGIN_OPENER_POLICY_INVALID, HTML_7_1_3_1};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
 /// repetition. The value on each line here is measured by the checks below;
 /// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED, &CROSS_ORIGIN_OPENER_POLICY_INVALID];
 
 pub struct CrossOriginOpenerPolicyValid;
 
@@ -22,12 +23,6 @@ const MDN_CROSS_ORIGIN_OPENER_POLICY: crate::rules::SpecRef = crate::rules::Spec
     section: None,
     url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy",
     note: "Cross-Origin-Opener-Policy",
-};
-const HTML_7_1_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "HTML",
-    section: Some("7.1.3.1"),
-    url: "https://html.spec.whatwg.org/multipage/browsers.html#the-coop-headers",
-    note: "The `Cross-Origin-Opener-Policy` header is parsed as a single structured-field item (token); `same-origin-plus-COEP` is derived from `same-origin` + a compatible COEP, never set directly",
 };
 const HTML: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "HTML",
@@ -148,8 +143,11 @@ impl Rule for CrossOriginOpenerPolicyValid {
 
             // Must not be a comma-separated list
             if crate::helpers::list::list_members(val).count() != 1 {
-                return Some(self.violation(
-                    ctx.severity,
+                // Not a list defect: the field has no list form, so a comma
+                // produces a value the item parse does not yield — which is the
+                // same place a typo leaves the browsing context group.
+                return Some(ctx.report_with(
+                    &CROSS_ORIGIN_OPENER_POLICY_INVALID,
                     "Cross-Origin-Opener-Policy must be a single value".into(),
                 ));
             }
@@ -170,9 +168,8 @@ impl Rule for CrossOriginOpenerPolicyValid {
                 return None;
             }
 
-            Some(self.cited(
-                &HTML_7_1_3_1,
-                ctx.severity,
+            Some(ctx.report_with(
+                &CROSS_ORIGIN_OPENER_POLICY_INVALID,
                 format!(
                     "Cross-Origin-Opener-Policy contains unsupported value: '{}'",
                     crate::helpers::shown::shown_in_finding(val)
