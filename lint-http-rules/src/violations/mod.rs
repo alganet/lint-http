@@ -117,6 +117,7 @@ pub mod structured_fields;
 pub mod te;
 pub mod token;
 pub mod token68;
+pub mod trailer;
 pub mod transfer_coding;
 pub mod transfer_encoding;
 pub mod upgrade;
@@ -513,8 +514,9 @@ mod tests {
         /// subject was read the same way: 425 of 447, and 428 of 450 when the
         /// Structured Fields reader was typed, and 429 of 451 with the
         /// `Priority` response's caching entry, and 432 of 454 with
-        /// `Permissions-Policy`'s two.
-        const FLOOR: usize = 432;
+        /// `Permissions-Policy`'s two, and 435 of 457 with the trailer
+        /// section's three.
+        const FLOOR: usize = 435;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

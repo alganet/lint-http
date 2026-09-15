@@ -4,6 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::trailer::{
+    RFC_9110_6_5_1, RFC_9110_6_6_2, RFC_9110_7_6_1, TRAILER_CONNECTION_OPTION_FORBIDDEN,
+    TRAILER_FIELD_FORBIDDEN, TRAILER_MEMBER_MISSING,
+};
+use crate::violations::ViolationDef;
+
+/// Three, and they are three because the losses are three: a value that
+/// arrives too late to be used, a value an intermediary removes before it
+/// arrives at all, and a preparation a recipient could not make.
+static DECLARED: &[&ViolationDef] = &[
+    &TRAILER_FIELD_FORBIDDEN,
+    &TRAILER_CONNECTION_OPTION_FORBIDDEN,
+    &TRAILER_MEMBER_MISSING,
+];
 
 /// The fields that actually arrive after the content, and whether they may.
 ///
@@ -30,24 +44,6 @@ const RFC_9110_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("6.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
     note: "Trailer fields: what a trailer section is, and why what it carries cannot unmake a routing or processing choice already made from the header section",
-};
-const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("6.5.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
-    note: "The MUST NOT behind the first finding, and it is deny-by-default: a trailer field is permitted only where the field's own definition says so. This rule reports the subset it can name; a field it does not recognise is not thereby approved",
-};
-const RFC_9110_6_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("6.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2",
-    note: "The `Trailer` field, whose SHOULD asks a sender to indicate which fields might appear — the sentence behind the undeclared-field finding, which said §6.5 in the finding text",
-};
-const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("7.6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-    note: "`Connection`: naming a field as a connection-option makes its value control information for this connection, and every intermediary removes it from the trailer section before forwarding",
 };
 const RFC_9110_11_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -97,6 +93,10 @@ severity = "warn"
             RFC_9110_16_3_2,
             RFC_9112_7_1_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -157,14 +157,14 @@ impl Rule for TrailerFieldsValid {
             // its `Connection` names options for that message, so neither says anything
             // about what the response may put after its content.
             if let Some(ref trailers) = tx.request.trailers {
-                if let Some(v) = check_trailers(self, ctx.severity, trailers, &tx.request.headers) {
+                if let Some(v) = check_trailers(ctx, trailers, &tx.request.headers) {
                     return Some(v);
                 }
             }
 
             if let Some(ref resp) = tx.response {
                 if let Some(ref trailers) = resp.trailers {
-                    if let Some(v) = check_trailers(self, ctx.severity, trailers, &resp.headers) {
+                    if let Some(v) = check_trailers(ctx, trailers, &resp.headers) {
                         return Some(v);
                     }
                 }
@@ -206,8 +206,7 @@ fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Option<Vec<String>> 
 
 /// Validate one message's trailer section against its own header section.
 fn check_trailers(
-    rule: &dyn crate::rules::Rule,
-    severity: crate::lint::Severity,
+    ctx: &crate::rules::RuleContext<'_>,
     trailers: &hyper::HeaderMap,
     headers: &hyper::HeaderMap,
 ) -> Option<Violation> {
@@ -233,16 +232,16 @@ fn check_trailers(
         //
         // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
         if crate::helpers::field_placement::is_prohibited_trailer_field(name) {
-            return Some(rule.violation(
-                severity,
-                // The message names the field's own definition rather than the
-                // category §6.5.1 sorts it under, because the category is not what
-                // decides: `Authentication-Info` is an authentication field and its
-                // definition permits the usage.
+            // The message names the field's own definition rather than the
+            // category §6.5.1 sorts it under, because the category is not what
+            // decides: `Authentication-Info` is an authentication field and its
+            // definition permits the usage.
+            return Some(ctx.report_with(
+                &TRAILER_FIELD_FORBIDDEN,
                 format!(
                     "Trailer section contains '{}', whose definition does not permit \
                      it to be sent in a trailer section; its value is one a recipient \
-                     needs before it reads the content (RFC 9110 §6.5.1)",
+                     needs before it reads the content",
                     name
                 ),
             ));
@@ -262,13 +261,13 @@ fn check_trailers(
             name,
             connection_val.as_deref(),
         ) {
-            return Some(rule.violation(
-                severity,
+            return Some(ctx.report_with(
+                &TRAILER_CONNECTION_OPTION_FORBIDDEN,
                 format!(
                     "Trailer field '{}' is named as a connection-option in this \
                      message's Connection header, so it is control information for \
                      this connection and every intermediary removes it from the \
-                     trailer section before forwarding (RFC 9110 §7.6.1)",
+                     trailer section before forwarding",
                     name
                 ),
             ));
@@ -283,12 +282,12 @@ fn check_trailers(
         // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
         if let Some(ref declared) = declared {
             if !declared.iter().any(|d| d == name) {
-                return Some(rule.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &TRAILER_MEMBER_MISSING,
                     format!(
                         "Trailer field '{}' was not declared in the Trailer header; \
                          senders should list the fields that might appear in the \
-                         trailers before the message body (RFC 9110 §6.6.2)",
+                         trailers before the message body",
                         name
                     ),
                 ));
@@ -372,7 +371,9 @@ mod tests {
             v.is_some(),
             "expected violation for prohibited trailer '{field}'"
         );
-        assert!(v.unwrap().message.contains(field));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_field_forbidden");
+        assert!(v.message.contains(field));
     }
 
     // ---- Prohibited trailer fields (request) ----
@@ -400,7 +401,9 @@ mod tests {
             v.is_some(),
             "expected violation for prohibited request trailer '{field}'"
         );
-        assert!(v.unwrap().message.contains(field));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_field_forbidden");
+        assert!(v.message.contains(field));
     }
 
     // ---- Valid trailer fields ----
@@ -459,7 +462,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("not declared"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_member_missing");
+        assert!(v.message.contains("not declared"));
     }
 
     #[test]
@@ -473,7 +478,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("not declared"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_member_missing");
+        assert!(v.message.contains("not declared"));
     }
 
     #[test]
@@ -582,7 +589,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("connection-option"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_connection_option_forbidden");
+        assert!(v.message.contains("connection-option"));
     }
 
     #[test]
@@ -596,7 +605,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("connection-option"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_connection_option_forbidden");
+        assert!(v.message.contains("connection-option"));
     }
 
     #[test]
@@ -609,7 +620,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("connection-option"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_connection_option_forbidden");
+        assert!(v.message.contains("connection-option"));
     }
 
     /// The connection options are one list however many `Connection` lines carry
@@ -631,7 +644,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some(), "second Connection line was not read");
-        assert!(v.unwrap().message.contains("connection-option"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_connection_option_forbidden");
+        assert!(v.message.contains("connection-option"));
     }
 
     /// A request's connection options are that request's, and a response's trailer
@@ -755,7 +770,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("not declared"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_member_missing");
+        assert!(v.message.contains("not declared"));
     }
 
     // ---- RFC edge cases ----
@@ -833,7 +850,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("not declared"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_member_missing");
+        assert!(v.message.contains("not declared"));
     }
 
     /// A `Trailer` value outside US-ASCII announces no field name — a member is a
@@ -857,7 +876,9 @@ mod tests {
 
         let v = crate::test_helpers::run_rule(&rule, &tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("not declared"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "trailer_member_missing");
+        assert!(v.message.contains("not declared"));
     }
 
     #[test]
