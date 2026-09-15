@@ -1887,6 +1887,26 @@ severity = "info"
 # A response context field is written in a request
 severity = "info"
 
+[violations.forwarded_element_whitespace_forbidden]
+# Forwarded element holds whitespace its grammar does not admit
+severity = "warn"
+
+[violations.forwarded_pair_equals_missing]
+# Forwarded pair is written without its '='
+severity = "warn"
+
+[violations.forwarded_pair_value_empty]
+# Forwarded pair is written with no value after its '='
+severity = "warn"
+
+[violations.forwarded_parameter_duplicated]
+# Forwarded element names one parameter more than once
+severity = "warn"
+
+[violations.forwarded_response_forbidden]
+# Response carries a Forwarded field
+severity = "warn"
+
 [violations.host_missing]
 # A request names its authority in neither Host nor :authority
 severity = "error"
