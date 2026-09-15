@@ -431,6 +431,71 @@ pub(crate) fn sf_field_bytes_invalid(s: &str) -> Option<&'static str> {
     None
 }
 
+/// What a Structured Field failed to be, and which of the catalogue's entries
+/// answers for it.
+///
+/// **A struct rather than a bare enum, because the algorithms nest.** § 4.2.2
+/// reads a member, which reads an Item or an Inner List, which reads an Item,
+/// which reads its Parameters — and each level words the failure below it into
+/// its own frame: `invalid inner-list member '(1abc)': invalid item '1abc'`.
+/// The prose is what a caller prints and every one of them prints it; the
+/// [`kind`](SfDefect::kind) is the failure at the *bottom* of that chain, which
+/// is the one a defect id names. The wrapping constructor is private to this
+/// module and changes the wording without touching the kind.
+///
+/// The alternative — an enum per level, matched by the caller — is what this
+/// funnel had before, spelled as `String`, and it is why the two rules reading
+/// it could report only "something did not parse".
+#[derive(Debug, Clone)]
+pub struct SfDefect {
+    /// The failure at the bottom of the chain: what a defect id names.
+    pub kind: SfDefectKind,
+    /// The composed message, worded by every level that framed it.
+    pub message: String,
+}
+
+/// The four ways a Structured Field stops deriving, each already a member of
+/// the catalogue's production subject.
+///
+/// Deliberately coarser than the algorithms: § 4.2.3.1 dispatches on seven
+/// types and fails all of them at one step, so "the item type is unrecognized"
+/// is one defect however the value was spelled. What the sender needs to know
+/// apart is whether a *name*, a *value* or a *separator* was the thing that did
+/// not derive, and whether the value was written wrong or left out — which is
+/// the split the closed vocabulary already draws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SfDefectKind {
+    /// A separator with nothing to separate: `a=1,,b=2`, a trailing comma, or
+    /// a `;` with no parameter after it.
+    MemberEmpty,
+    /// A member name or a parameter name that is not a `key`.
+    KeyMalformed,
+    /// A value slot written and left with nothing in it: `a=`, or a member
+    /// that opens on its first `;`.
+    ValueEmpty,
+    /// A value that derives from none of the seven bare item types.
+    ValueMalformed,
+    /// An Inner List that opened and never closed.
+    InnerListMalformed,
+}
+
+impl SfDefect {
+    /// A failure at this level.
+    fn at(kind: SfDefectKind, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+
+    /// The same failure, worded by the level above it. The kind is the inner
+    /// one because that is what a recipient's parser stopped on, and it is
+    /// what the message's own tail already says.
+    fn within(self, message: String) -> Self {
+        Self { message, ..self }
+    }
+}
+
 /// One § 4.2.2 Dictionary member.
 ///
 /// The parameters are not carried, and that is the point rather than an
@@ -452,7 +517,7 @@ pub(crate) struct DictMember<'a> {
 /// § 4.2.2 resolves a repeated key in favour of the last, and a caller that
 /// knows its field is a Dictionary is the only one in a position to say that a
 /// dropped earlier member was meant to do something.
-pub(crate) fn parse_dictionary(s: &str) -> Result<Vec<DictMember<'_>>, String> {
+pub(crate) fn parse_dictionary(s: &str) -> Result<Vec<DictMember<'_>>, SfDefect> {
     // cite(RFC 9651 § 4.2): "Discard any leading SP characters from input_string."
     let s = s.trim();
     // An empty field value is an empty Dictionary, not a failure -- the
@@ -467,7 +532,10 @@ pub(crate) fn parse_dictionary(s: &str) -> Result<Vec<DictMember<'_>>, String> {
         let m = m.trim();
         // cite(RFC 9651 § 4.2.2): "If input_string is empty, there is a trailing comma; fail parsing."
         if m.is_empty() {
-            return Err("empty dictionary member".into());
+            return Err(SfDefect::at(
+                SfDefectKind::MemberEmpty,
+                "empty dictionary member",
+            ));
         }
         // The key is read first and the "=" has to be the character right after
         // it, which is why the head is isolated before looking for one. Reading
@@ -486,16 +554,21 @@ pub(crate) fn parse_dictionary(s: &str) -> Result<Vec<DictMember<'_>>, String> {
             None => (head, None),
         };
         if !is_valid_sf_key(key) {
-            return Err(format!("invalid dictionary key '{}'", key));
+            return Err(SfDefect::at(
+                SfDefectKind::KeyMalformed,
+                format!("invalid dictionary key '{}'", key),
+            ));
         }
         if let Some(value) = value {
             // cite(RFC 9651 § 4.2.2): "Let member be the result of running Parsing an Item or Inner List (Section 4.2.1.1) with input_string."
-            if let Some(msg) = parse_member_value(value) {
-                return Err(format!("invalid value for key '{}': {}", key, msg));
+            if let Some(defect) = parse_member_value(value) {
+                let message = format!("invalid value for key '{}': {}", key, defect.message);
+                return Err(defect.within(message));
             }
         }
-        if let Some(msg) = parse_parameters(&parts[1..]) {
-            return Err(format!("{} on member '{}'", msg, key));
+        if let Some(defect) = parse_parameters(&parts[1..]) {
+            let message = format!("{} on member '{}'", defect.message, key);
+            return Err(defect.within(message));
         }
         members.push(DictMember { key, value });
     }
@@ -503,7 +576,7 @@ pub(crate) fn parse_dictionary(s: &str) -> Result<Vec<DictMember<'_>>, String> {
 }
 
 /// § 4.2.1 -- a comma-separated sequence of Items or Inner Lists.
-pub(crate) fn parse_list(s: &str) -> Option<String> {
+pub(crate) fn parse_list(s: &str) -> Option<SfDefect> {
     for m in split_commas_outside_quotes(s) {
         let m = m.trim();
         // Step 2.6 names the common way to reach this: a trailing comma leaves
@@ -511,18 +584,19 @@ pub(crate) fn parse_list(s: &str) -> Option<String> {
         // same shape one step earlier.
         // cite(RFC 9651 § 4.2.1): "If input_string is empty, there is a trailing comma; fail parsing."
         if m.is_empty() {
-            return Some("empty list member".into());
+            return Some(SfDefect::at(SfDefectKind::MemberEmpty, "empty list member"));
         }
         // cite(RFC 9651 § 4.2.1): "Append the result of running Parsing an Item or Inner List (Section 4.2.1.1) with input_string to members."
-        if let Some(msg) = parse_item_or_inner_list(m) {
-            return Some(format!("invalid list member '{}': {}", m, msg));
+        if let Some(defect) = parse_item_or_inner_list(m) {
+            let message = format!("invalid list member '{}': {}", m, defect.message);
+            return Some(defect.within(message));
         }
     }
     None
 }
 
 /// § 4.2.1.1 -- an Item or an Inner List, either of them parameterized.
-pub(crate) fn parse_item_or_inner_list(s: &str) -> Option<String> {
+pub(crate) fn parse_item_or_inner_list(s: &str) -> Option<SfDefect> {
     let parts = split_semicolons_outside_quotes(s);
     let head = parts.first().map(|p| p.trim()).unwrap_or("");
     parse_member_value(head).or_else(|| parse_parameters(&parts[1..]))
@@ -530,24 +604,30 @@ pub(crate) fn parse_item_or_inner_list(s: &str) -> Option<String> {
 
 /// The head of a § 4.2.1.1 member: a bare Item, or an Inner List.
 // cite(RFC 9651 § 4.2.1.1): "If the first character of input_string is "(", return the result of running Parsing an Inner List (Section 4.2.1.2) with input_string."
-pub(crate) fn parse_member_value(head: &str) -> Option<String> {
+pub(crate) fn parse_member_value(head: &str) -> Option<SfDefect> {
     if head.is_empty() {
-        return Some("empty value".into());
+        return Some(SfDefect::at(SfDefectKind::ValueEmpty, "empty value"));
     }
     if head.starts_with('(') {
         return parse_inner_list(head);
     }
     if !is_bare_item(head) {
-        return Some(format!("invalid item '{}'", head));
+        return Some(SfDefect::at(
+            SfDefectKind::ValueMalformed,
+            format!("invalid item '{}'", head),
+        ));
     }
     None
 }
 
 /// § 4.2.1.2 -- space-separated Items between parentheses.
-pub(crate) fn parse_inner_list(head: &str) -> Option<String> {
+pub(crate) fn parse_inner_list(head: &str) -> Option<SfDefect> {
     // cite(RFC 9651 § 4.2.1.2): "The end of the Inner List was not found; fail parsing."
     if head.len() < 2 || !head.ends_with(')') {
-        return Some(format!("unterminated inner list '{}'", head));
+        return Some(SfDefect::at(
+            SfDefectKind::InnerListMalformed,
+            format!("unterminated inner list '{}'", head),
+        ));
     }
     let inner = &head[1..head.len() - 1];
 
@@ -577,23 +657,27 @@ pub(crate) fn parse_inner_list(head: &str) -> Option<String> {
         // An Item, not an Item-or-Inner-List: Inner Lists do not nest, and the
         // bare-item dispatch has no branch for "(".
         // cite(RFC 9651 § 4.2.1.2): "Let item be the result of running Parsing an Item (Section 4.2.3) with input_string."
-        if let Some(msg) = parse_item(m) {
-            return Some(format!("invalid inner-list member '{}': {}", m, msg));
+        if let Some(defect) = parse_item(m) {
+            let message = format!("invalid inner-list member '{}': {}", m, defect.message);
+            return Some(defect.within(message));
         }
     }
     None
 }
 
 /// § 4.2.3 -- a bare Item and its Parameters.
-pub(crate) fn parse_item(s: &str) -> Option<String> {
+pub(crate) fn parse_item(s: &str) -> Option<SfDefect> {
     let parts = split_semicolons_outside_quotes(s);
     let head = parts.first().map(|p| p.trim()).unwrap_or("");
     if head.is_empty() {
-        return Some("empty item".into());
+        return Some(SfDefect::at(SfDefectKind::ValueEmpty, "empty item"));
     }
     // cite(RFC 9651 § 4.2.3): "Let bare_item be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string."
     if !is_bare_item(head) {
-        return Some(format!("invalid item '{}'", head));
+        return Some(SfDefect::at(
+            SfDefectKind::ValueMalformed,
+            format!("invalid item '{}'", head),
+        ));
     }
     // cite(RFC 9651 § 4.2.3): "Let parameters be the result of running Parsing Parameters (Section 4.2.3.2) with input_string."
     parse_parameters(&parts[1..])
@@ -606,11 +690,17 @@ pub(crate) fn parse_item(s: &str) -> Option<String> {
 /// -- an ordinary parameterized token -- was reported as invalid.
 ///
 // cite(RFC 9651 § 3.1.2): "The keys are unique within the scope of the Parameters they occur within, and the values are bare items (i.e., they themselves cannot be parameterized; see Section 3.3)."
-pub(crate) fn parse_parameters(parts: &[&str]) -> Option<String> {
+pub(crate) fn parse_parameters(parts: &[&str]) -> Option<SfDefect> {
     for p in parts {
         let p = p.trim();
         if p.is_empty() {
-            return Some("empty parameter".into());
+            // A `;` with nothing after it, which the algorithm reaches by a
+            // different door than a `,` does: § 4.2.3.2 consumes the ";" and
+            // then runs Parsing a Key on what is left, so it is § 4.2.3.3 that
+            // refuses an empty string. What the sender wrote is still a
+            // separator with nothing to separate, which is the entry that
+            // names it.
+            return Some(SfDefect::at(SfDefectKind::MemberEmpty, "empty parameter"));
         }
         match find_char_outside_quotes(p, '=') {
             Some(eq) => {
@@ -618,11 +708,17 @@ pub(crate) fn parse_parameters(parts: &[&str]) -> Option<String> {
                 let (k, v) = (k.trim(), v[1..].trim());
                 // cite(RFC 9651 § 4.2.3.2): "Let param_key be the result of running Parsing a Key (Section 4.2.3.3) with input_string."
                 if !is_valid_sf_key(k) {
-                    return Some(format!("invalid parameter key '{}'", k));
+                    return Some(SfDefect::at(
+                        SfDefectKind::KeyMalformed,
+                        format!("invalid parameter key '{}'", k),
+                    ));
                 }
                 // cite(RFC 9651 § 4.2.3.2): "Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string."
                 if !is_bare_item(v) {
-                    return Some(format!("invalid parameter value '{}' for key '{}'", v, k));
+                    return Some(SfDefect::at(
+                        SfDefectKind::ValueMalformed,
+                        format!("invalid parameter value '{}' for key '{}'", v, k),
+                    ));
                 }
             }
             // A parameter with no "=" is the Boolean true, spelled the way § 3.1.2
@@ -630,7 +726,10 @@ pub(crate) fn parse_parameters(parts: &[&str]) -> Option<String> {
             // cite(RFC 9651 § 4.2.3.2): "Let param_value be Boolean true."
             None => {
                 if !is_valid_sf_key(p) {
-                    return Some(format!("invalid parameter '{}'", p));
+                    return Some(SfDefect::at(
+                        SfDefectKind::KeyMalformed,
+                        format!("invalid parameter '{}'", p),
+                    ));
                 }
             }
         }

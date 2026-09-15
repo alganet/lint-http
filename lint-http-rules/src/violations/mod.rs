@@ -509,8 +509,9 @@ mod tests {
         /// two entries that rule declares make it 421, which is the count and
         /// not the previous number plus two — the recipe is to read what the
         /// failing assertion prints, never to increment. The `priority`
-        /// subject was read the same way: 425 of 447.
-        const FLOOR: usize = 425;
+        /// subject was read the same way: 425 of 447, and 428 of 450 when the
+        /// Structured Fields reader was typed.
+        const FLOOR: usize = 428;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
