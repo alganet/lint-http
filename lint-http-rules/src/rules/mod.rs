@@ -1638,7 +1638,11 @@ severity = "warn"
         /// already in the catalogue: the third is
         /// `conditional_validator_conflicting`, shared with
         /// `cache_validation_chain` on disjoint fields.
-        const FLOOR: usize = 20;
+        /// **`cache_coherence` gave up its one**, to the first entry in this
+        /// catalogue whose subject is a *cache* rather than a field: § 4.2.4
+        /// states a requirement no message carries, and what the rule sees is
+        /// its observable consequence.
+        const FLOOR: usize = 19;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
