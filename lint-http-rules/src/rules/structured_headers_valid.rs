@@ -5,8 +5,21 @@
 use crate::helpers::structured_fields::*;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::structured_fields::{
+    RFC_9651_4_2, STRUCTURED_FIELD_CHARACTER_FORBIDDEN, STRUCTURED_FIELD_MALFORMED,
+};
+use crate::violations::ViolationDef;
 
 pub struct StructuredHeadersValid;
+
+/// The two a field-type-blind reader can tell apart, and no more. The octet
+/// check § 4.2 runs before it chooses an algorithm is the one failure this
+/// rule can name; past it, all three readings have failed and naming a member
+/// would mean naming a type the field may not have been defined as.
+static DECLARED: &[&ViolationDef] = &[
+    &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
+    &STRUCTURED_FIELD_MALFORMED,
+];
 
 impl StructuredHeadersValid {
     /// Judge one header field across one section, from its joined value.
@@ -24,21 +37,22 @@ impl StructuredHeadersValid {
         headers: &hyper::HeaderMap,
         hdr: &str,
         section: &str,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let mut lines: Vec<&str> = Vec::new();
         for hv in headers.get_all(hdr).iter() {
             // Not "not valid UTF-8", which this used to claim and is a different
             // statement: a well-formed multi-byte character fails here too.
             // Structured Fields are ASCII, and step 1 fails before any type is
-            // considered.
-            // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
+            // considered -- which is what makes this the one failure a rule
+            // holding no `field_type` can put a name to.
             let Ok(v) = hv.to_str() else {
                 return Some(self.parse_failure(
+                    ctx,
+                    &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
                     hdr,
                     section,
-                    "contains a byte outside ASCII",
-                    severity,
+                    "contains an octet outside US-ASCII",
                 ));
             };
             lines.push(v);
@@ -47,7 +61,7 @@ impl StructuredHeadersValid {
             return None;
         }
         let msg = validate_structured_field(&lines.join(", "))?;
-        Some(self.parse_failure(hdr, section, &msg, severity))
+        Some(self.parse_failure(ctx, &STRUCTURED_FIELD_MALFORMED, hdr, section, &msg))
     }
 
     /// The finding, framed as what a recipient does about it.
@@ -55,24 +69,23 @@ impl StructuredHeadersValid {
     /// "Invalid" is not what either half of this costs. A parse failure takes
     /// the entire field with it -- every member, not the malformed one -- and
     /// RFC 9651 forbids field specifications from softening that, so the price
-    /// of one stray character is the whole header.
+    /// of one stray character is the whole header. That sentence is the
+    /// catalogue's now: both entries carry it, and what is left here is the
+    /// half of the wording only the site knows -- which field, and in which
+    /// section, was lost.
     ///
     /// Named for the failure rather than for the `Violation` it returns: an
     /// inherent `violation` would shadow `Rule::violation` without saying so.
-    /// What is private here is the *wording*, licensed by the sentence below;
-    /// the construction is the trait's.
-    ///
-    // cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
     fn parse_failure(
         &self,
+        ctx: &crate::rules::RuleContext<'_>,
+        def: &'static ViolationDef,
         hdr: &str,
         section: &str,
         msg: &str,
-        severity: crate::lint::Severity,
     ) -> Violation {
-        self.cited(
-            &RFC_9651_4_2,
-            severity,
+        ctx.report_with(
+            def,
             format!(
                 "The {} header '{}' fails Structured Fields parsing, so a recipient discards \
                  the whole field or treats the message as malformed: {}",
@@ -85,12 +98,6 @@ impl StructuredHeadersValid {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9651_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9651",
-    section: Some("4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
-    note: "Parsing — the algorithm this rule runs, the field_type it needs and does not have, the MUST to join field lines, and the discard rule that makes a failure cost the whole field",
-};
 const RFC_9651_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9651",
     section: Some("3.3"),
@@ -151,6 +158,10 @@ headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9651_4_2, RFC_9651_3_3, RFC_9651_2_4, RFC_9651_5]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -217,9 +228,9 @@ impl Rule for StructuredHeadersValid {
             // sentence cited on `check_section` gathers the lines "in the same
             // section", so a request's field and a response's field of the same
             // name are two field values, not one.
-            out.extend(self.check_section(&tx.request.headers, hdr, "request", ctx.severity));
+            out.extend(self.check_section(&tx.request.headers, hdr, "request", ctx));
             if let Some(resp) = &tx.response {
-                out.extend(self.check_section(&resp.headers, hdr, "response", ctx.severity));
+                out.extend(self.check_section(&resp.headers, hdr, "response", ctx));
             }
         }
         out
@@ -245,6 +256,13 @@ impl Rule for StructuredHeadersValid {
 // cite(RFC 9651 § 4.2): "Given an array of bytes as input_bytes that represent the chosen field's field-value (which is empty if that field is not present) and field_type (one of "dictionary", "list", or "item"), return the parsed field value."
 fn validate_structured_field(s: &str) -> Option<String> {
     // The two byte-level checks § 4.2 makes before any field_type is chosen.
+    //
+    // Neither fires behind `check_section`, and that is worth saying rather
+    // than discovering twice: a value only reaches here through
+    // `HeaderValue::to_str`, which refuses %x00-%x1F, %x7F and everything at or
+    // above %x80 alike, so the octet failure is caught one level up where it
+    // has an entry of its own. What is left of this guard is a direct caller --
+    // the tests below -- and the shape of the algorithm.
     if let Some(msg) = sf_field_bytes_invalid(s) {
         return Some(msg.into());
     }
@@ -1228,6 +1246,10 @@ mod tests {
             &cfg,
         )
         .expect("should report");
+        // The coarse entry, and it is the right one here: three readings
+        // failed and naming a member would mean naming a type this rule was
+        // never told the field has.
+        assert_eq!(v.violation, "structured_field_malformed");
         assert!(
             v.message.contains("discards the whole field"),
             "{}",
@@ -1260,7 +1282,8 @@ mod tests {
             &cfg,
         )
         .expect("should report");
-        assert!(v.message.contains("outside ASCII"), "{}", v.message);
+        assert_eq!(v.violation, "structured_field_character_forbidden");
+        assert!(v.message.contains("outside US-ASCII"), "{}", v.message);
         assert!(!v.message.contains("UTF-8"), "{}", v.message);
     }
 

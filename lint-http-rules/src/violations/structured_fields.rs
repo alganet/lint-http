@@ -45,7 +45,48 @@ pub const RFC_9651_4_2_2: SpecRef = SpecRef {
     note: "Parsing a Dictionary: a member is a key and, optionally, an `=` and a value — a bare key carries the Boolean true rather than being a member without one — and the loop fails on a comma with nothing after it",
 };
 
+/// The parsing algorithm every Structured Field is read by: the byte
+/// conversion that precedes any type, the MUST to join a field's lines before
+/// running it, and the discard rule that makes one failure cost the whole
+/// field.
+pub const RFC_9651_4_2: SpecRef = SpecRef {
+    spec: "RFC 9651",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
+    note: "Parsing — the algorithm a recipient runs over a joined field value, the `field_type` it is given, the ASCII conversion it does before choosing one, and the two answers it offers when parsing fails",
+};
+
 defects! {
+    /// An octet at or above %x80 anywhere in the field value — a name or a
+    /// word written in something other than US-ASCII and handed to a field
+    /// that has no room for one.
+    ///
+    /// **The one failure a reader can name without knowing the field's type.**
+    /// § 4.2 is given a `field_type` and chooses an algorithm from it, but the
+    /// conversion to ASCII happens before that choice and fails for all three
+    /// alike — so a rule pointed at a field whose Structured Type it does not
+    /// know can still say this much, where everything past it can only say
+    /// that nothing parsed.
+    ///
+    /// **`_character_forbidden`, the second half of the pair, and there is no
+    /// first half here.** A control octet is the other spelling wherever a
+    /// subject splits the octets nobody typed from the ones a sender chose,
+    /// and this catalogue reaches a Structured Field through
+    /// `HeaderValue::to_str`, which refuses %x00–%x1F and %x7F before any rule
+    /// sees them. What arrives is the sender's own text in the sender's own
+    /// encoding, which is exactly what this half is for.
+    ///
+    /// `warn`, with the rest of the subject: what it costs is the field.
+    ///
+    // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
+    STRUCTURED_FIELD_CHARACTER_FORBIDDEN = {
+        id: "structured_field_character_forbidden",
+        title: "Structured field holds an octet outside US-ASCII",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9651_4_2],
+    }
+
     /// A Dictionary written with a comma and no member beside it:
     /// `a=1,,b=2`, or a value ending on its separator.
     ///
@@ -104,6 +145,37 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9651_4_2_3_3],
+    }
+
+    /// A field value that derives from no Structured Fields type at all: not
+    /// an Item, not a List, not a Dictionary.
+    ///
+    /// **The coarse entry, and it is what a reader that does not know the
+    /// field's type is left with.** § 4.2 takes a `field_type` and nothing on
+    /// the wire carries one: the registry publishes a Structured Type column
+    /// for the fields that have been given one, and a rule pointed at a bare
+    /// field name has only the value. Such a reader can try all three and
+    /// report that none of them parsed; it cannot say *which* member, because
+    /// naming one would be naming a type the field may well not have been
+    /// defined as.
+    ///
+    /// **So it sits beside the finer entries rather than instead of them.**
+    /// A rule that knows the field is a Dictionary reports
+    /// [`STRUCTURED_FIELD_KEY_MALFORMED`] or
+    /// [`STRUCTURED_FIELD_MEMBER_EMPTY`] for the same octets and says more
+    /// while doing it — the shape [`base64`](crate::violations::base64)
+    /// settled, where a coarse entry and the three that name a specific
+    /// failure all belong to one production.
+    ///
+    /// `warn`, with the rest of the subject: what it costs is the field.
+    ///
+    // cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
+    STRUCTURED_FIELD_MALFORMED = {
+        id: "structured_field_malformed",
+        title: "Structured field value derives from no structured type",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9651_4_2],
     }
 }
 

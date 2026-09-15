@@ -20,7 +20,7 @@ Reports a configured header field whose value fails RFC 9651 Structured Fields p
 
 ## Specifications
 
-- [RFC 9651 §4.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2): Parsing — the algorithm this rule runs, the field_type it needs and does not have, the MUST to join field lines, and the discard rule that makes a failure cost the whole field
+- [RFC 9651 §4.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2): Parsing — the algorithm a recipient runs over a joined field value, the `field_type` it is given, the ASCII conversion it does before choosing one, and the two answers it offers when parsing fails
 - [RFC 9651 §3.3](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3): The bare item types, including the Date and Display String added over RFC 8941
 - [RFC 9651 §2.4](https://www.rfc-editor.org/rfc/rfc9651.html#section-2.4): Why a 9651 parser must accept the two new types: it parses everything an 8941 parser does, and more
 - [RFC 9651 §5](https://www.rfc-editor.org/rfc/rfc9651.html#section-5): The registry's "Structured Type" column — where the field_type this rule lacks is published, for the fields that have one

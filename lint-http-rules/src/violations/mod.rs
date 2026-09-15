@@ -501,7 +501,14 @@ mod tests {
         /// this constant by line, and read a ratchet's *number* when a commit
         /// claims to have moved it, because the only evidence that a floor
         /// moved is the floor.
-        const FLOOR: usize = 418;
+        ///
+        /// **It was one behind again when `structured_headers_valid`
+        /// converted**: 419 defs cited a sentence against a floor of 418, so
+        /// some earlier commit added a cited entry and left this alone. The
+        /// two entries that rule declares make it 421, which is the count and
+        /// not the previous number plus two — the recipe is to read what the
+        /// failing assertion prints, never to increment.
+        const FLOOR: usize = 421;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
