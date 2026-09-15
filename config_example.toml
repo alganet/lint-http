@@ -2515,6 +2515,10 @@ severity = "warn"
 # A 401 presents no challenge to authenticate against
 severity = "warn"
 
+[violations.status_401_ignored]
+# A client replays credentials a 401 keeps refusing
+severity = "warn"
+
 [violations.status_405_allow_conflicting]
 # A 405 advertises the method it refuses
 severity = "warn"

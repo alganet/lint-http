@@ -4,20 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::status::{RFC_9110_15_5_2, STATUS_401_IGNORED};
+use crate::violations::ViolationDef;
+
+/// One entry, and the threshold below is not part of it: the catalogue says the
+/// loop happened, this rule says how many rounds it takes to call one.
+static DECLARED: &[&ViolationDef] = &[&STATUS_401_IGNORED];
 
 /// Detects repeated 401 challenges for the same protection space (origin),
 /// which indicates an authentication failure loop.
 pub struct AuthenticationFailureLoop;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
-spec: "RFC 9110",
-section: Some("15.5.2"),
-url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
-note: "401 Unauthorized — the status code this rule counts, and the SHOULD for a repeated challenge",
-        };
+// The one reference this rule names lives on the entry it reports through and
+// is imported back for `specifications()`, so the citation and the documented
+// reading are the same value rather than two copies of it.
 
 impl RuleMeta for AuthenticationFailureLoop {
     fn id(&self) -> &'static str {
@@ -36,6 +36,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_15_5_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -92,15 +96,14 @@ impl Rule for AuthenticationFailureLoop {
                 }
             }
 
-            // Loop = more than 3 consecutive 401s *before* this one (4th and up). §15.5.2
-            // sanctions one retry after a 401 and says what to do when the same challenge
-            // returns; a client still replaying it on the fourth is no longer retrying, it
-            // is looping. The exact count of 4 is this rule's heuristic threshold — no
-            // sentence fixes a number — chosen to sit comfortably past the one sanctioned
-            // retry-and-re-present; the cite is the nearest governing sentence, not a bound.
-            // cite(RFC 9110 § 15.5.2): "If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information."
+            // Loop = more than 3 consecutive 401s *before* this one (4th and up).
+            // The exact count of 4 is this rule's heuristic threshold and stays
+            // here rather than moving onto the entry with the sentence: no
+            // sentence fixes a number, §15.5.2 says "at least once" and stops,
+            // so a linter that picked one owns it. Four sits comfortably past
+            // the single sanctioned retry-and-re-present.
             if consecutive_401s >= 3 {
-                Some(self.cited(&RFC_9110_15_5_2, ctx.severity, format!(
+                Some(ctx.report_with(&STATUS_401_IGNORED, format!(
                         "Authentication failure loop detected: client has received {} consecutive 401 Unauthorized challenges for this origin.",
                         consecutive_401s + 1
                     )))
@@ -148,8 +151,9 @@ mod tests {
                 "authentication_failure_loop",
             ]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("4 consecutive"));
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "status_401_ignored");
+        assert!(v.message.contains("4 consecutive"), "{}", v.message);
     }
 
     #[test]

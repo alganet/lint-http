@@ -515,8 +515,8 @@ mod tests {
         /// Structured Fields reader was typed, and 429 of 451 with the
         /// `Priority` response's caching entry, and 432 of 454 with
         /// `Permissions-Policy`'s two, and 435 of 457 with the trailer
-        /// section's three.
-        const FLOOR: usize = 435;
+        /// section's three, and 436 of 460 with the authentication loop's one.
+        const FLOOR: usize = 436;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

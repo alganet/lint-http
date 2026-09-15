@@ -14,7 +14,7 @@ This rule tracks the transaction history by origin and flags if a client receive
 
 ## Specifications
 
-- [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 Unauthorized — the status code this rule counts, and the SHOULD for a repeated challenge
+- [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource, and a user agent that has already attempted authentication and gets the same challenge back SHOULD show the representation to the user
 
 ## Configuration
 
