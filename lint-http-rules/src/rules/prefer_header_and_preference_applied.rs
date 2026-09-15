@@ -91,12 +91,13 @@ fn vary_nominates_prefer(response_headers: &hyper::HeaderMap) -> bool {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7240_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7240",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
-    note: "The `Vary` MUST this rule enforces, its `Vary: *` alternative, the case rule for comparing preference token names, and the statement that servers are allowed to ignore stated preferences — which is why a missing `Preference-Applied` is not a finding",
-};
+use crate::violations::vary::{RFC_7240_2, VARY_PREFER_MISSING};
+use crate::violations::ViolationDef;
+
+/// One entry, and it belongs to `Vary` rather than to either field this rule
+/// is named for: § 2's MUST is addressed to the response's `Vary`, and what is
+/// absent is a dimension of the cache key.
+static DECLARED: &[&ViolationDef] = &[&VARY_PREFER_MISSING];
 const RFC_7240_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7240",
     section: Some("3"),
@@ -170,6 +171,10 @@ severity = "warn"
             RFC_9110_9_1,
             RFC_9111_4_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -315,7 +320,7 @@ impl Rule for PreferHeaderAndPreferenceApplied {
                 None => "it carries no Vary field".to_string(),
             };
 
-            Some(self.violation(ctx.severity, format!(
+            Some(ctx.report_with(&VARY_PREFER_MISSING, format!(
                     "Response states the '{}' preference was applied — {} — but {}, so a cache holding this response under the target URI alone can serve it to a request that preferred otherwise",
                     name, why, vary_state
                 )))
@@ -364,7 +369,10 @@ mod tests {
     #[case(b"handling=lenient")]
     fn defined_preference_applied_without_vary_is_reported(#[case] applied: &[u8]) {
         let v = run("GET", &[], &[("preference-applied", applied)]);
-        assert!(v.is_some(), "expected a finding for {:?}", applied);
+        let v = v.expect("expected a finding");
+        // The entry is `Vary`'s, not `Prefer`'s: § 2's MUST is addressed to the
+        // response's `Vary`, and what is absent is a dimension of the cache key.
+        assert_eq!(v.violation, "vary_prefer_missing");
     }
 
     /// § 2 admits two spellings, and a `Vary` listing something else is neither.

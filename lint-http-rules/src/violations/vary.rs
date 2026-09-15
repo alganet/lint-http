@@ -20,6 +20,15 @@ use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
+/// Preferences and caching: the MUST that puts `Prefer` in a `Vary` whenever a
+/// preference could change what a cache holds.
+pub const RFC_7240_2: SpecRef = SpecRef {
+    spec: "RFC 7240",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
+    note: "The `Vary` MUST for a server that applies a preference which might vary a cache's handling of the response entity, and the `Vary: *` alternative it offers instead",
+};
+
 /// Calculating Cache Keys with the Vary Header Field: what all the nominated
 /// fields matching buys, and what their not matching forbids.
 pub const RFC_9111_4_1: SpecRef = SpecRef {
@@ -54,6 +63,41 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_4_1],
+    }
+
+    /// A response saying it applied a preference that changes what the entity
+    /// is, without nominating `Prefer` in its `Vary`.
+    ///
+    /// **The subject is `Vary` and not `Prefer`, because the MUST is addressed
+    /// to the `Vary`**: RFC 7240 § 2 tells a server that supports such a
+    /// preference to list the `Prefer` field in the response's `Vary`
+    /// *regardless of whether the client used it*, so what is absent is a
+    /// dimension of the cache key rather than anything about the preference.
+    /// The pairing rule this catalogue already follows — the subject is
+    /// whichever field the requirement is addressed to — decides it.
+    ///
+    /// **The other entry here is its consequence, one exchange later.**
+    /// [`VARY_IGNORED`] reports a cache reusing a response across a dimension
+    /// the response *did* nominate; this reports the dimension never being
+    /// nominated, which is the case no cache can be blamed for. An operator
+    /// seeing the second and then the first is watching one mistake become a
+    /// wrong answer.
+    ///
+    /// **`Vary: *` satisfies it and so does nothing else.** § 2 offers that
+    /// alternative by name, and it works because a `*` makes the response
+    /// unreusable rather than because it names the field.
+    ///
+    /// `warn`. Every message involved is well formed and the exchange that
+    /// produced the finding was answered correctly; what is wrong is that a
+    /// later request can be answered from this response when it should not be.
+    ///
+    // cite(RFC 7240 § 2): "If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request."
+    VARY_PREFER_MISSING = {
+        id: "vary_prefer_missing",
+        title: "A response applied a preference its Vary does not nominate",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7240_2],
     }
 }
 

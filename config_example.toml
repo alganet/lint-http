@@ -2835,6 +2835,10 @@ severity = "info"
 # A response is reused across a dimension its Vary nominated
 severity = "warn"
 
+[violations.vary_prefer_missing]
+# A response applied a preference its Vary does not nominate
+severity = "warn"
+
 [violations.via_comment_duplicated]
 # Via member carries more than one comment
 severity = "warn"

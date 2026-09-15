@@ -3758,12 +3758,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 29
+    - file: lint-http-rules/src/violations/vary.rs
+      line: 94
   - label: Preference-Applied grammar
     section: § 3
     snippet: Preference-Applied = "Preference-Applied" ":" 1#applied-pref
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 276
+      line: 281
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 278
   - label: prefer_header_and_preference_applied (4)
@@ -3771,7 +3773,7 @@ sources:
     snippet: The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 227
+      line: 232
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 250
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -3781,7 +3783,7 @@ sources:
     snippet: applied-pref = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 288
+      line: 293
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 330
   - label: prefer_header_and_preference_applied (6)
@@ -8501,19 +8503,19 @@ sources:
     snippet: The method token is case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 259
+      line: 264
   - label: prefer_header_and_preference_applied (2)
     section: § 9.2.3
     snippet: This specification defines caching semantics for GET, HEAD, and POST, although the overwhelming majority of cache implementations only support GET and HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 257
+      line: 262
   - label: prefer_header_and_preference_applied (3)
     section: § 9.3.3
     snippet: Responses to POST requests are only cacheable when they include explicit freshness information
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 258
+      line: 263
   - label: problem_details_structure_valid
     section: § 8.1
     snippet: The representation data is in a format and encoding defined by the representation metadata header fields.
@@ -10262,7 +10264,7 @@ sources:
     snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
     cited_by:
     - file: lint-http-rules/src/violations/vary.rs
-      line: 50
+      line: 59
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.html
   fragments:

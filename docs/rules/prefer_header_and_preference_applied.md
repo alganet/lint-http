@@ -22,7 +22,7 @@ Reports a response that states a preference was applied — `Preference-Applied`
 
 ## Specifications
 
-- [RFC 7240 §2](https://www.rfc-editor.org/rfc/rfc7240.html#section-2): The `Vary` MUST this rule enforces, its `Vary: *` alternative, the case rule for comparing preference token names, and the statement that servers are allowed to ignore stated preferences — which is why a missing `Preference-Applied` is not a finding
+- [RFC 7240 §2](https://www.rfc-editor.org/rfc/rfc7240.html#section-2): The `Vary` MUST for a server that applies a preference which might vary a cache's handling of the response entity, and the `Vary: *` alternative it offers instead
 - [RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3): `Preference-Applied` — a MAY, with its grammar, and the sentence narrowing its use to the case where a client could not otherwise tell that a preference was applied. The field's presence is this rule's evidence, not its requirement
 - [RFC 7240 §4](https://www.rfc-editor.org/rfc/rfc7240.html#section-4): What each of the four defined preferences does to the response, which is what makes it one that "might result in a variance to a cache's handling of a response entity": §4.1 and §4.3 (a 202 in place of the result), §4.2 (a representation or a minimal answer), §4.4 (a 4xx in place of processing)
 - [RFC 7240 §5.1](https://www.rfc-editor.org/rfc/rfc7240.html#section-5.1): The "HTTP Preferences" registry keeps a preference's effect in its own registration, which is why a name RFC 7240 does not define is left unjudged rather than assumed to vary the entity
