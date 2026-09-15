@@ -32,8 +32,45 @@ impl ContentRange {
     }
 }
 
+/// What a `Range` field value fails to be, when it is not a `ranges-specifier`.
+///
+/// Three ways, and only the first is this field's. `ranges-specifier =
+/// range-unit "=" range-set` writes a delimiter between two parts, and the part
+/// before it is a `token` unmodified — so a unit with nothing in it and a unit
+/// holding a character `tchar` does not admit are the `token` production's
+/// verdicts, reported with the ids every other reader of that production
+/// reports. Typed because one caller reports on it: the other two ask only
+/// whether the value split at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RangesSpecifierDefect {
+    /// No `=` anywhere in the value. Nothing brackets it and nothing else
+    /// separates the unit from the set.
+    EqualsMissing,
+    /// An `=` with nothing before it: `token = 1*tchar` has a floor.
+    UnitEmpty,
+    /// A character in the unit that `tchar` does not admit, carrying it.
+    UnitCharacter(char),
+}
+
+impl RangesSpecifierDefect {
+    /// The finding fragment. Callers name the field and quote the value around
+    /// it, which is why this names neither.
+    pub fn message(self) -> String {
+        match self {
+            Self::EqualsMissing => {
+                "not a ranges-specifier (a range-unit token, '=', then a range-set)".to_string()
+            }
+            Self::UnitEmpty => "has no range-unit before its '='".to_string(),
+            Self::UnitCharacter(c) => {
+                format!("range-unit is not a token ({:?} is not a tchar)", c)
+            }
+        }
+    }
+}
+
 /// Split a `Range` field value into its range unit (lowercased) and the
-/// unparsed range-set, or `None` when the value is not a `ranges-specifier`.
+/// unparsed range-set, or name what it fails to be as a
+/// [`RangesSpecifierDefect`].
 ///
 /// This sits beside the `Content-Range` parser because the two fields name one
 /// construct: § 14.1 defines a single range-unit token and then points it at
@@ -50,13 +87,19 @@ impl ContentRange {
 // cite(RFC 9110 § 14.1.1, label: ranges-specifier grammar): "ranges-specifier = range-unit "=" range-set"
 // cite(RFC 9110 § 14.1.1): "The range unit name determines what kinds of range-spec are applicable to its own specifiers.  Hence, the following grammar is generic: each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed."
 // cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
-pub fn split_ranges_specifier(value: &str) -> Option<(String, &str)> {
-    let (unit, range_set) = value.trim().split_once('=')?;
+pub fn split_ranges_specifier(value: &str) -> Result<(String, &str), RangesSpecifierDefect> {
+    let (unit, range_set) = value
+        .trim()
+        .split_once('=')
+        .ok_or(RangesSpecifierDefect::EqualsMissing)?;
     let unit = unit.trim();
-    if unit.is_empty() || crate::helpers::token::find_invalid_token_char(unit).is_some() {
-        return None;
+    if unit.is_empty() {
+        return Err(RangesSpecifierDefect::UnitEmpty);
     }
-    Some((unit.to_ascii_lowercase(), range_set.trim()))
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(unit) {
+        return Err(RangesSpecifierDefect::UnitCharacter(c));
+    }
+    Ok((unit.to_ascii_lowercase(), range_set.trim()))
 }
 
 /// Which of the three numerals a numeric defect was read from.
@@ -595,25 +638,36 @@ mod tests {
     fn ranges_specifier_splits_at_the_first_equals() {
         assert_eq!(
             split_ranges_specifier("bytes=0-499"),
-            Some(("bytes".into(), "0-499"))
+            Ok(("bytes".into(), "0-499"))
         );
         assert_eq!(
             split_ranges_specifier(" BYTES = 0-1, 5-9 "),
-            Some(("bytes".into(), "0-1, 5-9"))
+            Ok(("bytes".into(), "0-1, 5-9"))
         );
         // `other-range` admits "=" (%x3D is inside %x2D-7E); `range-unit` is a
         // token and cannot, so the first "=" is always the separator.
         assert_eq!(
             split_ranges_specifier("pages=a=b"),
-            Some(("pages".into(), "a=b"))
+            Ok(("pages".into(), "a=b"))
         );
     }
 
+    /// Three ways to fail, named apart: only the first is the field's, and the
+    /// other two are the `token` the unit is written in.
     #[test]
-    fn ranges_specifier_rejects_non_specifiers() {
-        assert_eq!(split_ranges_specifier("bytes 0-499"), None);
-        assert_eq!(split_ranges_specifier("=0-499"), None);
-        assert_eq!(split_ranges_specifier("by(tes=0-499"), None);
+    fn ranges_specifier_names_what_a_non_specifier_fails_to_be() {
+        assert_eq!(
+            split_ranges_specifier("bytes 0-499"),
+            Err(RangesSpecifierDefect::EqualsMissing)
+        );
+        assert_eq!(
+            split_ranges_specifier("=0-499"),
+            Err(RangesSpecifierDefect::UnitEmpty)
+        );
+        assert_eq!(
+            split_ranges_specifier("by(tes=0-499"),
+            Err(RangesSpecifierDefect::UnitCharacter('('))
+        );
     }
 
     #[test]
