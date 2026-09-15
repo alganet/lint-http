@@ -13,8 +13,8 @@ When both `Sunset` and `Deprecation` response headers are present they must be l
 ## Specifications
 
 - [RFC 8594 §3](https://www.rfc-editor.org/rfc/rfc8594.html#section-3): `Sunset` header semantics (HTTP-date)
-- [RFC 9745 §2.1](https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1): `Deprecation` is a Structured Field Date (`@<seconds>`)
-- [RFC 9745 §4](https://www.rfc-editor.org/rfc/rfc9745.html#section-4): Sunset MUST NOT be earlier than Deprecation
+- [RFC 9745 §2.1](https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1): Syntax: `Deprecation` is an Item Structured Header Field whose value MUST be a `Date`
+- [RFC 9745 §4](https://www.rfc-editor.org/rfc/rfc9745.html#section-4): The `Sunset` timestamp MUST NOT be earlier than the `Deprecation` one
 - [RFC 9651 §3.3.7](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7): Structured Field `Date` item syntax
 - [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats — `HTTP-date = IMF-fixdate / obs-date`, the recipient's MUST to accept all three, and the sender's MUST to generate only the first
 

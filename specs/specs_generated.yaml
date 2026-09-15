@@ -4884,7 +4884,7 @@ sources:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 159
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 127
+      line: 116
 - label: RFC 8615
   url: https://www.rfc-editor.org/rfc/rfc8615.html
   fragments:
@@ -7477,7 +7477,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 215
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 101
+      line: 96
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 156
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
@@ -11753,9 +11753,9 @@ sources:
     snippet: their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@".
     cited_by:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 121
+      line: 116
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 161
+      line: 150
   - label: lint-http-rules/src/helpers/structured_fields.rs
     section: § 3.1.2
     snippet: Note that parameters are ordered, and parameter keys cannot contain uppercase letters.
@@ -12231,20 +12231,26 @@ sources:
     snippet: The Deprecation HTTP response header field allows a server to communicate to a client application that the resource in the context of the message will be or has been deprecated.
     cited_by:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 88
+      line: 83
+    - file: lint-http-rules/src/violations/deprecation.rs
+      line: 19
   - label: deprecation_header_syntax (2)
     section: § 2.1
     snippet: Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651].
     cited_by:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 100
+      line: 95
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 120
+      line: 115
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 160
+      line: 149
+    - file: lint-http-rules/src/violations/deprecation.rs
+      line: 61
   - label: sunset_and_deprecation_consistent
     section: § 4
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
     cited_by:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 193
+      line: 182
+    - file: lint-http-rules/src/violations/deprecation.rs
+      line: 85

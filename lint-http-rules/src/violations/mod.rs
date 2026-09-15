@@ -64,6 +64,7 @@ pub mod cookie;
 pub mod credentials;
 pub mod cross_origin;
 pub mod delta_seconds;
+pub mod deprecation;
 pub mod digest;
 pub mod digest_credentials;
 pub mod domain;
@@ -536,8 +537,8 @@ mod tests {
         /// family's six — of which two name nothing, for the reason above — and
         /// 470 of 497 with the three cross-origin policies' four, and 477 of
         /// 505 with the `Prefer` exchange's seven, and 480 of 508 with the
-        /// three one-site fields.
-        const FLOOR: usize = 480;
+        /// three one-site fields, and 482 of 510 with the deprecation pair.
+        const FLOOR: usize = 482;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
