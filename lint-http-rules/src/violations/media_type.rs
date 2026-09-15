@@ -46,6 +46,24 @@ pub const RFC_9110_12_5_1: SpecRef = SpecRef {
     note: "Accept and its `media-range` — where the asterisk groups media types into ranges, which is the reason it names nothing in a Content-Type",
 };
 
+/// Naming requirements: `restricted-name`, where a suffix starts, and what a
+/// name must begin with.
+pub const RFC_6838_4_2: SpecRef = SpecRef {
+    spec: "RFC 6838",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2",
+    note: "Naming Requirements: `restricted-name`, which decides where a suffix starts (\"characters after last plus\") and that a name must begin with ALPHA or DIGIT — so a subtype that is only a suffix has no base name",
+};
+
+/// Structured syntax name suffixes: what a `+suffix` claims about the payload,
+/// and the caution about using one nobody has registered.
+pub const RFC_6838_4_2_8: SpecRef = SpecRef {
+    spec: "RFC 6838",
+    section: Some("4.2.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
+    note: "Structured Syntax Name Suffixes: that an unregistered `+suffix` SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ",
+};
+
 defects! {
     /// A field written with no media type on it at all, once the `OWS` its own
     /// production prints comes off. The field states the media type of the
@@ -125,6 +143,80 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_8_3_1],
+    }
+
+    /// A subtype ending in a bare `+`: `application/vnd.example+`.
+    ///
+    /// **The `+` is not the suffix, what follows it is** — § 4.2's own comment
+    /// on the production says the characters after the last plus specify the
+    /// structured syntax — so a subtype ending on one appends nothing and names
+    /// no syntax at all. The grammar permits the shape, since
+    /// `restricted-name-chars` admits `+` anywhere past the first character;
+    /// what refuses it is what the construct is *for*.
+    ///
+    /// `_empty` and not `_malformed` for that reason: the name derives, and the
+    /// slot the `+` opened was left with nothing in it.
+    ///
+    // cite(RFC 6838 § 4.2): "restricted-name-chars =/ "+" ; Characters after last plus always ; specify a structured syntax suffix"
+    MEDIA_TYPE_SUFFIX_EMPTY = {
+        id: "media_type_suffix_empty",
+        title: "A media type subtype ends in a bare plus",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6838_4_2],
+    }
+
+    /// A subtype that is *only* a suffix: `application/+json`.
+    ///
+    /// **[`MEDIA_TYPE_SUFFIX_EMPTY`]'s mirror**, and the two are two entries
+    /// because they are two senders: one wrote a name and forgot the syntax it
+    /// is written in, the other named a syntax and forgot what is written in
+    /// it. A `+suffix` qualifies a base name, and here there is none to
+    /// qualify.
+    ///
+    /// **The grammar refuses this one outright**, which the mirror's does not:
+    /// `restricted-name-first` is `ALPHA / DIGIT`, so a subtype opening on `+`
+    /// derives from nothing. It is still `_empty` rather than `_malformed`,
+    /// because what the sender left out is the part before the `+` and the
+    /// message can say so — where `media_type_malformed` would say only that
+    /// the pair did not parse.
+    ///
+    // cite(RFC 6838 § 4.2): "restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT"
+    MEDIA_TYPE_NAME_EMPTY = {
+        id: "media_type_name_empty",
+        title: "A media type subtype is a suffix with no base name",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6838_4_2],
+    }
+
+    /// A `+suffix` the deployment does not recognise: `application/foo+xmls`.
+    ///
+    /// **A claim about the payload's structure, which is why it is worth
+    /// reporting at all.** § 4.2.8's sharper sentence forbids a media type from
+    /// incorporating a suffix for a structured syntax it does not actually
+    /// employ, so a recipient that reads `+json` and finds something else has
+    /// been told a falsehood about the bytes — and the entry stands on the
+    /// milder sentence beside it, which is the one about registration and
+    /// therefore the one a *linter* can measure.
+    ///
+    /// **Measured against the operator's list, like
+    /// [`MEDIA_TYPE_UNREGISTERED`]**, and with the same caution: this crate
+    /// carries no IANA table, so a finding means "not on the list".
+    ///
+    /// **The comparison folds case**, because the subtype the suffix lives in
+    /// is case-insensitive: `+JSON` is `+json`.
+    ///
+    /// `warn`, with the type-level entry above it: two parties that agree on a
+    /// suffix break nothing on the wire.
+    ///
+    // cite(RFC 6838 § 4.2.8): ""+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions."
+    MEDIA_TYPE_SUFFIX_UNREGISTERED = {
+        id: "media_type_suffix_unregistered",
+        title: "A structured syntax suffix is not one the deployment recognises",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_6838_4_2_8],
     }
 }
 

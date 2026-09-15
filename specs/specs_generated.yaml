@@ -3382,7 +3382,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1204
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 188
+      line: 194
   - label: link_header_valid (2)
     section: § 4.2
     snippet: restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT
@@ -3390,7 +3390,9 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1205
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 202
+      line: 208
+    - file: lint-http-rules/src/violations/media_type.rs
+      line: 184
   - label: link_header_valid (3)
     section: § 4.2
     snippet: restricted-name-chars = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "-" / "^" / "_"
@@ -3404,7 +3406,9 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1208
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 196
+      line: 202
+    - file: lint-http-rules/src/violations/media_type.rs
+      line: 160
   - label: link_header_valid (5)
     section: § 4.2
     snippet: restricted-name-chars =/ "." ; Characters before first dot always ; specify a facet name
@@ -3422,13 +3426,15 @@ sources:
     snippet: '"+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions.'
     cited_by:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 238
+      line: 244
+    - file: lint-http-rules/src/violations/media_type.rs
+      line: 213
   - label: media_type_suffix_valid (2)
     section: § 4.2.8
     snippet: By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ.
     cited_by:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 239
+      line: 245
 - label: RFC 7231
   url: https://www.rfc-editor.org/rfc/rfc7231.html
   fragments:
@@ -5033,7 +5039,7 @@ sources:
     - file: lint-http-rules/src/violations/media_range.rs
       line: 67
     - file: lint-http-rules/src/violations/media_type.rs
-      line: 96
+      line: 114
   - label: accept_and_content_type_negotiation (11)
     section: § 12.5.1
     snippet: The media-range can include media type parameters that are applicable to that range.
@@ -5737,7 +5743,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 173
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 142
+      line: 148
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 160
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
@@ -7461,7 +7467,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 236
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 260
+      line: 266
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 191
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
@@ -7757,9 +7763,9 @@ sources:
     - file: lint-http-rules/src/rules/content_type_registered.rs
       line: 158
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 62
+      line: 64
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 211
+      line: 217
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 243
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -7787,11 +7793,11 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 153
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 172
+      line: 178
     - file: lint-http-rules/src/violations/media_type.rs
-      line: 55
+      line: 73
     - file: lint-http-rules/src/violations/media_type.rs
-      line: 75
+      line: 93
   - label: lint-http-rules/src/helpers/media_type.rs (7)
     section: § 8.3.1
     snippet: type       = token subtype    = token
@@ -8257,7 +8263,7 @@ sources:
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
     cited_by:
     - file: lint-http-rules/src/violations/media_type.rs
-      line: 121
+      line: 139
   - label: method
     section: § 9.3.3
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created
