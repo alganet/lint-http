@@ -32,8 +32,8 @@ Reports an HTTP/2 or HTTP/3 request whose `Host` header field and `:authority` p
 
 ## Specifications
 
-- [RFC 9113 §8.3.1](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1): HTTP/2's half: the client's MUST NOT, the server's SHOULD-treat-as-malformed, and the two sentences that define the comparison over *normalized* values — which is why a default or empty port is not a difference on this version
-- [RFC 9114 §4.3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1): HTTP/3's half: both fields present MUST contain the same value and MUST NOT be empty, with no normalization named anywhere in the document — the sentence that makes one pair of values conforming over HTTP/2 and malformed here
+- [RFC 9113 §8.3.1](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1): Request Pseudo-Header Fields — what each of `:method`, `:scheme`, `:authority` and `:path` conveys, the `'*'` value for asterisk-form OPTIONS, the `:path`-must-not-be-empty MUST, and the userinfo MUST NOT written for `http` and `https` targets
+- [RFC 9114 §4.3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1): Request Pseudo-Header Fields — the exactly-one MUST for `:method`, `:scheme` and `:path`, the `:authority`-or-Host requirement for schemes with a mandatory authority component, and the MUST NOT on the deprecated userinfo subcomponent for http and https URIs
 - [RFC 9110 §4.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.3): What scheme-based normalization involves for an "http" or "https" URI — the default port, the case of the host, the percent-encoded unreserved character, and the sentence that keeps every other component case-sensitive
 - [RFC 3986 §6.2.2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1): Case normalization — including the hexadecimal digits of a percent-encoding triplet, which is why a triplet that stays encoded is still put in one form
 - [RFC 3986 §6.2.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.2): Percent-encoding normalization — decode any triplet standing for an unreserved character
