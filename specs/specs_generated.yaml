@@ -6641,7 +6641,7 @@ sources:
     snippet: 'If-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 144
+      line: 148
   - label: if_modified_since_date_syntax
     section: § 13.1.3
     snippet: If-Modified-Since = HTTP-date
@@ -6667,7 +6667,7 @@ sources:
     snippet: 'If-None-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 145
+      line: 149
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 157
   - label: if_unmodified_since_date_syntax
@@ -7111,9 +7111,9 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 341
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 172
+      line: 176
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 173
+      line: 177
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 596
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
@@ -7147,9 +7147,9 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 412
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 127
+      line: 131
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 127
+      line: 131
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 154
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
@@ -8055,9 +8055,9 @@ sources:
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 138
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 145
+      line: 149
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 146
+      line: 150
   - label: entity-tag grammar
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
@@ -8071,9 +8071,9 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 185
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 167
+      line: 171
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 168
+      line: 172
     - file: lint-http-rules/src/violations/etag.rs
       line: 82
   - label: lint-http-rules/src/helpers/validator.rs (3)
@@ -9984,7 +9984,7 @@ sources:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 260
     - file: lint-http-rules/src/violations/conditional.rs
-      line: 146
+      line: 179
   - label: cache_validation_chain (3)
     section: § 4.3.1
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.

@@ -1399,6 +1399,10 @@ severity = "warn"
 # A date conditional is sent beside the entity-tag conditional that supersedes it
 severity = "info"
 
+[violations.conditional_empty]
+# A precondition is written with no validator in it
+severity = "warn"
+
 [violations.conditional_entity_tag_missing]
 # A revalidating request omits the entity tags it holds
 severity = "warn"

@@ -116,6 +116,39 @@ defects! {
         spec: &[RFC_9110_13_1_3],
     }
 
+    /// An entity-tag precondition written with no validator in it: an
+    /// `If-Match` or an `If-None-Match` whose value is empty or is only
+    /// whitespace.
+    ///
+    /// **Uncited, and the grammar is the reason rather than a gap.** Both
+    /// fields are `"*" / #entity-tag`, and a plain `#` construct *generates the
+    /// empty list* — so no sentence refuses this value and
+    /// [`list_member_missing`](crate::violations::list) would be the wrong
+    /// entry, since that one carries the floor a `1#` spelling has and these
+    /// fields do not have one. What refuses it is this crate's reading: a
+    /// precondition naming no validator states no condition.
+    ///
+    /// **The two fields evaluate it differently and neither outcome is what the
+    /// sender meant**, which is the argument for reporting it at all. An
+    /// `If-Match` with nothing to match fails and the server answers `412`; an
+    /// `If-None-Match` with nothing to match succeeds and the request proceeds
+    /// as the unconditional one it now is. A sender that wrote the field wanted
+    /// neither.
+    ///
+    /// **Distinct from [`CONDITIONAL_VALIDATOR_MISSING`]**: there a validator
+    /// was named and this exchange cannot account for it, here none was named
+    /// at all.
+    ///
+    /// `warn`. Nothing is malformed and the request is answerable; what is lost
+    /// is the condition.
+    CONDITIONAL_EMPTY = {
+        id: "conditional_empty",
+        title: "A precondition is written with no validator in it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[],
+    }
+
     /// A request revalidating a stored response that carries none of the three
     /// fields the entity tags of that response belong in.
     ///
