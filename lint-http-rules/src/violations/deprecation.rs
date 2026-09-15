@@ -30,6 +30,14 @@ pub const RFC_9745_2_1: SpecRef = SpecRef {
     note: "Syntax: `Deprecation` is an Item Structured Header Field whose value MUST be a `Date`",
 };
 
+/// `Sunset`: what the value is, and that it ought to name a future time.
+pub const RFC_8594_3: SpecRef = SpecRef {
+    spec: "RFC 8594",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
+    note: "The `Sunset` HTTP header field — an `HTTP-date` timestamp that SHOULD be in the future",
+};
+
 /// The ordering the two fields have to state between them.
 pub const RFC_9745_4: SpecRef = SpecRef {
     spec: "RFC 9745",
@@ -65,6 +73,32 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9745_2_1],
+    }
+
+    /// A `Sunset` at or before the `Date` of the response carrying it.
+    ///
+    /// **The field's whole purpose is to name a moment that has not arrived**,
+    /// and § 3 says so in a SHOULD: a resource announcing a shutdown that has
+    /// already happened is either still answering past its own deadline or
+    /// publishing a stale announcement, and a client cannot tell which.
+    ///
+    /// **`_invalid` and not `_conflicting`, which its sibling below is.** That
+    /// entry reports two timestamps whose *order* is wrong and either of which
+    /// would be fine alone; this one reports a single value measured against the
+    /// message's own clock and refused by what the field is for. The comparison
+    /// needs a second timestamp only to know what "now" was.
+    ///
+    /// `warn`, and the SHOULD is why it is not more: the document asks rather
+    /// than requires, and a deployment that left a past sunset in place has
+    /// published something misleading rather than broken anything.
+    ///
+    // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
+    SUNSET_INVALID = {
+        id: "sunset_invalid",
+        title: "A Sunset names a time that has already passed",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_8594_3],
     }
 
     /// A response whose `Sunset` names a time before its `Deprecation`.

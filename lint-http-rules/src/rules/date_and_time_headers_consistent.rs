@@ -4,7 +4,10 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::conditional::CONDITIONAL_DATE_CONFLICTING;
+use crate::violations::deprecation::{RFC_8594_3, SUNSET_INVALID};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
+use crate::violations::last_modified::{LAST_MODIFIED_CONFLICTING, RFC_9110_8_8_2_1};
 use crate::violations::ViolationDef;
 
 /// Validate Date, Last-Modified, If-Modified-Since and Sunset header consistency and formats.
@@ -23,7 +26,15 @@ pub struct DateAndTimeHeadersConsistent;
 /// The non-UTF-8 lines stay on the older API: the verdict names an encoding
 /// where the defect is an octet the field's grammar does not admit, and the
 /// right conversion for such a site is an octet-wise reader before a def.
-static DECLARED: &[&ViolationDef] = &[&HTTP_DATE_MALFORMED];
+/// Four, and three of them are one shape read three ways: two timestamps in
+/// one message that cannot both be right. The fourth is the `HTTP-date` a
+/// `Sunset` failed to be, which is the production's rather than any field's.
+static DECLARED: &[&ViolationDef] = &[
+    &HTTP_DATE_MALFORMED,
+    &LAST_MODIFIED_CONFLICTING,
+    &SUNSET_INVALID,
+    &CONDITIONAL_DATE_CONFLICTING,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -45,12 +56,6 @@ const RFC_9110_13_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("13.1.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
     note: "`If-Modified-Since` (conditional requests)",
-};
-const RFC_8594_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 8594",
-    section: Some("3"),
-    url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
-    note: "`Sunset` header semantics",
 };
 
 /// What a field defined as an `HTTP-date` carries.
@@ -129,17 +134,16 @@ impl DateAndTimeHeadersConsistent {
     /// field's format, so this one does not report it twice.
     // cite(RFC 9110 § 8.8.2.1): "An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1)."
     fn last_modified_not_after_date(
-        &self,
         headers: &hyper::HeaderMap,
         date: chrono::DateTime<chrono::Utc>,
         date_text: &str,
         skew: chrono::Duration,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         match timestamp(headers, "last-modified") {
             Timestamp::Absent | Timestamp::Unparseable => None,
             Timestamp::At(last_modified, text) if last_modified > date + skew => {
-                Some(self.violation(severity, format!(
+                Some(ctx.report_with(&LAST_MODIFIED_CONFLICTING, format!(
                     "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
                     text, date_text
                 )))
@@ -174,7 +178,7 @@ impl DateAndTimeHeadersConsistent {
                     "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                 )),
                 Timestamp::At(sunset, text) if sunset <= date - skew => {
-                    Some(self.cited(&RFC_8594_3, ctx.severity, format!(
+                    Some(ctx.report_with(&SUNSET_INVALID, format!(
                         "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
                         text, date_text
                     )))
@@ -191,10 +195,9 @@ impl DateAndTimeHeadersConsistent {
     /// `If-Modified-Since` is owned by its dedicated rule, so an unparseable
     /// value is skipped here.
     fn if_modified_since_not_after_date(
-        &self,
         headers: &hyper::HeaderMap,
         skew: chrono::Duration,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let since = match timestamp(headers, "if-modified-since") {
             Timestamp::Absent | Timestamp::Unparseable => return None,
@@ -204,7 +207,7 @@ impl DateAndTimeHeadersConsistent {
             return None;
         };
         if since.0 > date + skew {
-            return Some(self.violation(severity, format!(
+            return Some(ctx.report_with(&CONDITIONAL_DATE_CONFLICTING, format!(
                 "If-Modified-Since '{}' is later than Date '{}'; conditional requests should not use a future date",
                 since.1, date_text
             )));
@@ -239,6 +242,7 @@ severity = "warn"
             RFC_9110_13_1_3,
             RFC_8594_3,
             RFC_9110_5_6_7,
+            RFC_9110_8_8_2_1,
         ]
     }
 
@@ -288,8 +292,6 @@ impl Rule for DateAndTimeHeadersConsistent {
             // the audit ledger, not cited).
             const ALLOWED_SKEW_SECS: i64 = 60;
             let skew = chrono::Duration::seconds(ALLOWED_SKEW_SECS);
-            let severity = ctx.severity;
-
             if let Some(v) = self.date_is_readable(&tx.request.headers, ctx) {
                 return Some(v);
             }
@@ -302,12 +304,12 @@ impl Rule for DateAndTimeHeadersConsistent {
                 // only where Date is a timestamp; where it is not, the check
                 // above has already reported it.
                 if let Timestamp::At(date, date_text) = timestamp(&resp.headers, "date") {
-                    if let Some(v) = self.last_modified_not_after_date(
+                    if let Some(v) = Self::last_modified_not_after_date(
                         &resp.headers,
                         date,
                         &date_text,
                         skew,
-                        severity,
+                        ctx,
                     ) {
                         return Some(v);
                     }
@@ -319,7 +321,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                 }
             }
 
-            self.if_modified_since_not_after_date(&tx.request.headers, skew, severity)
+            Self::if_modified_since_not_after_date(&tx.request.headers, skew, ctx)
         };
         Vec::from_iter(finding())
     }
