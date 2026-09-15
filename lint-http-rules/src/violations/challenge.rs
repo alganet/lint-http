@@ -46,6 +46,15 @@ pub const RFC_9110_11_3: SpecRef = SpecRef {
 };
 
 /// The field as a list, which is what the two member defects are answered by.
+/// Protection spaces: what a `realm` names, and what a server is partitioning
+/// its resources into when it writes one.
+pub const RFC_9110_11_5: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5",
+    note: "Establishing a Protection Space (Realm) — a realm names one protection space, each with its own authentication scheme, and a response may carry several challenges of one scheme with different realms",
+};
+
 pub const RFC_9110_11_6_1: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("11.6.1"),
@@ -171,6 +180,43 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_11_2],
+    }
+
+    /// One `realm` value carried by challenges of two different auth-schemes in
+    /// one response.
+    ///
+    /// **The third entry here that is the list's rather than one challenge's**,
+    /// and the only one that is not about how the list was written: the two
+    /// above are visible at a member boundary, this one is visible only across
+    /// members, because a realm advertised once is nothing at all.
+    ///
+    /// **`_ambiguous`, and the ending's own words are the argument**: the
+    /// report is about the ambiguity and not about a defect the message can be
+    /// shown to have. § 11.5 partitions a server's resources into protection
+    /// spaces, each with its own authentication scheme, so a realm spanning two
+    /// schemes names one space twice over — and a client selecting stored
+    /// credentials for that realm has nothing in the response to tell it which
+    /// space it is authenticating to.
+    ///
+    /// **The converse is explicitly permitted and is not this**: § 11.5 says a
+    /// response may carry several challenges of one scheme with *different*
+    /// realms, which is a server offering several spaces rather than blurring
+    /// one. That is why the count is schemes-per-realm and never the other way
+    /// round.
+    ///
+    /// **Nothing forbids it**, which is what keeps the entry at the ending it
+    /// has: no MUST, no SHOULD, and two responses that differ only in this are
+    /// both conforming. `warn`, which is where this ending sits and where it
+    /// stops — an `error` would claim a defect the message cannot be shown to
+    /// have.
+    ///
+    // cite(RFC 9110 § 11.5): "These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database."
+    CHALLENGE_REALM_AMBIGUOUS = {
+        id: "challenge_realm_ambiguous",
+        title: "One realm is advertised by two authentication schemes",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_11_5],
     }
 }
 

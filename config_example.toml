@@ -1339,6 +1339,10 @@ severity = "warn"
 # Authentication parameter has no value
 severity = "warn"
 
+[violations.challenge_realm_ambiguous]
+# One realm is advertised by two authentication schemes
+severity = "warn"
+
 [violations.challenge_scheme_missing]
 # Authentication parameter arrives before any scheme
 severity = "warn"

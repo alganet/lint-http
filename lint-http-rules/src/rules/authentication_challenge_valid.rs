@@ -4,18 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::challenge::{CHALLENGE_REALM_AMBIGUOUS, RFC_9110_11_5};
+use crate::violations::ViolationDef;
 
 pub struct AuthenticationChallengeValid;
+
+/// One entry, and it is the challenge subject's rather than the field's: the
+/// production is `WWW-Authenticate`'s today and `Proxy-Authenticate`'s the day
+/// a rule reads one, and a realm blurred across two schemes is the same
+/// configuration either way.
+static DECLARED: &[&ViolationDef] = &[&CHALLENGE_REALM_AMBIGUOUS];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_11_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5",
-    note: "Establishing a Protection Space (Realm)",
-};
 const RFC_9110_11_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("11.6.1"),
@@ -40,6 +42,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_11_5, RFC_9110_11_6_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -139,7 +145,6 @@ impl Rule for AuthenticationChallengeValid {
             // several schemes is an ambiguous configuration (not spec-forbidden — hence a
             // heuristic). The converse is explicitly permitted, which is why the check
             // counts schemes-per-realm and not realms-per-scheme.
-            // cite(RFC 9110 § 11.5): "These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database."
             // cite(RFC 9110 § 11.5): "Note that a response can have multiple challenges with the same auth-scheme but with different realms."
             // One finding per realm, because a realm *is* the unit this rule
             // judges: § 11.5 partitions a server's resources into protection
@@ -167,8 +172,8 @@ impl Rule for AuthenticationChallengeValid {
             ambiguous.sort_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
 
             for (realm, schemes) in ambiguous {
-                out.push(self.violation(
-                    ctx.severity,
+                out.push(ctx.report_with(
+                    &CHALLENGE_REALM_AMBIGUOUS,
                     format!(
                         "WWW-Authenticate realm \"{}\" is advertised by multiple auth-schemes: {}",
                         realm,
@@ -221,6 +226,7 @@ mod tests {
         );
         assert!(v.is_some());
         let vv = v.unwrap();
+        assert_eq!(vv.violation, "challenge_realm_ambiguous");
         assert!(vv.message.contains("realm \"a\""));
     }
 

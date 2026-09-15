@@ -5613,19 +5613,13 @@ sources:
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
     cited_by:
     - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
-      line: 143
+      line: 148
   - label: authentication_challenge_valid (2)
     section: § 11.5
     snippet: Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time.
     cited_by:
     - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
-      line: 114
-  - label: authentication_challenge_valid (3)
-    section: § 11.5
-    snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
-    cited_by:
-    - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
-      line: 142
+      line: 120
   - label: authentication_failure_loop
     section: § 15.5.2
     snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
@@ -5690,6 +5684,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 147
+  - label: challenge
+    section: § 11.5
+    snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
+    cited_by:
+    - file: lint-http-rules/src/violations/challenge.rs
+      line: 213
   - label: charset
     section: § 8.3.2
     snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
@@ -6963,13 +6963,13 @@ sources:
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 57
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 126
+      line: 135
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 139
+      line: 148
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 153
+      line: 162
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 167
+      line: 176
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
@@ -6977,11 +6977,11 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 271
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 61
+      line: 70
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 88
+      line: 97
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 114
+      line: 123
   - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.4
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
@@ -6999,7 +6999,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 126
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 75
+      line: 84
   - label: 1#element expansion
     section: § 5.6.1.1
     snippet: 1#element => element *( OWS "," OWS element )
