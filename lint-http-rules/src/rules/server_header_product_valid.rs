@@ -7,11 +7,13 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::comment::{
     COMMENT_CHARACTER_FORBIDDEN, COMMENT_DELIMITER_MISSING, RFC_9110_5_6_5,
 };
+use crate::violations::product::{
+    product_defect, PRODUCT_MISSING, PRODUCT_SEPARATOR_MISSING, RFC_9110_5_6_3, RFC_9110_A,
+};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::RFC_9110_5_6_4;
 use crate::violations::token::{
-    product_defect, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
-    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY, TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
 
@@ -26,10 +28,11 @@ use crate::violations::ViolationDef;
 /// way: an unterminated one and an octet `ctext` refuses are the comment's, and
 /// the escape inside it is `quoted-pair`'s, which a `quoted-string` reads too.
 ///
-/// What stays unnamed is the assembly: a value that opens with a comment, two
-/// elements with no `RWS` between them, an empty value. One reader measures all
-/// of it, and a statement a construct makes about its own parts is not a
-/// borrowed production's defect.
+/// **The assembly is the [`product`](crate::violations::product) subject's**,
+/// and it is what the borrowed productions cannot answer: a value that opens
+/// with a comment, an empty value, two elements with no `RWS` between them.
+/// One reader measures all of it, and the mapping it feeds is total — which is
+/// what a converted reader is supposed to reach.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -37,6 +40,8 @@ static DECLARED: &[&ViolationDef] = &[
     &COMMENT_DELIMITER_MISSING,
     &COMMENT_CHARACTER_FORBIDDEN,
     &QUOTED_PAIR_MALFORMED,
+    &PRODUCT_MISSING,
+    &PRODUCT_SEPARATOR_MISSING,
 ];
 
 pub struct ServerHeaderProductValid;
@@ -79,6 +84,8 @@ severity = "warn"
             RFC_9110_5_6_5,
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
+            RFC_9110_A,
+            RFC_9110_5_6_3,
         ]
     }
 
@@ -174,10 +181,7 @@ impl Rule for ServerHeaderProductValid {
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                 if let Err(defect) = crate::helpers::product::check_product_list(hv.as_bytes()) {
                     let message = format!("Invalid Server header: {}", defect.message());
-                    return Some(match product_defect(defect) {
-                        Some(def) => ctx.report_with(def, message),
-                        None => self.violation(ctx.severity, message),
-                    });
+                    return Some(ctx.report_with(product_defect(defect), message));
                 }
             }
 
@@ -200,17 +204,19 @@ mod tests {
     /// One production at two positions of one member, and two fields reading
     /// it: `we@bsocket`-shaped defects in a product name and in a product
     /// version draw the same id, and so does the same value in a `User-Agent`.
-    /// The rows ending in `None` are the assembly this rule keeps — a value
-    /// that opens with a comment, two elements with no whitespace between them
-    /// — which no borrowed production has a defect for.
+    /// The last three rows are the assembly, which is the `product` subject's:
+    /// a value that opens with a comment, two elements with no whitespace
+    /// between them, and an octet after a comment that closed — the last of
+    /// which the reader used to file *inside* the comment.
     #[rstest]
-    #[case("Bad@Srv/1.0", Some("token_character_forbidden"))]
-    #[case("Srv/1@0", Some("token_character_forbidden"))]
-    #[case("Srv/", Some("token_empty"))]
-    #[case("Srv//1.0", Some("token_character_forbidden"))]
-    #[case("(Apache)", None)]
-    #[case("nginx/1.0(Ubuntu)", None)]
-    fn both_halves_of_a_product_are_one_token(#[case] value: &str, #[case] id: Option<&str>) {
+    #[case("Bad@Srv/1.0", "token_character_forbidden")]
+    #[case("Srv/1@0", "token_character_forbidden")]
+    #[case("Srv/", "token_empty")]
+    #[case("Srv//1.0", "token_character_forbidden")]
+    #[case("(Apache)", "product_missing")]
+    #[case("nginx/1.0(Ubuntu)", "product_separator_missing")]
+    #[case("nginx/1.0 (Ubuntu)@", "product_separator_missing")]
+    fn both_halves_of_a_product_are_one_token(#[case] value: &str, #[case] id: &str) {
         for (rule, field) in [
             (
                 &ServerHeaderProductValid as &dyn crate::rules::Rule,
@@ -235,8 +241,7 @@ mod tests {
                 &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
             )
             .expect("a finding");
-            // An unconverted site carries no defect id at all.
-            assert_eq!(found.violation, id.unwrap_or(""), "{field}: {value}");
+            assert_eq!(found.violation, id, "{field}: {value}");
         }
     }
 
