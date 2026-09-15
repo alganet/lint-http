@@ -821,19 +821,21 @@ sources:
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 201
+      line: 205
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 495
   - label: cookie_same_site_enforced (2)
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 193
+      line: 197
   - label: cookie_same_site_enforced (3)
     section: § 4.1.2.7
     snippet: If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 211
+      line: 215
 - label: draft-thomson-hybi-http-timeout-03
   url: https://datatracker.ietf.org/doc/html/draft-thomson-hybi-http-timeout-03
   fragments:

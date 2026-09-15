@@ -1619,6 +1619,10 @@ severity = "warn"
 # Set-Cookie Path attribute holds unencoded whitespace
 severity = "info"
 
+[violations.cookie_same_site_ignored]
+# A cookie is sent in a context its SameSite excludes
+severity = "info"
+
 [violations.cookie_same_site_invalid]
 # Set-Cookie SameSite names no policy the grammar defines
 severity = "warn"

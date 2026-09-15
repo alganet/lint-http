@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cookie::{COOKIE_SAME_SITE_IGNORED, DRAFT_IETF_HTTPBIS_RFC6265BIS};
+use crate::violations::ViolationDef;
+
+/// One entry for both attribute values: one sender, one repair, and the value
+/// named in the message.
+static DECLARED: &[&ViolationDef] = &[&COOKIE_SAME_SITE_IGNORED];
 
 /// Enforce the semantics of the `SameSite` cookie attribute when cookies are
 /// attached to outgoing requests.  A client should not include `Strict` or
@@ -19,12 +25,6 @@ pub struct CookieSameSiteEnforced;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const DRAFT_IETF_HTTPBIS_RFC6265BIS: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "draft-ietf-httpbis-rfc6265bis",
-    section: None,
-    url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
-    note: "`SameSite` cookie semantics. No section: a draft renumbers between revisions — this one cited §5.3.4, where `SameSite` has not lived for some time",
-};
 const FETCH: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "Fetch",
     section: None,
@@ -53,6 +53,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[DRAFT_IETF_HTTPBIS_RFC6265BIS, FETCH]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -200,7 +204,7 @@ impl Rule for CookieSameSiteEnforced {
                         match effective {
                             // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
                             crate::helpers::cookie::SameSite::Strict => {
-                                return Some(self.violation(ctx.severity, format!(
+                                return Some(ctx.report_with(&COOKIE_SAME_SITE_IGNORED, format!(
                                         "Cookie '{}' has SameSite=Strict but is sent in a cross-site context",
                                         name
                                     )));
@@ -210,7 +214,7 @@ impl Rule for CookieSameSiteEnforced {
                             // crosses sites, which is why this arm only fires when it is not one.
                             // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1."
                             crate::helpers::cookie::SameSite::Lax if !allow_lax => {
-                                return Some(self.violation(ctx.severity, format!(
+                                return Some(ctx.report_with(&COOKIE_SAME_SITE_IGNORED, format!(
                                         "Cookie '{}' has SameSite=Lax but is sent in a restricted cross-site context",
                                         name
                                     )));
@@ -435,15 +439,19 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(crate::test_helpers::run_rule(
+        // One entry for both attribute values: one sender, one repair, and the
+        // value named in the message.
+        let found = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                "cookie_same_site_enforced"
+                "cookie_same_site_enforced",
             ]),
         )
-        .is_some());
+        .expect("a finding");
+        assert_eq!(found.violation, "cookie_same_site_ignored");
+        assert_eq!(found.severity, crate::lint::Severity::Info);
     }
 
     #[test]

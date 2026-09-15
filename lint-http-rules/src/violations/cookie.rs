@@ -472,6 +472,34 @@ defects! {
         default_severity: Severity::Info,
         spec: &[],
     }
+
+    /// A cookie sent in a context its `SameSite` attribute excludes.
+    ///
+    /// **One entry for both values**, because the sender is one and so is the
+    /// repair: a user agent attached a cookie the attribute told it to hold
+    /// back, and the fix is to hold it back. `Strict` and `Lax` differ in
+    /// *which* contexts they exclude — `Lax` keeps its carve-out for top-level
+    /// navigations — and the message names which value was in front of the
+    /// rule, because that is what the operator reads next.
+    ///
+    /// **`_ignored` with the two entries above**: the attribute is an
+    /// instruction the server wrote and the user agent stored, and nothing here
+    /// prohibits the octets.
+    ///
+    /// `info`, and for one reason more than those entries have. The store is a
+    /// reconstruction; and so is the *context* — whether a request is
+    /// cross-site is read from `Sec-Fetch-Site`, a field the client chooses to
+    /// send, so a request with none is never this finding and a request with
+    /// one is trusted to have described itself.
+    ///
+    // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
+    COOKIE_SAME_SITE_IGNORED = {
+        id: "cookie_same_site_ignored",
+        title: "A cookie is sent in a context its SameSite excludes",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[DRAFT_IETF_HTTPBIS_RFC6265BIS],
+    }
 }
 
 /// The `Max-Age` processing algorithm: the two gates a value passes before a
