@@ -1616,7 +1616,11 @@ severity = "warn"
         /// and went with its § 4.3 citation, and the arm that stayed reports
         /// through an entry naming no sentence — RFC 9111 offers fresh reuse as
         /// an efficiency rather than owing it.
-        const FLOOR: usize = 29;
+        /// **`authentication_failure_loop` gave up its one**, and the entry
+        /// carries the same § 15.5.2 the site did — a section this catalogue
+        /// already pointed at for the challenge MUST, now naming the SHOULD
+        /// beside it as well.
+        const FLOOR: usize = 28;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

@@ -142,12 +142,14 @@ pub const RFC_9114_4_5: SpecRef = SpecRef {
 /// a server having done the opposite.
 /// `If-None-Match`: the MUST that answers a false condition with a `304` for
 /// `GET` and `HEAD`, and a `412` for everything else.
-/// 401 (Unauthorized): the MUST that makes a challenge part of the status.
+/// 401 (Unauthorized): the MUST that makes a challenge part of the status, and
+/// the SHOULD that tells a client what to do when the same challenge comes
+/// back.
 pub const RFC_9110_15_5_2: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("15.5.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
-    note: "401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource",
+    note: "401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource, and a user agent that has already attempted authentication and gets the same challenge back SHOULD show the representation to the user",
 };
 
 /// 407 (Proxy Authentication Required): the same MUST, one hop in.
@@ -630,6 +632,42 @@ defects! {
     STATUS_401_CHALLENGE_MISSING = {
         id: "status_401_challenge_missing",
         title: "A 401 presents no challenge to authenticate against",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_5_2],
+    }
+
+    /// A client answering a `401` with the credentials a `401` has already
+    /// refused, over and over, against one origin.
+    ///
+    /// **`_ignored`, and [`STATUS_417_IGNORED`] is the shape it copies**: a
+    /// status code told the client something about what to do next, and the
+    /// next request does the thing anyway. § 15.5.2 sanctions one attempt and
+    /// then says what a user agent does when the *same* challenge comes back —
+    /// show the representation to the user, since it usually carries the
+    /// diagnostic — and a client still replaying credentials several rounds
+    /// later is no longer retrying.
+    ///
+    /// **Read out of a run of messages rather than a pair**, which is one step
+    /// further than the two entries that read a third: the evidence is every
+    /// consecutive `401` this origin has answered with, so a rule reporting it
+    /// needs the history scoped by origin and a capture holding one exchange
+    /// can never produce it.
+    ///
+    /// **How many is a run is the reporting rule's, not this entry's.** No
+    /// sentence fixes a number — § 15.5.2 speaks of "at least once" and stops —
+    /// so the threshold is a linter's heuristic and lives with the rule that
+    /// chose it. What the entry claims is only that the loop happened.
+    ///
+    /// `warn`, with the two siblings. Every message in the run is well formed
+    /// and the server is answering correctly; what is wrong is that the
+    /// exchange has stopped going anywhere, and the cost is a credential
+    /// replayed at an origin that keeps rejecting it.
+    ///
+    // cite(RFC 9110 § 15.5.2): "If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information."
+    STATUS_401_IGNORED = {
+        id: "status_401_ignored",
+        title: "A client replays credentials a 401 keeps refusing",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_5_2],

@@ -23,7 +23,7 @@ The response status and those two fields are the whole input — whether a chall
 
 ## Specifications
 
-- [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource
+- [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource, and a user agent that has already attempted authentication and gets the same challenge back SHOULD show the representation to the user
 - [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): `WWW-Authenticate` — the field definition, the same MUST for a 401, and the MAY that permits the field on any other response (which is why this rule reports no such response)
 - [RFC 9110 §15.5.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.8): 407 (Proxy Authentication Required) — the proxy generating one MUST send a `Proxy-Authenticate` containing a challenge applicable to that proxy for the request
 - [RFC 9110 §11.7.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.1): `Proxy-Authenticate` — at least one field in each 407 a proxy generates, and the sentence limiting the field to the next outbound client on the response chain, which is all that stands behind an advisory finding on any other status
