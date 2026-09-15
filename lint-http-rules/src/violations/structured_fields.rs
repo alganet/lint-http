@@ -114,6 +114,38 @@ defects! {
         spec: &[RFC_9651_4_2_2],
     }
 
+    /// One Dictionary key written twice in one field: `u=1, u=5`.
+    ///
+    /// **Not a parse failure, and that is what makes it worth saying.** § 4.2.2
+    /// resolves the collision silently in favour of the last member, so the
+    /// field parses, the recipient acts on one value, and the header still
+    /// reads as though it said both things. The earlier member is dead text
+    /// nobody will see, and nothing on the wire marks it as such.
+    ///
+    /// **`_duplicated` against a grammar that permits the repetition.** Every
+    /// other entry with this ending stands on a sentence forbidding the second
+    /// occurrence — `link_rel_duplicated` on RFC 8288's MUST NOT, and
+    /// `strict_transport_security_directive_duplicated` on § 6.1's *appear only
+    /// once* — and RFC 9651 writes no such prohibition. What it writes is the
+    /// resolution, and the ending still holds: the *parsed* Dictionary carries
+    /// one member per key, so a key written twice appears more times than the
+    /// structure can hold, whatever the serialization admits.
+    ///
+    /// **The keys are compared byte for byte**, which § 4.2.2 says outright and
+    /// which the `key` production makes moot anyway — there is no case to fold.
+    ///
+    /// `warn`, with `link_rel_duplicated`: what is lost is one member of the
+    /// field rather than the field.
+    ///
+    // cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
+    STRUCTURED_FIELD_KEY_DUPLICATED = {
+        id: "structured_field_key_duplicated",
+        title: "Structured field gives one Dictionary key more than once",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9651_4_2_2],
+    }
+
     /// A Dictionary member name or a parameter name that is not a `key`:
     /// `SHA-256`, `Report-To`, `2fa`.
     ///

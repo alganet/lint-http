@@ -93,6 +93,7 @@ pub mod node;
 pub mod origin_agent_cluster;
 pub mod parameter;
 pub mod pragma;
+pub mod priority;
 pub mod problem_details;
 pub mod proxy_authenticate;
 pub mod proxy_connection;
@@ -507,8 +508,9 @@ mod tests {
         /// some earlier commit added a cited entry and left this alone. The
         /// two entries that rule declares make it 421, which is the count and
         /// not the previous number plus two — the recipe is to read what the
-        /// failing assertion prints, never to increment.
-        const FLOOR: usize = 421;
+        /// failing assertion prints, never to increment. The `priority`
+        /// subject was read the same way: 425 of 447.
+        const FLOOR: usize = 425;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
