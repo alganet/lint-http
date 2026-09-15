@@ -523,8 +523,9 @@ mod tests {
         /// method-content entries, and 443 of 467 with the well-known
         /// subject's four, and 446 of 470 with `Refresh`'s three, and
         /// 449 of 473 with the media type's suffix entries, and 452 of 476
-        /// with the OAuth 2.0 `state` subject.
-        const FLOOR: usize = 452;
+        /// with the OAuth 2.0 `state` subject, and 453 of 477 with `Vary`'s
+        /// `Prefer` entry.
+        const FLOOR: usize = 453;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
