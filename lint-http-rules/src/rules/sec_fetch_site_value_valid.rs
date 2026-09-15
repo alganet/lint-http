@@ -5,12 +5,21 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::sec_fetch::{
+    FETCH_METADATA_2_3, SEC_FETCH_SITE_VALUE_INVALID, SEC_FETCH_VALUE_EMPTY,
+    SEC_FETCH_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
 /// repetition. The value on each line here is measured by the checks below;
 /// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &SEC_FETCH_VALUE_EMPTY,
+    &SEC_FETCH_VALUE_MALFORMED,
+    &SEC_FETCH_SITE_VALUE_INVALID,
+];
 
 /// `Sec-Fetch-Site` header must be one of the canonical values listed in
 /// the Fetch Metadata spec: `cross-site`, `same-origin`, `same-site`, or `none`.
@@ -18,15 +27,9 @@ static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 /// structured-field token carries no case folding; token syntax is validated.
 pub struct SecFetchSiteValueValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const FETCH_METADATA_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
-spec: "Fetch Metadata",
-section: Some("2.3"),
-url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-site-header",
-note: "Fetch Metadata (W3C) — `Sec-Fetch-Site`: an sf-token whose valid values are the four initiator/target relationships",
-        };
+// Every reference this rule names lives on the subject it reports through and
+// is imported back for `specifications()`, so a def's citation and the rule's
+// documented reading are the same value rather than two copies of it.
 
 impl RuleMeta for SecFetchSiteValueValid {
     fn id(&self) -> &'static str {
@@ -127,9 +130,8 @@ impl Rule for SecFetchSiteValueValid {
             // sibling sections carry, but the constraint is the same).
             // cite(Fetch Metadata § 2.3): "It is a Structured Field whose value is a token."
             if val.is_empty() {
-                return Some(self.cited(
-                    &FETCH_METADATA_2_3,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &SEC_FETCH_VALUE_EMPTY,
                     "Sec-Fetch-Site header is empty".into(),
                 ));
             }
@@ -140,9 +142,8 @@ impl Rule for SecFetchSiteValueValid {
             // message a bad value gets.
             // cite(Fetch Metadata § 2.3): "It is a Structured Field whose value is a token."
             if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
-                return Some(self.cited(
-                    &FETCH_METADATA_2_3,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &SEC_FETCH_VALUE_MALFORMED,
                     format!(
                         "Sec-Fetch-Site header contains invalid token character: {}",
                         crate::helpers::shown::describe_char(c)
@@ -157,8 +158,8 @@ impl Rule for SecFetchSiteValueValid {
             // cite(Fetch Metadata § 2.3): "Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none"."
             match val {
                 "cross-site" | "same-origin" | "same-site" | "none" => None,
-                _ => Some(self.violation(
-                    ctx.severity,
+                _ => Some(ctx.report_with(
+                    &SEC_FETCH_SITE_VALUE_INVALID,
                     format!("Unrecognized Sec-Fetch-Site value: '{}'", val),
                 )),
             }

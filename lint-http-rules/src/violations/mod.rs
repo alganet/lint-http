@@ -109,6 +109,7 @@ pub mod range;
 pub mod refresh;
 pub mod request_target;
 pub mod retry_after;
+pub mod sec_fetch;
 pub mod sec_websocket_accept;
 pub mod sec_websocket_extensions;
 pub mod sec_websocket_key;
@@ -529,8 +530,9 @@ mod tests {
         /// `Prefer` entry, and 455 of 479 with the range request's two, and 456
         /// of 480 with the first entry whose subject is a cache, and 458 of 482
         /// with the last unconverted rule's two, and 463 of 487 with the two
-        /// CORS origin rules' five.
-        const FLOOR: usize = 463;
+        /// CORS origin rules' five, and 467 of 493 with the Fetch Metadata
+        /// family's six — of which two name nothing, for the reason above.
+        const FLOOR: usize = 467;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

@@ -2451,6 +2451,30 @@ severity = "error"
 # Retry-After is sent on a status no document pairs it with
 severity = "info"
 
+[violations.sec_fetch_dest_value_invalid]
+# Sec-Fetch-Dest names no request destination Fetch defines
+severity = "warn"
+
+[violations.sec_fetch_mode_value_invalid]
+# Sec-Fetch-Mode names no request mode the document defines
+severity = "warn"
+
+[violations.sec_fetch_site_value_invalid]
+# Sec-Fetch-Site names no relationship the document defines
+severity = "warn"
+
+[violations.sec_fetch_user_value_invalid]
+# Sec-Fetch-User carries something other than the boolean true
+severity = "warn"
+
+[violations.sec_fetch_value_empty]
+# A Sec-Fetch-* field is written with no value on it
+severity = "warn"
+
+[violations.sec_fetch_value_malformed]
+# A Sec-Fetch-* value holds a character no token admits
+severity = "warn"
+
 [violations.sec_websocket_accept_conflicting]
 # Sec-WebSocket-Accept is not the value the request's key derives
 severity = "error"

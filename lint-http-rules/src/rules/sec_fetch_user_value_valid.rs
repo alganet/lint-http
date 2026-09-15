@@ -5,27 +5,28 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::sec_fetch::{
+    FETCH_METADATA_2_4, SEC_FETCH_USER_VALUE_INVALID, SEC_FETCH_VALUE_EMPTY,
+};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
 /// repetition. The value on each line here is measured by the checks below;
 /// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &SEC_FETCH_VALUE_EMPTY,
+    &SEC_FETCH_USER_VALUE_INVALID,
+];
 
 /// `Sec-Fetch-User` header must be the structured-boolean true (serialized as `?1`) when present.
 /// The header is request-scoped and only expected on navigation requests. Multiple header
 /// fields, and any value other than `?1`, are flagged as violations.
 pub struct SecFetchUserValueValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const FETCH_METADATA_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Fetch Metadata",
-    section: Some("2.4"),
-    url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header",
-    note: "Fetch Metadata (W3C) — `Sec-Fetch-User` header (boolean, serialized as `?1`)",
-};
+// Every reference this rule names lives on the subject it reports through and
+// is imported back for `specifications()`, so a def's citation and the rule's
+// documented reading are the same value rather than two copies of it.
 
 impl RuleMeta for SecFetchUserValueValid {
     fn id(&self) -> &'static str {
@@ -130,9 +131,8 @@ impl Rule for SecFetchUserValueValid {
             // An empty value cannot be an sf-boolean.
             // cite(Fetch Metadata § 2.4): "It is a Structured Field whose value is a boolean."
             if val.is_empty() {
-                return Some(self.cited(
-                    &FETCH_METADATA_2_4,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &SEC_FETCH_VALUE_EMPTY,
                     "Sec-Fetch-User header is empty".into(),
                 ));
             }
@@ -142,8 +142,8 @@ impl Rule for SecFetchUserValueValid {
             // only ever sent when it is true, so its presence carrying anything else is wrong.
             // cite(Fetch Metadata): "Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true."
             if val != "?1" {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &SEC_FETCH_USER_VALUE_INVALID,
                     format!(
                         "Unrecognized Sec-Fetch-User value: '{}'; expected '?1'",
                         crate::helpers::shown::shown_in_finding(val)

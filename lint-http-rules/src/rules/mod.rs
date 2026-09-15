@@ -1646,7 +1646,11 @@ severity = "warn"
         /// are the first commit of the *site* sweep rather than the rule
         /// sweep: every rule declares now, and what is left is the arms that
         /// converted rules kept back. 68 sites at 2.273, 61 after this.
-        const FLOOR: usize = 16;
+        /// **The four `sec_fetch_*` value rules gave up five cited sites and
+        /// six uncited ones**, and the entries replacing the two shared ones
+        /// name no sentence at all: four rules declare them and each states a
+        /// different section of one document, so there is none they all state.
+        const FLOOR: usize = 11;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
