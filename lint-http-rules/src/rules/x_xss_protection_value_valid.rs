@@ -5,12 +5,15 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::x_xss_protection::X_XSS_PROTECTION_INVALID;
 use crate::violations::ViolationDef;
 
-/// The one entry a field with no list form always has available: its own
-/// repetition. The value on each line here is measured by the checks below;
-/// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+/// The field's one value entry, and the entry a field with no list form always
+/// has available — its own repetition. What § 5.3 forbids is there being two
+/// lines at all; whether the one line asks for the filter off is the other
+/// entry's business, and it names no document because nothing ever defined
+/// this field.
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED, &X_XSS_PROTECTION_INVALID];
 
 pub struct XXssProtectionValueValid;
 
@@ -160,9 +163,8 @@ impl Rule for XXssProtectionValueValid {
                 return None;
             }
 
-            Some(self.cited(
-                &MDN_X_XSS_PROTECTION,
-                ctx.severity,
+            Some(ctx.report_with(
+                &X_XSS_PROTECTION_INVALID,
                 format!(
                     "X-XSS-Protection contains unsupported value: '{}'",
                     crate::helpers::shown::shown_in_finding(val)
@@ -223,6 +225,30 @@ mod tests {
                 v
             );
         }
+    }
+
+    /// One id for both kinds of value the rule declines — the setting the
+    /// field never had, and the two it did have and this crate refuses — and
+    /// `info`, because nothing in force refuses either of them.
+    #[rstest]
+    #[case("2")]
+    #[case("1")]
+    #[case("1;report=1")]
+    fn every_declined_value_reports_one_entry_at_the_rank_of_advice(#[case] value: &str) {
+        let rule = XXssProtectionValueValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("x-xss-protection", value)],
+        );
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "x_xss_protection_invalid", "{value}");
+        assert_eq!(found.severity, crate::lint::Severity::Info, "{value}");
     }
 
     #[test]

@@ -3130,3 +3130,15 @@ severity = "warn"
 [violations.x_content_type_options_missing]
 # A response does not ask for its content type to be respected
 severity = "info"
+
+[violations.x_frame_options_allow_from_obsolete]
+# X-Frame-Options carries the retired ALLOW-FROM variant
+severity = "warn"
+
+[violations.x_frame_options_invalid]
+# X-Frame-Options carries neither DENY nor SAMEORIGIN
+severity = "warn"
+
+[violations.x_xss_protection_invalid]
+# X-XSS-Protection asks for something other than the filter off
+severity = "info"

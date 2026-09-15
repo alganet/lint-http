@@ -140,6 +140,8 @@ pub mod warning;
 pub mod websocket_frame;
 pub mod well_known;
 pub mod x_content_type_options;
+pub mod x_frame_options;
+pub mod x_xss_protection;
 
 /// One reportable defect.
 ///
@@ -543,8 +545,10 @@ mod tests {
         /// of 513 with the three timestamp comparisons, 489 of 518 with the
         /// `Forwarded` field's own grammar, and 490 of 520 with the `name` a
         /// `form-data` disposition has to carry — where the entry beside it
-        /// names nothing, because the value it reports derives.
-        const FLOOR: usize = 490;
+        /// names nothing, because the value it reports derives — and 492 of 523
+        /// with the two legacy security fields, whose third entry names nothing
+        /// either, because no document ever defined the field it is about.
+        const FLOOR: usize = 492;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

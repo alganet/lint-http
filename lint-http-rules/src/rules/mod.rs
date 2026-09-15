@@ -1675,7 +1675,13 @@ severity = "warn"
         /// `name`, and what a linter with no body parser reads is RFC 6266's
         /// message-level field — so the entry is the field's, and only where an
         /// operator meets it changes.
-        const FLOOR: usize = 4;
+        /// **The two legacy security fields gave up two cited sites and one
+        /// uncited one**, and one of the three entries replacing them names no
+        /// document at all: `X-XSS-Protection` was a browser feature that no
+        /// standards body ever wrote down, and the value set this crate accepts
+        /// is narrower than the one the description of it records — so a
+        /// reference would say a document refuses `1` when none does.
+        const FLOOR: usize = 2;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

@@ -5,24 +5,26 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::x_frame_options::{
+    HTML_SPECULATIVE_LOADING_7_7, X_FRAME_OPTIONS_ALLOW_FROM_OBSOLETE, X_FRAME_OPTIONS_INVALID,
+};
 use crate::violations::ViolationDef;
 
-/// The one entry a field with no list form always has available: its own
-/// repetition. The value on each line here is measured by the checks below;
-/// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+/// The field's two values, the third it used to have, and the entry a field
+/// with no list form always has available — its own repetition. What § 5.3
+/// forbids is there being two lines at all; the value on the one line is the
+/// other two entries' business.
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &X_FRAME_OPTIONS_INVALID,
+    &X_FRAME_OPTIONS_ALLOW_FROM_OBSOLETE,
+];
 
 pub struct XFrameOptionsValueValid;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const HTML_SPECULATIVE_LOADING_7_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "HTML Speculative Loading",
-    section: Some("7.7"),
-    url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header",
-    note: "Governing definition: conformance ABNF `\"DENY\" / \"SAMEORIGIN\"`, case-insensitive processing, `ALLOW-FROM` not to be implemented",
-};
 const RFC_7034_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7034",
     section: Some("2.1"),
@@ -136,18 +138,13 @@ impl Rule for XFrameOptionsValueValid {
 
             // The two conforming values; the match is case-insensitive because the
             // processing model lowercases each value before comparing.
-            // cite(HTML Speculative Loading § 7.7): "X-Frame-Options = "DENY" / "SAMEORIGIN""
-            // cite(HTML Speculative Loading § 7.7): "For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions."
             if val.eq_ignore_ascii_case("DENY") || val.eq_ignore_ascii_case("SAMEORIGIN") {
                 return None;
             }
 
-            // ALLOW-FROM was RFC 7034's third variant, but the HTML Standard's
-            // processing model superseded that document and dropped it: browsers treat
-            // it as an unrecognized value, leaving the resource unprotected while the
-            // sender believes otherwise. Flag it with a targeted message rather than
-            // the generic unsupported-value one.
-            // cite(HTML Speculative Loading § 7.7): "In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented."
+            // ALLOW-FROM was RFC 7034's third variant, and it reports its own id
+            // rather than the unsupported-value one beside it: the repair is not
+            // in this field at all.
             // `get` rather than `[..10]`: one `char` per octet is not one *byte*
             // per octet once an `obs-text` octet is in the value, so a byte index
             // can land inside a code point and the slice would panic.
@@ -155,9 +152,8 @@ impl Rule for XFrameOptionsValueValid {
                 .get(..10)
                 .is_some_and(|prefix| prefix.eq_ignore_ascii_case("ALLOW-FROM"))
             {
-                return Some(self.cited(
-                    &HTML_SPECULATIVE_LOADING_7_7,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &X_FRAME_OPTIONS_ALLOW_FROM_OBSOLETE,
                     format!(
                         "X-Frame-Options: ALLOW-FROM is obsolete and not implemented by browsers \
                          (use the Content-Security-Policy frame-ancestors directive instead): '{}'",
@@ -166,8 +162,8 @@ impl Rule for XFrameOptionsValueValid {
                 ));
             }
 
-            Some(self.violation(
-                ctx.severity,
+            Some(ctx.report_with(
+                &X_FRAME_OPTIONS_INVALID,
                 format!(
                     "X-Frame-Options contains unsupported value: '{}'",
                     crate::helpers::shown::shown_in_finding(val)
@@ -236,6 +232,40 @@ mod tests {
                 v
             );
         }
+    }
+
+    /// The retired variant and the value that was never one report two ids at
+    /// one rank, which is the pair's whole argument: the resource is equally
+    /// embeddable either way, and only the repair differs.
+    #[rstest]
+    #[case(
+        "ALLOW-FROM https://example.com",
+        "x_frame_options_allow_from_obsolete"
+    )]
+    #[case(
+        "allow-from https://example.com",
+        "x_frame_options_allow_from_obsolete"
+    )]
+    #[case("SOMETHINGELSE", "x_frame_options_invalid")]
+    #[case("DENY, SAMEORIGIN", "x_frame_options_invalid")]
+    fn a_value_the_algorithm_does_not_read_reports_which_kind_it_is(
+        #[case] value: &str,
+        #[case] id: &str,
+    ) {
+        let rule = XFrameOptionsValueValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("x-frame-options", value)],
+        );
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, id, "{value}");
+        assert_eq!(found.severity, crate::lint::Severity::Warn, "{value}");
     }
 
     #[test]
