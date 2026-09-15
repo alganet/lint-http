@@ -5349,7 +5349,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 110
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 178
+      line: 186
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 377
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -5479,7 +5479,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 141
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 183
+      line: 191
   - label: accept_ranges_on_partial_content (4)
     section: § 14.3
     snippet: Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses.
@@ -5837,7 +5837,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 180
     - file: lint-http-rules/src/violations/conditional.rs
-      line: 79
+      line: 88
   - label: conditional_headers_consistent (2)
     section: § 13.1.3
     snippet: A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD.
@@ -5847,7 +5847,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 280
     - file: lint-http-rules/src/violations/conditional.rs
-      line: 101
+      line: 110
   - label: conditional_headers_consistent (3)
     section: § 13.1.4
     snippet: A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field
@@ -5855,7 +5855,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 187
     - file: lint-http-rules/src/violations/conditional.rs
-      line: 80
+      line: 89
   - label: conditional_headers_consistent (4)
     section: § 13.1.4
     snippet: A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates).
@@ -5885,7 +5885,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 228
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 278
+      line: 286
   - label: If-Range grammar
     section: § 13.1.5
     snippet: If-Range = entity-tag / HTTP-date
@@ -5895,7 +5895,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 49
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 100
+      line: 130
   - label: conditional_request_handling
     section: § 13.1.2
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
@@ -8717,7 +8717,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 250
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 177
+      line: 185
   - label: range_header_syntax (10)
     section: § 14.2
     snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.  A proxy MAY discard a Range header field that contains a range unit it does not understand.
@@ -8737,25 +8737,27 @@ sources:
     snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 295
+      line: 303
   - label: range_request_and_caching (2)
     section: § 13.1.5
     snippet: Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 289
+      line: 297
+    - file: lint-http-rules/src/violations/if_range.rs
+      line: 107
   - label: range_request_and_caching (3)
     section: § 15.3.7.3
     snippet: A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 190
+      line: 198
   - label: range_request_and_caching (4)
     section: § 15.3.7.3
     snippet: These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1).
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 231
+      line: 239
   - label: redirect_chain_valid
     section: § 10.2.2
     snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
@@ -9950,7 +9952,9 @@ sources:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 169
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 252
+      line: 260
+    - file: lint-http-rules/src/violations/conditional.rs
+      line: 146
   - label: cache_validation_chain (3)
     section: § 4.3.1
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
@@ -9958,7 +9962,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 170
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 225
+      line: 233
   - label: caching_directive_interaction
     section: § 4.2.1
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'
@@ -10200,31 +10204,31 @@ sources:
     snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 189
+      line: 197
   - label: range_request_and_caching (2)
     section: § 3.4
     snippet: A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 232
+      line: 240
   - label: range_request_and_caching (3)
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 205
+      line: 213
   - label: range_request_and_caching (4)
     section: § 4.3.1
     snippet: MAY send the Last-Modified value (using If-Unmodified-Since or If-Range) if the request is for a subrange, a single stored response is being validated, and that response contains only a Last-Modified value (not an entity tag).
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 226
+      line: 234
   - label: range_request_and_caching (5)
     section: § 4.3.1
     snippet: Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 206
+      line: 214
   - label: s_max_age_enforced
     section: § 5.2.2.10
     snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field.

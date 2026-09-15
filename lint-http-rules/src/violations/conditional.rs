@@ -42,6 +42,15 @@ pub const RFC_9110_13_1_3: SpecRef = SpecRef {
 
 /// `If-Unmodified-Since`: the mirror sentence, discarding it beside an
 /// `If-Match`.
+/// Sending a validation request: which validator a cache must put in one, and
+/// which fields it belongs in.
+pub const RFC_9111_4_3_1: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1",
+    note: "Sending a Validation Request — a cache MUST send the entity tags of the stored responses it is validating, in `If-Match`, `If-None-Match` or `If-Range`, and SHOULD send the `Last-Modified` value where the conditions for it hold",
+};
+
 pub const RFC_9110_13_1_4: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("13.1.4"),
@@ -105,6 +114,42 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_13_1_3],
+    }
+
+    /// A request revalidating a stored response that carries none of the three
+    /// fields the entity tags of that response belong in.
+    ///
+    /// **The one entry in this subject standing on a MUST**, and it is RFC
+    /// 9111's rather than RFC 9110's: a cache building a validating request
+    /// *must* send the relevant entity tags, using `If-Match`, `If-None-Match`
+    /// or `If-Range`, when the stored responses being validated provided them.
+    /// So the finding is not that a round trip was wasted — that is
+    /// [`CONDITIONAL_MISSING`]'s, uncited and `info`, because nothing obliges a
+    /// client to condition anything — but that a request which *is* a
+    /// revalidation was built without the metadata the stored response handed
+    /// over.
+    ///
+    /// **Which is why the two are not one entry even where they report the same
+    /// exchange.** An operator who has silenced the efficiency finding has said
+    /// that declining a `304` is their business; they have not said that a cache
+    /// may revalidate without the tag it holds.
+    ///
+    /// **Any of the three fields answers**, which the sentence names itself, so
+    /// a request carrying one of the entity-tag conditionals is outside this
+    /// entry however its value compares — that comparison is
+    /// [`CONDITIONAL_VALIDATOR_CONFLICTING`]'s.
+    ///
+    /// `warn`. The request is answerable and the server will send something
+    /// correct; what is lost is the revalidation, and with it the stored
+    /// response the cache was trying to keep.
+    ///
+    // cite(RFC 9111 § 4.3.1): "MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated."
+    CONDITIONAL_ENTITY_TAG_MISSING = {
+        id: "conditional_entity_tag_missing",
+        title: "A revalidating request omits the entity tags it holds",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_4_3_1],
     }
 
     /// A precondition naming a validator this exchange never provided: a
