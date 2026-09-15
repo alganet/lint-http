@@ -1629,7 +1629,11 @@ severity = "warn"
         /// three entries and a borrow: the value's structure, the URL slot left
         /// blank, the URL itself, and RFC 9110 § 5.3's repeated field line,
         /// which this rule had been wording in HTML's terms.
-        const FLOOR: usize = 25;
+        /// **`media_type_suffix_valid` gave up two**, and the two mirrors it
+        /// declares — a `+` with nothing after it and a `+` with nothing before
+        /// it — now name § 4.2 apiece where one site cited it and the other
+        /// cited nothing.
+        const FLOOR: usize = 23;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

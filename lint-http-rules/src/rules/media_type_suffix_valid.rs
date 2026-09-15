@@ -10,18 +10,20 @@ pub struct MediaTypeSuffixValid;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6838_4_2_8: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6838",
-    section: Some("4.2.8"),
-    url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
-    note: "Structured Syntax Name Suffixes: that an unregistered `+suffix` SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ",
+use crate::violations::media_type::{
+    MEDIA_TYPE_NAME_EMPTY, MEDIA_TYPE_SUFFIX_EMPTY, MEDIA_TYPE_SUFFIX_UNREGISTERED, RFC_6838_4_2,
+    RFC_6838_4_2_8,
 };
-const RFC_6838_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6838",
-    section: Some("4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2",
-    note: "Naming Requirements: `restricted-name`, which decides where a suffix starts (\"characters after last plus\") and that a name must begin with ALPHA or DIGIT — so a subtype that is only a suffix has no base name",
-};
+use crate::violations::ViolationDef;
+
+/// Three, and two of them are mirrors: a `+` with nothing after it, a `+` with
+/// nothing before it, and a suffix naming a structured syntax this deployment
+/// does not know.
+static DECLARED: &[&ViolationDef] = &[
+    &MEDIA_TYPE_NAME_EMPTY,
+    &MEDIA_TYPE_SUFFIX_EMPTY,
+    &MEDIA_TYPE_SUFFIX_UNREGISTERED,
+];
 const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("8.3.1"),
@@ -91,6 +93,10 @@ allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
             RFC_9110_8_3_1,
             IANA_MEDIA_TYPE_STRUCTURED_SUFFIXES,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -201,7 +207,7 @@ impl Rule for MediaTypeSuffixValid {
                     // the bare-trailing-"+" check below, on the same reasoning.
                     // cite(RFC 6838 § 4.2): "restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT"
                     if subtype.starts_with('+') {
-                        return Some(self.cited(&RFC_6838_4_2, ctx.severity, format!(
+                        return Some(ctx.report_with(&MEDIA_TYPE_NAME_EMPTY, format!(
                                 "Media type '{}/{}' in {} is a structured suffix with no base subtype name",
                                 parsed.type_, parsed.subtype, hdr_name
                             )));
@@ -215,8 +221,8 @@ impl Rule for MediaTypeSuffixValid {
                     // first character, so the grammar permits this shape; the
                     // reading is the construct's purpose, as above.
                     if suffix.is_empty() {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &MEDIA_TYPE_SUFFIX_EMPTY,
                             format!(
                                 "Media type '{}/{}' in {} has empty structured suffix",
                                 parsed.type_, parsed.subtype, hdr_name
@@ -238,7 +244,7 @@ impl Rule for MediaTypeSuffixValid {
                     // cite(RFC 6838 § 4.2.8): ""+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions."
                     // cite(RFC 6838 § 4.2.8): "By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ."
                     if !config.allowed.contains(&suffix) {
-                        return Some(self.cited(&RFC_6838_4_2_8, ctx.severity, format!(
+                        return Some(ctx.report_with(&MEDIA_TYPE_SUFFIX_UNREGISTERED, format!(
                                         "Unrecognized structured syntax suffix '+{}' in media type '{}/{}' (header '{}')",
                                         suffix, parsed.type_, parsed.subtype, hdr_name
                                     )));
@@ -613,7 +619,9 @@ mod tests {
             &make_cfg(),
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("+unknown"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "media_type_suffix_unregistered");
+        assert!(v.message.contains("+unknown"));
     }
 
     #[rstest]
@@ -648,7 +656,9 @@ mod tests {
             &make_cfg(),
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("empty structured suffix"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "media_type_suffix_empty");
+        assert!(v.message.contains("empty structured suffix"));
     }
 
     #[rstest]
@@ -733,6 +743,27 @@ mod tests {
             &make_cfg(),
         );
         assert!(v.is_none());
+    }
+
+    /// The three entries, and which shape each answers for — the two mirrors
+    /// around the `+` and the suffix nobody registered.
+    #[rstest]
+    #[case("application/+json", "media_type_name_empty")]
+    #[case("application/vnd.example+", "media_type_suffix_empty")]
+    #[case("application/vnd.example+nope", "media_type_suffix_unregistered")]
+    fn each_shape_names_its_entry(#[case] value: &str, #[case] id: &str) {
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", value)],
+        );
+        let v = crate::test_helpers::run_rule(
+            &MediaTypeSuffixValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {value}"));
+        assert_eq!(v.violation, id, "{}", v.message);
     }
 
     #[test]

@@ -520,8 +520,9 @@ mod tests {
         /// section's three, and 436 of 460 with the authentication loop's one,
         /// and 437 of 461 with the shared realm, and 439 of 463 with the two
         /// method-content entries, and 443 of 467 with the well-known
-        /// subject's four, and 446 of 470 with `Refresh`'s three.
-        const FLOOR: usize = 446;
+        /// subject's four, and 446 of 470 with `Refresh`'s three, and
+        /// 449 of 473 with the media type's suffix entries.
+        const FLOOR: usize = 449;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

@@ -2111,6 +2111,18 @@ severity = "warn"
 # Media type is not a type/subtype pair
 severity = "warn"
 
+[violations.media_type_name_empty]
+# A media type subtype is a suffix with no base name
+severity = "warn"
+
+[violations.media_type_suffix_empty]
+# A media type subtype ends in a bare plus
+severity = "warn"
+
+[violations.media_type_suffix_unregistered]
+# A structured syntax suffix is not one the deployment recognises
+severity = "warn"
+
 [violations.media_type_unregistered]
 # Media type is not one the deployment recognises
 severity = "warn"
