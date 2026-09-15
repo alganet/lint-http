@@ -48,6 +48,15 @@ pub const RFC_9218_4_2: SpecRef = SpecRef {
     note: "Incremental — a Boolean saying whether the response can be processed as it arrives, defaulting to false",
 };
 
+/// The response header's own section: what it means, and what a server that
+/// generates one from the request is expected to do about caching.
+pub const RFC_9218_5: SpecRef = SpecRef {
+    spec: "RFC 9218",
+    section: Some("5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-5",
+    note: "The `Priority` response header field — an end-to-end signal a server may generate from properties of the request, and the expectation that a server doing so also controls the cacheability of what it sends",
+};
+
 defects! {
     /// A `u` whose value is not an Integer: `u=high`, `u=1.5`, or a bare `u`
     /// with no value at all.
@@ -130,6 +139,38 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9218_4_2],
     }
+    /// A response that carries a `Priority` and says nothing at all about
+    /// caching — no `Cache-Control`, no `Vary`.
+    ///
+    /// **The one entry here whose defect is a field that is not there**, and
+    /// the reason it belongs to this subject rather than to caching's is that
+    /// the sentence is addressed to the server generating a `Priority`: a
+    /// response without one is asked for nothing. The hazard is the pairing —
+    /// a per-request signal in a response a cache may hand to a different
+    /// request.
+    ///
+    /// **`cacheability` is the part, because the sentence names no field it
+    /// requires.** § 5 asks for "header fields that control the caching
+    /// behavior" and offers `Cache-Control` and `Vary` as examples in a
+    /// parenthesis; an id naming either would claim a requirement the document
+    /// does not write, and the message names which of the two would have
+    /// answered. `_missing` is the ending for what was not written at all,
+    /// which is exactly what a response with neither has done.
+    ///
+    /// **`warn`, and the ending of the sentence is what keeps it off `error`
+    /// rather than the beginning.** "Is expected to" is descriptive where the
+    /// rest of this document writes MUSTs, so the finding cannot claim a
+    /// requirement was broken — but what it describes is a response served to
+    /// a request that did not shape it, which is more than a style preference.
+    ///
+    // cite(RFC 9218 § 5): "the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
+    PRIORITY_CACHEABILITY_MISSING = {
+        id: "priority_cacheability_missing",
+        title: "A Priority response says nothing about caching",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9218_5],
+    }
 }
 
 #[cfg(test)]
@@ -154,6 +195,7 @@ mod tests {
             &PRIORITY_URGENCY_MALFORMED,
             &PRIORITY_URGENCY_INVALID,
             &PRIORITY_INCREMENTAL_MALFORMED,
+            &PRIORITY_CACHEABILITY_MISSING,
         ] {
             assert_eq!(def.default_severity, Severity::Warn);
         }
