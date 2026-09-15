@@ -1597,7 +1597,11 @@ severity = "warn"
         /// was deleted, so one § 5.4 site is gone from the count with nothing
         /// standing in for it — which is correct, since the finding it made is
         /// still made, by the rule that owns it.
-        const FLOOR: usize = 34;
+        /// **`structured_headers_valid` gave up one site that stood behind
+        /// every finding it made**: one `cited` call wrote § 4.2's discard
+        /// sentence into all of them, and the two entries replacing it carry
+        /// that sentence and the ASCII-conversion step before it.
+        const FLOOR: usize = 33;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

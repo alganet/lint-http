@@ -2551,8 +2551,16 @@ severity = "warn"
 # The policy states no max-age
 severity = "warn"
 
+[violations.structured_field_character_forbidden]
+# Structured field holds an octet outside US-ASCII
+severity = "warn"
+
 [violations.structured_field_key_malformed]
 # Structured field key is not a key production
+severity = "warn"
+
+[violations.structured_field_malformed]
+# Structured field value derives from no structured type
 severity = "warn"
 
 [violations.structured_field_member_empty]
