@@ -8,8 +8,12 @@ use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
 use crate::violations::range::{
-    RANGE_POSITIONS_CONFLICTING, RANGE_POSITION_MALFORMED, RANGE_SPEC_CHARACTER_FORBIDDEN,
-    RANGE_SPEC_MALFORMED, RFC_9110_14_1_1, RFC_9110_14_1_2,
+    ranges_specifier_defect, RANGE_EQUALS_MISSING, RANGE_POSITIONS_CONFLICTING,
+    RANGE_POSITION_MALFORMED, RANGE_SPEC_CHARACTER_FORBIDDEN, RANGE_SPEC_MALFORMED,
+    RFC_9110_14_1_1, RFC_9110_14_1_2,
+};
+use crate::violations::token::{
+    RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY, TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
 
@@ -22,6 +26,12 @@ pub struct RangeHeaderSyntax;
 /// that construct says about any field written with it — and this rule reports
 /// them with the ids an `Accept-Ranges`, a `Warning` or an `Accept-Patch`
 /// reports them with.
+///
+/// **The unit before the `=` is a `token` written unmodified**, so an empty one
+/// and one holding a character `tchar` does not admit report with
+/// [`token`](crate::violations::token)'s ids — the same ids seventy-odd other
+/// sites report them with. Only the delimiter between the two halves is this
+/// field's, and it is the one entry the specifier reading adds.
 ///
 /// **Everything else here is the [`range`](crate::violations::range) subject's,
 /// including the arithmetic that looks shared.** `last-pos` below `first-pos` is
@@ -40,6 +50,10 @@ static DECLARED: &[&ViolationDef] = &[
     &RANGE_SPEC_MALFORMED,
     &RANGE_POSITION_MALFORMED,
     &RANGE_POSITIONS_CONFLICTING,
+    &RANGE_EQUALS_MISSING,
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 ];
 
 /// One finding from the reading, and the entry it reports as.
@@ -103,6 +117,7 @@ severity = "error"
             RFC_9110_14_1,
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_1_2,
+            RFC_9110_5_6_2,
         ]
     }
 
@@ -178,8 +193,13 @@ impl Rule for RangeHeaderSyntax {
             // cite(RFC 9110 § 14.1.1, label: other-range grammar): "other-range   = 1*( %x21-2B / %x2D-7E )"
             for hv in hdrs.iter() {
                 if hv.to_str().is_err() {
-                    return Some(self.violation(
-                        ctx.severity,
+                    // The same entry the members below report, asked of the
+                    // whole value because the octet is what stops the value
+                    // being cut into members at all. The alphabet it names is
+                    // the widest in the production, so an octet outside it is
+                    // outside the unit's `token` and is not the `=` either.
+                    return Some(ctx.report_with(
+                        &RANGE_SPEC_CHARACTER_FORBIDDEN,
                         "Range header holds an octet no part of a ranges-specifier admits".into(),
                     ));
                 }
@@ -211,14 +231,21 @@ impl Rule for RangeHeaderSyntax {
             //
             // cite(RFC 9110 § 14.2, label: Range grammar): "Range = ranges-specifier"
             // cite(RFC 9110 § 14.1.1, label: ranges-specifier grammar): "ranges-specifier = range-unit "=" range-set"
-            let Some((unit, range_set)) =
-                crate::helpers::content_range::split_ranges_specifier(&value)
-            else {
-                return Some(self.violation(ctx.severity, format!(
-                        "Invalid Range header '{}': not a ranges-specifier (a range-unit token, '=', then a range-set)",
-                        value
-                    )));
-            };
+            //
+            // Three ways for it to fail and only one of them is this field's:
+            // the unit is a `token` written unmodified, so an empty one and one
+            // holding a character `tchar` does not admit are that production's
+            // verdicts, and the reader names which it saw.
+            let (unit, range_set) =
+                match crate::helpers::content_range::split_ranges_specifier(&value) {
+                    Ok(split) => split,
+                    Err(defect) => {
+                        return Some(ctx.report_with(
+                            ranges_specifier_defect(defect),
+                            format!("Invalid Range header '{}': {}", value, defect.message()),
+                        ))
+                    }
+                };
 
             // The one sentence that makes any of the checks below mean something. It
             // is also what bounds them: invalidity is decided per range-unit, and this
@@ -567,6 +594,12 @@ mod tests {
     #[case("bytes=a-5", "range_position_malformed")]
     #[case("bytes=5-a", "range_position_malformed")]
     #[case("bytes=5-3", "range_positions_conflicting")]
+    // The specifier's own three: the delimiter is this field's, the unit is a
+    // `token` and answers with that production's two.
+    #[case("bytes 0-499", "range_equals_missing")]
+    #[case("=0-1", "token_empty")]
+    #[case("by(tes=0-1", "token_character_forbidden")]
+    #[case("by tes=0-1", "token_whitespace_or_control_forbidden")]
     fn the_list_construct_is_borrowed_and_the_specifier_is_not(
         #[case] value: &str,
         #[case] id: &str,

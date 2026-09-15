@@ -259,7 +259,7 @@ impl Rule for RangeAndContentRangeConsistent {
             // `ranges-specifier` at all is `range_header_syntax`'s
             // finding, and leaves this rule knowing less rather than guessing.
             let requested = crate::helpers::headers::get_header_str(&tx.request.headers, "range")
-                .and_then(crate::helpers::content_range::split_ranges_specifier);
+                .and_then(|v| crate::helpers::content_range::split_ranges_specifier(v).ok());
 
             // A 206 is *defined* as the answer to a range request, so one returned to a
             // request that asked for no range contradicts its own status code -- the

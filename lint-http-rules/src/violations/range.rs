@@ -15,8 +15,10 @@
 //! `Range = ranges-specifier`, and `ranges-specifier = range-unit "="
 //! range-set` with `range-set = 1#range-spec`. So the list construct's two
 //! floors are [`list`](crate::violations::list)'s, reported here with the ids
-//! any other `1#` field reports them with, and everything below the `=` is this
-//! subject's.
+//! any other `1#` field reports them with, the unit before the `=` is a
+//! [`token`](crate::violations::token) unmodified and reports with that
+//! production's ids, and what is left for this subject is the delimiter between
+//! them and everything after it.
 //!
 //! **The unit decides how much of a specifier can be read.** § 14.1.1 writes a
 //! generic `range-spec` whose third alternative, `other-range`, is any run of
@@ -34,7 +36,7 @@
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
-use crate::violations::defects;
+use crate::violations::{defects, ViolationDef};
 
 /// The field's grammar: the generic specifier, the two `bytes` forms under it,
 /// and the sentence that makes a backwards `int-range` invalid.
@@ -62,6 +64,16 @@ defects! {
     /// of the unit to be certain. **The comma is not measured here** and cannot
     /// be: the list has already been cut on it, so no member reaching this entry
     /// holds one.
+    ///
+    /// **Asked at two granularities and one entry all the same.** A rule reads
+    /// the whole field value before it can cut it up, and the octets this
+    /// entry refuses are exactly the ones that stop it being read at all — so
+    /// the first ask is of the value and the second of each member. The
+    /// alphabet quoted below is the widest in the production: anything outside
+    /// `%x21-2B / %x2D-7E` is outside `tchar` and is not the `=` either, so an
+    /// octet the whole-value ask finds is refused by every part of a
+    /// `ranges-specifier` and not only by the part it happened to sit in. *Two
+    /// ids for one repair would be two names for one thing.*
     ///
     /// `warn`, with the rest of the subject's grammar. A recipient that cannot
     /// read a `range-spec` ignores the field and sends the whole
@@ -138,6 +150,51 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_14_1_1],
     }
+
+    /// A `Range` value with no `=` in it at all.
+    ///
+    /// **The delimiter is written between the two halves and nothing brackets
+    /// it**, so a value with no `=` is not a range-set with an implied unit and
+    /// not a unit with an implied set — it derives from nothing. `range-unit`
+    /// is a `token`, which cannot hold an `=`, so the first one is the
+    /// separator whatever follows it and there is no reading in which a value
+    /// without one splits.
+    ///
+    /// **The other two ways to fail the same production are not here**, and
+    /// that is the split this subject draws everywhere: an `=` with nothing
+    /// before it is `token = 1*tchar`'s floor and a unit holding a character
+    /// `tchar` does not admit is that production's alphabet, so both report
+    /// with [`crate::violations::token`]'s ids — the same ids a media type's
+    /// parameter name and a cache directive report with.
+    ///
+    /// `warn`, with the rest of the subject's grammar: a recipient that cannot
+    /// read the specifier sends the whole representation.
+    ///
+    // cite(RFC 9110 § 14.1.1, label: ranges-specifier grammar): "ranges-specifier = range-unit "=" range-set"
+    RANGE_EQUALS_MISSING = {
+        id: "range_equals_missing",
+        title: "Range value is written without its '='",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_14_1_1],
+    }
+}
+
+/// The entry one `ranges-specifier` reading reports as.
+///
+/// The reader is [`crate::helpers::content_range::split_ranges_specifier`], and
+/// only one of its three verdicts is this subject's: the missing delimiter.
+/// The other two are the `token` the unit is written in, which is why this
+/// mapping reaches across to that subject rather than growing two entries here.
+pub fn ranges_specifier_defect(
+    defect: crate::helpers::content_range::RangesSpecifierDefect,
+) -> &'static ViolationDef {
+    use crate::helpers::content_range::RangesSpecifierDefect as D;
+    match defect {
+        D::EqualsMissing => &RANGE_EQUALS_MISSING,
+        D::UnitEmpty => &crate::violations::token::TOKEN_EMPTY,
+        D::UnitCharacter(c) => crate::violations::token::token_character(c),
+    }
 }
 
 #[cfg(test)]
@@ -177,5 +234,26 @@ mod tests {
             assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
         }
         assert_eq!(RANGE_SPEC_MALFORMED.spec, [RFC_9110_14_1_2]);
+    }
+
+    /// Only one of the reader's three verdicts belongs to this subject, and the
+    /// mapping is what says so: the unit is a `token` written unmodified, so
+    /// the two verdicts about it leave the subject entirely.
+    #[test]
+    fn the_units_own_defects_report_as_the_production_it_is() {
+        use crate::helpers::content_range::RangesSpecifierDefect as D;
+        assert_eq!(
+            ranges_specifier_defect(D::EqualsMissing).id,
+            "range_equals_missing"
+        );
+        assert_eq!(ranges_specifier_defect(D::UnitEmpty).id, "token_empty");
+        assert_eq!(
+            ranges_specifier_defect(D::UnitCharacter('@')).id,
+            "token_character_forbidden"
+        );
+        assert_eq!(
+            ranges_specifier_defect(D::UnitCharacter(' ')).id,
+            "token_whitespace_or_control_forbidden"
+        );
     }
 }

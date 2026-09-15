@@ -694,7 +694,7 @@ mod tests {
                         "Content-Range {value:?} does not parse"
                     ),
                     "range" => assert!(
-                        crate::helpers::content_range::split_ranges_specifier(value).is_some(),
+                        crate::helpers::content_range::split_ranges_specifier(value).is_ok(),
                         "Range {value:?} is not a ranges-specifier"
                     ),
                     _ => {}

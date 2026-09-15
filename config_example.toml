@@ -2479,6 +2479,10 @@ severity = "warn"
 # Weight is not a qvalue
 severity = "warn"
 
+[violations.range_equals_missing]
+# Range value is written without its '='
+severity = "warn"
+
 [violations.range_position_malformed]
 # Range position is not 1*DIGIT
 severity = "warn"
