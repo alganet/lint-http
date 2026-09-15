@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cookie::{COOKIE_SCOPE_IGNORED, RFC_6265_5_3, RFC_6265_5_4};
+use crate::violations::ViolationDef;
+
+/// One entry, shared with `cookie_lifecycle` and not overlapping it: that rule
+/// reads the store for an expiry or a path, this one for a host.
+static DECLARED: &[&ViolationDef] = &[&COOKIE_SCOPE_IGNORED];
 
 /// Ensure a client only attaches cookies to requests when the cookie's domain
 /// (and path) attributes actually permit it.  A browser's cookie store should
@@ -23,12 +29,6 @@ pub struct CookieDomainMatching;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6265_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6265",
-    section: Some("5.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4",
-    note: "The Cookie header (which cookies are sent)",
-};
 const RFC_6265_5_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6265",
     section: Some("5.1.3"),
@@ -58,7 +58,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6265_5_4, RFC_6265_5_1_3, RFC_6265_5_1_4]
+        &[RFC_6265_5_4, RFC_6265_5_3, RFC_6265_5_1_3, RFC_6265_5_1_4]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -131,7 +135,6 @@ impl Rule for CookieDomainMatching {
             for (name, value) in sent_pairs {
                 let mut valid_match = false;
                 let mut domain_mismatch = false;
-                let mut path_mismatch = false;
 
                 for c in &live_cookies {
                     if c.name != name || c.value != value {
@@ -139,14 +142,10 @@ impl Rule for CookieDomainMatching {
                     }
 
                     // cookie value matches; now classify according to domain/path
-                    if c.domain_matches(&req_host) {
-                        if !c.path_matches(&req_path) {
-                            path_mismatch = true;
-                        } else if !c.secure || scheme == "https" {
-                            valid_match = true;
-                        }
-                    } else {
+                    if !c.domain_matches(&req_host) {
                         domain_mismatch = true;
+                    } else if c.path_matches(&req_path) && (!c.secure || scheme == "https") {
+                        valid_match = true;
                     }
                 }
 
@@ -162,25 +161,24 @@ impl Rule for CookieDomainMatching {
                 // failing the domain requirement was never eligible to be sent.
                 // cite(RFC 6265 § 5.4): "Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:"
                 if domain_mismatch {
-                    return Some(self.cited(&RFC_6265_5_4, ctx.severity, format!(
+                    return Some(ctx.report_with(&COOKIE_SCOPE_IGNORED, format!(
                             "Cookie '{}' with value '{}' was set for a different domain and should not be sent to host '{}'",
                             name, value, req_host
                         )));
                 }
 
-                // The path half of the same §5.4 cookie-list requirement; the
-                // path-match predicate itself is the helper's (§5.1.4).
-                // cite(RFC 6265 § 5.4): "The request-uri's path path-matches the cookie's path."
-                if path_mismatch {
-                    return Some(self.cited(
-                        &RFC_6265_5_4,
-                        ctx.severity,
-                        format!(
-                            "Cookie '{}' with value '{}' is not valid for path '{}'",
-                            name, value, req_path
-                        ),
-                    ));
-                }
+                // The path half of the same §5.4 requirement was checked here and
+                // is not any more, because `cookie_lifecycle` already reports it
+                // from the same evidence: its `previously_set` walk finds a
+                // `Set-Cookie` for this name whose domain matches and whose path
+                // does not, which is this branch's condition written the other way
+                // round, and both rules read the same reconstructed store. Two
+                // rules reporting one defect is what the catalogue counts, so the
+                // narrower reading went rather than being declared beside the
+                // wider one.
+                //
+                // What stays is the half no other rule makes: a host the cookie
+                // was never set for.
 
                 // otherwise the cookie is unknown to our history; skip
             }
@@ -365,7 +363,11 @@ mod tests {
     }
 
     #[test]
-    fn path_mismatch_flagged() {
+    /// The path half is `cookie_lifecycle`'s, and this rule stopped making it:
+    /// that rule's history walk finds a `Set-Cookie` for this name whose domain
+    /// matches and whose path does not, from the same reconstructed store, so
+    /// the two were one defect reported twice.
+    fn the_path_half_belongs_to_the_lifecycle_rule() {
         let rule = CookieDomainMatching;
         let ts = Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/private"), Some(ts));
@@ -378,8 +380,21 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("not valid for path"));
+        assert!(v.is_none(), "{v:?}");
+
+        // …and the rule that owns it still reports it, on the same fixture.
+        let mut tx = make_tx_with_req("https://example.com/public", Some("a=1"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/private"), Some(ts));
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let found = crate::test_helpers::run_rule(
+            &crate::rules::cookie_lifecycle::CookieLifecycle,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        )
+        .expect("the lifecycle rule reports the path half");
+        assert_eq!(found.violation, "cookie_scope_ignored");
     }
 
     #[test]

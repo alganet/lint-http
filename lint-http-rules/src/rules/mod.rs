@@ -1592,7 +1592,12 @@ severity = "warn"
         /// each, and all four of their findings are cited now**: each rule had
         /// one cited site and one that cited nothing, and the four entries
         /// replacing them name § 9.3.8 and § 9.3.7 two apiece.
-        const FLOOR: usize = 36;
+        /// **`cookie_domain_matching` gave up two and only one of them became
+        /// an entry**: its path arm was a duplicate of `cookie_lifecycle`'s and
+        /// was deleted, so one § 5.4 site is gone from the count with nothing
+        /// standing in for it — which is correct, since the finding it made is
+        /// still made, by the rule that owns it.
+        const FLOOR: usize = 34;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

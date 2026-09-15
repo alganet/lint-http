@@ -14,7 +14,8 @@ To avoid spurious warnings the check only considers cookies that have been seen 
 
 ## Specifications
 
-- [RFC 6265 §5.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4): The Cookie header (which cookies are sent)
+- [RFC 6265 §5.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4): The Cookie Header — the algorithm a user agent MUST use to compute the cookie-string, whose first step excludes a cookie whose path does not path-match and one whose secure-only-flag is set on a scheme that is not secure
+- [RFC 6265 §5.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.3): Storage Model — what a user agent stores about each cookie, and the MUST to evict every expired cookie from the store as soon as one exists in it
 - [RFC 6265 §5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3): Domain matching
 - [RFC 6265 §5.1.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4): Path matching
 
