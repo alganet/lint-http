@@ -98,6 +98,7 @@ pub mod origin_agent_cluster;
 pub mod parameter;
 pub mod permissions_policy;
 pub mod pragma;
+pub mod prefer;
 pub mod priority;
 pub mod problem_details;
 pub mod proxy_authenticate;
@@ -533,8 +534,9 @@ mod tests {
         /// with the last unconverted rule's two, and 463 of 487 with the two
         /// CORS origin rules' five, and 467 of 493 with the Fetch Metadata
         /// family's six — of which two name nothing, for the reason above — and
-        /// 470 of 497 with the three cross-origin policies' four.
-        const FLOOR: usize = 470;
+        /// 470 of 497 with the three cross-origin policies' four, and 477 of
+        /// 505 with the `Prefer` exchange's seven.
+        const FLOOR: usize = 477;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

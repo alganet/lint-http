@@ -2327,6 +2327,34 @@ severity = "warn"
 # A response carries a field this specification deprecates
 severity = "info"
 
+[violations.prefer_preference_duplicated]
+# A Prefer names one preference more than once
+severity = "warn"
+
+[violations.prefer_preference_invalid]
+# A defined preference carries a value its production does not admit
+severity = "warn"
+
+[violations.prefer_value_empty]
+# A Prefer member writes an = with no word after it
+severity = "warn"
+
+[violations.preference_applied_conflicting]
+# A Preference-Applied reports a value the request did not ask for
+severity = "warn"
+
+[violations.preference_applied_parameter_forbidden]
+# A Preference-Applied member carries a parameter its grammar has none of
+severity = "warn"
+
+[violations.preference_applied_unsolicited]
+# A Preference-Applied names a preference nobody asked for
+severity = "warn"
+
+[violations.preference_applied_value_empty]
+# A Preference-Applied member writes an = with no word after it
+severity = "warn"
+
 [violations.priority_cacheability_missing]
 # A Priority response says nothing about caching
 severity = "warn"

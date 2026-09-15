@@ -12,6 +12,10 @@ use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
+use crate::violations::prefer::{
+    PREFER_PREFERENCE_DUPLICATED, PREFER_PREFERENCE_INVALID, PREFER_VALUE_EMPTY, RFC_7240_2,
+    RFC_7240_4,
+};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
@@ -58,6 +62,9 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &PREFER_VALUE_EMPTY,
+    &PREFER_PREFERENCE_INVALID,
+    &PREFER_PREFERENCE_DUPLICATED,
 ];
 
 /// What RFC 7240 § 4's own productions admit after a preference's `=`, for the
@@ -138,18 +145,6 @@ fn one_of(value: Option<&str>, admitted: &'static [&'static str]) -> Option<Stri
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7240_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7240",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
-    note: "`Prefer` — the grammar, the equivalence of several field lines with one, the equivalence of an empty value with no value, the case rules for names and values, the SHOULD NOT against repeating a token, and the server's MUST to ignore a preference it does not recognize",
-};
-const RFC_7240_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7240",
-    section: Some("4"),
-    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-4",
-    note: "The four preferences this document defines, each with its own production: `respond-async` (§4.1), `return` (§4.2), `wait` (§4.3) and `handling` (§4.4). §4.2 and §4.4 add that the two values of `return` and of `handling` are mutually exclusive",
-};
 const RFC_7240_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7240",
     section: Some("5.1"),
@@ -297,7 +292,8 @@ impl Rule for PreferHeaderValid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
+            let violation =
+                |def: &'static ViolationDef, message: String| Some(ctx.report_with(def, message));
 
             // Read as octets, one `char` each, and joined across the field's lines.
             // Both halves are load-bearing here. A `word` may be a `quoted-string`,
@@ -386,7 +382,7 @@ impl Rule for PreferHeaderValid {
                         );
                         return Some(match token_bws_word_defect(&defect) {
                             Some(def) => ctx.report_with(def, message),
-                            None => self.violation(ctx.severity, message),
+                            None => ctx.report_with(&PREFER_VALUE_EMPTY, message),
                         });
                     }
                 };
@@ -430,10 +426,13 @@ impl Rule for PreferHeaderValid {
                 // `word`'s content has no such guarantee — `qdtext` admits HTAB and
                 // `obs-text`.
                 if let Some(defect) = defined_value_defect(&name, value_of) {
-                    return violation(format!(
-                        "Prefer names the '{}' preference, which {}",
-                        parsed.name, defect
-                    ));
+                    return violation(
+                        &PREFER_PREFERENCE_INVALID,
+                        format!(
+                            "Prefer names the '{}' preference, which {}",
+                            parsed.name, defect
+                        ),
+                    );
                 }
 
                 // Parameters carry the same production as the preference itself, and
@@ -459,7 +458,7 @@ impl Rule for PreferHeaderValid {
                             );
                             return Some(match token_bws_word_defect(&defect) {
                                 Some(def) => ctx.report_with(def, message),
-                                None => self.violation(ctx.severity, message),
+                                None => ctx.report_with(&PREFER_VALUE_EMPTY, message),
                             });
                         }
                     };
@@ -488,7 +487,7 @@ impl Rule for PreferHeaderValid {
                 // cite(RFC 7240 § 4.2): "The "return=minimal" and "return=representation" preferences are mutually exclusive directives."
                 // cite(RFC 7240 § 4.4): "The "handling=strict" and "handling=lenient" preferences are mutually exclusive directives."
                 if seen.contains(&name) {
-                    return violation(format!(
+                    return violation(&PREFER_PREFERENCE_DUPLICATED, format!(
                         "Prefer names the '{}' preference more than once; only the first instance is considered",
                         parsed.name
                     ));
