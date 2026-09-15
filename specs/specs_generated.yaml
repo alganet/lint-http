@@ -764,38 +764,54 @@ sources:
   url: https://w3c.github.io/webappsec-permissions-policy/
   type: text/html
   fragments:
+  - label: permissions_policy
+    section: § 5.2
+    snippet: Member Values may have a Parameter named "report-to", whose value must be a String.
+    cited_by:
+    - file: lint-http-rules/src/violations/permissions_policy.rs
+      line: 117
   - label: permissions_policy_directives_valid
     section: § 5.2
     snippet: Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 395
+      line: 446
   - label: permissions_policy_directives_valid (2)
     section: § 5.2
     snippet: Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 169
+      line: 198
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 317
+      line: 365
+    - file: lint-http-rules/src/violations/permissions_policy.rs
+      line: 83
   - label: permissions_policy_directives_valid (3)
     section: § 5.2
     snippet: The Member Names must be Tokens.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 502
+      line: 577
+    - file: lint-http-rules/src/violations/permissions_policy.rs
+      line: 29
   - label: permissions_policy_directives_valid (4)
     section: § 5.2
     snippet: 'The Member Values represent allowlists, and must be one of:'
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 316
+      line: 364
   - label: permissions_policy_directives_valid (5)
     section: § 6.1
     snippet: The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 173
+      line: 202
+  - label: permissions_policy_directives_valid (6)
+    section: § 9.2
+    snippet: If params["report-to"] exists, and is a string, then set reporting-config[feature] to params["report-to"].
+    cited_by:
+    - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
+      line: 532
 - label: draft-ietf-httpbis-rfc6265bis
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
@@ -11643,7 +11659,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 228
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 200
+      line: 209
   - label: lint-http-rules/src/helpers/structured_fields.rs (2)
     section: § 3.1.2
     snippet: The keys are unique within the scope of the Parameters they occur within, and the values are bare items (i.e., they themselves cannot be parameterized; see Section 3.3).
@@ -11681,9 +11697,9 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 418
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 118
+      line: 148
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 100
+      line: 109
   - label: lint-http-rules/src/helpers/structured_fields.rs (8)
     section: § 4.2
     snippet: Discard any leading SP characters from input_string.
@@ -11741,7 +11757,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 625
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 310
+      line: 319
   - label: lint-http-rules/src/helpers/structured_fields.rs (17)
     section: § 4.2.10
     snippet: If char is in the range %x00-1f or %x7f-ff (i.e., it is not in VCHAR or SP), fail parsing.
@@ -11779,7 +11795,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 533
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 135
+      line: 144
   - label: lint-http-rules/src/helpers/structured_fields.rs (23)
     section: § 4.2.2
     snippet: 'If the first character of input_string is "=":'
@@ -11805,7 +11821,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 553
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 258
+      line: 294
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 404
   - label: lint-http-rules/src/helpers/structured_fields.rs (27)
@@ -11815,7 +11831,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 526
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 144
+      line: 173
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 283
   - label: lint-http-rules/src/helpers/structured_fields.rs (28)
@@ -11837,9 +11853,9 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 394
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 260
+      line: 269
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 285
+      line: 294
   - label: lint-http-rules/src/helpers/structured_fields.rs (31)
     section: § 4.2.3.2
     snippet: Discard any leading SP characters from input_string.
@@ -11865,7 +11881,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 716
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 469
+      line: 547
   - label: lint-http-rules/src/helpers/structured_fields.rs (35)
     section: § 4.2.3.3
     snippet: If the first character of input_string is not lcalpha or "*", fail parsing.
@@ -11873,7 +11889,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 229
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 443
+      line: 500
   - label: lint-http-rules/src/helpers/structured_fields.rs (36)
     section: § 4.2.3.3
     snippet: If the first character of input_string is not one of lcalpha, DIGIT, "_", "-", ".", or "*", return output_string.
@@ -12019,33 +12035,35 @@ sources:
     snippet: As with Lists, an empty Dictionary is represented by omitting the entire field.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 145
+      line: 174
+    - file: lint-http-rules/src/violations/structured_fields.rs
+      line: 348
   - label: permissions_policy_directives_valid (2)
     section: § 3.2
     snippet: Member keys cannot contain uppercase characters.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 378
+      line: 429
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 503
+      line: 578
   - label: permissions_policy_directives_valid (3)
     section: § 4.2
     snippet: If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 165
+      line: 194
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 323
     - file: lint-http-rules/src/violations/structured_fields.rs
       line: 25
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 231
+      line: 240
   - label: permissions_policy_directives_valid (4)
     section: § 4.2
     snippet: When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 110
+      line: 140
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 90
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
@@ -12055,11 +12073,11 @@ sources:
     snippet: Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 292
+      line: 334
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 343
     - file: lint-http-rules/src/violations/structured_fields.rs
-      line: 167
+      line: 176
   - label: priority_header_syntax
     section: § 3.3.1
     snippet: While it is possible to serialize Integers with leading zeros (e.g., "0002", "-01") and signed zero ("-0"), these distinctions may not be preserved by implementations.

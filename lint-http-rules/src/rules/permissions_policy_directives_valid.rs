@@ -5,30 +5,48 @@
 use crate::helpers::structured_fields::*;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::permissions_policy::{
+    PERMISSIONS_POLICY_5_2, PERMISSIONS_POLICY_ALLOWLIST_INVALID,
+    PERMISSIONS_POLICY_REPORT_TO_MALFORMED,
+};
+use crate::violations::structured_fields::{
+    RFC_9651_3_2, RFC_9651_4_2, RFC_9651_4_2_1_2, RFC_9651_4_2_2, RFC_9651_4_2_3_1,
+    RFC_9651_4_2_3_3, STRUCTURED_FIELD_CHARACTER_FORBIDDEN, STRUCTURED_FIELD_EMPTY,
+    STRUCTURED_FIELD_INNER_LIST_MALFORMED, STRUCTURED_FIELD_KEY_DUPLICATED,
+    STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY, STRUCTURED_FIELD_VALUE_EMPTY,
+    STRUCTURED_FIELD_VALUE_MALFORMED,
+};
+use crate::violations::ViolationDef;
 
 pub struct PermissionsPolicyDirectivesValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const PERMISSIONS_POLICY: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Permissions Policy",
-    section: None,
-    url: "https://w3c.github.io/webappsec-permissions-policy/#structured-header-serialization",
-    note: "§5.2 Structured header serialization — the production this rule enforces. Not §5.1, which is the HTML attribute and has a different feature-identifier grammar. No section number: an editor's draft renumbers",
-};
-const RFC_9651_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9651",
-    section: Some("3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.2",
-    note: "Dictionaries — member keys cannot contain uppercase, unknown members MUST be ignored, and members may be split across field lines",
-};
-const RFC_9651_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9651",
-    section: Some("4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
-    note: "Parsing — a failure discards the entire field value, which is why a malformed member name is not a local problem",
-};
+/// Two belong to the field and eight to the Dictionary it is written as, which
+/// is the division § 5.2 makes itself: it says what a member's *value* may be
+/// and what its one defined parameter must carry, and leaves everything about
+/// writing a Dictionary to RFC 9651.
+///
+/// The eight are reported by a hand-rolled reader rather than through
+/// `helpers::structured_fields`' parser, because this field's own definition
+/// asks questions of the members that parser does not keep — but they are the
+/// same defects, and an operator who has silenced an uppercase key in one field
+/// has silenced it here.
+static DECLARED: &[&ViolationDef] = &[
+    &PERMISSIONS_POLICY_ALLOWLIST_INVALID,
+    &PERMISSIONS_POLICY_REPORT_TO_MALFORMED,
+    &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
+    &STRUCTURED_FIELD_EMPTY,
+    &STRUCTURED_FIELD_MEMBER_EMPTY,
+    &STRUCTURED_FIELD_KEY_MALFORMED,
+    &STRUCTURED_FIELD_KEY_DUPLICATED,
+    &STRUCTURED_FIELD_VALUE_EMPTY,
+    &STRUCTURED_FIELD_VALUE_MALFORMED,
+    &STRUCTURED_FIELD_INNER_LIST_MALFORMED,
+];
+
+// Every reference this rule names now lives on one of the two subjects it
+// reports through -- the field's and the Dictionary's -- and is imported back
+// for `specifications()`. That is what keeps a def's citation and the rule's
+// documented reading from drifting apart: they are the same value.
 
 impl RuleMeta for PermissionsPolicyDirectivesValid {
     fn id(&self) -> &'static str {
@@ -46,7 +64,19 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[PERMISSIONS_POLICY, RFC_9651_3_2, RFC_9651_4_2]
+        &[
+            PERMISSIONS_POLICY_5_2,
+            RFC_9651_3_2,
+            RFC_9651_4_2,
+            RFC_9651_4_2_1_2,
+            RFC_9651_4_2_2,
+            RFC_9651_4_2_3_1,
+            RFC_9651_4_2_3_3,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -117,9 +147,8 @@ impl Rule for PermissionsPolicyDirectivesValid {
             // is consulted -- so the whole field goes.
             // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
             let Ok(v) = hv.to_str() else {
-                return vec![self.cited(
-                    &RFC_9651_4_2,
-                    ctx.severity,
+                return vec![ctx.report_with(
+                    &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
                     "Permissions-Policy contains a byte outside ASCII, so the field \
                                   fails Structured Fields parsing and every directive in it is \
                                   discarded"
@@ -144,8 +173,8 @@ impl Rule for PermissionsPolicyDirectivesValid {
             // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
             // cite(RFC 9651 § 3.2): "As with Lists, an empty Dictionary is represented by omitting the entire field."
             if s.is_empty() {
-                return vec![self.violation(
-                    ctx.severity,
+                return vec![ctx.report_with(
+                    &STRUCTURED_FIELD_EMPTY,
                     "Permissions-Policy is empty, which grants and denies nothing; an \
                                   empty policy is written by omitting the field"
                         .into(),
@@ -177,9 +206,9 @@ impl Rule for PermissionsPolicyDirectivesValid {
             // ignored comes back beside the others like it.
             validate_permissions_policy(s)
                 .into_iter()
-                .map(|msg| {
-                    self.violation(
-                        ctx.severity,
+                .map(|(def, msg)| {
+                    ctx.report_with(
+                        def,
                         format!(
                             "Permissions-Policy will not be enforced as written: {}",
                             msg
@@ -205,24 +234,28 @@ impl Rule for PermissionsPolicyDirectivesValid {
 /// and the scan stops. A member that parses and is then ignored costs one
 /// directive, so those accumulate: a policy with two unenforceable directives is
 /// two findings, and used to be one finding and a silence.
-fn validate_permissions_policy(s: &str) -> Vec<String> {
-    // Reject control characters
+fn validate_permissions_policy(s: &str) -> Vec<(&'static ViolationDef, String)> {
+    // Reject control characters. Dead behind `findings` and kept for the shape
+    // of the algorithm: a value only reaches here through
+    // `HeaderValue::to_str`, which refuses %x00-%x1F and %x7F along with
+    // everything at or above %x80, so the octet failure is named one level up.
     if s.bytes().any(|b| (b < 0x20 && b != b'\t') || b == 0x7f) {
-        return vec![
+        return vec![(
+            &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
             "contains control characters, so the field fails Structured Fields parsing and \
              every directive in it is discarded"
                 .into(),
-        ];
+        )];
     }
 
-    let mut ignored: Vec<String> = Vec::new();
+    let mut ignored: Vec<(&'static ViolationDef, String)> = Vec::new();
     let mut seen_keys = std::collections::HashSet::new();
     for member in split_commas_outside_quotes(s) {
         match judge_member(member.trim(), &mut seen_keys) {
             // The whole field is gone, so there are no surviving directives to
             // describe and no reason to keep reading.
-            Verdict::FieldDiscarded(message) => return vec![message],
-            Verdict::DirectiveIgnored(message) => ignored.push(message),
+            Verdict::FieldDiscarded(def, message) => return vec![(def, message)],
+            Verdict::DirectiveIgnored(def, message) => ignored.push((def, message)),
             Verdict::Enforced => {}
         }
     }
@@ -237,9 +270,9 @@ fn validate_permissions_policy(s: &str) -> Vec<String> {
 /// then dropped for its form costs one directive, so those accumulate.
 enum Verdict {
     /// The field fails to parse: every directive in it is discarded.
-    FieldDiscarded(String),
+    FieldDiscarded(&'static ViolationDef, String),
     /// This directive parses and is then ignored by the processing steps.
-    DirectiveIgnored(String),
+    DirectiveIgnored(&'static ViolationDef, String),
     /// The directive is enforced as written.
     Enforced,
 }
@@ -247,7 +280,10 @@ enum Verdict {
 /// Judge one Dictionary member: its name, its allowlist, and its parameters.
 fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>) -> Verdict {
     if member.is_empty() {
-        return Verdict::FieldDiscarded("empty directive/member".into());
+        return Verdict::FieldDiscarded(
+            &STRUCTURED_FIELD_MEMBER_EMPTY,
+            "empty directive/member".into(),
+        );
     }
 
     // A member with no `=` is not malformed and this used to say it was.
@@ -257,12 +293,15 @@ fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>)
     // finding as the explicit `?1` below, reached by leaving the value out.
     // cite(RFC 9651 § 4.2.2): "Let value be Boolean true."
     let Some(eq) = find_char_outside_quotes(member, '=') else {
-        return Verdict::DirectiveIgnored(format!(
-            "member '{}' has no value, which is the Boolean true and not an allowlist: \
+        return Verdict::DirectiveIgnored(
+            &PERMISSIONS_POLICY_ALLOWLIST_INVALID,
+            format!(
+                "member '{}' has no value, which is the Boolean true and not an allowlist: \
              § 5.2 permits a string, the token '*', the token 'self', or an inner list \
              of those",
-            member
-        ));
+                member
+            ),
+        );
     };
     let (left, right) = member.split_at(eq);
     let value_part = right[1..].trim(); // drop '='
@@ -274,12 +313,15 @@ fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>)
     }
 
     if !is_valid_feature_identifier(feature) {
-        return Verdict::FieldDiscarded(format!(
-            "invalid feature identifier '{}': a Dictionary member name is an SF key \
-             (lowercase, starting with a letter or '*'), and a key that is not one fails \
-             parsing -- which discards every directive in the field, not just this one",
-            feature
-        ));
+        return Verdict::FieldDiscarded(
+            &STRUCTURED_FIELD_KEY_MALFORMED,
+            format!(
+                "invalid feature identifier '{}': a Dictionary member name is an SF key \
+                 (lowercase, starting with a letter or '*'), and a key that is not one fails \
+                 parsing -- which discards every directive in the field, not just this one",
+                feature
+            ),
+        );
     }
 
     // A repeated key is not a parse failure and not an error: the parser
@@ -291,11 +333,14 @@ fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>)
     // which the key grammar makes moot anyway.
     // cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
     if !seen_keys.insert(feature.to_string()) {
-        return Verdict::DirectiveIgnored(format!(
-            "feature '{}' is given more than once; all but the last are ignored, so the \
-             earlier allowlist has no effect",
-            feature
-        ));
+        return Verdict::DirectiveIgnored(
+            &STRUCTURED_FIELD_KEY_DUPLICATED,
+            format!(
+                "feature '{}' is given more than once; all but the last are ignored, so the \
+                 earlier allowlist has no effect",
+                feature
+            ),
+        );
     }
 
     let parts = split_semicolons_outside_quotes(value_part);
@@ -303,7 +348,10 @@ fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>)
     // Nothing after the `=` fails § 4.2.2's parse of a Dictionary member
     // value, so this is the whole field rather than the one directive.
     if item.is_empty() {
-        return Verdict::FieldDiscarded(format!("member '{}' has empty value", feature));
+        return Verdict::FieldDiscarded(
+            &STRUCTURED_FIELD_VALUE_EMPTY,
+            format!("member '{}' has empty value", feature),
+        );
     }
 
     match judge_allowlist(item, feature) {
@@ -328,18 +376,18 @@ fn judge_allowlist(item: &str, feature: &str) -> Verdict {
         None
     };
     if let Some(form) = dropped_for_its_form {
-        return Verdict::DirectiveIgnored(format!(
-            "member '{}' has {} value not allowed",
-            feature, form
-        ));
+        return Verdict::DirectiveIgnored(
+            &PERMISSIONS_POLICY_ALLOWLIST_INVALID,
+            format!("member '{}' has {} value not allowed", feature, form),
+        );
     }
 
     if let Some(inner) = item.strip_prefix('(') {
         let Some(inner) = inner.strip_suffix(')') else {
-            return Verdict::FieldDiscarded(format!(
-                "member '{}' has unterminated inner-list",
-                feature
-            ));
+            return Verdict::FieldDiscarded(
+                &STRUCTURED_FIELD_INNER_LIST_MALFORMED,
+                format!("member '{}' has unterminated inner-list", feature),
+            );
         };
         // Inner-list contents are permissively accepted — see the asymmetry
         // noted below — but an empty member is a parse failure.
@@ -348,10 +396,10 @@ fn judge_allowlist(item: &str, feature: &str) -> Verdict {
                 .iter()
                 .any(|m| m.trim().is_empty())
         {
-            return Verdict::FieldDiscarded(format!(
-                "member '{}' has empty inner-list member",
-                feature
-            ));
+            return Verdict::FieldDiscarded(
+                &STRUCTURED_FIELD_VALUE_EMPTY,
+                format!("member '{}' has empty inner-list member", feature),
+            );
         }
         return Verdict::Enforced;
     }
@@ -360,7 +408,10 @@ fn judge_allowlist(item: &str, feature: &str) -> Verdict {
         return if is_quoted_string(item) {
             Verdict::Enforced
         } else {
-            Verdict::FieldDiscarded(format!("member '{}' has invalid quoted-string", feature))
+            Verdict::FieldDiscarded(
+                &STRUCTURED_FIELD_VALUE_MALFORMED,
+                format!("member '{}' has invalid quoted-string", feature),
+            )
         };
     }
 
@@ -398,11 +449,14 @@ fn judge_allowlist(item: &str, feature: &str) -> Verdict {
     } else {
         "value"
     };
-    Verdict::DirectiveIgnored(format!(
-        "member '{}' has {} '{}', which is not an allowlist: § 5.2 permits a string, \
-         the token '*', the token 'self', or an inner list of those",
-        feature, shape, item
-    ))
+    Verdict::DirectiveIgnored(
+        &PERMISSIONS_POLICY_ALLOWLIST_INVALID,
+        format!(
+            "member '{}' has {} '{}', which is not an allowlist: § 5.2 permits a string, \
+             the token '*', the token 'self', or an inner list of those",
+            feature, shape, item
+        ),
+    )
 }
 
 /// Judge the parameters after the Member Value. Only `report-to` has a shape
@@ -418,17 +472,20 @@ fn judge_parameters(parts: &[&str], feature: &str) -> Verdict {
     for parameter in parts.iter().skip(1) {
         let parameter = parameter.trim();
         if parameter.is_empty() {
-            return Verdict::FieldDiscarded(format!("empty parameter for feature '{}'", feature));
+            return Verdict::FieldDiscarded(
+                &STRUCTURED_FIELD_MEMBER_EMPTY,
+                format!("empty parameter for feature '{}'", feature),
+            );
         }
 
         let Some(eq) = find_char_outside_quotes(parameter, '=') else {
             // A bare parameter name, which is the Boolean true — a value this
             // field says nothing about, so only the key grammar is asked.
             if !is_valid_sf_key(parameter) {
-                return Verdict::FieldDiscarded(format!(
-                    "invalid bare parameter '{}' for '{}'",
-                    parameter, feature
-                ));
+                return Verdict::FieldDiscarded(
+                    &STRUCTURED_FIELD_KEY_MALFORMED,
+                    format!("invalid bare parameter '{}' for '{}'", parameter, feature),
+                );
             }
             continue;
         };
@@ -442,10 +499,23 @@ fn judge_parameters(parts: &[&str], feature: &str) -> Verdict {
         // spelled `report-to`; it is a member the whole field dies on.
         // cite(RFC 9651 § 4.2.3.3): "If the first character of input_string is not lcalpha or "*", fail parsing."
         if !is_valid_sf_key(name) {
-            return Verdict::FieldDiscarded(format!(
-                "invalid parameter '{}' for feature '{}'",
-                name, feature
-            ));
+            return Verdict::FieldDiscarded(
+                &STRUCTURED_FIELD_KEY_MALFORMED,
+                format!("invalid parameter '{}' for feature '{}'", name, feature),
+            );
+        }
+
+        // A `report-to` is a parameter before it is this field's, so the
+        // Structured Fields question is asked first. Without it a value that
+        // does not parse at all was reported as a `report-to` of the wrong
+        // *type* -- a finding claiming the field survived and the reporting
+        // did not, where in truth § 4.2 discards the whole thing. The entry
+        // below rests on that order.
+        if !is_bare_item(value) {
+            return Verdict::FieldDiscarded(
+                &STRUCTURED_FIELD_VALUE_MALFORMED,
+                format!("invalid parameter '{}' for feature '{}'", name, feature),
+            );
         }
 
         if name == "report-to" {
@@ -453,27 +523,32 @@ fn judge_parameters(parts: &[&str], feature: &str) -> Verdict {
             // parses as a Structured Field and is refused by this field's own
             // definition, not by § 4.2.
             if !is_quoted_string(value) {
+                // What this costs is the reporting and not the directive, which
+                // is narrower than either scope above: the policy construction
+                // algorithm reads the parameter only if it "exists, and is a
+                // string", so a Token here is skipped and the allowlist beside
+                // it is applied exactly as written. The message says so, and the
+                // entry ranks on it.
+                // cite(Permissions Policy § 9.2): "If params["report-to"] exists, and is a string, then set reporting-config[feature] to params["report-to"]."
                 ignored.get_or_insert_with(|| {
                     format!(
-                        "parameter 'report-to' for '{}' must be a quoted-string",
+                        "parameter 'report-to' for '{}' must be a String, so no reports are \
+                         sent for it -- the allowlist itself is still applied",
                         feature
                     )
                 });
             }
-        } else if !is_bare_item(value) {
-            // Any bare Item, not the three that used to be listed here.
-            // A byte sequence, a Boolean, a Date and a Display String
-            // are all parameter values, and § 5.2 says nothing about
-            // parameters other than `report-to` -- so the only question
-            // left at this site is the Structured Fields one.
-            // cite(RFC 9651 § 4.2.3.2): "Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string."
-            return Verdict::FieldDiscarded(format!(
-                "invalid parameter '{}' for feature '{}'",
-                name, feature
-            ));
         }
+        // Any bare Item, not the three that used to be listed here. A byte
+        // sequence, a Boolean, a Date and a Display String are all parameter
+        // values, and § 5.2 says nothing about parameters other than
+        // `report-to` -- so for every other name the Structured Fields question
+        // above is the only one there is.
+        // cite(RFC 9651 § 4.2.3.2): "Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string."
     }
-    ignored.map_or(Verdict::Enforced, Verdict::DirectiveIgnored)
+    ignored.map_or(Verdict::Enforced, |message| {
+        Verdict::DirectiveIgnored(&PERMISSIONS_POLICY_REPORT_TO_MALFORMED, message)
+    })
 }
 
 // Shared parsing helpers (splitting, quoted-string, byte-seq, key/token-like)
@@ -512,6 +587,24 @@ static REGISTRATION: &dyn crate::rules::Rule = &PermissionsPolicyDirectivesValid
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The messages a value produces, without the entries beside them — the
+    /// shape these assertions were written in, and the one they still want:
+    /// which entry answered is asserted where the answer is the point.
+    fn findings_for(value: &str) -> Vec<String> {
+        validate_permissions_policy(value)
+            .into_iter()
+            .map(|(_, message)| message)
+            .collect()
+    }
+
+    /// The entries a value produces, in order.
+    fn ids_for(value: &str) -> Vec<&'static str> {
+        validate_permissions_policy(value)
+            .into_iter()
+            .map(|(def, _)| def.id)
+            .collect()
+    }
     use rstest::rstest;
 
     /// Every published snippet is run through the rule. The old set carried
@@ -678,7 +771,7 @@ mod tests {
     #[test]
     fn control_characters_are_rejected() {
         // hyper rejects control characters in header values; test validator directly instead
-        let res = validate_permissions_policy("geo=\u{0001}");
+        let res = findings_for("geo=\u{0001}");
         assert_eq!(res.len(), 1, "{res:?}");
         assert!(res[0].contains("control characters"), "{}", res[0]);
     }
@@ -917,15 +1010,42 @@ mod tests {
     #[case("geolocation=(self);since=@1659578233")]
     #[case("geolocation=(self);label=%\"caf%c3%a9\"")]
     fn any_bare_item_is_a_parameter_value(#[case] value: &str) {
-        let v = validate_permissions_policy(value);
+        let v = findings_for(value);
         assert!(v.is_empty(), "unexpected finding for {:?}: {:?}", value, v);
+    }
+
+    /// Which entry answers for each shape, spelled out — the ten this rule
+    /// declares split eight/two between the Dictionary it is written as and
+    /// the two things § 5.2 says about a Dictionary that parsed.
+    #[rstest]
+    #[case("Geolocation=(self)", "structured_field_key_malformed")]
+    #[case("geolocation=(self),,camera=()", "structured_field_member_empty")]
+    #[case("geolocation=(self);;camera=()", "structured_field_member_empty")]
+    #[case("geolocation=", "structured_field_value_empty")]
+    #[case("geolocation=(self", "structured_field_inner_list_malformed")]
+    #[case("geolocation=\"unterminated", "structured_field_value_malformed")]
+    #[case("geolocation=(self);label=)))", "structured_field_value_malformed")]
+    #[case("geolocation=(self);report-to=)))", "structured_field_value_malformed")]
+    #[case(
+        "geolocation=(self), geolocation=()",
+        "structured_field_key_duplicated"
+    )]
+    #[case("geolocation=SELF", "permissions_policy_allowlist_invalid")]
+    #[case("geolocation", "permissions_policy_allowlist_invalid")]
+    #[case("geolocation=?1", "permissions_policy_allowlist_invalid")]
+    #[case(
+        "geolocation=(self);report-to=endpoint",
+        "permissions_policy_report_to_malformed"
+    )]
+    fn each_shape_names_the_entry_that_answers_it(#[case] value: &str, #[case] id: &str) {
+        assert_eq!(ids_for(value), vec![id], "for {value:?}");
     }
 
     #[rstest]
     fn an_uppercase_parameter_key_is_not_report_to() {
         // A key cannot hold an uppercase letter, so this is a parse failure
         // rather than a misspelled `report-to` whose value needs checking.
-        let v = validate_permissions_policy("geolocation=(self);Report-To=\"endpoint\"");
+        let v = findings_for("geolocation=(self);Report-To=\"endpoint\"");
         assert_eq!(v.len(), 1, "{v:?}");
         assert!(v[0].contains("invalid parameter 'Report-To'"), "{}", v[0]);
     }
@@ -1353,7 +1473,7 @@ mod tests {
     #[test]
     fn quoted_string_with_control_char_is_rejected() {
         // hyper rejects control characters in header values; test validator directly instead
-        let res = validate_permissions_policy("geolocation=\"a\u{0001}\"");
+        let res = findings_for("geolocation=\"a\u{0001}\"");
         assert_eq!(res.len(), 1, "{res:?}");
         // top-level control character check runs first
         assert!(res[0].contains("control characters"), "{}", res[0]);
