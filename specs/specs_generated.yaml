@@ -4882,9 +4882,11 @@ sources:
     snippet: The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 159
+      line: 163
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 116
+    - file: lint-http-rules/src/violations/deprecation.rs
+      line: 95
 - label: RFC 8615
   url: https://www.rfc-editor.org/rfc/rfc8615.html
   fragments:
@@ -5725,7 +5727,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 149
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 110
+      line: 115
   - label: cache_coherence (3)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
@@ -6303,7 +6305,9 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 130
+      line: 135
+    - file: lint-http-rules/src/violations/last_modified.rs
+      line: 48
   - label: early_data_header_safe_method
     section: § 16.1.1
     snippet: 'HTTP method registrations MUST include the following fields:'
@@ -10006,7 +10010,7 @@ sources:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 260
     - file: lint-http-rules/src/violations/conditional.rs
-      line: 179
+      line: 208
   - label: cache_validation_chain (3)
     section: § 4.3.1
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
@@ -12245,7 +12249,7 @@ sources:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 149
     - file: lint-http-rules/src/violations/deprecation.rs
-      line: 61
+      line: 69
   - label: sunset_and_deprecation_consistent
     section: § 4
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
@@ -12253,4 +12257,4 @@ sources:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 182
     - file: lint-http-rules/src/violations/deprecation.rs
-      line: 85
+      line: 119

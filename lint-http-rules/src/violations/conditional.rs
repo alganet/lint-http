@@ -116,6 +116,35 @@ defects! {
         spec: &[RFC_9110_13_1_3],
     }
 
+    /// An `If-Modified-Since` naming a time later than the `Date` of the
+    /// request carrying it.
+    ///
+    /// **Uncited: no sentence says a client may not do this.** § 13.1.3 defines
+    /// the field and says nothing about how its value relates to the request's
+    /// own clock, and a client is not obliged to send a `Date` at all — so what
+    /// refuses the pair is this crate's reading, and a reference would dress it
+    /// as a requirement.
+    ///
+    /// **The reading is that a precondition about the future evaluates as
+    /// none.** The field asks a server to answer only if the representation
+    /// changed *since* a moment, and a moment the request itself says has not
+    /// arrived is one nothing can have changed since — so the condition is
+    /// always false and the client gets a `304` it could have predicted.
+    ///
+    /// **A skew is allowed**, because clocks disagree by seconds and a rule
+    /// reporting that would report the world.
+    ///
+    /// `info`, with the rest of this subject's reconstructions: the exchange
+    /// works, and what the finding buys is a client learning that its
+    /// conditional never had a chance to be true.
+    CONDITIONAL_DATE_CONFLICTING = {
+        id: "conditional_date_conflicting",
+        title: "A date precondition names a time after the request's own Date",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
+
     /// An entity-tag precondition written with no validator in it: an
     /// `If-Match` or an `If-None-Match` whose value is empty or is only
     /// whitespace.

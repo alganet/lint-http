@@ -1662,7 +1662,10 @@ severity = "warn"
         /// **`sunset_and_deprecation_consistent` gave up one to an entry on the
         /// field the MUST NOT is addressed to** — the `Sunset`, not the
         /// `Deprecation` the rule is named after first.
-        const FLOOR: usize = 6;
+        /// **`date_and_time_headers_consistent` gave up its one**, and the
+        /// three entries it now declares are one shape read three ways: two
+        /// timestamps in a message that cannot both be right.
+        const FLOOR: usize = 5;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

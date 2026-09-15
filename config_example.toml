@@ -1391,6 +1391,10 @@ severity = "warn"
 # Comment is never closed
 severity = "warn"
 
+[violations.conditional_date_conflicting]
+# A date precondition names a time after the request's own Date
+severity = "info"
+
 [violations.conditional_date_ignored]
 # A date conditional is sent where the recipient must discard it
 severity = "warn"
@@ -2002,6 +2006,10 @@ severity = "warn"
 [violations.language_tag_whitespace_or_control_forbidden]
 # Language tag holds whitespace or a control character
 severity = "error"
+
+[violations.last_modified_conflicting]
+# A Last-Modified is later than the Date beside it
+severity = "warn"
 
 [violations.link_attribute_duplicated]
 # Link member writes one of the bounded attributes more than once
@@ -2801,6 +2809,10 @@ severity = "warn"
 
 [violations.sunset_conflicting]
 # A Sunset names a time before the Deprecation beside it
+severity = "warn"
+
+[violations.sunset_invalid]
+# A Sunset names a time that has already passed
 severity = "warn"
 
 [violations.te_chunked_forbidden]
