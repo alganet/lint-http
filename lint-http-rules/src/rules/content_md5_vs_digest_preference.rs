@@ -4,8 +4,18 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::digest::CONTENT_MD5_REDUNDANT;
+use crate::violations::ViolationDef;
 
 pub struct ContentMd5VsDigestPreference;
+
+/// One entry, and deliberately not `digest_header_syntax`'s
+/// `content_md5_obsolete` even though every message this rule reports is one
+/// that rule reports too. The two say different things about the same field
+/// and an operator silences them for different reasons: that the field is not
+/// part of HTTP, and that this message states its integrity twice with nothing
+/// to choose between the answers.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_MD5_REDUNDANT];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -46,6 +56,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9530_2, RFC_7231_APPENDIX_B, RFC_2616_14_15]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -102,7 +116,7 @@ impl Rule for ContentMd5VsDigestPreference {
                 // than repeating the sibling's obsolescence report.
                 // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
                 if has_new && has_md5 {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&CONTENT_MD5_REDUNDANT, format!(
                             "Both Content-Digest and Content-MD5 present in {}; they are independent integrity values that can disagree, and nothing specifies which a recipient validates. Content-MD5 was removed from HTTP by RFC 7231 — send only Content-Digest",
                             which
                         )));
@@ -197,6 +211,10 @@ mod tests {
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.rule, "content_md5_vs_digest_preference");
+        // Not `content_md5_obsolete`, which `digest_header_syntax` reports for
+        // this same message: that one is about the field, this one about the
+        // message stating its integrity twice.
+        assert_eq!(v.violation, "content_md5_redundant");
         assert!(v.message.contains("send only Content-Digest"));
         assert!(v.message.contains("can disagree"));
         // The obsolescence is attributed to the document that actually removed

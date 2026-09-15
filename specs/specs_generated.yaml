@@ -1243,7 +1243,7 @@ sources:
     snippet: instance-digest = digest-algorithm "=" <encoded digest output>
     cited_by:
     - file: lint-http-rules/src/violations/digest.rs
-      line: 169
+      line: 205
   - label: digest_header_syntax
     section: § 4.1.1
     snippet: All digest-algorithm values are case-insensitive.
@@ -3426,7 +3426,7 @@ sources:
     snippet: The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses.
     cited_by:
     - file: lint-http-rules/src/rules/content_md5_vs_digest_preference.rs
-      line: 103
+      line: 117
     - file: lint-http-rules/src/violations/digest.rs
       line: 118
 - label: RFC 7234
@@ -11607,7 +11607,7 @@ sources:
     snippet: The Content-Digest HTTP field can be used in requests and responses
     cited_by:
     - file: lint-http-rules/src/rules/content_md5_vs_digest_preference.rs
-      line: 86
+      line: 100
   - label: digest
     snippet: This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields.
     cited_by:
@@ -11634,7 +11634,7 @@ sources:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
       line: 518
     - file: lint-http-rules/src/violations/digest.rs
-      line: 196
+      line: 232
   - label: digest_header_syntax (3)
     section: § 4
     snippet: 'Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:'
@@ -11648,9 +11648,9 @@ sources:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
       line: 597
     - file: lint-http-rules/src/violations/digest.rs
-      line: 241
+      line: 277
     - file: lint-http-rules/src/violations/digest.rs
-      line: 263
+      line: 299
 - label: RFC 9651
   url: https://www.rfc-editor.org/rfc/rfc9651.html
   fragments:

@@ -1455,6 +1455,10 @@ severity = "warn"
 # Content-MD5 is a field HTTP removed
 severity = "warn"
 
+[violations.content_md5_redundant]
+# A message carries two integrity values over one content
+severity = "info"
+
 [violations.content_range_complete_length_conflicting]
 # Content-Range complete-length does not exceed its last-pos
 severity = "error"
