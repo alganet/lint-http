@@ -187,6 +187,11 @@ mod tests {
                     "http_date_malformed",
                     "http_date_obsolete",
                     "http_date_whitespace_forbidden",
+                    // The two conditional fields report an empty value where
+                    // `Last-Modified` does not: a request may leave the field
+                    // out, so a line with nothing on it is a client that meant
+                    // to condition and did not.
+                    "http_date_empty",
                 ],
                 "{rule_id}",
             );

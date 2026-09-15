@@ -56,6 +56,36 @@ defects! {
         default_severity: Severity::Info,
         spec: &[RFC_9110_10_2_3],
     }
+
+    /// A value that derives from neither `HTTP-date` nor `delay-seconds`:
+    /// `soon`, `-5`, `+30`, an empty line.
+    ///
+    /// **The field's own entry rather than
+    /// [`http_date`](crate::violations::http_date)'s, because the value is an
+    /// alternation and this is the case that commits to neither half.** A
+    /// `Retry-After` failing both is not a malformed timestamp — it may never
+    /// have been meant as one — so borrowing the date subject's id would name a
+    /// production the sender was not writing in. *An alternation owns no defect
+    /// until the reading cannot commit*, and here it cannot: neither half has a
+    /// committing delimiter, so a value that is not a number and not a date
+    /// belongs to the field.
+    ///
+    /// **`delay-seconds` is a non-negative decimal integer**, which is why a
+    /// leading `+` or `-` lands here rather than being read as a number the
+    /// field then refuses.
+    ///
+    /// `warn`. A recipient that cannot read the value waits by whatever policy
+    /// it would have used without the field, so what is lost is the server's
+    /// advice about when to come back.
+    ///
+    // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
+    RETRY_AFTER_MALFORMED = {
+        id: "retry_after_malformed",
+        title: "A Retry-After is neither a date nor a delay",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_10_2_3],
+    }
 }
 
 #[cfg(test)]
