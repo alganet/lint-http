@@ -1379,6 +1379,10 @@ severity = "info"
 # A repeat request declines a validator the server provided
 severity = "info"
 
+[violations.conditional_redundant]
+# A still-fresh stored response is revalidated anyway
+severity = "info"
+
 [violations.conditional_validator_conflicting]
 # A precondition names a validator older than the last one seen
 severity = "info"

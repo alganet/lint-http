@@ -187,6 +187,39 @@ defects! {
         spec: &[],
     }
 
+    /// A precondition sent for a stored response that had not expired: the
+    /// round trip revalidates something the client could have used without
+    /// asking.
+    ///
+    /// **[`CONDITIONAL_MISSING`]'s mirror at the other end of the freshness
+    /// lifetime.** There a client declined a validator it was offered; here it
+    /// spends a request confirming a copy nothing had made doubtful. Both are
+    /// round trips that need not have happened, in opposite directions, and
+    /// both are reconstructions: the freshness this rests on is estimated from
+    /// a stored `max-age`, an `Age` and the time between two captures, not read
+    /// off the wire.
+    ///
+    /// **Uncited, and for [`CONDITIONAL_MISSING`]'s reason.** RFC 9111 § 4.2
+    /// says a fresh response *can* be reused without contacting the origin —
+    /// an efficiency a cache is offered, not one it owes — so no sentence is
+    /// broken by asking anyway. A client with a reason to distrust its copy is
+    /// doing something reasonable, and nothing on the wire distinguishes it.
+    ///
+    /// **Not [`cache_control_immutable_ignored`](crate::violations::cache_control),
+    /// which is the same request against a stronger promise.** RFC 8246 turns
+    /// early revalidation of an `immutable` response into a SHOULD NOT; without
+    /// that extension there is no such sentence, and the two entries are the
+    /// difference between a requirement missed and an opportunity passed up.
+    ///
+    /// `info`, with the rest of this subject.
+    CONDITIONAL_REDUNDANT = {
+        id: "conditional_redundant",
+        title: "A still-fresh stored response is revalidated anyway",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
+
 }
 
 #[cfg(test)]
