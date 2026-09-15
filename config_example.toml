@@ -2119,6 +2119,14 @@ severity = "warn"
 # A media range is written where one media type belongs
 severity = "warn"
 
+[violations.method_connect_content_forbidden]
+# A CONNECT request declares content its definition has no room for
+severity = "warn"
+
+[violations.method_content_forbidden]
+# A GET, HEAD or DELETE request carries content
+severity = "warn"
+
 [violations.method_head_conflicting]
 # A HEAD response disagrees with the GET it stands in for
 severity = "warn"

@@ -516,8 +516,9 @@ mod tests {
         /// `Priority` response's caching entry, and 432 of 454 with
         /// `Permissions-Policy`'s two, and 435 of 457 with the trailer
         /// section's three, and 436 of 460 with the authentication loop's one,
-        /// and 437 of 461 with the shared realm.
-        const FLOOR: usize = 437;
+        /// and 437 of 461 with the shared realm, and 439 of 463 with the two
+        /// method-content entries.
+        const FLOOR: usize = 439;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

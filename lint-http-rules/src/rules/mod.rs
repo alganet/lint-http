@@ -1620,7 +1620,12 @@ severity = "warn"
         /// carries the same § 15.5.2 the site did — a section this catalogue
         /// already pointed at for the challenge MUST, now naming the SHOULD
         /// beside it as well.
-        const FLOOR: usize = 28;
+        /// **`request_version_method_valid` gave up two and only one of them
+        /// stayed cited**: the GET/HEAD/DELETE entry names three sections
+        /// because one paragraph is printed three times, and a def naming
+        /// several carries none onto its findings — which is the right answer
+        /// and not a loss, since the message names the section it read.
+        const FLOOR: usize = 26;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

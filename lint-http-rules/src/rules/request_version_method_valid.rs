@@ -4,6 +4,16 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::method::{
+    METHOD_CONNECT_CONTENT_FORBIDDEN, METHOD_CONTENT_FORBIDDEN, RFC_9110_9_3_1, RFC_9110_9_3_2,
+    RFC_9110_9_3_5, RFC_9110_9_3_6,
+};
+use crate::violations::ViolationDef;
+
+/// Two, and the split is the documents': three sections print one paragraph
+/// about a body that means nothing, and a fourth defines a message that has no
+/// body at all.
+static DECLARED: &[&ViolationDef] = &[&METHOD_CONTENT_FORBIDDEN, &METHOD_CONNECT_CONTENT_FORBIDDEN];
 
 /// Report a request that carries content under a method whose definition says
 /// content has no meaning there.
@@ -59,30 +69,6 @@ const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
     note: "Methods overview — the method token is case-sensitive, which is why the four names below are matched exactly and a lowercase `get` is not a GET",
 };
-const RFC_9110_9_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1",
-    note: "GET — the SHOULD NOT, its `unless` clause, and the sentence that declines to rely on the private agreement the clause describes. Also the statement that framing is independent of the method, which is why a Transfer-Encoding alone is not content",
-};
-const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-    note: "HEAD — the same paragraph, word for word",
-};
-const RFC_9110_9_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5",
-    note: "DELETE — the same paragraph again",
-};
-const RFC_9110_9_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
-    note: "CONNECT — a definition rather than a modal, and the sentence that makes the octets after the header section tunnel payload instead of content",
-};
 const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("8.6"),
@@ -114,6 +100,10 @@ severity = "warn"
             RFC_9110_9_3_6,
             RFC_9110_8_6,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -184,7 +174,7 @@ impl Rule for RequestVersionMethodValid {
                 // method's definition rather than that a modal was disobeyed.
                 // cite(RFC 9110 § 9.3.6): "A CONNECT request message does not have content."
                 "CONNECT" => {
-                    return request_declares_content(&tx.request).then(|| self.cited(&RFC_9110_9_3_6, ctx.severity, "CONNECT request declares content in its header section; RFC 9110 § 9.3.6 defines a CONNECT request message as having none".into()));
+                    return request_declares_content(&tx.request).then(|| ctx.report_with(&METHOD_CONNECT_CONTENT_FORBIDDEN, "CONNECT request declares content in its header section; RFC 9110 § 9.3.6 defines a CONNECT request message as having none".into()));
                 }
 
                 _ => return None,
@@ -200,7 +190,7 @@ impl Rule for RequestVersionMethodValid {
             // agreement is not something to rely on, and names why: the request
             // chain. So the finding stands and `description()` states the limit.
             // cite(RFC 9110 § 9.3.1): "An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain."
-            Some(self.cited(&RFC_9110_9_3_1, ctx.severity, format!(
+            Some(ctx.report_with(&METHOD_CONTENT_FORBIDDEN, format!(
                     "{} request carries content; RFC 9110 {}, and content received in one has no generally defined semantics",
                     method, sentence
                 )))
@@ -306,7 +296,8 @@ mod tests {
     #[test]
     fn captured_octets_alone_are_content() {
         let tx = make_tx("GET", vec![], Some(7));
-        assert!(check(&tx).is_some());
+        let v = check(&tx).expect("a finding");
+        assert_eq!(v.violation, "method_content_forbidden");
     }
 
     /// § 5.3 makes several `Content-Length` lines one value, and RFC 9112 § 6.3
@@ -349,13 +340,21 @@ mod tests {
     #[test]
     fn violation_messages_name_their_sentence() {
         let v = check(&make_tx("GET", vec![("content-length", "10")], None)).unwrap();
+        assert_eq!(v.violation, "method_content_forbidden");
+        // The message names the section because the entry cannot: it holds all
+        // three, so no finding of it carries a citation.
         assert!(v.message.contains("§ 9.3.1"), "{}", v.message);
         assert!(v.message.contains("SHOULD NOT"), "{}", v.message);
+        assert!(v.cite.is_none(), "{:?}", v.cite);
 
         let v2 = check(&make_tx("HEAD", vec![("content-length", "1")], None)).unwrap();
         assert!(v2.message.contains("§ 9.3.2"), "{}", v2.message);
 
         let v3 = check(&make_tx("CONNECT", vec![("content-length", "1")], None)).unwrap();
+        // A different entry, and this one names one section, so its findings
+        // carry the citation the three-section entry cannot.
+        assert_eq!(v3.violation, "method_connect_content_forbidden");
+        assert!(v3.cite.is_some());
         assert!(v3.message.contains("§ 9.3.6"), "{}", v3.message);
         assert!(!v3.message.contains("SHOULD NOT"), "{}", v3.message);
     }

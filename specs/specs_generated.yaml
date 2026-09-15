@@ -2260,7 +2260,7 @@ sources:
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 187
     - file: lint-http-rules/src/violations/method.rs
-      line: 166
+      line: 258
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
@@ -5321,7 +5321,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 311
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 167
+      line: 157
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 171
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
@@ -6507,7 +6507,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 157
     - file: lint-http-rules/src/violations/method.rs
-      line: 184
+      line: 276
   - label: field-name grammar
     section: § A
     snippet: field-name = token field-value = *field-content
@@ -8245,7 +8245,7 @@ sources:
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created
     cited_by:
     - file: lint-http-rules/src/violations/method.rs
-      line: 149
+      line: 241
   - label: multipart_boundary_syntax
     section: § 5.6.6
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
@@ -8381,7 +8381,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 223
     - file: lint-http-rules/src/violations/method.rs
-      line: 111
+      line: 203
   - label: options_method_capabilities (4)
     section: § 9.3.7
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
@@ -8391,7 +8391,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 270
     - file: lint-http-rules/src/violations/method.rs
-      line: 131
+      line: 223
   - label: options_method_capabilities (5)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
@@ -8981,45 +8981,47 @@ sources:
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 149
+      line: 139
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 175
+      line: 165
   - label: request_version_method_valid (2)
     section: § 9.3.1
     snippet: Although request message framing is independent of the method used, content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request
     cited_by:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 30
+      line: 40
   - label: request_version_method_valid (3)
     section: § 9.3.1
     snippet: An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain.
     cited_by:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 202
+      line: 192
   - label: request_version_method_valid (4)
     section: § 9.3.2
     snippet: A client SHOULD NOT generate content in a HEAD request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 177
+      line: 167
   - label: request_version_method_valid (5)
     section: § 9.3.5
     snippet: A client SHOULD NOT generate content in a DELETE request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 179
+      line: 169
   - label: request_version_method_valid (6)
     section: § 9.3.6
     snippet: A CONNECT request message does not have content.
     cited_by:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 185
+      line: 175
+    - file: lint-http-rules/src/violations/method.rs
+      line: 168
   - label: request_version_method_valid (7)
     section: § 9.3.6
     snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
     cited_by:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 46
+      line: 56
   - label: response_body_length_accuracy
     section: § 8.6
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
@@ -9509,7 +9511,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 205
     - file: lint-http-rules/src/violations/method.rs
-      line: 95
+      line: 187
   - label: trace_method_echo (4)
     section: § 9.3.8
     snippet: A client MUST NOT send content in a TRACE request.
@@ -9519,7 +9521,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 192
     - file: lint-http-rules/src/violations/method.rs
-      line: 76
+      line: 103
   - label: trace_method_echo (5)
     section: § 9.3.8
     snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.
