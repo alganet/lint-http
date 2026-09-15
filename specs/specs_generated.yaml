@@ -2546,7 +2546,7 @@ sources:
     snippet: Content-Disposition header field values with multiple instances of the same parameter name are invalid.
     cited_by:
     - file: lint-http-rules/src/violations/content_disposition.rs
-      line: 47
+      line: 65
   - label: content_disposition_parameter_valid
     section: § 4.1
     snippet: content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )
@@ -4065,18 +4065,18 @@ sources:
 - label: RFC 7578
   url: https://www.rfc-editor.org/rfc/rfc7578.html
   fragments:
-  - label: form_data_content_disposition_valid
+  - label: content_disposition
     section: § 4.2
     snippet: The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form
     cited_by:
-    - file: lint-http-rules/src/rules/form_data_content_disposition_valid.rs
-      line: 157
-  - label: form_data_content_disposition_valid (2)
+    - file: lint-http-rules/src/violations/content_disposition.rs
+      line: 120
+  - label: form_data_content_disposition_valid
     section: § 4.2
     snippet: where the disposition type is "form-data".
     cited_by:
     - file: lint-http-rules/src/rules/form_data_content_disposition_valid.rs
-      line: 148
+      line: 149
 - label: RFC 7616
   url: https://www.rfc-editor.org/rfc/rfc7616.html
   fragments:

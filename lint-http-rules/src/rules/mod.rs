@@ -1669,7 +1669,13 @@ severity = "warn"
         /// one**, which is the shape to expect from here: what a converted rule
         /// keeps back is the arm nothing else could name, and this one was
         /// waiting on a subject for §4's own grammar.
-        const FLOOR: usize = 5;
+        /// **`form_data_content_disposition_valid` gave up the last cited site
+        /// of a requirement one document states about a position another
+        /// defines**: RFC 7578 § 4.2 asks a `multipart/form-data` *part* for a
+        /// `name`, and what a linter with no body parser reads is RFC 6266's
+        /// message-level field — so the entry is the field's, and only where an
+        /// operator meets it changes.
+        const FLOOR: usize = 4;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
