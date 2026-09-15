@@ -4,21 +4,29 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::origin::{
+    origin_defect, FETCH_3_2, ORIGIN_MALFORMED, ORIGIN_MISSING, ORIGIN_PATH_FORBIDDEN, RFC_6454_7_1,
+};
 use crate::violations::uri::{
-    origin_defect, RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN,
-    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+    RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
+    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
-/// The same four `origin_matching_for_cors` declares, read from the other side
-/// of the exchange: one rule asks whether the response echoed the `Origin`, the
-/// other whether the request carried one, and both measure the same value
-/// against the same two RFC 3986 productions.
+/// Six, read from the other side of the exchange from
+/// `origin_matching_for_cors`: one rule asks whether the response echoed the
+/// `Origin`, the other whether the request carried one at all. Five of them are
+/// the shared value's — two RFC 3986 productions and the field's own two — and
+/// the sixth is this rule's whole subject, the request that had to say where it
+/// came from and did not.
 static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &URI_CHARACTER_FORBIDDEN,
+    &ORIGIN_PATH_FORBIDDEN,
+    &ORIGIN_MALFORMED,
+    &ORIGIN_MISSING,
 ];
 
 pub struct RequestOriginHeaderPresentForCors;
@@ -26,19 +34,6 @@ pub struct RequestOriginHeaderPresentForCors;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6454_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6454",
-    section: Some("7.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
-    note:
-        "Origin header field syntax the value is validated against (`serialized-origin` / `null`)",
-};
-const FETCH_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Fetch",
-    section: Some("3.2"),
-    url: "https://fetch.spec.whatwg.org/#origin-header",
-    note: "Origin header — used for CORS fetches and any request whose method is neither GET nor HEAD (where both inline cites resolve)",
-};
 const MDN_ORIGIN: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Origin",
     section: None,
@@ -145,15 +140,12 @@ impl Rule for RequestOriginHeaderPresentForCors {
                             crate::helpers::headers::trim_ows(&origin_val),
                         ) {
                             let message = format!("Origin header invalid: {}", defect.message());
-                            return Some(match origin_defect(defect) {
-                                Some(def) => ctx.report_with(def, message),
-                                None => self.violation(ctx.severity, message),
-                            });
+                            return Some(ctx.report_with(origin_defect(defect), message));
                         }
                     }
                     None => {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &ORIGIN_MISSING,
                             "CORS preflight request missing Origin header".into(),
                         ))
                     }
@@ -176,9 +168,8 @@ impl Rule for RequestOriginHeaderPresentForCors {
                             // is there.
                             if headers.get("origin").is_none() {
                                 return Some(
-                                    self.cited(
-                                        &FETCH_3_2,
-                                        ctx.severity,
+                                    ctx.report_with(
+                                        &ORIGIN_MISSING,
                                         "Cross-origin absolute-form request missing Origin header"
                                             .into(),
                                     ),

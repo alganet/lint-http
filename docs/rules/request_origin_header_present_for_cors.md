@@ -17,8 +17,8 @@ The rule validates that `Origin` is present where required and that its value is
 
 ## Specifications
 
-- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Origin header field syntax the value is validated against (`serialized-origin` / `null`)
-- [Fetch §3.2](https://fetch.spec.whatwg.org/#origin-header): Origin header — used for CORS fetches and any request whose method is neither GET nor HEAD (where both inline cites resolve)
+- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Origin header field syntax — `origin-list-or-null` is the literal `null` or a list of `serialized-origin`, and a `serialized-origin` is a scheme, `://`, a host and an optional port, with no path component
+- [Fetch §3.2](https://fetch.spec.whatwg.org/#origin-header): The `Origin` request header — where a fetch originates from, sent for CORS fetches and for any request whose method is neither GET nor HEAD
 - [MDN Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin): Origin
 - [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters — the limited set a URI is composed from, every other octet being percent-encoded before the reference is formed
 - [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon

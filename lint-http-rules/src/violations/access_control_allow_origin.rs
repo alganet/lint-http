@@ -31,6 +31,15 @@ use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
+/// The CORS check itself: the wildcard's condition, and the byte comparison
+/// every other value is measured by.
+pub const FETCH_4_10: SpecRef = SpecRef {
+    spec: "Fetch",
+    section: Some("4.10"),
+    url: "https://fetch.spec.whatwg.org/#concept-cors-check",
+    note: "Fetch CORS check — `*` succeeds only where the request's credentials mode is not `include`, and every other value is compared against the byte-serialized request origin",
+};
+
 /// The response header, and the three alternatives its value may be.
 pub const FETCH_3_3_3: SpecRef = SpecRef {
     spec: "Fetch",
@@ -77,6 +86,62 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[FETCH_3_3_3],
+    }
+
+    /// A well-formed value that is not the origin that asked:
+    /// `Access-Control-Allow-Origin: https://a.example` answering a request
+    /// from `https://b.example`.
+    ///
+    /// **The third of the three alternatives, and the only one a response can
+    /// get wrong while writing a real origin.** § 3.3.3 permits the *literal
+    /// value of the `Origin` request header*, so the check byte-serializes the
+    /// request's origin and compares — no case folding on either side, because
+    /// byte-serializing an opaque origin yields the lowercase literal `null`.
+    ///
+    /// **`_conflicting` rather than `_invalid`**: nothing is wrong with the
+    /// value on its own, and it would be correct in the response to a different
+    /// request. What disagrees is the pair — the origin that asked and the
+    /// origin that was answered — which is what the ending is for.
+    ///
+    /// `warn`, with the rest of the subject: the response is well formed and
+    /// the sharing simply does not happen.
+    ///
+    // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
+    ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING = {
+        id: "access_control_allow_origin_conflicting",
+        title: "Access-Control-Allow-Origin echoes an origin that did not ask",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[FETCH_4_10],
+    }
+
+    /// `Access-Control-Allow-Origin: *` on a response whose
+    /// `Access-Control-Allow-Credentials` says `true`.
+    ///
+    /// **The wildcard is the one alternative credentials cancel.** The CORS
+    /// check short-circuits on `*` only where the request's credentials mode is
+    /// not `include`; a credentialed request falls through to the
+    /// byte-serialized comparison, which `*` can never satisfy. So the two
+    /// fields together say the response may be shared with everyone *and* with
+    /// a credentialed reader, and a browser honours neither.
+    ///
+    /// **`credentials` is the part because the other field is what makes it a
+    /// defect** — the same `*` on a response without one is exactly right, and
+    /// nothing about the value changed. Separate from
+    /// [`ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING`] for the reason that entry is
+    /// separate from the malformed one: this is a deployment that meant the
+    /// wildcard and cannot have it, not one that echoed the wrong origin.
+    ///
+    /// `warn`. Every message is well formed; what fails is a check the sender
+    /// was configuring for.
+    ///
+    // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
+    ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING = {
+        id: "access_control_allow_origin_credentials_conflicting",
+        title: "The wildcard origin sits on a response that also allows credentials",
+        message: "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true",
+        default_severity: Severity::Warn,
+        spec: &[FETCH_4_10],
     }
 }
 
