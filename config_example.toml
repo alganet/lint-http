@@ -2335,6 +2335,18 @@ severity = "warn"
 # A bytes range specifier derives from neither of the unit's two forms
 severity = "warn"
 
+[violations.refresh_url_empty]
+# A Refresh value writes URL= with no URL
+severity = "warn"
+
+[violations.refresh_url_malformed]
+# A Refresh URL is not a valid URL string
+severity = "warn"
+
+[violations.refresh_value_malformed]
+# A Refresh value is neither of the two forms
+severity = "warn"
+
 [violations.request_target_asterisk_forbidden]
 # The asterisk target is sent with a method other than OPTIONS
 severity = "error"

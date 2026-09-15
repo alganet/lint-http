@@ -1625,7 +1625,11 @@ severity = "warn"
         /// because one paragraph is printed three times, and a def naming
         /// several carries none onto its findings — which is the right answer
         /// and not a loss, since the message names the section it read.
-        const FLOOR: usize = 26;
+        /// **`refresh_header_syntax` gave up its one**, and what replaced it is
+        /// three entries and a borrow: the value's structure, the URL slot left
+        /// blank, the URL itself, and RFC 9110 § 5.3's repeated field line,
+        /// which this rule had been wording in HTML's terms.
+        const FLOOR: usize = 25;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
