@@ -45,6 +45,7 @@ pub mod base64;
 pub mod basic_credentials;
 pub mod boundary;
 pub mod bws;
+pub mod cache;
 pub mod cache_control;
 pub mod challenge;
 pub mod charset;
@@ -524,8 +525,9 @@ mod tests {
         /// subject's four, and 446 of 470 with `Refresh`'s three, and
         /// 449 of 473 with the media type's suffix entries, and 452 of 476
         /// with the OAuth 2.0 `state` subject, and 453 of 477 with `Vary`'s
-        /// `Prefer` entry, and 455 of 479 with the range request's two.
-        const FLOOR: usize = 455;
+        /// `Prefer` entry, and 455 of 479 with the range request's two, and 456
+        /// of 480 with the first entry whose subject is a cache.
+        const FLOOR: usize = 456;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

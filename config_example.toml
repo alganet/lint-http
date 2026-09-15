@@ -1311,6 +1311,10 @@ severity = "warn"
 # Two Cache-Control directives disagree about storing the response
 severity = "warn"
 
+[violations.cache_response_conflicting]
+# Two responses for one URI disagree about which version is current
+severity = "warn"
+
 [violations.challenge_empty]
 # Authentication challenge is empty
 severity = "warn"

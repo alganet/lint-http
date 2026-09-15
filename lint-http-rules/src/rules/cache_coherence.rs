@@ -21,12 +21,13 @@ pub struct CacheCoherence;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_4_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("4.2.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4",
-    note: "Serving Stale Responses — the MUST NOT this rule heuristically approximates",
-};
+use crate::violations::cache::{CACHE_RESPONSE_CONFLICTING, RFC_9111_4_2_4};
+use crate::violations::ViolationDef;
+
+/// One entry, and it belongs to a subject about caches rather than about
+/// fields: what this rule sees is two responses disagreeing, and § 4.2.4's
+/// MUST NOT is what makes that disagreement worth reporting.
+static DECLARED: &[&ViolationDef] = &[&CACHE_RESPONSE_CONFLICTING];
 const RFC_9110_8_8_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("8.8.2"),
@@ -68,6 +69,10 @@ severity = "warn"
             RFC_9110_6_6_1,
             RFC_9110_15_4_5,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -183,9 +188,8 @@ impl Rule for CacheCoherence {
             // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
             if let Some(prev_max) = max_prev {
                 if curr_time < prev_max {
-                    return Some(self.cited(
-                        &RFC_9111_4_2_4,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CACHE_RESPONSE_CONFLICTING,
                         format!(
                             "response for '{}' appears stale ({} < previous {})",
                             tx.request.uri, curr_time, prev_max
@@ -268,7 +272,9 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("appears stale"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "cache_response_conflicting");
+        assert!(v.message.contains("appears stale"));
     }
 
     #[test]
