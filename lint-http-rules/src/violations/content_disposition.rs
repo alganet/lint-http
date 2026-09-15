@@ -9,16 +9,34 @@
 //! a [`quoted_string`](crate::violations::quoted_string), a `filename*` is an
 //! [`ext_value`](crate::violations::ext_value), and the halves a sender left
 //! out are [`parameter`](crate::violations::parameter)'s. What is here is what
-//! RFC 6266 says about the *set* of parameters and about one name it inherited.
+//! three documents say about the *set* of parameters and about two names it
+//! inherited.
 //!
-//! **The two entries sit either side of a line worth naming**: one quotes a
-//! sentence from the document that defines this field for HTTP, and the other
-//! quotes nothing because that document deliberately dropped the parameter it
-//! is about.
+//! **The entries sit either side of a line worth naming**: two quote a sentence
+//! from a document in force, and two quote nothing — one because RFC 6266
+//! deliberately dropped the parameter it is about, one because no document
+//! refuses the value it reports.
+//!
+//! **The `name` pair is RFC 7578's requirement read at RFC 6266's position, and
+//! the subject is still the field.** § 4.2 states its MUST about a *part* of a
+//! `multipart/form-data` body, where this field is MIME's; what a linter with
+//! no body parser can read is a message-level `Content-Disposition`. The day
+//! one parses parts, it is the same field being read somewhere else — so the
+//! entries are the field's, and only the position an operator sees them at
+//! changes.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+
+/// The `form-data` disposition's own requirement: the parameter that must be
+/// there, and what its value is for.
+pub const RFC_7578_4_2: SpecRef = SpecRef {
+    spec: "RFC 7578",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2",
+    note: "Each multipart/form-data *part* MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain a `name` parameter — a requirement on parts, which this rule approximates at the message level",
+};
 
 /// The grammar, and the sentence about a parameter name written twice.
 pub const RFC_6266_4_1: SpecRef = SpecRef {
@@ -78,6 +96,67 @@ defects! {
         default_severity: Severity::Info,
         spec: &[],
     }
+
+    /// A `form-data` disposition carrying no `name` parameter at all — whether
+    /// it carries no parameters or carries others.
+    ///
+    /// **The MUST is about the *set* of parameters, which is why the entry is
+    /// the field's and not [`crate::violations::parameter`]'s.** That subject
+    /// holds the two halves of a `name=value` a sender wrote short; this is a
+    /// pair that was never written, and no production is short of anything —
+    /// `*( ";" disposition-parm )` generates the value exactly as it stands.
+    ///
+    /// **Not reported when the quoting never closes**, which is the rule's
+    /// judgement and worth keeping beside the entry: after a stray DQUOTE no
+    /// separator past it is a separator, so a value that plainly carries a
+    /// `name` was announced as missing one. The gate applies to *absence*
+    /// alone — whether that text is a parameter is exactly what the broken
+    /// quoting makes unknowable — and a `name` the scan did find is judged
+    /// either way.
+    ///
+    /// `warn`. A receiving application has nothing to associate the part's data
+    /// with, so the data arrives and belongs to no field of the form.
+    ///
+    // cite(RFC 7578 § 4.2): "The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form"
+    CONTENT_DISPOSITION_NAME_MISSING = {
+        id: "content_disposition_name_missing",
+        title: "A form-data Content-Disposition names no form field",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_7578_4_2],
+    }
+
+    /// A `name` parameter written as a pair of DQUOTEs around nothing:
+    /// `form-data; name=""`.
+    ///
+    /// **Uncited, and the production is why.** `""` is the `quoted-string`
+    /// § 5.6.4 writes, satisfied exactly, carrying a form field name of
+    /// nothing; § 4.2 spends its MUST on the parameter being *there* and then
+    /// *defines* what the value is rather than constraining it. So no sentence
+    /// refuses this value, and what does is this crate reading the definition
+    /// as a purpose — a name is what a receiving application associates the
+    /// data with, and nothing associates nothing.
+    ///
+    /// **Level with [`CONTENT_DISPOSITION_NAME_MISSING`] and deliberately not
+    /// below it**, though the usual rule is that an entry standing on a reading
+    /// does not outrank one standing on a document. It does not outrank it — it
+    /// ranks *with* it, because the receiving application is in the same
+    /// position either way, and saying a name of nothing is milder than no name
+    /// would describe the documents rather than the form.
+    ///
+    /// **The unquoted spelling is a different entry and that is not an
+    /// inconsistency.** `name=` with nothing after it derives from no
+    /// production at all, which is
+    /// [`crate::violations::parameter::PARAMETER_VALUE_EMPTY`] — one sentence
+    /// for every `name=value` in HTTP. Here the grammar is satisfied and only
+    /// the purpose is not, so the two spellings genuinely fail in two places.
+    CONTENT_DISPOSITION_NAME_EMPTY = {
+        id: "content_disposition_name_empty",
+        title: "A form-data Content-Disposition names an empty form field",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[],
+    }
 }
 
 #[cfg(test)]
@@ -94,6 +173,21 @@ mod tests {
         assert!(
             CONTENT_DISPOSITION_SIZE_INVALID.default_severity
                 < CONTENT_DISPOSITION_PARAMETER_DUPLICATED.default_severity
+        );
+    }
+
+    /// The `name` pair's argument, asserted: the uncited entry ranks *with* its
+    /// cited sibling rather than below it, because a receiving application is
+    /// in the same position for both. The rule elsewhere in this catalogue —
+    /// that a reading does not outrank a document — is satisfied by "not
+    /// above", and this is the entry that shows the difference.
+    #[test]
+    fn the_two_ways_to_name_no_form_field_rank_together() {
+        assert!(!CONTENT_DISPOSITION_NAME_MISSING.spec.is_empty());
+        assert!(CONTENT_DISPOSITION_NAME_EMPTY.spec.is_empty());
+        assert_eq!(
+            CONTENT_DISPOSITION_NAME_EMPTY.default_severity,
+            CONTENT_DISPOSITION_NAME_MISSING.default_severity
         );
     }
 }

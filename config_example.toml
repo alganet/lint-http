@@ -1443,6 +1443,14 @@ severity = "warn"
 # The Accept-Encoding wildcard is written where a coding belongs
 severity = "warn"
 
+[violations.content_disposition_name_empty]
+# A form-data Content-Disposition names an empty form field
+severity = "warn"
+
+[violations.content_disposition_name_missing]
+# A form-data Content-Disposition names no form field
+severity = "warn"
+
 [violations.content_disposition_parameter_duplicated]
 # Content-Disposition names one parameter twice
 severity = "warn"

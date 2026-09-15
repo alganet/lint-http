@@ -4,6 +4,9 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_disposition::{
+    CONTENT_DISPOSITION_NAME_EMPTY, CONTENT_DISPOSITION_NAME_MISSING, RFC_7578_4_2,
+};
 use crate::violations::parameter::{PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -28,30 +31,28 @@ pub struct FormDataContentDispositionValid;
 /// The day the linter parses body parts, that reading is RFC 2183's and the
 /// question is worth asking again.
 ///
-/// Two findings are deliberately absent. A `form-data` disposition missing its
-/// `name` altogether is § 4.2's MUST about the *set* of parameters, not a
-/// defect of any one of them. And a `name` whose quoted value holds nothing is
-/// a `quoted-string` deriving exactly as § 5.6.4 says, around a form field name
-/// of nothing: the production is satisfied and the requirement is not, which is
-/// why it does not answer with [`PARAMETER_VALUE_EMPTY`] the way the unquoted
-/// spelling does.
+/// **The two findings that are this rule's own are the field's after all.**
+/// A `form-data` disposition missing its `name` altogether is § 4.2's MUST
+/// about the *set* of parameters and not a defect of any one of them; a `name`
+/// whose quoted value holds nothing is a `quoted-string` deriving exactly as
+/// § 5.6.4 says, around a form field name of nothing. Neither is a parameter
+/// written short, which is why neither answers with [`PARAMETER_VALUE_EMPTY`]
+/// the way the unquoted spelling does — and both are
+/// [`crate::violations::content_disposition`]'s, because the subject is the
+/// field wherever the field is read.
 static DECLARED: &[&ViolationDef] = &[
     &PARAMETER_VALUE_EMPTY,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &CONTENT_DISPOSITION_NAME_MISSING,
+    &CONTENT_DISPOSITION_NAME_EMPTY,
 ];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7578_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7578",
-    section: Some("4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2",
-    note: "Each multipart/form-data *part* MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain a `name` parameter — a requirement on parts, which this rule approximates at the message level",
-};
 const RFC_6266_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6266",
     section: Some("4.1"),
@@ -150,15 +151,12 @@ impl Rule for FormDataContentDispositionValid {
                     return None; // only applies to form-data dispositions
                 }
 
-                // The `name` parameter is a MUST, and its value is meant to be the form
-                // field name — which is the basis for treating an empty one as a defect
-                // below, though the spec does not spell out "non-empty" and an empty
-                // value is a linter judgement rather than a quoted requirement.
-                // cite(RFC 7578 § 4.2): "The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form"
+                // No parameters at all is the same claim the scan below makes,
+                // reached without walking anything: the required pair is not in
+                // the set, and the set is empty.
                 if params_part.is_empty() {
-                    return Some(self.cited(
-                        &RFC_7578_4_2,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CONTENT_DISPOSITION_NAME_MISSING,
                         "Content-Disposition: 'form-data' missing 'name' parameter".into(),
                     ));
                 }
@@ -192,8 +190,11 @@ impl Rule for FormDataContentDispositionValid {
                                 // the unquoted spelling below — where there is
                                 // no value at all — is the parameter's.
                                 Ok(true) => {
-                                    return Some(self.violation(ctx.severity, "Content-Disposition 'form-data' has empty 'name' parameter"
-                                            .into()));
+                                    return Some(ctx.report_with(
+                                        &CONTENT_DISPOSITION_NAME_EMPTY,
+                                        "Content-Disposition 'form-data' has empty 'name' parameter"
+                                            .into(),
+                                    ));
                                 }
                                 Ok(false) => {
                                     name_found = true;
@@ -236,8 +237,8 @@ impl Rule for FormDataContentDispositionValid {
                 // claim about absence. A name the scan did find is judged above and
                 // needs no such gate.
                 if !name_found && crate::helpers::list::quoting_is_balanced(params_part) {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CONTENT_DISPOSITION_NAME_MISSING,
                         "Content-Disposition: 'form-data' missing 'name' parameter".into(),
                     ));
                 }
@@ -286,11 +287,12 @@ mod tests {
     use rstest::rstest;
 
     /// The `name` parameter is read against the same productions any other
-    /// parameter of this field is, and the last two rows are the pair that
+    /// parameter of this field is, and rows three and four are the pair that
     /// looks like one finding and is two: a value that does not exist is
     /// § 5.6.6's, and a pair of DQUOTEs around nothing is a `quoted-string`
-    /// that derives — leaving a form field name of nothing, which is § 4.2's
-    /// sentence and stays this rule's.
+    /// that derives — leaving a form field name of nothing, which is the
+    /// field's own entry. The last two rows are the parameter that was never
+    /// written at all, reached with other parameters beside it and with none.
     ///
     /// The first two rows are asserted against `content_disposition_parameter_
     /// valid` reading the same shapes at the same field, out of a rule that
@@ -302,8 +304,9 @@ mod tests {
     // outright, so the transaction cannot be built to carry one.
     #[case("form-data; name=\"a\"b\"", "quoted_string_quote_escape_missing")]
     #[case("form-data; name=", "parameter_value_empty")]
-    #[case("form-data; name=\"\"", "")]
-    #[case("form-data; filename=example.txt", "")]
+    #[case("form-data; name=\"\"", "content_disposition_name_empty")]
+    #[case("form-data; filename=example.txt", "content_disposition_name_missing")]
+    #[case("form-data", "content_disposition_name_missing")]
     fn the_name_parameter_reports_the_productions_it_borrows(
         #[case] value: &str,
         #[case] id: &str,
@@ -321,8 +324,6 @@ mod tests {
             ),
         )
         .expect("a finding");
-        // An unconverted site carries no defect id at all, which is what the
-        // two empty rows assert.
         assert_eq!(found.violation, id, "{value}");
     }
 
