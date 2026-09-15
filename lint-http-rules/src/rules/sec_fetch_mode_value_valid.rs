@@ -5,12 +5,21 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::sec_fetch::{
+    FETCH_METADATA_2_2, SEC_FETCH_MODE_VALUE_INVALID, SEC_FETCH_VALUE_EMPTY,
+    SEC_FETCH_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
 /// repetition. The value on each line here is measured by the checks below;
 /// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &SEC_FETCH_VALUE_EMPTY,
+    &SEC_FETCH_VALUE_MALFORMED,
+    &SEC_FETCH_MODE_VALUE_INVALID,
+];
 
 /// `Sec-Fetch-Mode` header must be one of the canonical values listed in
 /// the Fetch Metadata spec: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`.
@@ -18,15 +27,9 @@ static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 /// token carries no case folding; token syntax is validated.
 pub struct SecFetchModeValueValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const FETCH_METADATA_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-spec: "Fetch Metadata",
-section: Some("2.2"),
-url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode-header",
-note: "Fetch Metadata (W3C) — `Sec-Fetch-Mode`: an sf-token whose valid values are the five request modes",
-        };
+// Every reference this rule names lives on the subject it reports through and
+// is imported back for `specifications()`, so a def's citation and the rule's
+// documented reading are the same value rather than two copies of it.
 
 impl RuleMeta for SecFetchModeValueValid {
     fn id(&self) -> &'static str {
@@ -126,7 +129,10 @@ impl Rule for SecFetchModeValueValid {
             // An empty value cannot be a token.
             // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
             if val.is_empty() {
-                return Some(self.violation(ctx.severity, "Sec-Fetch-Mode header is empty".into()));
+                return Some(ctx.report_with(
+                    &SEC_FETCH_VALUE_EMPTY,
+                    "Sec-Fetch-Mode header is empty".into(),
+                ));
             }
 
             // Token must not contain invalid token chars. This checks the HTTP `token`
@@ -135,8 +141,8 @@ impl Rule for SecFetchModeValueValid {
             // message a bad value gets.
             // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
             if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &SEC_FETCH_VALUE_MALFORMED,
                     format!(
                         "Sec-Fetch-Mode header contains invalid token character: {}",
                         crate::helpers::shown::describe_char(c)
@@ -151,8 +157,8 @@ impl Rule for SecFetchModeValueValid {
             // cite(Fetch Metadata § 2.2): "Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket"."
             match val {
                 "cors" | "no-cors" | "same-origin" | "navigate" | "websocket" => None,
-                _ => Some(self.violation(
-                    ctx.severity,
+                _ => Some(ctx.report_with(
+                    &SEC_FETCH_MODE_VALUE_INVALID,
                     format!("Unrecognized Sec-Fetch-Mode value: '{}'", val),
                 )),
             }

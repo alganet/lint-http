@@ -5,12 +5,21 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::sec_fetch::{
+    FETCH_METADATA_2_1, SEC_FETCH_DEST_VALUE_INVALID, SEC_FETCH_VALUE_EMPTY,
+    SEC_FETCH_VALUE_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
 /// The one entry a field with no list form always has available: its own
 /// repetition. The value on each line here is measured by the checks below;
 /// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &SEC_FETCH_VALUE_EMPTY,
+    &SEC_FETCH_VALUE_MALFORMED,
+    &SEC_FETCH_DEST_VALUE_INVALID,
+];
 
 /// `Sec-Fetch-Dest` header must be one of the canonical destination tokens
 /// defined by Fetch (`empty`, `audio`, `audioworklet`, `document`, `embed`,
@@ -21,15 +30,9 @@ static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 /// carries no case folding; token syntax is validated.
 pub struct SecFetchDestValueValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const FETCH_METADATA_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-spec: "Fetch Metadata",
-section: Some("2.1"),
-url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header",
-note: "Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations",
-        };
+// Every reference this rule names lives on the subject it reports through and
+// is imported back for `specifications()`, so a def's citation and the rule's
+// documented reading are the same value rather than two copies of it.
 
 impl RuleMeta for SecFetchDestValueValid {
     fn id(&self) -> &'static str {
@@ -134,9 +137,8 @@ impl Rule for SecFetchDestValueValid {
             // An empty value cannot be a token.
             // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
             if val.is_empty() {
-                return Some(self.cited(
-                    &FETCH_METADATA_2_1,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &SEC_FETCH_VALUE_EMPTY,
                     "Sec-Fetch-Dest header is empty".into(),
                 ));
             }
@@ -147,9 +149,8 @@ impl Rule for SecFetchDestValueValid {
             // message a bad value gets.
             // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
             if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
-                return Some(self.cited(
-                    &FETCH_METADATA_2_1,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &SEC_FETCH_VALUE_MALFORMED,
                     format!(
                         "Sec-Fetch-Dest header contains invalid token character: {}",
                         crate::helpers::shown::describe_char(c)
@@ -174,8 +175,8 @@ impl Rule for SecFetchDestValueValid {
                 | "iframe" | "image" | "json" | "manifest" | "object" | "paintworklet"
                 | "report" | "script" | "serviceworker" | "sharedworker" | "style" | "text"
                 | "track" | "video" | "webidentity" | "worker" | "xslt" => None,
-                _ => Some(self.violation(
-                    ctx.severity,
+                _ => Some(ctx.report_with(
+                    &SEC_FETCH_DEST_VALUE_INVALID,
                     format!("Unrecognized Sec-Fetch-Dest value: '{}'", val),
                 )),
             }
