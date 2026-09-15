@@ -416,14 +416,22 @@ defects! {
     }
 
     /// A cookie sent where the store's own rules exclude it: one whose expiry
-    /// has passed, or one whose `Path` does not path-match the request.
+    /// has passed, one whose `Path` does not path-match the request, or one
+    /// whose `Domain` does not domain-match its host.
     ///
-    /// **One entry over two sections, because the repair is one and the
-    /// evidence is the same store.** § 5.3 has a user agent evict every expired
-    /// cookie as soon as one exists in the store, and § 5.4's first step
-    /// excludes a cookie whose path does not match — so in both cases the
-    /// request carries a cookie the algorithm that builds a `Cookie` field
-    /// would not have included. The message names which and quotes the section.
+    /// **One entry over two sections and three requirements, because the repair
+    /// is one and the evidence is the same store.** § 5.3 has a user agent evict
+    /// every expired cookie as soon as one exists in the store, and § 5.4's
+    /// cookie-list excludes a cookie whose path or domain does not match — so in
+    /// every case the request carries a cookie the algorithm that builds a
+    /// `Cookie` field would not have included. The message names which and
+    /// quotes the section.
+    ///
+    /// **Two rules declare this entry and they do not overlap**, which is what
+    /// a shared entry is for: one reads the store for an expiry or a path the
+    /// request is outside of, the other for a host the cookie was never set
+    /// for. A third reading — the path, from the other rule — *was* a duplicate
+    /// and was deleted rather than declared.
     ///
     /// **`_ignored` and not `_forbidden`**, for the same reason as the entry
     /// above: what was not honoured is an instruction the *server* wrote and

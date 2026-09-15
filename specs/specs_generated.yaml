@@ -823,7 +823,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
       line: 205
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 495
+      line: 503
   - label: cookie_same_site_enforced (2)
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
@@ -2300,6 +2300,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
       line: 409
+  - label: cookie (6)
+    section: § 5.4
+    snippet: The request-uri's path path-matches the cookie's path.
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 447
   - label: cookie_attribute_consistent
     section: § 4.1.1
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
@@ -2343,15 +2349,7 @@ sources:
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_matching.rs
-      line: 163
-  - label: cookie_domain_matching (2)
-    section: § 5.4
-    snippet: The request-uri's path path-matches the cookie's path.
-    cited_by:
-    - file: lint-http-rules/src/rules/cookie_domain_matching.rs
-      line: 173
-    - file: lint-http-rules/src/violations/cookie.rs
-      line: 439
+      line: 162
   - label: cookie_domain_valid
     section: § 5.2
     snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
@@ -2379,7 +2377,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
       line: 281
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 438
+      line: 446
   - label: cookie_lifecycle (3)
     section: § 5.4
     snippet: Cookies with longer paths are listed before cookies with shorter paths.
