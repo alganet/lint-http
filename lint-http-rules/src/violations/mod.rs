@@ -104,6 +104,7 @@ pub mod pragma;
 pub mod prefer;
 pub mod priority;
 pub mod problem_details;
+pub mod product;
 pub mod proxy_authenticate;
 pub mod proxy_connection;
 pub mod quic_transport_parameters;
@@ -548,8 +549,12 @@ mod tests {
         /// names nothing, because the value it reports derives — and 492 of 523
         /// with the two legacy security fields, whose third entry names nothing
         /// either, because no document ever defined the field it is about, and
-        /// 493 of 524 with the `=` a ranges-specifier is written around.
-        const FLOOR: usize = 493;
+        /// 493 of 524 with the `=` a ranges-specifier is written around, and 495
+        /// of 526 with the assembly `Server` and `User-Agent` share — where the
+        /// entry two rules declare cites Appendix A, because the collected ABNF
+        /// is the one section printing a production neither field's own section
+        /// restates.
+        const FLOOR: usize = 495;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

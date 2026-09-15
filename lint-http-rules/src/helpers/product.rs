@@ -62,13 +62,18 @@ pub enum ProductDefect {
     NameEmpty(Option<u8>),
     /// A slash with no `product-version` after it.
     VersionEmpty,
-    /// An octet no `tchar` admits, in the half named.
+    /// An octet no `tchar` admits, in the half named. Only ever a `Name` or a
+    /// `Version`: an octet after a *comment* is in no token at all, and
+    /// [`OctetAfterComment`](Self::OctetAfterComment) is that one.
     Character {
         /// The half the octet stopped.
         part: Part,
         /// The octet.
         byte: u8,
     },
+    /// An octet after a comment that closed, opening no element and separating
+    /// nothing: the production writes `RWS` there or ends.
+    OctetAfterComment(u8),
     /// Two elements with no `RWS` between them, the second being a comment.
     SeparatorMissingBeforeComment(Part),
     /// Two elements with no `RWS` between them, the second being a product.
@@ -105,6 +110,10 @@ impl ProductDefect {
             Self::SeparatorMissingBeforeProduct(part) => format!(
                 "missing required whitespace before a product identifier, after the {}",
                 part.label()
+            ),
+            Self::OctetAfterComment(b) => format!(
+                "expected whitespace or the end of the value after a comment, found {}",
+                describe(b)
             ),
             Self::Comment(defect) => defect.message(),
         }
@@ -195,6 +204,11 @@ pub fn check_product_list(value: &[u8]) -> Result<(), ProductDefect> {
                 ProductDefect::SeparatorMissingBeforeComment(previous)
             } else if is_tchar_byte(v[i]) {
                 ProductDefect::SeparatorMissingBeforeProduct(previous)
+            } else if previous == Part::Comment {
+                // The comment closed at its `)`, so this octet is outside it and
+                // the message must not say the comment holds it. What the
+                // production writes here is `RWS` or nothing at all.
+                ProductDefect::OctetAfterComment(v[i])
             } else {
                 ProductDefect::Character {
                     part: previous,

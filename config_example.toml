@@ -2435,6 +2435,14 @@ severity = "warn"
 # An error response carries a generic media type and no error format
 severity = "info"
 
+[violations.product_missing]
+# A product list opens with something that is not a product
+severity = "warn"
+
+[violations.product_separator_missing]
+# A product list writes no whitespace between two elements
+severity = "warn"
+
 [violations.proxy_authenticate_redundant]
 # Proxy-Authenticate arrives on a status that gives it nothing to do
 severity = "info"

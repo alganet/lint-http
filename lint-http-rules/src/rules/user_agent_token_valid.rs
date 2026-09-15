@@ -7,11 +7,13 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::comment::{
     COMMENT_CHARACTER_FORBIDDEN, COMMENT_DELIMITER_MISSING, RFC_9110_5_6_5,
 };
+use crate::violations::product::{
+    product_defect, PRODUCT_MISSING, PRODUCT_SEPARATOR_MISSING, RFC_9110_5_6_3, RFC_9110_A,
+};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::RFC_9110_5_6_4;
 use crate::violations::token::{
-    product_defect, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
-    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY, TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
 
@@ -26,10 +28,11 @@ use crate::violations::ViolationDef;
 /// way: an unterminated one and an octet `ctext` refuses are the comment's, and
 /// the escape inside it is `quoted-pair`'s, which a `quoted-string` reads too.
 ///
-/// What stays unnamed is the assembly: a value that opens with a comment, two
-/// elements with no `RWS` between them, an empty value. One reader measures all
-/// of it, and a statement a construct makes about its own parts is not a
-/// borrowed production's defect.
+/// **The assembly is the [`product`](crate::violations::product) subject's**,
+/// and it is what the borrowed productions cannot answer: a value that opens
+/// with a comment, an empty value, two elements with no `RWS` between them.
+/// One reader measures all of it, and the mapping it feeds is total — which is
+/// what a converted reader is supposed to reach.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -37,6 +40,8 @@ static DECLARED: &[&ViolationDef] = &[
     &COMMENT_DELIMITER_MISSING,
     &COMMENT_CHARACTER_FORBIDDEN,
     &QUOTED_PAIR_MALFORMED,
+    &PRODUCT_MISSING,
+    &PRODUCT_SEPARATOR_MISSING,
 ];
 
 pub struct UserAgentTokenValid;
@@ -72,6 +77,8 @@ severity = "warn"
             RFC_9110_5_6_5,
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
+            RFC_9110_A,
+            RFC_9110_5_6_3,
         ]
     }
 
@@ -187,10 +194,7 @@ impl Rule for UserAgentTokenValid {
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                 if let Err(defect) = crate::helpers::product::check_product_list(hv.as_bytes()) {
                     let message = format!("Invalid User-Agent header: {}", defect.message());
-                    return Some(match product_defect(defect) {
-                        Some(def) => ctx.report_with(def, message),
-                        None => self.violation(ctx.severity, message),
-                    });
+                    return Some(ctx.report_with(product_defect(defect), message));
                 }
             }
 

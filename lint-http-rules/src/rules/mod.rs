@@ -1681,6 +1681,11 @@ severity = "warn"
         /// standards body ever wrote down, and the value set this crate accepts
         /// is narrower than the one the description of it records — so a
         /// reference would say a document refuses `1` when none does.
+        /// **`server_header_product_valid` and `user_agent_token_valid` gave up
+        /// the `None` arm of one shared mapping**, which is what an unconverted
+        /// reader leaves behind: the parts of a `product` had subjects and the
+        /// way they are assembled did not, so the arm was every verdict about
+        /// the assembly, at both fields, waiting for one file.
         const FLOOR: usize = 2;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
