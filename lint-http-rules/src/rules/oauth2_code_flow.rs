@@ -30,25 +30,20 @@ pub struct Oauth2CodeFlow;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6749_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6749",
-    section: Some("4.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.1",
-    note:
-        "Authorization Request — response_type MUST be \"code\"; the state parameter is RECOMMENDED",
+use crate::violations::oauth2::{
+    OAUTH2_CALLBACK_STATE_MISSING, OAUTH2_REQUEST_STATE_MISSING, OAUTH2_STATE_CONFLICTING,
+    RFC_6749_10_12, RFC_6749_4_1_1, RFC_6749_4_1_2,
 };
-const RFC_6749_4_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6749",
-    section: Some("4.1.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.2",
-    note: "Authorization Response — the callback carries the code, and echoes the exact state if the request had one",
-};
-const RFC_6749_10_12: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6749",
-    section: Some("10.12"),
-    url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-10.12",
-    note: "Cross-Site Request Forgery — the client MUST implement CSRF protection for its redirection URI and SHOULD use the state parameter for it (the rule's real basis)",
-};
+use crate::violations::ViolationDef;
+
+/// Three, and they are the two ends of one flow plus the join between them:
+/// a request that started without a binding, a callback that arrived without
+/// one, and a callback whose binding matches nothing that was sent.
+static DECLARED: &[&ViolationDef] = &[
+    &OAUTH2_REQUEST_STATE_MISSING,
+    &OAUTH2_CALLBACK_STATE_MISSING,
+    &OAUTH2_STATE_CONFLICTING,
+];
 
 impl RuleMeta for Oauth2CodeFlow {
     fn id(&self) -> &'static str {
@@ -71,6 +66,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_6749_4_1_1, RFC_6749_4_1_2, RFC_6749_10_12]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -150,7 +149,7 @@ impl Rule for Oauth2CodeFlow {
                             // OK
                         }
                         _ => {
-                            return Some(self.violation(ctx.severity, "OAuth2 authorization request with response_type=code missing or empty state parameter".into()));
+                            return Some(ctx.report_with(&OAUTH2_REQUEST_STATE_MISSING, "OAuth2 authorization request with response_type=code missing or empty state parameter".into()));
                         }
                     }
                     // nothing else to check for the request itself
@@ -185,12 +184,12 @@ impl Rule for Oauth2CodeFlow {
                             }
                         }
                         if !seen {
-                            return Some(self.violation(ctx.severity, "OAuth2 authorization callback used a state value that was not seen in a prior request".into()));
+                            return Some(ctx.report_with(&OAUTH2_STATE_CONFLICTING, "OAuth2 authorization callback used a state value that was not seen in a prior request".into()));
                         }
                     }
                     _ => {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &OAUTH2_CALLBACK_STATE_MISSING,
                             "OAuth2 authorization callback missing or empty state parameter".into(),
                         ));
                     }
@@ -368,6 +367,37 @@ mod tests {
         )
         .unwrap();
         assert!(v2.message.contains("missing or empty state"));
+    }
+
+    /// Which entry answers for each leg of the flow — the two ends and the
+    /// join between them.
+    #[test]
+    fn each_leg_of_the_flow_names_its_entry() {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["oauth2_code_flow"]);
+        let empty = crate::transaction_history::TransactionHistory::empty();
+
+        let request = crate::test_helpers::run_rule(
+            &Oauth2CodeFlow,
+            &make_tx("/authorize?response_type=code&client_id=abc"),
+            &empty,
+            &cfg,
+        )
+        .expect("a finding");
+        assert_eq!(request.violation, "oauth2_request_state_missing");
+
+        let callback =
+            crate::test_helpers::run_rule(&Oauth2CodeFlow, &make_tx("/cb?code=xyz"), &empty, &cfg)
+                .expect("a finding");
+        assert_eq!(callback.violation, "oauth2_callback_state_missing");
+
+        let unseen = crate::test_helpers::run_rule(
+            &Oauth2CodeFlow,
+            &make_tx("/cb?code=xyz&state=nobody-sent-this"),
+            &empty,
+            &cfg,
+        )
+        .expect("a finding");
+        assert_eq!(unseen.violation, "oauth2_state_conflicting");
     }
 
     #[test]
