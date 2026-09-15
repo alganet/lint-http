@@ -2215,6 +2215,10 @@ severity = "warn"
 # A response carries a field this specification deprecates
 severity = "info"
 
+[violations.priority_cacheability_missing]
+# A Priority response says nothing about caching
+severity = "warn"
+
 [violations.priority_incremental_malformed]
 # Priority incremental is not a Boolean
 severity = "warn"

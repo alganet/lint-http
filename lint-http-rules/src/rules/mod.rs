@@ -1601,7 +1601,12 @@ severity = "warn"
         /// every finding it made**: one `cited` call wrote § 4.2's discard
         /// sentence into all of them, and the two entries replacing it carry
         /// that sentence and the ASCII-conversion step before it.
-        const FLOOR: usize = 33;
+        /// **`priority_and_cacheability_consistent` gave up its only one**,
+        /// and it is the first converted rule whose remaining `// cite` had to
+        /// be *found* rather than left behind: the rule's whole enforcement was
+        /// one § 5 sentence, so what stays at the site is the opening clause of
+        /// it that scopes the rule to responses.
+        const FLOOR: usize = 32;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

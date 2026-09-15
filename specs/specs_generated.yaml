@@ -11399,12 +11399,18 @@ sources:
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.html
   fragments:
-  - label: priority_and_cacheability_consistent
+  - label: priority
     section: § 5
     snippet: the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)
     cited_by:
+    - file: lint-http-rules/src/violations/priority.rs
+      line: 166
+  - label: priority_and_cacheability_consistent
+    section: § 5
+    snippet: When an origin server generates the Priority response header field based on properties of an HTTP request it receives
+    cited_by:
     - file: lint-http-rules/src/rules/priority_and_cacheability_consistent.rs
-      line: 128
+      line: 85
   - label: priority_header_syntax
     section: § 4
     snippet: For both the Priority header field and the PRIORITY_UPDATE frame, the set of priority parameters is encoded as a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]).
@@ -11438,7 +11444,7 @@ sources:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 397
     - file: lint-http-rules/src/violations/priority.rs
-      line: 77
+      line: 86
   - label: priority_header_syntax (6)
     section: § 4.1
     snippet: between 0 and 7 inclusive, in descending order of priority. The default is 3.
@@ -11446,7 +11452,7 @@ sources:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 428
     - file: lint-http-rules/src/violations/priority.rs
-      line: 102
+      line: 111
   - label: priority_header_syntax (7)
     section: § 4.2
     snippet: The default value of the incremental parameter is false (0).
@@ -11460,7 +11466,7 @@ sources:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 437
     - file: lint-http-rules/src/violations/priority.rs
-      line: 125
+      line: 134
   - label: priority_header_syntax (9)
     section: § 4.3
     snippet: Since unknown priority parameters are ignored, new priority parameters should not change the interpretation of, or modify, the urgency (see Section 4.1) or incremental (see Section 4.2) priority parameters in a way that is not backwards compatible or fallback safe.

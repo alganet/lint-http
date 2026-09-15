@@ -12,7 +12,7 @@ When an origin server includes a `Priority` response header (RFC 9218 §5) it is
 
 ## Specifications
 
-- [RFC 9218 §5](https://www.rfc-editor.org/rfc/rfc9218.html#section-5): `Priority` response header guidance: "When an origin server generates the Priority response header ... the server is expected to control the cacheability ... by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
+- [RFC 9218 §5](https://www.rfc-editor.org/rfc/rfc9218.html#section-5): The `Priority` response header field — an end-to-end signal a server may generate from properties of the request, and the expectation that a server doing so also controls the cacheability of what it sends
 - [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html): HTTP caching and `Cache-Control`/`Vary` semantics (informative)
 
 ## Configuration

@@ -510,8 +510,9 @@ mod tests {
         /// not the previous number plus two — the recipe is to read what the
         /// failing assertion prints, never to increment. The `priority`
         /// subject was read the same way: 425 of 447, and 428 of 450 when the
-        /// Structured Fields reader was typed.
-        const FLOOR: usize = 428;
+        /// Structured Fields reader was typed, and 429 of 451 with the
+        /// `Priority` response's caching entry.
+        const FLOOR: usize = 429;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

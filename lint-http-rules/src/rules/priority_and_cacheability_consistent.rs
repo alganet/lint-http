@@ -4,18 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::priority::{PRIORITY_CACHEABILITY_MISSING, RFC_9218_5};
+use crate::violations::ViolationDef;
 
 pub struct PriorityAndCacheabilityConsistent;
+
+/// One entry, on the subject `priority_header_syntax` opened. The two rules do
+/// not overlap: that one reads a `Priority` that was written and asks what it
+/// says, this one reads a `Priority` that was written and asks what the rest of
+/// the response says about caching it.
+static DECLARED: &[&ViolationDef] = &[&PRIORITY_CACHEABILITY_MISSING];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9218_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9218",
-    section: Some("5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-5",
-    note: "`Priority` response header guidance: \"When an origin server generates the Priority response header ... the server is expected to control the cacheability ... by using header fields that control the caching behavior (e.g., Cache-Control, Vary)\"",
-};
 const RFC_9111: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: None,
@@ -46,6 +48,10 @@ severity = "warn"
         &[RFC_9218_5, RFC_9111]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -71,10 +77,12 @@ severity = "warn"
 
 impl Rule for PriorityAndCacheabilityConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
-        // §5's cacheability expectation is scoped to the response header an origin
-        // server generates ("When an origin server generates the Priority response
-        // header field ..."), so only responses are inspected. The §5 sentence is
-        // cited verbatim on the violation below; this stays prose to avoid requoting it.
+        // The expectation is scoped by its own opening clause, which is what
+        // this rule reads to decide it inspects responses and nothing else: a
+        // request carrying a `Priority` is asked for nothing here. The other
+        // half of the sentence -- what such a server is expected to do -- is
+        // the entry's, and sits on it beside its reference.
+        // cite(RFC 9218 § 5): "When an origin server generates the Priority response header field based on properties of an HTTP request it receives"
         crate::rules::RuleScope::Server
     }
 
@@ -118,17 +126,16 @@ impl Rule for PriorityAndCacheabilityConsistent {
             let has_cache_control = resp.headers.contains_key("cache-control");
             let has_vary = resp.headers.contains_key("vary");
 
-            // §5's soft expectation is this rule's basis: a server that emits a Priority
-            // response header should also send a field that controls caching, so a cache
-            // does not reuse the wrong variant. "expected to" is descriptive, not a
-            // MUST/SHOULD, so this is a best-practice warning; Cache-Control and Vary are
-            // interchangeable here per §5's own "(e.g., Cache-Control, Vary)". (Replaces a
-            // mis-anchored RFC 9111 §4.2.2 heuristic-freshness MAY, which spoke to neither
-            // the Priority expectation nor the Vary half of the check.)
-            // cite(RFC 9218 § 5): "the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
+            // Either field answers, which is § 5's own parenthesis rather than a
+            // tolerance: it asks for "header fields that control the caching
+            // behavior" and names these two as examples. So the entry is named
+            // for the class and the message names the two that would have done.
+            // (This replaced a mis-anchored RFC 9111 § 4.2.2 heuristic-freshness
+            // MAY, which spoke to neither the Priority expectation nor the Vary
+            // half of the check.)
             if !has_cache_control && !has_vary {
-                return Some(self.cited(&RFC_9218_5, ctx.severity, format!(
-                        "Response includes Priority header ('{}') but lacks Cache-Control or Vary to control cacheability; origin servers emitting Priority should control cacheability per RFC 9218 §5",
+                return Some(ctx.report_with(&PRIORITY_CACHEABILITY_MISSING, format!(
+                        "Response includes Priority header ('{}') but lacks Cache-Control or Vary to control cacheability",
                         priority
                     )));
             }
@@ -163,7 +170,9 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Priority header"));
+        let v = v.unwrap();
+        assert_eq!(v.violation, "priority_cacheability_missing");
+        assert!(v.message.contains("Priority header"));
     }
 
     #[rstest]
