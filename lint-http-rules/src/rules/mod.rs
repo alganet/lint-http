@@ -1606,7 +1606,11 @@ severity = "warn"
         /// be *found* rather than left behind: the rule's whole enforcement was
         /// one § 5 sentence, so what stays at the site is the opening clause of
         /// it that scopes the rule to responses.
-        const FLOOR: usize = 32;
+        /// **`permissions_policy_directives_valid` gave up its one**, and the
+        /// entry that replaced it is the production's rather than the field's:
+        /// what the site cited was RFC 9651 § 4.2's discard rule, which is what
+        /// `structured_field_character_forbidden` was opened on.
+        const FLOOR: usize = 31;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

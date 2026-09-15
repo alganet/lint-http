@@ -2207,6 +2207,14 @@ severity = "warn"
 # Percent-encoding is not two hexadecimal digits
 severity = "warn"
 
+[violations.permissions_policy_allowlist_invalid]
+# A directive's allowlist is none of the permitted forms
+severity = "warn"
+
+[violations.permissions_policy_report_to_malformed]
+# A directive's report-to parameter is not a String
+severity = "info"
+
 [violations.pragma_conflicting]
 # A request asks for no-cache in the field its Cache-Control overrides
 severity = "warn"
@@ -2570,6 +2578,10 @@ severity = "warn"
 [violations.structured_field_character_forbidden]
 # Structured field holds an octet outside US-ASCII
 severity = "warn"
+
+[violations.structured_field_empty]
+# Structured field is written with nothing on it
+severity = "info"
 
 [violations.structured_field_inner_list_malformed]
 # Structured field Inner List has no closing parenthesis

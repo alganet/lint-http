@@ -22,9 +22,13 @@ Reports a `Permissions-Policy` response header carrying something a browser will
 
 ## Specifications
 
-- [Permissions Policy](https://w3c.github.io/webappsec-permissions-policy/#structured-header-serialization): §5.2 Structured header serialization — the production this rule enforces. Not §5.1, which is the HTML attribute and has a different feature-identifier grammar. No section number: an editor's draft renumbers
-- [RFC 9651 §3.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.2): Dictionaries — member keys cannot contain uppercase, unknown members MUST be ignored, and members may be split across field lines
-- [RFC 9651 §4.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2): Parsing — a failure discards the entire field value, which is why a malformed member name is not a local problem
+- [Permissions Policy](https://w3c.github.io/webappsec-permissions-policy/#structured-header-serialization): §5.2 Structured header serialization — the production this subject answers for. Not §5.1, which is the HTML attribute and has a feature-identifier grammar of its own
+- [RFC 9651 §3.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.2): Dictionaries — keys cannot contain uppercase, unknown members are ignored by recipients, members may be spread across field lines, and an empty Dictionary is spelled by leaving the field out
+- [RFC 9651 §4.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2): Parsing — the algorithm a recipient runs over a joined field value, the `field_type` it is given, the ASCII conversion it does before choosing one, and the two answers it offers when parsing fails
+- [RFC 9651 §4.2.1.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.1.2): Parsing an Inner List — space-separated Items between a `(` and a `)`, and the failure when the closing parenthesis never arrives
+- [RFC 9651 §4.2.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.2): Parsing a Dictionary: a member is a key and, optionally, an `=` and a value — a bare key carries the Boolean true rather than being a member without one — and the loop fails on a comma with nothing after it
+- [RFC 9651 §4.2.3.1](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.1): Parsing a Bare Item — seven types chosen by the value's first character, and a single step for a value that is none of them
+- [RFC 9651 §4.2.3.3](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2.3.3): Parsing a Key: a `key` opens with `lcalpha` or `*` and continues with `lcalpha`, DIGIT, `_`, `-`, `.` or `*` — the production every Dictionary member name and every parameter name is written in, and the one an uppercase letter fails
 
 ## Configuration
 

@@ -64,6 +64,15 @@ pub const RFC_9651_4_2_1_2: SpecRef = SpecRef {
     note: "Parsing an Inner List — space-separated Items between a `(` and a `)`, and the failure when the closing parenthesis never arrives",
 };
 
+/// Dictionaries: what a member is, what a key may hold, and how an empty one
+/// is written.
+pub const RFC_9651_3_2: SpecRef = SpecRef {
+    spec: "RFC 9651",
+    section: Some("3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.2",
+    note: "Dictionaries — keys cannot contain uppercase, unknown members are ignored by recipients, members may be spread across field lines, and an empty Dictionary is spelled by leaving the field out",
+};
+
 /// The parsing algorithm every Structured Field is read by: the byte
 /// conversion that precedes any type, the MUST to join a field's lines before
 /// running it, and the discard rule that makes one failure cost the whole
@@ -314,6 +323,35 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9651_4_2_1_2],
+    }
+
+    /// A field line written with nothing on it: `Permissions-Policy:`.
+    ///
+    /// **The one entry in this subject that is not a failure.** § 4.2's
+    /// algorithms end by returning an empty List or an empty Dictionary, so
+    /// nothing is discarded and no member is lost — which is exactly why it
+    /// needs saying. § 3.2 spells an empty Dictionary by *leaving the field
+    /// out*, so a sender that wrote one instead wrote a line that says nothing
+    /// and reads, to anyone looking at the message, as though it said
+    /// something.
+    ///
+    /// **Not every Dictionary field wants this reported**, and that is a
+    /// declaring rule's judgement rather than the entry's: a `Priority:` with
+    /// nothing on it expresses no preference, which is a defensible thing for a
+    /// client to say, while a `Permissions-Policy:` with nothing on it grants
+    /// and denies nothing and is never what a server meant. The entry is here
+    /// for the rules that make the call.
+    ///
+    /// `info`: nothing is lost and nothing is refused. What the finding buys is
+    /// a sender learning that the line has no reader.
+    ///
+    // cite(RFC 9651 § 3.2): "As with Lists, an empty Dictionary is represented by omitting the entire field."
+    STRUCTURED_FIELD_EMPTY = {
+        id: "structured_field_empty",
+        title: "Structured field is written with nothing on it",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_9651_3_2],
     }
 }
 

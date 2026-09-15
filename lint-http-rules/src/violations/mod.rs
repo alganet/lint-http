@@ -92,6 +92,7 @@ pub mod multipart_body;
 pub mod node;
 pub mod origin_agent_cluster;
 pub mod parameter;
+pub mod permissions_policy;
 pub mod pragma;
 pub mod priority;
 pub mod problem_details;
@@ -511,8 +512,9 @@ mod tests {
         /// failing assertion prints, never to increment. The `priority`
         /// subject was read the same way: 425 of 447, and 428 of 450 when the
         /// Structured Fields reader was typed, and 429 of 451 with the
-        /// `Priority` response's caching entry.
-        const FLOOR: usize = 429;
+        /// `Priority` response's caching entry, and 432 of 454 with
+        /// `Permissions-Policy`'s two.
+        const FLOOR: usize = 432;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
