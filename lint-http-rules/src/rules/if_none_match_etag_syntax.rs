@@ -4,10 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::conditional::CONDITIONAL_EMPTY;
 use crate::violations::etag::{
     entity_tag_defect, ETAG_CHARACTER_FORBIDDEN, ETAG_DELIMITER_MISSING,
     ETAG_WEAK_INDICATOR_INVALID, RFC_9110_8_8_3,
 };
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::ViolationDef;
 
 /// The production's three defects, borrowed whole.
@@ -22,6 +24,8 @@ static DECLARED: &[&ViolationDef] = &[
     &ETAG_WEAK_INDICATOR_INVALID,
     &ETAG_DELIMITER_MISSING,
     &ETAG_CHARACTER_FORBIDDEN,
+    &CONDITIONAL_EMPTY,
+    &LIST_MEMBER_EMPTY,
 ];
 
 /// `If-None-Match` header must be either `*` or a comma-separated list of entity-tags
@@ -59,7 +63,7 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_8_3, RFC_9110_13_1_2]
+        &[RFC_9110_8_8_3, RFC_9110_13_1_2, RFC_9110_5_6_1_1]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -154,8 +158,8 @@ impl Rule for IfNoneMatchEtagSyntax {
             // written. Asked of the whole value, where the old `seen_any` flag asked
             // it of a walk that silently dropped every empty member.
             if value.is_empty() {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &CONDITIONAL_EMPTY,
                     "If-None-Match header is empty or contains only whitespace".into(),
                 ));
             }
@@ -172,8 +176,8 @@ impl Rule for IfNoneMatchEtagSyntax {
                 // about the list and not about a quoted-string that is not there.
                 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                 if member.is_empty() {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &LIST_MEMBER_EMPTY,
                         "If-None-Match header contains an empty list element".into(),
                     ));
                 }
