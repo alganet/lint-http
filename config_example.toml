@@ -1095,6 +1095,14 @@ severity = "warn"
 # Access-Control-Allow-Credentials states a value that is not `true`
 severity = "warn"
 
+[violations.access_control_allow_origin_conflicting]
+# Access-Control-Allow-Origin echoes an origin that did not ask
+severity = "warn"
+
+[violations.access_control_allow_origin_credentials_conflicting]
+# The wildcard origin sits on a response that also allows credentials
+severity = "warn"
+
 [violations.access_control_allow_origin_empty]
 # Access-Control-Allow-Origin is written with no value on it
 severity = "warn"
@@ -2249,6 +2257,18 @@ severity = "warn"
 
 [violations.origin_agent_cluster_malformed]
 # Origin-Agent-Cluster carries a list where a boolean is due
+severity = "warn"
+
+[violations.origin_malformed]
+# An Origin derives from neither null nor a serialized origin
+severity = "warn"
+
+[violations.origin_missing]
+# A request that must say where it came from carries no Origin
+severity = "warn"
+
+[violations.origin_path_forbidden]
+# An Origin names a path the production has no component for
 severity = "warn"
 
 [violations.parameter_equals_missing]

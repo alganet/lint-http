@@ -1642,7 +1642,11 @@ severity = "warn"
         /// catalogue whose subject is a *cache* rather than a field: § 4.2.4
         /// states a requirement no message carries, and what the rule sees is
         /// its observable consequence.
-        const FLOOR: usize = 19;
+        /// **The two CORS origin rules gave up three between them**, and they
+        /// are the first commit of the *site* sweep rather than the rule
+        /// sweep: every rule declares now, and what is left is the arms that
+        /// converted rules kept back. 68 sites at 2.273, 61 after this.
+        const FLOOR: usize = 16;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

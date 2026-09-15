@@ -4,27 +4,41 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::access_control_allow_origin::{
+    ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING, ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING,
+    ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED, FETCH_3_3_3, FETCH_4_10,
+};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::origin::{
+    origin_defect, ORIGIN_MALFORMED, ORIGIN_PATH_FORBIDDEN, RFC_6454_7_1,
+};
 use crate::violations::uri::{
-    origin_defect, RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN,
-    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+    RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
+    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
-/// The two productions an `Origin` borrows, and no more.
+/// Ten, across four subjects, and the spread is the rule's subject matter: it
+/// reads an `Origin` and an `Access-Control-Allow-Origin` and asks whether they
+/// agree.
 ///
-/// `origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list` is RFC 6454's, and
-/// what a `serialized-origin` is made of is RFC 3986's: a scheme name, and the
-/// alphabet a URI is composed from. The other two verdicts the shared reader
-/// gives — a path where the production has no path component, and a value
-/// deriving from neither alternative — stay this rule's own, because *derives
-/// from none of my alternatives* is the finding no subject can hold.
+/// The two productions an `Origin` borrows are RFC 3986's — a scheme name, and
+/// the alphabet a URI is composed from — and the two verdicts left over are the
+/// field's own, on the `origin` subject that now holds them: a path where the
+/// production has no path component, and a value deriving from neither
+/// alternative. The response field's three are what the CORS check refuses,
+/// and the repeated field line is § 5.3's wherever it happens.
 static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &URI_CHARACTER_FORBIDDEN,
     &FIELD_LINE_DUPLICATED,
+    &ORIGIN_PATH_FORBIDDEN,
+    &ORIGIN_MALFORMED,
+    &ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED,
+    &ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING,
+    &ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING,
 ];
 
 pub struct OriginMatchingForCors;
@@ -37,12 +51,6 @@ const RFC_6454: crate::rules::SpecRef = crate::rules::SpecRef {
     section: None,
     url: "https://www.rfc-editor.org/rfc/rfc6454.html",
     note: "The Web Origin Concept",
-};
-const FETCH_4_10: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "Fetch",
-    section: Some("4.10"),
-    url: "https://fetch.spec.whatwg.org/#concept-cors-check",
-    note: "Fetch CORS check — the response origin must byte-match the request `Origin` (or be `*` for a non-credentialed request); this rule's matching logic lives here (two of its three cites)",
 };
 const MDN_ACCESS_CONTROL_ALLOW_ORIGIN: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Access-Control-Allow-Origin",
@@ -73,6 +81,8 @@ severity = "warn"
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_6454,
+            RFC_6454_7_1,
+            FETCH_3_3_3,
             FETCH_4_10,
             MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
             RFC_3986_2,
@@ -160,10 +170,7 @@ impl Rule for OriginMatchingForCors {
                     crate::helpers::shown::shown_in_finding(origin),
                     defect.message()
                 );
-                return Some(match origin_defect(defect) {
-                    Some(def) => ctx.report_with(def, message),
-                    None => self.violation(ctx.severity, message),
-                });
+                return Some(ctx.report_with(origin_defect(defect), message));
             }
 
             let resp = tx.response.as_ref()?;
@@ -193,8 +200,12 @@ impl Rule for OriginMatchingForCors {
                 .map(|m| m.to_string())
                 .collect();
             if members.len() != 1 {
-                return Some(self.violation(
-                    ctx.severity,
+                // Not a list defect: the field has no list form for a comma to
+                // break, so what a second member produces is a value the CORS
+                // check matches against no origin — the same thing
+                // `example.com` produces, and the same entry.
+                return Some(ctx.report_with(
+                    &ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED,
                     "Access-Control-Allow-Origin must be a single value".into(),
                 ));
             }
@@ -213,7 +224,9 @@ impl Rule for OriginMatchingForCors {
                     "access-control-allow-credentials",
                 ) {
                     if cred.trim().eq_ignore_ascii_case("true") {
-                        return Some(self.cited(&FETCH_4_10, ctx.severity, "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true".into()));
+                        return Some(
+                            ctx.report(&ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING),
+                        );
                     }
                 }
                 return None;
@@ -224,9 +237,8 @@ impl Rule for OriginMatchingForCors {
             // case normalisation is applied on either side.
             // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
             if acao_val != origin {
-                return Some(self.cited(
-                    &FETCH_4_10,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING,
                     format!(
                         "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",
                         crate::helpers::shown::shown_in_finding(&acao_val),
@@ -268,12 +280,14 @@ mod tests {
     }
 
     /// The two productions the shared reader borrows report under their own
-    /// ids; the two verdicts about the field's own grammar do not.
+    /// ids, and the two verdicts about the field's own grammar under the
+    /// field's — the mapping is total now, where it used to hand half the
+    /// answers back for the caller to word.
     #[rstest]
     #[case("1http://example.com", Some("uri_scheme_leading_letter_missing"))]
     #[case("https://exa<mple.com", Some("uri_character_forbidden"))]
-    #[case("https://example.com/p", None)]
-    #[case("invalid-origin", None)]
+    #[case("https://example.com/p", Some("origin_path_forbidden"))]
+    #[case("invalid-origin", Some("origin_malformed"))]
     fn an_origin_defect_reports_under_the_production_it_broke(
         #[case] origin: &str,
         #[case] expected: Option<&str>,

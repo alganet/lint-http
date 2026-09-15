@@ -337,17 +337,13 @@ pub fn scheme_name(defect: SchemeNameDefect<'_>) -> &'static ViolationDef {
     }
 }
 
-/// The defect a parsed [`OriginDefect`] reports as, where the catalogue names
-/// one.
-///
-/// Two of the four variants have no id and the reason is the same for both: a
-/// path after the authority and a value deriving from neither `null` nor a
-/// serialized origin are statements about *this field's* production, and
-/// "derives from none of my alternatives" is the finding no subject has ever
-/// been able to hold (2.63's rule, and `Access-Control-Allow-Origin`'s reading
-/// one commit later). The other two are somebody else's productions: the scheme
+/// The two `Origin` verdicts that belong to *these* productions: the scheme
 /// name RFC 3986 § 3.1 writes, and the alphabet § 2 draws.
-pub fn origin_defect(defect: OriginDefect<'_>) -> Option<&'static ViolationDef> {
+///
+/// The other two are the field's own and live with it —
+/// [`origin_defect`](crate::violations::origin::origin_defect) is the total
+/// mapping, and it calls this one for the half that is not.
+pub fn origin_production_defect(defect: OriginDefect<'_>) -> Option<&'static ViolationDef> {
     match defect {
         OriginDefect::Scheme(defect) => Some(scheme_name(defect)),
         OriginDefect::Character(_) => Some(&URI_CHARACTER_FORBIDDEN),
