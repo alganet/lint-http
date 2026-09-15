@@ -128,6 +128,7 @@ pub mod vary;
 pub mod via;
 pub mod warning;
 pub mod websocket_frame;
+pub mod well_known;
 pub mod x_content_type_options;
 
 /// One reportable defect.
@@ -517,8 +518,9 @@ mod tests {
         /// `Permissions-Policy`'s two, and 435 of 457 with the trailer
         /// section's three, and 436 of 460 with the authentication loop's one,
         /// and 437 of 461 with the shared realm, and 439 of 463 with the two
-        /// method-content entries.
-        const FLOOR: usize = 439;
+        /// method-content entries, and 443 of 467 with the well-known
+        /// subject's four.
+        const FLOOR: usize = 443;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

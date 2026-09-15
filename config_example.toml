@@ -2895,6 +2895,22 @@ severity = "warn"
 # Member writes the weight's ';' and no weight after it
 severity = "warn"
 
+[violations.well_known_name_empty]
+# The reserved prefix carries no name after it
+severity = "info"
+
+[violations.well_known_name_malformed]
+# A well-known name holds a character outside pchar
+severity = "info"
+
+[violations.well_known_path_invalid]
+# A .well-known segment sits below the top of the path
+severity = "info"
+
+[violations.well_known_prefix_malformed]
+# A path stops one character short of the reserved prefix
+severity = "info"
+
 [violations.x_content_type_options_invalid]
 # X-Content-Type-Options carries a value that is not nosniff
 severity = "warn"
