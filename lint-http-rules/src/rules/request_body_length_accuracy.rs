@@ -187,8 +187,17 @@ impl Rule for RequestBodyLengthAccuracy {
                 if declared != body_len as u128 {
                     return Some(ctx.report_with(
                         &CONTENT_LENGTH_CONFLICTING,
+                        // The side is named, and it is not decoration: the
+                        // other direction's rule reports the same defect id
+                        // with the same wording, so a transaction whose request
+                        // and response were both wrong by the same numbers
+                        // produced two findings an operator could not tell
+                        // apart. A message is what a report *is*; two of them
+                        // saying the identical thing about different halves of
+                        // one exchange is a defect of this rule and not of
+                        // whatever reads the output.
                         format!(
-                            "Content-Length ({}) does not match captured body bytes ({})",
+                            "Request Content-Length ({}) does not match captured body bytes ({})",
                             declared, body_len
                         ),
                     ));
