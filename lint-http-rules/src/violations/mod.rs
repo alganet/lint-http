@@ -567,8 +567,11 @@ mod tests {
         /// number, and three of them now say so on one value. 502 of 534 with
         /// the draft ALPN token, which is the reverse case in one commit: a
         /// site that *was* cited gave its sentence to an entry, so the floor
-        /// here rose as the site floor fell.
-        const FLOOR: usize = 502;
+        /// here rose as the site floor fell. 503 of 535 with the method token
+        /// written in another case — **the last sentence to leave a finding
+        /// site for an entry**, since `self.cited(` has no caller left in
+        /// `src/rules/`.
+        const FLOOR: usize = 503;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

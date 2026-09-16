@@ -1716,7 +1716,35 @@ severity = "warn"
         /// member holding an octet no URI is composed from all arrived as one
         /// verdict — and the typed reader the `Origin` rules already call names
         /// each of them, with no new def anywhere.
-        const FLOOR: usize = 1;
+        ///
+        /// **`request_method_token_valid` gave up the last one, and this
+        /// ratchet has reached the bottom of its range.** `cited` is 0 and
+        /// `self.cited(` has no caller left in `src/rules/`, so what this test
+        /// can still catch is a *new* one appearing — which is the shape it was
+        /// always going to end in, and the reason it stays until the flag day
+        /// deletes the method it counts. The window this gate exists to close
+        /// is covered from the other side meanwhile:
+        /// `every_violation_declares_a_spec` is an upward ratchet on the defs,
+        /// and every sentence that left a site arrived on one.
+        ///
+        /// So the floor is spent and the assertion below is an equality: a
+        /// `>= 0` on a `usize` is a comparison clippy is right to refuse, and
+        /// the honest reading of a bottomed-out ratchet is that the number may
+        /// no longer move at all.
+        const CITED_SITES: usize = 0;
+
+        /// The other half, and the gate the plan has been calling
+        /// `no_rule_builds_a_finding_outside_report`: a **downward ceiling** on
+        /// the sites still building a finding without naming a defect. It is
+        /// written here rather than beside it because the two numbers come from
+        /// one walk of one directory, and a second walk would only be able to
+        /// disagree with this one.
+        ///
+        /// Lower it as sites convert; the flag day makes it `0` and deletes
+        /// both methods. A new `self.violation(` fails this even while the
+        /// remaining three are permitted, which is the whole point of a
+        /// ceiling that is not yet zero.
+        const UNCITED_SITES: usize = 3;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
@@ -1734,10 +1762,13 @@ severity = "warn"
             cited += body.matches("self.cited(").count();
             uncited += body.matches("self.violation(").count();
         }
+        assert_eq!(
+            cited, CITED_SITES,
+            "{cited} finding sites cite a specification directly; the count reached 0 and may not move"
+        );
         assert!(
-            cited >= FLOOR,
-            "citation coverage fell to {cited}/{} findings, below the floor of {FLOOR}",
-            cited + uncited
+            uncited <= UNCITED_SITES,
+            "{uncited} finding sites still build a violation without naming a defect, above the ceiling of {UNCITED_SITES}"
         );
     }
 

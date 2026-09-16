@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::method::{METHOD_CASE_INVALID, RFC_9110_9_1};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -104,11 +105,13 @@ pub struct RequestMethodTokenValid;
 /// standardized method's name written in another case, which parses perfectly
 /// and asks for a method nobody defined.
 ///
-/// That last one keeps its own severity, and the split is now visible: a method
-/// spelled `get` is a request that will draw a 501, while a method carrying a
-/// control octet is a request that derives from no grammar at all, and one
-/// `severity` in `[rules.request_method_token_valid]` said both.
+/// **That last one is [`METHOD_CASE_INVALID`] and the split is now paid for**:
+/// a method spelled `get` is a request that will draw a 501, while a method
+/// carrying a control octet is a request that derives from no grammar at all,
+/// and one `severity` in `[rules.request_method_token_valid]` said both. An
+/// operator can now silence the convention and keep the grammar.
 static DECLARED: &[&ViolationDef] = &[
+    &METHOD_CASE_INVALID,
     &TOKEN_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -117,12 +120,6 @@ static DECLARED: &[&ViolationDef] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-    note: "`method = token`, the token's case-sensitivity, the convention that standardized methods are defined in all-uppercase US-ASCII letters, and the 501 an origin server gives an unrecognized method",
-};
 const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("2.2"),
@@ -383,8 +380,8 @@ impl Rule for RequestMethodTokenValid {
                     // is worth saying at all: the request does not fail to parse, it simply
                     // asks for a method nobody defined.
                     // cite(RFC 9110 § 9.1): "An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code."
-                    return Some(self.cited(&RFC_9110_9_1,
-                        config.severity,
+                    return Some(ctx.report_with(
+                        &METHOD_CASE_INVALID,
                         format!(
                             "Method token '{m}' is '{folded}' written in another case. The method token is case-sensitive, so a server matching method names sees an unrecognized method here rather than '{folded}', and ought to answer 501 (Not Implemented); by convention a standardized method is defined in all-uppercase US-ASCII letters"
                         ),
@@ -517,6 +514,21 @@ mod tests {
     /// versions of the protocol -- so nothing but the catalogue makes them
     /// agree. The split inside the pair is `token`'s too: a DEL is an octet
     /// that happened to the message, an `@` is a sender that meant it.
+    /// The convention and the grammar are two ids now, which is the split the
+    /// rule's own doc comment has described since it converted: one `severity`
+    /// used to say both, and an operator wanting the spelling reported without
+    /// the octets — or the other way round — had nowhere to say so.
+    #[test]
+    fn the_spelling_and_the_grammar_are_told_apart_by_id() {
+        let v = check("get").expect("'get' is 'GET' in another case");
+        assert_eq!(v.violation, "method_case_invalid");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert_ne!(
+            check("ge@t").expect("'@' is not a tchar").violation,
+            v.violation
+        );
+    }
+
     #[test]
     fn a_method_and_a_field_name_report_the_same_two_defects() {
         assert_eq!(
