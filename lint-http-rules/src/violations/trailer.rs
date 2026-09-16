@@ -24,7 +24,9 @@
 //!
 //! **The `Trailer` field's own syntax is not here.** That is a `#field-name`
 //! list of `token`s, and both productions answer to their own subjects — the
-//! entry below is about a name the list should have carried, not about the list.
+//! two `member` entries are about *which names the list carries*, never about
+//! how it is written: one for a name that should have been there and one for a
+//! name that cannot be.
 //
 // cite(RFC 9110 § 16.3.2): "If the field is allowable in trailers; by default, it will not be"
 
@@ -150,14 +152,52 @@ defects! {
         default_severity: Severity::Info,
         spec: &[RFC_9110_6_6_2],
     }
+
+    /// A `Trailer` declaration naming a field that cannot arrive in the section
+    /// it announces: `Trailer` itself, or a field this message's own
+    /// `Connection` lists as an option.
+    ///
+    /// **One entry for two shapes, because the loss is one loss.** § 6.6.2 says
+    /// the list indicates which fields *might* be present in the trailers, and
+    /// neither of these might: a `Trailer` field belongs to the header section
+    /// by its own definition, so naming it announces a section the recipient has
+    /// already finished reading; a connection-option is stripped by name at the
+    /// first intermediary, so the field never survives the hop. *The defect is
+    /// the announcement rather than the field — a recipient prepared for
+    /// something that is not coming.* Which shape it was is what the message
+    /// says.
+    ///
+    /// **`_invalid` and not `_forbidden`, and the sentence count is why.** The
+    /// two MUST NOTs nearby are about *generating a trailer field*, not about
+    /// writing a name in this list, so nothing prohibits the declaration — what
+    /// refuses it is that the name is a well-formed `field-name` naming
+    /// something the section cannot hold.
+    ///
+    /// **Below [`TRAILER_FIELD_FORBIDDEN`] and level with
+    /// [`TRAILER_MEMBER_MISSING`]**, which puts the whole subject in one order:
+    /// a field that arrived where it may not outranks a declaration that is out
+    /// of step with what arrives, in either direction. § 6.6.2's own words are
+    /// what cap both — a list that is a hint when it is short cannot be an error
+    /// when it is wrong.
+    ///
+    // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
+    TRAILER_MEMBER_INVALID = {
+        id: "trailer_member_invalid",
+        title: "A Trailer declaration names a field that cannot arrive",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_9110_6_6_2],
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// The two prohibitions rank together and the declaration below them, which
-    /// is the split between a value that was lost and a preparation that was.
+    /// The two prohibitions rank together and the two declaration entries below
+    /// them, which is the split between a value that was lost and a preparation
+    /// that was — in either direction, a list too short or a list naming
+    /// something that cannot come.
     #[test]
     fn the_declaration_ranks_below_the_two_prohibitions() {
         assert_eq!(TRAILER_FIELD_FORBIDDEN.default_severity, Severity::Warn);
@@ -166,5 +206,10 @@ mod tests {
             Severity::Warn
         );
         assert_eq!(TRAILER_MEMBER_MISSING.default_severity, Severity::Info);
+        assert_eq!(
+            TRAILER_MEMBER_INVALID.default_severity,
+            TRAILER_MEMBER_MISSING.default_severity
+        );
+        assert!(TRAILER_MEMBER_INVALID.default_severity < TRAILER_FIELD_FORBIDDEN.default_severity);
     }
 }

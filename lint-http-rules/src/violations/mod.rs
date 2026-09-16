@@ -52,6 +52,7 @@ pub mod charset;
 pub mod clear_site_data;
 pub mod comment;
 pub mod conditional;
+pub mod connection;
 pub mod content_coding;
 pub mod content_disposition;
 pub mod content_length;
@@ -553,8 +554,10 @@ mod tests {
         /// of 526 with the assembly `Server` and `User-Agent` share — where the
         /// entry two rules declare cites Appendix A, because the collected ABNF
         /// is the one section printing a production neither field's own section
-        /// restates.
-        const FLOOR: usize = 495;
+        /// restates, and 497 of 528 with the two `Connection`-shaped lists —
+        /// where one entry is what a sender may *declare* about the hop and the
+        /// other what a declaration may *announce* about the section after it.
+        const FLOOR: usize = 497;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
