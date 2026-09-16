@@ -2511,6 +2511,22 @@ severity = "warn"
 # A bytes range specifier derives from neither of the unit's two forms
 severity = "warn"
 
+[violations.referer_empty]
+# A Referer is written with nothing in it
+severity = "info"
+
+[violations.referer_forbidden]
+# A Referer names a secure resource on an unsecured request
+severity = "warn"
+
+[violations.referer_fragment_forbidden]
+# A Referer carries a fragment component
+severity = "warn"
+
+[violations.referer_userinfo_forbidden]
+# A Referer carries the deprecated userinfo subcomponent
+severity = "error"
+
 [violations.refresh_url_empty]
 # A Refresh value writes URL= with no URL
 severity = "warn"

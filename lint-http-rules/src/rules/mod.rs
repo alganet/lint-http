@@ -1691,6 +1691,12 @@ severity = "warn"
         /// which is what that phrase always meant: a list of `token`s whose
         /// productions had subjects, and one claim apiece about what a *name*
         /// in the list means, which did not.
+        /// **`referer_uri_valid` gave up six branches behind one closure**, and
+        /// only four of them needed an entry: the repeated field line is
+        /// § 5.3's about the message, the malformed authority is the
+        /// `uri-host [ ":" port ]` reader's, and what was left is the field's
+        /// own — every one of it about disclosure rather than about the
+        /// reference being well formed.
         const FLOOR: usize = 2;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");

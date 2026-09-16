@@ -113,6 +113,7 @@ pub mod quoted_pair;
 pub mod quoted_string;
 pub mod qvalue;
 pub mod range;
+pub mod referer;
 pub mod refresh;
 pub mod request_target;
 pub mod retry_after;
@@ -556,8 +557,11 @@ mod tests {
         /// is the one section printing a production neither field's own section
         /// restates, and 497 of 528 with the two `Connection`-shaped lists —
         /// where one entry is what a sender may *declare* about the hop and the
-        /// other what a declaration may *announce* about the section after it.
-        const FLOOR: usize = 497;
+        /// other what a declaration may *announce* about the section after it,
+        /// and 501 of 532 with the four things `Referer` says past its grammar
+        /// — a subject where every entry is about disclosure and none about the
+        /// reference being well formed.
+        const FLOOR: usize = 501;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,
