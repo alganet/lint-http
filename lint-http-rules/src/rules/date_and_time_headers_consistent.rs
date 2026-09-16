@@ -335,16 +335,18 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    /// Three fields, four sites, one id. `Date` and `Sunset` are read here,
-    /// `Sunset` again by `sunset_and_deprecation_consistent` out of a body that
-    /// shares no line with this one, and `Expires` by
-    /// `cookie_attribute_consistent` through a cookie attribute walk. All four
-    /// ask the *recipient's* question — can this value be read as a timestamp
-    /// at all — so all four answer `http_date_malformed`.
+    /// Three fields, three sites, one id. `Date` and `Sunset` are read here,
+    /// and `Expires` by `cookie_attribute_consistent` through a cookie
+    /// attribute walk. All three ask the *recipient's* question — can this
+    /// value be read as a timestamp at all — so all three answer
+    /// `http_date_malformed`, each naming its own field.
     ///
-    /// The two `Sunset` readings are also one of the tree's duplicate message
-    /// templates: byte-identical prose from two rules, which until now was two
-    /// findings under two names and is now two findings under one.
+    /// **There was a fourth site and it was a duplicate.**
+    /// `sunset_and_deprecation_consistent` parsed `Sunset` for its own
+    /// comparison and said this rule's sentence, word for word, so one
+    /// unreadable value drew two findings differing in nothing but the rule
+    /// name. It stopped; this rule keeps the reading because it judges every
+    /// field line where the other read only the first.
     #[test]
     fn a_timestamp_no_recipient_can_read_is_one_defect_in_three_fields() {
         let response = |pairs: &[(&str, &str)]| {
@@ -373,7 +375,11 @@ mod tests {
         let sunset_here = here(&[readable_date, ("sunset", "not-a-date")]);
         assert_eq!(sunset_here.violation, "http_date_malformed");
 
-        let sunset = crate::test_helpers::run_rule(
+        // The rule named for `Sunset` no longer answers for its format: it
+        // parsed the field to compare it with `Deprecation` and said the same
+        // sentence this rule says, which was the last live duplicate in the
+        // tree. Two rules, one reading.
+        assert!(crate::test_helpers::run_rule(
             &crate::rules::sunset_and_deprecation_consistent::SunsetAndDeprecationConsistent,
             &response(&[("sunset", "not-a-date")]),
             &crate::transaction_history::TransactionHistory::empty(),
@@ -381,8 +387,7 @@ mod tests {
                 "sunset_and_deprecation_consistent",
             ]),
         )
-        .expect("a finding");
-        assert_eq!(sunset.violation, "http_date_malformed");
+        .is_none());
 
         let expires = crate::test_helpers::run_rule(
             &crate::rules::cookie_attribute_consistent::CookieAttributeConsistent,
@@ -395,12 +400,9 @@ mod tests {
         .expect("a finding");
         assert_eq!(expires.violation, "http_date_malformed");
 
-        // The duplicate template, still duplicated — the id is what makes the
-        // pair visible, and collapsing it is Phase 5's decision, not this
-        // commit's.
-        assert_eq!(sunset_here.message, sunset.message);
-        // And a rule that reads another field still names it.
-        assert_ne!(sunset.message, expires.message);
+        // And a rule that reads another field still names it: one id, three
+        // fields, three sentences.
+        assert_ne!(sunset_here.message, expires.message);
     }
 
     #[rstest]
