@@ -5896,6 +5896,32 @@ sources:
       line: 165
     - file: lint-http-rules/src/violations/content_coding.rs
       line: 119
+  - label: conditional_date_syntax
+    section: § 13.1.3
+    snippet: If-Modified-Since = HTTP-date
+    cited_by:
+    - file: lint-http-rules/src/rules/conditional_date_syntax.rs
+      line: 183
+    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
+      line: 50
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
+      line: 133
+  - label: conditional_date_syntax (2)
+    section: § 13.1.4
+    snippet: If-Unmodified-Since = HTTP-date
+    cited_by:
+    - file: lint-http-rules/src/rules/conditional_date_syntax.rs
+      line: 184
+    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
+      line: 51
+  - label: conditional_date_syntax (3)
+    section: § 5.5
+    snippet: A field value does not include leading or trailing whitespace
+    cited_by:
+    - file: lint-http-rules/src/rules/conditional_date_syntax.rs
+      line: 185
+    - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
+      line: 113
   - label: conditional_etag_syntax
     section: § 13.1.1
     snippet: 'If-Match = "*" / #entity-tag'
@@ -6694,34 +6720,6 @@ sources:
       line: 116
     - file: lint-http-rules/src/violations/authority.rs
       line: 280
-  - label: if_modified_since_date_syntax
-    section: § 13.1.3
-    snippet: If-Modified-Since = HTTP-date
-    cited_by:
-    - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 138
-    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 50
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 133
-  - label: if_modified_since_date_syntax (2)
-    section: § 5.5
-    snippet: A field value does not include leading or trailing whitespace
-    cited_by:
-    - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 139
-    - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 137
-    - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 113
-  - label: if_unmodified_since_date_syntax
-    section: § 13.1.4
-    snippet: If-Unmodified-Since = HTTP-date
-    cited_by:
-    - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 136
-    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 51
   - label: keep_alive_header_valid
     section: § 7.6.1
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
@@ -6824,10 +6822,8 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_date.rs
       line: 145
-    - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 141
-    - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 139
+    - file: lint-http-rules/src/rules/conditional_date_syntax.rs
+      line: 187
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 115
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
@@ -7614,12 +7610,10 @@ sources:
       line: 164
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 195
+    - file: lint-http-rules/src/rules/conditional_date_syntax.rs
+      line: 164
     - file: lint-http-rules/src/rules/host_header.rs
       line: 216
-    - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 119
-    - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 118
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 238
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -10406,6 +10400,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 228
+  - label: conditional_date_syntax
+    section: § 5
+    snippet: field-line   = field-name ":" OWS field-value OWS
+    cited_by:
+    - file: lint-http-rules/src/rules/conditional_date_syntax.rs
+      line: 186
+    - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
+      line: 114
   - label: content_length_vs_transfer_encoding
     section: § 6.3
     snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding
@@ -10540,16 +10542,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/http_version_syntax.rs
       line: 145
-  - label: if_modified_since_date_syntax
-    section: § 5
-    snippet: field-line   = field-name ":" OWS field-value OWS
-    cited_by:
-    - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 140
-    - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 138
-    - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 114
   - label: HTTP-version
     section: § 2.3
     snippet: HTTP-version  = HTTP-name "/" DIGIT "." DIGIT

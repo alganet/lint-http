@@ -1869,11 +1869,12 @@ enabled = "true"
     /// reports, so nothing an operator can *tune* tells the two apart.
     ///
     /// **It read five pairs when it was written and only two of them were
-    /// merges, which was the finding.** The two were the ones already first in
-    /// the merge order — the `If-Match`/`If-None-Match` pair, now merged into
-    /// `conditional_etag_syntax`, and the two conditional-date rules — where
-    /// the fields are a request pair with one grammar between them, so one rule
-    /// reads both. The other three read *different* fields with the
+    /// merges, which was the finding.** Both have landed: the
+    /// `If-Match`/`If-None-Match` pair is `conditional_etag_syntax` and the
+    /// `If-Modified-Since`/`If-Unmodified-Since` pair is
+    /// `conditional_date_syntax`, each a request pair with one grammar between
+    /// them and one rule reading both. The three that remain read *different*
+    /// fields with the
     /// same reader: `Allow` and `Vary` are both token lists,
     /// `Cache-Control` and `Pragma` both directive lists, `Server` and
     /// `User-Agent` both product assemblies. Merging either of those would put
@@ -1884,15 +1885,19 @@ enabled = "true"
     /// defect* — which is why the equality is exact and the conclusion still
     /// is not.
     ///
-    /// So this is a ceiling too, and its floor is three rather than zero. What
-    /// the number is for is the review: a sixth pair is either a merge waiting
-    /// or a rule written by copying one that already reported everything it
-    /// reports, and both want reading before they land.
+    /// So this is a ceiling too, and its floor is three rather than zero — and
+    /// it is standing on that floor now. What the number is for from here is
+    /// the review: a fourth pair is either a merge waiting or a rule written by
+    /// copying one that already reported everything it reports, and both want
+    /// reading before they land.
     #[test]
     fn no_two_rules_declare_the_same_defects() {
-        /// Lowered by each merge, of which one is left. Read from what the
-        /// assertion prints, never incremented.
-        const CEILING: usize = 4;
+        /// **The three it permits are the three that are not merges**, read
+        /// above. There is nothing left for this to count down to, which is
+        /// what a finished ratchet looks like: it holds against a sixth pair
+        /// appearing and asserts nothing else. Read from what the assertion
+        /// prints, never incremented.
+        const CEILING: usize = 3;
 
         let declared: std::collections::BTreeMap<&str, std::collections::BTreeSet<&str>> =
             all_rules()
