@@ -177,6 +177,9 @@ enabled = true
 [rules.authentication_failure_loop]
 enabled = true
 
+[rules.authorization_credentials_valid]
+enabled = true
+
 [rules.basic_auth_base64_valid]
 enabled = true
 

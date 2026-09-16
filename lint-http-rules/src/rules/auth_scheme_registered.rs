@@ -4,57 +4,33 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::auth_scheme::{
-    AUTH_SCHEME_CHARACTER_FORBIDDEN, AUTH_SCHEME_UNREGISTERED, RFC_9110_11_1, RFC_9110_11_2,
-};
+use crate::violations::auth_scheme::{AUTH_SCHEME_UNREGISTERED, RFC_9110_11_1, RFC_9110_11_2};
 use crate::violations::challenge::{RFC_9110_11_3, RFC_9110_11_6_1};
-use crate::violations::credentials::{
-    credentials_defect, CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN, CREDENTIALS_EMPTY,
-    CREDENTIALS_MISSING, RFC_9110_11_4, RFC_9110_11_6_2,
-};
+use crate::violations::credentials::{RFC_9110_11_4, RFC_9110_11_6_2};
 use crate::violations::ViolationDef;
 
 pub struct AuthSchemeRegistered;
 
-/// Everything this rule measures about the *grammar*, and none of what it is
-/// named for.
+/// The one defect this rule reports, which is the one it is named for.
 ///
-/// The scheme's own octet is `auth-scheme = token`, one production written once
-/// and read from both directions of the framework, so it answers with the same
-/// id here as it does inside a challenge or a set of credentials; and the three
-/// `credentials_*` entries are what an `Authorization` value fails to be before
-/// any scheme is looked up.
+/// A scheme spelled correctly and absent from the operator's `allowed` list is
+/// not a defect of any production, and no sentence in RFC 9110 makes it one —
+/// § 11.1 says schemes *ought to* be registered, which is exactly what the
+/// entry carries. That makes this rule policy where every rule around it is
+/// grammar, and the list is one entry long because policy is the whole of it.
 ///
-/// **Two challenge entries were here and are gone.** Grouping
-/// `WWW-Authenticate`'s members is something this rule does on its way to a
-/// scheme name, and it used to report what the grouping refused —
-/// `challenge_member_empty` and `challenge_scheme_missing` — beside
-/// `www_authenticate_challenge_syntax`, which owns that field's grammar,
-/// declares all fifteen of its defects and runs on the same response. One
-/// malformed challenge drew two byte-identical findings under two rule ids.
-/// *A rule that parses a field in order to reach something else does not
-/// thereby own the field's grammar*, and the answer to an over-report is to
-/// stop making it.
-///
-/// **Those three were declared by a second rule until they were counted.**
-/// `authorization_credentials_present` read the same field with the same
-/// helper and reported the same four ids, all of them in this list — so the
-/// two rules said the same things about one value under two names, and the one
-/// that said less was folded in here.
-///
-/// **The registry question is the whole of what this rule is named for**, and
-/// it is now an entry of the scheme's own subject rather than a sentence this
-/// file words: a scheme spelled correctly and absent from the operator's
-/// `allowed` list is not a defect of any production, and no sentence in
-/// RFC 9110 makes it one — § 11.1 says schemes *ought to* be registered, which
-/// is exactly what the entry carries.
-static DECLARED: &[&ViolationDef] = &[
-    &AUTH_SCHEME_CHARACTER_FORBIDDEN,
-    &AUTH_SCHEME_UNREGISTERED,
-    &CREDENTIALS_EMPTY,
-    &CREDENTIALS_MISSING,
-    &CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN,
-];
+/// **It held seven entries and lost six in one session, for two different
+/// reasons.** Three were `www_authenticate_challenge_syntax`'s: this rule
+/// groups a challenge in order to reach a scheme name, and reported what the
+/// grouping refused on the way past — a field parsed as a *route* is not a
+/// field owned. The other three are `Authorization`'s framework grammar, which
+/// is a real reading and a different one: it belongs to a rule with no
+/// configuration, because an operator who wants a malformed credential
+/// reported should not first have to decide which schemes their deployment
+/// accepts. That rule is `authorization_credentials_valid`, and this one asks
+/// the registry question of a scheme both it and the challenge rule have
+/// already vouched for.
+static DECLARED: &[&ViolationDef] = &[&AUTH_SCHEME_UNREGISTERED];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -70,23 +46,6 @@ const IANA_HTTP_AUTHENTICATION_SCHEMES: crate::rules::SpecRef = crate::rules::Sp
     section: None,
     url: "https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml",
     note: "IANA HTTP Authentication Scheme Registry",
-};
-/// Further reading rather than a sentence this rule enforces: what the
-/// credentials after a `Basic` or a `Bearer` scheme have to be. No defect here
-/// cites either — the framework production is all this rule reads, and the two
-/// scheme rules that *do* read them own these documents — but a page about
-/// `Authorization` that names no scheme leaves the reader nowhere to go next.
-const RFC_7617: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7617",
-    section: None,
-    url: "https://www.rfc-editor.org/rfc/rfc7617.html",
-    note: "Basic Authentication",
-};
-const RFC_6750: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6750",
-    section: None,
-    url: "https://www.rfc-editor.org/rfc/rfc6750.html",
-    note: "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
 };
 
 impl RuleMeta for AuthSchemeRegistered {
@@ -117,7 +76,7 @@ allowed = ["Basic", "Bearer", "Digest"]
     }
 
     fn description(&self) -> &'static str {
-        "Reads the HTTP authentication framework's own grammar in both directions — a server's `WWW-Authenticate` challenges and a client's `Authorization` credentials — and then asks the registry question the rule is named for. The framework half is the structure: a challenge that names no scheme, an empty list member, an `auth-scheme` carrying a character no `token` admits, an `Authorization` value that is empty or that stops after the scheme where the scheme wants credentials. The registry half is the `auth-scheme` itself, which SHOULD be an IANA-registered scheme (for example, `Basic`, `Bearer`, `Digest`); this rule measures it against an operator-configured allowlist of acceptable schemes rather than against the live registry, and flags a value not in it. What those credentials must *be* once the scheme is known belongs to the scheme's own rule."
+        "The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`), and this rule asks that of both directions of the framework — a server's `WWW-Authenticate` challenges and a client's `Authorization` credentials. It measures the name against an operator-configured allowlist rather than against the live registry, so `allowed` is the deployment's chosen subset of acceptable schemes. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -130,8 +89,6 @@ allowed = ["Basic", "Bearer", "Digest"]
             RFC_9110_11_6_2,
             RFC_9110_16_4_1,
             IANA_HTTP_AUTHENTICATION_SCHEMES,
-            RFC_7617,
-            RFC_6750,
         ]
     }
 
@@ -156,11 +113,6 @@ allowed = ["Basic", "Bearer", "Digest"]
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "WWW-Authenticate: NewScheme abc=\nAuthorization: X-MyAuth abc",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Authorization: Basic",
             },
         ]
     }
@@ -190,77 +142,44 @@ impl Rule for AuthSchemeRegistered {
             // list, not the live IANA registry — the allowlist is the operator's chosen
             // subset of acceptable (typically registered) schemes, and §16.4.1 is where
             // registered ones live.
-            // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
-            let check_registered =
-                |hdr_name: &str, scheme: &str, allowed: &Vec<String>| -> Option<Violation> {
-                    if allowed.contains(&scheme.to_ascii_lowercase()) {
-                        return None;
-                    }
-                    Some(ctx.report_with(
-                        &AUTH_SCHEME_UNREGISTERED,
-                        format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
-                    ))
-                };
-            // The same question of a scheme nothing has vouched for, which is
-            // the request side: no rule reads `Authorization`'s framework
-            // grammar but this one, so the token is measured here before the
-            // registry is asked about it. A name that is not a `token` is not a
-            // name the registry could hold.
+            //
+            // A name that is not a `token` is not a name the registry could
+            // hold, so it is skipped rather than answered: the character is
+            // reported by whichever rule owns the field it sits in --
+            // `www_authenticate_challenge_syntax` on the response side,
+            // `authorization_credentials_valid` on the request side.
             //
             // An auth-scheme is a token; the tchar set is helper-owned.
             // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-            let check_scheme =
-                |hdr_name: &str, scheme: &str, allowed: &Vec<String>| -> Option<Violation> {
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(scheme) {
-                        // Named rather than shown: both fields are read as
-                        // octets, so this may be an `obs-text` byte, and a byte
-                        // is what the finding says it is.
-                        return Some(ctx.report_with(
-                            &AUTH_SCHEME_CHARACTER_FORBIDDEN,
-                            format!(
-                                "Invalid character {} in {} auth-scheme",
-                                crate::helpers::shown::describe_char(c),
-                                hdr_name
-                            ),
-                        ));
-                    }
-                    check_registered(hdr_name, scheme, allowed)
-                };
+            // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
+            let check_registered = |hdr_name: &str, scheme: &str| -> Option<Violation> {
+                if crate::helpers::token::find_invalid_token_char(scheme).is_some()
+                    || config.allowed.contains(&scheme.to_ascii_lowercase())
+                {
+                    return None;
+                }
+                Some(ctx.report_with(
+                    &AUTH_SCHEME_UNREGISTERED,
+                    format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
+                ))
+            };
 
-            // Check WWW-Authenticate challenges in responses
+            // The challenges a response advertises. Read as octets and over the
+            // section: `WWW-Authenticate = #challenge` makes the field lines one
+            // list, and an octet outside visible US-ASCII belongs to whichever
+            // production it landed in rather than being a verdict about the
+            // field's encoding. A value that will not group is not this rule's
+            // to report.
             if let Some(resp) = &tx.response {
-                // Read as octets and over the section: `WWW-Authenticate =
-                // #challenge` makes the field lines one list, and an octet
-                // outside visible US-ASCII belongs to whichever production it
-                // landed in -- the scheme's `token`, a parameter's value --
-                // rather than being a verdict about the field's encoding.
                 if let Some(s) = crate::helpers::headers::combined_field_value_as_written(
                     &resp.headers,
                     "www-authenticate",
                 ) {
-                    // split into assembled challenges
-                    //
-                    // **Nothing about the challenge's *grammar* is reported
-                    // here.** `www_authenticate_challenge_syntax` reads the
-                    // field this rule is only passing through on its way to a
-                    // scheme name, declares all fifteen of its defects, and
-                    // runs on the same response — so a malformed challenge drew
-                    // two byte-identical findings under two rule ids, which is
-                    // the duplication this catalogue was split to name and then
-                    // to remove. A challenge that will not group, or whose
-                    // scheme is not a `token`, is left to the rule that owns
-                    // the production; the registry question is not asked of a
-                    // name that could not be registered anyway.
                     if let Ok(challenges) = crate::helpers::auth::split_and_group_challenges(&s) {
                         for challenge in challenges {
                             let scheme =
                                 challenge.split(char::is_whitespace).next().unwrap().trim();
-                            if crate::helpers::token::find_invalid_token_char(scheme).is_some() {
-                                continue;
-                            }
-                            if let Some(v) =
-                                check_registered("WWW-Authenticate", scheme, &config.allowed)
-                            {
+                            if let Some(v) = check_registered("WWW-Authenticate", scheme) {
                                 return Some(v);
                             }
                         }
@@ -268,32 +187,19 @@ impl Rule for AuthSchemeRegistered {
                 }
             }
 
-            // Check Authorization credentials in requests. `Authorization =
-            // credentials` is one value rather than a list, so the field lines
-            // are **not** combined -- but every one of them is read, because a
-            // sender wrote each and this rule measures what was written. That a
-            // second line exists at all is `singleton_fields_not_repeated`'s
-            // finding, not this one's, and picking a line to believe would make
-            // the rest of them unreadable rather than reported. Read as octets,
-            // for the reason above.
+            // The credentials a request presents. `Authorization = credentials`
+            // is one value rather than a list, so the field lines are not
+            // combined -- and every one of them is read, because a sender wrote
+            // each. A value whose framework structure is wrong is
+            // `authorization_credentials_valid`'s finding, so what is taken
+            // from each line here is only the scheme in front of it.
             for hv in tx.request.headers.get_all("authorization").iter() {
                 let v = crate::helpers::headers::field_line_as_written(hv);
-                let v = v.as_str();
-                // The structure before the scheme is looked up: an
-                // `auth-scheme` and, where the scheme wants them, the
-                // credentials after it. The framework production is this
-                // rule's; what those credentials must *be* belongs to the
-                // scheme's own document, and to the rule that reads it.
-                // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
-                if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(v) {
-                    return Some(ctx.report_with(
-                        credentials_defect(defect),
-                        format!("Invalid Authorization header: {}", defect.message()),
-                    ));
+                let scheme = v.split(char::is_whitespace).next().unwrap_or("").trim();
+                if scheme.is_empty() {
+                    continue;
                 }
-
-                let scheme = v.split(char::is_whitespace).next().unwrap().trim();
-                if let Some(vv) = check_scheme("Authorization", scheme, &config.allowed) {
+                if let Some(vv) = check_registered("Authorization", scheme) {
                     return Some(vv);
                 }
             }
@@ -395,7 +301,10 @@ mod tests {
     #[case(Some("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="), false)]
     #[case(Some("Bearer abc123"), false)]
     #[case(Some("X-MyAuth abc"), true)]
-    #[case(Some("B@sic xyz"), true)]
+    // Not a `token`, so not a name the registry could hold — the character is
+    // `authorization_credentials_valid`'s finding and this rule is silent, the
+    // same answer it gives a malformed challenge.
+    #[case(Some("B@sic xyz"), false)]
     #[case(None, false)]
     fn check_authorization_cases(#[case] h: Option<&str>, #[case] expect_violation: bool) {
         let rule = AuthSchemeRegistered;
@@ -516,59 +425,6 @@ mod tests {
         // `a_malformed_challenge_is_the_neighbours_finding`.
         assert!(judge(b"Basic \xff").is_none());
         assert!(judge(b"Ba\xffsic realm=\"x\"").is_none());
-    }
-
-    #[test]
-    fn an_obs_text_octet_is_read_where_it_lands_in_credentials() {
-        use hyper::header::HeaderName;
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-
-        let rule = AuthSchemeRegistered;
-        let cfg = make_cfg();
-
-        let judge = |value: &[u8]| {
-            let mut tx = crate::test_helpers::make_test_transaction();
-            let mut hm = HeaderMap::new();
-            hm.insert(
-                HeaderName::from_static("authorization"),
-                HeaderValue::from_bytes(value).unwrap(),
-            );
-            tx.request.headers = hm;
-            crate::test_helpers::run_rule(
-                &rule,
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-        };
-
-        // The same split on the request side: the credential's octets belong
-        // to the scheme's own document, and the scheme's belong here.
-        assert!(judge(b"Basic \xff").is_none());
-        assert_eq!(
-            judge(b"Ba\xffsic abc").expect("a finding").violation,
-            "auth_scheme_character_forbidden"
-        );
-    }
-
-    #[test]
-    fn authorization_missing_credentials_reports_violation() {
-        let rule = AuthSchemeRegistered;
-        let cfg = make_cfg();
-
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("authorization", "Basic")]);
-
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Invalid Authorization header"));
     }
 
     #[test]
@@ -727,165 +583,6 @@ mod tests {
             &cfg,
         );
         assert!(v.is_none());
-    }
-
-    /// Every `Authorization` field line is read, not only the first.
-    ///
-    /// **This is what the fold had to choose.** The rule that used to sit
-    /// beside this one walked `get_all`; this one stopped at the first line, on
-    /// the reading that `Authorization = credentials` is not a list so the
-    /// first line is the field. Both readings report the same defect *ids*,
-    /// which is why nothing pointed at the disagreement — containment by id is
-    /// not containment by coverage. The walk wins: a sender wrote both lines
-    /// and a linter reports what was written, while *that* there are two lines
-    /// is `singleton_fields_not_repeated`'s finding and not this rule's.
-    #[rstest]
-    #[case("Basic", "Bearer abc123")]
-    #[case("Bearer abc123", "Basic")]
-    fn every_authorization_field_line_is_read(#[case] first: &str, #[case] second: &str) {
-        use hyper::header::{HeaderName, HeaderValue};
-
-        let mut tx = crate::test_helpers::make_test_transaction();
-        for value in [first, second] {
-            tx.request.headers.append(
-                HeaderName::from_static("authorization"),
-                HeaderValue::from_str(value).expect("a test value"),
-            );
-        }
-
-        let v = crate::test_helpers::run_rule(
-            &AuthSchemeRegistered,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &make_cfg(),
-        )
-        .unwrap_or_else(|| panic!("expected a finding for {first:?} then {second:?}"));
-        assert_eq!(v.violation, "credentials_missing", "{}", v.message);
-    }
-
-    /// Four names where one rule had one id, and the severity each carries.
-    #[rstest]
-    #[case("", "credentials_empty", crate::lint::Severity::Warn)]
-    #[case("Basic", "credentials_missing", crate::lint::Severity::Warn)]
-    #[case("Basic ", "credentials_missing", crate::lint::Severity::Warn)]
-    #[case(
-        "B@sic xyz",
-        "auth_scheme_character_forbidden",
-        crate::lint::Severity::Warn
-    )]
-    fn each_credentials_finding_names_the_defect_and_carries_its_severity(
-        #[case] header: &str,
-        #[case] violation: &str,
-        #[case] severity: crate::lint::Severity,
-    ) {
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers.append(
-            "authorization",
-            hyper::header::HeaderValue::from_str(header).expect("a test value"),
-        );
-        let v = crate::test_helpers::run_rule(
-            &AuthSchemeRegistered,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &make_cfg(),
-        )
-        .unwrap_or_else(|| panic!("expected a finding for {header:?}"));
-        assert_eq!(v.violation, violation, "{}", v.message);
-        assert_eq!(v.severity, severity, "{}", v.message);
-    }
-
-    /// A control octet cannot reach the rule through a `HeaderValue`, which
-    /// refuses to hold one — so the defect is declared, reported by the helper,
-    /// and asserted where it is constructible.
-    #[test]
-    fn a_control_octet_in_the_credentials_is_the_helpers_to_find() {
-        assert!(hyper::header::HeaderValue::from_bytes(b"Basic ab\x01c").is_err());
-        assert_eq!(
-            crate::violations::credentials::credentials_defect(
-                crate::helpers::auth::AuthorizationDefect::CredentialsControlCharacter
-            )
-            .id,
-            "credentials_control_character_forbidden",
-        );
-    }
-
-    /// The scheme rules own what a credential *is*, and the values this rule
-    /// publishes as compliant have to satisfy them: this rule reads a
-    /// credential only as far as "a scheme, then something", so every
-    /// scheme-specific defect in an example it publishes is invisible to it. A
-    /// `Digest` credential naming two of the five parameters its own rule
-    /// requires was labelled `Compliant` in the docs the whole time a rule
-    /// published one. Each owner declines on a value belonging to the other
-    /// scheme, so both run over every example.
-    #[test]
-    fn published_credentials_satisfy_the_rules_that_own_their_schemes() {
-        use crate::rules::bearer_token_syntax::BearerTokenSyntax;
-        use crate::rules::digest_auth_valid::DigestAuthValid;
-        use crate::rules::{Compliance, RuleMeta as _};
-
-        let digest = DigestAuthValid;
-        let bearer = BearerTokenSyntax;
-        let cfg =
-            crate::test_helpers::make_test_config_with_enabled_rules(&[digest.id(), bearer.id()]);
-        let history = crate::transaction_history::TransactionHistory::empty();
-
-        let mut saw_a_credential = false;
-        for ex in AuthSchemeRegistered.examples() {
-            if ex.compliance != Compliance::Compliant {
-                continue;
-            }
-            let fields: Vec<(&str, &str)> = ex
-                .snippet
-                .lines()
-                .filter(|l| !l.trim().is_empty())
-                .map(|l| {
-                    l.split_once(": ")
-                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
-                })
-                .collect();
-            saw_a_credential |= fields.iter().any(|(name, _)| *name == "Authorization");
-            let tx = crate::test_helpers::make_test_transaction_with_headers(&fields);
-            for owner in [&digest as &dyn crate::rules::Rule, &bearer] {
-                let found = crate::test_helpers::run_rule(owner, &tx, &history, &cfg);
-                assert!(
-                    found.is_none(),
-                    "a Compliant example publishes a credential {} rejects {:?}: {found:?}",
-                    owner.id(),
-                    ex.snippet
-                );
-            }
-        }
-        assert!(saw_a_credential, "no published example carries credentials");
-    }
-
-    #[test]
-    fn authorization_multiple_headers_first_missing_reports_violation() {
-        use hyper::header::HeaderName;
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-
-        let rule = AuthSchemeRegistered;
-        let cfg = make_cfg();
-
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        hm.append(
-            HeaderName::from_static("authorization"),
-            HeaderValue::from_static("Basic"),
-        );
-        hm.append(
-            HeaderName::from_static("authorization"),
-            HeaderValue::from_static("Bearer abc123"),
-        );
-        tx.request.headers = hm;
-
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
     }
 
     #[test]

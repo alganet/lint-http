@@ -17,7 +17,7 @@ pub struct BasicAuthBase64Valid;
 /// The defects this rule reports. Two are RFC 7617's own — the separator and
 /// the control characters it forbids — and two are not this scheme's at all: a
 /// `Basic` with nothing after it is the framework's `credentials_missing`,
-/// which `auth_scheme_registered` reports about the same request,
+/// which `authorization_credentials_valid` reports about the same request,
 /// and a value that does not decode is `base64_malformed`, which the WebSocket
 /// handshake's key will report under the same name. Naming either of them after
 /// this scheme would give an operator one id per field for one mistake.
@@ -152,7 +152,7 @@ mod tests {
 
     /// Four names where the rule had one, and two of them are not this
     /// scheme's: a `Basic` with nothing after it is the framework's defect,
-    /// reported under the id `auth_scheme_registered` reports about
+    /// reported under the id `authorization_credentials_valid` reports about
     /// the same request, and a value that does not decode is the encoding's.
     /// The control octet defaults a level above the rest — RFC 7617 forbids it
     /// in either half in so many words.
