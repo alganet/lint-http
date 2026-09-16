@@ -7,6 +7,7 @@
 mod body;
 mod connect;
 mod exchange;
+mod h3_policy;
 mod hop_by_hop;
 mod http;
 mod http3;

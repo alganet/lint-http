@@ -24,9 +24,10 @@ use uuid::Uuid;
 
 use crate::state::ClientIdentifier;
 
+use super::h3_policy::H3Route;
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
 use super::tee_body::{self, CapturedBody};
-use super::upstream_h3::{H3Failure, H3Route, H3UpstreamClient};
+use super::upstream_h3::{H3Failure, H3UpstreamClient};
 use super::{boxed_full, BoxError, ClientBody, ResponseBody, Shared};
 
 /// The request-side facts every transaction record needs: computed once by the
@@ -170,7 +171,8 @@ pub(super) async fn exchange(
     // can opportunistically use H3 (RFC 7838 / RFC 9114 §3.1.1).
     if let Some(h3) = shared.upstream.h3.as_ref() {
         if let Some(a) = uri.authority() {
-            h3.record_alt_svc(a.as_str(), a.host(), &upstream_headers);
+            h3.policy()
+                .record_alt_svc(a.as_str(), a.host(), &upstream_headers);
         }
     }
 
@@ -229,7 +231,7 @@ async fn forward_upstream(
     debug!(%authority, "forwarding upstream over HTTP/3");
     match h3.forward(req, &route, shared).await {
         Ok(response) => {
-            h3.record_success(&authority);
+            h3.policy().record_success(&authority);
             Ok(response)
         }
         Err(failure) => recover_from_h3(shared, h3, &authority, facts, failure).await,
@@ -249,11 +251,11 @@ fn h3_route<'a>(
     let h3 = shared.upstream.h3.as_ref()?;
     let authority = uri.authority()?.as_str();
 
-    if h3.is_suppressed(authority) {
+    if h3.policy().is_suppressed(authority) {
         debug!(%authority, "h3 upstream suppressed by negative cache; using H1/H2");
         return None;
     }
-    let Some(route) = h3.route_for(authority) else {
+    let Some(route) = h3.policy().route_for(authority) else {
         debug!(%authority, "no h3 route for origin; using H1/H2");
         return None;
     };
@@ -283,7 +285,7 @@ async fn recover_from_h3(
             pre_request,
         } => {
             if pre_request {
-                h3.record_failure(authority);
+                h3.policy().record_failure(authority);
             }
             if !pre_request && !facts.method.is_idempotent() {
                 return Err(format!(
