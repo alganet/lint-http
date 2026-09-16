@@ -314,7 +314,7 @@ mod tests {
         let resolved = HeaderFieldNamesTokenValid
             .prepare(&cfg)
             .expect("a preparable config");
-        let severities = crate::rules::severities_for(&HeaderFieldNamesTokenValid, &cfg);
+        let severities = crate::rules::violations_for(&HeaderFieldNamesTokenValid, &cfg);
         let ctx = crate::rules::RuleContext::new(&resolved)
             .with_violations(&HeaderFieldNamesTokenValid, &severities);
         let res = super::check_header_name("request header section", name, &ctx);

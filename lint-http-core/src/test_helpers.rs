@@ -119,6 +119,20 @@ pub fn override_violation_severity(
         .insert(violation_id.to_string(), toml::Value::Table(table));
 }
 
+/// Switch one violation off, the way a `[violations.<id>] enabled = false`
+/// table does. A sibling of `override_violation_severity` rather than a
+/// parameter on it, because the two keys are independent: a section may carry
+/// either, and a test asking about one has no opinion about the other.
+pub fn disable_violation(cfg: &mut crate::config::Config, violation_id: &str) {
+    let table = cfg
+        .violations
+        .entry(violation_id.to_string())
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+    if let Some(table) = table.as_table_mut() {
+        table.insert("enabled".to_string(), toml::Value::Boolean(false));
+    }
+}
+
 /// Create a minimal HTTP transaction for testing.
 /// Contains a GET request to `http://example/` with a standard test user agent.
 pub fn make_test_transaction() -> crate::http_transaction::HttpTransaction {

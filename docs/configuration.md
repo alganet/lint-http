@@ -202,46 +202,53 @@ paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 
 See [Rules Documentation](rules.md) for details on each rule and their configuration options.
 
-### Violation Severity Overrides
+### Violation Overrides
 
 A rule is the unit of analysis; a *violation* is the unit of report — one named
 defect a rule may find. A rule that checks four things reports four violations,
 and the `[violations]` section is where each of them is tuned separately.
 
-Every violation carries a default severity in the catalogue, so this section is
-optional and mostly stays empty: write a table only to disagree with a default.
+Every violation carries a default severity in the catalogue and reports unless
+you say otherwise, so this section is optional and mostly stays empty: write a
+table only to disagree with a default.
 
-The shape, with an illustrative id — the real ones are in `config_example.toml`:
+The shape — every id below is a real one, and `config_example.toml` lists the rest:
 
 ```toml
 # The rule is on...
 [rules.strict_transport_security_valid]
 enabled = true
 
-# ...and this one defect it reports is an error, where the rest keep
-# whatever the catalogue gives them.
-[violations.strict_transport_security_max_age_absent]
+# ...this one defect it reports is an error, where the rest keep whatever
+# the catalogue gives them...
+[violations.strict_transport_security_max_age_missing]
 severity = "error"
+
+# ...and this one is not reported at all.
+[violations.strict_transport_security_directive_duplicated]
+enabled = false
 ```
 
-`severity` is the only key, and it is required in any table that is written —
-a section that sets nothing is a section that does nothing, and both are
-rejected at startup. Every violation id and its default is listed in
-`config_example.toml`; a table naming an id that does not exist is rejected
-there too, the same way an unknown rule id is.
+`severity` and `enabled` are the only keys, and a table that is written must set
+at least one of them — a section that sets nothing is a section that does
+nothing, and both are rejected at startup. Every violation id and its default is
+listed in `config_example.toml`; a table naming an id that does not exist is
+rejected there too, the same way an unknown rule id is.
 
-There is deliberately **no** per-violation `enabled`. Most rules report their
-first finding and stop, so switching off one defect would also silence whatever
-the same branch would have said next — a config whose effect depends on the
-order of checks inside a rule body. To quiet a single defect, set it to
-`severity = "info"` and run the report with `--min-severity warn`.
+`enabled = false` drops that defect's findings and leaves the rule's other
+defects reporting. **One thing it does not do**: on a transaction where the
+switched-off defect fired, it does not bring a *different* defect of the same
+rule into view. Most rules report their first finding and stop, so the rule
+never looked further — that truncation is the rule's own, and it was there
+before anything was switched off. What you lose is the defect you switched off,
+which is what you asked to lose.
 
-**Turning a whole rule down now means writing one table per defect it reports**,
+**Turning a whole rule down means writing one table per defect it reports**,
 where a single `[rules.<id>] severity` used to do it. That is the cost of the
 split and it is a real one: `docs/rules/<id>.md` lists the defects a rule
 reports, and `config_example.toml` lists every id with its default. To quiet a
-rule wholesale without listing them, `enabled = false` still switches it off,
-and `--min-severity` still filters the report.
+rule wholesale without listing them, `[rules.<id>] enabled = false` still
+switches it off, and `--min-severity` still filters the report.
 
 A finding carries both names: `rule` and `violation`. Older captures carry
 `rule` alone.

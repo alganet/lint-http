@@ -362,7 +362,7 @@ mod tests {
     fn check_one_value(val: &str) -> Option<Violation> {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_valid"]);
         let resolved = ContentTypeValid.prepare(&cfg).expect("a preparable config");
-        let severities = crate::rules::severities_for(&ContentTypeValid, &cfg);
+        let severities = crate::rules::violations_for(&ContentTypeValid, &cfg);
         let ctx = crate::rules::RuleContext::new(&resolved)
             .with_violations(&ContentTypeValid, &severities);
         super::check_content_type("test", val, &ctx)
