@@ -1740,11 +1740,12 @@ severity = "warn"
         /// one walk of one directory, and a second walk would only be able to
         /// disagree with this one.
         ///
-        /// Lower it as sites convert; the flag day makes it `0` and deletes
-        /// both methods. A new `self.violation(` fails this even while the
-        /// remaining three are permitted, which is the whole point of a
-        /// ceiling that is not yet zero.
-        const UNCITED_SITES: usize = 1;
+        /// **It reached `0` two commits after it was written, so both halves
+        /// are absolute now**: no rule builds a finding outside `report` or
+        /// `report_with`, and neither number may move. What is left for the
+        /// flag day is deleting the two methods this counts, which is a change
+        /// to the trait rather than to any rule.
+        const UNCITED_SITES: usize = 0;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
@@ -1767,7 +1768,7 @@ severity = "warn"
             "{cited} finding sites cite a specification directly; the count reached 0 and may not move"
         );
         assert!(
-            uncited <= UNCITED_SITES,
+            uncited == UNCITED_SITES,
             "{uncited} finding sites still build a violation without naming a defect, above the ceiling of {UNCITED_SITES}"
         );
     }

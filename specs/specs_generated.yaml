@@ -2562,45 +2562,51 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
       line: 147
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 168
+      line: 185
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 251
+      line: 276
   - label: content_disposition_token_valid
     section: § 1
     snippet: This document does not apply to Content-Disposition header fields appearing in payload bodies transmitted over HTTP, such as when using the media type "multipart/form-data" ([RFC2388]).
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 149
+      line: 166
   - label: content_disposition_token_valid (2)
     section: § 4
     snippet: The Content-Disposition response header field is used to convey additional information about how to process the response payload, and also can be used to attach additional metadata, such as the filename to use when saving the response payload locally.
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 148
+      line: 165
   - label: content_disposition_token_valid (3)
     section: § 4.1
     snippet: Note that due to the rules for implied linear whitespace (Section 2.1 of [RFC2616]), OPTIONAL whitespace can appear between words (token or quoted-string) and separator characters.
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 180
+      line: 201
   - label: content_disposition_token_valid (4)
     section: § 4.1
     snippet: disp-ext-type       = token
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 200
+      line: 221
   - label: content_disposition_token_valid (5)
     section: § 4.1
     snippet: disposition-type = "inline" | "attachment" | disp-ext-type
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 182
+      line: 203
   - label: content_disposition_token_valid (6)
     section: § 4.2
     snippet: Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8).
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 201
+      line: 222
+  - label: content_disposition_token_valid (7)
+    section: § 4.3
+    snippet: The parameters "filename" and "filename*" differ only in that "filename*" uses the encoding defined in [RFC5987], allowing the use of characters not present in the ISO-8859-1 character set ([ISO-8859-1]).
+    cited_by:
+    - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
+      line: 308
 - label: RFC 6335
   url: https://www.rfc-editor.org/rfc/rfc6335.html
   fragments:
@@ -6026,14 +6032,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/content_coding.rs
       line: 80
-  - label: content_disposition_token_valid
-    section: § 5.5
-    snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
-    cited_by:
-    - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 278
-    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 253
   - label: content_encoding_and_type_consistent
     section: § 15.3.5
     snippet: Metadata in the response header fields refer to the target resource and its selected representation after the requested action was applied.
@@ -6091,36 +6089,42 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 385
   - label: content_location_and_uri_consistent (3)
+    section: § 5.5
+    snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
+    cited_by:
+    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
+      line: 253
+  - label: content_location_and_uri_consistent (4)
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 226
-  - label: content_location_and_uri_consistent (4)
+  - label: content_location_and_uri_consistent (5)
     section: § 8.7
     snippet: For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 462
-  - label: content_location_and_uri_consistent (5)
+  - label: content_location_and_uri_consistent (6)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 461
-  - label: content_location_and_uri_consistent (6)
+  - label: content_location_and_uri_consistent (7)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 372
-  - label: content_location_and_uri_consistent (7)
+  - label: content_location_and_uri_consistent (8)
     section: § 8.7
     snippet: In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 400
-  - label: content_location_and_uri_consistent (8)
+  - label: content_location_and_uri_consistent (9)
     section: § 8.7
     snippet: Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP.
     cited_by:
@@ -6128,13 +6132,13 @@ sources:
       line: 463
     - file: lint-http-rules/src/violations/content_location.rs
       line: 118
-  - label: content_location_and_uri_consistent (9)
+  - label: content_location_and_uri_consistent (10)
     section: § 8.7
     snippet: The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 213
-  - label: content_location_and_uri_consistent (10)
+  - label: content_location_and_uri_consistent (11)
     section: § 8.7
     snippet: The field value is either an absolute-URI or a partial-URI.
     cited_by:
@@ -7499,7 +7503,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 259
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 253
+      line: 278
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 215
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
@@ -7567,7 +7571,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 410
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
-      line: 252
+      line: 277
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 270
   - label: lint-http-rules/src/helpers/headers.rs (7)

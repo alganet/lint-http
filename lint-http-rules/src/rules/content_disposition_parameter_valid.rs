@@ -88,7 +88,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.\n\n**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type`, more than one `Content-Disposition` field line, and a value carrying octets outside visible US-ASCII are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding."
+        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.\n\n**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type` and more than one `Content-Disposition` field line are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding. A value carrying octets outside visible US-ASCII is not decoded here either, and no rule reports it: RFC 6266 §4.3 makes a `filename` exactly as wide as ISO-8859-1, so such an octet is one of its characters and the `quoted-string` carrying it admits it as `obs-text`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -331,10 +331,13 @@ impl Rule for ContentDispositionParameterValid {
                 None
             };
 
-            // A value outside visible US-ASCII cannot be decoded, so there are no
-            // parameters to inspect. That is a message-level constraint (RFC 9110
-            // §5.5) belonging to the rule that owns the field's value, which reports
-            // it; a second identical finding from here helps nobody.
+            // A value outside visible US-ASCII is not decoded here, so there are
+            // no parameters to inspect — and no rule reports the octet, because
+            // it is not a defect: RFC 6266 § 4.3 makes a `filename` exactly as
+            // wide as ISO-8859-1, and the `quoted-string` carrying it admits
+            // every octet at or above %x80 as `obs-text`. Reading this field's
+            // parameters as written is a conversion this rule has not made; the
+            // silence is a conforming value, not a neighbour speaking.
             let check_section = |headers: &hyper::HeaderMap| -> Option<Violation> {
                 for hv in headers.get_all("content-disposition").iter() {
                     let Ok(s) = hv.to_str() else { continue };
@@ -528,9 +531,11 @@ mod tests {
             &config,
         );
         // A value outside visible US-ASCII cannot be decoded, so this rule
-        // has no parameters to inspect. The message-level constraint is
-        // `content_disposition_token_valid`'s to report; two
-        // identical findings for one defect helped nobody.
+        // has no parameters to inspect — and nothing else reports it either:
+        // RFC 6266 § 4.3 makes a `filename` exactly as wide as ISO-8859-1, so
+        // an octet at or above %x80 is one of its characters and the
+        // `quoted-string` admits it as `obs-text`. The silence here is the
+        // value conforming, not a neighbour speaking.
         assert!(v.is_none(), "{v:?}");
         Ok(())
     }
@@ -603,9 +608,11 @@ mod tests {
             &config,
         );
         // A value outside visible US-ASCII cannot be decoded, so this rule
-        // has no parameters to inspect. The message-level constraint is
-        // `content_disposition_token_valid`'s to report; two
-        // identical findings for one defect helped nobody.
+        // has no parameters to inspect — and nothing else reports it either:
+        // RFC 6266 § 4.3 makes a `filename` exactly as wide as ISO-8859-1, so
+        // an octet at or above %x80 is one of its characters and the
+        // `quoted-string` admits it as `obs-text`. The silence here is the
+        // value conforming, not a neighbour speaking.
         assert!(v.is_none(), "{v:?}");
         Ok(())
     }

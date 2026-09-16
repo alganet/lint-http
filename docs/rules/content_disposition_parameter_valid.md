@@ -16,7 +16,7 @@ SPDX-License-Identifier: ISC
 
 When a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.
 
-**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type`, more than one `Content-Disposition` field line, and a value carrying octets outside visible US-ASCII are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding.
+**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type` and more than one `Content-Disposition` field line are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding. A value carrying octets outside visible US-ASCII is not decoded here either, and no rule reports it: RFC 6266 §4.3 makes a `filename` exactly as wide as ISO-8859-1, so such an octet is one of its characters and the `quoted-string` carrying it admits it as `obs-text`.
 
 ## Specifications
 

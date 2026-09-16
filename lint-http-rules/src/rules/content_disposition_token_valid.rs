@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::headers::{field_line_as_written, trim_ows};
+use crate::helpers::shown::describe_char;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
@@ -27,12 +29,27 @@ pub struct ContentDispositionTokenValid;
 /// missing `disposition-type`, and the operator's fix is the same word either
 /// way. The rule still says which it saw.
 ///
-/// Two findings stay unnamed. A message carrying two field lines is § 5.3's
+/// **The octet outside visible US-ASCII used to be a finding of its own and is
+/// not one any more.** It was the last of the family that named an *encoding*
+/// where the defect is an octet, and the conversion its own doc asked for was
+/// an octet-wise reader — which is what this rule now uses. With the value read
+/// one `char` per octet, an octet in the `disposition-type` is simply not a
+/// `tchar` and reports as that, at the check that owns it.
+///
+/// **What that reader also does is stop reporting a conforming value.** The old
+/// gate refused the whole field line, so `filename="café.txt"` was announced as
+/// a filename belonging in a `filename*` parameter — and § 4.3 says no such
+/// thing: the two parameters *"differ only in that "filename*" uses the
+/// encoding defined in [RFC5987], allowing the use of characters not present in
+/// the ISO-8859-1 character set"*, so a `filename` is exactly as wide as
+/// ISO-8859-1 and every octet at or above %x80 is one of its characters. The
+/// `quoted-string` it is written in admits them as `obs-text`. Whether the
+/// sender meant those octets as ISO-8859-1 or as UTF-8 is not a question any
+/// octet can answer, and reporting it either way reports the conforming case.
+///
+/// One finding stays unnamed: a message carrying two field lines is § 5.3's
 /// MUST NOT about *field order*, which is about the message rather than about
-/// any production in it; and the octet outside visible US-ASCII is open
-/// question 1's shape — a verdict naming an encoding where the defect is an
-/// octet the grammar does not admit, whose right conversion is an octet-wise
-/// reader first.
+/// any production in it.
 static DECLARED: &[&ViolationDef] = &[
     &FIELD_LINE_DUPLICATED,
     &TOKEN_EMPTY,
@@ -78,7 +95,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Validate that the `Content-Disposition` header's `disposition-type` is present and is a valid `token`. The `disposition-type` is everything before the first `;` (e.g. `attachment` in `attachment; filename=\"a.txt\"`); `inline` and `attachment` are the two named types, and any other value must satisfy `disp-ext-type = token` — no whitespace, controls, or separator characters.\n\nAn unrecognized type is **not** an error: RFC 6266 §4.2 says recipients should treat unknown types like `attachment`, so this rule checks the shape of the value and never compares it against a list of known types.\n\nSince the grammar has no comma-separated-list alternative, a message section carries at most one `Content-Disposition` field line (RFC 9110 §5.3). Two lines are reported: recipients that recombine them get `attachment; filename=\"a\", inline` and disagree about where the parameter value ends, which is a real source of filename-handling divergence in downloads.\n\n**Scope:** RFC 6266 defines a *response* header field. This rule also inspects requests, where the field is used in practice by upload APIs but is not defined by RFC 6266. `Content-Disposition` inside multipart body *parts* is a different thing governed by RFC 7578 §4.2; this linter reads message header fields, not parsed body parts.\n\n**Note on `token`:** RFC 6266 §4.1 imports `token` from RFC 2616, which is obsolete. The production is the same set of characters as RFC 9110 §5.6.2's `token = 1*tchar`, which is what this rule enforces."
+        "Validate that the `Content-Disposition` header's `disposition-type` is present and is a valid `token`. The `disposition-type` is everything before the first `;` (e.g. `attachment` in `attachment; filename=\"a.txt\"`); `inline` and `attachment` are the two named types, and any other value must satisfy `disp-ext-type = token` — no whitespace, controls, or separator characters.\n\nAn unrecognized type is **not** an error: RFC 6266 §4.2 says recipients should treat unknown types like `attachment`, so this rule checks the shape of the value and never compares it against a list of known types.\n\nSince the grammar has no comma-separated-list alternative, a message section carries at most one `Content-Disposition` field line (RFC 9110 §5.3). Two lines are reported: recipients that recombine them get `attachment; filename=\"a\", inline` and disagree about where the parameter value ends, which is a real source of filename-handling divergence in downloads.\n\n**Scope:** RFC 6266 defines a *response* header field. This rule also inspects requests, where the field is used in practice by upload APIs but is not defined by RFC 6266. `Content-Disposition` inside multipart body *parts* is a different thing governed by RFC 7578 §4.2; this linter reads message header fields, not parsed body parts.\n\n**Note on `token`:** RFC 6266 §4.1 imports `token` from RFC 2616, which is obsolete. The production is the same set of characters as RFC 9110 §5.6.2's `token = 1*tchar`, which is what this rule enforces.\n\nThe value is read as the octets the sender wrote, one character per octet, so an octet outside visible US-ASCII reaches the check that owns it: inside the `disposition-type` it is simply not a `tchar` and is reported as that. It is **not** reported inside a parameter. RFC 6266 §4.3 says `filename` and `filename*` differ only in that `filename*` reaches characters outside ISO-8859-1, so a `filename` is exactly as wide as that character set and the `quoted-string` carrying it admits every octet at or above %x80 as `obs-text`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -166,7 +183,11 @@ impl Rule for ContentDispositionTokenValid {
                 // The disposition-type is mandatory and the parameters are not, so an
                 // empty field value satisfies no part of the production.
                 // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
-                let s = val.trim();
+                // `trim_ows` and not `str::trim`: the value arrives one `char`
+                // per octet, so U+00A0 in it is the octet %xA0 — `obs-text`,
+                // which is whitespace in no document and which the Unicode-aware
+                // trim would remove before any check saw it.
+                let s = trim_ows(val);
                 if s.is_empty() {
                     return Some(ctx.report_with(
                         &TOKEN_EMPTY,
@@ -178,7 +199,7 @@ impl Rule for ContentDispositionTokenValid {
                 // is not tidiness: the grammar's whitespace is implied rather than
                 // written, so `attachment ; filename=…` is a conforming spelling.
                 // cite(RFC 6266 § 4.1): "Note that due to the rules for implied linear whitespace (Section 2.1 of [RFC2616]), OPTIONAL whitespace can appear between words (token or quoted-string) and separator characters."
-                let dispo = s.split(';').next().unwrap().trim();
+                let dispo = trim_ows(s.split(';').next().unwrap());
                 // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
                 // The same id as the branch above, said differently: a value
                 // that is nothing and a value opening on its first `;` are two
@@ -200,11 +221,15 @@ impl Rule for ContentDispositionTokenValid {
                 // cite(RFC 6266 § 4.1): "disp-ext-type       = token"
                 // cite(RFC 6266 § 4.2): "Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8)."
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(dispo) {
+                    // Named as the octet rather than printed as a character: an
+                    // `obs-text` octet written through would be mojibake in the
+                    // finding, and a control octet would be nothing at all.
                     return Some(ctx.report_with(
                         token_character(c),
                         format!(
-                            "{} disposition-type contains invalid token character: '{}'",
-                            hdr_name, c
+                            "{} disposition-type contains {}, which is not a tchar",
+                            hdr_name,
+                            describe_char(c)
                         ),
                     ));
                 }
@@ -271,15 +296,18 @@ impl Rule for ContentDispositionTokenValid {
                 }
 
                 for hv in vals {
-                    // Not a UTF-8 question: `to_str` accepts only visible US-ASCII,
-                    // which is the range field values are held to. A raw non-ASCII
-                    // filename is well-formed UTF-8 and still wrong here — RFC 6266
-                    // §4.3 has `filename*` for exactly that.
-                    // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
-                    let Ok(s) = hv.to_str() else {
-                        return Some(self.violation(ctx.severity, "Content-Disposition header value contains octets outside visible US-ASCII; non-ASCII filenames belong in a `filename*` parameter (RFC 6266 §4.3)".into()));
-                    };
-                    if let Some(v) = check_value("Content-Disposition", s) {
+                    // Read as the sender wrote it, one `char` per octet. The
+                    // `to_str` this replaced refused the whole field line for any
+                    // octet at or above %x80 and called it a filename belonging
+                    // in a `filename*` parameter — a claim about an encoding,
+                    // made about a value whose `quoted-string` admits those
+                    // octets as `obs-text`. Every octet now reaches the check
+                    // that owns it, and the `disposition-type` is the only part
+                    // this rule owns.
+                    //
+                    // cite(RFC 6266 § 4.3): "The parameters "filename" and "filename*" differ only in that "filename*" uses the encoding defined in [RFC5987], allowing the use of characters not present in the ISO-8859-1 character set ([ISO-8859-1])."
+                    if let Some(v) = check_value("Content-Disposition", &field_line_as_written(hv))
+                    {
                         return Some(v);
                     }
                 }
@@ -564,10 +592,15 @@ mod tests {
         assert!(msg.contains("RFC 9110 §5.3"), "{msg}");
     }
 
+    /// A non-ASCII `filename` is not this rule's finding and is not anybody's.
+    /// § 4.3 says the two parameters differ only in that `filename*` reaches
+    /// characters outside ISO-8859-1, so a `filename` is exactly as wide as
+    /// that character set and every octet at or above %x80 is one of its
+    /// characters — admitted by the `quoted-string` it is written in, as
+    /// `obs-text`. The old reader refused the whole field line for one of them
+    /// and called it a filename belonging in a `filename*`.
     #[test]
-    fn non_ascii_value_message_does_not_blame_utf8() {
-        // A raw non-ASCII filename is perfectly good UTF-8; what it violates is
-        // the US-ASCII range field values are held to.
+    fn a_non_ascii_filename_is_a_conforming_value() {
         use hyper::header::HeaderValue;
         let rule = ContentDispositionTokenValid;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
@@ -581,16 +614,42 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let msg = crate::test_helpers::run_rule(
+        assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         )
-        .expect("must be reported")
-        .message;
-        assert!(!msg.contains("UTF-8"), "{msg}");
-        assert!(msg.contains("US-ASCII"), "{msg}");
+        .is_none());
+    }
+
+    /// The same octet inside the `disposition-type` is a finding, and about the
+    /// thing that is actually wrong with it: %xFF is no `tchar`, and the
+    /// message names the octet rather than printing it.
+    #[test]
+    fn an_obs_text_octet_in_the_type_is_reported_as_the_octet_it_is() {
+        use hyper::header::HeaderValue;
+        let rule = ContentDispositionTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.insert(
+            "content-disposition",
+            HeaderValue::from_bytes(b"attach\xffment").unwrap(),
+        );
+        tx.response.as_mut().unwrap().headers = hm;
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "content_disposition_token_valid",
+            "warn",
+        );
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .expect("an octet no tchar admits");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert!(v.message.contains("0xFF"), "{}", v.message);
     }
 
     #[test]
@@ -631,7 +690,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         );
-        assert!(v.unwrap().message.contains("invalid token character"));
+        assert!(v.unwrap().message.contains("not a tchar"));
     }
 
     #[test]
