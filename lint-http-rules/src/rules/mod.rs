@@ -1697,6 +1697,9 @@ severity = "warn"
         /// `uri-host [ ":" port ]` reader's, and what was left is the field's
         /// own — every one of it about disclosure rather than about the
         /// reference being well formed.
+        /// **`location_header_uri_valid` gave up the sibling pair of those**,
+        /// one field over and reading the same production: a second field line
+        /// and an empty reference, neither of them a defect the URI has.
         const FLOOR: usize = 2;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");

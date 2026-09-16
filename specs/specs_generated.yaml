@@ -1720,13 +1720,13 @@ sources:
     snippet: URI-reference = URI / relative-ref
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 210
+      line: 213
   - label: location_header_uri_valid (2)
     section: § 4.4
     snippet: The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier.
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 266
+      line: 269
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 321
   - label: referer_uri_valid
@@ -5587,7 +5587,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 59
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 162
+      line: 166
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 209
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
@@ -5631,7 +5631,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 577
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 211
+      line: 214
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 421
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
@@ -6295,9 +6295,9 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 61
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 208
+      line: 211
     - file: lint-http-rules/src/violations/location.rs
-      line: 142
+      line: 147
   - label: context_fields_direction (8)
     section: § 10.2.3
     snippet: Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request.
@@ -7757,7 +7757,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 399
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 251
+      line: 254
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 181
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
@@ -8165,37 +8165,37 @@ sources:
     snippet: A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops).
     cited_by:
     - file: lint-http-rules/src/violations/location.rs
-      line: 168
+      line: 173
   - label: location_header_uri_valid
     section: § 10.2.2
     snippet: A Location field value cannot allow a list of members because the comma list separator is a valid data character within a URI-reference.
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 232
+      line: 235
   - label: location_header_uri_valid (2)
     section: § 10.2.2
     snippet: If an invalid message is sent with multiple Location field lines, a recipient along the path might combine those field lines into one value.
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 233
+      line: 236
   - label: Location grammar
     section: § 10.2.2
     snippet: Location = URI-reference
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 209
+      line: 212
   - label: location_header_uri_valid (3)
     section: § 16.3.2.2
     snippet: because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 234
+      line: 237
   - label: location_header_uri_valid (4)
     section: § 5.5
     snippet: Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators.
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 231
+      line: 234
   - label: location_on_redirect_present
     section: § 10.2.2
     snippet: For 201 (Created) responses, the Location value refers to the primary resource created by the request.
@@ -8279,7 +8279,7 @@ sources:
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
       line: 52
     - file: lint-http-rules/src/violations/location.rs
-      line: 108
+      line: 113
   - label: location_on_redirect_present (10)
     section: § 15.4.8
     snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
