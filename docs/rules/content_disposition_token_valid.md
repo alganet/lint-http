@@ -18,6 +18,8 @@ Since the grammar has no comma-separated-list alternative, a message section car
 
 **Note on `token`:** RFC 6266 §4.1 imports `token` from RFC 2616, which is obsolete. The production is the same set of characters as RFC 9110 §5.6.2's `token = 1*tchar`, which is what this rule enforces.
 
+The value is read as the octets the sender wrote, one character per octet, so an octet outside visible US-ASCII reaches the check that owns it: inside the `disposition-type` it is simply not a `tchar` and is reported as that. It is **not** reported inside a parameter. RFC 6266 §4.3 says `filename` and `filename*` differ only in that `filename*` reaches characters outside ISO-8859-1, so a `filename` is exactly as wide as that character set and the `quoted-string` carrying it admits every octet at or above %x80 as `obs-text`.
+
 ## Specifications
 
 - [RFC 6266 §4.1](https://www.rfc-editor.org/rfc/rfc6266.html#section-4.1): Grammar: a mandatory `disposition-type` followed by optional `;`-separated parameters, with `disp-ext-type = token`. Whitespace around the separators is implied rather than written
