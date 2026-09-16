@@ -17,6 +17,11 @@
 //! Which is why the length entry below can be stated at all: a limit measured
 //! in octets means nothing against an escaped form, where one octet may be
 //! three characters.
+//!
+//! **The three entries are three ways a name identifies nothing anyone will
+//! answer to**, which is why they rank together: a name too long for the vector
+//! that carries it, a name this deployment does not serve, and a name that
+//! identifies a draft of a protocol that has since shipped.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -28,6 +33,15 @@ pub const RFC_7301_3_1: SpecRef = SpecRef {
     section: Some("3.1"),
     url: "https://www.rfc-editor.org/rfc/rfc7301.html#section-3.1",
     note: "The Application-Layer Protocol Negotiation Extension: protocol names are IANA-registered opaque byte strings, carried in a `ProtocolName` vector of at most 255 octets; §3.2 is the fatal alert a server sends when nothing is in common",
+};
+
+/// The token HTTP/3 shipped under, named in the section that says how an origin
+/// advertises an HTTP/3 endpoint at all.
+pub const RFC_9114_3_1_1: SpecRef = SpecRef {
+    spec: "RFC 9114",
+    section: Some("3.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1",
+    note: "HTTP Alternative Services — advertising HTTP/3 via Alt-Svc using the \"h3\" ALPN token",
 };
 
 /// What an alternative service's protocol identifier is *for*, and what a
@@ -81,6 +95,37 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_7838_2],
     }
+
+    /// A name identifying a *draft* of a protocol that has since shipped under
+    /// a name of its own: `h3-29`, `h3-Q050`, and the rest of the family whose
+    /// final token is `h3`.
+    ///
+    /// **`_obsolete` and not `_unregistered`**, though the two entries cost a
+    /// client the same failed connection. The unregistered one is a name this
+    /// deployment does not serve, which is a fact about a deployment; this is a
+    /// name the protocol itself left behind, which is a fact about the
+    /// documents — and a sender fixing it is not adding the name to a list, it
+    /// is catching up with an RFC.
+    ///
+    /// **It ranks with its siblings, where the catalogue's other `_obsolete`
+    /// entries rank below theirs.** `pragma_obsolete` and `http_date_obsolete`
+    /// name spellings a recipient still honours; nothing negotiates a draft
+    /// token any more, so the alternative advertised under one is advertised to
+    /// nobody — the same reading `x_frame_options_allow_from_obsolete` was
+    /// argued on.
+    ///
+    /// **The family this can name is HTTP/3's alone**, because it is the one
+    /// whose final token this crate holds. Silence about some other protocol's
+    /// drafts is that limit and not a verdict.
+    ///
+    // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
+    ALPN_PROTOCOL_NAME_OBSOLETE = {
+        id: "alpn_protocol_name_obsolete",
+        title: "ALPN protocol name identifies a draft of a shipped protocol",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9114_3_1_1],
+    }
 }
 
 #[cfg(test)]
@@ -97,6 +142,24 @@ mod tests {
         assert_eq!(
             ALPN_PROTOCOL_NAME_LENGTH_INVALID.default_severity,
             Severity::Warn
+        );
+    }
+
+    /// Three ways a name identifies nothing anyone will answer to, and one
+    /// rank between them — including the `_obsolete` one, which is where this
+    /// subject parts company with the catalogue's other retired spellings.
+    #[test]
+    fn every_name_nobody_answers_to_ranks_the_same() {
+        for def in [
+            &ALPN_PROTOCOL_NAME_LENGTH_INVALID,
+            &ALPN_PROTOCOL_NAME_UNREGISTERED,
+            &ALPN_PROTOCOL_NAME_OBSOLETE,
+        ] {
+            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+        }
+        assert!(
+            crate::violations::http_date::HTTP_DATE_OBSOLETE.default_severity
+                < ALPN_PROTOCOL_NAME_OBSOLETE.default_severity
         );
     }
 }

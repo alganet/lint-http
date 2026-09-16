@@ -1700,7 +1700,11 @@ severity = "warn"
         /// **`location_header_uri_valid` gave up the sibling pair of those**,
         /// one field over and reading the same production: a second field line
         /// and an empty reference, neither of them a defect the URI has.
-        const FLOOR: usize = 2;
+        /// **`alt_svc_h3_advertisement_valid` gave up a cited site to a subject
+        /// that is not the field's**: what is wrong with `h3-29` is the ALPN
+        /// protocol *name* it decodes to, and that name is the same name
+        /// whichever carrier held it.
+        const FLOOR: usize = 1;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
