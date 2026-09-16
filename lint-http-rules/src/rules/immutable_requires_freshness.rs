@@ -48,7 +48,6 @@ impl RuleMeta for ImmutableRequiresFreshness {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -209,10 +208,9 @@ mod tests {
             None => crate::test_helpers::make_test_transaction_with_response(200, &[]),
         };
 
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "immutable_requires_freshness",
-            "warn",
-        );
+        ]);
 
         let v = crate::test_helpers::run_rule(
             &rule,
@@ -254,10 +252,9 @@ mod tests {
             .append("cache-control", HeaderValue::from_static("no-store"));
 
         let rule = ImmutableRequiresFreshness;
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "immutable_requires_freshness",
-            "warn",
-        );
+        ]);
 
         let v = crate::test_helpers::run_rule(
             &rule,
@@ -321,7 +318,6 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert(rule.id().to_string(), toml::Value::Table(table));
         rule.prepare(&cfg)?;

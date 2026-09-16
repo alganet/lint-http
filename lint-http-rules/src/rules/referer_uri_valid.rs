@@ -133,7 +133,6 @@ impl RuleMeta for RefererUriValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -561,7 +560,7 @@ mod tests {
             &RefererUriValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["referer_uri_valid"]),
         )
         .unwrap_or_else(|| panic!("expected a finding for {referer:?}"));
         assert_eq!(v.violation, violation, "{}", v.message);
@@ -594,7 +593,7 @@ mod tests {
             &RefererUriValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["referer_uri_valid"]),
         )
         .unwrap_or_else(|| panic!("expected a finding for {referer:?}"));
         assert_eq!(v.violation, violation, "{}", v.message);
@@ -615,7 +614,7 @@ mod tests {
         }
         tx.request.headers = headers;
         let config =
-            crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["referer_uri_valid"]);
         crate::test_helpers::run_rule(
             &RefererUriValid,
             &tx,
@@ -779,7 +778,7 @@ mod tests {
         );
         tx.request.headers = headers;
         let config =
-            crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["referer_uri_valid"]);
         let m = crate::test_helpers::run_rule(
             &RefererUriValid,
             &tx,
@@ -855,7 +854,7 @@ mod tests {
             &RefererUriValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["referer_uri_valid"]),
         )
         .expect("a finding");
         assert_eq!(v.violation, "uri_host_empty", "{referer}");

@@ -21,7 +21,6 @@ Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be
 ```toml
 [rules.bearer_token_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

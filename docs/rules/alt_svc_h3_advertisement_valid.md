@@ -34,7 +34,6 @@ The field lines are joined before they are read (RFC 9110 §5.3), because `1#alt
 ```toml
 [rules.alt_svc_h3_advertisement_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -22,7 +22,6 @@ The value is read as the octets the sender wrote, so an octet outside US-ASCII i
 ```toml
 [rules.age_header_numeric]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

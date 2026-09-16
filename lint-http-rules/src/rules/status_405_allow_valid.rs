@@ -107,7 +107,6 @@ impl RuleMeta for Status405AllowValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -626,7 +625,6 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("error".into()));
         cfg.rules
             .insert("status_405_allow_valid".into(), toml::Value::Table(table));
 

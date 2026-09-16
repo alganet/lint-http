@@ -56,13 +56,11 @@ impl RuleMeta for ExtensionHeadersRegistered {
 # Name a private field for its use and without an "X-" prefix (RFC 9110
 # 16.3.2.1).
 enabled = false
-severity = "warn"
 allowed = ["host", "user-agent", "accept", "content-type", "acme-request-id"]
 "#
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         // What the array lists is field names, and a field name means the same
         // thing however it is spelled, so the configured spelling is folded at
         // prepare time -- once per array rather than once per field of every message.
@@ -78,7 +76,6 @@ allowed = ["host", "user-agent", "accept", "content-type", "acme-request-id"]
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
@@ -229,7 +226,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(
@@ -330,7 +326,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("allowed".into(), toml::Value::Array(vec![]));
                 t
             }),
@@ -350,7 +345,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::Integer(1)]),
@@ -373,7 +367,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("allowed".into(), toml::Value::String("host".into()));
                 t
             }),
@@ -429,7 +422,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("host".into())]),
@@ -494,7 +486,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("X-Custom".into())]),
@@ -651,7 +642,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("host".into())]),

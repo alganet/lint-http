@@ -63,7 +63,6 @@ static DECLARED: &[&ViolationDef] = &[
 ];
 
 pub struct RangeConsistencyConfig {
-    pub severity: crate::lint::Severity,
     /// Range units whose positions this rule may read as octet offsets.
     pub units: Vec<String>,
 }
@@ -72,8 +71,6 @@ fn parse_units_config(
     config: &crate::config::Config,
     rule_id: &str,
 ) -> anyhow::Result<RangeConsistencyConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
             "rule '{}' requires configuration and a named 'units' array listing the range units whose lengths may be checked against Content-Length. Example in config_example.toml",
@@ -110,10 +107,7 @@ fn parse_units_config(
         out.push(s.to_ascii_lowercase());
     }
 
-    Ok(RangeConsistencyConfig {
-        severity,
-        units: out,
-    })
+    Ok(RangeConsistencyConfig { units: out })
 }
 
 /// Whether the response declares the media type § 15.3.7.2 requires of a 206
@@ -146,7 +140,6 @@ impl RuleMeta for RangeAndContentRangeConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 # Range units whose first-pos/last-pos may be read as octet offsets and checked
 # against Content-Length. Units are an extensible token set (RFC 9110 14.1); a
 # Content-Range naming a unit not listed here is still parsed and structurally
@@ -165,7 +158,6 @@ units = ["bytes"]
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
             state: Box::new(config),
         })
     }
@@ -485,7 +477,6 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         let mut t = toml::map::Map::new();
         t.insert("enabled".into(), toml::Value::Boolean(true));
-        t.insert("severity".into(), toml::Value::String("warn".into()));
         t.insert(
             "units".into(),
             toml::Value::Array(

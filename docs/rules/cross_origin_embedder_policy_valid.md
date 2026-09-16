@@ -21,7 +21,6 @@ This rule checks the `Cross-Origin-Embedder-Policy` response header value and en
 ```toml
 [rules.cross_origin_embedder_policy_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

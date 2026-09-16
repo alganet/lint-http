@@ -658,7 +658,6 @@ impl RuleMeta for AltSvcHeaderSyntax {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -829,7 +828,7 @@ mod tests {
     use rstest::rstest;
 
     fn config() -> crate::config::Config {
-        crate::test_helpers::make_test_config_with_severity("alt_svc_header_syntax", "warn")
+        crate::test_helpers::make_test_config_with_enabled_rules(&["alt_svc_header_syntax"])
     }
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {

@@ -50,7 +50,6 @@ impl RuleMeta for IfMatchEtagSyntax {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -224,7 +223,7 @@ mod tests {
         }
 
         let cfg =
-            crate::test_helpers::make_test_config_with_severity("if_match_etag_syntax", "warn");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["if_match_etag_syntax"]);
 
         let v = crate::test_helpers::run_rule(
             &rule,

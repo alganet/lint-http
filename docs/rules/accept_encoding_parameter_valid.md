@@ -37,7 +37,6 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 ```toml
 [rules.accept_encoding_parameter_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

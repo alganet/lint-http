@@ -28,7 +28,6 @@ RFC 9110 §10.2.2 gives the `Location` header field a referent twice — the pri
 ```toml
 [rules.redirect_status_and_location_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

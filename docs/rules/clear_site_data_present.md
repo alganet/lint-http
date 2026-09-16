@@ -20,7 +20,6 @@ Checks that configured logout paths include a `Clear-Site-Data` header so client
 ```toml
 [rules.clear_site_data_present]
 enabled = true
-severity = "warn"
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 
 # Correctness rules examples

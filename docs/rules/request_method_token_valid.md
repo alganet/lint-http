@@ -41,7 +41,6 @@ Reports a request whose method token does not derive from `method = token` (RFC 
 ```toml
 [rules.request_method_token_valid]
 enabled = true
-severity = "warn"
 # The standardized method names this deployment expects to see spelled the way their
 # definitions spell them. RFC 9110 §9.1 states the convention this rule reports against
 # — "standardized methods are defined in all-uppercase US-ASCII letters" — and says

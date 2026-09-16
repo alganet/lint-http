@@ -20,7 +20,6 @@ The `Retry-After` header, when present in responses, MUST be either a non-negati
 ```toml
 [rules.retry_after_date_or_delay]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

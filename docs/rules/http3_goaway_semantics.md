@@ -22,7 +22,6 @@ Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  A GOAWAY's
 ```toml
 [rules.http3_goaway_semantics]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

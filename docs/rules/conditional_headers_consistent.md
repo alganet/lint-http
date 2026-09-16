@@ -27,7 +27,6 @@ Validate consistency and mutual exclusivity of conditional request headers. When
 ```toml
 [rules.conditional_headers_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

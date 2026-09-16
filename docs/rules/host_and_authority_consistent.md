@@ -48,7 +48,6 @@ Reports an HTTP/2 or HTTP/3 request whose `Host` header field and `:authority` p
 ```toml
 [rules.host_and_authority_consistent]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

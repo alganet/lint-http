@@ -37,7 +37,6 @@ This rule complements `trailer_header_valid`, which reads the `Trailer` declarat
 ```toml
 [rules.trailer_fields_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

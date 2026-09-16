@@ -37,7 +37,6 @@ Checks that an `Accept-Ranges` response header field is what RFC 9110 §14.3 def
 ```toml
 [rules.accept_ranges_values_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

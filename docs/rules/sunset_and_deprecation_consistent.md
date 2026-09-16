@@ -23,7 +23,6 @@ When both `Sunset` and `Deprecation` response headers are present they must be l
 ```toml
 [rules.sunset_and_deprecation_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

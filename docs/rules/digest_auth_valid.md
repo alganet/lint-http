@@ -30,7 +30,6 @@ Servers and clients relying on Digest authentication may behave incorrectly when
 ```toml
 [rules.digest_auth_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

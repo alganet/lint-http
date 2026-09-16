@@ -102,7 +102,6 @@ impl RuleMeta for ContentLocationAndUriConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "info"
 "#
     }
 
@@ -861,25 +860,22 @@ mod tests {
         );
     }
 
+    /// The rule's own severity used to be the claim, read out of the shipped
+    /// config; it is the catalogue's now. **`content_location_ambiguous` is the
+    /// entry that carried it** — § 8.7 attaches no requirement to a differing
+    /// `Content-Location`, and the claim it makes can only be trusted if both
+    /// identifiers share a resource owner, which cannot be determined via HTTP.
+    /// The grammar entries beside it are not advisory and never were.
     #[test]
-    fn shipped_severity_is_advisory() {
-        // RFC 9110 §8.7 permits a differing Content-Location, so the mismatch
-        // report is guidance rather than a protocol error. Guard the shipped
-        // default against a silent bump.
-        let s = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
-        )
-        .expect("config_example.toml must be readable");
-        let section = s
-            .split("[rules.content_location_and_uri_consistent]")
-            .nth(1)
-            .expect("rule must appear in config_example.toml");
-        let shipped = section
-            .lines()
-            .take_while(|l| !l.starts_with('['))
-            .find_map(|l| l.strip_prefix("severity = "))
-            .expect("rule must ship a severity");
-        assert_eq!(shipped.trim(), "\"info\"");
+    fn the_difference_is_advisory_and_the_grammar_is_not() {
+        assert_eq!(
+            CONTENT_LOCATION_AMBIGUOUS.default_severity,
+            crate::lint::Severity::Info
+        );
+        assert_eq!(
+            CONTENT_LOCATION_FRAGMENT_FORBIDDEN.default_severity,
+            crate::lint::Severity::Warn
+        );
     }
 
     #[test]
@@ -981,21 +977,6 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "content_location_and_uri_consistent");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
-    }
-
-    #[test]
-    fn validate_rules_with_invalid_config_missing_severity() {
-        let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "content_location_and_uri_consistent");
-        // remove severity to simulate invalid config
-        if let Some(toml::Value::Table(ref mut table)) =
-            cfg.rules.get_mut("content_location_and_uri_consistent")
-        {
-            table.remove("severity");
-        }
-
-        let err = crate::rules::validate_rules(&cfg).expect_err("expected validation to fail");
-        assert!(err.to_string().contains("Missing required 'severity'"));
     }
 
     #[test]

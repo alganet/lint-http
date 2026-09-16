@@ -24,7 +24,6 @@ Validate a `User-Agent` request header against `User-Agent = product *( RWS ( pr
 ```toml
 [rules.user_agent_token_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -31,7 +31,6 @@ The reason-phrase beside the code is not read: RFC 9112 §4 makes it optional an
 ```toml
 [rules.status_code_valid_range]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

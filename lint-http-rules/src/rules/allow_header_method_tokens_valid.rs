@@ -211,7 +211,6 @@ impl RuleMeta for AllowHeaderMethodTokensValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -657,7 +656,6 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("error".into()));
         cfg.rules.insert(
             "allow_header_method_tokens_valid".into(),
             toml::Value::Table(table),

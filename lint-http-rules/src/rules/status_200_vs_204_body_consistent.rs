@@ -87,7 +87,6 @@ impl RuleMeta for Status200Vs204BodyConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 

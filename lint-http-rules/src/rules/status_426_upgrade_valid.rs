@@ -78,7 +78,6 @@ impl RuleMeta for Status426UpgradeValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -517,7 +516,7 @@ mod tests {
                     neighbour,
                     &tx,
                     &crate::transaction_history::TransactionHistory::empty(),
-                    &crate::test_helpers::make_test_config_with_severity(id, "warn"),
+                    &crate::test_helpers::make_test_config_with_enabled_rules(&[id]),
                 );
                 assert!(
                     v.is_none(),

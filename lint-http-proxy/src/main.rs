@@ -602,7 +602,6 @@ enabled = false
 
 [rules.{rule_id}]
 enabled = true
-severity = "warn"
 "#
         );
         fs::write(&tmp, toml).await?;
@@ -1332,7 +1331,6 @@ severity = "warn"
         let toml = r#"[rules]
     [rules.cache_control_present]
     enabled = false
-    severity = "warn"
 
     [general]
     listen = "127.0.0.1:3000"
@@ -1370,7 +1368,6 @@ enabled = false
 
  [rules.clear_site_data_present]
  enabled = true
- severity = "warn"
  paths = []  # Invalid: empty paths array
 "#;
         fs::write(&tmp, toml).await?;
@@ -1402,7 +1399,6 @@ enabled = false
             r#"[rules]
 [rules.cache_control_present]
 enabled = false
-severity = "warn"
 
 [general]
 listen = "127.0.0.1:{port}"
@@ -1455,7 +1451,6 @@ enabled = false
             r#"[rules]
 [rules.cache_control_present]
 enabled = false
-severity = "warn"
 
 [general]
 listen = "{addr}"

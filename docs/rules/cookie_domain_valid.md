@@ -26,7 +26,6 @@ reported as deprecated.
 ```toml
 [rules.cookie_domain_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

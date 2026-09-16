@@ -35,7 +35,6 @@ Check the language tags in `Content-Language` and the language ranges in `Accept
 ```toml
 [rules.language_tag_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -8,15 +8,16 @@ use crate::violations::ViolationDef;
 use linkme::distributed_slice;
 use std::sync::LazyLock;
 
-/// Both keys a rule's table must carry, checked once at startup.
+/// The one key a rule's table must carry, checked once at startup.
 ///
-/// `enabled` must be present and a boolean, and `severity` present and one of
-/// the three names. The two `prepare` defaults ask it, and every custom
-/// `prepare` is expected to ask it after its own options — which is the one
-/// place the pair could be forgotten, and why `validate_rules` also walks
-/// `Config::rules` itself before it calls any of them.
+/// `enabled` must be present and a boolean. **It used to be two**: a rule table
+/// also had to name a `severity`, which every finding then reported at — one
+/// scalar for everything a rule said. Severity is a violation's now, so the key
+/// is gone and this asks for what is left. The two `prepare` defaults ask it,
+/// and every custom `prepare` is expected to ask it after its own options —
+/// which is the one place it could be forgotten, and why `validate_rules` also
+/// walks `Config::rules` itself before it calls any of them.
 pub fn validate_rule_table(cfg: &crate::config::Config, rule_id: &str) -> anyhow::Result<()> {
-    get_rule_severity_required(cfg, rule_id)?;
     get_rule_enabled_required(cfg, rule_id)?;
     Ok(())
 }
@@ -27,42 +28,39 @@ pub fn validate_rule_table(cfg: &crate::config::Config, rule_id: &str) -> anyhow
 /// `state` is the rule's own resolved shape — an allowed-list, a set of
 /// header names — behind `dyn Any` so the trait stays object-safe (the
 /// catalogue is dispatched through `&'static dyn Rule`, which rules out an
-/// associated type). Rules that read only their severity return `Box::new(())`.
+/// associated type). A rule with nothing to resolve returns `Box::new(())`,
+/// which is most of them: the severity that used to sit beside `state` was the
+/// only thing the other 176 had here.
 pub struct ResolvedRule {
-    pub severity: crate::lint::Severity,
     pub state: Box<dyn std::any::Any + Send + Sync>,
 }
 
 impl std::fmt::Debug for ResolvedRule {
-    /// `state` is `dyn Any`, so only the severity can say anything; tests
-    /// `expect_err` on `prepare` results, which needs the Ok side printable.
+    /// `state` is `dyn Any` and there is nothing else, so this prints the name
+    /// alone; tests `expect_err` on `prepare` results, which needs the Ok side
+    /// printable.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ResolvedRule")
-            .field("severity", &self.severity)
-            .finish_non_exhaustive()
+        f.debug_struct("ResolvedRule").finish_non_exhaustive()
     }
 }
 
 /// One rule's resolved configuration, borrowed for one dispatch.
 ///
-/// This is what replaces `cfg: &Config` at the check sites: two words on the
-/// stack, no hashing, no TOML, no allocation. The severity is read directly;
-/// rule-specific state comes back out through [`RuleContext::state`], typed
-/// by the rule that put it in.
+/// This is what replaces `cfg: &Config` at the check sites: no hashing, no
+/// TOML, no allocation. Rule-specific state comes back out through
+/// [`RuleContext::state`], typed by the rule that put it in.
 ///
-/// It is also where a finding is built from the catalogue. `severity` is one
-/// scalar for the whole rule, which is what makes a rule that says four
-/// different things say them all at the same level; the defects a rule
-/// declares each carry their own, and [`report`](RuleContext::report) reads
-/// the one for the defect being reported. The two coexist while the catalogue
-/// is written.
+/// It is also where a finding is built from the catalogue. **It used to carry a
+/// `severity` too** — one scalar for the whole rule, which is what made a rule
+/// that says four different things say them all at the same level. The defects
+/// a rule declares each carry their own, [`report`](RuleContext::report) reads
+/// the one for the defect being reported, and the scalar went when the last
+/// finding stopped asking for it.
 pub struct RuleContext<'a> {
-    pub severity: crate::lint::Severity,
     state: &'a (dyn std::any::Any + Send + Sync),
-    /// The reporting rule's id, for the `Violation.rule` a report carries.
-    /// Findings built through [`RuleMeta::violation`] read it off `self`
-    /// instead; a context has to be told, because `report` is a method on the
-    /// context and not on the rule.
+    /// The reporting rule's id, for the `Violation.rule` a report carries. A
+    /// context has to be told, because `report` is a method on the context and
+    /// not on the rule.
     rule_id: &'static str,
     /// The defects this rule may report — [`RuleMeta::violations`], carried
     /// here so a report can be resolved without dispatching back through the
@@ -83,7 +81,6 @@ impl<'a> RuleContext<'a> {
     /// half that carries only what `prepare` resolved.
     pub fn new(resolved: &'a ResolvedRule) -> Self {
         Self {
-            severity: resolved.severity,
             state: &*resolved.state,
             rule_id: "",
             declared: &[],
@@ -406,14 +403,13 @@ pub trait RuleMeta: Send + Sync {
     /// Validation *is* successful preparation: what a separate `validate`
     /// hook would answer with `Ok(())`, this answers with the resolved values
     /// themselves, so the same parse cannot run again — typed or untyped —
-    /// on the lint path. The default resolves what every rule needs (the
-    /// table's two required keys, of which severity is the one carried
-    /// forward); a rule with a custom config section overrides this to parse
-    /// it into its own `state`.
+    /// on the lint path. The default validates the table's one required key and
+    /// resolves nothing, which is the true statement about 176 of the rules; a
+    /// rule with a custom config section overrides this to parse it into its
+    /// own `state`.
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<ResolvedRule> {
         validate_rule_table(cfg, self.id())?;
         Ok(ResolvedRule {
-            severity: get_rule_severity_required(cfg, self.id())?,
             state: Box::new(()),
         })
     }
@@ -509,8 +505,9 @@ pub trait Rule: RuleMeta {
 pub fn get_rule_enabled_required(cfg: &crate::config::Config, rule: &str) -> anyhow::Result<bool> {
     let Some(rule_cfg) = cfg.get_rule_config(rule) else {
         return Err(anyhow::anyhow!(
-            "Rule '{}' missing configuration. Add:\n[rules.{}]\nenabled = true\nseverity = \"warn\"",
-            rule, rule
+            "Rule '{}' missing configuration. Add:\n[rules.{}]\nenabled = true",
+            rule,
+            rule
         ));
     };
     let Some(table) = rule_cfg.as_table() else {
@@ -526,40 +523,6 @@ pub fn get_rule_enabled_required(cfg: &crate::config::Config, rule: &str) -> any
         ));
     };
     Ok(enabled)
-}
-
-/// Lookup the configured severity for a rule at runtime,
-/// Get rule severity, failing if not explicitly configured.
-/// All enabled rules must have an explicit severity field.
-pub fn get_rule_severity_required(
-    cfg: &crate::config::Config,
-    rule: &str,
-) -> anyhow::Result<crate::lint::Severity> {
-    let Some(rule_cfg) = cfg.get_rule_config(rule) else {
-        return Err(anyhow::anyhow!(
-            "Rule '{}' is enabled but missing configuration. Add:\n[rules.{}]\nenabled = true\nseverity = \"warn\"",
-            rule, rule
-        ));
-    };
-    let Some(table) = rule_cfg.as_table() else {
-        return Err(anyhow::anyhow!(
-            "Rule '{}' configuration must be a table",
-            rule
-        ));
-    };
-    let Some(s) = table.get("severity").and_then(|v| v.as_str()) else {
-        return Err(anyhow::anyhow!(
-            "Rule '{}' missing required 'severity' field. Must be one of: info, warn, error",
-            rule
-        ));
-    };
-    crate::lint::Severity::from_name(s).ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' has invalid severity '{}'. Must be one of: info, warn, error",
-            rule,
-            s
-        )
-    })
 }
 
 /// Check the whole lint configuration: the `[rules.*]` tables this is named
@@ -591,28 +554,20 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
                 }
             }
 
-            // Validate `severity` field - must be present and be a valid string
-            match table.get("severity") {
-                Some(toml::Value::String(s)) if crate::lint::Severity::from_name(s).is_some() => {}
-                Some(toml::Value::String(s)) => {
-                    return Err(anyhow::anyhow!(
-                        "Invalid severity '{}' for rule '{}': must be one of 'info', 'warn', 'error'",
-                        s,
-                        rule_name
-                    ));
-                }
-                Some(_) => {
-                    return Err(anyhow::anyhow!(
-                        "Invalid severity for rule '{}': must be a string 'info', 'warn', or 'error'",
-                        rule_name
-                    ));
-                }
-                None => {
-                    return Err(anyhow::anyhow!(
-                        "Missing required 'severity' key for rule '{}'",
-                        rule_name
-                    ));
-                }
+            // A `severity` under `[rules.*]` is refused rather than ignored.
+            // The key was required until severity became a violation's, and a
+            // configuration that still carries one is asking for something this
+            // engine no longer does: every finding reports at the level its
+            // defect names. Accepting it silently would leave an operator
+            // believing a rule had been turned down. This tree refuses a
+            // configured name that matches no rule for the same reason, in the
+            // same words — breaking by decision, never aliased.
+            if table.contains_key("severity") {
+                return Err(anyhow::anyhow!(
+                    "Rule '{}' carries a 'severity' key, which no longer exists: severity is configured per violation. Remove the key, and use [violations.<id>] severity = \"...\" for the defects this rule reports — `docs/rules/{}.md` lists them",
+                    rule_name,
+                    rule_name
+                ));
             }
         }
     }
@@ -980,7 +935,6 @@ enabled = false
 
 [rules.clear_site_data_present]
 enabled = true
-severity = "warn"
 paths = []  # Invalid: empty array
 "#,
         "clear_site_data_present",
@@ -996,7 +950,6 @@ enabled = false
 
 [rules.clear_site_data_present]
 enabled = true
-severity = "warn"
 paths = ["/logout", 42, "/signout"]  # Invalid: contains non-string
 "#,
         "clear_site_data_present",
@@ -1012,7 +965,6 @@ enabled = false
 
 [rules.clear_site_data_present]
 enabled = true
-severity = "warn"
 # Missing "paths" field entirely
 other_field = "value"
 "#,
@@ -1027,38 +979,22 @@ captures = "captures.jsonl"
 [tls]
 enabled = false
 
-[rules.some_rule]
+[rules.host_header]
 enabled = true
-# Missing severity key
-"#,
-        "some_rule",
-        "Missing required 'severity'"
-    )]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.some_rule]
-enabled = true
-severity = "critical"
-"#,
-        "some_rule",
-        "must be one of"
-    )]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.some_rule]
 severity = "warn"
+"#,
+        "host_header",
+        "severity is configured per violation"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
 "#,
         "some_rule",
         "Missing required 'enabled'"
@@ -1073,7 +1009,6 @@ enabled = false
 
 [rules.some_rule]
 enabled = "true"
-severity = "warn"
 "#,
         "some_rule",
         "Invalid 'enabled' for rule"
@@ -1493,23 +1428,6 @@ severity = "warn"
     }
 
     #[test]
-    fn test_validate_rules_invalid_severity() {
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "severity".to_string(),
-            toml::Value::String("critical".into()),
-        );
-        cfg.rules
-            .insert("test_rule".into(), toml::Value::Table(table));
-
-        let res = validate_rules(&cfg);
-        assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains("Invalid severity"));
-    }
-
-    #[test]
     fn get_rule_enabled_required_not_table_errors() {
         let mut cfg = crate::config::Config::default();
         // Put a non-table value for the rule
@@ -1525,42 +1443,10 @@ severity = "warn"
     }
 
     #[test]
-    fn get_rule_severity_required_missing_or_not_string_errors() {
-        let mut cfg = crate::config::Config::default();
-
-        // Missing severity
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        cfg.rules
-            .insert("test_rule_no_sev".into(), toml::Value::Table(table.clone()));
-
-        let res = get_rule_severity_required(&cfg, "test_rule_no_sev");
-        assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains("missing required 'severity'"));
-
-        // Severity present but not a string
-        let mut table2 = table;
-        table2.insert("severity".to_string(), toml::Value::Integer(1));
-        cfg.rules
-            .insert("test_rule_bad_sev".into(), toml::Value::Table(table2));
-
-        let res2 = get_rule_severity_required(&cfg, "test_rule_bad_sev");
-        assert!(res2.is_err());
-        assert!(res2
-            .unwrap_err()
-            .to_string()
-            .contains("missing required 'severity'"));
-    }
-
-    #[test]
     fn validate_rules_enabled_not_bool_errors() {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Integer(1));
-        table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert("r_enabled_bad".into(), toml::Value::Table(table));
 
@@ -1572,10 +1458,10 @@ severity = "warn"
     #[test]
     fn validate_rules_missing_enabled_key_errors() {
         let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("severity".to_string(), toml::Value::String("warn".into()));
-        cfg.rules
-            .insert("r_missing_enabled".into(), toml::Value::Table(table));
+        cfg.rules.insert(
+            "r_missing_enabled".into(),
+            toml::Value::Table(toml::map::Map::new()),
+        );
 
         let res = validate_rules(&cfg);
         assert!(res.is_err());
@@ -1586,35 +1472,6 @@ severity = "warn"
     }
 
     #[test]
-    fn validate_rules_severity_not_string_errors() {
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::Integer(1));
-        cfg.rules
-            .insert("r_sev_not_string".into(), toml::Value::Table(table));
-
-        let res = validate_rules(&cfg);
-        assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains("must be a string"));
-    }
-
-    #[test]
-    fn validate_rules_missing_severity_key_errors() {
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        cfg.rules
-            .insert("r_missing_sev".into(), toml::Value::Table(table));
-
-        let res = validate_rules(&cfg);
-        assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains("Missing required 'severity' key"));
-    }
-    #[test]
     fn default_rule_scope_is_both() {
         struct DummyRule;
         impl RuleMeta for DummyRule {
@@ -1624,7 +1481,6 @@ severity = "warn"
 
             fn config_example(&self) -> &'static str {
                 r#"enabled = true
-severity = "warn"
 "#
             }
 
@@ -1671,29 +1527,33 @@ severity = "warn"
         Ok(())
     }
 
+    /// The default `prepare` resolves nothing at all now, which is the whole
+    /// of what it has to say: it validated a severity and carried it forward
+    /// until severity became a violation's, and what is left is the `enabled`
+    /// check and a unit state.
     #[test]
-    fn default_prepare_resolves_severity_and_unit_state() -> anyhow::Result<()> {
-        let cfg = crate::test_helpers::make_test_config_with_severity("host_header", "error");
+    fn default_prepare_resolves_unit_state() -> anyhow::Result<()> {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["host_header"]);
         let rule = RULES
             .iter()
             .find(|r| r.id() == "host_header")
             .expect("host_header registered");
         let resolved = rule.prepare(&cfg)?;
-        assert_eq!(resolved.severity, crate::lint::Severity::Error);
         let ctx = RuleContext::new(&resolved);
-        assert_eq!(ctx.severity, crate::lint::Severity::Error);
-        // The default prepare carries no rule-specific state.
         let _: &() = ctx.state::<()>();
         Ok(())
     }
 
+    /// A rule table with no `enabled` is the one thing the default `prepare`
+    /// still refuses. A missing `severity` used to be the other, and a table
+    /// carrying one now fails earlier, in `validate_rules`.
     #[test]
-    fn default_prepare_rejects_missing_severity() {
+    fn default_prepare_rejects_a_table_without_enabled() {
         let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        cfg.rules
-            .insert("host_header".to_string(), toml::Value::Table(table));
+        cfg.rules.insert(
+            "host_header".to_string(),
+            toml::Value::Table(toml::map::Map::new()),
+        );
         let rule = RULES
             .iter()
             .find(|r| r.id() == "host_header")
@@ -1743,7 +1603,7 @@ severity = "warn"
         }
 
         fn config_example(&self) -> &'static str {
-            "enabled = true\nseverity = \"warn\"\n"
+            "enabled = true\n"
         }
 
         fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -1762,7 +1622,6 @@ severity = "warn"
 
     fn unit_resolved() -> ResolvedRule {
         ResolvedRule {
-            severity: crate::lint::Severity::Info,
             state: Box::new(()),
         }
     }
@@ -1951,7 +1810,6 @@ severity = "warn"
     #[test]
     fn rule_context_state_roundtrips_the_prepared_type() {
         let resolved = ResolvedRule {
-            severity: crate::lint::Severity::Info,
             state: Box::new(vec!["utf-8".to_string()]),
         };
         let ctx = RuleContext::new(&resolved);
@@ -1962,7 +1820,6 @@ severity = "warn"
     #[should_panic(expected = "rule state wiring")]
     fn rule_context_state_mismatch_panics() {
         let resolved = ResolvedRule {
-            severity: crate::lint::Severity::Warn,
             state: Box::new(()),
         };
         let ctx = RuleContext::new(&resolved);
@@ -1970,71 +1827,79 @@ severity = "warn"
     }
 
     #[test]
-    fn protocol_rule_default_prepare_resolves_severity() -> anyhow::Result<()> {
+    fn protocol_rule_default_prepare_succeeds() -> anyhow::Result<()> {
         let cfg =
-            crate::test_helpers::make_test_config_with_severity("websocket_frame_masking", "warn");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["websocket_frame_masking"]);
         let rule = PROTOCOL_RULES
             .iter()
             .find(|r| r.id() == "websocket_frame_masking")
             .expect("websocket_frame_masking registered");
-        let resolved = rule.prepare(&cfg)?;
-        assert_eq!(resolved.severity, crate::lint::Severity::Warn);
+        rule.prepare(&cfg)?;
         Ok(())
     }
 
+    /// A rule table with no `enabled` is refused, and `is_enabled` reads the
+    /// missing flag as `false` — so the rule is one `PreparedEngine` refuses to
+    /// build over, and would never dispatch even if it did. The test is named
+    /// for the table it was written about, which carried a `severity` and
+    /// nothing else; that key is refused on sight now, so what is left to be
+    /// short of is the flag.
     #[test]
-    fn a_severity_only_table_is_refused_and_never_dispatched() {
-        // A table carrying a severity and no `enabled` fails validation, and
-        // `is_enabled` reads the missing flag as `false` — so the rule is one
-        // `PreparedEngine` refuses to build over, and would never dispatch
-        // even if it did.
-        let mut severity_only = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("severity".to_string(), toml::Value::String("error".into()));
-        severity_only
-            .rules
-            .insert("cache_control_present".into(), toml::Value::Table(table));
-        assert!(validate_rule_table(&severity_only, "cache_control_present").is_err());
-        assert!(!severity_only.is_enabled("cache_control_present"));
+    fn a_table_without_enabled_is_refused_and_never_dispatched() {
+        let mut without_enabled = crate::config::Config::default();
+        without_enabled.rules.insert(
+            "cache_control_present".into(),
+            toml::Value::Table(toml::map::Map::new()),
+        );
+        assert!(validate_rule_table(&without_enabled, "cache_control_present").is_err());
+        assert!(!without_enabled.is_enabled("cache_control_present"));
 
-        // A table with neither key is refused too, because the severity is the
-        // reading dispatch cannot do without.
+        // A configuration with no table for the rule at all is refused too.
         let empty = crate::config::Config::default();
         assert!(validate_rule_table(&empty, "cache_control_present").is_err());
     }
 
     #[test]
-    fn get_rule_enabled_and_severity_required_success() -> anyhow::Result<()> {
+    fn get_rule_enabled_required_success() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert("test_rule".into(), toml::Value::Table(table));
 
-        let enabled = get_rule_enabled_required(&cfg, "test_rule")?;
-        assert!(enabled);
-
-        let sev = get_rule_severity_required(&cfg, "test_rule")?;
-        assert_eq!(sev, crate::lint::Severity::Warn);
+        assert!(get_rule_enabled_required(&cfg, "test_rule")?);
         Ok(())
     }
 
+    /// A retired key is refused rather than ignored, and the error says where
+    /// severity went. An operator whose file still carries one is asking for a
+    /// rule to be turned down, and silence would let them believe it was.
     #[test]
-    fn get_rule_severity_required_invalid_string_errors() {
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "severity".to_string(),
-            toml::Value::String("critical".into()),
-        );
-        cfg.rules
-            .insert("test_rule_invalid".into(), toml::Value::Table(table));
+    fn a_rule_table_carrying_a_severity_is_refused() {
+        // Whatever the value is: the key itself is what no longer exists, so
+        // there is nothing left for a type check to be a better error than.
+        for value in [
+            toml::Value::String("warn".into()),
+            toml::Value::String("shouting".into()),
+            toml::Value::Integer(1),
+        ] {
+            let mut cfg = crate::config::Config::default();
+            let mut table = toml::map::Map::new();
+            table.insert("enabled".to_string(), toml::Value::Boolean(true));
+            table.insert("severity".to_string(), value);
+            cfg.rules
+                .insert("host_header".into(), toml::Value::Table(table));
 
-        let res = get_rule_severity_required(&cfg, "test_rule_invalid");
-        assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains("invalid severity"));
+            let msg = validate_rules(&cfg)
+                .expect_err("a retired key must fail validation")
+                .to_string();
+            assert!(msg.contains("host_header"), "{msg}");
+            assert!(
+                msg.contains("severity is configured per violation"),
+                "{msg}"
+            );
+            assert!(msg.contains("[violations."), "{msg}");
+        }
     }
 
     #[test]

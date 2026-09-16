@@ -48,7 +48,6 @@ impl RuleMeta for StatusCodeValidRange {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -258,7 +257,7 @@ mod tests {
         });
 
         let config =
-            crate::test_helpers::make_test_config_with_severity("status_code_valid_range", "error");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["status_code_valid_range"]);
 
         let violation = crate::test_helpers::run_rule(
             &rule,
@@ -396,7 +395,7 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction();
 
         let config =
-            crate::test_helpers::make_test_config_with_severity("status_code_valid_range", "error");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["status_code_valid_range"]);
 
         let violation = crate::test_helpers::run_rule(
             &rule,

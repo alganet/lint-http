@@ -28,7 +28,6 @@ An empty `name` value is reported as a defect. The specification requires the pa
 ```toml
 [rules.form_data_content_disposition_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

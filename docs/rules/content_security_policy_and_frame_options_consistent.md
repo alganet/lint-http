@@ -23,7 +23,6 @@ Note: this check considers only enforceable header-delivered CSP policies (`Cont
 ```toml
 [rules.content_security_policy_and_frame_options_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

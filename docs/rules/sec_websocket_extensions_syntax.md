@@ -36,7 +36,6 @@ Scope: this rule reads header sections — a request's and a response's — and 
 ```toml
 [rules.sec_websocket_extensions_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

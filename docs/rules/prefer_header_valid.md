@@ -44,7 +44,6 @@ Reads a request's `Prefer` field against RFC 7240 §2's grammar — `Prefer = 1#
 ```toml
 [rules.prefer_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

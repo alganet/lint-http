@@ -36,7 +36,6 @@ Reports a response that states a preference was applied — `Preference-Applied`
 ```toml
 [rules.prefer_header_and_preference_applied]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

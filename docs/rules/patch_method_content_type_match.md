@@ -34,7 +34,6 @@ Reports a `PATCH` request whose `Content-Type` names a patch document format tha
 ```toml
 [rules.patch_method_content_type_match]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -26,7 +26,6 @@ That is why the reported set stops at the three generic media types. A subtype e
 ```toml
 [rules.problem_details_content_type]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -32,7 +32,6 @@ impl RuleMeta for PriorityAndCacheabilityConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -278,21 +277,6 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "priority_and_cacheability_consistent");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
-    }
-
-    #[test]
-    fn validate_rules_with_invalid_config_missing_severity() {
-        let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "priority_and_cacheability_consistent");
-        // remove severity to simulate invalid config
-        if let Some(toml::Value::Table(ref mut table)) =
-            cfg.rules.get_mut("priority_and_cacheability_consistent")
-        {
-            table.remove("severity");
-        }
-
-        let err = crate::rules::validate_rules(&cfg).expect_err("expected validation to fail");
-        assert!(err.to_string().contains("Missing required 'severity'"));
     }
 
     #[test]

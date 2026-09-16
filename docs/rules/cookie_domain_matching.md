@@ -24,7 +24,6 @@ To avoid spurious warnings the check only considers cookies that have been seen 
 ```toml
 [rules.cookie_domain_matching]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

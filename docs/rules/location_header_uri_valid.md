@@ -40,7 +40,6 @@ A `%` must open a well-formed `pct-encoded` triplet, and a value that carries a 
 ```toml
 [rules.location_header_uri_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

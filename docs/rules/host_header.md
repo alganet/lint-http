@@ -35,7 +35,6 @@ Three things this rule deliberately does **not** report:
 ```toml
 [rules.host_header]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

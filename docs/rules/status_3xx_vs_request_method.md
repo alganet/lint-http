@@ -39,7 +39,6 @@ SPDX-License-Identifier: ISC
 ```toml
 [rules.status_3xx_vs_request_method]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

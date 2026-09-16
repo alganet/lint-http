@@ -51,7 +51,6 @@ impl RuleMeta for AcceptRangesAnd206Consistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -543,17 +542,6 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "accept_ranges_and_206_consistent");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
-    }
-
-    #[test]
-    fn validate_rules_missing_severity_errors() {
-        let mut cfg = config();
-        if let Some(toml::Value::Table(table)) =
-            cfg.rules.get_mut("accept_ranges_and_206_consistent")
-        {
-            table.remove("severity");
-        }
-        assert!(crate::rules::validate_rules(&cfg).is_err());
     }
 
     /// Two mechanisms keep this rule off a request — the scope enum, which is

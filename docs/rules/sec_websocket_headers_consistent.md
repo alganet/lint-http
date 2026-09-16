@@ -41,7 +41,6 @@ Only HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshak
 ```toml
 [rules.sec_websocket_headers_consistent]
 enabled = false
-severity = "warn"
 ```
 
 ## Examples

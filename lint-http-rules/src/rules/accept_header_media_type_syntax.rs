@@ -92,7 +92,6 @@ impl RuleMeta for AcceptHeaderMediaTypeSyntax {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -636,10 +635,9 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "accept_header_media_type_syntax",
-                "warn",
-            ),
+            ]),
         );
         match expected {
             "" => assert!(found.is_none(), "{value}: {found:?}"),
@@ -670,10 +668,9 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "accept_header_media_type_syntax",
-                "warn",
-            ),
+            ]),
         )
         .expect("a finding");
         assert_eq!(found.violation, expected, "{value}");

@@ -95,7 +95,6 @@ impl RuleMeta for Status3xxVsRequestMethod {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 

@@ -26,7 +26,6 @@ Validates that the QUIC transport parameters advertised for HTTP/3 are reasonabl
 ```toml
 [rules.quic_transport_parameters_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -24,7 +24,6 @@ Validate that date/time related headers are well-formed and mutually consistent.
 ```toml
 [rules.date_and_time_headers_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

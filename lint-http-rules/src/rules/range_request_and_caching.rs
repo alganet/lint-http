@@ -91,7 +91,6 @@ impl RuleMeta for RangeRequestAndCaching {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -709,18 +708,5 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "range_request_and_caching");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
-    }
-
-    #[test]
-    fn validate_rules_missing_severity_errors() {
-        let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "range_request_and_caching",
-        ]);
-        if let Some(toml::Value::Table(table)) = cfg.rules.get_mut("range_request_and_caching") {
-            table.remove("severity");
-        }
-
-        let res = crate::rules::validate_rules(&cfg);
-        assert!(res.is_err());
     }
 }

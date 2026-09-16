@@ -21,7 +21,6 @@ The `X-Frame-Options` response header protects content from being embedded in fr
 ```toml
 [rules.x_frame_options_value_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -71,7 +71,6 @@ impl RuleMeta for TrailerFieldsValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -969,7 +968,7 @@ mod tests {
         let rule = TrailerFieldsValid;
         let owner = crate::rules::trailer_header_valid::TrailerHeaderValid;
         let owner_cfg =
-            crate::test_helpers::make_test_config_with_severity("trailer_header_valid", "warn");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["trailer_header_valid"]);
 
         for ex in rule.examples() {
             let mut header_pairs: Vec<(&str, &str)> = Vec::new();

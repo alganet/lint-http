@@ -20,7 +20,6 @@ Validate that the `ETag` response header contains a single, syntactically valid 
 ```toml
 [rules.etag_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

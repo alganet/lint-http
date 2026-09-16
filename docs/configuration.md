@@ -169,12 +169,14 @@ Which leg served each request is recorded in the capture: `response.version` is 
 
 The `[rules]` section allows you to enable, disable, or configure specific lint rules. If a rule is omitted, it defaults to `false` (disabled).
 
-Severity: Each rule table must include a `severity` key. Allowed values are `"info"`, `"warn"`, and `"error"`. When present, this value is used in emitted `Violation` records and in captures. Example:
+Severity is **not** a rule-level key. A rule table carrying one is rejected at
+startup, with a message naming the `[violations]` section below: every finding
+reports at the severity its own defect carries, so a single scalar per rule
+could only say the same thing about all of them.
 
 ```toml
 [rules.cache_control_present]
 enabled = true
-severity = "warn"
 ```
 
 #### Enabling Rules
@@ -185,7 +187,6 @@ Rules must be enabled via a TOML table with `enabled = true`. Example:
 # Client Rules
 [rules.accept_encoding_present]
 enabled = true
-severity = "info"
 ```
 
 #### Configurable Rules
@@ -213,12 +214,12 @@ optional and mostly stays empty: write a table only to disagree with a default.
 The shape, with an illustrative id — the real ones are in `config_example.toml`:
 
 ```toml
-# The rule runs at its own severity...
+# The rule is on...
 [rules.strict_transport_security_valid]
 enabled = true
-severity = "warn"
 
-# ...but this one defect it reports is an error.
+# ...and this one defect it reports is an error, where the rest keep
+# whatever the catalogue gives them.
 [violations.strict_transport_security_max_age_absent]
 severity = "error"
 ```
@@ -235,6 +236,12 @@ the same branch would have said next — a config whose effect depends on the
 order of checks inside a rule body. To quiet a single defect, set it to
 `severity = "info"` and run the report with `--min-severity warn`.
 
-A finding that names a defect carries both names: `rule` and `violation`. Older
-captures, and findings from rules whose defects have not been named yet, carry
+**Turning a whole rule down now means writing one table per defect it reports**,
+where a single `[rules.<id>] severity` used to do it. That is the cost of the
+split and it is a real one: `docs/rules/<id>.md` lists the defects a rule
+reports, and `config_example.toml` lists every id with its default. To quiet a
+rule wholesale without listing them, `enabled = false` still switches it off,
+and `--min-severity` still filters the report.
+
+A finding carries both names: `rule` and `violation`. Older captures carry
 `rule` alone.

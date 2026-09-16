@@ -85,7 +85,6 @@ impl RuleMeta for LocationHeaderUriValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -402,10 +401,9 @@ mod tests {
     }
 
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "location_header_uri_valid",
-            "warn",
-        );
+        ]);
         crate::test_helpers::run_rule(
             &LocationHeaderUriValid,
             tx,

@@ -36,7 +36,6 @@ RFC 9110 §9.3.3 asks an origin server that has created one or more resources wh
 ```toml
 [rules.post_creates_resource]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

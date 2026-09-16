@@ -35,7 +35,6 @@ The response status and those two fields are the whole input — whether a chall
 ```toml
 [rules.status_code_semantics]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

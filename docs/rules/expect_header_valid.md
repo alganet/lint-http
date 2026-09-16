@@ -41,7 +41,6 @@ Reads a request's `Expect` field as `#expectation`, where each member is `token 
 ```toml
 [rules.expect_header_valid]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

@@ -26,7 +26,6 @@ If the relationship cannot be determined (e.g. missing `Sec-Fetch-Site`), the ru
 ```toml
 [rules.cookie_same_site_enforced]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

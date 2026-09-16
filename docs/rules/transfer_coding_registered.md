@@ -39,7 +39,6 @@ Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must 
 ```toml
 [rules.transfer_coding_registered]
 enabled = true
-severity = "warn"
 # The registry also holds x-compress and x-gzip (both Deprecated) and identity
 # (withdrawn in an erratum to RFC 2616); they are left out so that using them is
 # reported. "trailers" is registered as reserved and is not a coding name.

@@ -29,7 +29,6 @@ Advice, not conformance: nothing in HTTP requires a client to send `Accept-Encod
 ```toml
 [rules.accept_encoding_present]
 enabled = true
-severity = "info"
 ```
 
 ## Examples

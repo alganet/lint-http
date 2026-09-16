@@ -69,7 +69,6 @@ impl RuleMeta for PatchPartialUpdate {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -388,17 +387,18 @@ mod tests {
         Ok(())
     }
 
+    /// A rule table with no `enabled` fails validation. It used to be a table
+    /// with no `severity`; that key is refused outright now, and a table short
+    /// of something is the shape a configuration can still be.
     #[test]
     fn validate_rules_with_invalid_config() {
-        // missing severity should fail validation
         let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "patch_partial_update");
-        // remove severity field from table
-        if let Some(toml::Value::Table(ref mut table)) = cfg.rules.get_mut("patch_partial_update") {
-            table.remove("severity");
-        }
+        cfg.rules.insert(
+            "patch_partial_update".to_string(),
+            toml::Value::Table(toml::map::Map::new()),
+        );
 
         let err = crate::rules::validate_rules(&cfg).expect_err("expected validation to fail");
-        assert!(err.to_string().contains("Missing required 'severity'"));
+        assert!(err.to_string().contains("Missing required 'enabled'"));
     }
 }

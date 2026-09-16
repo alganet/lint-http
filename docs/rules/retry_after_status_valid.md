@@ -35,7 +35,6 @@ The status the field arrived on is all this rule reads. The value's syntax (`Ret
 ```toml
 [rules.retry_after_status_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

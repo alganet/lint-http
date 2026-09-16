@@ -21,7 +21,6 @@ This rule checks that the `X-XSS-Protection` response header, when present, uses
 ```toml
 [rules.x_xss_protection_value_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

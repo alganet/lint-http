@@ -24,7 +24,6 @@ A header that is present but whose first value is not `nosniff` (matched case-in
 ```toml
 [rules.x_content_type_options_present]
 enabled = true
-severity = "warn"
 content_types = ["text/html", "application/javascript", "application/json"]
 ```
 

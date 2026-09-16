@@ -38,7 +38,6 @@ Scope: this rule reads header sections — a request's and a response's — and 
 ```toml
 [rules.allow_header_method_tokens_valid]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

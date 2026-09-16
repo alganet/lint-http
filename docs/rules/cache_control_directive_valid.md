@@ -32,7 +32,6 @@ This rule complements `cache_control_token_valid` which enforces general token/q
 ```toml
 [rules.cache_control_directive_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

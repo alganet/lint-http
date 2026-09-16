@@ -25,7 +25,6 @@ This rule is intentionally conservative: it is not a full CSP grammar validator,
 ```toml
 [rules.content_security_policy_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

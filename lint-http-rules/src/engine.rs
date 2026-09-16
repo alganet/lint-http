@@ -294,21 +294,20 @@ mod tests {
 
     #[test]
     fn construction_rejects_malformed_enabled_rule_config() {
-        // An enabled rule whose table lacks `severity` used to be a lint-time
-        // silence (a per-dispatch parse ending in `.ok()?`); construction now
-        // refuses the config outright.
+        // A rule table short of a required key used to be a lint-time silence
+        // (a per-dispatch parse ending in `.ok()?`); construction refuses the
+        // config outright. The key was `severity` until it became a
+        // violation's, and `enabled` is what is left to be short of.
         let mut cfg = Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
         cfg.rules.insert(
             "cache_control_present".to_string(),
-            toml::Value::Table(table),
+            toml::Value::Table(toml::map::Map::new()),
         );
         let err = PreparedEngine::new(&cfg)
             .err()
             .expect("construction must fail")
             .to_string();
-        assert!(err.contains("severity"), "unexpected error: {err}");
+        assert!(err.contains("enabled"), "unexpected error: {err}");
     }
 
     #[test]

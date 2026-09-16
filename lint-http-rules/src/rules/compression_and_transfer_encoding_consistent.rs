@@ -55,7 +55,6 @@ impl RuleMeta for CompressionAndTransferEncodingConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -720,23 +719,5 @@ mod tests {
             "{}",
             all[1].message
         );
-    }
-
-    #[test]
-    fn validate_rules_missing_severity_errors() {
-        // When rule is enabled but missing required 'severity', validation should fail
-        let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "compression_and_transfer_encoding_consistent",
-        ]);
-        // Remove severity key from the rule table
-        if let Some(toml::Value::Table(table)) = cfg
-            .rules
-            .get_mut("compression_and_transfer_encoding_consistent")
-        {
-            table.remove("severity");
-        }
-
-        let res = crate::rules::validate_rules(&cfg);
-        assert!(res.is_err());
     }
 }

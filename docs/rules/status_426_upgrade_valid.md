@@ -39,7 +39,6 @@ Scope: this rule reads a response's header section, and its subject is *the serv
 ```toml
 [rules.status_426_upgrade_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -23,7 +23,6 @@ Validate the `Path` attribute in `Set-Cookie` header fields. The `Path` attribut
 ```toml
 [rules.cookie_path_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

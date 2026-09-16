@@ -204,7 +204,6 @@ impl RuleMeta for ContentSecurityPolicyAndFrameOptionsConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -344,10 +343,9 @@ mod tests {
     use rstest::rstest;
 
     fn make_cfg() -> crate::config::Config {
-        crate::test_helpers::make_test_config_with_severity(
+        crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_security_policy_and_frame_options_consistent",
-            "warn",
-        )
+        ])
     }
 
     #[rstest]

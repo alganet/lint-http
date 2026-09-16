@@ -21,7 +21,6 @@ This rule tracks the transaction history by origin and flags if a client receive
 ```toml
 [rules.authentication_failure_loop]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -109,7 +109,6 @@ impl RuleMeta for Http3PseudoHeadersValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -702,7 +701,6 @@ mod tests {
         let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]);
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("warn".into()));
         table.insert(
             "registered_methods".to_string(),
             toml::Value::Array(vec![toml::Value::String("GET".into())]),

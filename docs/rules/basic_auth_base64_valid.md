@@ -22,7 +22,6 @@ Validate that `Authorization: Basic ...` credentials are syntactically valid Bas
 ```toml
 [rules.basic_auth_base64_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

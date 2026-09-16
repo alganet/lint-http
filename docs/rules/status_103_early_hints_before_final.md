@@ -28,7 +28,6 @@ A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single reques
 ```toml
 [rules.status_103_early_hints_before_final]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

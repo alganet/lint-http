@@ -23,7 +23,6 @@ Checks the `Origin-Agent-Cluster` response header and ensures it uses the struct
 ```toml
 [rules.origin_isolated_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

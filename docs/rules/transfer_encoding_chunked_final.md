@@ -36,7 +36,6 @@ Enforces RFC 9112 §6.1's requirements on the sequence of transfer codings: `chu
 ```toml
 [rules.transfer_encoding_chunked_final]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

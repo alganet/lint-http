@@ -201,7 +201,6 @@ impl RuleMeta for TrailerHeaderValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -305,7 +304,7 @@ mod tests {
     use rstest::rstest;
 
     fn cfg() -> crate::config::Config {
-        crate::test_helpers::make_test_config_with_severity("trailer_header_valid", "warn")
+        crate::test_helpers::make_test_config_with_enabled_rules(&["trailer_header_valid"])
     }
 
     /// One field section is one fixture. Every test below states which section the
@@ -567,7 +566,7 @@ mod tests {
         let rule = TrailerHeaderValid;
         let owner = crate::rules::trailer_fields_valid::TrailerFieldsValid;
         let owner_cfg =
-            crate::test_helpers::make_test_config_with_severity("trailer_fields_valid", "warn");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["trailer_fields_valid"]);
 
         for ex in rule.examples() {
             let mut pairs: Vec<(&str, &str)> = Vec::new();
@@ -640,7 +639,6 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert("trailer_header_valid".into(), toml::Value::Table(table));
 

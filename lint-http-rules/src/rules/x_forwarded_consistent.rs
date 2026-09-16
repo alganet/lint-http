@@ -229,7 +229,6 @@ impl RuleMeta for XForwardedConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 

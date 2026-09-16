@@ -25,7 +25,6 @@ This rule examines the recorded history for the same client+resource and recompu
 ```toml
 [rules.cache_validation_chain]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

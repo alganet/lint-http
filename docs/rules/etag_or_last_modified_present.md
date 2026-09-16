@@ -22,7 +22,6 @@ These headers act as validators, allowing clients to perform conditional request
 ```toml
 [rules.etag_or_last_modified_present]
 enabled = true
-severity = "info"
 ```
 
 ## Examples

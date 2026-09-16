@@ -68,7 +68,6 @@ impl RuleMeta for ContentEncodingAndTypeConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -316,7 +315,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("gzip".into())]),

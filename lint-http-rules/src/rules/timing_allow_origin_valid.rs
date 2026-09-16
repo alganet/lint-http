@@ -75,7 +75,6 @@ impl RuleMeta for TimingAllowOriginValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -276,10 +275,9 @@ mod tests {
                 &TimingAllowOriginValid,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_severity(
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "timing_allow_origin_valid",
-                    "warn",
-                ),
+                ]),
             )
             .expect("a finding");
             assert_eq!(found.violation, id, "{value}");
@@ -585,7 +583,6 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("error".into()));
         cfg.rules.insert(
             "timing_allow_origin_valid".into(),
             toml::Value::Table(table),

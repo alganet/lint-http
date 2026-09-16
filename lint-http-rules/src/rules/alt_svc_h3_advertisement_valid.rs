@@ -114,7 +114,6 @@ impl RuleMeta for AltSvcH3AdvertisementValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -481,10 +480,9 @@ mod tests {
             None => crate::test_helpers::make_test_transaction_with_response(200, &[]),
         };
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "alt_svc_h3_advertisement_valid",
-            "warn",
-        );
+        ]);
 
         let v = crate::test_helpers::run_rule(
             &rule,

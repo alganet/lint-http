@@ -30,7 +30,6 @@ More than one `Refresh` field line is reported on its own terms: HTML records th
 ```toml
 [rules.refresh_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

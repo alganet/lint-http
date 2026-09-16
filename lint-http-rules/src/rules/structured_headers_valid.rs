@@ -124,7 +124,6 @@ impl RuleMeta for StructuredHeadersValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 # Fields the HTTP Field Name Registry gives a Structured Type and that no other
 # rule here owns. This rule cannot know which type a field was defined as, so it
 # accepts a value that parses as any of the three; where a field has its own
@@ -135,7 +134,6 @@ headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         let headers = crate::helpers::rule_config::parse_lowercased_list(
             cfg,
             self.id(),
@@ -147,7 +145,6 @@ headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity,
             state: Box::new(crate::helpers::rule_config::HeaderNameList { headers }),
         })
     }
@@ -337,7 +334,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "headers".into(),
                     toml::Value::Array(
@@ -428,7 +424,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "headers".into(),
                     toml::Value::Array(vec![toml::Value::String("X-Struct".into())]),
@@ -604,7 +599,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t
             }),
         );
@@ -623,7 +617,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("headers".into(), toml::Value::String("x".into()));
                 t
             }),
@@ -643,7 +636,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("headers".into(), toml::Value::Array(vec![]));
                 t
             }),
@@ -663,7 +655,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "headers".into(),
                     toml::Value::Array(vec![toml::Value::Integer(1)]),

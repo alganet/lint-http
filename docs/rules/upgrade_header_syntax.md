@@ -41,7 +41,6 @@ Scope: this rule reads header sections — a request's and a response's — and 
 ```toml
 [rules.upgrade_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

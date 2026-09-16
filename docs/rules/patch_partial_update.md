@@ -35,7 +35,6 @@ Reports a `PATCH` request that carries content without a `Content-Type` naming t
 ```toml
 [rules.patch_partial_update]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

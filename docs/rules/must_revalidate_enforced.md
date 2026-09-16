@@ -26,7 +26,6 @@ This stateful check complements the existing `max_age_directive_valid` rule by c
 ```toml
 [rules.must_revalidate_enforced]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

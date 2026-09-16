@@ -19,7 +19,6 @@ Flags contradictions between `Pragma` and `Cache-Control` in requests (for examp
 ```toml
 [rules.cache_control_and_pragma_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

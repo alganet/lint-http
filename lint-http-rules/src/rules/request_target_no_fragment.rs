@@ -72,7 +72,6 @@ impl RuleMeta for RequestTargetNoFragment {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -259,7 +258,7 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
     }
 

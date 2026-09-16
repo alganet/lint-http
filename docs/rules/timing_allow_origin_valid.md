@@ -31,7 +31,6 @@ serializations.
 ```toml
 [rules.timing_allow_origin_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

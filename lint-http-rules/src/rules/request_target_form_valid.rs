@@ -208,7 +208,6 @@ impl RuleMeta for RequestTargetFormValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -530,7 +529,7 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .expect("a finding");
         assert_eq!(v.violation, violation, "{target}");
@@ -566,7 +565,7 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         match violation {
             Some(id) => assert_eq!(finding.expect("a finding").violation, id, "{target}"),
@@ -595,7 +594,7 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .expect("a finding");
         assert_eq!(v.violation, violation, "{target}");
@@ -621,7 +620,7 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .expect("a finding");
         assert_eq!(v.violation, violation, "{target}");
@@ -648,7 +647,7 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .expect("a finding");
         assert_eq!(v.violation, violation, "{method} {target}");
@@ -662,7 +661,7 @@ mod tests {
         tx.request.uri = uri.into();
         tx.request.version = version.into();
 
-        let config = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         crate::test_helpers::run_rule(
             &rule,
             &tx,

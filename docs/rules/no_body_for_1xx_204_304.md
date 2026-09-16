@@ -41,7 +41,6 @@ A `1xx (Informational)`, `204 (No Content)` or `304 (Not Modified)` response *"i
 ```toml
 [rules.no_body_for_1xx_204_304]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

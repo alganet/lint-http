@@ -21,7 +21,6 @@ SPDX-License-Identifier: ISC
 ```toml
 [rules.if_none_match_etag_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

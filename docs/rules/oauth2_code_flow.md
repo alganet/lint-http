@@ -29,7 +29,6 @@ The check does not assume the authorization request and callback share a common 
 ```toml
 [rules.oauth2_code_flow]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -22,7 +22,6 @@ Recipients are told to let `Transfer-Encoding` win and an intermediary that forw
 ```toml
 [rules.content_length_vs_transfer_encoding]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

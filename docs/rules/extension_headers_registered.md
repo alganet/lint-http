@@ -35,7 +35,6 @@ Because the array has to name every field the deployment sees, no useful list is
 # Name a private field for its use and without an "X-" prefix (RFC 9110
 # 16.3.2.1).
 enabled = false
-severity = "warn"
 allowed = ["host", "user-agent", "accept", "content-type", "acme-request-id"]
 ```
 

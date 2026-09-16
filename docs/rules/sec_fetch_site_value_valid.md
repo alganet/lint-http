@@ -20,7 +20,6 @@ Requests that include the `Sec-Fetch-Site` request header must use one of the ca
 ```toml
 [rules.sec_fetch_site_value_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

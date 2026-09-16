@@ -30,7 +30,6 @@ Reports a response that carries content without a `Content-Type` describing it.
 ```toml
 [rules.content_type_present]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

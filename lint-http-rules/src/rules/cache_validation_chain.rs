@@ -65,7 +65,6 @@ impl RuleMeta for CacheValidationChain {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -622,17 +621,5 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "cache_validation_chain");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
-    }
-
-    #[test]
-    fn validate_rules_missing_severity_errors() {
-        let mut cfg =
-            crate::test_helpers::make_test_config_with_enabled_rules(&["cache_validation_chain"]);
-        if let Some(toml::Value::Table(table)) = cfg.rules.get_mut("cache_validation_chain") {
-            table.remove("severity");
-        }
-
-        let res = crate::rules::validate_rules(&cfg);
-        assert!(res.is_err());
     }
 }

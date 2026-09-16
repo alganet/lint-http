@@ -20,7 +20,6 @@ The `If-Modified-Since` request header is defined as an HTTP-date, and a sender 
 ```toml
 [rules.if_modified_since_date_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

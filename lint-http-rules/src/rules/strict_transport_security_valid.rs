@@ -79,7 +79,6 @@ impl RuleMeta for StrictTransportSecurityValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -349,10 +348,9 @@ mod tests {
     fn cases(#[case] val: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp(val);
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         let got = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -448,10 +446,9 @@ mod tests {
             &StrictTransportSecurityValid,
             &make_resp(value),
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "strict_transport_security_valid",
-                "warn",
-            ),
+            ]),
         )
         .unwrap_or_else(|| panic!("expected a finding for {value:?}"));
         assert!(
@@ -473,10 +470,9 @@ mod tests {
             &StrictTransportSecurityValid,
             &make_resp("max-age=1; pre@load"),
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "strict_transport_security_valid",
-                "warn",
-            ),
+            ]),
         )
         .expect("a finding");
         let elsewhere = crate::test_helpers::run_rule(
@@ -524,10 +520,9 @@ mod tests {
             trailers: None,
         });
         let rule = StrictTransportSecurityValid;
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -541,10 +536,9 @@ mod tests {
     fn empty_value_is_violation() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -558,10 +552,9 @@ mod tests {
     fn trailing_semicolon_reports_empty_directive() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=1;");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -575,10 +568,9 @@ mod tests {
     fn unknown_directive_with_bad_quoted_string_reports_violation() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=1; foo=\"unterminated");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -592,10 +584,9 @@ mod tests {
     fn unknown_directive_with_invalid_token_value_reports_violation() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=1; bar=bad@val");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -609,10 +600,9 @@ mod tests {
     fn unknown_directive_with_quoted_string_is_ok() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=1; foo=\"valid\"");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -626,10 +616,9 @@ mod tests {
     fn max_age_empty_value_is_violation() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -643,10 +632,9 @@ mod tests {
     fn max_age_without_equals_is_violation() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -660,10 +648,9 @@ mod tests {
     fn max_age_quoted_is_violation() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=\"3600\"");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -677,10 +664,9 @@ mod tests {
     fn directive_name_with_invalid_char_is_violation() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("ma x=1");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -694,10 +680,9 @@ mod tests {
     fn unknown_directive_with_token_value_is_ok() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=1; foo=bar");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -711,10 +696,9 @@ mod tests {
     fn include_subdomains_case_insensitive_is_ok() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=1; IncludeSubDomains");
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -740,10 +724,9 @@ mod tests {
             trailers: None,
         });
         let rule = StrictTransportSecurityValid;
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,

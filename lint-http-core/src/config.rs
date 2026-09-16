@@ -98,7 +98,6 @@ mod tests {
         let toml = r#"[rules]
     [rules.cache_control_present]
     enabled = true
-    severity = "warn"
 
     [general]
 listen = "127.0.0.1:3000"
@@ -123,7 +122,6 @@ enabled = false
         let toml = r#"[rules]
     [rules.cache_control_present]
     enabled = true
-    severity = "warn"
 "#;
         fs::write(&tmp_toml, toml).await?;
         let cfg = Config::load_from_path(&tmp_toml).await?;
@@ -139,7 +137,6 @@ enabled = false
         let toml = r#"[rules]
     [rules.some_rule]
     enabled = true
-    severity = "warn"
     paths = ["/logout", "/signout"]
 "#;
         fs::write(&tmp_toml, toml).await?;
@@ -159,7 +156,6 @@ enabled = false
             std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules.cache_control_present]
 enabled = true
-severity = "warn"
 
 [violations.cache_control_absent]
 severity = "error"

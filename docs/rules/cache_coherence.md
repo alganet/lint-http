@@ -36,7 +36,6 @@ responses are skipped since they do not convey a new representation.
 ```toml
 [rules.cache_coherence]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -65,7 +65,6 @@ Parses the `Link` field of a request and of a response — every field line of o
 ```toml
 [rules.link_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

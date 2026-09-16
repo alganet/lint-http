@@ -104,10 +104,6 @@ mod tests {
     fn table_with_allowed(value: toml::Value) -> toml::Value {
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "severity".to_string(),
-            toml::Value::String("warn".to_string()),
-        );
         table.insert("allowed".to_string(), value);
         toml::Value::Table(table)
     }

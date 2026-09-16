@@ -36,7 +36,6 @@ The broader question — whether a *nameable* field such as `ETag` or `Expires` 
 ```toml
 [rules.trailer_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

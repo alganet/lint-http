@@ -28,7 +28,6 @@ use crate::violations::ViolationDef;
 
 #[derive(Debug, Clone)]
 pub struct MessageKeepAliveConfig {
-    pub severity: crate::lint::Severity,
     pub max_timeout_seconds: u64,
 }
 
@@ -44,8 +43,6 @@ fn parse_keep_alive_config(
     config: &crate::config::Config,
     rule_id: &str,
 ) -> anyhow::Result<MessageKeepAliveConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
             "rule '{}' requires configuration and a 'max_timeout_seconds' integer value (seconds)",
@@ -75,7 +72,6 @@ fn parse_keep_alive_config(
     }
 
     Ok(MessageKeepAliveConfig {
-        severity,
         max_timeout_seconds: mt_int as u64,
     })
 }
@@ -228,7 +224,6 @@ impl RuleMeta for KeepAliveHeaderValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 # No document states a maximum for the `timeout` parameter, so this bound is
 # this deployment's policy rather than a requirement. It is required and has no
 # default for that reason; a value the rule cannot read stops the whole rule.
@@ -242,7 +237,6 @@ max_timeout_seconds = 3600
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
             state: Box::new(config),
         })
     }
@@ -781,7 +775,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 if let Some(m) = max {
                     t.insert("max_timeout_seconds".into(), toml::Value::Integer(m));
                 }
@@ -1065,7 +1058,6 @@ mod tests {
     fn validate_requires_a_positive_max_timeout(#[case] max: Option<i64>) {
         let cfg = cfg_with_optional_max(max);
         assert!(KeepAliveHeaderValid.prepare(&cfg).is_err());
-        assert!(crate::rules::validate_rules(&cfg).is_err());
     }
 
     /// A configuration this rule cannot read stops the whole rule, so a mistake

@@ -25,7 +25,6 @@ Carrying both is a hazard in its own right: they are independent integrity value
 ```toml
 [rules.content_md5_vs_digest_preference]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

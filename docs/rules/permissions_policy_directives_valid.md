@@ -35,7 +35,6 @@ Reports a `Permissions-Policy` response header carrying something a browser will
 ```toml
 [rules.permissions_policy_directives_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

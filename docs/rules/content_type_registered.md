@@ -25,7 +25,6 @@ Entries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a st
 ```toml
 [rules.content_type_registered]
 enabled = true
-severity = "warn"
 # The list has to carry the media types HTTP itself produces, or the rule
 # reports the protocol working. `multipart/byteranges` is what a multi-range
 # request gets back (RFC 9110 § 14.6) and `message/http` is what a TRACE

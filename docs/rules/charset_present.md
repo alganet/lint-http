@@ -27,7 +27,6 @@ The parameter list is read quote-aware, so a `;` inside a quoted value does not 
 ```toml
 [rules.charset_present]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

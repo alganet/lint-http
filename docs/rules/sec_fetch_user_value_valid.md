@@ -20,7 +20,6 @@ Requests that include the `Sec-Fetch-User` request header MUST only include the 
 ```toml
 [rules.sec_fetch_user_value_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

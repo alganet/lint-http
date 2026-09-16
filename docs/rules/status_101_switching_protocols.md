@@ -27,7 +27,6 @@ Validates that `101 Switching Protocols` responses follow correct HTTP upgrade s
 ```toml
 [rules.status_101_switching_protocols]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -26,7 +26,6 @@ Because `Vary` is a comma-separated (`#`) list, an entirely empty value is a leg
 ```toml
 [rules.vary_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

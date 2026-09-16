@@ -68,7 +68,6 @@ impl RuleMeta for MustRevalidateEnforced {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -588,18 +587,5 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "must_revalidate_enforced");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
-    }
-
-    #[test]
-    fn validate_rules_with_invalid_config_missing_severity() {
-        let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "must_revalidate_enforced");
-        // remove severity to simulate invalid config
-        if let Some(toml::Value::Table(ref mut table)) =
-            cfg.rules.get_mut("must_revalidate_enforced")
-        {
-            table.remove("severity");
-        }
-        assert!(crate::rules::validate_rules(&cfg).is_err());
     }
 }
