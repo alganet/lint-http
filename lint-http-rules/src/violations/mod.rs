@@ -659,7 +659,7 @@ mod tests {
         }
         for id in [
             // A rule id: the claim, not the defect.
-            "if_match_etag_syntax",
+            "conditional_etag_syntax",
             "content_type_valid",
             // A defect with no subject in front of it.
             "malformed",
