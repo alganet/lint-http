@@ -2043,10 +2043,11 @@ enabled = "true"
     /// findings under five rule ids, and nothing in the type system able to say
     /// they were one defect. They share an id now, so the question has an
     /// answer that survives a reworded message, and the answer was **109**:
-    /// seven and a half times what the template count could see. It is 105
-    /// after Phase 4's three merges, and *that is what a merge is worth here* —
-    /// four defects stopped having two names between them, out of a hundred
-    /// that never had one.
+    /// seven and a half times what the template count could see. It is 103
+    /// after Phase 4 — four defects lost a second name to a merge, and two more
+    /// to a rule that was parsing a field on its way somewhere else and
+    /// reporting the field's grammar while it passed. *That is what coarsening
+    /// is worth here*, out of a hundred that never had a second name to lose.
     ///
     /// **The difference is not overlap that appeared; it is overlap that
     /// became visible.** A template count compares strings, so it sees two
@@ -2065,7 +2066,7 @@ enabled = "true"
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 105;
+        const CEILING: usize = 103;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();
