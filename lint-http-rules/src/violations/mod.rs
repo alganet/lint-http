@@ -570,8 +570,10 @@ mod tests {
         /// here rose as the site floor fell. 503 of 535 with the method token
         /// written in another case — **the last sentence to leave a finding
         /// site for an entry**, since `self.cited(` has no caller left in
-        /// `src/rules/`.
-        const FLOOR: usize = 503;
+        /// `src/rules/`. 504 of 536 with the response to a `HEAD` that carries
+        /// octets — a requirement the *method's* definition states about a
+        /// message the method did not travel in.
+        const FLOOR: usize = 504;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

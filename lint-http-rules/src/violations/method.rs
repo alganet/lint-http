@@ -297,6 +297,42 @@ defects! {
         spec: &[RFC_9110_9_3_2],
     }
 
+    /// A response to a `HEAD` request that carries content octets, whatever its
+    /// status code.
+    ///
+    /// **The subject is the method although the octets are the response's**,
+    /// which is what this whole subject is for: § 9.3.2 defines `HEAD` as
+    /// identical to `GET` *except* that the server MUST NOT send content, so
+    /// the requirement is stated by the method's definition and binds a message
+    /// the method did not travel in.
+    ///
+    /// **Not [`crate::violations::status::STATUS_CONTENT_FORBIDDEN`], which is
+    /// the sibling one gate over.** That entry reports content on a `1xx`, a
+    /// `204` or a `304` — statuses whose own definitions exclude it — and its
+    /// gate cannot see this one: a `200 OK` answering a `HEAD` is a perfectly
+    /// ordinary status carrying octets that a perfectly ordinary status may
+    /// carry, and only the request says otherwise. *Two entries because two
+    /// readers, and neither can reach the other's case.*
+    ///
+    /// **`error`, and RFC 9112 § 6.3 is the argument, exactly as it is for that
+    /// sibling.** Such a response is terminated by the first empty line after
+    /// the header fields *regardless of the header fields present* — so octets
+    /// written after it are not content a recipient ignores, they are the
+    /// beginning of whatever it reads next on the connection. A `Content-Length`
+    /// beside them is not the defect and must not be read as one: § 8.6 makes
+    /// that value the length a `GET` *would* have returned, which is a
+    /// conforming thing for a `HEAD` response to say.
+    ///
+    // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+    // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
+    METHOD_HEAD_CONTENT_FORBIDDEN = {
+        id: "method_head_content_forbidden",
+        title: "A response to HEAD carries content octets",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_9_3_2],
+    }
+
     /// A method token that is a registered method's name written in another
     /// case: `get`, `Post`, `DELETE ` folded to something the deployment
     /// expects to see spelled its own way.
@@ -340,6 +376,22 @@ defects! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The two entries that report octets where none may be sent rank
+    /// together, because one sentence of RFC 9112 § 6.3 is the argument for
+    /// both: such a response ends at the first empty line whatever its fields
+    /// say, so what follows is the next message rather than content.
+    #[test]
+    fn the_two_readings_of_a_bodiless_response_rank_together() {
+        assert_eq!(
+            METHOD_HEAD_CONTENT_FORBIDDEN.default_severity,
+            Severity::Error
+        );
+        assert_eq!(
+            METHOD_HEAD_CONTENT_FORBIDDEN.default_severity,
+            crate::violations::status::STATUS_CONTENT_FORBIDDEN.default_severity
+        );
+    }
 
     /// The one entry whose sentence names a class rather than a list is the one
     /// ranked below the rest: the rule can only look for what it knows, and the

@@ -5,6 +5,7 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::content_length::{CONTENT_LENGTH_CONFLICTING, RFC_9112_6_2};
+use crate::violations::method::{METHOD_HEAD_CONTENT_FORBIDDEN, RFC_9110_9_3_2};
 use crate::violations::ViolationDef;
 
 pub struct ResponseBodyLengthAccuracy;
@@ -16,10 +17,13 @@ pub struct ResponseBodyLengthAccuracy;
 /// chosen for themselves is now stated once, where an operator can change it
 /// for both at once.
 ///
-/// The rule's other findings, where it has them, are about *whether* a length
-/// may be declared at all rather than about it being wrong, and they belong to
-/// the message-framing subject nothing has written yet.
-static DECLARED: &[&ViolationDef] = &[&CONTENT_LENGTH_CONFLICTING];
+/// **The rule's other finding is about *whether* a body may be there at all
+/// rather than about the length being wrong, and it is the method's.** § 9.3.2
+/// defines `HEAD` as identical to `GET` except that the server MUST NOT send
+/// content, so a response to one carrying octets breaks the method's own
+/// definition — whatever its status code, which is exactly what the sibling
+/// rule reading `1xx`, `204` and `304` cannot see.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_LENGTH_CONFLICTING, &METHOD_HEAD_CONTENT_FORBIDDEN];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -35,12 +39,6 @@ const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.6"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
     note: "Content-Length: the field, its grammar, the MUSTs that make a HEAD or 304 response's value describe a body it did not send, and the MUST NOT against forwarding a value known to be incorrect — this rule's reason to exist",
-};
-const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-    note: "HEAD — servers SHOULD answer it with the fields they would have sent for GET, which is what made the exemption the common case rather than a corner",
 };
 
 impl RuleMeta for ResponseBodyLengthAccuracy {
@@ -178,8 +176,8 @@ impl Rule for ResponseBodyLengthAccuracy {
                 // reach: a response to HEAD that carries octets whatever its status.
                 // Keeping both would have been two findings for one defect.
                 if !bodiless_status && resp.body_length.is_some_and(|n| n > 0) {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &METHOD_HEAD_CONTENT_FORBIDDEN,
                         format!(
                             "A {} response to {} cannot contain a message body, but {} body \
                              octets were received",
@@ -553,6 +551,10 @@ mod tests {
         let v = run(&tx).expect("a HEAD response with 7 body octets has a body");
         assert!(v.message.contains("cannot contain a message body"), "{v:?}");
         assert!(!v.message.contains("does not match"), "{v:?}");
+        // The method's entry and not the length's: § 9.3.2 is what refuses the
+        // octets, and § 8.6 makes the `Content-Length` beside them conforming.
+        assert_eq!(v.violation, "method_head_content_forbidden");
+        assert_eq!(v.severity, crate::lint::Severity::Error);
     }
 
     /// The three statuses moved to the rule named for them, and the handover is
