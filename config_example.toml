@@ -2103,6 +2103,10 @@ severity = "warn"
 # List with a one-element floor holds no element
 severity = "warn"
 
+[violations.location_empty]
+# Location is written with nothing in it
+severity = "info"
+
 [violations.location_missing]
 # A status that asks for Location carries none
 severity = "warn"

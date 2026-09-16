@@ -5,12 +5,17 @@
 //! `Location` defects — a status that asked for the field, and a status the
 //! field means nothing on.
 //!
-//! Two entries, read by two rules from the two sides of one pairing: the field
+//! Two entries read by two rules from the two sides of one pairing: the field
 //! is absent where a status's own definition asks for it, and present where no
 //! definition gives it a referent. What the *value* is belongs to
-//! [`uri`](crate::violations::uri), which
-//! `location_header_uri_valid` declares; neither entry here reads a value at
-//! all.
+//! [`uri`](crate::violations::uri), which `location_header_uri_valid` declares;
+//! neither of those two entries reads a value at all.
+//!
+//! **The third does, and it is here because there is nothing in the value to
+//! read.** An empty `Location` is a legal `URI-reference` — a same-document
+//! reference resolving to the target URI — so no production refuses it and the
+//! `uri` subject has no verdict to offer; what is wrong is that a field meant
+//! to name a resource named the one already in hand.
 //!
 //! **The two rank differently and the documents are why.** Five statuses ask
 //! for the field — four with a SHOULD and `303` by being defined in terms of it
@@ -174,6 +179,34 @@ defects! {
         spec: &[RFC_9110_15_4],
     }
 
+    /// A `Location` written and left blank.
+    ///
+    /// **Uncited, and it is the only entry in this subject with no sentence
+    /// behind it — because there is none.** An empty value is a *legal*
+    /// `URI-reference`: `relative-part` admits `path-empty`, which makes it a
+    /// same-document reference resolving to the target URI, and neither
+    /// RFC 9110 nor RFC 3986 forbids sending one. § 10.2.2 forbids nothing
+    /// about this field in any case.
+    ///
+    /// What the entry reports is the operator's reading: a sender that writes
+    /// `Location:` with nothing after it means to name a resource and named the
+    /// one already in hand. On a redirect that is a user agent sent back where
+    /// it started; anywhere else it is a field that states nothing.
+    ///
+    /// `info`, for a finding the documents permit outright — and level with
+    /// [`content_location_empty`](crate::violations::content_location::CONTENT_LOCATION_EMPTY)
+    /// and [`referer_empty`](crate::violations::referer::REFERER_EMPTY), which
+    /// are the same empty reference in the two sibling fields carrying the same
+    /// production. *Three fields reached this reading independently before any
+    /// of them had an id; the ranks are equal because the value is the same
+    /// value.*
+    LOCATION_EMPTY = {
+        id: "location_empty",
+        title: "Location is written with nothing in it",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[],
+    }
 }
 
 #[cfg(test)]
@@ -197,6 +230,22 @@ mod tests {
         assert!(LOCATION_REDUNDANT.id.ends_with("_redundant"));
         assert!(LOCATION_REDIRECT_REDUNDANT.id.ends_with("_redundant"));
         assert!(LOCATION_REDUNDANT.default_severity < LOCATION_REDIRECT_REDUNDANT.default_severity);
+    }
+
+    /// The empty reference is one value in three fields, so the three entries
+    /// that report it rank together — and this one names no sentence at all,
+    /// which is what separates it from every other entry in the subject.
+    #[test]
+    fn the_empty_reference_ranks_the_same_way_in_all_three_fields() {
+        assert!(LOCATION_EMPTY.spec.is_empty());
+        assert_eq!(
+            LOCATION_EMPTY.default_severity,
+            crate::violations::content_location::CONTENT_LOCATION_EMPTY.default_severity
+        );
+        assert_eq!(
+            LOCATION_EMPTY.default_severity,
+            crate::violations::referer::REFERER_EMPTY.default_severity
+        );
     }
 
     /// One entry names five sections and is therefore cited on none of them;

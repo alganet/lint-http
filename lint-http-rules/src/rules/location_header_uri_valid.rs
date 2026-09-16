@@ -6,6 +6,8 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::shown::describe_octet;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::location::LOCATION_EMPTY;
 use crate::violations::uri::{
     scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2,
     RFC_3986_2_1, RFC_3986_3_1, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
@@ -30,6 +32,12 @@ pub struct LocationHeaderUriValid;
 /// identifier empty — where the generic syntax happily generates one. A
 /// `Location` naming no host is a redirect to nowhere, which is the same defect
 /// an absolute-form request target and a `Referer` have, under the same id.
+///
+/// **The last two are not about the reference at all.** A second field line is
+/// § 5.3's, about the message; and a value that is *empty* is a perfectly good
+/// `URI-reference` that no production refuses, which is why the entry for it
+/// lives with the field in [`crate::violations::location`] rather than with the
+/// grammar that has nothing to say about it.
 static DECLARED: &[&ViolationDef] = &[
     &URI_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
@@ -38,6 +46,8 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &URI_HOST_EMPTY,
+    &FIELD_LINE_DUPLICATED,
+    &LOCATION_EMPTY,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -54,12 +64,6 @@ const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("2.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
     note: "Conformance: a sender MUST NOT generate a protocol element that does not match its ABNF. This is what makes a malformed `Location` value a violation, since §10.2.2 itself forbids nothing",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order: a sender MUST NOT generate multiple field lines for a field with no comma-separated-list alternative. `Location` has none, so two lines are reported",
 };
 const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -176,7 +180,6 @@ impl Rule for LocationHeaderUriValid {
             let Some(resp) = &tx.response else {
                 return None;
             };
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // The field, and the one production its value is measured against. No
             // status gate: which statuses may carry the field at all is
@@ -232,7 +235,7 @@ impl Rule for LocationHeaderUriValid {
                 // cite(RFC 9110 § 10.2.2): "A Location field value cannot allow a list of members because the comma list separator is a valid data character within a URI-reference."
                 // cite(RFC 9110 § 10.2.2): "If an invalid message is sent with multiple Location field lines, a recipient along the path might combine those field lines into one value."
                 // cite(RFC 9110 § 16.3.2.2): "because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values"
-                return violation(format!(
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                     "{}. The comma a recipient joins them with is a valid data character inside a URI-reference, so the combined value is a well-formed reference to neither resource (RFC 9110 §10.2.2)",
                     crate::helpers::headers::singleton_field_preamble(
                         "Location",
@@ -240,7 +243,7 @@ impl Rule for LocationHeaderUriValid {
                         &value.escape_debug().to_string(),
                         "`Location = URI-reference` has no comma-separated-list alternative",
                     )
-                ));
+                )));
             }
 
             // Trimming `OWS` and only `OWS`: the value carries one `char` per octet, so
@@ -264,9 +267,10 @@ impl Rule for LocationHeaderUriValid {
                 // reaches the same answer for the same reason on the sibling field.
                 //
                 // cite(RFC 3986 § 4.4): "The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier."
-                return violation(
+                return Some(ctx.report_with(
+                    &LOCATION_EMPTY,
                     "Location is present with an empty value, which resolves to the target URI itself. This is advice, not a violation: an empty `URI-reference` is a same-document reference (RFC 3986 §4.4) and no sentence in RFC 9110 or RFC 3986 forbids sending one".to_string(),
-                );
+                ));
             }
 
             if let Some(ch) = crate::helpers::uri::find_non_uri_char(value) {
@@ -472,6 +476,9 @@ mod tests {
              to neither resource (RFC 9110 §10.2.2)"
         );
         assert!(judge(&make_tx_with_locs(&[b"/first"])).is_none());
+        // The message is this field's and the id is not: a second field line is
+        // § 5.3's defect about the message, whichever field carried it.
+        assert_eq!(v.violation, "field_line_duplicated");
     }
 
     #[test]
@@ -490,6 +497,10 @@ mod tests {
             "{}",
             v.message
         );
+        // `info`, with the same empty reference in the two sibling fields: the
+        // entry is the field's because the reference has no defect to report.
+        assert_eq!(v.violation, "location_empty");
+        assert_eq!(v.severity, crate::lint::Severity::Info);
     }
 
     #[test]

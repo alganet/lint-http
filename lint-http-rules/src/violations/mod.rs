@@ -560,7 +560,11 @@ mod tests {
         /// other what a declaration may *announce* about the section after it,
         /// and 501 of 532 with the four things `Referer` says past its grammar
         /// — a subject where every entry is about disclosure and none about the
-        /// reference being well formed.
+        /// reference being well formed. **`location_empty` is the third field to
+        /// report one empty `URI-reference` and the third entry to name no
+        /// sentence for it**, so 533 entries still cite 501: an entry that
+        /// exists because *no* production refuses a value can never move this
+        /// number, and three of them now say so on one value.
         const FLOOR: usize = 501;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
