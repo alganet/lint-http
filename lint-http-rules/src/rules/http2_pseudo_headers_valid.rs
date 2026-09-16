@@ -446,7 +446,7 @@ impl Rule for Http2PseudoHeadersValid {
             // publishes that decline; the sibling HTTP/3 rule takes the same one.
             // cite(RFC 8441 § 4): "A new pseudo-header field :protocol MAY be included on request HEADERS indicating the desired protocol to be spoken on the tunnel created by CONNECT."
             // cite(RFC 8441 § 4): "On requests that contain the :protocol pseudo-header field, the :scheme and :path pseudo-header fields of the target URI (see Section 5) MUST also be included."
-            let absolute_form = crate::helpers::uri::scheme_authority_marker(target);
+            let absolute_form = crate::helpers::scheme::scheme_authority_marker(target);
 
             if is_connect {
                 // Whether this request names a tunnel destination at all, asked
@@ -543,7 +543,7 @@ impl Rule for Http2PseudoHeadersValid {
                 // carries the production. Nothing here asks whether it is one
                 // anybody serves: this pseudo-header is deliberately open.
                 // cite(RFC 9113 § 8.3.1): "":scheme" is not restricted to "http" and "https" schemed URIs."
-                if let Some(defect) = crate::helpers::uri::scheme_if_present(target) {
+                if let Some(defect) = crate::helpers::scheme::scheme_if_present(target) {
                     return Some(ctx.report_with(
                         scheme_name(defect),
                         format!(

@@ -157,7 +157,7 @@ fn check_member(
         //
         // cite(RFC 7239 § 5.4): "The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395]."
         // cite(RFC 7239 § 5.4): "Typical values are "http" or "https"."
-        Members::Proto => crate::helpers::uri::validate_scheme_name(member)
+        Members::Proto => crate::helpers::scheme::validate_scheme_name(member)
             .err()
             .map(|defect| {
                 (

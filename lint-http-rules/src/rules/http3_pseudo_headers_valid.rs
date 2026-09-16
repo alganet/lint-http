@@ -323,7 +323,7 @@ impl Rule for Http3PseudoHeadersValid {
                 // two differ only in the whitespace, and the whitespace is a
                 // finding rather than something to strip before one.
                 let authority_form = authority.is_some()
-                    && crate::helpers::uri::scheme_authority_marker(target).is_none();
+                    && crate::helpers::scheme::scheme_authority_marker(target).is_none();
                 if authority_form && target.contains('@') {
                     let shown = crate::helpers::uri::userinfo_password_withheld(target)
                         .unwrap_or_else(|| target.to_string());
@@ -479,14 +479,14 @@ impl Rule for Http3PseudoHeadersValid {
                 // neither governs the other's version, so the message names the
                 // section that governs this one. The password half is withheld
                 // from the finding (RFC 3986 § 3.2.1, at the shared helper).
-                if let Some(marker) = crate::helpers::uri::scheme_authority_marker(target) {
+                if let Some(marker) = crate::helpers::scheme::scheme_authority_marker(target) {
                     // The scheme is the characters before the marker, and the
                     // helper carries the production. Nothing here asks whether it
                     // is one anybody serves — this pseudo-header is not
                     // restricted to http and https — only whether it is a scheme
                     // name at all, which is the reading the twin already makes.
                     // cite(RFC 9114 § 4.3.1): "Contains the scheme portion of the target URI (Section 3.1 of [URI])."
-                    if let Some(defect) = crate::helpers::uri::scheme_if_present(target) {
+                    if let Some(defect) = crate::helpers::scheme::scheme_if_present(target) {
                         return Some(ctx.report_with(
                             scheme_name(defect),
                             format!(

@@ -166,7 +166,7 @@ fn classify(target: &str) -> Option<TargetForm<'_>> {
     // The scheme is the only part of an `absolute-URI` this rule reads: the
     // production admits a rootless path (`mailto:user@example.com`), so
     // requiring the "//" of an authority would report a target it generates.
-    let also_absolute = crate::helpers::uri::validate_scheme_name(&target[..colon]).is_ok();
+    let also_absolute = crate::helpers::scheme::validate_scheme_name(&target[..colon]).is_ok();
 
     // `uri-host ":" port` with both halves as their own productions say -- which
     // is `Host`'s reader, one bracket stricter: the colon is required here.

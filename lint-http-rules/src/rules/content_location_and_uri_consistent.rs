@@ -300,7 +300,7 @@ impl Rule for ContentLocationAndUriConsistent {
 
                 // Only the `absolute-URI` alternative has a scheme; the helper is a
                 // no-op on a `partial-URI`, which is why nothing here gates on form.
-                if let Some(defect) = crate::helpers::uri::scheme_if_present(s) {
+                if let Some(defect) = crate::helpers::scheme::scheme_if_present(s) {
                     return Some(ctx.report_with(
                         scheme_name(defect),
                         format!(

@@ -299,7 +299,7 @@ impl Rule for LocationHeaderUriValid {
             // Only the `URI` alternative has a scheme; the helper is a no-op on a
             // `relative-ref`, which is why nothing here gates on which alternative the
             // value took.
-            if let Some(defect) = crate::helpers::uri::scheme_if_present(value) {
+            if let Some(defect) = crate::helpers::scheme::scheme_if_present(value) {
                 return Some(ctx.report_with(
                     scheme_name(defect),
                     format!("Location value's scheme is not one: {}", defect.message()),
