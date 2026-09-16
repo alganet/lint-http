@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Reads the HTTP authentication framework's own grammar in both directions — a server's `WWW-Authenticate` challenges and a client's `Authorization` credentials — and then asks the registry question the rule is named for. The framework half is the structure: a challenge that names no scheme, an empty list member, an `auth-scheme` carrying a character no `token` admits, an `Authorization` value that is empty or that stops after the scheme where the scheme wants credentials. The registry half is the `auth-scheme` itself, which SHOULD be an IANA-registered scheme (for example, `Basic`, `Bearer`, `Digest`); this rule measures it against an operator-configured allowlist of acceptable schemes rather than against the live registry, and flags a value not in it. What those credentials must *be* once the scheme is known belongs to the scheme's own rule.
+The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`), and this rule asks that of both directions of the framework — a server's `WWW-Authenticate` challenges and a client's `Authorization` credentials. It measures the name against an operator-configured allowlist rather than against the live registry, so `allowed` is the deployment's chosen subset of acceptable schemes. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way.
 
 ## Specifications
 
@@ -20,8 +20,6 @@ Reads the HTTP authentication framework's own grammar in both directions — a s
 - [RFC 9110 §11.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2): Authorization — the field's value *consists of* credentials, which is stricter than § 11.4's optional second half
 - [RFC 9110 §16.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.4.1): Authentication Scheme Registry
 - [IANA HTTP Authentication Schemes](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml): IANA HTTP Authentication Scheme Registry
-- [RFC 7617](https://www.rfc-editor.org/rfc/rfc7617.html): Basic Authentication
-- [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750.html): The OAuth 2.0 Authorization Framework: Bearer Token Usage
 
 ## Configuration
 
@@ -50,8 +48,4 @@ Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/resour
 ```http
 WWW-Authenticate: NewScheme abc=
 Authorization: X-MyAuth abc
-```
-
-```http
-Authorization: Basic
 ```
