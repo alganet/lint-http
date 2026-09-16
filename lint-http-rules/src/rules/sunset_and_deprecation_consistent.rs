@@ -5,26 +5,36 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::deprecation::{RFC_9745_2_1, RFC_9745_4, SUNSET_CONFLICTING};
-use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
+use crate::violations::http_date::RFC_9110_5_6_7;
 use crate::violations::ViolationDef;
 use chrono::TimeZone;
 
 pub struct SunsetAndDeprecationConsistent;
 
-/// The one defect this rule reports about a value, rather than about two
-/// values disagreeing — and it is the same id
-/// `date_and_time_headers_consistent` reports for the same field, out of two
-/// code paths that share nothing but the helper they parse with.
+/// One entry, and it is about two values disagreeing — which is the whole of
+/// what a `_consistent` rule has to say.
 ///
-/// `parse_http_date_to_datetime` is the recipient's parse, so a failure means
-/// no recipient could read the value at all. The sender's obligation — the
-/// IMF-fixdate a `Sunset` should be written in — is asked by neither rule, so
-/// neither declares the two ids that answer it.
+/// **`http_date_malformed` was here and is gone.** This rule parses `Sunset` in
+/// order to compare it with `Deprecation`, and reported the parse failure on
+/// the way past — beside `date_and_time_headers_consistent`, which parses the
+/// same field to compare it with `Date` and reports the same id with
+/// byte-identical prose. One unreadable `Sunset` was two findings that differed
+/// in nothing but the rule name on them, which is the last live instance of the
+/// duplication this catalogue was built to find.
+///
+/// The reading that stays is the *wider* one: the neighbour judges every field
+/// line and this one read only the first, and the rule that sees more of the
+/// value is the one to keep — the same call `authorization_credentials_valid`'s
+/// walk was decided by. Its `description()` already claimed the ownership in
+/// prose; this makes the claim true.
+///
+/// An unreadable `Sunset` therefore leaves this rule with nothing to compare,
+/// and it says nothing rather than repeating the neighbour.
 ///
 /// The `Deprecation` half is a Structured Field `Date` and not an `HTTP-date`,
 /// so nothing here answers for it; its non-UTF-8 line stays on the older API
 /// for the reason every such site does.
-static DECLARED: &[&ViolationDef] = &[&HTTP_DATE_MALFORMED, &SUNSET_CONFLICTING];
+static DECLARED: &[&ViolationDef] = &[&SUNSET_CONFLICTING];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -113,17 +123,18 @@ impl Rule for SunsetAndDeprecationConsistent {
             // HTTP-date formats, helper-owned), so a failure is "not any HTTP-date" —
             // not "IMF-fixdate"; RFC 8594 itself calls the value an HTTP-date.
             // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
+            //
+            // A value no recipient can read is `date_and_time_headers_consistent`'s
+            // finding, not this rule's: it parses the same field for its own
+            // comparison, judges every field line where this reads only the
+            // first, and its `description()` names `Sunset` among the fields it
+            // owns the reading of. There is nothing here to compare it with, so
+            // there is nothing to say.
             let sunset_opt = match crate::helpers::headers::get_header_str(&resp.headers, "sunset")
             {
-                Some(s) => match crate::http_date::parse_http_date_to_datetime(s) {
-                    Ok(dt) => Some((s.to_string(), dt)),
-                    Err(_) => {
-                        return Some(ctx.report_with(
-                            &HTTP_DATE_MALFORMED,
-                            "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
-                        ));
-                    }
-                },
+                Some(s) => crate::http_date::parse_http_date_to_datetime(s)
+                    .ok()
+                    .map(|dt| (s.to_string(), dt)),
                 None => None,
             };
 
@@ -352,22 +363,53 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// An unreadable `Sunset` is the neighbour's finding, and this rule says
+    /// nothing about it.
+    ///
+    /// **Both used to say it, in the same words.** The assertion is two-sided
+    /// for the same reason `a_malformed_challenge_is_the_neighbours_finding`
+    /// is: silence here is only right because somebody still reports the
+    /// value, and a test checking only the silence would pass just as well if
+    /// nobody did.
     #[test]
-    fn sunset_invalid_reports_violation() {
+    fn an_unreadable_sunset_is_the_neighbours_finding() {
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
-            &[("sunset", "not-a-date"), ("deprecation", "@0")],
+            &[
+                ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+                ("sunset", "not-a-date"),
+                ("deprecation", "@0"),
+            ],
         );
+        let history = crate::transaction_history::TransactionHistory::empty();
+
         let rule = SunsetAndDeprecationConsistent;
-        let v = crate::test_helpers::run_rule(
+        assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
+            &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .is_none());
+
+        let owner = crate::rules::date_and_time_headers_consistent::DateAndTimeHeadersConsistent;
+        let found = crate::test_helpers::run_rule(
+            &owner,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "date_and_time_headers_consistent",
+            ]),
+        )
+        .expect("the owning rule reports the unreadable value");
+        assert_eq!(found.violation, "http_date_malformed");
+        assert!(
+            found
+                .message
+                .contains("Sunset header is not a valid HTTP-date"),
+            "{}",
+            found.message,
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("Sunset header is not a valid HTTP-date"));
     }
 
     #[test]
