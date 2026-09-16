@@ -24,10 +24,10 @@ use uuid::Uuid;
 
 use crate::state::ClientIdentifier;
 
-use super::h3_policy::H3Route;
+use super::h3_policy::{self, H3Action, H3Failure, H3Selection};
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
 use super::tee_body::{self, CapturedBody};
-use super::upstream_h3::{H3Failure, H3UpstreamClient};
+use super::upstream_h3::H3UpstreamClient;
 use super::{boxed_full, BoxError, ClientBody, ResponseBody, Shared};
 
 /// The request-side facts every transaction record needs: computed once by the
@@ -224,8 +224,17 @@ async fn forward_upstream(
     req: Request<ClientBody>,
     facts: &RequestFacts,
 ) -> Result<hyper::Response<ResponseBody>, String> {
-    let Some((h3, authority, route)) = h3_route(shared, uri) else {
+    // No H3 client configured is the ordinary H1/H2 path and says nothing; the
+    // other reasons an origin is skipped are the policy's to log.
+    let Some(h3) = shared.upstream.h3.as_ref() else {
         return forward_via_hyper(shared, req).await;
+    };
+    let (authority, route) = match h3.policy().select(uri) {
+        H3Selection::Attempt { authority, route } => (authority, route),
+        H3Selection::Skip(skip) => {
+            skip.log();
+            return forward_via_hyper(shared, req).await;
+        }
     };
 
     debug!(%authority, "forwarding upstream over HTTP/3");
@@ -238,39 +247,9 @@ async fn forward_upstream(
     }
 }
 
-/// The H3 route for this origin, when there is one to use.
-///
-/// `None` covers three different situations — no H3 client configured, the
-/// origin not on the allowlist, and the origin negative-cached after a recent
-/// failure — and only the last two are worth a log line, since the first is the
-/// ordinary H1/H2 path.
-fn h3_route<'a>(
-    shared: &'a Arc<Shared>,
-    uri: &Uri,
-) -> Option<(&'a H3UpstreamClient, String, H3Route)> {
-    let h3 = shared.upstream.h3.as_ref()?;
-    let authority = uri.authority()?.as_str();
-
-    if h3.policy().is_suppressed(authority) {
-        debug!(%authority, "h3 upstream suppressed by negative cache; using H1/H2");
-        return None;
-    }
-    let Some(route) = h3.policy().route_for(authority) else {
-        debug!(%authority, "no h3 route for origin; using H1/H2");
-        return None;
-    };
-    Some((h3, authority.to_string(), route))
-}
-
-/// Decide what an H3 upstream failure becomes: a retry over H1/H2, or an error.
-///
-/// The three failure shapes differ in what reached the origin, and that is what
-/// decides. Nothing reached it (`pre_request`): retry any method, and mark the
-/// origin unreachable. The header section reached it: retry only an idempotent
-/// method (RFC 9110 §9.2.2) — a non-idempotent request must not be blindly
-/// replayed. The request was fully sent and the origin merely slow: retry when
-/// the request can be replayed, and do *not* negative-cache, since the origin is
-/// healthy and suppressing H3 would punish it for being slow.
+/// Execute the recovery [`h3_policy::recover`] chose for this failure: suppress
+/// the origin when the failure proved it unreachable over H3, then either replay
+/// the request over the hyper client or surface the error as a 502.
 async fn recover_from_h3(
     shared: &Arc<Shared>,
     h3: &H3UpstreamClient,
@@ -278,37 +257,20 @@ async fn recover_from_h3(
     facts: &RequestFacts,
     failure: H3Failure,
 ) -> Result<hyper::Response<ResponseBody>, String> {
-    match failure {
-        H3Failure::Retryable {
-            error,
+    let recovery = h3_policy::recover(&facts.method, failure);
+    if recovery.mark_unreachable {
+        h3.policy().record_failure(authority);
+    }
+    match recovery.action {
+        H3Action::FallBack {
             request,
-            pre_request,
+            error,
+            note,
         } => {
-            if pre_request {
-                h3.policy().record_failure(authority);
-            }
-            if !pre_request && !facts.method.is_idempotent() {
-                return Err(format!(
-                    "h3 upstream error (non-idempotent, not retried): {error}"
-                ));
-            }
-            warn!(%authority, error = %error, "h3 upstream unavailable; falling back to H1/H2");
+            warn!(%authority, error = %error, "{note}");
             forward_via_hyper(shared, *request).await
         }
-        // Request bytes were in flight with no response; the streaming body
-        // cannot be replayed, so surface the failure as-is.
-        H3Failure::Consumed { error } => Err(format!("h3 upstream error: {error}")),
-        H3Failure::ResponseTimeout {
-            error,
-            replay: Some(request),
-        } => {
-            warn!(%authority, error = %error, "h3 upstream response-head timeout; retrying idempotent request via H1/H2");
-            forward_via_hyper(shared, *request).await
-        }
-        H3Failure::ResponseTimeout {
-            error,
-            replay: None,
-        } => Err(format!("h3 upstream response timed out: {error}")),
+        H3Action::Fail(error) => Err(error),
     }
 }
 

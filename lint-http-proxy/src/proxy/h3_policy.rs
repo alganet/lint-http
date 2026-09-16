@@ -6,11 +6,12 @@
 //! origin over HTTP/3 at all, where that connection is dialed, and what an H3
 //! failure becomes.
 //!
-//! Before this module the policy's state sat in the middle of
-//! [`super::upstream_h3`], between the quinn endpoint and the response-body
-//! adapter, and every assertion about it had to go through a client that binds
-//! a UDP socket. It lives here now, and every one of its tests runs without a
-//! socket and without a runtime.
+//! Before this module the policy was four mechanisms and two decisions spread
+//! across [`super::upstream_h3`] and [`super::exchange`], and the only way to
+//! observe the composed answer was to drive a request through
+//! [`super::exchange::exchange`]. Everything below is decided here instead, on
+//! state this module owns, and every one of its tests runs without a socket, a
+//! runtime, or a request.
 //!
 //! # The stages, in order
 //!
@@ -33,11 +34,18 @@
 //!    `h3_upstream_pool_max`; a pooled connection that refuses a stream is
 //!    invalidated and the request retried once on a fresh one.
 //!
-//! Stages 1–3 are decided here. Stage 4 stays in [`super::upstream_h3`], with
-//! the live quinn connections and driver tasks it decides between — it is named
-//! here because it is the fourth stage of the same policy, and it is *only*
-//! named here because a decision that owns connections cannot be moved away
-//! from them.
+//! Stages 1–3 are [`H3Policy::select`]. Stage 4 stays in
+//! [`super::upstream_h3`], with the live quinn connections and driver tasks it
+//! decides between — it is named here because it is the fourth stage of the same
+//! policy, and it is *only* named here because a decision that owns connections
+//! cannot be moved away from them.
+//!
+//! # Failure recovery
+//!
+//! The policy's other half, [`recover`]: an H3 attempt that failed becomes
+//! either a retry over the H1/H2 client or a surfaced error, and separately
+//! decides whether the origin enters the negative cache. What decides is how
+//! much of the request reached the origin — see [`H3Failure`].
 //!
 //! # One key for every lookup
 //!
@@ -49,10 +57,13 @@
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-use hyper::HeaderMap;
+use hyper::{HeaderMap, Method, Request, Uri};
 use parking_lot::Mutex;
+use tracing::debug;
 
 use crate::config::Config;
+
+use super::ClientBody;
 
 /// Upper bound on distinct authorities held in the negative cache; expired
 /// entries are pruned before this is exceeded so a churn of one-off origins
@@ -67,6 +78,37 @@ const DISCOVERY_CACHE_CAP: usize = 1024;
 /// (RFC 7838 §3.1 leaves the default to the client; 24h is the common choice,
 /// matching the alt-svc rule's documented assumption).
 const DEFAULT_ALT_SVC_MA_SECS: u64 = 24 * 60 * 60;
+
+/// Why an HTTP/3 upstream attempt failed, carrying enough context for [`recover`]
+/// to decide whether a fall-back to H1/H2 is safe (RFC 9110 §9.2.2).
+pub(super) enum H3Failure {
+    /// The failure left the request replayable — either nothing reached the
+    /// origin (`pre_request`) or only the header section did with the body
+    /// still intact. `request` is the original, un-consumed request. A
+    /// `pre_request` failure is safe to fall back for **any** method and marks
+    /// the origin in the negative cache; a header-sent failure is safe only for
+    /// an idempotent method.
+    Retryable {
+        error: anyhow::Error,
+        /// Boxed to keep this variant near the size of `Consumed` — a bare
+        /// `Request<ClientBody>` would make the whole `H3Failure` large.
+        request: Box<Request<ClientBody>>,
+        pre_request: bool,
+    },
+    /// The request body was already in flight; the streaming body cannot be
+    /// replayed, so the caller must not retry (whatever the method).
+    Consumed { error: anyhow::Error },
+    /// The request was fully sent but the origin did not produce a response head
+    /// within the response timeout. A timeout is not proof the origin didn't
+    /// process the request, so a fall-back is only safe when the request was
+    /// idempotent *and* bodyless (RFC 9110 §9.2.2) — the sole case the body can
+    /// be replayed and re-execution is harmless. `replay` carries a rebuilt
+    /// bodyless request then, else `None` (surface a 502).
+    ResponseTimeout {
+        error: anyhow::Error,
+        replay: Option<Box<Request<ClientBody>>>,
+    },
+}
 
 /// One negative-cache entry: the origin is not attempted over H3 until `until`,
 /// and `failures` drives the exponential backoff of that window.
@@ -92,6 +134,131 @@ pub(super) struct H3Route {
     pub(super) dial_port: u16,
     pub(super) authority_host: String,
     pub(super) authority: String,
+}
+
+/// The answer to "does this request go over HTTP/3?" — stages 1–3 composed.
+pub(super) enum H3Selection {
+    /// Attempt H3 for `authority` by dialing `route`.
+    Attempt {
+        authority: String,
+        route: Box<H3Route>,
+    },
+    /// Use the H1/H2 client instead, for this reason.
+    Skip(SkipH3),
+}
+
+/// Why an origin is not attempted over HTTP/3 — distinct variants because they
+/// mean different things to an operator reading a log: two are situations worth
+/// a line, and two are the ordinary shape of a request that was never a
+/// candidate.
+pub(super) enum SkipH3 {
+    /// The request target carries no authority to route on.
+    NoAuthority,
+    /// The origin is negative-cached after a recent H3 failure.
+    Suppressed(String),
+    /// No allowlist entry and no fresh discovery — or the denylist vetoed it.
+    NoRoute(String),
+}
+
+impl SkipH3 {
+    /// Log the two skips an operator would want to see. A request whose target
+    /// has no authority, and (at the call site) an origin with no H3 client
+    /// configured at all, are the ordinary H1/H2 path and say nothing.
+    pub(super) fn log(&self) {
+        match self {
+            SkipH3::NoAuthority => {}
+            SkipH3::Suppressed(authority) => {
+                debug!(%authority, "h3 upstream suppressed by negative cache; using H1/H2");
+            }
+            SkipH3::NoRoute(authority) => {
+                debug!(%authority, "no h3 route for origin; using H1/H2");
+            }
+        }
+    }
+}
+
+/// What an H3 upstream failure becomes: an action for the caller to execute,
+/// plus whether the origin should be suppressed from further H3 attempts.
+pub(super) struct H3Recovery {
+    /// Whether to enter `authority` in the negative cache. True only when the
+    /// failure proved the origin unreachable over H3 — never when the origin
+    /// answered, or was merely slow.
+    pub(super) mark_unreachable: bool,
+    pub(super) action: H3Action,
+}
+
+/// The executable half of [`H3Recovery`].
+pub(super) enum H3Action {
+    /// Retry this (un-consumed) request over the H1/H2 client. `note` is the
+    /// warning to log, kept here so the reason a fall-back happened is decided
+    /// in the same place the fall-back is.
+    FallBack {
+        request: Box<Request<ClientBody>>,
+        error: anyhow::Error,
+        note: &'static str,
+    },
+    /// Give up; surface this as the upstream error.
+    Fail(String),
+}
+
+/// Decide what an H3 upstream failure becomes: a retry over H1/H2, or an error.
+///
+/// The three failure shapes differ in what reached the origin, and that is what
+/// decides. Nothing reached it (`pre_request`): retry any method, and mark the
+/// origin unreachable. The header section reached it: retry only an idempotent
+/// method (RFC 9110 §9.2.2) — a non-idempotent request must not be blindly
+/// replayed. The request was fully sent and the origin merely slow: retry when
+/// the request can be replayed, and do *not* negative-cache, since the origin is
+/// healthy and suppressing H3 would punish it for being slow.
+pub(super) fn recover(method: &Method, failure: H3Failure) -> H3Recovery {
+    match failure {
+        H3Failure::Retryable {
+            error,
+            request,
+            pre_request,
+        } => {
+            if !pre_request && !method.is_idempotent() {
+                return H3Recovery {
+                    mark_unreachable: false,
+                    action: H3Action::Fail(format!(
+                        "h3 upstream error (non-idempotent, not retried): {error}"
+                    )),
+                };
+            }
+            H3Recovery {
+                mark_unreachable: pre_request,
+                action: H3Action::FallBack {
+                    request,
+                    error,
+                    note: "h3 upstream unavailable; falling back to H1/H2",
+                },
+            }
+        }
+        // Request bytes were in flight with no response; the streaming body
+        // cannot be replayed, so surface the failure as-is.
+        H3Failure::Consumed { error } => H3Recovery {
+            mark_unreachable: false,
+            action: H3Action::Fail(format!("h3 upstream error: {error}")),
+        },
+        H3Failure::ResponseTimeout {
+            error,
+            replay: Some(request),
+        } => H3Recovery {
+            mark_unreachable: false,
+            action: H3Action::FallBack {
+                request,
+                error,
+                note: "h3 upstream response-head timeout; retrying idempotent request via H1/H2",
+            },
+        },
+        H3Failure::ResponseTimeout {
+            error,
+            replay: None,
+        } => H3Recovery {
+            mark_unreachable: false,
+            action: H3Action::Fail(format!("h3 upstream response timed out: {error}")),
+        },
+    }
 }
 
 /// The routing state stages 1–3 decide against: the operator's two lists, the
@@ -153,6 +320,25 @@ impl H3Policy {
             negative_ttl: Duration::from_secs(cfg.general.h3_upstream_negative_ttl_seconds),
             negative: Mutex::new(HashMap::new()),
             discovery: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Stages 1–3 composed: whether `uri`'s origin is attempted over HTTP/3, and
+    /// how it is reached if so. Suppression is checked before routing, so a
+    /// negative-cached origin is skipped even when it is allowlisted.
+    pub(super) fn select(&self, uri: &Uri) -> H3Selection {
+        let Some(authority) = uri.authority().map(|a| a.as_str()) else {
+            return H3Selection::Skip(SkipH3::NoAuthority);
+        };
+        if self.is_suppressed(authority) {
+            return H3Selection::Skip(SkipH3::Suppressed(authority.to_string()));
+        }
+        match self.route_for(authority) {
+            Some(route) => H3Selection::Attempt {
+                authority: route.authority.clone(),
+                route: Box::new(route),
+            },
+            None => H3Selection::Skip(SkipH3::NoRoute(authority.to_string())),
         }
     }
 
@@ -412,9 +598,10 @@ mod tests {
     use super::*;
 
     /// Every test here builds the policy straight out of a `Config` — no UDP
-    /// bind and no runtime. That is the point of the split: the same assertions
-    /// used to have to go through `H3UpstreamClient::build`, which binds a
-    /// socket, so they were `#[tokio::test]`s for no reason of their own.
+    /// bind, no runtime, no request. That is the point of the split: before it,
+    /// the same assertions had to go through `H3UpstreamClient::build`, which
+    /// binds a socket, and the composed answer could only be seen by driving a
+    /// request through `exchange()`.
     fn policy_with(mutate: impl FnOnce(&mut crate::config::GeneralConfig)) -> H3Policy {
         let mut cfg = Config::default();
         cfg.general.h3_upstream_enabled = true;
@@ -738,5 +925,178 @@ mod tests {
             !policy.is_suppressed("a.example"),
             "clearing the `:443` form clears the no-port form"
         );
+    }
+
+    /// A request target with no authority has nothing to route on — the H1/H2
+    /// client resolves it, and the skip is silent because it is not a request
+    /// that was ever an H3 candidate.
+    #[test]
+    fn select_skips_a_target_without_an_authority() {
+        let policy = policy_with(|g| g.h3_upstream_authorities = vec!["example.com".to_string()]);
+        let uri: Uri = "/just-a-path".parse().expect("origin-form target");
+        assert!(matches!(
+            policy.select(&uri),
+            H3Selection::Skip(SkipH3::NoAuthority)
+        ));
+    }
+
+    /// The composed answer for an allowlisted origin: attempt H3, and report the
+    /// authority under its canonical key so the caller records success and
+    /// failure against the same string the pool and the caches use.
+    #[test]
+    fn select_attempts_an_allowlisted_origin_under_the_canonical_key() {
+        let policy = policy_with(|g| g.h3_upstream_authorities = vec!["example.com".to_string()]);
+        let uri: Uri = "https://EXAMPLE.com/x".parse().expect("absolute target");
+        match policy.select(&uri) {
+            H3Selection::Attempt { authority, route } => {
+                assert_eq!(authority, "example.com:443");
+                assert_eq!(route.dial_host, "example.com");
+                assert_eq!(route.dial_port, 443);
+            }
+            H3Selection::Skip(_) => panic!("an allowlisted origin is attempted over H3"),
+        }
+    }
+
+    /// Suppression is checked *before* routing, which is the whole reason the
+    /// two stages are composed in one place: an allowlisted origin that just
+    /// failed must still go over H1/H2, and reading `route_for` alone would say
+    /// the opposite.
+    #[test]
+    fn select_lets_suppression_override_the_allowlist() {
+        let policy = policy_with(|g| {
+            g.h3_upstream_authorities = vec!["example.com".to_string()];
+            g.h3_upstream_negative_ttl_seconds = 30;
+        });
+        let uri: Uri = "https://example.com/x".parse().expect("absolute target");
+        policy.record_failure("example.com");
+        match policy.select(&uri) {
+            H3Selection::Skip(SkipH3::Suppressed(authority)) => {
+                assert_eq!(authority, "example.com");
+            }
+            _ => panic!("a negative-cached origin is skipped even when allowlisted"),
+        }
+        // And it comes back on its own once the origin recovers.
+        policy.record_success("example.com");
+        assert!(matches!(policy.select(&uri), H3Selection::Attempt { .. }));
+    }
+
+    /// An origin on neither list and with nothing discovered is the ordinary
+    /// case, distinguished from suppression because only one of the two will
+    /// resolve itself.
+    #[test]
+    fn select_skips_an_origin_with_no_route() {
+        let policy = policy_with(|_| {});
+        let uri: Uri = "https://other.example/x".parse().expect("absolute target");
+        match policy.select(&uri) {
+            H3Selection::Skip(SkipH3::NoRoute(authority)) => {
+                assert_eq!(authority, "other.example");
+            }
+            _ => panic!("nothing routes this origin over H3"),
+        }
+    }
+
+    fn request(method: Method) -> Box<Request<ClientBody>> {
+        Box::new(
+            Request::builder()
+                .method(method)
+                .uri("https://origin.example/")
+                .body(super::super::boxed_full(bytes::Bytes::new()))
+                .expect("request builds"),
+        )
+    }
+
+    fn retryable(method: Method, pre_request: bool) -> H3Failure {
+        H3Failure::Retryable {
+            error: anyhow::anyhow!("connect refused"),
+            request: request(method),
+            pre_request,
+        }
+    }
+
+    /// Nothing reached the origin, so replaying is safe whatever the method —
+    /// and the origin has proved itself unreachable over H3.
+    #[test]
+    fn a_pre_request_failure_falls_back_for_any_method_and_suppresses() {
+        let recovery = recover(&Method::POST, retryable(Method::POST, true));
+        assert!(
+            recovery.mark_unreachable,
+            "a failure that never reached the origin negative-caches it"
+        );
+        assert!(matches!(recovery.action, H3Action::FallBack { .. }));
+    }
+
+    /// The header section reached the origin, so a non-idempotent request must
+    /// not be blindly replayed (RFC 9110 §9.2.2) — and the origin answered, so
+    /// it is not suppressed either.
+    #[test]
+    fn a_header_sent_failure_is_not_replayed_for_a_non_idempotent_method() {
+        let recovery = recover(&Method::POST, retryable(Method::POST, false));
+        assert!(
+            !recovery.mark_unreachable,
+            "the origin was reachable; only the request was unsafe to replay"
+        );
+        match recovery.action {
+            H3Action::Fail(error) => assert!(
+                error.contains("non-idempotent"),
+                "the error says why it was not retried, got: {error}"
+            ),
+            H3Action::FallBack { .. } => panic!("a POST must not be blindly replayed"),
+        }
+    }
+
+    /// The same failure with an idempotent method does fall back, still without
+    /// suppressing the origin.
+    #[test]
+    fn a_header_sent_failure_falls_back_for_an_idempotent_method() {
+        let recovery = recover(&Method::GET, retryable(Method::GET, false));
+        assert!(!recovery.mark_unreachable);
+        assert!(matches!(recovery.action, H3Action::FallBack { .. }));
+    }
+
+    /// Request bytes were in flight with no response: the streaming body cannot
+    /// be replayed, so there is nothing to retry with.
+    #[test]
+    fn a_consumed_failure_is_surfaced() {
+        let recovery = recover(
+            &Method::GET,
+            H3Failure::Consumed {
+                error: anyhow::anyhow!("stream reset"),
+            },
+        );
+        assert!(!recovery.mark_unreachable);
+        assert!(matches!(recovery.action, H3Action::Fail(_)));
+    }
+
+    /// A slow origin is a healthy origin: the request retries over H1/H2 when it
+    /// can be replayed, and H3 is *not* suppressed — suppressing it would punish
+    /// the origin for being slow, and every later request would pay for it.
+    #[test]
+    fn a_response_timeout_falls_back_without_suppressing_the_origin() {
+        let recovery = recover(
+            &Method::GET,
+            H3Failure::ResponseTimeout {
+                error: anyhow::anyhow!("no response head"),
+                replay: Some(request(Method::GET)),
+            },
+        );
+        assert!(
+            !recovery.mark_unreachable,
+            "a timeout is not proof the origin is unreachable over H3"
+        );
+        assert!(matches!(recovery.action, H3Action::FallBack { .. }));
+    }
+
+    /// With no replayable request the timeout has to surface as a 502.
+    #[test]
+    fn a_response_timeout_with_nothing_to_replay_fails() {
+        let recovery = recover(
+            &Method::POST,
+            H3Failure::ResponseTimeout {
+                error: anyhow::anyhow!("no response head"),
+                replay: None,
+            },
+        );
+        assert!(!recovery.mark_unreachable);
+        assert!(matches!(recovery.action, H3Action::Fail(_)));
     }
 }
