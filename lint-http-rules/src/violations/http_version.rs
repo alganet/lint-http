@@ -5,9 +5,17 @@
 //! `HTTP-version` defects — the protocol element both start-lines carry.
 //!
 //! One production, `HTTP-name "/" DIGIT "." DIGIT`, written at the end of a
-//! request-line and at the beginning of a status-line — and one entry, because
-//! a value failing it fails it the same way in either place. Which message it
-//! came from is in the finding's wording, not in its id.
+//! request-line and at the beginning of a status-line — and one entry for
+//! failing it, because a value fails it the same way in either place. Which
+//! message it came from is in the finding's wording, not in its id.
+//!
+//! **The second entry is the opposite case: a version that derives perfectly
+//! and is still not enough.** Some exchanges name a floor — a WebSocket opening
+//! handshake is *an HTTP/1.1 or higher GET request* — and a message below it is
+//! refused by what it is trying to do rather than by the grammar. The sentence
+//! stating the floor belongs to whichever document defines the exchange, so the
+//! entry carries none of its own and the finding names the one it was read
+//! from.
 //!
 //! **The subject exists although two of the three versions never put it on the
 //! wire.** HTTP/2 and HTTP/3 carry no start-line, and a capture records a
@@ -50,6 +58,36 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9112_2_3],
     }
+
+    /// A version that derives from the production and is below the floor the
+    /// exchange requires: a WebSocket opening handshake sent over HTTP/1.0.
+    ///
+    /// **`_invalid` and the split from its sibling is the whole of the
+    /// subject.** `HTTP/1.0` is a perfectly good `HTTP-version`, written the
+    /// way § 2.3 writes it; what refuses it is one level past the grammar, and
+    /// the refusal comes from what the message is *trying to do* rather than
+    /// from how it is spelled.
+    ///
+    /// **Uncited, and it is the fourth reason this catalogue has for that: the
+    /// sentence exists, in a document the entry cannot name.** The floor is
+    /// stated by whichever specification defines the exchange — RFC 6455
+    /// § 4.2.1 for the WebSocket handshake, and any later exchange that names
+    /// one will state it somewhere else again — so a reference here would put
+    /// one protocol's section on another protocol's finding the moment a second
+    /// declarer arrives. The message names the sentence it was read from,
+    /// which is what a finding does when its def cannot.
+    ///
+    /// `warn`. Nothing is unreadable and the request is a well-formed HTTP
+    /// message; what it asks for is an exchange the version cannot carry, and
+    /// the recipient's own instruction — stop processing and answer with an
+    /// error status — is what the finding is predicting.
+    HTTP_VERSION_INVALID = {
+        id: "http_version_invalid",
+        title: "A protocol version is below the floor the exchange requires",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[],
+    }
 }
 
 #[cfg(test)]
@@ -63,5 +101,19 @@ mod tests {
         assert!(!HTTP_VERSION_MALFORMED.id.contains("request"));
         assert!(!HTTP_VERSION_MALFORMED.id.contains("response"));
         assert!(HTTP_VERSION_MALFORMED.message.is_empty());
+    }
+
+    /// The two entries are the two sides of one production: one for a value
+    /// that does not derive, one for a value that derives and is refused by
+    /// what the message attempts. Only the first can name a sentence, because
+    /// only the first is about the grammar.
+    #[test]
+    fn the_grammar_names_a_sentence_and_the_floor_cannot() {
+        assert!(!HTTP_VERSION_MALFORMED.spec.is_empty());
+        assert!(HTTP_VERSION_INVALID.spec.is_empty());
+        assert_eq!(
+            HTTP_VERSION_INVALID.default_severity,
+            HTTP_VERSION_MALFORMED.default_severity
+        );
     }
 }

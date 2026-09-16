@@ -1975,6 +1975,10 @@ severity = "info"
 # Timestamp is padded with whitespace the grammar does not print
 severity = "warn"
 
+[violations.http_version_invalid]
+# A protocol version is below the floor the exchange requires
+severity = "warn"
+
 [violations.http_version_malformed]
 # A protocol version derives from no reading of HTTP-version
 severity = "warn"

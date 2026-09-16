@@ -13,6 +13,7 @@ use crate::violations::base64::{
     sec_websocket_key_defect as key_violation, BASE64_CHARACTER_FORBIDDEN, BASE64_PAD_BITS_INVALID,
     BASE64_QUANTUM_MALFORMED, RFC_4648_3_3, RFC_4648_3_5, RFC_4648_4,
 };
+use crate::violations::http_version::HTTP_VERSION_INVALID;
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
@@ -61,7 +62,16 @@ pub struct SecWebsocketHeadersConsistent;
 /// "Upgrade" token* is the same requirement restated for this handshake, so the
 /// finding takes [`upgrade`](crate::violations::upgrade)'s entry rather than
 /// spelling a second id for one protocol's copy of it.
+///
+/// **The version is the same shape of borrow one level lower.** § 4.2.1 asks
+/// for *an HTTP/1.1 or higher GET request*, which is a floor on a value that
+/// derives from `HTTP-version` perfectly well — so it is
+/// [`http_version`](crate::violations::http_version)'s `_invalid`, beside the
+/// `_malformed` for a value that derives from nothing, and the entry names no
+/// sentence because the floor belongs to whichever document defines the
+/// exchange.
 static DECLARED: &[&ViolationDef] = &[
+    &HTTP_VERSION_INVALID,
     &BASE64_CHARACTER_FORBIDDEN,
     &BASE64_QUANTUM_MALFORMED,
     &BASE64_PAD_BITS_INVALID,
@@ -431,11 +441,6 @@ impl Rule for SecWebsocketHeadersConsistent {
             // this rule's.
             let version = crate::helpers::websocket::opening_handshake_version(req)?;
 
-            // Every gate above ends the rule, and reading the configuration is several
-            // map probes and a hash of the id -- so only a request about to be measured
-            // pays for it.
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
-
             // The other half of the sentence the method gate quotes, and the half nobody
             // in this catalogue was reading. The section describing how a server reads
             // this handshake opens its list with the same requirement, and a server that
@@ -445,9 +450,12 @@ impl Rule for SecWebsocketHeadersConsistent {
             // cite(RFC 6455 § 4.2.1): "An HTTP/1.1 or higher GET request"
             // cite(RFC 6455 § 4.2.1): "the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)"
             if (version.major, version.minor) < (1, 1) {
-                return violation(format!(
-                    "This WebSocket opening handshake is sent over {version}, and RFC 6455 § 4.1 \
-                     requires the request's HTTP version to be at least 1.1"
+                return Some(ctx.report_with(
+                    &HTTP_VERSION_INVALID,
+                    format!(
+                        "This WebSocket opening handshake is sent over {version}, and RFC 6455 \
+                         § 4.1 requires the request's HTTP version to be at least 1.1"
+                    ),
                 ));
             }
 
@@ -664,7 +672,14 @@ mod tests {
     fn the_handshake_needs_http_1_1_or_higher(#[case] version: &str, #[case] reported: bool) {
         let mut tx = make_ws_request(conforming());
         tx.request.version = version.into();
-        assert_eq!(run(&tx).is_some(), reported, "{version}");
+        let v = run(&tx);
+        assert_eq!(v.is_some(), reported, "{version}");
+        if let Some(v) = v {
+            // The value derives from `HTTP-version` perfectly; what refuses it
+            // is the exchange it is carrying, which is the `_invalid` half of
+            // that subject and not the `_malformed` one.
+            assert_eq!(v.violation, "http_version_invalid", "{version}");
+        }
     }
 
     /// Over HTTP/2 and HTTP/3 this handshake does not exist, and the two fields the
