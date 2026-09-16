@@ -225,6 +225,9 @@ paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 [rules.compression_and_transfer_encoding_consistent]
 enabled = true
 
+[rules.conditional_date_syntax]
+enabled = true
+
 [rules.conditional_etag_syntax]
 enabled = true
 
@@ -437,12 +440,6 @@ enabled = true
 enabled = true
 
 [rules.http_version_syntax]
-enabled = true
-
-[rules.if_modified_since_date_syntax]
-enabled = true
-
-[rules.if_unmodified_since_date_syntax]
 enabled = true
 
 [rules.immutable_cache_never_stale]

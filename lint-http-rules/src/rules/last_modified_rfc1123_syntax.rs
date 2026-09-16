@@ -173,35 +173,27 @@ mod tests {
             ("if-modified-since", "Sun Nov  6 08:49:37 1994"),
             ("if-unmodified-since", "Sun Nov  6 08:49:37 1994"),
         ]);
-        for rule_id in [
-            "if_modified_since_date_syntax",
-            "if_unmodified_since_date_syntax",
-        ] {
-            let rule = crate::rules::all_rules()
-                .find(|r| r.id() == rule_id)
-                .expect("a registered rule");
-            assert_eq!(
-                rule.violations().iter().map(|d| d.id).collect::<Vec<_>>(),
-                vec![
-                    "http_date_malformed",
-                    "http_date_obsolete",
-                    "http_date_whitespace_forbidden",
-                    // The two conditional fields report an empty value where
-                    // `Last-Modified` does not: a request may leave the field
-                    // out, so a line with nothing on it is a client that meant
-                    // to condition and did not.
-                    "http_date_empty",
-                ],
-                "{rule_id}",
-            );
-        }
+        let rule = crate::rules::all_rules()
+            .find(|r| r.id() == "conditional_date_syntax")
+            .expect("a registered rule");
+        assert_eq!(
+            rule.violations().iter().map(|d| d.id).collect::<Vec<_>>(),
+            vec![
+                "http_date_malformed",
+                "http_date_obsolete",
+                "http_date_whitespace_forbidden",
+                // The two conditional fields report an empty value where
+                // `Last-Modified` does not: a request may leave the field
+                // out, so a line with nothing on it is a client that meant
+                // to condition and did not.
+                "http_date_empty",
+            ],
+        );
         let conditional = crate::test_helpers::run_rule(
-            &crate::rules::if_modified_since_date_syntax::IfModifiedSinceDateSyntax,
+            &crate::rules::conditional_date_syntax::ConditionalDateSyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                "if_modified_since_date_syntax",
-            ]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["conditional_date_syntax"]),
         )
         .expect("a finding");
         assert_eq!(conditional.violation, obsolete.violation);
