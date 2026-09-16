@@ -1744,7 +1744,7 @@ severity = "warn"
         /// both methods. A new `self.violation(` fails this even while the
         /// remaining three are permitted, which is the whole point of a
         /// ceiling that is not yet zero.
-        const UNCITED_SITES: usize = 2;
+        const UNCITED_SITES: usize = 1;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

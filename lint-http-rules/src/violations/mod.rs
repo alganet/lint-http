@@ -572,7 +572,10 @@ mod tests {
         /// site for an entry**, since `self.cited(` has no caller left in
         /// `src/rules/`. 504 of 536 with the response to a `HEAD` that carries
         /// octets — a requirement the *method's* definition states about a
-        /// message the method did not travel in.
+        /// message the method did not travel in. **537 entries still cite 504**:
+        /// the version floor a WebSocket handshake requires is a sentence in
+        /// whichever document defines the exchange, so an entry two protocols
+        /// could declare can name none of them.
         const FLOOR: usize = 504;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
