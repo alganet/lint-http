@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::scheme::scheme_authority_marker;
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::uri::{
     extract_path_from_request_target, is_sub_delim, is_unreserved, normalize_path_and_query,
-    scheme_authority_marker,
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};

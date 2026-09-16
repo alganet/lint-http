@@ -170,7 +170,7 @@ fn validate_host(value: &str) -> Option<(&'static ViolationDef, String)> {
 ///
 // cite(RFC 7239 § 5.4): "The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395]."
 fn validate_proto(value: &str) -> Option<(&'static ViolationDef, String)> {
-    crate::helpers::uri::validate_scheme_name(value)
+    crate::helpers::scheme::validate_scheme_name(value)
         .err()
         .map(|defect| {
             (

@@ -427,7 +427,7 @@ impl Rule for HostAndAuthorityConsistent {
             // is read from the same recorded target the authority came from. A
             // CONNECT's target is an authority and carries no scheme, which is why
             // this is an `Option` rather than a default.
-            let scheme = crate::helpers::uri::scheme_authority_marker(&tx.request.uri)
+            let scheme = crate::helpers::scheme::scheme_authority_marker(&tx.request.uri)
                 .map(|marker| &tx.request.uri[..marker]);
 
             match Self::compare(&authority, host, scheme) {

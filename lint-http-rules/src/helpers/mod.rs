@@ -80,6 +80,7 @@ pub mod product;
 pub mod quoted_string;
 pub mod qvalue;
 pub mod rule_config;
+pub mod scheme;
 pub mod shown;
 pub mod status;
 pub mod structured_fields;
