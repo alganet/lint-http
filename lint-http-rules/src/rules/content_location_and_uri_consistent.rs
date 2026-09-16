@@ -291,7 +291,7 @@ impl Rule for ContentLocationAndUriConsistent {
 
                 // The `pct-encoded` production and the `scheme` production are the
                 // helpers' to state; both carry the grammar at their definitions.
-                if let Some(defect) = crate::helpers::uri::percent_encoding_defect(s) {
+                if let Some(defect) = crate::helpers::percent_encoding::percent_encoding_defect(s) {
                     return Some(ctx.report_with(
                         crate::violations::uri::percent_encoding(defect),
                         defect.message(),

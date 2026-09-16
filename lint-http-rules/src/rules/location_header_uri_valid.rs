@@ -289,7 +289,7 @@ impl Rule for LocationHeaderUriValid {
 
             // `%` passed the alphabet check because it opens a triplet; whether it
             // actually does is the triplet's own production, and the helper carries it.
-            if let Some(defect) = crate::helpers::uri::percent_encoding_defect(value) {
+            if let Some(defect) = crate::helpers::percent_encoding::percent_encoding_defect(value) {
                 return Some(ctx.report_with(
                     crate::violations::uri::percent_encoding(defect),
                     defect.message(),

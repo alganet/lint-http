@@ -89,7 +89,7 @@ fn first_non_pchar(name: &str) -> Option<char> {
 fn is_well_known_segment(segment: &str) -> bool {
     segment == WELL_KNOWN_SEGMENT
         || (segment.contains('%')
-            && crate::helpers::uri::decode_unreserved(segment) == WELL_KNOWN_SEGMENT)
+            && crate::helpers::percent_encoding::decode_unreserved(segment) == WELL_KNOWN_SEGMENT)
 }
 
 /// The specification references this rule declares, each named so a finding

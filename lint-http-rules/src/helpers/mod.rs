@@ -75,6 +75,7 @@ pub mod list;
 pub mod mailbox;
 pub mod media_type;
 pub mod parameter;
+pub mod percent_encoding;
 pub mod product;
 pub mod quoted_string;
 pub mod qvalue;

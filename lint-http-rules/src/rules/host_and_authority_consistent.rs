@@ -90,8 +90,8 @@ impl HostAndAuthorityConsistent {
         // normal form* its cited spelling.
         //
         // cite(RFC 3986 § 6.2.2.1): "For all URIs, the hexadecimal digits within a percent-encoding triplet (e.g., "%3a" versus "%3A") are case-insensitive and therefore should be normalized to use uppercase letters for the digits A-F."
-        let host = crate::helpers::uri::decode_unreserved(host);
-        out.push_str(&crate::helpers::uri::decode_unreserved(
+        let host = crate::helpers::percent_encoding::decode_unreserved(host);
+        out.push_str(&crate::helpers::percent_encoding::decode_unreserved(
             &host.to_ascii_lowercase(),
         ));
 
