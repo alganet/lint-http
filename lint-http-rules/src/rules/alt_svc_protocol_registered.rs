@@ -119,7 +119,7 @@ fn parse_allowed_config(
 
 /// The `protocol-id` written back out as the octets it stands for.
 ///
-/// **Deliberately not `helpers::uri::decode_unreserved`, and the two must not be
+/// **Deliberately not `helpers::percent_encoding::decode_unreserved`, and the two must not be
 /// folded.** That function decodes an `unreserved` triplet and leaves every
 /// other one alone, because § 2.4 warns that decoding a delimiter moves the
 /// component boundaries. This one decodes them all, because § 3.1 makes an ALPN
@@ -409,7 +409,7 @@ impl Rule for AltSvcProtocolRegistered {
                 // A malformed triplet is not a name spelled wrong, it is a name
                 // that cannot be read at all; the three spelling MUSTs a
                 // well-formed triplet can still break are the neighbour's too.
-                if crate::helpers::uri::check_percent_encoding(protocol_id).is_some() {
+                if crate::helpers::percent_encoding::check_percent_encoding(protocol_id).is_some() {
                     continue;
                 }
 

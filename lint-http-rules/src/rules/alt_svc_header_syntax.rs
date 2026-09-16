@@ -175,7 +175,7 @@ fn whitespace_beside_delimiter(left: &str, right: &str) -> bool {
 /// report as. A protocol-id spelled two ways is two protocols to every
 /// recipient reading it that way.
 ///
-/// `helpers::uri::check_percent_encoding` declines the uppercase question on
+/// `helpers::percent_encoding::check_percent_encoding` declines the uppercase question on
 /// purpose: RFC 3986 § 2.1 asks for uppercase as a *consistency* preference and
 /// says the two cases are equivalent. That decline is right for a URI and wrong
 /// here, because this document states it as a MUST for this one production.
@@ -185,7 +185,7 @@ fn whitespace_beside_delimiter(left: &str, right: &str) -> bool {
 // cite(RFC 7838 § 3): "When using percent-encoding, uppercase hex digits MUST be used."
 // cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
 fn protocol_id_encoding_defect(protocol_id: &str) -> Option<Defect> {
-    // The triplet's *shape* is `helpers::uri::percent_encoding_defect`'s, and it
+    // The triplet's *shape* is `helpers::percent_encoding::percent_encoding_defect`'s, and it
     // is asked first so that everything below can take two hex digits for
     // granted. It also answers a case this rule would otherwise have to
     // re-derive: a '%' whose next bytes begin a multi-byte character, which it
@@ -193,7 +193,7 @@ fn protocol_id_encoding_defect(protocol_id: &str) -> Option<Defect> {
     //
     // The shape is `pct-encoded`'s and reports as such; everything below is
     // this field's own spelling rule for an ALPN name and reports as nothing.
-    if let Some(defect) = crate::helpers::uri::percent_encoding_defect(protocol_id) {
+    if let Some(defect) = crate::helpers::percent_encoding::percent_encoding_defect(protocol_id) {
         return Some(Defect::named(
             percent_encoding(defect),
             format!(

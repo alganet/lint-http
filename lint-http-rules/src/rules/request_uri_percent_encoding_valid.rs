@@ -176,7 +176,8 @@ impl Rule for RequestUriPercentEncodingValid {
             // cite(RFC 3986 § 2.4): "Because the percent ("%") character serves as the indicator for percent-encoded octets, it must be percent-encoded as "%25" for that octet to be used as data within a URI."
             // cite(RFC 3986 § 2.4): "Once produced, a URI is always in its percent-encoded form."
             // cite(RFC 3986 § 2.4): "When a URI is dereferenced, the components and subcomponents significant to the scheme-specific dereferencing process (if any) must be parsed and separated before the percent-encoded octets within those components can be safely decoded, as otherwise the data may be mistaken for component delimiters."
-            if let Some(defect) = crate::helpers::uri::percent_encoding_defect(target) {
+            if let Some(defect) = crate::helpers::percent_encoding::percent_encoding_defect(target)
+            {
                 // A target read back from a capture can hold characters that print
                 // as nothing or, worse, print as something else: an escape sequence
                 // in a finding is a finding nobody can read.

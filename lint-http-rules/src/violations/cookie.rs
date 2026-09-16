@@ -582,7 +582,7 @@ mod tests {
             CookiePathDefect::Empty,
             CookiePathDefect::NotAbsolute("login"),
             CookiePathDefect::PercentEncoding(
-                crate::helpers::uri::PercentEncodingDefect::NotHexDigits("%ZZ"),
+                crate::helpers::percent_encoding::PercentEncodingDefect::NotHexDigits("%ZZ"),
             ),
             CookiePathDefect::NonAscii(3),
             CookiePathDefect::ControlCharacter(3),
@@ -637,7 +637,7 @@ mod tests {
             CookiePathDefect::Empty,
             CookiePathDefect::NotAbsolute("login"),
             CookiePathDefect::PercentEncoding(
-                crate::helpers::uri::PercentEncodingDefect::NotHexDigits("%ZZ"),
+                crate::helpers::percent_encoding::PercentEncodingDefect::NotHexDigits("%ZZ"),
             ),
             CookiePathDefect::NonAscii(3),
             CookiePathDefect::ControlCharacter(3),
