@@ -1868,11 +1868,12 @@ enabled = "true"
     /// something the other two do not: everything one rule reports, the other
     /// reports, so nothing an operator can *tune* tells the two apart.
     ///
-    /// **It reads five pairs and only two of them are merges, which is the
-    /// finding.** The two are the ones already first in the merge order —
-    /// `if_match_etag_syntax` with `if_none_match_etag_syntax`, and the two
-    /// conditional-date rules — where the fields are a request pair with one
-    /// grammar between them. The other three read *different* fields with the
+    /// **It read five pairs when it was written and only two of them were
+    /// merges, which was the finding.** The two were the ones already first in
+    /// the merge order — the `If-Match`/`If-None-Match` pair, now merged into
+    /// `conditional_etag_syntax`, and the two conditional-date rules — where
+    /// the fields are a request pair with one grammar between them, so one rule
+    /// reads both. The other three read *different* fields with the
     /// same reader: `Allow` and `Vary` are both token lists,
     /// `Cache-Control` and `Pragma` both directive lists, `Server` and
     /// `User-Agent` both product assemblies. Merging either of those would put
@@ -1889,9 +1890,9 @@ enabled = "true"
     /// reports, and both want reading before they land.
     #[test]
     fn no_two_rules_declare_the_same_defects() {
-        /// Lowered by each merge, of which two are available. Read from what
-        /// the assertion prints, never incremented.
-        const CEILING: usize = 5;
+        /// Lowered by each merge, of which one is left. Read from what the
+        /// assertion prints, never incremented.
+        const CEILING: usize = 4;
 
         let declared: std::collections::BTreeMap<&str, std::collections::BTreeSet<&str>> =
             all_rules()

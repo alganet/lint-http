@@ -177,8 +177,8 @@ mod tests {
 
     /// One production, three fields: an `ETag` a server sends and the two
     /// conditional lists a client sends back draw the same id for the same
-    /// value, out of rules that share no code and read opposite directions of
-    /// the exchange.
+    /// value, out of two rules that share no code and read opposite directions
+    /// of the exchange.
     #[rstest]
     #[case("abc", "etag_delimiter_missing")]
     #[case("w/\"abc\"", "etag_weak_indicator_invalid")]
@@ -196,22 +196,16 @@ mod tests {
         .expect("a finding");
         assert_eq!(found.violation, id, "{value}");
 
-        for (rule, field) in [
-            (
-                &super::super::if_match_etag_syntax::IfMatchEtagSyntax as &dyn crate::rules::Rule,
-                "if-match",
-            ),
-            (
-                &super::super::if_none_match_etag_syntax::IfNoneMatchEtagSyntax,
-                "if-none-match",
-            ),
-        ] {
+        let rule = &super::super::conditional_etag_syntax::ConditionalEtagSyntax;
+        for field in ["if-match", "if-none-match"] {
             let tx = crate::test_helpers::make_test_transaction_with_headers(&[(field, value)]);
             let found = crate::test_helpers::run_rule(
                 rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    crate::rules::RuleMeta::id(rule),
+                ]),
             )
             .expect("a finding");
             assert_eq!(found.violation, id, "{field}: {value}");
