@@ -22,7 +22,6 @@ This rule reconstructs a small piece of cache state for a given client and resou
 ```toml
 [rules.immutable_cache_never_stale]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

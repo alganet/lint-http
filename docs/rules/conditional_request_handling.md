@@ -24,7 +24,6 @@ Warn when conditional requests are used without a prior validator (ETag / Last-M
 ```toml
 [rules.conditional_request_handling]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

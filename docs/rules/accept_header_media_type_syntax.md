@@ -37,7 +37,6 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 ```toml
 [rules.accept_header_media_type_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

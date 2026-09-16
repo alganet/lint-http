@@ -36,7 +36,6 @@ Algorithm names in the RFC 9530 fields are structured-field Dictionary keys and 
 ```toml
 [rules.digest_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

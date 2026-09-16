@@ -22,7 +22,6 @@ Validate `Cache-Control` directive names and unquoted values follow the `token` 
 ```toml
 [rules.cache_control_token_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

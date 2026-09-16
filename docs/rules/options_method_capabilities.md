@@ -35,7 +35,6 @@ Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that
 ```toml
 [rules.options_method_capabilities]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

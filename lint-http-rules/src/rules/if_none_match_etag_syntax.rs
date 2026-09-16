@@ -50,7 +50,6 @@ impl RuleMeta for IfNoneMatchEtagSyntax {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -225,10 +224,9 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("if-none-match", hv)]);
         }
 
-        let cfg = crate::test_helpers::make_test_config_with_severity(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "if_none_match_etag_syntax",
-            "warn",
-        );
+        ]);
 
         let v = crate::test_helpers::run_rule(
             &rule,

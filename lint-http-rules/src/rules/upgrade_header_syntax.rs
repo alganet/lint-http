@@ -304,7 +304,6 @@ impl RuleMeta for UpgradeHeaderSyntax {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -660,10 +659,9 @@ mod tests {
         let rule = UpgradeHeaderSyntax;
         let neighbour =
             crate::rules::upgrade_and_connection_consistent::UpgradeAndConnectionConsistent;
-        let neighbour_cfg = crate::test_helpers::make_test_config_with_severity(
+        let neighbour_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "upgrade_and_connection_consistent",
-            "warn",
-        );
+        ]);
 
         for ex in rule.examples() {
             let mut pairs: Vec<(&str, &str)> = Vec::new();

@@ -37,7 +37,6 @@ Scope: this rule reads header sections. The word both documents use is *field se
 ```toml
 [rules.no_connection_specific_fields]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

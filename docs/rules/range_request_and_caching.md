@@ -29,7 +29,6 @@ Where the stored response carried only a `Last-Modified` date the rule is silent
 ```toml
 [rules.range_request_and_caching]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

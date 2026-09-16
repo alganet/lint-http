@@ -27,7 +27,6 @@ It is an efficiency finding rather than a protocol violation: RFC 9111 §4.2 fra
 ```toml
 [rules.max_age_directive_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

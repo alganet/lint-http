@@ -112,7 +112,6 @@ impl RuleMeta for FromHeaderEmailSyntax {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -403,7 +402,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = headers;
         let config =
-            crate::test_helpers::make_test_config_with_severity("from_header_email_syntax", "warn");
+            crate::test_helpers::make_test_config_with_enabled_rules(&["from_header_email_syntax"]);
         crate::test_helpers::run_rule(
             &FromHeaderEmailSyntax,
             &tx,
@@ -580,10 +579,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("from", "not-an-email")]);
-        let config = crate::test_helpers::make_test_config_with_severity(
-            "from_header_email_syntax",
-            "error",
-        );
+        let config =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["from_header_email_syntax"]);
         let v = crate::test_helpers::run_rule(
             &FromHeaderEmailSyntax,
             &tx,

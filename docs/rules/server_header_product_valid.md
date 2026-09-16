@@ -25,7 +25,6 @@ Validate a `Server` response header against `Server = product *( RWS ( product /
 ```toml
 [rules.server_header_product_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

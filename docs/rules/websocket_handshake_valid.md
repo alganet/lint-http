@@ -42,7 +42,6 @@ Two neighbours own the sentences this rule does not. The obligation to send an `
 ```toml
 [rules.websocket_handshake_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

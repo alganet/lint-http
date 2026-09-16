@@ -89,7 +89,6 @@ impl RuleMeta for Status103EarlyHintsBeforeFinal {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -390,18 +389,5 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "status_103_early_hints_before_final");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
-    }
-
-    #[test]
-    fn validate_rules_missing_severity_errors() {
-        // When rule is enabled but missing required 'severity', validation should fail
-        let mut cfg = cfg();
-        if let Some(toml::Value::Table(table)) =
-            cfg.rules.get_mut("status_103_early_hints_before_final")
-        {
-            table.remove("severity");
-        }
-
-        assert!(crate::rules::validate_rules(&cfg).is_err());
     }
 }

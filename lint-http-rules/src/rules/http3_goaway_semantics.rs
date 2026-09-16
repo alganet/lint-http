@@ -37,7 +37,6 @@ impl RuleMeta for Http3GoawaySemantics {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -238,25 +237,24 @@ mod tests {
         make_event(conn, ProtocolEventKind::H3StreamOpened { stream_id })
     }
 
-    /// A rule table carrying `enabled` and no `severity`: `prepare` fails on
-    /// it, and the dispatch helper turns that into silence.
-    fn make_config_without_severity() -> crate::config::Config {
+    /// A rule table with no `enabled`: `prepare` fails on it, and the dispatch
+    /// helper turns that into silence. It used to be a table with no
+    /// `severity`, which was the required key until severity became a
+    /// violation's.
+    fn make_unreadable_config() -> crate::config::Config {
         let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
         cfg.rules.insert(
             "http3_goaway_semantics".to_string(),
-            toml::Value::Table(table),
+            toml::Value::Table(toml::map::Map::new()),
         );
         cfg
     }
 
     /// An unreadable rule table silences both arms rather than defaulting
-    /// anything for them. The severity a finding carries is its entry's now, so
-    /// there is no per-rule level left for this to fall back to — what the test
-    /// pins is that a `[rules.http3_goaway_semantics]` missing its `severity`
-    /// still stops the rule before either arm reports, which is decided ahead
-    /// of the rule rather than inside it.
+    /// anything for them. What the test pins is that a
+    /// `[rules.http3_goaway_semantics]` short of a required key stops the rule
+    /// before either arm reports, which is decided ahead of the rule rather
+    /// than inside it.
     #[rstest::rstest]
     #[case::the_goaway_arm(Some(4), 10, None)]
     #[case::the_stream_opened_arm(Some(4), 0, Some(10))]
@@ -286,7 +284,7 @@ mod tests {
             &rule,
             &evt,
             &history,
-            &make_config_without_severity()
+            &make_unreadable_config()
         )
         .is_none());
     }

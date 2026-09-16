@@ -27,7 +27,6 @@ An HTTP/1.1 field name that is not a `token` is rejected by the message parser b
 ```toml
 [rules.header_field_names_token_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -27,7 +27,6 @@ Checks that a request's `Content-Length` matches the number of body octets actua
 ```toml
 [rules.request_body_length_accuracy]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

@@ -34,7 +34,6 @@ Scope: this rule reads a response's header section, and only where the request w
 ```toml
 [rules.sec_websocket_version_advertised]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

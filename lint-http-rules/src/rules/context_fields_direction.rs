@@ -90,7 +90,6 @@ impl RuleMeta for ContextFieldsDirection {
 # direction it is not defined for; the finding is that the field states
 # nothing where it was sent, so it ships as advice.
 enabled = true
-severity = "info"
 "#
     }
 
@@ -352,22 +351,21 @@ mod tests {
         assert!(msg.contains("advice"), "{msg}");
     }
 
+    /// The rule's own severity used to be the claim, read out of the shipped
+    /// config; it is the catalogue's now, and this asserts it where it lives.
+    /// Both entries are `info`: RFC 9110 § 10.1 sorts nine fields by direction
+    /// and attaches no keyword to either arrival, so a `Server` in a request
+    /// states nothing where it was sent rather than breaking anything.
     #[test]
-    fn shipped_severity_is_advisory() {
-        let s = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
-        )
-        .expect("config_example.toml must be readable");
-        let section = s
-            .split("[rules.context_fields_direction]")
-            .nth(1)
-            .expect("rule must appear in config_example.toml");
-        let shipped = section
-            .lines()
-            .take_while(|l| !l.starts_with('['))
-            .find_map(|l| l.strip_prefix("severity = "))
-            .expect("rule must ship a severity");
-        assert_eq!(shipped.trim(), "\"info\"");
+    fn every_defect_this_rule_reports_is_advisory() {
+        for def in ContextFieldsDirection.violations() {
+            assert_eq!(
+                def.default_severity,
+                crate::lint::Severity::Info,
+                "{}",
+                def.id
+            );
+        }
     }
 
     #[test]

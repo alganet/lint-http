@@ -354,7 +354,6 @@ impl RuleMeta for SecWebsocketHeadersConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = false
-severity = "warn"
 "#
     }
 
@@ -505,7 +504,7 @@ mod tests {
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = SecWebsocketHeadersConsistent;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         crate::test_helpers::run_rule(
             &rule,
             tx,

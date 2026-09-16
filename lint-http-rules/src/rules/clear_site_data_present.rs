@@ -15,7 +15,6 @@ pub struct ClearSiteDataPresent;
 
 #[derive(Debug, Clone)]
 pub struct ClearSiteDataConfig {
-    pub severity: crate::lint::Severity,
     pub paths: Vec<String>,
 }
 
@@ -74,9 +73,7 @@ paths = ["/logout"]"#
         paths.push(path.to_string());
     }
 
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    Ok(ClearSiteDataConfig { paths, severity })
+    Ok(ClearSiteDataConfig { paths })
 }
 
 /// The specification references this rule declares, each named so a finding
@@ -96,7 +93,6 @@ impl RuleMeta for ClearSiteDataPresent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 
 # Correctness rules examples
@@ -109,7 +105,6 @@ paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
             state: Box::new(config),
         })
     }
@@ -327,10 +322,6 @@ mod tests {
             "valid" => {
                 let mut table = toml::map::Map::new();
                 table.insert("enabled".to_string(), toml::Value::Boolean(true));
-                table.insert(
-                    "severity".to_string(),
-                    toml::Value::String("warn".to_string()),
-                );
                 table.insert(
                     "paths".to_string(),
                     toml::Value::Array(vec![

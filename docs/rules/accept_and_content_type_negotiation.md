@@ -36,7 +36,6 @@ Report a response whose `Content-Type` is not covered by any `media-range` the r
 ```toml
 [rules.accept_and_content_type_negotiation]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

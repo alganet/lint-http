@@ -24,7 +24,6 @@ Detect contradictions in `Cache-Control` directives that affect caching semantic
 ```toml
 [rules.caching_directive_interaction]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

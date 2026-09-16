@@ -48,7 +48,6 @@ impl RuleMeta for ResponseBodyLengthAccuracy {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -661,20 +660,5 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "response_body_length_accuracy");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
-    }
-
-    #[test]
-    fn validate_rules_with_invalid_config_missing_severity() {
-        let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "response_body_length_accuracy");
-        // remove severity to simulate invalid config
-        if let Some(toml::Value::Table(ref mut table)) =
-            cfg.rules.get_mut("response_body_length_accuracy")
-        {
-            table.remove("severity");
-        }
-
-        let err = crate::rules::validate_rules(&cfg).expect_err("expected validation to fail");
-        assert!(err.to_string().contains("Missing required 'severity'"));
     }
 }

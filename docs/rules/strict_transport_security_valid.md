@@ -24,7 +24,6 @@ The `Strict-Transport-Security` response header signals HSTS policies. This rule
 ```toml
 [rules.strict_transport_security_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

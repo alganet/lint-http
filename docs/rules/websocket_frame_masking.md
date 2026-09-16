@@ -32,7 +32,6 @@ Reports a client frame that is not masked, and a server frame that is.
 ```toml
 [rules.websocket_frame_masking]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

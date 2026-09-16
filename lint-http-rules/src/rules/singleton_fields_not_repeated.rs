@@ -144,7 +144,6 @@ impl RuleMeta for SingletonFieldsNotRepeated {
 # a second field line of a singleton is a defect of the message however a
 # recipient recovers from it.
 enabled = true
-severity = "error"
 "#
     }
 

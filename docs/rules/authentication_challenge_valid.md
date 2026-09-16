@@ -20,7 +20,6 @@ Warn when a single response advertises the same `realm` value across multiple `W
 ```toml
 [rules.authentication_challenge_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

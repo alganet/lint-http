@@ -33,7 +33,6 @@ Reports a message context field arriving in the direction it is not defined for:
 # direction it is not defined for; the finding is that the field states
 # nothing where it was sent, so it ships as advice.
 enabled = true
-severity = "info"
 ```
 
 ## Examples

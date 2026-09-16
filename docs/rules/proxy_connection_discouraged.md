@@ -33,7 +33,6 @@ Scope: this rule reads a request's header section. Where the field appears on se
 ```toml
 [rules.proxy_connection_discouraged]
 enabled = true
-severity = "info"
 # RFC 9112 Appendix C.2.2 carries no BCP 14 keyword at all, so the finding is
 # advice and the severity says so. The comment sits *below* the line it
 # explains: the generated file runs these sections together, and a comment

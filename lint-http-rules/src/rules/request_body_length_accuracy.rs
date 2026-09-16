@@ -44,7 +44,6 @@ impl RuleMeta for RequestBodyLengthAccuracy {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -546,20 +545,5 @@ mod tests {
                 .map(|d| d.id),
             Some("content_length_conflicting"),
         );
-    }
-
-    #[test]
-    fn validate_rules_with_invalid_config_missing_severity() {
-        let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "request_body_length_accuracy");
-        // remove severity to simulate invalid config
-        if let Some(toml::Value::Table(ref mut table)) =
-            cfg.rules.get_mut("request_body_length_accuracy")
-        {
-            table.remove("severity");
-        }
-
-        let err = crate::rules::validate_rules(&cfg).expect_err("expected validation to fail");
-        assert!(err.to_string().contains("Missing required 'severity'"));
     }
 }

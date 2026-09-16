@@ -26,7 +26,6 @@ Flags media types — in `Content-Type` on either side of a transaction, or in a
 ```toml
 [rules.media_type_suffix_valid]
 enabled = true
-severity = "warn"
 # Six names from IANA's Structured Syntax Suffix registry. The list used to
 # hold "exi" as a seventh -- a name that registry has never held: "exi" is a
 # registered HTTP *content coding* (W3C EXI), and it had been copied here from

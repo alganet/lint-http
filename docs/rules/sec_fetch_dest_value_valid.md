@@ -20,7 +20,6 @@ Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specific
 ```toml
 [rules.sec_fetch_dest_value_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

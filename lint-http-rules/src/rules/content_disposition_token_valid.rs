@@ -86,7 +86,6 @@ impl RuleMeta for ContentDispositionTokenValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -359,10 +358,9 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-disposition", v)]);
         }
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
 
         let v = crate::test_helpers::run_rule(
             &rule,
@@ -397,10 +395,9 @@ mod tests {
             &ContentDispositionTokenValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "content_disposition_token_valid",
-                "warn",
-            ),
+            ]),
         )
         .unwrap_or_else(|| panic!("expected a finding for {value:?}"));
         assert_eq!(finding.violation, violation, "for {value:?}");
@@ -418,10 +415,9 @@ mod tests {
             &ContentDispositionTokenValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "content_disposition_token_valid",
-                "warn",
-            ),
+            ]),
         )
         .expect("a finding");
         let elsewhere = crate::test_helpers::run_rule(
@@ -444,10 +440,9 @@ mod tests {
             "content-disposition",
             "form-data; name=\"x\"",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -466,10 +461,9 @@ mod tests {
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -489,10 +483,9 @@ mod tests {
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.request.headers = hm;
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -521,10 +514,9 @@ mod tests {
             trailers: None,
         });
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -553,10 +545,9 @@ mod tests {
                 "inline",
             )]));
         }
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -576,10 +567,9 @@ mod tests {
             ("content-disposition", "inline"),
             ("content-disposition", "attachment"),
         ]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let msg = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -610,10 +600,9 @@ mod tests {
             HeaderValue::from_bytes("attachment; filename=\"café.txt\"".as_bytes()).unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -637,10 +626,9 @@ mod tests {
             HeaderValue::from_bytes(b"attach\xffment").unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -660,10 +648,9 @@ mod tests {
             ("content-disposition", "form-data; name=\"a\""),
             ("content-disposition", "form-data; name=\"b\""),
         ]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -680,10 +667,9 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "bad@type")]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -700,10 +686,9 @@ mod tests {
             200,
             &[("content-disposition", "   ")],
         );
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_token_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,

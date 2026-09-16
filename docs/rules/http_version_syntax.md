@@ -34,7 +34,6 @@ Two things it does not check. RFC 9112 §2.3 requires an intermediary that is no
 ```toml
 [rules.http_version_syntax]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

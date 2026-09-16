@@ -79,7 +79,6 @@ impl RuleMeta for ContentDispositionParameterValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -410,10 +409,9 @@ mod tests {
             &ContentDispositionParameterValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "content_disposition_parameter_valid",
-                "warn",
-            ),
+            ]),
         )
         .expect("a finding");
         // `None` is a site this commit deliberately left unconverted, and an
@@ -472,10 +470,9 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-disposition", v)]);
         }
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
 
         let v = crate::test_helpers::run_rule(
             &rule,
@@ -498,10 +495,9 @@ mod tests {
             "content-disposition",
             "form-data; name=\"x\"; filename=example.png",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -520,10 +516,9 @@ mod tests {
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -554,10 +549,9 @@ mod tests {
             "content-disposition",
             "attachment; param=\"unterminated",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -575,10 +569,9 @@ mod tests {
             "content-disposition",
             "attachment; size=\"12a\"",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -597,10 +590,9 @@ mod tests {
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.request.headers = hm;
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -633,10 +625,9 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -654,10 +645,9 @@ mod tests {
             "content-disposition",
             "attachment; ; filename=a",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -675,10 +665,9 @@ mod tests {
             "content-disposition",
             "attachment; filename*=UTF-8''",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -696,10 +685,9 @@ mod tests {
             "content-disposition",
             "attachment; title=\"a\\\"b\"",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -717,10 +705,9 @@ mod tests {
             "content-disposition",
             "attachment; filename*=UTF-8''%zz",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -739,10 +726,9 @@ mod tests {
             "content-disposition",
             "attachment; title*=UTF-8''hello@world",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -761,10 +747,9 @@ mod tests {
             "content-disposition",
             "attachment; size=\"unterminated",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -782,10 +767,9 @@ mod tests {
             "content-disposition",
             "form-data; filename=bad@name",
         )]);
-        let config = crate::test_helpers::make_test_config_with_severity(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_disposition_parameter_valid",
-            "warn",
-        );
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,

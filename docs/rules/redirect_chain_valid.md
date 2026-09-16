@@ -38,7 +38,6 @@ The field's grammar, an empty value, and a response carrying more than one `Loca
 ```toml
 [rules.redirect_chain_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

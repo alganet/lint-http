@@ -73,7 +73,6 @@ impl RuleMeta for NoBodyFor1xx204304 {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 

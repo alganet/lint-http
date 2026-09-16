@@ -43,7 +43,6 @@ For schemes with a mandatory authority component (including `http` and `https`),
 ```toml
 [rules.http3_pseudo_headers_valid]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

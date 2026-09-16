@@ -55,7 +55,6 @@ Reads the `Referer` request header field against the production RFC 9110 §10.1.
 ```toml
 [rules.referer_uri_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

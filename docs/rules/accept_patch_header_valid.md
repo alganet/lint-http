@@ -44,7 +44,6 @@ Scope: responses only — §3.1 defines `Accept-Patch` as a response header, and
 ```toml
 [rules.accept_patch_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

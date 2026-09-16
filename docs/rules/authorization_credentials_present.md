@@ -23,7 +23,6 @@ The `Authorization` request header field MUST include an authentication scheme f
 ```toml
 [rules.authorization_credentials_present]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

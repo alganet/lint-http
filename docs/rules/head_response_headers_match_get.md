@@ -26,7 +26,6 @@ Ensure responses to `HEAD` carry the header fields the server would have sent fo
 ```toml
 [rules.head_response_headers_match_get]
 enabled = true
-severity = "warn"
 headers = ["etag", "content-type", "content-length"]
 ```
 

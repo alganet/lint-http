@@ -30,7 +30,6 @@ Flags a message that names the same coding in both `Content-Encoding` and `Trans
 ```toml
 [rules.compression_and_transfer_encoding_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

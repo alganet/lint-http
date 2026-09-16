@@ -13,7 +13,6 @@ use crate::violations::ViolationDef;
 
 #[derive(Debug, Clone)]
 pub struct MethodTokenConfig {
-    pub severity: crate::lint::Severity,
     pub registered_methods: Vec<String>,
 }
 
@@ -36,8 +35,6 @@ fn parse_method_token_config(
     config: &crate::config::Config,
     rule_id: &str,
 ) -> anyhow::Result<MethodTokenConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
             "rule '{}' requires configuration and a named 'registered_methods' array listing the method names this deployment expects to see spelled as they are defined. Example in config_example.toml",
@@ -87,10 +84,7 @@ fn parse_method_token_config(
         registered_methods.push(s.to_string());
     }
 
-    Ok(MethodTokenConfig {
-        severity,
-        registered_methods,
-    })
+    Ok(MethodTokenConfig { registered_methods })
 }
 
 pub struct RequestMethodTokenValid;
@@ -159,7 +153,6 @@ impl RuleMeta for RequestMethodTokenValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 # The standardized method names this deployment expects to see spelled the way their
 # definitions spell them. RFC 9110 §9.1 states the convention this rule reports against
 # — "standardized methods are defined in all-uppercase US-ASCII letters" — and says
@@ -228,7 +221,6 @@ registered_methods = [
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
             state: Box::new(config),
         })
     }
@@ -414,7 +406,6 @@ mod tests {
         let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule_id]);
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("warn".into()));
         table.insert(
             "registered_methods".to_string(),
             toml::Value::Array(
@@ -622,7 +613,6 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("warn".into()));
         table.insert("registered_methods".to_string(), value);
         cfg.rules
             .insert(rule.id().to_string(), toml::Value::Table(table));

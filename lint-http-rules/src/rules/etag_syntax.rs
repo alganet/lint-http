@@ -43,7 +43,6 @@ impl RuleMeta for EtagSyntax {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -192,7 +191,7 @@ mod tests {
             &EtagSyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity("etag_syntax", "warn"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["etag_syntax"]),
         )
         .expect("a finding");
         assert_eq!(found.violation, id, "{value}");
@@ -212,7 +211,7 @@ mod tests {
                 rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
             )
             .expect("a finding");
             assert_eq!(found.violation, id, "{field}: {value}");
@@ -239,7 +238,7 @@ mod tests {
             });
         }
 
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "warn");
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let v = crate::test_helpers::run_rule(
             &rule,

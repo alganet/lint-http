@@ -230,15 +230,15 @@ impl Rule for MyRule {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Implementation. `ctx.severity` is the configured severity, already
-        // resolved — nothing here reads TOML.
+        // Implementation. Findings are built through `ctx.report` /
+        // `ctx.report_with` — nothing here reads TOML.
     }
 }
 ```
 
 Configuration is resolved **once, when the engine is built**, by `RuleMeta`'s
-`prepare` hook. The default resolves the two required keys (`enabled`,
-`severity`); a rule with its own options overrides `prepare`, parses them into
+`prepare` hook. The default validates the one required key (`enabled`) and
+resolves nothing; a rule with its own options overrides `prepare`, parses them into
 a typed value, and returns it as the `state` of its `ResolvedRule` — the check
 gets it back with `ctx.state::<MyConfig>()`. Validation *is* successful
 preparation: a malformed section fails engine construction by rule name, so
@@ -269,10 +269,11 @@ and collects it — `Vec::from_iter(finding())`. Tests read one finding through
 
 #### Citing the sentence
 
-Findings are built with `self.violation(ctx.severity, message)`, or with
-`self.cited(&SPEC, ctx.severity, message)` where the sentence being enforced is
-known. `cited` takes one of the rule's own `specifications()`, which live as
-named consts above the impl:
+Findings are built with `ctx.report(&DEF)` — or `ctx.report_with(&DEF, message)`
+where the wording names the value that caused it — and the sentence comes off
+the def, along with the id and the configured severity. A def's `spec` names one
+of the rule's own `specifications()`, which live as named consts above the impl
+or on the violation subject the def belongs to:
 
 ```rust
 const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
@@ -284,8 +285,9 @@ const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
 ```
 
 `specifications()` is built from exactly those consts, so a citation and the
-generated docs cannot come to name different text. A `debug_assert` in `cited`
-rejects a reference the rule does not declare, and the suite runs in debug.
+generated docs cannot come to name different text. The
+`every_violation_spec_is_declared_by_its_rule` gate rejects a def naming a
+reference one of its declaring rules does not.
 
 The `.html` in that URL is not a style preference, and
 `spec_refs_use_the_source_registry` insists on it: it is the document apysource
@@ -293,14 +295,16 @@ fetches and checks every `// cite` quote against. The link a reader clicks and
 the document the quote was verified in are the same string, which is the whole
 reason the gate can be strict about it.
 
-Attachment is per finding site and opt-in. The `// cite` comment beside the
-statement is the oracle: attach the reference that comment names, and leave the
-site un-cited when the answer needs a decision — where the block quotes several
-sentences and it is not settled which one the finding reports, or where the quote
-is a supporting definition rather than the requirement. `cite` defaults to `None`,
-so an un-cited finding is complete; a *wrongly* cited one is worse than none.
-`citation_coverage_does_not_regress` pins the count so the direction only moves
-one way.
+Attachment is per **def** and opt-in. The `// cite` comment beside the entry is
+the oracle: name the reference that comment names, and leave the def's `spec`
+empty when the answer needs a decision — where no sentence states what the entry
+reports, or where two documents state it once each and no one of them governs.
+A def naming several sentences is deliberate too: a finding carries a citation
+only when exactly one is named, because picking among them at the site would put
+one protocol version's reference on another's finding. An un-cited entry is
+complete; a *wrongly* cited one is worse than none, and
+`every_violation_declares_a_spec` ratchets the count upward so the direction only
+moves one way.
 
 #### Scoping
 
@@ -395,7 +399,7 @@ do run it, as does CI.
 - A required list of case-insensitive names (the `allowed`/`headers` shape) is parsed by `helpers::rule_config::parse_lowercased_list`; the citation licensing the case-fold stays in the rule's `prepare`, beside the call.
 - Tests should cover both `prepare` errors for invalid/missing config and the runtime behavior when valid configs are provided (including edge cases like negative numbers, invalid types, and boundary values). Dispatch a rule in tests through `test_helpers::run_rule` / `run_protocol_rule`, which prepare and then check the way the engine does.
 - Every registered rule must prepare successfully under `config_example.toml` — the `every_rule_prepares_under_the_example_config` test enforces it, so a new configurable rule needs its example section in the same commit.
-- That example section is `config_example()`, a required `RuleMeta` member returning everything under the `[rules.<id>]` header: the two keys, the rule's own options, and the comment explaining them. It is required for the same reason the options above have no defaults — an example nobody chose is still an example someone will copy.
+- That example section is `config_example()`, a required `RuleMeta` member returning everything under the `[rules.<id>]` header: `enabled`, the rule's own options, and the comment explaining them. **No `severity`** — a rule table carrying one is rejected at startup, because severity is a violation's. It is required for the same reason the options above have no defaults — an example nobody chose is still an example someone will copy.
 - `config_example.toml` is **generated** from those bodies, plus one `[violations.<id>]` section per catalogue entry rendered from its `default_severity`. Do not edit it; edit the rule or the def and run:
 
 ```bash

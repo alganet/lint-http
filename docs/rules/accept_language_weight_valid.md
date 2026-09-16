@@ -34,7 +34,6 @@ Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`
 ```toml
 [rules.accept_language_weight_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

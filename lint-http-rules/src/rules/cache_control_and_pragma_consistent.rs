@@ -24,7 +24,6 @@ impl RuleMeta for CacheControlAndPragmaConsistent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -386,20 +385,5 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
-    }
-
-    #[test]
-    fn validate_rules_with_invalid_config_missing_severity() {
-        let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "cache_control_and_pragma_consistent");
-        // remove severity to simulate invalid config
-        if let Some(toml::Value::Table(ref mut table)) =
-            cfg.rules.get_mut("cache_control_and_pragma_consistent")
-        {
-            table.remove("severity");
-        }
-
-        let err = crate::rules::validate_rules(&cfg).expect_err("expected validation to fail");
-        assert!(err.to_string().contains("Missing required 'severity'"));
     }
 }

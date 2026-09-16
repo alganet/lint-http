@@ -41,7 +41,6 @@ Reports two things about a `405 (Method Not Allowed)` response: that it carries 
 ```toml
 [rules.status_405_allow_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

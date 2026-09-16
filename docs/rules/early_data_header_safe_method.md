@@ -36,7 +36,6 @@ Methods are matched exactly. RFC 9110 §9.1: "The method token is case-sensitive
 ```toml
 [rules.early_data_header_safe_method]
 enabled = true
-severity = "warn"
 # The methods this deployment knows to be safe. Safety is a required field of every
 # entry in the IANA "Hypertext Transfer Protocol (HTTP) Method Registry" (RFC 9110
 # §16.1.1), which grows by IETF Review, so the set below is that registry's `Safe: yes`

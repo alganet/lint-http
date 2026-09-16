@@ -21,7 +21,6 @@ The `Deprecation` response header signals that a resource is deprecated. RFC 974
 ```toml
 [rules.deprecation_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

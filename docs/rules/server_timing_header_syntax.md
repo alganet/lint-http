@@ -43,7 +43,6 @@ Checks that a `Server-Timing` response field derives from the grammar the Server
 ```toml
 [rules.server_timing_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

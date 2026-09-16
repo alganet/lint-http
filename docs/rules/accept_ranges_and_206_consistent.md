@@ -32,7 +32,6 @@ Advice about one field, and one contradiction. `Accept-Ranges` tells a client wh
 ```toml
 [rules.accept_ranges_and_206_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

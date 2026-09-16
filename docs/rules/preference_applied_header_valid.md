@@ -30,7 +30,6 @@ What it does not decide: whether a value is one the preference's own definition 
 ```toml
 [rules.preference_applied_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -39,7 +39,6 @@ The rule is therefore **not version-gated**: only the last sentence of the findi
 ```toml
 [rules.request_target_no_fragment]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

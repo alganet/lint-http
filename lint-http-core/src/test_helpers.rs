@@ -63,10 +63,6 @@ fn insert_rule_config(
 ) {
     let mut table = toml::map::Map::new();
     table.insert("enabled".to_string(), toml::Value::Boolean(enabled));
-    table.insert(
-        "severity".to_string(),
-        toml::Value::String("warn".to_string()),
-    );
     if let Some(path_list) = paths {
         let arr = path_list
             .iter()
@@ -78,7 +74,11 @@ fn insert_rule_config(
         .insert(rule.to_string(), toml::Value::Table(table));
 }
 
-/// Enable a rule in the given configuration with default "warn" severity.
+/// Enable a rule in the given configuration.
+///
+/// No severity: a rule table has not carried one since the flag day, and every
+/// finding reports at the severity its violation's catalogue entry names, or at
+/// whatever a `[violations.<id>]` section says instead.
 pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
     insert_rule_config(cfg, rule, true, None);
 }
@@ -99,21 +99,6 @@ pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Con
     for r in rules {
         enable_rule(&mut cfg, r);
     }
-    cfg
-}
-
-/// Create a configuration with a single rule enabled at the given severity.
-/// `severity` must be one of `"info"`, `"warn"`, `"error"`.
-pub fn make_test_config_with_severity(rule_id: &str, severity: &str) -> crate::config::Config {
-    let mut cfg = crate::config::Config::default();
-    let mut table = toml::map::Map::new();
-    table.insert("enabled".to_string(), toml::Value::Boolean(true));
-    table.insert(
-        "severity".to_string(),
-        toml::Value::String(severity.to_string()),
-    );
-    cfg.rules
-        .insert(rule_id.to_string(), toml::Value::Table(table));
     cfg
 }
 

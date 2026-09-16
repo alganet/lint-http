@@ -25,7 +25,6 @@ Only the header section is examined. A `User-Agent` field line that is present b
 ```toml
 [rules.user_agent_present]
 enabled = true
-severity = "info"
 ```
 
 ## Examples

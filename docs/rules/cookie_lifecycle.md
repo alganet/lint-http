@@ -28,7 +28,6 @@ The check relies solely on the captured traffic for a given client+origin; if a 
 ```toml
 [rules.cookie_lifecycle]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

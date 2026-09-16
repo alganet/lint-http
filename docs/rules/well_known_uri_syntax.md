@@ -53,7 +53,6 @@ Reads the request target's path component against RFC 8615's definition of a wel
 ```toml
 [rules.well_known_uri_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

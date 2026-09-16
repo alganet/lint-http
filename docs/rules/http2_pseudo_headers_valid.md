@@ -55,7 +55,6 @@ HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `
 ```toml
 [rules.http2_pseudo_headers_valid]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

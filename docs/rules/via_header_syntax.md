@@ -33,7 +33,6 @@ What the rule does not judge: whether a proxy sent a `Via` at all. §7.6.3's MUS
 ```toml
 [rules.via_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

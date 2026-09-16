@@ -24,7 +24,6 @@ The check is scoped to resource histories (the engine filters transactions by UR
 ```toml
 [rules.no_store_enforced]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

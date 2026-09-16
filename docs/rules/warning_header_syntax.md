@@ -48,7 +48,6 @@ Four consequences of that grammar are worth stating.
 ```toml
 [rules.warning_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

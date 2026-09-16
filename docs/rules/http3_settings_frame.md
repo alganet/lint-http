@@ -28,7 +28,6 @@ Identifiers outside the reserved set — including the `0x1f * N + 0x21` greasin
 ```toml
 [rules.http3_settings_frame]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

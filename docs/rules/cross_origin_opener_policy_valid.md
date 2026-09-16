@@ -22,7 +22,6 @@ This rule checks the `Cross-Origin-Opener-Policy` response header value and ensu
 ```toml
 [rules.cross_origin_opener_policy_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

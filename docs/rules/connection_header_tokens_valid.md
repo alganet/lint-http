@@ -35,7 +35,6 @@ Scope: this rule reads header sections — a request's and a response's — and 
 ```toml
 [rules.connection_header_tokens_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -88,7 +88,6 @@ impl RuleMeta for TransferCodingRegistered {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 # The registry also holds x-compress and x-gzip (both Deprecated) and identity
 # (withdrawn in an erratum to RFC 2616); they are left out so that using them is
 # reported. "trailers" is registered as reserved and is not a coding name.
@@ -97,7 +96,6 @@ allowed = ["chunked", "compress", "gzip", "deflate"]
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         // Entries are folded once at prepare time so the comparison site can fold
         // the wire value and be done. The fold is not a convenience: the names are
         // defined to be case-insensitive, so `GZIP` in a config file and `gzip` on
@@ -114,7 +112,6 @@ allowed = ["chunked", "compress", "gzip", "deflate"]
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
@@ -486,7 +483,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![
@@ -508,7 +504,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(
@@ -1057,7 +1052,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("x-custom".into())]),
@@ -1083,7 +1077,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("allowed".into(), toml::Value::Array(vec![]));
                 t
             }),
@@ -1103,7 +1096,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::Integer(1)]),
@@ -1135,7 +1127,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("chunked".into())]),
@@ -1162,7 +1153,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("x-custom".into())]),
@@ -1196,7 +1186,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("x-custom".into())]),
@@ -1228,7 +1217,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("error".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("chunked".into())]),
@@ -1281,7 +1269,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("allowed".into(), toml::Value::String("chunked".into()));
                 t
             }),

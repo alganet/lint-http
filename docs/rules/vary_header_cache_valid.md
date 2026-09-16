@@ -27,7 +27,6 @@ The rule is intentionally forgiving:
 ```toml
 [rules.vary_header_cache_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

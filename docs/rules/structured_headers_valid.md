@@ -30,7 +30,6 @@ Reports a configured header field whose value fails RFC 9651 Structured Fields p
 ```toml
 [rules.structured_headers_valid]
 enabled = true
-severity = "warn"
 # Fields the HTTP Field Name Registry gives a Structured Type and that no other
 # rule here owns. This rule cannot know which type a field was defined as, so it
 # accepts a value that parses as any of the three; where a field has its own

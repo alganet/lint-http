@@ -35,7 +35,6 @@ The field on a method other than `TRACE` or `OPTIONS` is not reported. §7.6.2 s
 ```toml
 [rules.max_forwards_numeric]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

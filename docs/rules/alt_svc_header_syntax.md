@@ -56,7 +56,6 @@ parameter     = token "=" ( token / quoted-string )
 ```toml
 [rules.alt_svc_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

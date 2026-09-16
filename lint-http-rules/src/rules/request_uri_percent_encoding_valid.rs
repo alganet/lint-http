@@ -72,7 +72,6 @@ impl RuleMeta for RequestUriPercentEncodingValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -259,7 +258,7 @@ mod tests {
         tx.request.uri = uri.to_string();
         tx.request.version = version.to_string();
 
-        let config = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         crate::test_helpers::run_rule(
             &rule,
@@ -291,10 +290,9 @@ mod tests {
             &RequestUriPercentEncodingValid,
             &request,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "request_uri_percent_encoding_valid",
-                "warn",
-            ),
+            ]),
         )
         .expect("a finding");
         assert_eq!(found.violation, id, "{value}");
@@ -307,7 +305,7 @@ mod tests {
             &super::super::referer_uri_valid::RefererUriValid,
             &referer,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["referer_uri_valid"]),
         )
         .expect("a finding");
         assert_eq!(found.violation, id, "{value}");
@@ -333,7 +331,7 @@ mod tests {
                 rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
             )
             .expect("a finding");
             assert_eq!(found.violation, id, "{field} {value}");

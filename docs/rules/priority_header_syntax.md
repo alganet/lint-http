@@ -40,7 +40,6 @@ Reports a `Priority` header field (RFC 9218) carrying a priority parameter that 
 ```toml
 [rules.priority_header_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

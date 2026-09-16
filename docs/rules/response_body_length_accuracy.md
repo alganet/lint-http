@@ -33,7 +33,6 @@ Checks that a response's `Content-Length` matches the number of body octets actu
 ```toml
 [rules.response_body_length_accuracy]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

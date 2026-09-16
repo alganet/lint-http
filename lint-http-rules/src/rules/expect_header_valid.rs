@@ -133,7 +133,6 @@ impl RuleMeta for ExpectHeaderValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "error"
 "#
     }
 
@@ -809,7 +808,7 @@ mod tests {
                 &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
             )
             .expect("a finding")
         };
@@ -830,7 +829,7 @@ mod tests {
             &ExpectHeaderValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(ExpectHeaderValid.id(), "error"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[ExpectHeaderValid.id()]),
         )
         .expect("the MUST NOT about content");
         assert_eq!(framing.violation, "expect_100_continue_forbidden");

@@ -38,7 +38,6 @@ impl RuleMeta for ContentTypeRegistered {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 # The list has to carry the media types HTTP itself produces, or the rule
 # reports the protocol working. `multipart/byteranges` is what a multi-range
 # request gets back (RFC 9110 § 14.6) and `message/http` is what a TRACE
@@ -77,7 +76,6 @@ allowed = [
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         let allowed = crate::helpers::rule_config::parse_lowercased_list(
             cfg,
             self.id(),
@@ -89,7 +87,6 @@ allowed = [
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
@@ -252,7 +249,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![
@@ -387,7 +383,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("*/*".into())]),
@@ -418,7 +413,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("IMAGE/*".into())]),
@@ -494,7 +488,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("x-custom/type".into())]),
@@ -519,7 +512,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("allowed".into(), toml::Value::Array(vec![]));
                 t
             }),
@@ -538,7 +530,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::Integer(1)]),
@@ -560,7 +551,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("text/plain".into())]),

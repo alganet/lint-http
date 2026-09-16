@@ -37,7 +37,6 @@ A 416 answering a *partial PUT* is the exception: such a request names its range
 ```toml
 [rules.range_and_content_range_consistent]
 enabled = true
-severity = "warn"
 # Range units whose first-pos/last-pos may be read as octet offsets and checked
 # against Content-Length. Units are an extensible token set (RFC 9110 14.1); a
 # Content-Range naming a unit not listed here is still parsed and structurally

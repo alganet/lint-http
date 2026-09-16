@@ -51,7 +51,6 @@ Reading it from that document rather than from RFC 9110 changes three answers.
 ```toml
 [rules.keep_alive_header_valid]
 enabled = true
-severity = "warn"
 # No document states a maximum for the `timeout` parameter, so this bound is
 # this deployment's policy rather than a requirement. It is required and has no
 # default for that reason; a value the rule cannot read stops the whole rule.

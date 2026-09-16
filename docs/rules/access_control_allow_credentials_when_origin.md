@@ -27,7 +27,6 @@ The origin header is only scanned for a `*` here; what its value may be is `acce
 ```toml
 [rules.access_control_allow_credentials_when_origin]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

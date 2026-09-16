@@ -32,7 +32,6 @@ Advice a client was given, and whether the next request took it. `Accept-Ranges`
 ```toml
 [rules.accept_ranges_on_partial_content]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -32,7 +32,6 @@ impl RuleMeta for ProxyConnectionDiscouraged {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "info"
 # RFC 9112 Appendix C.2.2 carries no BCP 14 keyword at all, so the finding is
 # advice and the severity says so. The comment sits *below* the line it
 # explains: the generated file runs these sections together, and a comment

@@ -31,7 +31,6 @@ Repeating a coding is likewise a judgement call rather than a conformance failur
 ```toml
 [rules.content_encoding_and_type_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -35,7 +35,6 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 ```toml
 [rules.cookie_attribute_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -41,7 +41,6 @@ Only presence is read. Whether the value is a usable `URI-reference` belongs to 
 ```toml
 [rules.location_on_redirect_present]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

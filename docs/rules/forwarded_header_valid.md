@@ -38,7 +38,6 @@ What this rule does not check: an extension parameter's name against the IANA "H
 ```toml
 [rules.forwarded_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

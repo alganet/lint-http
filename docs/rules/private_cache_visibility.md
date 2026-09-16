@@ -23,7 +23,6 @@ The rule relies on a cross-client history; the engine handles this by scoping th
 ```toml
 [rules.private_cache_visibility]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

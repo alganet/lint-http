@@ -39,7 +39,6 @@ For 2xx responses the rule additionally compares the value against the request t
 ```toml
 [rules.content_location_and_uri_consistent]
 enabled = true
-severity = "info"
 ```
 
 ## Examples

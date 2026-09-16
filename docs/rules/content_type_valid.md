@@ -33,7 +33,6 @@ Check that a `Content-Type` header — in a request or a response — reads as a
 ```toml
 [rules.content_type_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

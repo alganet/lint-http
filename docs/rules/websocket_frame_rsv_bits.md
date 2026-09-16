@@ -33,7 +33,6 @@ Reports a WebSocket frame whose RSV1, RSV2 or RSV3 bit is set in a session whose
 ```toml
 [rules.websocket_frame_rsv_bits]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

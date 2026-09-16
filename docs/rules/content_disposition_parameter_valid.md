@@ -32,7 +32,6 @@ When a parameter value is syntactically invalid, the rule raises a `warn`-level 
 ```toml
 [rules.content_disposition_parameter_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

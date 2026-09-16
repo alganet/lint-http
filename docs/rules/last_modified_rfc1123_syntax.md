@@ -19,7 +19,6 @@ Verifies that the `Last-Modified` header (when present) uses the IMF-fixdate for
 ```toml
 [rules.last_modified_rfc1123_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

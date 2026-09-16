@@ -32,7 +32,6 @@ If a `Content-Type` header carries a `charset` parameter, this rule checks the n
 ```toml
 [rules.charset_registered]
 enabled = true
-severity = "warn"
 allowed = ["utf-8", "iso-8859-1", "us-ascii"]
 ```
 

@@ -31,7 +31,6 @@ const FIELD: &str = "early-data";
 
 #[derive(Debug, Clone)]
 pub struct EarlyDataConfig {
-    pub severity: crate::lint::Severity,
     pub safe_methods: Vec<String>,
 }
 
@@ -52,8 +51,6 @@ fn parse_early_data_config(
     config: &crate::config::Config,
     rule_id: &str,
 ) -> anyhow::Result<EarlyDataConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
             "rule '{}' requires configuration and a named 'safe_methods' array listing the methods this deployment knows to be safe. Example in config_example.toml",
@@ -96,10 +93,7 @@ fn parse_early_data_config(
         safe_methods.push(s.to_string());
     }
 
-    Ok(EarlyDataConfig {
-        severity,
-        safe_methods,
-    })
+    Ok(EarlyDataConfig { safe_methods })
 }
 
 pub struct EarlyDataHeaderSafeMethod;
@@ -165,7 +159,6 @@ impl RuleMeta for EarlyDataHeaderSafeMethod {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 # The methods this deployment knows to be safe. Safety is a required field of every
 # entry in the IANA "Hypertext Transfer Protocol (HTTP) Method Registry" (RFC 9110
 # §16.1.1), which grows by IETF Review, so the set below is that registry's `Safe: yes`
@@ -194,7 +187,6 @@ safe_methods = [
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
             state: Box::new(config),
         })
     }
@@ -404,7 +396,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "safe_methods".into(),
                     toml::Value::Array(

@@ -34,7 +34,6 @@ This rule measures the `From` request header against the one production RFC 9110
 ```toml
 [rules.from_header_email_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

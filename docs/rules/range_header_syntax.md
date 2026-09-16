@@ -35,7 +35,6 @@ Checks that a `Range` request header field is a well-formed `ranges-specifier`: 
 ```toml
 [rules.range_header_syntax]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

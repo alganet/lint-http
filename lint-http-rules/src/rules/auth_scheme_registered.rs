@@ -69,13 +69,11 @@ impl RuleMeta for AuthSchemeRegistered {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 allowed = ["Basic", "Bearer", "Digest"]
 "#
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         let allowed = crate::helpers::rule_config::parse_lowercased_list(
             cfg,
             self.id(),
@@ -87,7 +85,6 @@ allowed = ["Basic", "Bearer", "Digest"]
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
@@ -255,7 +252,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![
@@ -362,7 +358,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![
@@ -514,7 +509,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("allowed".into(), toml::Value::String("Basic".into()));
                 t
             }),
@@ -529,7 +523,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert("allowed".into(), toml::Value::Array(Vec::new()));
                 t
             }),
@@ -544,7 +537,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::Integer(1)]),
@@ -562,7 +554,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![
@@ -711,7 +702,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(vec![toml::Value::String("BaSiC".into())]),

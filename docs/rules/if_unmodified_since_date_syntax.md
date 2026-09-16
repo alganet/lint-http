@@ -20,7 +20,6 @@ The `If-Unmodified-Since` request header is defined as an HTTP-date, and a sende
 ```toml
 [rules.if_unmodified_since_date_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

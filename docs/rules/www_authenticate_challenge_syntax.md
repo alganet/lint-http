@@ -28,7 +28,6 @@ This rule validates that each challenge:
 ```toml
 [rules.www_authenticate_challenge_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

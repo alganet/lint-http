@@ -23,7 +23,6 @@ This rule ensures that an observed stream of transactions follows these lifecycl
 ```toml
 [rules.digest_auth_nonce_handling]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -36,7 +36,6 @@ Check that a `Content-Type` naming a `multipart/*` media type carries a `boundar
 ```toml
 [rules.multipart_boundary_syntax]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

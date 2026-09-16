@@ -43,7 +43,6 @@ Scope: this rule reads a request's header section, and a response's only to repo
 ```toml
 [rules.te_header_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -20,7 +20,6 @@ When a response includes `Vary: *`, caches cannot select that stored response fo
 ```toml
 [rules.vary_and_cache_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

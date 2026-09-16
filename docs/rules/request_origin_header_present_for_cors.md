@@ -28,7 +28,6 @@ The rule validates that `Origin` is present where required and that its value is
 ```toml
 [rules.request_origin_header_present_for_cors]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -67,7 +67,6 @@ impl RuleMeta for FormDataContentDispositionValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -317,10 +316,9 @@ mod tests {
             &FormDataContentDispositionValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "form_data_content_disposition_valid",
-                "warn",
-            ),
+            ]),
         )
         .expect("a finding");
         assert_eq!(found.violation, id, "{value}");
@@ -342,10 +340,9 @@ mod tests {
             &crate::rules::content_disposition_parameter_valid::ContentDispositionParameterValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "content_disposition_parameter_valid",
-                "warn",
-            ),
+            ]),
         )
         .expect("a finding");
         assert_eq!(found.violation, id, "{value}");

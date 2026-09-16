@@ -37,7 +37,6 @@ Reads the characters of the request target and asks whether it is properly perce
 ```toml
 [rules.request_uri_percent_encoding_valid]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

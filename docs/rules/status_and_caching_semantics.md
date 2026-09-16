@@ -22,7 +22,6 @@ This rule warns when a response status that is not cacheable by default does not
 ```toml
 [rules.status_and_caching_semantics]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

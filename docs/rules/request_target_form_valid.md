@@ -42,7 +42,6 @@ Reads an HTTP/1.x request-line's request-target and asks two things: which of th
 ```toml
 [rules.request_target_form_valid]
 enabled = true
-severity = "error"
 ```
 
 ## Examples

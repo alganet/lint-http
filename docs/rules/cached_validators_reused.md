@@ -22,7 +22,6 @@ If a server provides validators (like `ETag` or `Last-Modified`) in a response, 
 ```toml
 [rules.cached_validators_reused]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

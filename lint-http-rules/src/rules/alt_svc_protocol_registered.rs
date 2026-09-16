@@ -44,7 +44,6 @@ const MAX_ALPN_PROTOCOL_NAME_OCTETS: usize = 255;
 /// `/` being absent from `tchar`.
 #[derive(Debug, Clone)]
 pub struct AltSvcProtocolConfig {
-    pub severity: crate::lint::Severity,
     pub allowed: Vec<String>,
 }
 
@@ -62,8 +61,6 @@ fn parse_allowed_config(
     config: &crate::config::Config,
     rule_id: &str,
 ) -> anyhow::Result<AltSvcProtocolConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
     // The two calls above already assert the rule's own table exists, so asking
     // again would build an error branch nothing can reach.
     let rule_cfg = config
@@ -117,10 +114,7 @@ fn parse_allowed_config(
         out.push(s.to_string());
     }
 
-    Ok(AltSvcProtocolConfig {
-        severity,
-        allowed: out,
-    })
+    Ok(AltSvcProtocolConfig { allowed: out })
 }
 
 /// The `protocol-id` written back out as the octets it stands for.
@@ -251,7 +245,6 @@ impl RuleMeta for AltSvcProtocolRegistered {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 # ALPN protocol names — the octets IANA registers in the "TLS Application-Layer
 # Protocol Negotiation (ALPN) Protocol IDs" registry — and not the escaped
 # `protocol-id`s they are written as. `http/1.1` is listed here as itself and
@@ -279,7 +272,6 @@ allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
             state: Box::new(config),
         })
     }
@@ -492,7 +484,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "allowed".into(),
                     toml::Value::Array(
@@ -656,10 +647,9 @@ mod tests {
                 &syntax,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_severity(
-                    "alt_svc_header_syntax",
-                    "warn"
-                ),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "alt_svc_header_syntax"
+                ]),
             )
             .is_some(),
             "the grammar rule should report {header:?}"

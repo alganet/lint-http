@@ -24,7 +24,6 @@ The check deliberately ignores request-side `Cache-Control: no-cache` clauses an
 ```toml
 [rules.no_cache_revalidation]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

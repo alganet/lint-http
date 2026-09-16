@@ -32,7 +32,6 @@ Reports a TRACE request that carries content, and a TRACE request that carries o
 ```toml
 [rules.trace_method_echo]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -21,7 +21,6 @@ This rule checks the `Cross-Origin-Resource-Policy` response header value and en
 ```toml
 [rules.cross_origin_resource_policy_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

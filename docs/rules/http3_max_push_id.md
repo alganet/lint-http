@@ -26,7 +26,6 @@ The first `MAX_PUSH_ID` on a connection establishes the initial limit and is alw
 ```toml
 [rules.http3_max_push_id]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

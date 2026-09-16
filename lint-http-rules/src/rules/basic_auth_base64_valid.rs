@@ -45,7 +45,6 @@ impl RuleMeta for BasicAuthBase64Valid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 

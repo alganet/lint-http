@@ -21,7 +21,6 @@ This rule watches a series of transactions from the same client and examines the
 ```toml
 [rules.s_max_age_enforced]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -145,7 +145,6 @@ impl RuleMeta for DigestAuthNonceHandling {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 

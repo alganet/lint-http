@@ -20,7 +20,6 @@ When an origin server includes a `Priority` response header (RFC 9218 §5) it is
 ```toml
 [rules.priority_and_cacheability_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -63,7 +63,6 @@ impl RuleMeta for AcceptLanguageWeightValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -357,7 +356,7 @@ mod tests {
             rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .expect("a finding");
         assert_eq!(found.violation, "qvalue_malformed", "{field}: {value}");
@@ -393,7 +392,7 @@ mod tests {
             rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .expect("a finding");
         assert_eq!(
@@ -416,10 +415,9 @@ mod tests {
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "accept_header_media_type_syntax",
-                "warn",
-            ),
+            ]),
         );
         assert!(found.is_none(), "{found:?}");
     }
@@ -455,7 +453,7 @@ mod tests {
             rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .expect("a finding");
         assert_eq!(found.violation, expected, "{field}: {value}");

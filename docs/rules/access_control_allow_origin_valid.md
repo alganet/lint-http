@@ -27,7 +27,6 @@ A line written with nothing on it is reported separately: that sender meant to s
 ```toml
 [rules.access_control_allow_origin_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

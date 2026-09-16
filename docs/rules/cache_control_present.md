@@ -22,7 +22,6 @@ The `Cache-Control` header is the primary mechanism for defining the caching pol
 ```toml
 [rules.cache_control_present]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

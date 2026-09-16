@@ -22,7 +22,6 @@ Note: `immutable` together with `must-revalidate` is **not** flagged. Those dire
 ```toml
 [rules.immutable_requires_freshness]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

@@ -50,7 +50,6 @@ impl RuleMeta for Status101SwitchingProtocols {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 

@@ -28,7 +28,6 @@ common `Expires: 0` paired with a positive `max-age` is flagged.
 ```toml
 [rules.expires_and_cache_control_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

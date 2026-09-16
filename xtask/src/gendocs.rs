@@ -321,7 +321,7 @@ mod tests {
                 },
             ],
             &examples,
-            Some("[rules.user_agent_present]\nenabled = true\nseverity = \"warn\""),
+            Some("[rules.user_agent_present]\nenabled = true"),
         );
 
         assert!(doc.starts_with("<!--\nSPDX-FileCopyrightText"));
@@ -337,8 +337,7 @@ mod tests {
              - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5)\n"
         ));
         assert!(doc.contains(
-            "## Configuration\n\n```toml\n[rules.user_agent_present]\nenabled = true\n\
-             severity = \"warn\"\n```"
+            "## Configuration\n\n```toml\n[rules.user_agent_present]\nenabled = true\n```"
         ));
         assert!(doc.contains("### ✅ Good Request"));
         assert!(doc.contains("### ❌ Bad\n"));

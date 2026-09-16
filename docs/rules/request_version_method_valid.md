@@ -32,7 +32,6 @@ Reports a request that carries content under a method whose definition gives con
 ```toml
 [rules.request_version_method_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

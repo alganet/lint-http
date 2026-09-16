@@ -26,7 +26,6 @@ The value is reported as detail: a single `token` naming one of `7bit`, `8bit`, 
 ```toml
 [rules.content_transfer_encoding_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

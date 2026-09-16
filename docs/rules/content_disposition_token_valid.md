@@ -33,7 +33,6 @@ The value is read as the octets the sender wrote, one character per octet, so an
 ```toml
 [rules.content_disposition_token_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

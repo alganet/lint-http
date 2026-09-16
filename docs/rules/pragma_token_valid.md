@@ -24,7 +24,6 @@ This rule flags malformed directives, invalid token characters and empty members
 ```toml
 [rules.pragma_token_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

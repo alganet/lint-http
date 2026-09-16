@@ -26,7 +26,6 @@ Validate authentication schemes used in `WWW-Authenticate` and `Authorization` h
 ```toml
 [rules.auth_scheme_registered]
 enabled = true
-severity = "warn"
 allowed = ["Basic", "Bearer", "Digest"]
 ```
 

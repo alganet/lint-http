@@ -28,7 +28,6 @@ Improper `Content-Length` values can lead to message framing errors or truncated
 ```toml
 [rules.content_length_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

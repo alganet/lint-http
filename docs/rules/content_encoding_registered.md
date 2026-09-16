@@ -29,7 +29,6 @@ The two headers do not share a vocabulary. `Accept-Encoding` additionally admits
 ```toml
 [rules.content_encoding_registered]
 enabled = true
-severity = "warn"
 allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip", "identity", "pack200-gzip", "x-compress", "x-gzip", "zstd"]
 ```
 

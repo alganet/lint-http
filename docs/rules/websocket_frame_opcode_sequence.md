@@ -36,7 +36,6 @@ Reads each WebSocket frame the relay observed and asks three groups of questions
 ```toml
 [rules.websocket_frame_opcode_sequence]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

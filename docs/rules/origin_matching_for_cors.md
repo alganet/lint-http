@@ -37,7 +37,6 @@ This check applies to server responses (RuleScope::Server).
 ```toml
 [rules.origin_matching_for_cors]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

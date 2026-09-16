@@ -35,7 +35,6 @@ When a `Content-Type` declares a `multipart/*` media type, the body it describes
 ```toml
 [rules.multipart_content_type_and_body_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

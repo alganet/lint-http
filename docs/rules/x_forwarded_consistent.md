@@ -41,7 +41,6 @@ Despite its name, this rule checks each field on its own and cross-checks nothin
 ```toml
 [rules.x_forwarded_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

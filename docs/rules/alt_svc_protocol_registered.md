@@ -36,7 +36,6 @@ Read the `protocol-id` of each `Alt-Svc` alternative as the ALPN protocol name i
 ```toml
 [rules.alt_svc_protocol_registered]
 enabled = true
-severity = "warn"
 # ALPN protocol names — the octets IANA registers in the "TLS Application-Layer
 # Protocol Negotiation (ALPN) Protocol IDs" registry — and not the escaped
 # `protocol-id`s they are written as. `http/1.1` is listed here as itself and

@@ -32,7 +32,6 @@ Captured bodies are available to rules in memory; the `captures_include_body` se
 ```toml
 [rules.problem_details_structure_valid]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

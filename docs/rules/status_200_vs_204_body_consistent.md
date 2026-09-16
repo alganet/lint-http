@@ -25,7 +25,6 @@ Reports a `200 (OK)` response that carries no content, so an operator can check 
 ```toml
 [rules.status_200_vs_204_body_consistent]
 enabled = true
-severity = "warn"
 ```
 
 ## Examples

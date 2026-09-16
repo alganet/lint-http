@@ -20,7 +20,6 @@ pub struct XContentTypeOptionsPresent;
 
 #[derive(Debug, Clone)]
 pub struct XContentTypeOptionsConfig {
-    pub severity: crate::lint::Severity,
     pub content_types: Vec<String>,
 }
 
@@ -59,12 +58,7 @@ fn parse_x_content_type_options_config(
         content_types.push(s.to_ascii_lowercase());
     }
 
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    Ok(XContentTypeOptionsConfig {
-        content_types,
-        severity,
-    })
+    Ok(XContentTypeOptionsConfig { content_types })
 }
 
 /// The specification references this rule declares, each named so a finding
@@ -85,7 +79,6 @@ impl RuleMeta for XContentTypeOptionsPresent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 content_types = ["text/html", "application/javascript", "application/json"]
 "#
     }
@@ -96,7 +89,6 @@ content_types = ["text/html", "application/javascript", "application/json"]
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
             state: Box::new(config),
         })
     }
@@ -242,7 +234,6 @@ mod tests {
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
-                t.insert("severity".into(), toml::Value::String("warn".into()));
                 t.insert(
                     "content_types".into(),
                     toml::Value::Array(
@@ -363,10 +354,6 @@ mod tests {
                 let mut table = toml::map::Map::new();
                 table.insert("enabled".to_string(), toml::Value::Boolean(true));
                 table.insert(
-                    "severity".to_string(),
-                    toml::Value::String("warn".to_string()),
-                );
-                table.insert(
                     "content_types".to_string(),
                     toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
                 );
@@ -400,10 +387,6 @@ mod tests {
         let mut config = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "severity".to_string(),
-            toml::Value::String("warn".to_string()),
-        );
         table.insert(
             "content_types".to_string(),
             toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
@@ -447,10 +430,6 @@ mod tests {
         let mut config = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "severity".to_string(),
-            toml::Value::String("warn".to_string()),
-        );
         table.insert(
             "content_types".to_string(),
             toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),

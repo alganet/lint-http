@@ -69,7 +69,6 @@ impl RuleMeta for ServerHeaderProductValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-severity = "warn"
 "#
     }
 
@@ -238,7 +237,7 @@ mod tests {
                 rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
             )
             .expect("a finding");
             assert_eq!(found.violation, id, "{field}: {value}");
