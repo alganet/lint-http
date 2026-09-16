@@ -1704,6 +1704,12 @@ severity = "warn"
         /// that is not the field's**: what is wrong with `h3-29` is the ALPN
         /// protocol *name* it decodes to, and that name is the same name
         /// whichever carrier held it.
+        /// **`from_header_email_syntax` gave up a site that needed no entry at
+        /// all** — the fifth singleton to report `field_line_duplicated`, and
+        /// the one whose *reason* is sharpest: the other four join into
+        /// something malformed or into a reference naming the wrong resource,
+        /// and this one joins into a well-formed production of the same
+        /// document that the field does not import.
         const FLOOR: usize = 1;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");

@@ -13,6 +13,7 @@ use crate::violations::domain::{
     DOMAIN_LABEL_EMPTY, DOMAIN_LABEL_LENGTH_INVALID, DOMAIN_NAME_LENGTH_INVALID, RFC_1035_2_3_1,
     RFC_1035_2_3_4,
 };
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::mailbox::{
     syntax_defect, MAILBOX_ANGLE_ADDR_MISSING, MAILBOX_ANGLE_ADDR_TERMINATOR_MISSING,
     MAILBOX_ATOM_CHARACTER_FORBIDDEN, MAILBOX_ATOM_EMPTY, MAILBOX_AT_SIGN_MISSING,
@@ -32,10 +33,13 @@ pub struct FromHeaderEmailSyntax;
 /// `mailbox_*` belong to the production RFC 9110 § 10.1.2 imports rather than
 /// to the field that imports it, and the five `domain_*` are the preferred name
 /// syntax any field carrying a host name is answered by — `cookie_domain_valid`
-/// declares those same five. What is missing from this list is the second field
-/// line, which is not this rule's defect either: it belongs to the shared
-/// singleton reading, and converts with that subject.
+/// declares those same five. **The second field line is not this rule's defect
+/// either**, and it is the last of them: § 5.3 states it about any field whose
+/// definition offers no list alternative, so the id is the one every singleton
+/// in the tree reports with — what stays here is the *reason*, which is this
+/// field's alone and is the sharpest of the five singletons that carry one.
 static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
     &MAILBOX_EMPTY,
     &MAILBOX_LIST_SEPARATOR_FORBIDDEN,
     &MAILBOX_COMMENT_CHARACTER_FORBIDDEN,
@@ -75,12 +79,6 @@ const RFC_9110_10_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("10.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
     note: "Request context fields — the sentence behind the scope, since there is no response half of this field",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "A sender MUST NOT write a second field line for a field whose value is not a comma-separated list",
 };
 const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -254,7 +252,6 @@ impl Rule for FromHeaderEmailSyntax {
             // cite(RFC 9110 § 10.1.2): "The address ought to be machine-usable, as defined by "mailbox" in Section 3.4 of [RFC5322]"
             // cite(RFC 9110 § 10.1.2): "mailbox = <mailbox, see [RFC5322], Section 3.4>"
             let value = combined_field_value_as_written(&req.headers, "from")?;
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             let lines = req.headers.get_all("from").iter().count();
             if lines > 1 {
@@ -275,7 +272,7 @@ impl Rule for FromHeaderEmailSyntax {
                 // resource, and this one joins into a *well-formed production of the
                 // same document* — `mailbox-list`, two lines below `mailbox` in
                 // RFC 5322 § 3.4 and not imported by this field.
-                return violation(format!(
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                     "{}. The comma a recipient joins them with is `mailbox-list`'s separator (RFC 5322 §3.4), a production this field does not import, so the joined value names no one address",
                     crate::helpers::headers::singleton_field_preamble(
                         "From",
@@ -283,7 +280,7 @@ impl Rule for FromHeaderEmailSyntax {
                         &shown_in_finding(&value),
                         "its value is a single RFC 5322 `mailbox`, which has no comma-separated-list alternative",
                     )
-                ));
+                )));
             }
 
             // `OWS` and only `OWS`. The value carries one `char` per octet, so U+00A0
@@ -473,6 +470,9 @@ mod tests {
              a recipient joins them with is `mailbox-list`'s separator (RFC 5322 §3.4), a \
              production this field does not import, so the joined value names no one address"
         );
+        // The id is § 5.3's, which every singleton in the tree reports with; the
+        // second sentence of the message is what stays this field's.
+        assert_eq!(v.violation, "field_line_duplicated");
     }
 
     #[rstest]
