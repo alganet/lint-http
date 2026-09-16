@@ -1815,13 +1815,16 @@ enabled = "true"
     /// sites, one non-UTF-8 `Authorization` header drawing five byte-identical
     /// findings under five rule ids, and nothing in the type system able to say
     /// they were one defect. They share an id now, so the question has an
-    /// answer that survives a reworded message, and the answer is **109**:
-    /// seven and a half times what the template count could see.
+    /// answer that survives a reworded message, and the answer was **109**:
+    /// seven and a half times what the template count could see. It is 105
+    /// after Phase 4's three merges, and *that is what a merge is worth here* —
+    /// four defects stopped having two names between them, out of a hundred
+    /// that never had one.
     ///
     /// **The difference is not overlap that appeared; it is overlap that
     /// became visible.** A template count compares strings, so it sees two
     /// rules as duplicating only where they duplicate down to the wording.
-    /// Most of these 109 are a *shared reader*: `token_character_forbidden` is
+    /// Most of these are a *shared reader*: `token_character_forbidden` is
     /// declared by 42 rules because 42 rules parse a token, and each of them
     /// formatted its own sentence about it. That is the split working — one
     /// defect, one id, one severity to tune it with — and those 42 rules read
@@ -1835,7 +1838,7 @@ enabled = "true"
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 109;
+        const CEILING: usize = 105;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();

@@ -29,7 +29,7 @@ pub struct DigestAuthValid;
 /// `auth-param = token BWS "=" BWS ( token / quoted-string )` is RFC 9110
 /// § 11.2's, imported by RFC 7616 unchanged, so a name holding a `@` and a
 /// value that does not close its DQUOTE are the same defects
-/// `www_authenticate_challenge_syntax` and `authorization_credentials_present`
+/// `www_authenticate_challenge_syntax` and `auth_scheme_registered`
 /// already report. **This closes the authentication cluster's grammar half**:
 /// every rule in it now answers with the shared ids, and what each still writes
 /// is what its own scheme means.

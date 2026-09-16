@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate authentication schemes used in `WWW-Authenticate` and `Authorization` headers. The `auth-scheme` is a `token` and SHOULD be an IANA-registered authentication scheme (for example, `Basic`, `Bearer`, `Digest`). This rule allows an operator-configured allowlist of acceptable schemes; values not present in the allowlist are flagged.
+Reads the HTTP authentication framework's own grammar in both directions — a server's `WWW-Authenticate` challenges and a client's `Authorization` credentials — and then asks the registry question the rule is named for. The framework half is the structure: a challenge that names no scheme, an empty list member, an `auth-scheme` carrying a character no `token` admits, an `Authorization` value that is empty or that stops after the scheme where the scheme wants credentials. The registry half is the `auth-scheme` itself, which SHOULD be an IANA-registered scheme (for example, `Basic`, `Bearer`, `Digest`); this rule measures it against an operator-configured allowlist of acceptable schemes rather than against the live registry, and flags a value not in it. What those credentials must *be* once the scheme is known belongs to the scheme's own rule.
 
 ## Specifications
 
@@ -20,6 +20,8 @@ Validate authentication schemes used in `WWW-Authenticate` and `Authorization` h
 - [RFC 9110 §11.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2): Authorization — the field's value *consists of* credentials, which is stricter than § 11.4's optional second half
 - [RFC 9110 §16.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.4.1): Authentication Scheme Registry
 - [IANA HTTP Authentication Schemes](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml): IANA HTTP Authentication Scheme Registry
+- [RFC 7617](https://www.rfc-editor.org/rfc/rfc7617.html): Basic Authentication
+- [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750.html): The OAuth 2.0 Authorization Framework: Bearer Token Usage
 
 ## Configuration
 
@@ -38,9 +40,18 @@ WWW-Authenticate: Basic realm="example"
 Authorization: Bearer abc123
 ```
 
+```http
+WWW-Authenticate: Digest realm="test", nonce="abc"
+Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/resource", response="d41d8cd98f00b204e9800998ecf8427e"
+```
+
 ### ❌ Bad
 
 ```http
 WWW-Authenticate: NewScheme abc=
 Authorization: X-MyAuth abc
+```
+
+```http
+Authorization: Basic
 ```
