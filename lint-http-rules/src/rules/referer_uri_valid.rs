@@ -10,25 +10,36 @@ use crate::helpers::uri::{
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::referer::{
+    REFERER_EMPTY, REFERER_FORBIDDEN, REFERER_FRAGMENT_FORBIDDEN, REFERER_USERINFO_FORBIDDEN,
+    RFC_9110_10_1_3,
+};
 use crate::violations::uri::{
-    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2, RFC_3986_2_1,
-    RFC_3986_3_1, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN, URI_HOST_EMPTY,
+    host_and_port as host_and_port_defect, PERCENT_ENCODING_DIGITS_MISSING,
+    PERCENT_ENCODING_MALFORMED, RFC_3986_2, RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2,
+    RFC_3986_3_2_3, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
+    URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
+    URI_HOST_EMPTY, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
     URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
 pub struct RefererUriValid;
 
-/// The defects this rule reports through the catalogue so far — the three ways
-/// a scheme name is not one. They are the *scheme's* and not the `Referer`'s:
-/// six rules in this tree read a scheme through the same helper, from a
+/// **Almost everything here belongs to the URI and not to the field.** A scheme
+/// that is not one, a host that is not one, a percent-encoding that is not one:
+/// six rules in this tree read a scheme through the same helper — from a
 /// `Forwarded` `proto`, a `Link` target, an `Alt-Svc` value and an
-/// absolute-form request target, and each of them will report these three.
+/// absolute-form request target — and the authority's five come out of the one
+/// `uri-host [ ":" port ]` reader every field carrying an authority calls. The
+/// repeated field line is § 5.3's, about the message rather than the value.
 ///
-/// The rest of what this rule says about a URI reference is still on the old
-/// API: those messages are this field's own reading of `Referer =
-/// absolute-URI / partial-URI` and convert with the subjects that own the
-/// components — the authority, the path, the fragment.
+/// **What is the field's own is [`crate::violations::referer`], and none of it
+/// is about the reference being well formed**: the two components § 10.1.3
+/// excludes, the request that may not carry the field at all, and the value
+/// that states the URI the recipient already had. Every one of them is about
+/// disclosure, which is what makes them one subject.
 static DECLARED: &[&ViolationDef] = &[
     &URI_CHARACTER_FORBIDDEN,
     &URI_SCHEME_EMPTY,
@@ -37,6 +48,16 @@ static DECLARED: &[&ViolationDef] = &[
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
     &URI_HOST_EMPTY,
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
+    &FIELD_LINE_DUPLICATED,
+    &REFERER_USERINFO_FORBIDDEN,
+    &REFERER_FRAGMENT_FORBIDDEN,
+    &REFERER_FORBIDDEN,
+    &REFERER_EMPTY,
 ];
 
 /// The value as a finding may print it: escaped, and with the password half of a
@@ -68,23 +89,11 @@ fn redacted_userinfo(value: &str) -> Option<String> {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_10_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.1.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.3",
-    note: "Referer — the field's grammar, the fragment and userinfo MUST NOT, the unsecured-request MUST NOT, and the two declined conditionals",
-};
 const RFC_9110_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("4.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
     note: "URI References — `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF is what says which forms it allows",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order — the MUST NOT against a second field line for a field with no list alternative",
 };
 const RFC_9110_17_9: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -151,6 +160,8 @@ severity = "warn"
             RFC_3986_2,
             RFC_3986_2_1,
             RFC_3986_3_1,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
         ]
     }
 
@@ -256,7 +267,6 @@ impl Rule for RefererUriValid {
             // cite(RFC 9110 § 10.1.3): "The "Referer" [sic] header field allows the user agent to specify a URI reference for the resource from which the target URI was obtained (i.e., the "referrer", though the field name is misspelled)."
             // cite(RFC 9110 § 10.1.3, label: Referer grammar): "Referer = absolute-URI / partial-URI"
             let value = combined_field_value_as_written(&req.headers, "referer")?;
-            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             let lines = req.headers.get_all("referer").iter().count();
             if lines > 1 {
@@ -270,7 +280,7 @@ impl Rule for RefererUriValid {
                 // the same fact.
                 //
                 // cite(RFC 3986 § 2.2): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
-                return violation(format!(
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                     "{}. The comma a recipient joins them with is a `sub-delims` character both alternatives admit inside a path or a query (RFC 3986 §2.2), so the joined value is a well-formed reference to a resource neither line named",
                     crate::helpers::headers::singleton_field_preamble(
                         "Referer",
@@ -278,7 +288,7 @@ impl Rule for RefererUriValid {
                         &shown_referer(&value),
                         "`Referer = absolute-URI / partial-URI`, and neither alternative is a comma-separated list",
                     )
-                ));
+                )));
             }
 
             // `OWS` and only `OWS`. The value carries one `char` per octet, so U+00A0
@@ -310,10 +320,11 @@ impl Rule for RefererUriValid {
                 // cite(RFC 9110 § 4.1, label: partial-URI): "partial-URI   = relative-part [ "?" query ]"
                 // cite(RFC 3986 § 4.4): "The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier."
                 // cite(RFC 9110 § 10.1.3): "If the target URI was obtained from a source that does not have its own URI (e.g., input from the user keyboard, or an entry within the user's bookmarks/favorites), the user agent MUST either exclude the Referer header field or send it with a value of "about:blank"."
-                return violation(
+                return Some(ctx.report_with(
+                    &REFERER_EMPTY,
                     "Referer is present with an empty value, which names the request's own target URI: `partial-URI` admits `path-empty`, so an empty value is a same-document reference (RFC 3986 §4.4) and the field's grammar has no complaint. RFC 9110 §10.1.3 names the two things a user agent with no referring URI to state does — omit the field, or send `about:blank` — and an empty value is neither. This is advice, not a violation"
                         .to_string(),
-                );
+                ));
             }
 
             // The alphabet, before any component question. The union of every
@@ -375,11 +386,11 @@ impl Rule for RefererUriValid {
             // cite(RFC 3986 § 4.3): "Some protocol elements allow only the absolute form of a URI without a fragment identifier."
             // cite(RFC 3986 § 3.5): "The fragment identifier component of a URI allows indirect identification of a secondary resource by reference to a primary resource and additional identifying information."
             if let Some(hash) = value.find('#') {
-                return violation(format!(
+                return Some(ctx.report_with(&REFERER_FRAGMENT_FORBIDDEN, format!(
                     "Referer value '{}' carries the fragment component '{}': a user agent MUST NOT include one when generating the field (RFC 9110 §10.1.3), and neither alternative of `Referer = absolute-URI / partial-URI` generates one — each is a URI rule with the `[ \"#\" fragment ]` group dropped (RFC 9110 §4.1, RFC 3986 §4.3)",
                     shown_referer(value),
                     shown_in_finding(&value[hash..])
-                ));
+                )));
             }
 
             // Which alternative the value takes is decided by its first component,
@@ -428,7 +439,7 @@ impl Rule for RefererUriValid {
                 // cite(RFC 3986 § 3.2.1): "Use of the format "user:password" in the userinfo field is deprecated."
                 if userinfo.is_some() {
                     let redacted = redacted_userinfo(value);
-                    return violation(format!(
+                    return Some(ctx.report_with(&REFERER_USERINFO_FORBIDDEN, format!(
                         "Referer value '{}' carries a userinfo subcomponent and its '@' delimiter before the host '{}': a user agent MUST NOT include one when generating the field (RFC 9110 §10.1.3), and the `user:password` form of it is deprecated outright (RFC 3986 §3.2.1){}",
                         shown_referer(value),
                         shown_in_finding(host_and_port),
@@ -436,7 +447,7 @@ impl Rule for RefererUriValid {
                             Some(_) => ". Everything after the first colon of the userinfo is withheld from this message (RFC 3986 §3.2.1)",
                             None => "",
                         }
-                    ));
+                    )));
                 }
 
                 // The generic syntax admits an empty host — `reg-name` is `*( ... )`
@@ -467,10 +478,13 @@ impl Rule for RefererUriValid {
                 // shared reader is where it lives: the bracket that distinguishes an
                 // IP literal, the address inside it, and a port of digits.
                 if let Err(defect) = validate_host_and_optional_port(host_and_port) {
-                    return violation(format!(
-                        "Referer value '{}' does not carry a well-formed authority: {}",
-                        shown_referer(value),
-                        defect.message()
+                    return Some(ctx.report_with(
+                        host_and_port_defect(defect),
+                        format!(
+                            "Referer value '{}' does not carry a well-formed authority: {}",
+                            shown_referer(value),
+                            defect.message()
+                        ),
                     ));
                 }
             }
@@ -506,10 +520,13 @@ impl Rule for RefererUriValid {
             if scheme.is_some_and(|s| s.eq_ignore_ascii_case("https"))
                 && target_scheme.is_some_and(|s| s.eq_ignore_ascii_case("http"))
             {
-                return violation(format!(
-                    "Referer names '{}', an `https` resource, on a request whose own target URI is an `http` one ('{}'): a user agent MUST NOT send a Referer header field in an unsecured HTTP request if the referring resource was accessed with a secure protocol (RFC 9110 §10.1.3)",
-                    shown_referer(value),
-                    shown_in_finding(&req.uri)
+                return Some(ctx.report_with(
+                    &REFERER_FORBIDDEN,
+                    format!(
+                        "Referer names '{}', an `https` resource, on a request whose own target URI is an `http` one ('{}'): a user agent MUST NOT send a Referer header field in an unsecured HTTP request if the referring resource was accessed with a secure protocol (RFC 9110 §10.1.3)",
+                        shown_referer(value),
+                        shown_in_finding(&req.uri)
+                    ),
                 ));
             }
 
@@ -548,6 +565,40 @@ mod tests {
         )
         .unwrap_or_else(|| panic!("expected a finding for {referer:?}"));
         assert_eq!(v.violation, violation, "{}", v.message);
+    }
+
+    /// The four findings that are the *field's* rather than the URI's, by name
+    /// and by rank. Each is about what leaves with the field: a credential, a
+    /// component, a request that may not carry it, and a value that discloses
+    /// nothing and helps nobody.
+    #[rstest]
+    #[case(
+        "http://u:p@example.com/",
+        "referer_userinfo_forbidden",
+        crate::lint::Severity::Error
+    )]
+    #[case(
+        "http://example.com/a#b",
+        "referer_fragment_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    #[case("", "referer_empty", crate::lint::Severity::Info)]
+    fn the_fields_own_findings_rank_on_what_they_disclose(
+        #[case] referer: &str,
+        #[case] violation: &str,
+        #[case] severity: crate::lint::Severity,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("referer", referer)]);
+        let v = crate::test_helpers::run_rule(
+            &RefererUriValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn"),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {referer:?}"));
+        assert_eq!(v.violation, violation, "{}", v.message);
+        assert_eq!(v.severity, severity, "{}", v.message);
     }
 
     /// Run the rule over a request carrying `referer` field lines, with the
