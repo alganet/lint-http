@@ -564,8 +564,11 @@ mod tests {
         /// report one empty `URI-reference` and the third entry to name no
         /// sentence for it**, so 533 entries still cite 501: an entry that
         /// exists because *no* production refuses a value can never move this
-        /// number, and three of them now say so on one value.
-        const FLOOR: usize = 501;
+        /// number, and three of them now say so on one value. 502 of 534 with
+        /// the draft ALPN token, which is the reverse case in one commit: a
+        /// site that *was* cited gave its sentence to an entry, so the floor
+        /// here rose as the site floor fell.
+        const FLOOR: usize = 502;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

@@ -1115,6 +1115,10 @@ severity = "warn"
 # ALPN protocol name is longer than the vector that carries it
 severity = "warn"
 
+[violations.alpn_protocol_name_obsolete]
+# ALPN protocol name identifies a draft of a shipped protocol
+severity = "warn"
+
 [violations.alpn_protocol_name_unregistered]
 # ALPN protocol name is not one this deployment serves
 severity = "warn"

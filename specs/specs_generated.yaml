@@ -4018,13 +4018,13 @@ sources:
     snippet: '"ProtocolNameList" contains the list of protocols advertised by the client, in descending order of preference.'
     cited_by:
     - file: lint-http-rules/src/violations/alpn.rs
-      line: 53
+      line: 67
   - label: alpn (2)
     section: § 3.1
     snippet: opaque ProtocolName<1..2^8-1>;
     cited_by:
     - file: lint-http-rules/src/violations/alpn.rs
-      line: 52
+      line: 66
   - label: alt_svc_protocol_registered
     section: § 3.1
     snippet: Protocols are named by IANA-registered, opaque, non-empty byte strings, as described further in Section 6 ("IANA Considerations") of this document.
@@ -4193,7 +4193,7 @@ sources:
     snippet: The ALPN protocol name is used to identify the application protocol or suite of protocols used by the alternative service.
     cited_by:
     - file: lint-http-rules/src/violations/alpn.rs
-      line: 76
+      line: 90
   - label: alt_svc
     section: § 3
     snippet: A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services).
@@ -4235,7 +4235,7 @@ sources:
     snippet: Alt-Svc       = clear / 1#alt-value
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 29
+      line: 30
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 149
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
@@ -4245,7 +4245,7 @@ sources:
     snippet: An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 214
+      line: 216
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 717
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
@@ -4255,7 +4255,7 @@ sources:
     snippet: Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 312
+      line: 314
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 408
     - file: lint-http-rules/src/violations/alt_svc.rs
@@ -4265,7 +4265,7 @@ sources:
     snippet: Unknown parameters MUST be ignored.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 45
+      line: 46
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 409
   - label: alt_svc_h3_advertisement_valid (4)
@@ -4273,7 +4273,7 @@ sources:
     snippet: clear         = %s"clear"; "clear", case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 30
+      line: 31
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 150
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -4285,9 +4285,9 @@ sources:
     snippet: parameter     = token "=" ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 44
+      line: 45
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 311
+      line: 313
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 407
     - file: lint-http-rules/src/violations/alt_svc.rs
@@ -4299,7 +4299,7 @@ sources:
     snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 337
+      line: 339
     - file: lint-http-rules/src/violations/alt_svc.rs
       line: 62
   - label: alt_svc_header_syntax
@@ -8147,7 +8147,7 @@ sources:
     - file: lint-http-rules/src/helpers/vary.rs
       line: 79
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 215
+      line: 217
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 750
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
@@ -9942,7 +9942,7 @@ sources:
     snippet: If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 364
+      line: 366
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 270
     - file: lint-http-rules/src/violations/delta_seconds.rs
@@ -9952,7 +9952,7 @@ sources:
     snippet: The delta-seconds rule specifies a non-negative integer, representing time in seconds.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 338
+      line: 340
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 236
   - label: alt_svc_h3_advertisement_valid (3)
@@ -9960,7 +9960,7 @@ sources:
     snippet: or the greatest positive integer it can conveniently represent.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 365
+      line: 367
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 271
   - label: cache_coherence
@@ -11217,7 +11217,9 @@ sources:
     snippet: An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 268
+      line: 270
+    - file: lint-http-rules/src/violations/alpn.rs
+      line: 121
   - label: authority
     section: § 4.3.1
     snippet: The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https".

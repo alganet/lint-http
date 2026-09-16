@@ -10,6 +10,7 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::token_or_quoted_string;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::alpn::{ALPN_PROTOCOL_NAME_OBSOLETE, RFC_9114_3_1_1};
 use crate::violations::alt_svc::ALT_SVC_MA_INVALID;
 use crate::violations::delta_seconds::{
     DELTA_SECONDS_CHARACTER_FORBIDDEN, DELTA_SECONDS_EMPTY, RFC_9111_1_2_2,
@@ -53,12 +54,6 @@ const MAX_REASONABLE_MA: u64 = 365 * 24 * 3600;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9114_3_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("3.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1",
-    note: "HTTP Alternative Services — advertising HTTP/3 via Alt-Svc using the \"h3\" ALPN token",
-};
 const RFC_7838_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7838",
     section: Some("3"),
@@ -82,10 +77,17 @@ const RFC_7838_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
 /// it is one entry rather than two: a lifetime of zero and a lifetime so long it
 /// is a typo are both conforming values that state nothing a client can use, and
 /// the number written is not the number meant either way.
+///
+/// **The draft token is neither the field's nor the parameter's**: what is wrong
+/// with `h3-29` is the ALPN protocol *name* it decodes to, which is the same
+/// name whether an `Alt-Svc`, an ALTSVC frame or a ClientHello carried it — so
+/// it reports through [`alpn`](crate::violations::alpn), beside the two other
+/// ways a name identifies nothing anyone will answer to.
 static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_MA_INVALID,
     &DELTA_SECONDS_EMPTY,
     &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+    &ALPN_PROTOCOL_NAME_OBSOLETE,
 ];
 
 /// One finding from the reading, and the entry it reports as.
@@ -267,8 +269,8 @@ impl Rule for AltSvcH3AdvertisementValid {
                 // valid advertisement of the shipped protocol.
                 // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
                 if proto_lower.starts_with("h3-") {
-                    return Some(self.cited(&RFC_9114_3_1_1,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &ALPN_PROTOCOL_NAME_OBSOLETE,
                         format!(
                             "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead (RFC 9114 §3.1.1)",
                             shown_in_finding(protocol_id)
@@ -519,6 +521,10 @@ mod tests {
         .unwrap();
         assert!(v.message.contains("h3-29"));
         assert!(v.message.contains("draft"));
+        // The subject is the ALPN name and not this field: the same name would
+        // be the same defect in an ALTSVC frame or a ClientHello.
+        assert_eq!(v.violation, "alpn_protocol_name_obsolete");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
     }
 
     #[test]
