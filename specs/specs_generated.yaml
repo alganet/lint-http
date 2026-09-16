@@ -5707,7 +5707,7 @@ sources:
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 264
+      line: 287
     - file: lint-http-rules/src/violations/credentials.rs
       line: 67
   - label: auth_scheme_registered (2)
@@ -5715,7 +5715,7 @@ sources:
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 204
+      line: 193
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -7047,7 +7047,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 434
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 184
+      line: 211
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 107
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
