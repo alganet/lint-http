@@ -30,6 +30,12 @@ pub struct AuthSchemeRegistered;
 /// `credentials_*` entries are what an `Authorization` value fails to be before
 /// any scheme is looked up.
 ///
+/// **Those three were declared by a second rule until they were counted.**
+/// `authorization_credentials_present` read the same field with the same
+/// helper and reported the same four ids, all of them in this list — so the
+/// two rules said the same things about one value under two names, and the one
+/// that said less was folded in here.
+///
 /// **The registry question is the whole of what this rule is named for**, and
 /// it is now an entry of the scheme's own subject rather than a sentence this
 /// file words: a scheme spelled correctly and absent from the operator's
@@ -61,6 +67,23 @@ const IANA_HTTP_AUTHENTICATION_SCHEMES: crate::rules::SpecRef = crate::rules::Sp
     url: "https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml",
     note: "IANA HTTP Authentication Scheme Registry",
 };
+/// Further reading rather than a sentence this rule enforces: what the
+/// credentials after a `Basic` or a `Bearer` scheme have to be. No defect here
+/// cites either — the framework production is all this rule reads, and the two
+/// scheme rules that *do* read them own these documents — but a page about
+/// `Authorization` that names no scheme leaves the reader nowhere to go next.
+const RFC_7617: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7617",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc7617.html",
+    note: "Basic Authentication",
+};
+const RFC_6750: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6750",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc6750.html",
+    note: "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
+};
 
 impl RuleMeta for AuthSchemeRegistered {
     fn id(&self) -> &'static str {
@@ -90,7 +113,7 @@ allowed = ["Basic", "Bearer", "Digest"]
     }
 
     fn description(&self) -> &'static str {
-        "Validate authentication schemes used in `WWW-Authenticate` and `Authorization` headers. The `auth-scheme` is a `token` and SHOULD be an IANA-registered authentication scheme (for example, `Basic`, `Bearer`, `Digest`). This rule allows an operator-configured allowlist of acceptable schemes; values not present in the allowlist are flagged."
+        "Reads the HTTP authentication framework's own grammar in both directions — a server's `WWW-Authenticate` challenges and a client's `Authorization` credentials — and then asks the registry question the rule is named for. The framework half is the structure: a challenge that names no scheme, an empty list member, an `auth-scheme` carrying a character no `token` admits, an `Authorization` value that is empty or that stops after the scheme where the scheme wants credentials. The registry half is the `auth-scheme` itself, which SHOULD be an IANA-registered scheme (for example, `Basic`, `Bearer`, `Digest`); this rule measures it against an operator-configured allowlist of acceptable schemes rather than against the live registry, and flags a value not in it. What those credentials must *be* once the scheme is known belongs to the scheme's own rule."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -103,6 +126,8 @@ allowed = ["Basic", "Bearer", "Digest"]
             RFC_9110_11_6_2,
             RFC_9110_16_4_1,
             IANA_HTTP_AUTHENTICATION_SCHEMES,
+            RFC_7617,
+            RFC_6750,
         ]
     }
 
@@ -119,9 +144,19 @@ allowed = ["Basic", "Bearer", "Digest"]
                 snippet: "WWW-Authenticate: Basic realm=\"example\"\nAuthorization: Bearer abc123",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "WWW-Authenticate: Digest realm=\"test\", nonce=\"abc\"\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/resource\", response=\"d41d8cd98f00b204e9800998ecf8427e\"",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "WWW-Authenticate: NewScheme abc=\nAuthorization: X-MyAuth abc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Authorization: Basic",
             },
         ]
     }
@@ -210,13 +245,23 @@ impl Rule for AuthSchemeRegistered {
                 }
             }
 
-            // Check Authorization header in requests. `Authorization =
-            // credentials` is one value rather than a list, so the first field
-            // line is the field -- read as octets, for the reason above.
-            if let Some(hv) = tx.request.headers.get_all("authorization").iter().next() {
+            // Check Authorization credentials in requests. `Authorization =
+            // credentials` is one value rather than a list, so the field lines
+            // are **not** combined -- but every one of them is read, because a
+            // sender wrote each and this rule measures what was written. That a
+            // second line exists at all is `singleton_fields_not_repeated`'s
+            // finding, not this one's, and picking a line to believe would make
+            // the rest of them unreadable rather than reported. Read as octets,
+            // for the reason above.
+            for hv in tx.request.headers.get_all("authorization").iter() {
                 let v = crate::helpers::headers::field_line_as_written(hv);
                 let v = v.as_str();
-                // validate basic syntax first
+                // The structure before the scheme is looked up: an
+                // `auth-scheme` and, where the scheme wants them, the
+                // credentials after it. The framework production is this
+                // rule's; what those credentials must *be* belongs to the
+                // scheme's own document, and to the rule that reads it.
+                // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
                 if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(v) {
                     return Some(ctx.report_with(
                         credentials_defect(defect),
@@ -641,6 +686,135 @@ mod tests {
             &cfg,
         );
         assert!(v.is_none());
+    }
+
+    /// Every `Authorization` field line is read, not only the first.
+    ///
+    /// **This is what the fold had to choose.** The rule that used to sit
+    /// beside this one walked `get_all`; this one stopped at the first line, on
+    /// the reading that `Authorization = credentials` is not a list so the
+    /// first line is the field. Both readings report the same defect *ids*,
+    /// which is why nothing pointed at the disagreement — containment by id is
+    /// not containment by coverage. The walk wins: a sender wrote both lines
+    /// and a linter reports what was written, while *that* there are two lines
+    /// is `singleton_fields_not_repeated`'s finding and not this rule's.
+    #[rstest]
+    #[case("Basic", "Bearer abc123")]
+    #[case("Bearer abc123", "Basic")]
+    fn every_authorization_field_line_is_read(#[case] first: &str, #[case] second: &str) {
+        use hyper::header::{HeaderName, HeaderValue};
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        for value in [first, second] {
+            tx.request.headers.append(
+                HeaderName::from_static("authorization"),
+                HeaderValue::from_str(value).expect("a test value"),
+            );
+        }
+
+        let v = crate::test_helpers::run_rule(
+            &AuthSchemeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {first:?} then {second:?}"));
+        assert_eq!(v.violation, "credentials_missing", "{}", v.message);
+    }
+
+    /// Four names where one rule had one id, and the severity each carries.
+    #[rstest]
+    #[case("", "credentials_empty", crate::lint::Severity::Warn)]
+    #[case("Basic", "credentials_missing", crate::lint::Severity::Warn)]
+    #[case("Basic ", "credentials_missing", crate::lint::Severity::Warn)]
+    #[case(
+        "B@sic xyz",
+        "auth_scheme_character_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    fn each_credentials_finding_names_the_defect_and_carries_its_severity(
+        #[case] header: &str,
+        #[case] violation: &str,
+        #[case] severity: crate::lint::Severity,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            hyper::header::HeaderValue::from_str(header).expect("a test value"),
+        );
+        let v = crate::test_helpers::run_rule(
+            &AuthSchemeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {header:?}"));
+        assert_eq!(v.violation, violation, "{}", v.message);
+        assert_eq!(v.severity, severity, "{}", v.message);
+    }
+
+    /// A control octet cannot reach the rule through a `HeaderValue`, which
+    /// refuses to hold one — so the defect is declared, reported by the helper,
+    /// and asserted where it is constructible.
+    #[test]
+    fn a_control_octet_in_the_credentials_is_the_helpers_to_find() {
+        assert!(hyper::header::HeaderValue::from_bytes(b"Basic ab\x01c").is_err());
+        assert_eq!(
+            crate::violations::credentials::credentials_defect(
+                crate::helpers::auth::AuthorizationDefect::CredentialsControlCharacter
+            )
+            .id,
+            "credentials_control_character_forbidden",
+        );
+    }
+
+    /// The scheme rules own what a credential *is*, and the values this rule
+    /// publishes as compliant have to satisfy them: this rule reads a
+    /// credential only as far as "a scheme, then something", so every
+    /// scheme-specific defect in an example it publishes is invisible to it. A
+    /// `Digest` credential naming two of the five parameters its own rule
+    /// requires was labelled `Compliant` in the docs the whole time a rule
+    /// published one. Each owner declines on a value belonging to the other
+    /// scheme, so both run over every example.
+    #[test]
+    fn published_credentials_satisfy_the_rules_that_own_their_schemes() {
+        use crate::rules::bearer_token_syntax::BearerTokenSyntax;
+        use crate::rules::digest_auth_valid::DigestAuthValid;
+        use crate::rules::{Compliance, RuleMeta as _};
+
+        let digest = DigestAuthValid;
+        let bearer = BearerTokenSyntax;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&[digest.id(), bearer.id()]);
+        let history = crate::transaction_history::TransactionHistory::empty();
+
+        let mut saw_a_credential = false;
+        for ex in AuthSchemeRegistered.examples() {
+            if ex.compliance != Compliance::Compliant {
+                continue;
+            }
+            let fields: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+            saw_a_credential |= fields.iter().any(|(name, _)| *name == "Authorization");
+            let tx = crate::test_helpers::make_test_transaction_with_headers(&fields);
+            for owner in [&digest as &dyn crate::rules::Rule, &bearer] {
+                let found = crate::test_helpers::run_rule(owner, &tx, &history, &cfg);
+                assert!(
+                    found.is_none(),
+                    "a Compliant example publishes a credential {} rejects {:?}: {found:?}",
+                    owner.id(),
+                    ex.snippet
+                );
+            }
+        }
+        assert!(saw_a_credential, "no published example carries credentials");
     }
 
     #[test]

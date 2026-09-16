@@ -27,7 +27,7 @@ pub struct WwwAuthenticateChallengeSyntax;
 /// four `quoted_string_*` belong to the production a parameter's value may
 /// take, which seven other rules read through the same helper; and the scheme's
 /// own defect is shared with the request side of the framework, where
-/// `authorization_credentials_present` reports it about an `Authorization`.
+/// `auth_scheme_registered` reports it about an `Authorization`.
 static DECLARED: &[&ViolationDef] = &[
     &CHALLENGE_EMPTY,
     &CHALLENGE_MEMBER_EMPTY,

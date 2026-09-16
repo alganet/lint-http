@@ -5703,11 +5703,19 @@ sources:
     - file: lint-http-rules/src/violations/auth_scheme.rs
       line: 77
   - label: auth_scheme_registered
+    section: § 11.6.2
+    snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
+    cited_by:
+    - file: lint-http-rules/src/rules/auth_scheme_registered.rs
+      line: 264
+    - file: lint-http-rules/src/violations/credentials.rs
+      line: 67
+  - label: auth_scheme_registered (2)
     section: § 16.4.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 169
+      line: 204
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -5728,14 +5736,6 @@ sources:
       line: 77
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 186
-  - label: authorization_credentials_present
-    section: § 11.6.2
-    snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
-    cited_by:
-    - file: lint-http-rules/src/rules/authorization_credentials_present.rs
-      line: 131
-    - file: lint-http-rules/src/violations/credentials.rs
-      line: 67
   - label: cache_coherence
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
@@ -7047,7 +7047,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 434
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 149
+      line: 184
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 107
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
