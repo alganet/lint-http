@@ -44,9 +44,9 @@ pub fn run_rule_all(
     let Ok(resolved) = rule.prepare(cfg) else {
         return Vec::new();
     };
-    let severities = crate::rules::severities_for(rule, cfg);
-    let ctx = crate::rules::RuleContext::new(&resolved).with_violations(rule, &severities);
-    rule.findings(tx, history, &ctx)
+    let violations = crate::rules::violations_for(rule, cfg);
+    let ctx = crate::rules::RuleContext::new(&resolved).with_violations(rule, &violations);
+    ctx.reported(rule.findings(tx, history, &ctx))
 }
 
 /// Prepare `rule` under `cfg`, then dispatch one event through it — the way
@@ -63,7 +63,9 @@ pub fn run_protocol_rule(
     cfg: &crate::config::Config,
 ) -> Option<crate::lint::Violation> {
     let resolved = rule.prepare(cfg).ok()?;
-    let severities = crate::rules::severities_for(rule, cfg);
-    let ctx = crate::rules::RuleContext::new(&resolved).with_violations(rule, &severities);
-    rule.findings(event, history, &ctx).into_iter().next()
+    let violations = crate::rules::violations_for(rule, cfg);
+    let ctx = crate::rules::RuleContext::new(&resolved).with_violations(rule, &violations);
+    ctx.reported(rule.findings(event, history, &ctx))
+        .into_iter()
+        .next()
 }

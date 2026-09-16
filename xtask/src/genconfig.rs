@@ -52,7 +52,8 @@ const PREAMBLE: &str = r#"# SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigala
 # The `[violations.*]` sections after them are the defects those rules report,
 # each shown at the default severity its catalogue entry carries. They are
 # overrides: deleting one changes nothing, editing one changes what that single
-# defect reports at.
+# defect reports at. Each also takes `enabled = false`, which stops that one
+# defect being reported while the rest of its rule keeps working.
 
 [general]
 listen = "127.0.0.1:3000"

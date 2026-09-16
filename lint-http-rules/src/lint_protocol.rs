@@ -37,8 +37,8 @@ impl PreparedEngine {
             });
 
             let ctx = crate::rules::RuleContext::new(&prepared.resolved)
-                .with_violations(prepared.rule, &prepared.severities);
-            out.extend(prepared.rule.findings(event, history, &ctx));
+                .with_violations(prepared.rule, &prepared.violations);
+            out.extend(ctx.reported(prepared.rule.findings(event, history, &ctx)));
         }
 
         out

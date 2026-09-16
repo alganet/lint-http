@@ -24,26 +24,26 @@ use crate::rules::{ProtocolRule, Rule};
 /// Dispatch borrows `resolved` into a [`crate::rules::RuleContext`] per
 /// transaction — no per-dispatch config reads.
 ///
-/// `severities` is the same resolution for the defects the rule declares, one
-/// per [`crate::rules::RuleMeta::violations`] entry. It sits *beside*
-/// `resolved` rather than inside it because `prepare` is the rule's own hook
-/// and 17 rules implement it: reading the catalogue here is what keeps the
-/// trait, and those rules, out of it.
+/// `violations` is the same resolution for the defects the rule declares — the
+/// severity each reports at, and whether each reports at all — one entry per
+/// [`crate::rules::RuleMeta::violations`] entry. It sits *beside* `resolved`
+/// rather than inside it because `prepare` is the rule's own hook and 17 rules
+/// implement it: reading the catalogue here is what keeps the trait, and those
+/// rules, out of it.
 struct PreparedRule {
     rule: &'static dyn Rule,
     query: Option<crate::queries::QueryType>,
     resolved: crate::rules::ResolvedRule,
-    severities: Vec<crate::lint::Severity>,
+    violations: Vec<crate::rules::ResolvedViolation>,
 }
 
 /// One enabled protocol rule with its configuration resolved by its own
-/// `prepare` at construction, and the severities of the defects it declares
-/// resolved beside it. Dispatch borrows both into a
+/// `prepare` at construction, and the defects it declares resolved beside it. Dispatch borrows both into a
 /// [`crate::rules::RuleContext`] per event — no per-event config reads.
 pub(crate) struct PreparedProtocolRule {
     pub(crate) rule: &'static dyn ProtocolRule,
     pub(crate) resolved: crate::rules::ResolvedRule,
-    pub(crate) severities: Vec<crate::lint::Severity>,
+    pub(crate) violations: Vec<crate::rules::ResolvedViolation>,
 }
 
 /// The enabled rule set for one [`Config`], precomputed once so per-transaction
@@ -88,7 +88,7 @@ impl PreparedEngine {
                         rule,
                         query: crate::rules::query_type_for(rule.id()),
                         resolved: rule.prepare(cfg)?,
-                        severities: crate::rules::severities_for(rule, cfg),
+                        violations: crate::rules::violations_for(rule, cfg),
                     })
                 })
                 .collect::<anyhow::Result<_>>()
@@ -104,7 +104,7 @@ impl PreparedEngine {
                     Ok(PreparedProtocolRule {
                         rule,
                         resolved: rule.prepare(cfg)?,
-                        severities: crate::rules::severities_for(rule, cfg),
+                        violations: crate::rules::violations_for(rule, cfg),
                     })
                 })
                 .collect::<anyhow::Result<_>>()?,
@@ -184,8 +184,8 @@ impl PreparedEngine {
             };
 
             let ctx = crate::rules::RuleContext::new(&prepared.resolved)
-                .with_violations(rule, &prepared.severities);
-            out.extend(rule.findings(tx, history, &ctx));
+                .with_violations(rule, &prepared.violations);
+            out.extend(ctx.reported(rule.findings(tx, history, &ctx)));
         }
 
         out
@@ -248,6 +248,40 @@ mod tests {
         let empty = PreparedEngine::new(&Config::default()).unwrap();
         assert_eq!(empty.enabled_full.len(), 0);
         assert_eq!(empty.enabled_protocol.len(), 0);
+    }
+
+    /// The whole path, from a `[violations.<id>]` section to a report that
+    /// does not carry the defect: engine construction, dispatch, and the drop.
+    ///
+    /// `conditional_etag_syntax` is the rule to prove it on, because it reports
+    /// its two fields independently — so this shows the drop is *exact* rather
+    /// than a rule stopping early. Both fields are malformed in different ways;
+    /// one defect is switched off and the other still reports.
+    #[test]
+    fn a_switched_off_defect_does_not_reach_the_report() {
+        let mut cfg = make_test_config_with_enabled_rules(&["conditional_etag_syntax"]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("if-match", ""),
+            ("if-none-match", "abc"),
+        ]);
+
+        let state = crate::state::StateStore::new(300, 10);
+        let both = lint_transaction(&tx, &cfg, &state);
+        assert_eq!(
+            both.iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["conditional_empty", "etag_delimiter_missing"],
+        );
+
+        crate::test_helpers::disable_violation(&mut cfg, "conditional_empty");
+        let one = lint_transaction(&tx, &cfg, &state);
+        assert_eq!(
+            one.iter().map(|v| v.violation.as_str()).collect::<Vec<_>>(),
+            vec!["etag_delimiter_missing"],
+            "the other defect of the same rule keeps reporting",
+        );
     }
 
     /// Every registered rule, dispatched once — a response-bearing and a
