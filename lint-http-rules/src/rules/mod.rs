@@ -139,15 +139,19 @@ impl<'a> RuleContext<'a> {
     ///
     /// **Which is the one thing this cannot do, and it is worth being exact
     /// about.** Switching off defect A does not promote defect B into view on a
-    /// transaction where A fired first: 178 of the 189 rule bodies end in
-    /// `Vec::from_iter(finding())` and report at most one finding per dispatch,
-    /// so the rule stopped at A and never evaluated B. *That truncation is the
-    /// rule's, not this knob's* — B was invisible on that transaction before
-    /// anything was switched off, and stays exactly as invisible. What an
-    /// operator loses by writing `enabled = false` is A, which is what they
-    /// asked to lose. For the 11 rules that push findings independently — all
-    /// of them `Rule`s, none of the seven `ProtocolRule`s — there is no
-    /// truncation at all and the drop is exact.
+    /// transaction where A fired first: almost every rule body ends in
+    /// `Vec::from_iter(finding())` and reports at most one finding per
+    /// dispatch, so the rule stopped at A and never evaluated B. *That
+    /// truncation is the rule's, not this knob's* — B was invisible on that
+    /// transaction before anything was switched off, and stays exactly as
+    /// invisible. What an operator loses by writing `enabled = false` is A,
+    /// which is what they asked to lose. The few rules that push findings
+    /// independently have no truncation at all and the drop is exact for them.
+    ///
+    /// The split was 179 single-finding bodies to 11 when this was written;
+    /// the recipe is `grep -c 'Vec::from_iter(finding())'` over `src/rules/`,
+    /// and it moves with the catalogue, so read it rather than trusting the
+    /// number.
     ///
     /// The lookup is by id rather than by identity: a [`Violation`] carries the
     /// def's id and not its address, and `declared` is 1–6 entries long. It
