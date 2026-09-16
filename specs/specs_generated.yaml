@@ -2298,7 +2298,7 @@ sources:
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 187
     - file: lint-http-rules/src/violations/method.rs
-      line: 258
+      line: 273
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
@@ -5409,7 +5409,7 @@ sources:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 186
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 377
+      line: 374
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 311
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
@@ -5422,6 +5422,8 @@ sources:
       line: 57
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 175
+    - file: lint-http-rules/src/violations/method.rs
+      line: 328
   - label: accept_patch_header_valid (7)
     section: § 9.3.7
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
@@ -5637,9 +5639,9 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 342
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 295
+      line: 292
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 353
+      line: 350
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 335
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -5675,7 +5677,7 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 245
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 319
+      line: 316
   - label: alt_svc_header_syntax
     section: § 3.7
     snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
@@ -6343,7 +6345,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 47
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 31
+      line: 32
   - label: early_data_header_safe_method (4)
     section: § 16.1.1
     snippet: Values to be added to this namespace require IETF Review
@@ -6351,7 +6353,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 50
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 32
+      line: 33
   - label: early_data_header_safe_method (5)
     section: § 9.2.1
     snippet: Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource.
@@ -6603,7 +6605,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 157
     - file: lint-http-rules/src/violations/method.rs
-      line: 276
+      line: 291
   - label: field-name grammar
     section: § A
     snippet: field-name = token field-value = *field-content
@@ -8355,7 +8357,7 @@ sources:
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created
     cited_by:
     - file: lint-http-rules/src/violations/method.rs
-      line: 241
+      line: 256
   - label: multipart_boundary_syntax
     section: § 5.6.6
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
@@ -8491,7 +8493,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 223
     - file: lint-http-rules/src/violations/method.rs
-      line: 203
+      line: 218
   - label: options_method_capabilities (4)
     section: § 9.3.7
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
@@ -8501,7 +8503,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 270
     - file: lint-http-rules/src/violations/method.rs
-      line: 223
+      line: 238
   - label: options_method_capabilities (5)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
@@ -9003,19 +9005,21 @@ sources:
     snippet: All such methods ought to be registered within the "Hypertext Transfer Protocol (HTTP) Method Registry", as described in Section 16.1.
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 33
+      line: 34
   - label: request_method_token_valid (2)
     section: § 9.1
     snippet: An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code.
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 385
+      line: 382
+    - file: lint-http-rules/src/violations/method.rs
+      line: 329
   - label: request_method_token_valid (3)
     section: § 9.1
     snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 378
+      line: 375
   - label: request_target
     section: § 7.1
     snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
@@ -9139,7 +9143,7 @@ sources:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
       line: 175
     - file: lint-http-rules/src/violations/method.rs
-      line: 168
+      line: 183
   - label: request_version_method_valid (7)
     section: § 9.3.6
     snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
@@ -9637,7 +9641,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 205
     - file: lint-http-rules/src/violations/method.rs
-      line: 187
+      line: 202
   - label: trace_method_echo (4)
     section: § 9.3.8
     snippet: A client MUST NOT send content in a TRACE request.
@@ -9647,7 +9651,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 192
     - file: lint-http-rules/src/violations/method.rs
-      line: 103
+      line: 118
   - label: trace_method_echo (5)
     section: § 9.3.8
     snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.
@@ -11064,7 +11068,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 411
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 320
+      line: 317
   - label: http2_pseudo_headers_valid (5)
     section: § 8.3.1
     snippet: The ":scheme" pseudo-header field includes the scheme portion of the request target.
@@ -11517,7 +11521,7 @@ sources:
     snippet: '":method":  Contains the HTTP method (Section 9 of [HTTP])'
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 321
+      line: 318
   - label: request_target
     section: § 4.3.1
     snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f).

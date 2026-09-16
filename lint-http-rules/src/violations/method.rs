@@ -6,10 +6,16 @@
 //! carrying it may hold.
 //!
 //! The subject is the method token, which is a protocol element rather than a
-//! field: what a method's *spelling* may be is
+//! field: which *characters* a spelling may hold is
 //! [`token`](crate::violations::token)'s, and what a message's fields say is
 //! each field's own. Here are the requirements a method definition puts on the
 //! message around it, and the part in each id is the method they belong to.
+//!
+//! **One entry is about the spelling after all, and it is the one the `token`
+//! production cannot hold.** `get` derives from `1*tchar` exactly as `GET`
+//! does; what makes it a finding is that the token is compared case-sensitively
+//! against method names, so a value that looks like a method names none. That
+//! is a question about the method and not about its characters.
 //!
 //! **Two methods so far, and they are opposites in a useful way.** `TRACE`
 //! loops the request back, so its definition is two prohibitions on what a
@@ -20,6 +26,15 @@
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+
+/// § 9.1: the method token's case-sensitivity, the all-uppercase convention,
+/// and what a server does with a method it cannot place.
+pub const RFC_9110_9_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "`method = token`, the token's case-sensitivity, the convention that standardized methods are defined in all-uppercase US-ASCII letters, and the 501 an origin server gives an unrecognized method",
+};
 
 /// TRACE: the two client MUST NOTs, and the example naming credentials and
 /// cookies.
@@ -280,6 +295,44 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_9_3_2],
+    }
+
+    /// A method token that is a registered method's name written in another
+    /// case: `get`, `Post`, `DELETE ` folded to something the deployment
+    /// expects to see spelled its own way.
+    ///
+    /// **`_invalid` because the grammar has no complaint.** `get` derives from
+    /// `1*tchar` exactly as `GET` does, and both are `method`s. What refuses it
+    /// is one level past the production: § 9.1 says the token is compared
+    /// case-sensitively — because it might be a gateway to a system with
+    /// case-sensitive method names — so a server matching method names sees an
+    /// unrecognized method here, and § 9.1 says what it does about one.
+    ///
+    /// **The convention is the evidence and not the requirement.** *"By
+    /// convention, standardized methods are defined in all-uppercase US-ASCII
+    /// letters"* is what makes a lowercase spelling recognisable as a mistake
+    /// rather than as somebody's private method; the finding rests on the
+    /// case-sensitivity sentence beside it, which is flat.
+    ///
+    /// **Only the case-variant subset is reported, and the limit is
+    /// deliberate.** An uppercase name absent from the deployment's list is very
+    /// often a private method somebody defined — `PURGE` is nobody's registry
+    /// entry — so reporting every unregistered spelling would report every
+    /// extension there is. The rule leans on a configured set of names for
+    /// exactly that reason, which is why this entry cannot be spelled
+    /// `_unregistered`: it is not asking whether the registry holds the value.
+    ///
+    /// `warn`. The request parses and is well formed; what it asks for is a
+    /// method nobody defined, and the answer it earns is a `501`.
+    ///
+    // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+    // cite(RFC 9110 § 9.1): "An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code."
+    METHOD_CASE_INVALID = {
+        id: "method_case_invalid",
+        title: "A method is a standardized name written in another case",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_9_1],
     }
 
 }
