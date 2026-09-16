@@ -5981,19 +5981,21 @@ sources:
     snippet: Tokens are short textual identifiers that do not include whitespace or delimiters.
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 100
+      line: 99
   - label: connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 126
+      line: 125
+    - file: lint-http-rules/src/violations/connection.rs
+      line: 58
   - label: Connection grammar
     section: § 7.6.1
     snippet: 'Connection        = #connection-option connection-option = token'
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 46
+      line: 49
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 180
   - label: connection_header_tokens_valid (3)
@@ -6001,19 +6003,19 @@ sources:
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 45
+      line: 48
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 242
+      line: 236
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 218
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 55
+      line: 59
   - label: Connection grammar, sender-expanded
     section: § A
     snippet: Connection = [ connection-option *( OWS "," OWS connection-option ) ]
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 74
+      line: 73
   - label: content_coding
     section: § 8.4
     snippet: Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included.
@@ -6913,7 +6915,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 108
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 125
+      line: 124
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (7)
     section: § 7.6.1
     snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
@@ -6935,7 +6937,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 177
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 136
+      line: 137
   - label: lint-http-proxy/src/proxy/websocket/handshake.rs
     section: § 15.2
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -7141,7 +7143,7 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 121
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 89
+      line: 88
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 376
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
@@ -7445,7 +7447,7 @@ sources:
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 180
     - file: lint-http-rules/src/violations/trailer.rs
-      line: 82
+      line: 84
   - label: lint-http-rules/src/helpers/field_placement.rs (6)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -7747,7 +7749,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 80
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 75
+      line: 74
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 293
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
@@ -9643,13 +9645,13 @@ sources:
     snippet: If the field is allowable in trailers; by default, it will not be
     cited_by:
     - file: lint-http-rules/src/violations/trailer.rs
-      line: 29
+      line: 31
   - label: trailer (2)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself
     cited_by:
     - file: lint-http-rules/src/violations/trailer.rs
-      line: 116
+      line: 118
   - label: trailer_fields_valid
     section: § 6.5.1
     snippet: A trailer section is only possible when supported by the version of HTTP in use and enabled by an explicit framing mechanism.
@@ -9665,7 +9667,9 @@ sources:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 118
     - file: lint-http-rules/src/violations/trailer.rs
-      line: 145
+      line: 147
+    - file: lint-http-rules/src/violations/trailer.rs
+      line: 183
   - label: trailer_fields_valid (3)
     section: § 7.6.1
     snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
@@ -9679,13 +9683,13 @@ sources:
     snippet: The "Trailer" header field (Section 6.6.2) can be sent to indicate fields likely to be sent in the trailer section, which allows recipients to prepare for their receipt before processing the content.
     cited_by:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 21
+      line: 22
   - label: trailer_header_valid (2)
     section: § 6.6
     snippet: Fields that describe the message itself, such as when and how the message has been generated, can appear in both requests and responses.
     cited_by:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 269
+      line: 267
   - label: Trailer grammar
     section: § A
     snippet: Trailer = [ field-name *( OWS "," OWS field-name ) ]

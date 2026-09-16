@@ -6,6 +6,7 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::sender_list_members;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::connection::{CONNECTION_OPTION_FORBIDDEN, RFC_9110_7_6_1};
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
@@ -24,11 +25,13 @@ pub struct ConnectionHeaderTokensValid;
 /// is not `allow_header_method_tokens_valid` with another name: a
 /// connection-option naming a field intended for all recipients of the content
 /// — `Cache-Control`, which the section names — is a well-formed token in a
-/// well-formed list that says something a sender MUST NOT say.
+/// well-formed list that says something a sender MUST NOT say. That sentence is
+/// the whole of the [`connection`](crate::violations::connection) subject.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
+    &CONNECTION_OPTION_FORBIDDEN,
 ];
 
 impl ConnectionHeaderTokensValid {
@@ -49,10 +52,6 @@ impl ConnectionHeaderTokensValid {
         headers: &hyper::HeaderMap,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        // The list's and the token's defects report through the catalogue; the
-        // sentences this field owns still emit at the rule's severity.
-        let violation = |message: String| Some(self.violation(ctx.severity, message));
-
         let value = combined_field_value_as_written(headers, "connection")?;
 
         // The field's own production, in the form the collected grammar gives a
@@ -125,9 +124,10 @@ impl ConnectionHeaderTokensValid {
             // cite(RFC 9110 § 7.6.1): "Connection options are case-insensitive."
             // cite(RFC 9110 § 7.6.1): "A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING])."
             if member.eq_ignore_ascii_case("cache-control") {
-                return violation(
+                return Some(ctx.report_with(
+                    &CONNECTION_OPTION_FORBIDDEN,
                     "Connection header lists 'Cache-Control' as a connection option; the field is intended for all recipients of the content, and RFC 9110 §7.6.1 names it as one a sender MUST NOT list".to_string(),
-                );
+                ));
             }
         }
 
@@ -148,12 +148,6 @@ impl ConnectionHeaderTokensValid {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("7.6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-    note: "The field itself: its grammar, the case-insensitivity of its options, the note that an option need not correspond to a field present in the message, and the MUST NOT this rule implements for the one field the section names",
-};
 const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("A"),
@@ -467,6 +461,10 @@ mod tests {
             "{}",
             v.message
         );
+        // The field's own entry: every other id this rule reports belongs to
+        // the list or to the token a member is written in.
+        assert_eq!(v.violation, "connection_option_forbidden");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
     }
 
     /// The values § 5.6.1.2 prints, run through the rule.

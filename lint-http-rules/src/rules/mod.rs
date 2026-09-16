@@ -1686,6 +1686,11 @@ severity = "warn"
         /// reader leaves behind: the parts of a `product` had subjects and the
         /// way they are assembled did not, so the arm was every verdict about
         /// the assembly, at both fields, waiting for one file.
+        /// **`connection_header_tokens_valid` and `trailer_header_valid` gave
+        /// up the closure both files called "the sentences this field owns"**,
+        /// which is what that phrase always meant: a list of `token`s whose
+        /// productions had subjects, and one claim apiece about what a *name*
+        /// in the list means, which did not.
         const FLOOR: usize = 2;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");

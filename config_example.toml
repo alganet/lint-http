@@ -1427,6 +1427,10 @@ severity = "info"
 # A precondition names a validator this exchange never provided
 severity = "info"
 
+[violations.connection_option_forbidden]
+# A connection-option names a field the whole chain must read
+severity = "warn"
+
 [violations.content_coding_identity_forbidden]
 # The identity coding is named where a coding belongs
 severity = "warn"
@@ -2906,6 +2910,10 @@ severity = "warn"
 [violations.trailer_field_forbidden]
 # A trailer field's definition does not permit the usage
 severity = "warn"
+
+[violations.trailer_member_invalid]
+# A Trailer declaration names a field that cannot arrive
+severity = "info"
 
 [violations.trailer_member_missing]
 # A trailer field was not named in the Trailer declaration

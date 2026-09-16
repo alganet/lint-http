@@ -9,6 +9,7 @@ use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
+use crate::violations::trailer::{RFC_9110_6_6_2, TRAILER_MEMBER_INVALID};
 use crate::violations::ViolationDef;
 
 /// The `Trailer` header field's own syntax, and the fields it may name.
@@ -31,11 +32,14 @@ pub struct TrailerHeaderValid;
 /// itself, which announces a section the recipient has finished reading, and a
 /// nomination of a connection-specific field, which does not survive the hop.
 /// Both are well-formed tokens in a well-formed list, and both are about what
-/// the name means rather than what it is.
+/// the name means rather than what it is — so both are
+/// [`TRAILER_MEMBER_INVALID`], one entry because the loss is one loss: a
+/// recipient prepared for something that is not coming.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
+    &TRAILER_MEMBER_INVALID,
 ];
 
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
@@ -58,10 +62,6 @@ impl TrailerHeaderValid {
         hdrs: &hyper::HeaderMap,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        // The list's and the token's defects report through the catalogue; the
-        // sentences this field owns still emit at the rule's severity.
-        let violation = |message: String| Some(self.violation(ctx.severity, message));
-
         let value = combined_field_value_as_written(hdrs, "trailer")?;
         let connection_val = combined_field_value_as_written(hdrs, "connection");
 
@@ -119,9 +119,10 @@ impl TrailerHeaderValid {
             //
             // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
             if member.eq_ignore_ascii_case("trailer") {
-                return violation(
+                return Some(ctx.report_with(
+                    &TRAILER_MEMBER_INVALID,
                     "Trailer header nominates 'Trailer'; a Trailer field cannot announce the trailer section it is already inside (RFC 9110 §6.5.1)".to_string(),
-                );
+                ));
             }
 
             // Scope note: this rule checks the *declaration*, and § 6.5.1's "MUST NOT
@@ -138,9 +139,12 @@ impl TrailerHeaderValid {
                 member,
                 connection_val.as_deref(),
             ) {
-                return violation(format!(
-                    "Trailer header nominates connection-specific field '{}'; it does not survive the hop, so it cannot arrive as a trailer (RFC 9110 §7.6.1)",
-                    member
+                return Some(ctx.report_with(
+                    &TRAILER_MEMBER_INVALID,
+                    format!(
+                        "Trailer header nominates connection-specific field '{}'; it does not survive the hop, so it cannot arrive as a trailer (RFC 9110 §7.6.1)",
+                        member
+                    ),
                 ));
             }
         }
@@ -159,12 +163,6 @@ impl TrailerHeaderValid {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_6_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("6.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2",
-    note: "The `Trailer` field itself: what its value means, and the SHOULD that asks a sender to write one",
-};
 const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("A"),
@@ -533,6 +531,19 @@ mod tests {
         let v = trailer(Section::Response, "Transfer-Encoding").expect("violation");
         assert!(v.message.contains("connection-specific"), "{}", v.message);
         assert!(v.message.contains("Transfer-Encoding"), "{}", v.message);
+    }
+
+    /// Two shapes of one entry: a name that announces the section it is inside
+    /// and a name that will be stripped before the section arrives. What they
+    /// share is the loss — a recipient prepared for something that is not
+    /// coming — so the id is one and the message says which was written.
+    #[rstest]
+    #[case("Trailer")]
+    #[case("Transfer-Encoding")]
+    fn a_name_that_cannot_arrive_is_one_entry(#[case] value: &str) {
+        let v = trailer(Section::Response, value).expect("violation");
+        assert_eq!(v.violation, "trailer_member_invalid", "{value}");
+        assert_eq!(v.severity, crate::lint::Severity::Info, "{value}");
     }
 
     #[rstest]
