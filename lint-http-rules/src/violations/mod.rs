@@ -19,11 +19,13 @@
 //! self-registers each one into [`REGISTERED_VIOLATIONS`] at link time.
 //! [`VIOLATIONS`] is the sorted view.
 //!
-//! The two APIs coexist while the catalogue fills: a converted site reports
-//! through [`RuleContext::report`](crate::rules::RuleContext::report), and an
-//! unconverted one still goes through
-//! [`RuleMeta::violation`](crate::rules::RuleMeta::violation) and its cited
-//! sibling, which are deleted when the last site moves.
+//! **There is one way to report now.** Every finding goes through
+//! [`RuleContext::report`](crate::rules::RuleContext::report) or its
+//! `report_with` sibling, which resolve the id, the configured severity and
+//! the citation off the def. The two methods that let a rule write a message
+//! out at the site and pass a reference beside it — `RuleMeta::violation` and
+//! `RuleMeta::cited` — coexisted with these while the catalogue filled and were
+//! deleted with the last site that called them.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;

@@ -130,11 +130,12 @@ impl<'a> RuleContext<'a> {
     /// for it.
     ///
     /// The def carries the wording and the sentence it enforces, so naming the
-    /// defect names both. That is the difference from [`RuleMeta::violation`]
-    /// and [`RuleMeta::cited`], where the message is written out at the site
-    /// and the citation is a second argument beside it: there, two sites
-    /// reporting the same defect agree only by having been written the same
-    /// way, and an operator has no name for what they share.
+    /// defect names both. That was the difference from the two methods this
+    /// replaced — `RuleMeta::violation` and its cited sibling, deleted with the
+    /// last site that called them — where the message was written out at the
+    /// site and the citation was a second argument beside it: there, two sites
+    /// reporting the same defect agreed only by having been written the same
+    /// way, and an operator had no name for what they shared.
     ///
     /// # Panics
     ///
@@ -417,63 +418,6 @@ pub trait RuleMeta: Send + Sync {
         })
     }
 
-    /// Build one of this rule's findings.
-    ///
-    /// `Violation.rule` is the rule id, so a constructor for it needs `self.id()`
-    /// — which is why seven rules had each written this out privately, where
-    /// `id()` already was in scope. Four were byte-identical, one differed only
-    /// in argument order, and two took a whole config struct in order to read
-    /// `severity` off it. That is the argument for the extraction and not merely
-    /// its occasion: seven copies of one four-line body had already grown three
-    /// signatures.
-    ///
-    /// The parameters follow the struct's own field order: `rule` comes from
-    /// `self`, then `severity`, then `message`. A rule whose severity lives in a
-    /// custom config section passes `config.severity`; nothing here reads a
-    /// config, because the trait cannot know the shape of one.
-    ///
-    /// Not generic over the message, so the trait stays object-safe — the engine
-    /// dispatches every rule through `&'static dyn Rule`.
-    ///
-    /// An inherent method of this name on a rule would shadow this one silently,
-    /// which is why `structured_headers_valid`'s private finding
-    /// builder is named for its failure rather than for what it returns.
-    fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            // A finding built this way names no defect: the message was
-            // written here rather than looked up, so there is nothing to name
-            // it by. [`RuleContext::report`] fills this in.
-            violation: String::new(),
-            severity,
-            message,
-            cite: None,
-        }
-    }
-
-    /// Build one of this rule's findings, carrying the specification text it
-    /// enforces. `spec` must be one of the rule's own
-    /// [`specifications`](RuleMeta::specifications) — a finding may only cite a
-    /// reference its rule declares, which also keeps the docs' Specifications
-    /// section covering every citable target. Checked in debug builds, so the
-    /// whole test suite enforces it.
-    ///
-    /// Attachment is per violation site and opt-in, never derived from the
-    /// rule: the median rule declares several references, and a wrong
-    /// citation is worse than none. The `// cite` comment beside the call is
-    /// the reviewer's oracle that the right one was named.
-    fn cited(&self, spec: &SpecRef, severity: crate::lint::Severity, message: String) -> Violation {
-        debug_assert!(
-            self.specifications().contains(spec),
-            "{}: a finding may only cite a spec the rule declares",
-            self.id()
-        );
-        Violation {
-            cite: Some(spec.citation()),
-            ..self.violation(severity, message)
-        }
-    }
-
     /// The defects this rule may report, and the only ones it may:
     /// [`RuleContext::report`] resolves a def against this list by identity
     /// and reads the severity at the same index, so a def missing here has no
@@ -485,15 +429,14 @@ pub trait RuleMeta: Send + Sync {
     /// The defs it names are themselves `static` for the identity lookup's
     /// sake; see [`ViolationDef`].
     ///
-    /// Empty by default, which is the true statement about a rule whose
-    /// defects have not been read out of its body yet: it declares none and
-    /// reports through [`violation`](RuleMeta::violation) and
-    /// [`cited`](RuleMeta::cited). The default is what lets the two ways of
-    /// reporting coexist for one rule at a time instead of all 193 at once,
-    /// and it goes away with the last of them.
-    fn violations(&self) -> &'static [&'static ViolationDef] {
-        &[]
-    }
+    /// **Required, with no default.** The default was `&[]` while the two ways
+    /// of reporting coexisted — a true statement about a rule whose defects had
+    /// not been read out of its body yet — and it is what let them coexist one
+    /// rule at a time instead of all 193 at once. The last site converted, so
+    /// the default went with it: a rule that declares nothing can now report
+    /// nothing, and the compiler says so at the rule rather than a gate saying
+    /// it at the catalogue.
+    fn violations(&self) -> &'static [&'static ViolationDef];
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).
     /// Defaults to `None`, which makes the generator derive the title from the
@@ -1215,17 +1158,34 @@ severity = "warn"
                 "{} missing specifications",
                 r.id()
             );
+            // A rule that declares no defect reports none: every finding goes
+            // through `report`/`report_with`, and both resolve against this
+            // list. The trait has no default for it any more, so this catches
+            // the one shape the compiler cannot — an explicit `&[]`.
+            assert!(
+                !r.violations().is_empty(),
+                "{} declares no violation",
+                r.id()
+            );
             let _ = r.examples();
             let _ = r.title();
         }
     }
 
-    /// A rule builds findings through the `violation` helper (and, later, its
-    /// cited sibling), never a struct literal: the helper is what guarantees
-    /// `Violation.rule` is the rule's own id, and it is the one place a new
-    /// field on `Violation` gets a default instead of 600 compile errors.
+    /// A rule builds findings through [`RuleContext::report`] and
+    /// [`report_with`](RuleContext::report_with), never a struct literal.
+    ///
+    /// **What the helper guarantees has grown since this test was written.** It
+    /// used to be that `Violation.rule` is the rule's own id, and that a new
+    /// field on `Violation` gets a default in one place instead of 600 compile
+    /// errors. Now it is also that every finding *names a defect* — the id, the
+    /// configured severity and the citation all come off the def, and a literal
+    /// would be a finding with none of them.
+    ///
     /// Enforced by scanning the sources because privatizing the struct's
-    /// fields would break every legitimate read downstream.
+    /// fields would break every legitimate read downstream. `-> Violation {` is
+    /// a return type and not a literal, which is the one shape the scan
+    /// permits.
     #[test]
     fn no_rule_constructs_a_violation_literal() -> anyhow::Result<()> {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
@@ -1241,7 +1201,7 @@ severity = "warn"
                 if let Some(pos) = line.find("Violation {") {
                     assert!(
                         line[..pos].ends_with("-> "),
-                        "{}:{}: findings are built with the violation() helper, not a struct literal",
+                        "{}:{}: findings are built with ctx.report/report_with, not a struct literal",
                         path.display(),
                         i + 1
                     );
@@ -1249,528 +1209,6 @@ severity = "warn"
             }
         }
         Ok(())
-    }
-
-    /// A ratchet on citation coverage, not a target: `cite` is optional by
-    /// design, and a finding whose sentence nobody has read yet is meant to
-    /// carry none rather than a guess. What this pins is the direction —
-    /// attaching a citation is progress that cannot be undone by accident, and
-    /// the number tells whoever reads the catalogue next how much is left.
-    ///
-    /// Raise the floor when a batch lands. If this fails downward, a `cited()`
-    /// site became a `violation()` one: say why in the commit or put it back.
-    ///
-    /// **Two finding sites merging into one lowers this number without losing a
-    /// citation**, and that is the only reason it has ever moved down. Twice so
-    /// far: the `Date` field's request and response readings were two copies of
-    /// the same two findings and now share one function, and `Secure` and
-    /// `HttpOnly` — one sentence each, the same defect, the same wording — are
-    /// now one site over both names. Each still cites what it cited; the count
-    /// of *sites* is not the count of sentences read, so when a duplicate
-    /// disappears, lower the floor and say which one.
-    ///
-    /// **A site converting to the violation catalogue is the second reason,**
-    /// and from here the usual one. `ctx.report`/`report_with` take their
-    /// citation from the def, so a converted site is counted by neither half
-    /// of this test: the sentence did not stop being read, it stopped being
-    /// named here. `every_violation_declares_a_spec` is the ratchet that holds
-    /// it on the other side, and this one keeps the unconverted remainder
-    /// honest until the last site goes. `cookie_path_valid`'s `Path` reading
-    /// was the first and took one cited site with it; `cookie_domain_valid`
-    /// took three more, `language_tag_syntax` one, and
-    /// `www_authenticate_challenge_syntax` the one that read the `#challenge`
-    /// list before its members were grouped, and
-    /// `authorization_credentials_present` the one that read the credentials
-    /// after the scheme, `basic_auth_base64_valid` the one that read what was
-    /// inside them, `bearer_token_syntax` the one that read the token, and
-    /// `range_and_content_range_consistent` the one that parsed the
-    /// `Content-Range` it goes on to compare, `accept_header_media_type_syntax`
-    /// the one that read a `media-range`'s parts, and — three at once, which is
-    /// what a production shared across unrelated fields costs — the `Date`,
-    /// `Sunset` and `Set-Cookie` `Expires` readings that each named § 5.6.7's
-    /// timestamp in their own field's words. `strict_transport_security_valid`
-    /// took two, and both had cited the *field's* section for a defect of a
-    /// production it imports: RFC 6797 § 6.1 names `token` and `quoted-string`
-    /// and defines neither, so the two sites had nowhere nearer to point. The
-    /// sentence saying what a token is now sits on the def; the sentence saying
-    /// that *this* field's directive name is one stays at the site, which is
-    /// what licensed the borrowing. `content_disposition_token_valid` took two
-    /// more of the same shape, both citing RFC 6266 §4.1 for a
-    /// `disposition-type` that is not there — one sentence, two spellings, and
-    /// now one def.
-    #[test]
-    fn citation_coverage_does_not_regress() {
-        /// Finding sites that name the specification sentence they enforce.
-        /// The rest are the per-rule reading that has not happened yet — the
-        /// denominator is computed below, because merges and conversions both
-        /// move it.
-        ///
-        /// It also falls when a finding *stops being made*: the "contains
-        /// non-UTF8 value" arms went as their fields began to be read as
-        /// octets, and three of them were cited — an `Authorization`, an
-        /// `Accept-Ranges` whose sentence about `token` moved onto the id the
-        /// member walk reports under, and a `Date` whose octet is now the
-        /// timestamp's own defect. The sentences are still declared by their
-        /// rules and carried by the defs; what left is the site. `Retry-After`
-        /// is the fourth: its octet is a value deriving from neither
-        /// alternative, which the rule says at a site of its own. `Age` is the
-        /// fifth, and it had cited the *field's* section for it — § 5.1 says
-        /// what the value means and nothing about an encoding, so the sentence
-        /// stays where the rule reads it and the octet answers to
-        /// `delta-seconds`. `Vary` and `Strict-Transport-Security` are the sixth
-        /// and seventh, and both had cited the *field's* section the way `Age`
-        /// did: § 12.5.5 writes `Vary = #( "*" / field-name )` and § 6.1 the STS
-        /// directive list, and neither says anything about an encoding. Each
-        /// field's octet is now `token`'s, under an id the rule already
-        /// declared.
-        ///
-        /// **Three sites can also leave together where one entry names all
-        /// three sentences.** `status_101_switching_protocols` cited RFC 9110
-        /// § 7.8, RFC 9113 § 8.6 and RFC 9114 § 4.5 at three version gates
-        /// reporting one defect; `status_101_unsolicited` names all three, so
-        /// the count of *sentences read* is unchanged and the count of sites
-        /// naming one fell by three. **Three more of that rule's went the
-        /// ordinary way** — the faces of § 7.8's MUST NOT, which had quoted one
-        /// sentence at three sites and now report one entry — and the seventh
-        /// took the rule's last site with it: § 15.2.2's definition, read for
-        /// the connection it says changed protocol, now sits on
-        /// `status_101_ignored`.
-        ///
-        /// **One more went with `request_target_asterisk_forbidden`**, which
-        /// three rules declare: the HTTP/3 site had cited § 7.1 and the HTTP/2
-        /// and HTTP/1.x ones never had, so converting three findings to one
-        /// entry cost this count exactly one. **Two more went with
-        /// `authority_userinfo_forbidden`**, one per version rule, and both had
-        /// cited — the entry names RFC 9113 § 8.3.1 and RFC 9114 § 4.3.1 and
-        /// carries neither onto a finding, so each message names its own
-        /// version's section instead. **`authority_tunnel_userinfo_forbidden`
-        /// took one more** — the HTTP/3 CONNECT site, which had cited § 4.4; the
-        /// HTTP/2 one reported the same defect unnamed, and the entry now cites
-        /// § 9.3.6 on both. **`request_target_path_missing` took two more**, one
-        /// per version rule, both cited and neither citable from the entry — the
-        /// requirement is written once per version and the entry names both
-        /// sections. **`authority_tunnel_missing` took one more and three sites
-        /// with it**: the HTTP/3 rule had asked three times whether a CONNECT
-        /// names a destination and cited § 4.4 at one of them, the HTTP/2 rule
-        /// twice and cited at neither, and one entry naming both versions'
-        /// sections answers for all five. **One more left without an entry at
-        /// all**: the HTTP/3 rule's cited report of a request naming no
-        /// `:method` was a second name for `token_empty`, which
-        /// `request_method_token_valid` makes on every version, so the site was
-        /// deleted rather than converted — a count of *cited sites* falls
-        /// whenever a duplicate is surrendered, and nothing is lost with it.
-        /// **`authority_missing` took the last of that rule's**, and this one is
-        /// the ordinary shape rather than a loss: the entry names § 4.3.1 alone,
-        /// so the finding is still cited — by the def instead of by the site.
-        /// **`status_304_metadata_forbidden` took one more of the same shape**,
-        /// and the site it left held two verdicts under one citation: the 304
-        /// half still carries § 15.4.5 from its entry, and the 1xx/204 half now
-        /// carries nothing, which is what it always was. **`upgrade_426_missing`
-        /// took the last one of this session**, and its site had cited the
-        /// *trailer* sentence rather than the requirement it reports — the entry
-        /// names § 15.5.22 and the trailer nuance stays in the message, where it
-        /// was always the aside.
-        ///
-        /// **The `via` subject took one more, and it is one site standing for
-        /// seven.** `via_header_syntax` cited § 7.6.3 once, from the arm that
-        /// reported everything the member's *assembly* got wrong — a missing
-        /// `received-by`, a second comment, trailing content, a `received-by`
-        /// spelled as the `uri-host` § B.2 removed. Four entries now hold those,
-        /// each naming the sentence it enforces, so every one of those findings
-        /// is still cited and three of them are cited by a reference the site
-        /// never carried. **A count of cited sites falls fastest where one site
-        /// was standing in for several defects**, which is the shape a
-        /// half-converted judge has by construction.
-        /// **The `range` subject took the next one, and it is the shape this
-        /// note has described three times**: `range_header_syntax` cited
-        /// § 14.1.1 once, from the arm that reported everything a *specifier*
-        /// got wrong — an octet no alternative admits, a `bytes` value in
-        /// neither numeric form, a position that is not `1*DIGIT`, a range
-        /// running backwards. Four entries hold those now, three of them naming
-        /// § 14.1.1 and one naming the unit's own section, so every one of those
-        /// findings is still cited and one of them is cited more precisely than
-        /// the site ever was.
-        /// **`alt_svc_clear_conflicting` took the next one, and it is the plain
-        /// shape**: one site, one sentence, one entry naming it. RFC 7838 § 3's
-        /// parenthetical moved from the site to the def, the finding still
-        /// carries the reference, and `alt_svc_header_syntax` — a rule with
-        /// fourteen findings this document writes about its own field — now has
-        /// no cited site left to lose.
-        /// **The `qvalue` subject took two at once, and they were the same
-        /// site in two files.** `accept_encoding_parameter_valid` and
-        /// `accept_language_weight_valid` each cited § 12.4.2 from the arm
-        /// reporting that what follows a member's `;` is not a weight — one
-        /// sentence, quoted twice, for a defect neither rule owns alone. The
-        /// entry that replaced them names the same section, so both findings
-        /// are still cited; what the count lost is the *duplication*, which is
-        /// the one thing this floor cannot tell apart from a regression.
-        /// **`accept_header_media_type_syntax` gave up its last two**, both
-        /// § 12.5.1's and both moved onto the `media_range` subject the commit
-        /// opened — a wildcard type beside a concrete subtype, and a parameter
-        /// written past the weight. The rule now cites nothing at a finding
-        /// site and every one of its findings carries a reference, which is the
-        /// end state this ratchet is counting down *to* rather than a fall.
-        /// **The `accept_ranges` subject took two more of the same kind.** Both
-        /// were § 14.3 and § 14.2 cited from `accept_ranges_and_206_consistent`,
-        /// for a `none` in a `206` and for a unit the response used and did not
-        /// advertise; the entries that hold them name § 14.3 and every one of
-        /// those findings still carries a reference.
-        /// **And `accept_ranges_on_partial_content` gave up its last two to a
-        /// single entry**, which is the shape worth noticing here: two cited
-        /// sites became one def, so the count falls by two while the number of
-        /// *defects* named falls by one. A floor on sites cannot see a merge,
-        /// which is the second thing on this list it cannot tell apart from a
-        /// regression.
-        /// **The `if_range` subject took three at once**, all § 13.1.5 cited
-        /// from `conditional_headers_consistent` — a field sent with no
-        /// `Range`, a weak entity-tag, and a value that chose neither
-        /// alternative. Three entries name the same section, so all three
-        /// findings keep their reference.
-        /// **`digest_auth_valid` gave up its last one and now carries none.**
-        /// It cited RFC 7616 § 3.4 from the arm reporting a parameter written
-        /// in the syntax its own definition refuses; the entry that replaced it
-        /// names the same section, and so do the two beside it — so the rule
-        /// has *more* cited findings after the fall than before it, which is
-        /// the difference between counting sites and counting defects.
-        /// **`digest_auth_nonce_handling` gave up the last three of the auth
-        /// cluster's**, all RFC 7616 — § 3.3 for an `opaque` returned changed
-        /// and for the count a `stale` challenge restarts, § 3.4 for the count
-        /// a server reads as a replay. Two of the entries that replaced them
-        /// name one section each and keep their reference; the third names two
-        /// and keeps none, which is the trade an entry makes when one defect
-        /// has two governing sentences.
-        /// **`quic_transport_parameters_valid` gave up five**, which is the
-        /// largest single fall on this list and the least interesting: it cited
-        /// § 18.2 and § 6.1 and § 6.2 from six sites over four defects, so the
-        /// entries that replaced them carry the same three sections across four
-        /// ids. One of the six was deleted outright — a zero on the one window
-        /// HTTP/3 never opens — and that is the only finding this rule lost.
-        /// **`expires_and_cache_control_consistent` gave up two**, both § 5.3
-        /// cited from two of the four arms reporting one disagreement. The
-        /// entry that holds all four names that section, so the two findings
-        /// that were cited still are and the two that were not now are too.
-        /// **`early_data_header_safe_method` gave up three**, all § 5.1, and
-        /// all three of the entries holding them name that section — so the
-        /// fall is three sites becoming three defs with the same reference,
-        /// which is this list's most common shape and the one it exists to
-        /// distinguish from a loss.
-        /// **`status_code_semantics` gave up one and gained four.** Its single
-        /// cited site was § 11.7.1, and the entry that holds it names that
-        /// section — while the four findings beside it, which cited nothing,
-        /// now carry § 15.5.2 and § 15.5.8 from the two entries they collapsed
-        /// into. The count falls by one and the rule's *cited findings* go from
-        /// one to five.
-        /// **`cookie_lifecycle` gave up its one**, § 5.3 from the arm reporting
-        /// a cookie the store should have evicted; the entry that holds it
-        /// names § 5.3 and § 5.4 together, so that finding trades its citation
-        /// for an entry naming both sentences it fails — the shape 2.204's
-        /// note describes, seen once more.
-        /// **`host_header` gave up two and every one of its four findings is
-        /// cited now.** § 9112 3.2 and RFC 3986 § 3.2.2 came off two sites and
-        /// went onto two entries that name them, while the two findings beside
-        /// them — a request with no authority anywhere, and a repeated field
-        /// line — carried nothing and now carry § 7.2 and § 5.3. A rule can
-        /// leave this count and arrive with more references than it had.
-        /// **`content_location_and_uri_consistent` did it again**, giving up
-        /// its one § 8.7 site while three findings that cited nothing picked up
-        /// § 8.7, § 4.1 and § 5.3. Twice in two commits, which is enough to say
-        /// plainly: *this floor measures a construct, not coverage.* The
-        /// coverage number is the one on the entries.
-        /// **`access_control_allow_credentials_when_origin` gave up two**, both
-        /// Fetch § 4.10 — one for the value the CORS check compares against
-        /// `true`, one for the step that makes `*` and credentials mutually
-        /// exclusive. Both entries that replaced them name § 4.10, and the rule
-        /// keeps the third quote of that section for itself: the step that says
-        /// where the field is read at all, which is the statement the *rule*
-        /// makes rather than one of the two it enforces.
-        /// **The two `websocket_frame_*` rules gave up two between them**, and
-        /// this pair is the clearest case yet of the distinction above: each
-        /// rule cited one sentence from one site, and the four entries that
-        /// replaced them carry § 5.1 and § 5.2 across four ids — so two cited
-        /// findings become four. What stayed in the rules is the *recipient's*
-        /// MUST beside the wording that states it, and the production that says
-        /// what a zero means, which are the rules' own statements.
-        /// **`http3_max_push_id` gave up two**, both § 7.2.7 and both from the
-        /// only rule that reads that frame; the two entries replacing them name
-        /// that same section, so the fall is two sites becoming two defs with
-        /// the same reference — this list's most common shape.
-        /// **`http3_settings_frame` gave up two**, § 7.2.4.1 and § 7.2.4, and
-        /// the three entries replacing them name those two sections — so the
-        /// third finding, a duplicate frame that cited nothing, is cited now.
-        /// The rule keeps the § 11.2.2 quote on the reserved-identifier table
-        /// it transcribes, which is the rule's own statement rather than a
-        /// requirement any entry enforces.
-        /// **`problem_details_content_type` gave up its one**, RFC 9457 § 1,
-        /// and the entry holding it names that section — while the three
-        /// findings of the rule beside it, which cited nothing through a shared
-        /// message builder, now carry RFC 8259 § 2 and RFC 9457 § 3. One site
-        /// off the count, four cited findings on.
-        /// **`redirect_status_and_location_valid` gave up its one**, § 10.2.2,
-        /// and the entry holding it names that section — so the finding is
-        /// cited exactly as it was. The rule beside it lost nothing here and
-        /// gained nothing: `location_missing` names the five sections that
-        /// state it, one per status, so no finding of it may carry one — the
-        /// same trade `field_connection_specific_forbidden` makes, seen at a
-        /// status instead of a protocol version.
-        /// **`status_3xx_vs_request_method` gave up one and gained two.** Its
-        /// single cited site was § 9.3.3, the `303` clause its *message*
-        /// offers, which is advice about a repair rather than the sentence the
-        /// finding rests on — that quote stays at the site. The two entries
-        /// that replaced the finding name § 15.4.2 and § 15.4.3, one per
-        /// status, so each finding now cites the sentence that governs it.
-        /// **`redirect_chain_valid` gave up its one**, § 15.4, and the entry
-        /// holding it names that section — one site off the count, one finding
-        /// cited exactly as it was.
-        /// **And one fall is a rule leaving the tree.** `http3_status_code_valid`
-        /// was deleted: its last check reported a `101` over HTTP/3 behind a
-        /// gate narrower than the one `status_101_switching_protocols` already
-        /// applies to the same message, so every finding it could make was
-        /// already made — with the *same* section quoted. Nothing lost a
-        /// citation here; a duplicate stopped being counted twice.
-        /// **`retry_after_status_valid` gave up its one**, § 10.2.3, and the
-        /// entry holding it names that section — one site off, the same finding
-        /// cited from the entry instead of from the site.
-        /// **`status_103_early_hints_before_final` gave up one and both of its
-        /// findings are cited now**: the § 15.2 site became an entry naming that
-        /// section, and the finding beside it — an interim response standing
-        /// where the final one goes, which cited nothing — picked up § 15.
-        /// **`vary_header_cache_valid` gave up its one**, RFC 9111 § 4.1, and
-        /// the entry holding it names that section — while the rule beside it,
-        /// which cited nothing, now carries the same section from the entry it
-        /// declares on a different subject.
-        /// **The four cache-enforcement rules gave up six between them** —
-        /// `no_store_enforced` two, `private_cache_visibility` two,
-        /// `must_revalidate_enforced` and `no_cache_revalidation` one each —
-        /// and the four entries that replaced them name the same four
-        /// directive sections. This is the shape the list exists to
-        /// distinguish from a loss, at its largest so far: six sites become
-        /// four defs, and every finding keeps the reference it had.
-        /// **The three freshness rules gave up one each**, § 5.2.2.10 and
-        /// RFC 8246 § 2 twice, and the three entries replacing them name those
-        /// same sections — one of them named by two entries, since one sentence
-        /// of § 2 says what `immutable` asks and the next says the window it
-        /// asks it in.
-        /// **`cache_control_present` and `status_and_caching_semantics` gave up
-        /// one each**, and the second is the shape worth noticing: it cited
-        /// RFC 9111 § 3 — the sentence saying when a cache may store at all —
-        /// and the entry that replaced it names RFC 9110 § 15.1 instead, the
-        /// list of heuristically cacheable statuses. *A finding can end up
-        /// better cited than its site was*, because a def has to name the
-        /// sentence the defect fails and a site only has to name one nearby.
-        /// **`cache_control_and_pragma_consistent` gave up its one** and both
-        /// of its findings are cited now: the § 5.4 site became an entry naming
-        /// that section, and the contradiction beside it — which cited nothing
-        /// — names the same section from its own entry.
-        /// **`cache_validation_chain` gave up two and its entry names
-        /// nothing**, which is the one shape on this list that *is* a loss and
-        /// is still right: no sentence requires a client to condition on the
-        /// latest validator it was given, so the two § 4.3.1 sites were citing
-        /// a section near the heuristic rather than one behind it. The quotes
-        /// stay in the rule, where they describe how it reads history.
-        /// **`content_type_present` and `charset_present` gave up one each**,
-        /// and the second is a *better* reference rather than the same one: it
-        /// cited an MDN page, and the entry that replaced it names RFC 9110
-        /// § 8.3.2 — the section that says what a `charset` is for and asks for
-        /// nothing, which is exactly the footing the finding stands on.
-        /// **Three policy rules gave up nothing here** —
-        /// `user_agent_present`, `clear_site_data_present` and
-        /// `etag_or_last_modified_present` all reported through
-        /// `self.violation`, so the count does not move, and two of their three
-        /// findings are cited now where none was.
-        /// **`x_content_type_options_present` gave up its one**, Fetch § 3.6,
-        /// and both of its entries name that section — so the finding beside
-        /// the cited one, which cited nothing, is cited too.
-        /// **`content_transfer_encoding_valid` gave up its one**, RFC 9112
-        /// App. B.5, and the entry holding it names that appendix — the last
-        /// of the five traps this campaign recorded against borrowing
-        /// `token`'s ids, closed by finding that the def was never about the
-        /// value at all.
-        /// **`proxy_connection_discouraged` gave up its one**, RFC 9112
-        /// App. C.2.2, and the entry holding it names that appendix — the same
-        /// section, from the entry instead of the site.
-        /// **`trace_method_echo` and `options_method_capabilities` gave up one
-        /// each, and all four of their findings are cited now**: each rule had
-        /// one cited site and one that cited nothing, and the four entries
-        /// replacing them name § 9.3.8 and § 9.3.7 two apiece.
-        /// **`cookie_domain_matching` gave up two and only one of them became
-        /// an entry**: its path arm was a duplicate of `cookie_lifecycle`'s and
-        /// was deleted, so one § 5.4 site is gone from the count with nothing
-        /// standing in for it — which is correct, since the finding it made is
-        /// still made, by the rule that owns it.
-        /// **`structured_headers_valid` gave up one site that stood behind
-        /// every finding it made**: one `cited` call wrote § 4.2's discard
-        /// sentence into all of them, and the two entries replacing it carry
-        /// that sentence and the ASCII-conversion step before it.
-        /// **`priority_and_cacheability_consistent` gave up its only one**,
-        /// and it is the first converted rule whose remaining `// cite` had to
-        /// be *found* rather than left behind: the rule's whole enforcement was
-        /// one § 5 sentence, so what stays at the site is the opening clause of
-        /// it that scopes the rule to responses.
-        /// **`permissions_policy_directives_valid` gave up its one**, and the
-        /// entry that replaced it is the production's rather than the field's:
-        /// what the site cited was RFC 9651 § 4.2's discard rule, which is what
-        /// `structured_field_character_forbidden` was opened on.
-        /// **`max_age_directive_valid` gave up two and only one became an
-        /// entry**, which is `cookie_domain_matching`'s shape again: its stale
-        /// arm was a narrower window on `cached_validators_reused`'s finding
-        /// and went with its § 4.3 citation, and the arm that stayed reports
-        /// through an entry naming no sentence — RFC 9111 offers fresh reuse as
-        /// an efficiency rather than owing it.
-        /// **`authentication_failure_loop` gave up its one**, and the entry
-        /// carries the same § 15.5.2 the site did — a section this catalogue
-        /// already pointed at for the challenge MUST, now naming the SHOULD
-        /// beside it as well.
-        /// **`request_version_method_valid` gave up two and only one of them
-        /// stayed cited**: the GET/HEAD/DELETE entry names three sections
-        /// because one paragraph is printed three times, and a def naming
-        /// several carries none onto its findings — which is the right answer
-        /// and not a loss, since the message names the section it read.
-        /// **`refresh_header_syntax` gave up its one**, and what replaced it is
-        /// three entries and a borrow: the value's structure, the URL slot left
-        /// blank, the URL itself, and RFC 9110 § 5.3's repeated field line,
-        /// which this rule had been wording in HTML's terms.
-        /// **`media_type_suffix_valid` gave up two**, and the two mirrors it
-        /// declares — a `+` with nothing after it and a `+` with nothing before
-        /// it — now name § 4.2 apiece where one site cited it and the other
-        /// cited nothing.
-        /// **`range_request_and_caching` gave up three and wrote two entries**,
-        /// which is the shape a rule reaches when one of its findings was
-        /// already in the catalogue: the third is
-        /// `conditional_validator_conflicting`, shared with
-        /// `cache_validation_chain` on disjoint fields.
-        /// **`cache_coherence` gave up its one**, to the first entry in this
-        /// catalogue whose subject is a *cache* rather than a field: § 4.2.4
-        /// states a requirement no message carries, and what the rule sees is
-        /// its observable consequence.
-        /// **The two CORS origin rules gave up three between them**, and they
-        /// are the first commit of the *site* sweep rather than the rule
-        /// sweep: every rule declares now, and what is left is the arms that
-        /// converted rules kept back. 68 sites at 2.273, 61 after this.
-        /// **The four `sec_fetch_*` value rules gave up five cited sites and
-        /// six uncited ones**, and the entries replacing the two shared ones
-        /// name no sentence at all: four rules declare them and each states a
-        /// different section of one document, so there is none they all state.
-        /// **The three `cross_origin_*` policy rules gave up three cited sites
-        /// and three uncited ones**, and one of the four entries replacing them
-        /// names no sentence on purpose: `unsafe-none` is a *valid* embedder
-        /// policy, so what refuses it is this crate's preference and a
-        /// reference there would dress a preference as a requirement.
-        /// **`etag_syntax` gave up the last cited site that stood for a value
-        /// the catalogue could already have named** — an `ETag: *` is the
-        /// wildcard the conditional fields take, and reporting it as a quoted
-        /// string with no DQUOTEs describes the octets instead of the mistake.
-        /// **`sunset_and_deprecation_consistent` gave up one to an entry on the
-        /// field the MUST NOT is addressed to** — the `Sunset`, not the
-        /// `Deprecation` the rule is named after first.
-        /// **`date_and_time_headers_consistent` gave up its one**, and the
-        /// three entries it now declares are one shape read three ways: two
-        /// timestamps in a message that cannot both be right.
-        /// **`forwarded_header_valid` gave up no cited site and every uncited
-        /// one**, which is the shape to expect from here: what a converted rule
-        /// keeps back is the arm nothing else could name, and this one was
-        /// waiting on a subject for §4's own grammar.
-        /// **`form_data_content_disposition_valid` gave up the last cited site
-        /// of a requirement one document states about a position another
-        /// defines**: RFC 7578 § 4.2 asks a `multipart/form-data` *part* for a
-        /// `name`, and what a linter with no body parser reads is RFC 6266's
-        /// message-level field — so the entry is the field's, and only where an
-        /// operator meets it changes.
-        /// **The two legacy security fields gave up two cited sites and one
-        /// uncited one**, and one of the three entries replacing them names no
-        /// document at all: `X-XSS-Protection` was a browser feature that no
-        /// standards body ever wrote down, and the value set this crate accepts
-        /// is narrower than the one the description of it records — so a
-        /// reference would say a document refuses `1` when none does.
-        /// **`server_header_product_valid` and `user_agent_token_valid` gave up
-        /// the `None` arm of one shared mapping**, which is what an unconverted
-        /// reader leaves behind: the parts of a `product` had subjects and the
-        /// way they are assembled did not, so the arm was every verdict about
-        /// the assembly, at both fields, waiting for one file.
-        /// **`connection_header_tokens_valid` and `trailer_header_valid` gave
-        /// up the closure both files called "the sentences this field owns"**,
-        /// which is what that phrase always meant: a list of `token`s whose
-        /// productions had subjects, and one claim apiece about what a *name*
-        /// in the list means, which did not.
-        /// **`referer_uri_valid` gave up six branches behind one closure**, and
-        /// only four of them needed an entry: the repeated field line is
-        /// § 5.3's about the message, the malformed authority is the
-        /// `uri-host [ ":" port ]` reader's, and what was left is the field's
-        /// own — every one of it about disclosure rather than about the
-        /// reference being well formed.
-        /// **`location_header_uri_valid` gave up the sibling pair of those**,
-        /// one field over and reading the same production: a second field line
-        /// and an empty reference, neither of them a defect the URI has.
-        /// **`alt_svc_h3_advertisement_valid` gave up a cited site to a subject
-        /// that is not the field's**: what is wrong with `h3-29` is the ALPN
-        /// protocol *name* it decodes to, and that name is the same name
-        /// whichever carrier held it.
-        /// **`from_header_email_syntax` gave up a site that needed no entry at
-        /// all** — the fifth singleton to report `field_line_duplicated`, and
-        /// the one whose *reason* is sharpest: the other four join into
-        /// something malformed or into a reference naming the wrong resource,
-        /// and this one joins into a well-formed production of the same
-        /// document that the field does not import.
-        /// **`timing_allow_origin_valid` gave up a site to a *reader* rather
-        /// than to an entry**: its bool predicate could only say no, so a
-        /// member with a path, a member whose scheme is not a scheme name and a
-        /// member holding an octet no URI is composed from all arrived as one
-        /// verdict — and the typed reader the `Origin` rules already call names
-        /// each of them, with no new def anywhere.
-        ///
-        /// **`request_method_token_valid` gave up the last one, and this
-        /// ratchet has reached the bottom of its range.** `cited` is 0 and
-        /// `self.cited(` has no caller left in `src/rules/`, so what this test
-        /// can still catch is a *new* one appearing — which is the shape it was
-        /// always going to end in, and the reason it stays until the flag day
-        /// deletes the method it counts. The window this gate exists to close
-        /// is covered from the other side meanwhile:
-        /// `every_violation_declares_a_spec` is an upward ratchet on the defs,
-        /// and every sentence that left a site arrived on one.
-        ///
-        /// So the floor is spent and the assertion below is an equality: a
-        /// `>= 0` on a `usize` is a comparison clippy is right to refuse, and
-        /// the honest reading of a bottomed-out ratchet is that the number may
-        /// no longer move at all.
-        const CITED_SITES: usize = 0;
-
-        /// The other half, and the gate the plan has been calling
-        /// `no_rule_builds_a_finding_outside_report`: a **downward ceiling** on
-        /// the sites still building a finding without naming a defect. It is
-        /// written here rather than beside it because the two numbers come from
-        /// one walk of one directory, and a second walk would only be able to
-        /// disagree with this one.
-        ///
-        /// **It reached `0` two commits after it was written, so both halves
-        /// are absolute now**: no rule builds a finding outside `report` or
-        /// `report_with`, and neither number may move. What is left for the
-        /// flag day is deleting the two methods this counts, which is a change
-        /// to the trait rather than to any rule.
-        const UNCITED_SITES: usize = 0;
-
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
-        let mut cited = 0;
-        let mut uncited = 0;
-        for entry in std::fs::read_dir(&dir).expect("cannot read src/rules") {
-            let path = entry.expect("a directory entry").path();
-            if path.extension().is_none_or(|e| e != "rs")
-                || path.file_name().is_some_and(|n| n == "mod.rs")
-            {
-                continue;
-            }
-            let src = std::fs::read_to_string(&path).expect("a rule file");
-            // Before the test module: a fixture is not a finding site.
-            let body = src.split("#[cfg(test)]").next().unwrap_or(&src);
-            cited += body.matches("self.cited(").count();
-            uncited += body.matches("self.violation(").count();
-        }
-        assert_eq!(
-            cited, CITED_SITES,
-            "{cited} finding sites cite a specification directly; the count reached 0 and may not move"
-        );
-        assert!(
-            uncited == UNCITED_SITES,
-            "{uncited} finding sites still build a violation without naming a defect, above the ceiling of {UNCITED_SITES}"
-        );
     }
 
     #[test]
@@ -2189,6 +1627,12 @@ severity = "warn"
 severity = "warn"
 "#
             }
+
+            // Required of every rule since the flag day, and a fixture is no
+            // exception: this one reports nothing, and says so.
+            fn violations(&self) -> &'static [&'static ViolationDef] {
+                &[]
+            }
         }
         impl Rule for DummyRule {
             fn findings(
@@ -2255,37 +1699,6 @@ severity = "warn"
             .find(|r| r.id() == "host_header")
             .expect("host_header registered");
         assert!(rule.prepare(&cfg).is_err());
-    }
-
-    #[test]
-    fn cited_attaches_a_declared_spec() {
-        let rule = RULES
-            .iter()
-            .find(|r| r.id() == "host_header")
-            .expect("host_header registered");
-        let spec = &rule.specifications()[0];
-        let v = rule.cited(spec, crate::lint::Severity::Warn, "m".to_string());
-        let cite = v.cite.expect("citation attached");
-        assert_eq!(cite.spec, spec.spec);
-        assert_eq!(cite.section.as_deref(), spec.section);
-        assert_eq!(cite.url, spec.url);
-        assert_eq!(v.rule, "host_header");
-    }
-
-    #[test]
-    #[should_panic(expected = "may only cite a spec the rule declares")]
-    fn cited_refuses_a_spec_the_rule_does_not_declare() {
-        let rule = RULES
-            .iter()
-            .find(|r| r.id() == "host_header")
-            .expect("host_header registered");
-        let foreign = SpecRef {
-            spec: "RFC 0000",
-            section: None,
-            url: "https://example.com/",
-            note: "",
-        };
-        let _ = rule.cited(&foreign, crate::lint::Severity::Warn, "m".to_string());
     }
 
     /// A defect that always reads the same way, and cites the sentence it
