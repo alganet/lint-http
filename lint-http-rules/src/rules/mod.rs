@@ -1710,6 +1710,12 @@ severity = "warn"
         /// something malformed or into a reference naming the wrong resource,
         /// and this one joins into a well-formed production of the same
         /// document that the field does not import.
+        /// **`timing_allow_origin_valid` gave up a site to a *reader* rather
+        /// than to an entry**: its bool predicate could only say no, so a
+        /// member with a path, a member whose scheme is not a scheme name and a
+        /// member holding an octet no URI is composed from all arrived as one
+        /// verdict — and the typed reader the `Origin` rules already call names
+        /// each of them, with no new def anywhere.
         const FLOOR: usize = 1;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");

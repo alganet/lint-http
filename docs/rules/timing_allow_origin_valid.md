@@ -20,9 +20,11 @@ serializations.
 
 - [Resource Timing §3.5.2](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin): `Timing-Allow-Origin` response header and its ABNF
 - [Fetch §3.2](https://fetch.spec.whatwg.org/#origin-header): `origin-or-null` and `serialized-origin`, the productions the grammar's members resolve to (`null` is case-sensitive)
-- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Historical serialized-origin shape (`scheme "://" host [ ":" port ]`) the conservative validator implements; Fetch supplants the serialization
+- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Origin header field syntax — `origin-list-or-null` is the literal `null` or a list of `serialized-origin`, and a `serialized-origin` is a scheme, `://`, a host and an optional port, with no path component
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): The values a `1#element` production does not generate — the empty value among them — beside the recipient's instruction to ignore empty elements
+- [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
+- [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters — the limited set a URI is composed from, every other octet being percent-encoded before the reference is formed
 
 ## Configuration
 

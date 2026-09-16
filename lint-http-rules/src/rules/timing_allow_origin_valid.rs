@@ -7,6 +7,13 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
+use crate::violations::origin::{
+    origin_defect, ORIGIN_MALFORMED, ORIGIN_PATH_FORBIDDEN, RFC_6454_7_1,
+};
+use crate::violations::uri::{
+    RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
+    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+};
 use crate::violations::ViolationDef;
 
 pub struct TimingAllowOriginValid;
@@ -20,10 +27,31 @@ pub struct TimingAllowOriginValid;
 /// the empty element a sender must not generate. A W3C document borrowing the
 /// construct borrows its defects with it.
 ///
-/// What stays this rule's own is what a *member* is — a serialized origin, the
-/// case-sensitive `null`, the wildcard — which Fetch defines and this catalogue
-/// has no subject for.
-static DECLARED: &[&ViolationDef] = &[&LIST_MEMBER_MISSING, &LIST_MEMBER_EMPTY];
+/// **A member is a serialized origin, and that is not this rule's either.** The
+/// two literals the grammar admits beside it — the case-sensitive `null` and
+/// the wildcard — are members no reading can fail, so what is left to measure
+/// is the production the `Origin` field is written in, read here by the same
+/// typed reader those rules call. The bool predicate this replaced could only
+/// say *no*: a member with a path, a member whose scheme is not a scheme name
+/// and a member holding an octet no URI is composed from all arrived as one
+/// verdict, where the reader names each of them.
+///
+/// So the entries below the list's two are the ones `origin_matching_for_cors`
+/// reports, and this is the third rule to read an origin. **The reference to
+/// RFC 6454 § 7.1 comes with them**: that section is where a serialized origin
+/// is defined, and a finding saying a member is not one cites the sentence that
+/// says what one is — the historical shape Fetch supplants and this reader
+/// still implements.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_MISSING,
+    &LIST_MEMBER_EMPTY,
+    &ORIGIN_MALFORMED,
+    &ORIGIN_PATH_FORBIDDEN,
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &URI_CHARACTER_FORBIDDEN,
+];
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
@@ -38,12 +66,6 @@ const FETCH_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("3.2"),
     url: "https://fetch.spec.whatwg.org/#origin-header",
     note: "`origin-or-null` and `serialized-origin`, the productions the grammar's members resolve to (`null` is case-sensitive)",
-};
-const RFC_6454_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6454",
-    section: Some("7.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
-    note: "Historical serialized-origin shape (`scheme \"://\" host [ \":\" port ]`) the conservative validator implements; Fetch supplants the serialization",
 };
 
 impl RuleMeta for TimingAllowOriginValid {
@@ -72,6 +94,8 @@ severity = "warn"
             RFC_6454_7_1,
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_1_2,
+            RFC_3986_3_1,
+            RFC_3986_2,
         ]
     }
 
@@ -205,14 +229,17 @@ impl Rule for TimingAllowOriginValid {
                         continue;
                     }
 
-                    // Anything else must be a serialized origin; the helper owns the
-                    // grammar it is validated against.
-                    if !crate::helpers::uri::is_valid_serialized_origin(m) {
-                        return Some(self.violation(
-                            ctx.severity,
+                    // Anything else must be a serialized origin, and the typed
+                    // reader is what says which way it is not one — the same
+                    // reader `origin_matching_for_cors` calls, so a path after
+                    // the authority draws the same id here as it does there.
+                    if let Err(defect) = crate::helpers::uri::validate_origin_value(m) {
+                        return Some(ctx.report_with(
+                            origin_defect(defect),
                             format!(
-                                "Timing-Allow-Origin contains invalid origin: '{}'",
-                                crate::helpers::shown::shown_in_finding(m)
+                                "Timing-Allow-Origin contains invalid origin: '{}' ({})",
+                                crate::helpers::shown::shown_in_finding(m),
+                                defect.message()
                             ),
                         ));
                     }
@@ -453,6 +480,32 @@ mod tests {
         );
         let v = v.unwrap_or_else(|| panic!("expected violation for '{}'", val));
         assert!(v.message.contains("invalid origin"));
+    }
+
+    /// The reader names which way a member is not a serialized origin, and the
+    /// ids are the ones `origin_matching_for_cors` reports for the same
+    /// production — which is what the bool predicate could not do: every row
+    /// here used to arrive as one verdict.
+    #[rstest]
+    #[case("https://a/path", "origin_path_forbidden")]
+    #[case("1http://a", "uri_scheme_leading_letter_missing")]
+    #[case("ht_tp://a", "uri_scheme_character_forbidden")]
+    #[case("https://a<b>c", "uri_character_forbidden")]
+    #[case("NULL", "origin_malformed")]
+    fn the_reader_names_which_way_a_member_is_not_an_origin(#[case] val: &str, #[case] id: &str) {
+        let rule = TimingAllowOriginValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("timing-allow-origin", val)],
+        );
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap_or_else(|| panic!("expected violation for '{val}'"));
+        assert_eq!(v.violation, id, "{val}");
     }
 
     #[test]
