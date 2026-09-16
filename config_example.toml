@@ -2255,6 +2255,10 @@ severity = "warn"
 # A HEAD response disagrees with the GET it stands in for
 severity = "warn"
 
+[violations.method_head_content_forbidden]
+# A response to HEAD carries content octets
+severity = "error"
+
 [violations.method_options_capabilities_missing]
 # A successful OPTIONS answers with none of the capabilities it was asked for
 severity = "info"
