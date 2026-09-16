@@ -1807,6 +1807,115 @@ enabled = "true"
         }
     }
 
+    /// The defects more than one rule reports, counted and named.
+    ///
+    /// This is the overlap the split was opened against, measured from the far
+    /// side of it. Before the catalogue it could only be counted as *message
+    /// templates* — 14 exact strings emitted by two or more rules over 70
+    /// sites, one non-UTF-8 `Authorization` header drawing five byte-identical
+    /// findings under five rule ids, and nothing in the type system able to say
+    /// they were one defect. They share an id now, so the question has an
+    /// answer that survives a reworded message, and the answer is **109**:
+    /// seven and a half times what the template count could see.
+    ///
+    /// **The difference is not overlap that appeared; it is overlap that
+    /// became visible.** A template count compares strings, so it sees two
+    /// rules as duplicating only where they duplicate down to the wording.
+    /// Most of these 109 are a *shared reader*: `token_character_forbidden` is
+    /// declared by 42 rules because 42 rules parse a token, and each of them
+    /// formatted its own sentence about it. That is the split working — one
+    /// defect, one id, one severity to tune it with — and those 42 rules read
+    /// 42 different fields and will never merge.
+    ///
+    /// So this is a ceiling and not a countdown. It falls when a merge lands.
+    /// It rises only for a rule that reaches for a reader an existing rule
+    /// already uses, which is a commit that should have to say so — the number
+    /// here is the count of defects an operator can be shown twice for one
+    /// seam, and Phase 5's dedup is sized by it.
+    #[test]
+    fn no_violation_is_emitted_by_two_rules() {
+        /// Read from what the assertion prints, never incremented.
+        const CEILING: usize = 109;
+
+        let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
+            std::collections::BTreeMap::new();
+        for rule in all_rules() {
+            for def in rule.violations() {
+                declarers.entry(def.id).or_default().push(rule.id());
+            }
+        }
+        let shared: Vec<String> = declarers
+            .iter()
+            .filter(|(_, rules)| rules.len() > 1)
+            .map(|(id, rules)| format!("  {id}: {}", rules.join(", ")))
+            .collect();
+        assert!(
+            shared.len() <= CEILING,
+            "{} defects are reported by more than one rule, above the ceiling of {CEILING}:\n{}",
+            shared.len(),
+            shared.join("\n"),
+        );
+    }
+
+    /// Two rules that declare the *same set* of defects — the narrowest
+    /// reading of overlap this catalogue can take, and the closest thing to a
+    /// merge signal that is a measurement rather than a judgment.
+    ///
+    /// The gate above cannot be that signal: by its number every pair of rules
+    /// that parses a token overlaps. Neither can a subset relation — a rule
+    /// reporting nothing but token defects is a subset of all 42 that read one,
+    /// which is 164 pairs of noise. Equality is what is left, and it says
+    /// something the other two do not: everything one rule reports, the other
+    /// reports, so nothing an operator can *tune* tells the two apart.
+    ///
+    /// **It reads five pairs and only two of them are merges, which is the
+    /// finding.** The two are the ones already first in the merge order —
+    /// `if_match_etag_syntax` with `if_none_match_etag_syntax`, and the two
+    /// conditional-date rules — where the fields are a request pair with one
+    /// grammar between them. The other three read *different* fields with the
+    /// same reader: `Allow` and `Vary` are both token lists,
+    /// `Cache-Control` and `Pragma` both directive lists, `Server` and
+    /// `User-Agent` both product assemblies. Merging either of those would put
+    /// two fields under one rule id and one `enabled` flag, for no reason
+    /// except that the reader they share has nothing further to say about
+    /// them. *What distinguishes them is the field the message names, and a
+    /// field is a parameter of the message rather than a property of the
+    /// defect* — which is why the equality is exact and the conclusion still
+    /// is not.
+    ///
+    /// So this is a ceiling too, and its floor is three rather than zero. What
+    /// the number is for is the review: a sixth pair is either a merge waiting
+    /// or a rule written by copying one that already reported everything it
+    /// reports, and both want reading before they land.
+    #[test]
+    fn no_two_rules_declare_the_same_defects() {
+        /// Lowered by each merge, of which two are available. Read from what
+        /// the assertion prints, never incremented.
+        const CEILING: usize = 5;
+
+        let declared: std::collections::BTreeMap<&str, std::collections::BTreeSet<&str>> =
+            all_rules()
+                .map(|rule| (rule.id(), rule.violations().iter().map(|d| d.id).collect()))
+                .collect();
+        let rules: Vec<&str> = declared.keys().copied().collect();
+        let twins: Vec<String> = rules
+            .iter()
+            .enumerate()
+            .flat_map(|(i, a)| {
+                rules[i + 1..]
+                    .iter()
+                    .filter(|b| declared[a] == declared[**b])
+                    .map(move |b| format!("  {a} and {b} declare the same defects"))
+            })
+            .collect();
+        assert!(
+            twins.len() <= CEILING,
+            "{} rule pairs declare the same defects, above the ceiling of {CEILING}:\n{}",
+            twins.len(),
+            twins.join("\n"),
+        );
+    }
+
     #[test]
     fn rule_context_state_roundtrips_the_prepared_type() {
         let resolved = ResolvedRule {
