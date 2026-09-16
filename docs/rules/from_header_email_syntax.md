@@ -14,7 +14,7 @@ This rule measures the `From` request header against the one production RFC 9110
 
 - [RFC 9110 §10.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.2): `From = mailbox` — one address, imported by reference from RFC 5322 §3.4; the section's three other requirements are about parties and intents a capture does not state
 - [RFC 9110 §10.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1): Request context fields — the sentence behind the scope, since there is no response half of this field
-- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): A sender MUST NOT write a second field line for a field whose value is not a comma-separated list
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): Singleton fields, and the `OWS` a parser must exclude before evaluating a field value
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The MUST NOT that makes a value outside the field's ABNF a finding
 - [RFC 5322 §3.2.1](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.1): `quoted-pair` — the backslash and the one `VCHAR` or `WSP` it owes
