@@ -53,39 +53,8 @@ use crate::config::Config;
 use crate::h3_instrument::InstrumentedConnection;
 use crate::protocol_event::{MessageDirection, ProtocolEvent, ProtocolEventKind};
 
-use super::h3_policy::{H3Policy, H3Route};
+use super::h3_policy::{H3Failure, H3Policy, H3Route};
 use super::{BoxError, ClientBody, ResponseBody, Shared};
-
-/// Why an HTTP/3 upstream attempt failed, carrying enough context for the
-/// caller to decide whether a fall-back to H1/H2 is safe (RFC 9110 §9.2.2).
-pub(super) enum H3Failure {
-    /// The failure left the request replayable — either nothing reached the
-    /// origin (`pre_request`) or only the header section did with the body
-    /// still intact. `request` is the original, un-consumed request. A
-    /// `pre_request` failure is safe to fall back for **any** method and marks
-    /// the origin in the negative cache; a header-sent failure is safe only for
-    /// an idempotent method.
-    Retryable {
-        error: anyhow::Error,
-        /// Boxed to keep this variant near the size of `Consumed` — a bare
-        /// `Request<ClientBody>` would make the whole `H3Failure` large.
-        request: Box<Request<ClientBody>>,
-        pre_request: bool,
-    },
-    /// The request body was already in flight; the streaming body cannot be
-    /// replayed, so the caller must not retry (whatever the method).
-    Consumed { error: anyhow::Error },
-    /// The request was fully sent but the origin did not produce a response head
-    /// within the response timeout. A timeout is not proof the origin didn't
-    /// process the request, so a fall-back is only safe when the request was
-    /// idempotent *and* bodyless (RFC 9110 §9.2.2) — the sole case the body can
-    /// be replayed and re-execution is harmless. `replay` carries a rebuilt
-    /// bodyless request then, else `None` (surface a 502).
-    ResponseTimeout {
-        error: anyhow::Error,
-        replay: Option<Box<Request<ClientBody>>>,
-    },
-}
 
 /// Handle to the spawned request-body pump: it returns the bytes actually sent
 /// and any (post-response-head-benign) send error, or a body-read error.
@@ -127,7 +96,8 @@ impl Drop for PooledConn {
 pub(super) struct H3UpstreamClient {
     endpoint: quinn::Endpoint,
     /// Stages 1–3 of the selection policy — allow/deny, discovery, negative
-    /// cache. Owned here, decided in [`super::h3_policy`].
+    /// cache — and the failure taxonomy this file raises. Owned here, decided
+    /// in [`super::h3_policy`].
     policy: H3Policy,
     /// Bound on the connect + handshake.
     connect_timeout: Duration,
