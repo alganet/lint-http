@@ -314,6 +314,21 @@ impl std::ops::DerefMut for Config {
     }
 }
 
+/// The configuration every command falls back to when the caller names no file.
+///
+/// This is `config_example.toml` itself, compiled in — not a second default
+/// kept beside it. The two would drift the moment a rule was added, and the
+/// drift would be invisible: a rule missing from the built-in default is a rule
+/// that silently never runs. One artifact, held current by the generator and
+/// the `config_example_matches_generated` gate, and `config export` hands the
+/// user the same bytes the binary is running.
+///
+/// It is a *default*, not a merge base: naming a file replaces this wholesale,
+/// so a config listing three rules enables three rules. `is_enabled` answers
+/// false for anything a config does not name, and that is unchanged — what
+/// changes is only that there is now a config when the user supplied none.
+pub const DEFAULT_CONFIG_TOML: &str = include_str!("../../config_example.toml");
+
 impl Config {
     /// Load configuration from a TOML file.
     ///
@@ -323,7 +338,16 @@ impl Config {
     /// load.
     pub async fn load_from_path<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
         let s = tokio::fs::read_to_string(path.as_ref()).await?;
-        let cfg: Self = toml::from_str(&s)?;
+        Self::from_toml_str(&s)
+    }
+
+    /// Parse and check a configuration already in hand.
+    ///
+    /// Split out of [`Self::load_from_path`] so the built-in default goes
+    /// through the same invariants a file does, rather than being trusted for
+    /// having been compiled in.
+    pub fn from_toml_str(s: &str) -> anyhow::Result<Self> {
+        let cfg: Self = toml::from_str(s)?;
 
         // h3_listen requires TLS to be enabled
         if cfg.general.h3_listen.is_some() && !cfg.tls.enabled {
@@ -331,6 +355,19 @@ impl Config {
         }
 
         Ok(cfg)
+    }
+
+    /// [`DEFAULT_CONFIG_TOML`], parsed.
+    pub fn load_builtin() -> anyhow::Result<Self> {
+        Self::from_toml_str(DEFAULT_CONFIG_TOML)
+    }
+
+    /// The file the caller named, or the built-in default when they named none.
+    pub async fn load_or_builtin(path: Option<&str>) -> anyhow::Result<Self> {
+        match path {
+            Some(path) => Self::load_from_path(path).await,
+            None => Self::load_builtin(),
+        }
     }
 }
 

@@ -98,8 +98,16 @@ captures_include_body = false
 enabled = true
 ca_cert_path = "ca.crt"
 ca_key_path = "ca.key"
-passthrough_domains = ["example.com"]
-suppress_headers = ["X-Sensitive-Header"]
+# Domains tunnelled without interception: no certificate is forged for them and
+# nothing about them is linted. Commented out because this file is also the
+# configuration the binary runs with when none is given, and a default that
+# quietly excluded a domain would report a clean nothing for it.
+# passthrough_domains = ["example.com"]
+# Request headers removed before forwarding. Also commented out, and for a
+# sharper reason: a suppressed header is absent from what the origin sees *and*
+# from what the rules read, so a default here would silently disable every rule
+# that has an opinion about the named field.
+# suppress_headers = ["X-Sensitive-Header"]
 
 [rules.accept_and_content_type_negotiation]
 enabled = true
