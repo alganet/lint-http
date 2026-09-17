@@ -70,6 +70,10 @@ impl RuleMeta for MaxAgeDirectiveValid {
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[

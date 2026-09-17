@@ -62,6 +62,14 @@ impl RuleMeta for Http3MaxPushId {
         DECLARED
     }
 
+    /// **A protocol event has no request half and no response half, but it does
+    /// have a sender**: every frame and control-frame record carries the leg it
+    /// was observed on. So this rule answers one finding at a time, from the
+    /// event in hand, rather than presuming a peer for the file.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -107,7 +115,7 @@ impl ProtocolRule for Http3MaxPushId {
             // leg is observed with a sender direction — a `Server` MAX_PUSH_ID is one
             // the origin sent to this proxy, which as the receiving client must reject.
             if direction == MessageDirection::Server {
-                return Some(ctx.report_with(
+                return Some(ctx.by_direction(direction).report_with(
                     &HTTP3_MAX_PUSH_ID_FORBIDDEN,
                     format!(
                         "HTTP/3 MAX_PUSH_ID (push_id {}) sent by a server; a server MUST NOT \
@@ -126,7 +134,7 @@ impl ProtocolRule for Http3MaxPushId {
                 } = &prev.kind
                 {
                     if current < *prev_id {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by_direction(direction).report_with(
                             &HTTP3_MAX_PUSH_ID_INVALID,
                             format!(
                                 "HTTP/3 MAX_PUSH_ID {} decreased from previous {} (H3_ID_ERROR)",

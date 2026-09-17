@@ -137,6 +137,15 @@ impl RuleMeta for OptionsMethodCapabilities {
         DECLARED
     }
 
+    /// **The section places one requirement on each end of the exchange**, and
+    /// the rule reports both: an OPTIONS request that carries content without
+    /// saying what it is, which is the client's, and a successful OPTIONS
+    /// response that advertises none of the capabilities it was asked for,
+    /// which is the origin's.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -225,7 +234,7 @@ impl Rule for OptionsMethodCapabilities {
             tx.request.body_length,
         ) {
             if !tx.request.headers.contains_key("content-type") {
-                out.push(ctx.report_with(&METHOD_OPTIONS_CONTENT_TYPE_MISSING, format!(
+                out.push(ctx.by_client().report_with(&METHOD_OPTIONS_CONTENT_TYPE_MISSING, format!(
                             "OPTIONS request carries content ({evidence}) with no Content-Type header field; RFC 9110 § 9.3.7 says a client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type"
                         )));
             }
@@ -279,7 +288,7 @@ impl Rule for OptionsMethodCapabilities {
             })
         {
             let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
-            out.push(ctx.report_with(&METHOD_OPTIONS_CAPABILITIES_MISSING, format!(
+            out.push(ctx.by_server().report_with(&METHOD_OPTIONS_CAPABILITIES_MISSING, format!(
                         "Successful OPTIONS response ({}) carries none of {}; RFC 9110 § 9.3.7 says a server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource",
                         resp.status,
                         named.join(", ")

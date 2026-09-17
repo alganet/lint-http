@@ -94,6 +94,25 @@ pub enum Party {
     Neither,
 }
 
+impl From<crate::protocol_event::MessageDirection> for Party {
+    /// Who sent a frame is who is answerable for what is wrong with it.
+    ///
+    /// **True of a frame and not of a transaction**, which is why this
+    /// conversion exists and its transaction-level equivalent does not. A
+    /// protocol event is one message with one sender, recorded on the leg it
+    /// was observed on. A transaction is two messages by two authors fused into
+    /// one record — the request as the client wrote it, the response as the
+    /// origin did — so nothing about a transaction converts to a single party,
+    /// and a rule that reads both halves has to say which half a finding came
+    /// from.
+    fn from(direction: crate::protocol_event::MessageDirection) -> Self {
+        match direction {
+            crate::protocol_event::MessageDirection::Client => Self::Client,
+            crate::protocol_event::MessageDirection::Server => Self::Server,
+        }
+    }
+}
+
 impl Party {
     /// The name this party goes by outside the type: what `--about` accepts,
     /// and what a capture file records. One vocabulary, spelled once, for the

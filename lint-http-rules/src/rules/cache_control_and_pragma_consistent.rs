@@ -39,6 +39,15 @@ impl RuleMeta for CacheControlAndPragmaConsistent {
         DECLARED
     }
 
+    /// **One requirement per direction, so one answer per site.** The conflict
+    /// this rule opens with is between a request's `Pragma` and its own
+    /// `Cache-Control`, written by whoever sent the request; the deprecation
+    /// finding after it is about a `Pragma` in a *response*, which no
+    /// specification ever gave a meaning to and the origin sent anyway.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -100,7 +109,7 @@ impl Rule for CacheControlAndPragmaConsistent {
                         // in the tracker.
                         if crate::helpers::cache_control::has(&tx.request.headers, "only-if-cached")
                         {
-                            return Some(ctx.report(&PRAGMA_CONFLICTING));
+                            return Some(ctx.by_client().report(&PRAGMA_CONFLICTING));
                         }
                     }
                 }
@@ -113,7 +122,7 @@ impl Rule for CacheControlAndPragmaConsistent {
             // cite(RFC 9111 § 5.4): "However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma."
             if let Some(resp) = &tx.response {
                 if resp.headers.contains_key("pragma") {
-                    return Some(ctx.report_with(&PRAGMA_OBSOLETE, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead".into()));
+                    return Some(ctx.by_server().report_with(&PRAGMA_OBSOLETE, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead".into()));
                 }
             }
 

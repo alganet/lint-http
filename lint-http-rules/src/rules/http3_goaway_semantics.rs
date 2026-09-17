@@ -56,6 +56,14 @@ impl RuleMeta for Http3GoawaySemantics {
         DECLARED
     }
 
+    /// **A protocol event has no request half and no response half, but it does
+    /// have a sender**: every frame and control-frame record carries the leg it
+    /// was observed on. So this rule answers one finding at a time, from the
+    /// event in hand, rather than presuming a peer for the file.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -116,7 +124,10 @@ impl ProtocolRule for Http3GoawaySemantics {
                             // allowed.
                             if let (Some(curr), Some(prev)) = (current_id, prev_id) {
                                 if curr > prev {
-                                    return Some(ctx.report_with(
+                                    // The peer whose own GOAWAY identifier went
+                                    // backwards, which is the one this arm
+                                    // compares against its own earlier frame.
+                                    return Some(ctx.by_direction(*current_dir).report_with(
                                         &HTTP3_GOAWAY_IDENTIFIER_INVALID,
                                         format!(
                                             "HTTP/3 GOAWAY identifier {} increased from previous {}",
@@ -152,7 +163,16 @@ impl ProtocolRule for Http3GoawaySemantics {
                             // after the GOAWAY, which the endpoint must not do.
                             if let Some(goaway_id) = goaway_id {
                                 if stream_id > goaway_id {
-                                    return Some(ctx.report_with(
+                                    // **Not the GOAWAY's sender.** The `direction`
+                                    // in scope here belongs to the *server's*
+                                    // frame in the history, and the defect is the
+                                    // client opening a request stream after being
+                                    // told the server had stopped processing them
+                                    // — a client-initiated bidirectional stream,
+                                    // per the citation above. Attributing this to
+                                    // the frame that is merely the yardstick would
+                                    // blame the peer that behaved correctly.
+                                    return Some(ctx.by_client().report_with(
                                         &HTTP3_GOAWAY_IGNORED,
                                         format!(
                                             "HTTP/3 stream {} opened after server GOAWAY with last \

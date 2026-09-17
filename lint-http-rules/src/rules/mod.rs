@@ -217,6 +217,18 @@ impl<'a> RuleContext<'a> {
         self.by(crate::lint::Party::Neither)
     }
 
+    /// This context, with the peer that **sent the frame** named answerable —
+    /// the shape a protocol rule uses, since an event records the leg it was
+    /// observed on and that is the whole answer for a single message.
+    ///
+    /// The conversion is `From<MessageDirection> for Party`, written once in
+    /// core, where the argument for why it is sound for a frame and not for a
+    /// transaction is recorded beside it.
+    #[must_use]
+    pub fn by_direction(self, direction: crate::protocol_event::MessageDirection) -> Self {
+        self.by(direction.into())
+    }
+
     fn by(self, party: crate::lint::Party) -> Self {
         Self {
             site_party: Some(party),
@@ -1452,7 +1464,35 @@ enabled = "true"
         /// conversion, because it validates the client's `Origin` and then the
         /// server's `Access-Control-Allow-Origin`, and one answer would have
         /// been wrong for one of them.
-        const FLOOR: usize = 107;
+        ///
+        /// **114 of 190** with every protocol rule. An event has no request
+        /// half and no response half — the reason `needs_response` is not on
+        /// their trait — but it does record the leg it was observed on, so six
+        /// of the seven answer from the frame in hand through
+        /// [`RuleContext::by_direction`]. The seventh reads parameters this
+        /// proxy advertises itself, which neither peer wrote.
+        ///
+        /// **One site in that batch had to be read rather than rewritten**, and
+        /// it is the shape to watch for: `http3_goaway_semantics` holds a
+        /// `direction` belonging to the *server's* GOAWAY while reporting a
+        /// client that opened a stream after it. A mechanical
+        /// `by_direction(direction)` there blames the peer that behaved
+        /// correctly. Having a direction in scope is not the same as it being
+        /// the answer.
+        ///
+        /// **128 of 190** with the rules whose subject is a field only one end
+        /// sends — `Accept*` and `Expect` and the cookie rules for the client,
+        /// the negotiation and handshake rules for the origin — plus two more
+        /// `PerSite` conversions.
+        ///
+        /// **The defect-title scan is what makes a batch like that safe, and it
+        /// earned its keep three times here.** `te_header_valid` looks like a
+        /// pure request rule and declares *a request context field is written
+        /// in a response*; `cache_control_and_pragma_consistent` reports a
+        /// deprecated `Pragma` the origin sent; `options_method_capabilities`
+        /// carries one requirement per direction. Each was about to be given a
+        /// single presumption. Scan the titles before presuming, every time.
+        const FLOOR: usize = 128;
         let read = all_rules()
             .filter(|rule| rule.party() != RuleParty::Unread)
             .count();

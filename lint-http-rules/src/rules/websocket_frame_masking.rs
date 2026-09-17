@@ -81,6 +81,14 @@ impl RuleMeta for WebsocketFrameMasking {
         DECLARED
     }
 
+    /// **A protocol event has no request half and no response half, but it does
+    /// have a sender**: every frame and control-frame record carries the leg it
+    /// was observed on. So this rule answers one finding at a time, from the
+    /// event in hand, rather than presuming a peer for the file.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -168,7 +176,10 @@ impl ProtocolRule for WebsocketFrameMasking {
                 _ => return None,
             };
 
-            Some(ctx.report_with(def, format!("A WebSocket frame where {defect}")))
+            Some(
+                ctx.by_direction(*direction)
+                    .report_with(def, format!("A WebSocket frame where {defect}")),
+            )
         };
         Vec::from_iter(finding())
     }

@@ -93,6 +93,14 @@ impl RuleMeta for WebsocketFrameRsvBits {
         DECLARED
     }
 
+    /// **A protocol event has no request half and no response half, but it does
+    /// have a sender**: every frame and control-frame record carries the leg it
+    /// was observed on. So this rule answers one finding at a time, from the
+    /// event in hand, rather than presuming a peer for the file.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -164,7 +172,7 @@ impl ProtocolRule for WebsocketFrameRsvBits {
             // bit the header has no room for.
             //
             if *rsv > 0b111 {
-                return Some(ctx.report_with(&WEBSOCKET_FRAME_RSV_MALFORMED, format!(
+                return Some(ctx.by_direction(*direction).report_with(&WEBSOCKET_FRAME_RSV_MALFORMED, format!(
                         "A WebSocket frame the {sender} sent records the reserved bits as {rsv:#05b}, \
                          and the frame header holds three of them — one bit each — so no frame on any \
                          wire carried this value"
@@ -192,7 +200,7 @@ impl ProtocolRule for WebsocketFrameRsvBits {
                 return None;
             }
 
-            Some(ctx.report_with(&WEBSOCKET_FRAME_RSV_FORBIDDEN, format!(
+            Some(ctx.by_direction(*direction).report_with(&WEBSOCKET_FRAME_RSV_FORBIDDEN, format!(
                     "A WebSocket frame the {sender} sent has {} set, and the 101 that opened this \
                      session accepted no extension: RFC 6455 §5.2 makes a reserved bit non-zero only \
                      under an extension that defines a meaning for it, and it has the receiving \
