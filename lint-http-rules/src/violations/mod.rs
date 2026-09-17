@@ -310,6 +310,25 @@ pub static VIOLATIONS: LazyLock<Vec<&'static ViolationDef>> = LazyLock::new(|| {
     v
 });
 
+/// The catalogue entry a finding's `violation` id names, or `None`.
+///
+/// A finding carries the id and nothing else — `Violation` is what survives a
+/// capture file, so it holds owned strings and no pointer back here. Anything
+/// that wants the *catalogue's* words about a defect (its one-line title, the
+/// severity it would carry unconfigured, the sentences it enforces) comes
+/// through this. A binary search, because [`VIOLATIONS`] is sorted by id and
+/// the report looks a defect up once per finding.
+///
+/// `None` for a finding built the pre-catalogue way, where the rule id is the
+/// only name it has, and for a capture written by a build whose catalogue held
+/// an id this one has since renamed — an old file is read, not rejected.
+pub fn by_id(id: &str) -> Option<&'static ViolationDef> {
+    VIOLATIONS
+        .binary_search_by_key(&id, |d| d.id)
+        .ok()
+        .map(|i| VIOLATIONS[i])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

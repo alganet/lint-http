@@ -19,7 +19,7 @@ rules; export and edit if you want the catalogue minus a few.
 
 ## Global options
 
-Four options mean the same thing wherever they appear, and may be given before
+These options mean the same thing wherever they appear, and may be given before
 or after the subcommand — `lint-http --config c.toml run -- curl` and
 `lint-http run --config c.toml -- curl` are the same command line.
 
@@ -29,6 +29,41 @@ or after the subcommand — `lint-http --config c.toml run -- curl` and
 | `--format <text\|json>` | Report format. Default `text`. |
 | `--min-severity <info\|warn\|error>` | Only report findings at or above this. Default `info`. |
 | `--captures <PATH>` | The JSONL capture file this command reads or writes. |
+| `-q`, `--quiet` | One line per defect: its catalogue title and how often it happened. |
+| `-v`, `--verbose` | Everything a finding knows — the rule, the specification reference, the docs page, and how to switch it off. |
+| `--group` | One entry per defect, with a count and the targets it happened on, instead of one entry per transaction. |
+| `--color <auto\|always\|never>` | Whether to colour the report. Default `auto`. |
+| `--width <COLUMNS>` | Wrap the report at this column. |
+
+### How a report is drawn
+
+**A report going to a pipe is the report this tool has always printed**: one
+line per finding, no colour, the citation spelled out in brackets with its URL.
+Nothing below changes that, because the only reader there is another program.
+
+A report going to a *terminal* is drawn for a person instead:
+
+- **Colour.** Severity is the only thing given a hue — `error` bold red, `warn`
+  yellow, `info` blue — plus the response status, whose first digit already is
+  one. Names are bold, counts and hints are dim, and the message itself is never
+  coloured. `--color never`, `NO_COLOR`, and `TERM=dumb` each switch it off;
+  `--color always` and `CLICOLOR_FORCE` switch it on into a pipe.
+- **Wrapping.** The defect takes its own line and the message is indented under
+  it, rather than soft-wrapping into rows with no indent. There is no width
+  probe — that needs either `unsafe` or a dependency bought for a cosmetic — so
+  the column is *stated*: `--width` if given, then `COLUMNS` if the shell
+  exported it, then 100.
+- **A compact citation.** `RFC 9110 §12.5.3` rather than that plus the URL,
+  because under colour the label carries the URL as a terminal hyperlink
+  (OSC 8) and is one click from the section. Where there is no hyperlink the URL
+  is printed, so a report in a file never loses the address of the sentence it
+  enforces. `-v` prints it either way.
+
+`--group` collapses findings that read identically into one entry with a count
+and the targets it happened on. It is not deduplication: nothing is dropped, the
+total is unchanged, and two findings that merely read alike are still two — the
+key is the whole rendered identity, so a parameterised message naming two
+different values stays two entries.
 
 `--captures` is one file under one name across the surface: `run`, `use` and
 `proxy-start` **write** it, `lint-captures` **reads** it. So what a run keeps is

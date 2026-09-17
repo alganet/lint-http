@@ -36,14 +36,26 @@ pub struct SpecCitation {
     pub url: String,
 }
 
-impl std::fmt::Display for SpecCitation {
-    /// `RFC 9110 §7.2 <url>` — the form the text report and logs append to a
-    /// cited finding.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl SpecCitation {
+    /// The document and section alone: `RFC 9110 §7.2`.
+    ///
+    /// What a report shows when it can put the URL somewhere other than the
+    /// line — behind a terminal hyperlink, or on an expanded sub-line. The
+    /// section number is spelled here *and* in the URL fragment, so a report
+    /// printing both spells it twice for no reader who wanted it twice.
+    pub fn label(&self) -> String {
         match &self.section {
-            Some(section) => write!(f, "{} §{} {}", self.spec, section, self.url),
-            None => write!(f, "{} {}", self.spec, self.url),
+            Some(section) => format!("{} §{}", self.spec, section),
+            None => self.spec.clone(),
         }
+    }
+}
+
+impl std::fmt::Display for SpecCitation {
+    /// `RFC 9110 §7.2 <url>` — the form a report falls back to when it cannot
+    /// make the label itself clickable, and the form the logs use.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.label(), self.url)
     }
 }
 
@@ -90,7 +102,7 @@ impl Violation {
 
 /// Severity level for a rule violation. Ordered by increasing severity
 /// (`Info < Warn < Error`) so callers can gate on a minimum level.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Info,
