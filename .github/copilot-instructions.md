@@ -35,8 +35,12 @@ type lives in that crate.
 Startup is `lint-http-proxy/src/main.rs`: clap subcommands — `run` wraps a child command,
 `browse` wraps a browser, `proxy-start` runs the proxy, `lint-captures` replays a capture file,
 `rules`/`config` inspect.
-`--config` is optional everywhere it appears; omitting it loads `config::DEFAULT_CONFIG_TOML`,
-which is `config_example.toml` compiled in. Then rule validation, then the capture writer, then
+`--config`, `--format`, `--min-severity` and `--captures` are `GlobalArgs` (clap `global = true`),
+so they parse on either side of the subcommand and are declared once rather than per command;
+their defaults live on `GlobalArgs`'s accessors, not in `default_value_t`, so `rules list` can
+still tell "no --config given" from "the built-in". Omitting `--config` loads
+`config::DEFAULT_CONFIG_TOML`, which is `config_example.toml` compiled in. `run` and `browse`
+give stderr to the report and discard the child's unless `--show-child-stderr`. Then rule validation, then the capture writer, then
 the proxy. `run` and `browse` share `proxied_run.rs`'s `ProxySession` (ephemeral port, per-session CA in a
 temp dir) and differ only in how the child is told where the proxy is: `run` uses the
 `client_env.rs` environment table, `browse` uses `browser.rs`'s command line and an SPKI pin.

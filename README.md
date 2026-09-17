@@ -53,13 +53,26 @@ lint-http run --fail-on error -- ./my-test-suite
 
 The wrapped command keeps stdout and keeps its exit code, so `run` can sit in
 front of a command without changing what that command's success means. The
-report goes to stderr; `--fail-on <severity>` is what makes a finding fail the
-run instead.
+report gets stderr — the wrapped command's own stderr is discarded so the two do
+not compete — which means a plain redirect separates them:
+
+```bash
+lint-http run -- curl -sS https://example.com > body.html 2> report.txt
+```
+
+`--show-child-stderr` hands the child's stderr back; `--fail-on <severity>` is
+what makes a finding fail the run.
 
 - `lint-http run --print-env` — the variables a wrapped command receives, and
   which client reads each one.
 - `--captures <PATH>` keeps the capture file; by default the run leaves nothing
   on disk, including the CA, which is generated fresh per run and deleted with it.
+  It is the same flag `lint-captures` reads, so `run --captures x.jsonl` then
+  `lint-captures x.jsonl` replays exactly what happened.
+
+`--config`, `--format`, `--min-severity` and `--captures` are global: they work
+before or after the subcommand, and mean the same thing on each. See
+`docs/configuration.md`.
 
 Some clients cannot be reached this way — Go on macOS and Windows, Java, and any
 binary with its trust anchors compiled in. The list, with reasons, is in the
@@ -90,6 +103,10 @@ trust store — so closing the browser is the end of it.
 **Findings are scoped to the site you opened.** A real page pulls in tens of
 origins you do not control; the last line is the count of what that left out.
 `--only-host <HOST>` picks the scope yourself, `--all-hosts` turns it off.
+
+The browser's own stderr is discarded, as with `run` — a browser writes a great
+deal of it and none of it is about the site under test. `--show-child-stderr`
+brings it back.
 
 Chromium-family browsers only for now (`chromium`, `chrome`, `brave`, `edge`);
 `--browser <PATH>` names one. Firefox needs its CA in an NSS database, which has
