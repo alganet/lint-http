@@ -981,84 +981,84 @@ sources:
     snippet: (HTTP) Attempt HTTP/3 to the host in the URL, but fallback to earlier HTTP versions if the HTTP/3 connection establishment fails or is slow. HTTP/3 is only available for HTTPS and not for HTTP URLs.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 405
+      line: 408
   - label: lint-http-proxy/src/driver/curl.rs (2)
     snippet: (TLS SFTP SCP) By default, every secure connection curl makes is verified to be secure before the transfer takes place. This option makes curl skip the verification step and proceed without checking.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 365
+      line: 368
   - label: lint-http-proxy/src/driver/curl.rs (3)
     snippet: (TLS) Use the specified certificate file to verify the peer. The file may contain multiple CA certificates. The certificate(s) must be in PEM format. Normally curl is built to use a default file for this, so this option is typically used to alter that default file.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 152
+      line: 155
   - label: lint-http-proxy/src/driver/curl.rs (4)
     snippet: 1) "$CURL_HOME/.curlrc" 2) "$XDG_CONFIG_HOME/curlrc" (Added in 7.73.0) 3) "$HOME/.curlrc"
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 470
+      line: 473
   - label: lint-http-proxy/src/driver/curl.rs (5)
     snippet: Comma-separated list of hosts for which not to use a proxy, if one is specified. The only wildcard is a single "*" character, which matches all hosts, and effectively disables the proxy.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 385
+      line: 388
   - label: lint-http-proxy/src/driver/curl.rs (6)
     snippet: If provided text does not start with a dash, it is presumed to be and treated as a URL.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 347
+      line: 350
   - label: lint-http-proxy/src/driver/curl.rs (7)
     snippet: If the long option name ends with an equals sign ("="), the argument is the text following on its right side. (Added in 8.16.0)
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 331
+      line: 334
   - label: lint-http-proxy/src/driver/curl.rs (8)
     snippet: If used as the first parameter on the command line, the curlrc config file is not read or used.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 132
+      line: 135
   - label: lint-http-proxy/src/driver/curl.rs (9)
     snippet: Short version options that do not need any additional values can be used immediately next to each other, like for example you can specify all the options -O, -L and -v at once as -OLv.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 260
+      line: 263
   - label: lint-http-proxy/src/driver/curl.rs (10)
     snippet: 'The default config file is checked for in the following places in this order:'
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 469
+      line: 472
   - label: lint-http-proxy/src/driver/curl.rs (11)
     snippet: This option overrides the environment variables that disable the proxy ("no_proxy" and "NO_PROXY"). If there is an environment variable disabling a proxy, you can set the no proxy list to "" to override it.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 169
+      line: 172
   - label: lint-http-proxy/src/driver/curl.rs (12)
     snippet: Use --http3-only for similar functionality without a fallback.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 413
+      line: 416
   - label: lint-http-proxy/src/driver/curl.rs (13)
     snippet: Use the specified SOCKS proxy before connecting to an HTTP or HTTPS --proxy. In such a case curl first connects to the SOCKS proxy and then connects (through SOCKS) to the HTTP or HTTPS proxy. Hence pre proxy.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 395
+      line: 398
   - label: lint-http-proxy/src/driver/curl.rs (14)
     snippet: Use the specified proxy.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 144
+      line: 147
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 374
+      line: 377
   - label: lint-http-proxy/src/driver/curl.rs (15)
     snippet: When curl is invoked, it (unless --disable is used) checks for a default config file and uses it if found, even when --config is used.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 441
+      line: 444
   - label: lint-http-proxy/src/driver/curl.rs (16)
     snippet: curl recognizes the environment variable named 'CURL_CA_BUNDLE' if it is set and the TLS backend is not Schannel, and uses the given path as a path to a CA cert bundle. This option overrides that variable.
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 422
+      line: 425
 - label: OpenSSL Environment
   url: https://docs.openssl.org/master/man7/openssl-env/
   type: text/html

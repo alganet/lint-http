@@ -39,14 +39,15 @@ Startup is `lint-http-proxy/src/main.rs`: clap subcommands — `run` wraps a chi
 so they parse on either side of the subcommand and are declared once rather than per command;
 their defaults live on `GlobalArgs`'s accessors, not in `default_value_t`, so `rules list` can
 still tell "no --config given" from "the built-in". Omitting `--config` loads
-`config::DEFAULT_CONFIG_TOML`, which is `config_example.toml` compiled in. `run` and `browse`
+`config::DEFAULT_CONFIG_TOML`, which is `config_example.toml` compiled in. `run` and `use`
 give stderr to the report and discard the child's unless `--show-child-stderr`. Then rule validation, then the capture writer, then
-the proxy. `run` and `browse` share `proxied_run.rs`'s `ProxySession` (ephemeral port, per-session CA in a
+the proxy. `run` and `use` share `proxied_run.rs`'s `ProxySession` (ephemeral port, per-session CA in a
 temp dir) and differ only in how the child is told where the proxy is. `run --` is tool-blind and
 exports the `client_env.rs` environment table; everything else goes through `driver/`, whose
 `Driver` trait answers five questions about one tool — which executable, what its own arguments
 asked for, where it is aimed, what would make the report a lie, and how to write the session onto
-its command line. `browse` is `driver::chromium` plus three lines. A driver reads only the flags
+its command line. `use` is `drive` plus a driver; `run`'s four session options (`--fail-on`, `--only-host`,
+`--all-hosts`, `--show-child-stderr`) are `SessionArgs`, and belong to both. A driver reads only the flags
 that change lint-http's behaviour and passes the rest through byte-identical; it must **detect and
 warn, never promise**, because a tool's config file (`~/.curlrc`) can set the same flags invisibly.
 Both report the findings the proxy already recorded as it linted, which is what makes the

@@ -62,7 +62,7 @@ lint-http run -- curl -sS https://example.com > body.html 2> report.txt
 
 `--show-child-stderr` hands the child's stderr back; `--fail-on <severity>` is
 what makes a finding fail the run; `--only-host <HOST>` / `--all-hosts` decide
-which origins the report is about. All four work on `browse` too — they are the
+which origins the report is about. All four work on `use` too — they are the
 options a session takes, not options one command grew.
 
 - `lint-http run --print-env` — the variables a wrapped command receives, and
@@ -82,13 +82,14 @@ Some clients cannot be reached this way — Go on macOS and Windows, Java, and a
 binary with its trust anchors compiled in. The list, with reasons, is in the
 module header of `lint-http-proxy/src/client_env.rs`.
 
-## Quick start — browse a site
+## Quick start — drive a tool it knows
 
-`browse` opens a browser through a proxy of its own and prints findings as the
-page loads:
+`run --` hands a command an environment and hopes it reads it. `use` reads the
+tool's own arguments and configures it the way that tool documents:
 
 ```bash
-lint-http browse https://example.com
+lint-http use curl https://api.example.com/orders
+lint-http use browser https://example.com
 ```
 
 ```
@@ -100,21 +101,31 @@ GET https://example.com/ -> 200
 26 more violation(s) in 7 transaction(s) on other hosts, not shown (--all-hosts)
 ```
 
-Nothing is installed. The browser gets a throwaway profile, and the CA is
-trusted for that one launch by public-key pin rather than by being added to any
-trust store — so closing the browser is the end of it.
+Reading the command line is worth four things:
 
-**Findings are scoped to the site you opened.** A real page pulls in tens of
-origins you do not control; the last line is the count of what that left out.
-`--only-host <HOST>` picks the scope yourself, `--all-hosts` turns it off.
+- **The tool is configured, not the environment.** `curl --proxy` and `--cacert`
+  are two options with no precedence to reason about. In particular an exported
+  `NO_PROXY` can no longer take the traffic away from the session and leave a
+  report saying zero — curl documents `--noproxy ""` as the override, so `use`
+  passes it.
+- **The report knows what you aimed at**, so it covers those hosts rather than
+  every origin the page or the transfer reached. `--only-host <HOST>` picks the
+  scope yourself, `--all-hosts` turns it off, and the last line always counts
+  what was left out.
+- **Options that would make a finding meaningless are named before a proxy
+  starts** — `-k`, `-x`, `--http3-only`, and a `~/.curlrc` that mentions any of
+  them.
+- **An option it does not recognize is passed through unchanged.** Everything
+  after the tool name belongs to the tool; lint-http's own options go before it.
 
-The browser's own stderr is discarded, as with `run` — a browser writes a great
-deal of it and none of it is about the site under test. `--show-child-stderr`
-brings it back.
+`lint-http use browser` is what `browse` used to be: a throwaway profile, a CA
+trusted for one launch by public-key pin rather than added to any trust store,
+and findings printed as the page loads. Nothing is installed, so closing the
+browser is the end of it. Chromium-family only (`chromium`, `chrome`, `brave`,
+`edge`, or a path); Firefox needs its CA in an NSS database, which has no
+per-launch equivalent — see the header of `lint-http-proxy/src/browser.rs`.
 
-Chromium-family browsers only for now (`chromium`, `chrome`, `brave`, `edge`);
-`--browser <PATH>` names one. Firefox needs its CA in an NSS database, which has
-no per-launch equivalent — see the header of `lint-http-proxy/src/browser.rs`.
+Anything without a driver still goes through `run --`, and the error says so.
 
 ## Quick start — a proxy you point things at
 
