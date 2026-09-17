@@ -59,6 +59,54 @@ impl std::fmt::Display for SpecCitation {
     }
 }
 
+/// Who a finding holds answerable: the peer that wrote the message the
+/// evidence was found in.
+///
+/// The proxy records each half of a transaction as its own peer wrote it —
+/// `tx.request` before hop-by-hop stripping, `tx.response` before filtering —
+/// so "which half the evidence is in" is a statement about which peer produced
+/// it, not merely about where a rule happened to look.
+///
+/// # This is not [`MessageDirection`](crate::protocol_event::MessageDirection)
+///
+/// [`MessageDirection`](crate::protocol_event::MessageDirection) records which
+/// *leg* a frame was observed on. This records who a *report* holds answerable.
+/// The two agree on ordinary traffic and come apart the moment a message is not
+/// written by the peer whose position it occupies — which happens here: a proxy
+/// error reply is recorded in the response half and no origin wrote it. One
+/// type for both would make that difference unsayable, so a protocol finding
+/// *derives* this from its event's direction, and the derivation is a
+/// conversion written once rather than an identity.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum Party {
+    /// The sender of the request.
+    Client,
+    /// The sender of the response.
+    Server,
+    /// The defect is in the exchange rather than in either message, so no one
+    /// peer wrote it. `authentication_failure_loop` is the shape: its own
+    /// description names "a broken client, misconfigured credentials, or a
+    /// flawed authentication handshake" and declines to choose between them.
+    ///
+    /// Distinct from an *absent* party, which says only that nobody has read
+    /// the site yet. This one is an answer; that one is the absence of one.
+    Neither,
+}
+
+impl Party {
+    /// The name this party goes by outside the type: what `--about` accepts,
+    /// and what a capture file records. One vocabulary, spelled once, for the
+    /// same reason [`Severity::name`] is.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Client => "client",
+            Self::Server => "server",
+            Self::Neither => "neither",
+        }
+    }
+}
+
 /// Represents a single rule violation detected by the linter.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Violation {
@@ -82,6 +130,18 @@ pub struct Violation {
     /// serializes exactly as it always has.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cite: Option<SpecCitation>,
+    /// Who this finding holds answerable, when the rule that made it said.
+    ///
+    /// `None` is not a third answer: it means no one has yet read this
+    /// reporting site and decided. A report must therefore never treat it as
+    /// "neither" and quietly drop it under a narrowing filter — the two are
+    /// told apart at the only place that narrows, and counted separately.
+    ///
+    /// Serde-defaulted both ways, exactly as `cite` and `violation` were: a
+    /// capture written before the field existed reads back with it absent, and
+    /// an unattributed finding serializes exactly as it always has.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub party: Option<Party>,
 }
 
 impl Violation {
@@ -96,6 +156,7 @@ impl Violation {
             severity,
             message: message.into(),
             cite: None,
+            party: None,
         }
     }
 }
@@ -154,6 +215,60 @@ mod tests {
         assert!(v.cite.is_none());
         assert!(v.violation.is_empty());
         assert_eq!(serde_json::to_string(&v).expect("serializes"), legacy);
+    }
+
+    /// A finding that names the peer answerable for it carries that name into
+    /// the capture, spelled the way `--about` accepts it.
+    #[test]
+    fn an_attributed_finding_round_trips_with_its_party() {
+        for (party, word) in [
+            (Party::Client, "client"),
+            (Party::Server, "server"),
+            (Party::Neither, "neither"),
+        ] {
+            let v = Violation {
+                party: Some(party),
+                ..Violation::new("host_header", Severity::Warn, "m")
+            };
+            let json = serde_json::to_string(&v).expect("serializes");
+            assert_eq!(
+                json,
+                format!(
+                    r#"{{"rule":"host_header","severity":"warn","message":"m","party":"{word}"}}"#
+                ),
+            );
+            let back: Violation = serde_json::from_str(&json).expect("parses");
+            assert_eq!(back.party, Some(party));
+            // The wire word and the word a report prints are one vocabulary.
+            assert_eq!(party.name(), word);
+        }
+    }
+
+    /// **The migration is invisible in the capture file until a rule is read.**
+    /// A finding nobody has attributed serializes to the bytes it always did —
+    /// which is what makes it safe to land the field long before the catalogue
+    /// has an answer for it. `legacy_capture_line_round_trips_without_cite`
+    /// above asserts the same thing from the reading side; this is the writing
+    /// side, and the two together are the whole back-compat claim.
+    #[test]
+    fn an_unattributed_finding_omits_the_party_key() {
+        let v = Violation::new("host_header", Severity::Warn, "m");
+        assert_eq!(v.party, None);
+        assert_eq!(
+            serde_json::to_string(&v).expect("serializes"),
+            r#"{"rule":"host_header","severity":"warn","message":"m"}"#,
+        );
+    }
+
+    /// A capture written by a build that knows about parties is still read by
+    /// one that does not — the other direction of the same promise, and the
+    /// reason nothing here carries `deny_unknown_fields`. Standing in for the
+    /// older binary with a key no `Violation` has ever had.
+    #[test]
+    fn a_finding_carrying_an_unknown_key_is_read_rather_than_refused() {
+        let future = r#"{"rule":"host_header","severity":"warn","message":"m","party":"client","some_later_field":7}"#;
+        let v: Violation = serde_json::from_str(future).expect("an unknown key is ignored");
+        assert_eq!(v.party, Some(Party::Client));
     }
 
     /// A finding that names the defect it reports carries both names: the rule

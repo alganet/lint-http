@@ -56,8 +56,52 @@ impl std::fmt::Debug for ResolvedRule {
 /// a rule declares each carry their own, [`report`](RuleContext::report) reads
 /// the one for the defect being reported, and the scalar went when the last
 /// finding stopped asking for it.
+/// What a rule says about the peer answerable for its findings.
+///
+/// **Three states, because two of them produce the same finding and are not the
+/// same fact** — the argument `NegotiatedExtensions` makes about a WebSocket
+/// handshake, arriving here for the same reason. A rule nobody has read for the
+/// question and a rule that was read and reports for both peers both leave a
+/// finding unattributed; only one of them is work still owed, and a ratchet
+/// that cannot tell them apart cannot be finished.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RuleParty {
+    /// Nobody has read this rule for the question yet. The default, the true
+    /// statement about a catalogue mid-migration, and the only value
+    /// `party_coverage_does_not_regress` counts against.
+    ///
+    /// It goes when the last rule converts, exactly as
+    /// [`RuleMeta::violations`] lost its `&[]` default when the last site did:
+    /// a rule that says nothing can then say nothing, and the compiler says so
+    /// at the rule rather than a gate saying it at the catalogue.
+    Unread,
+    /// The peer every finding of this rule is about, unless a site rebuts it.
+    /// A presumption rather than a decree, which is what lets one line answer
+    /// for every reporting site in the file.
+    Presumed(crate::lint::Party),
+    /// Read, and the answer is that the rule has no single one: it reports
+    /// defects in both halves, and each site names its own peer.
+    ///
+    /// Not a hiding place. `a_per_site_rule_names_a_party_at_every_finding`
+    /// refuses a bare `ctx.report` in a file that declares this, so parking a
+    /// rule here costs exactly what attributing it costs — which is the
+    /// property that keeps the ratchet honest.
+    PerSite,
+}
+
+#[derive(Clone, Copy)]
 pub struct RuleContext<'a> {
     state: &'a (dyn std::any::Any + Send + Sync),
+    /// What the *rule* said — [`RuleMeta::party`], read once in
+    /// [`with_violations`](RuleContext::with_violations) rather than per
+    /// finding. The context is handed the answer rather than the rule for the
+    /// reason `rule_id` is: `report` is a method here and cannot dispatch back.
+    party: RuleParty,
+    /// What a *site* said, through [`by_client`](RuleContext::by_client) and
+    /// its siblings. Rebuts `party` for every finding built through this copy,
+    /// and is the only way a finding's party becomes `Some` under
+    /// [`RuleParty::PerSite`].
+    site_party: Option<crate::lint::Party>,
     /// The reporting rule's id, for the `Violation.rule` a report carries. A
     /// context has to be told, because `report` is a method on the context and
     /// not on the rule.
@@ -102,6 +146,8 @@ impl<'a> RuleContext<'a> {
     pub fn new(resolved: &'a ResolvedRule) -> Self {
         Self {
             state: &*resolved.state,
+            party: RuleParty::Unread,
+            site_party: None,
             rule_id: "",
             declared: &[],
             violations: &[],
@@ -123,7 +169,57 @@ impl<'a> RuleContext<'a> {
         Self {
             rule_id: rule.id(),
             declared: rule.violations(),
+            party: rule.party(),
+            site_party: None,
             violations,
+            ..self
+        }
+    }
+
+    /// This context, with the **client** — the sender of the request — named
+    /// answerable for the findings built through it:
+    /// `ctx.by_client().report_with(&DEF, message)`.
+    ///
+    /// # Why this returns a context rather than a wrapper
+    ///
+    /// A rule that answers for all its findings at once says so once, in
+    /// [`RuleMeta::party`], and its reporting sites do not move. This is for
+    /// the rules that read both halves, where the answer belongs to the site.
+    ///
+    /// Returning `Self` rather than a borrowing wrapper is what lets it
+    /// **compose with the helpers rules already have**: twelve rule files carry
+    /// a private `fn check_value(&self, …, ctx: &RuleContext<'_>)` that builds
+    /// a finding, and `helper(&ctx.by_server())` reaches them with no change to
+    /// their signatures. A wrapper type would have made every one of those
+    /// helpers take the wrapper instead — a second migration, inside the first,
+    /// for no reader's benefit. The context is five `Copy` borrows and two
+    /// small enums, so handing back a copy costs nothing.
+    #[must_use]
+    pub fn by_client(self) -> Self {
+        self.by(crate::lint::Party::Client)
+    }
+
+    /// This context, with the **server** — the sender of the response — named
+    /// answerable. See [`by_client`](RuleContext::by_client).
+    #[must_use]
+    pub fn by_server(self) -> Self {
+        self.by(crate::lint::Party::Server)
+    }
+
+    /// This context, with **neither peer alone** named answerable: the defect
+    /// is in the exchange rather than in either message.
+    ///
+    /// An answer, not a shrug, which is why it is spelled at a site rather than
+    /// reached by leaving the site alone. A finding nobody has read yet carries
+    /// no party at all, and a report counts the two apart.
+    #[must_use]
+    pub fn by_neither(self) -> Self {
+        self.by(crate::lint::Party::Neither)
+    }
+
+    fn by(self, party: crate::lint::Party) -> Self {
+        Self {
+            site_party: Some(party),
             ..self
         }
     }
@@ -240,6 +336,21 @@ impl<'a> RuleContext<'a> {
     /// it did while the entry carried no reference at all; the references are
     /// on the def for the catalogue and the docs to read.
     fn finding(&self, def: &'static ViolationDef, message: String) -> Violation {
+        // A rule that presumes nothing is a rule whose every finding names its
+        // own peer, and a site that forgot emits an unattributed finding under
+        // a rule claiming to attribute them all — which reads downstream
+        // exactly like a rule nobody has migrated. The suite runs debug, so a
+        // test reaching the site catches it; a site no test reaches is caught
+        // by `a_per_site_rule_names_a_party_at_every_finding` instead, which is
+        // why both exist. The same division of labour
+        // `no_rule_constructs_a_violation_literal` makes.
+        debug_assert!(
+            !matches!(self.party, RuleParty::PerSite) || self.site_party.is_some(),
+            "{}: {} is reported by a rule that presumes no party, so its sites name one \
+             — ctx.by_client(), by_server() or by_neither()",
+            self.rule_id,
+            def.id,
+        );
         Violation {
             rule: self.rule_id.into(),
             violation: def.id.into(),
@@ -249,6 +360,13 @@ impl<'a> RuleContext<'a> {
                 [only] => Some(only.citation()),
                 _ => None,
             },
+            // The site rebuts the rule's presumption. An unread rule and an
+            // unrebutted `PerSite` both land on `None` — the one thing a report
+            // may not confuse with `Party::Neither`.
+            party: self.site_party.or(match self.party {
+                RuleParty::Presumed(party) => Some(party),
+                RuleParty::Unread | RuleParty::PerSite => None,
+            }),
         }
     }
 
@@ -495,6 +613,43 @@ pub trait RuleMeta: Send + Sync {
     /// nothing, and the compiler says so at the rule rather than a gate saying
     /// it at the catalogue.
     fn violations(&self) -> &'static [&'static ViolationDef];
+
+    /// Who this rule's findings hold answerable, when the rule can answer for
+    /// all of them at once.
+    ///
+    /// A rule that reads one half of a transaction can: the peer that wrote
+    /// that half is the one the report names, every time, and saying it here
+    /// says it for every reporting site in the file. A rule that reads both
+    /// halves cannot, and leaves this alone — its sites say it one at a time
+    /// through [`RuleContext::by_client`] and its siblings.
+    ///
+    /// **[`RuleParty::Unread`] is the absence of an answer, not one of them.**
+    /// It says this rule has not been read for the question, which is a fact
+    /// about the catalogue rather than about the traffic. A rule that has been
+    /// read and genuinely has no single answer declares
+    /// [`RuleParty::PerSite`], and its sites each say who — including
+    /// [`Party::Neither`](crate::lint::Party::Neither), where the defect is in
+    /// the exchange rather than in a message.
+    ///
+    /// # Why this sits on `RuleMeta` where `needs_response` does not
+    ///
+    /// The dispatch precondition partitions a *transaction* into its halves,
+    /// which is a thing only a transaction rule has — so it lives on [`Rule`].
+    /// A party is a property of a *finding*, and both kinds of rule make
+    /// findings. It also has to be legible to everything that reads the
+    /// catalogue as metadata: the generated index, `rules list`, and the
+    /// coverage ratchet all iterate [`all_rules`], and putting this on `Rule`
+    /// would make each of them special-case protocol rules again — the exact
+    /// doubling `all_rules` exists to retire.
+    ///
+    /// Protocol rules nonetheless leave it `None` on purpose. An event has no
+    /// request and no response, but it does carry a
+    /// [`MessageDirection`](crate::protocol_event::MessageDirection) saying
+    /// which leg it was observed on, so those rules attribute at the site from
+    /// the event in hand rather than declaring one answer for the file.
+    fn party(&self) -> RuleParty {
+        RuleParty::Unread
+    }
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).
     /// Defaults to `None`, which makes the generator derive the title from the
@@ -1218,6 +1373,102 @@ enabled = "true"
         Ok(())
     }
 
+    /// An upward ratchet on the rules that have been read for the party
+    /// question, mirroring `every_violation_declares_a_spec`: a finding can now
+    /// name the peer answerable for it, and the point of the migration is that
+    /// it does.
+    ///
+    /// **It counts rules where the citation ratchet counts defs, and the
+    /// difference is not arbitrary.** A citation is a property of the *site* —
+    /// two sites of one rule enforce different sentences — so that gate has to
+    /// look at sites. A party is a property of the *rule* first:
+    /// [`RuleParty::Presumed`] answers for every finding in the file without a
+    /// site writing anything, which is the whole mechanism that keeps 582 call
+    /// sites unedited. A source scan would read every one of those sites as
+    /// unmigrated forever.
+    ///
+    /// [`RuleParty::PerSite`] counts as read, because it is an answer. What
+    /// stops it being a hiding place is
+    /// `a_per_site_rule_names_a_party_at_every_finding` below: declaring it
+    /// costs exactly what attributing the rule costs.
+    ///
+    /// **Never map scope onto party mechanically.** `Server` scope says the
+    /// rule needs a response, not that its findings are the origin's — 19
+    /// `Server`-scoped rules read `tx.request` and 2 `Client`-scoped ones read
+    /// `tx.response`. A commit that raised this by 111 in one edit would have
+    /// raised it wrongly.
+    #[test]
+    fn party_coverage_does_not_regress() {
+        /// Raised by the commit that reads rules; never lowered.
+        ///
+        /// **Read the number the failing assertion prints.** Never the previous
+        /// number plus the rules a commit touched, and never address this
+        /// constant by line — a sibling ratchet in this workspace sat stale
+        /// through four commits that claimed to have raised it, because they
+        /// edited it by line in a file whose numbering they had just changed,
+        /// and a floor is a one-way assertion: nothing fails when it is left
+        /// too low.
+        ///
+        /// 1 of 190 with `proxy_connection_discouraged`, whose own prose
+        /// already argued the answer before there was anywhere to record it —
+        /// which is why it is the one rule this commit reads rather than
+        /// none: a floor of zero is a gate that cannot fail, and clippy says
+        /// so.
+        const FLOOR: usize = 1;
+        let read = all_rules()
+            .filter(|rule| rule.party() != RuleParty::Unread)
+            .count();
+        assert!(
+            read >= FLOOR,
+            "{read} of {} rules name the party answerable for their findings, \
+             below the floor of {FLOOR}",
+            all_rules().count(),
+        );
+    }
+
+    /// A rule that presumes no party names one at every finding site.
+    ///
+    /// Textual, and not only the `debug_assert` in [`RuleContext::finding`],
+    /// for the reason `no_rule_constructs_a_violation_literal` gives: the site
+    /// no test reaches is exactly the site that keeps its `None`, and a runtime
+    /// check never runs there. `ctx.by_server().report_with(` does not contain
+    /// `ctx.report_with(`, so the token is the whole test.
+    #[test]
+    fn a_per_site_rule_names_a_party_at_every_finding() -> anyhow::Result<()> {
+        let per_site: std::collections::BTreeSet<&str> = all_rules()
+            .filter(|rule| rule.party() == RuleParty::PerSite)
+            .map(RuleMeta::id)
+            .collect();
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            if path.extension().is_none_or(|e| e != "rs") || !per_site.contains(stem) {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path)?;
+            // Only the code that ships: a fixture is not a finding site. The
+            // same cut `no_dispatch_skips_the_enabled_table` makes.
+            let body = src
+                .split("\n#[cfg(test)]")
+                .next()
+                .unwrap_or(&src)
+                .to_string();
+            for (i, line) in body.lines().enumerate() {
+                assert!(
+                    !line.contains("ctx.report(") && !line.contains("ctx.report_with("),
+                    "{}:{}: {stem} presumes no party, so every finding names one \
+                     — ctx.by_client(), by_server() or by_neither()",
+                    path.display(),
+                    i + 1,
+                );
+            }
+        }
+        Ok(())
+    }
+
     #[test]
     fn every_rule_file_is_registered() {
         // Deleting the hand-maintained `RULES` const removed the single place
@@ -1702,6 +1953,201 @@ enabled = "true"
         RuleContext::new(resolved).with_violations(&ReportingRule, violations)
     }
 
+    /// A rule that answers for all its findings at once, the way the 97 rules
+    /// that read a single half of a transaction do. Declares the same two
+    /// defects, so the only difference under test is the party.
+    struct AnsweringRule;
+
+    impl RuleMeta for AnsweringRule {
+        fn id(&self) -> &'static str {
+            "test_fixture_answering_rule"
+        }
+
+        fn config_example(&self) -> &'static str {
+            "enabled = true\n"
+        }
+
+        fn violations(&self) -> &'static [&'static ViolationDef] {
+            DECLARED
+        }
+
+        fn party(&self) -> RuleParty {
+            RuleParty::Presumed(crate::lint::Party::Server)
+        }
+    }
+
+    fn answering_context<'a>(
+        resolved: &'a ResolvedRule,
+        violations: &'a [ResolvedViolation],
+    ) -> RuleContext<'a> {
+        RuleContext::new(resolved).with_violations(&AnsweringRule, violations)
+    }
+
+    /// A rule that reads both halves and answers one finding at a time — the
+    /// state at least 21 rules in the catalogue must reach, since 19
+    /// `Server`-scoped rules read the request and 2 `Client`-scoped ones read
+    /// the response.
+    struct PerSiteRule;
+
+    impl RuleMeta for PerSiteRule {
+        fn id(&self) -> &'static str {
+            "test_fixture_per_site_rule"
+        }
+
+        fn config_example(&self) -> &'static str {
+            "enabled = true\n"
+        }
+
+        fn violations(&self) -> &'static [&'static ViolationDef] {
+            DECLARED
+        }
+
+        fn party(&self) -> RuleParty {
+            RuleParty::PerSite
+        }
+    }
+
+    fn per_site_context<'a>(
+        resolved: &'a ResolvedRule,
+        violations: &'a [ResolvedViolation],
+    ) -> RuleContext<'a> {
+        RuleContext::new(resolved).with_violations(&PerSiteRule, violations)
+    }
+
+    /// `PerSite` is an answer and `Unread` is not, and the two must not be
+    /// told apart by what a finding carries — both leave it unattributed. What
+    /// tells them apart is the rule, which is what the ratchet counts and what
+    /// the docs index groups by.
+    #[test]
+    fn a_per_site_rule_and_an_unread_one_differ_at_the_rule_not_the_finding() {
+        let resolved = unit_resolved();
+        let table = all_reporting(&[crate::lint::Severity::Warn, crate::lint::Severity::Error]);
+        assert_eq!(
+            per_site_context(&resolved, &table)
+                .by_client()
+                .report(&FIXED)
+                .party,
+            Some(crate::lint::Party::Client),
+        );
+        assert_ne!(PerSiteRule.party(), ReportingRule.party());
+        assert_eq!(ReportingRule.party(), RuleParty::Unread);
+    }
+
+    /// The wrapper composes with the helpers rules already have: twelve rule
+    /// files carry a private `fn …(&self, …, ctx: &RuleContext<'_>)` that
+    /// builds a finding, and an attributed context reaches them unchanged.
+    /// This is the property that made `by_*` return a context rather than a
+    /// borrowing wrapper, so it is worth a test rather than only a comment.
+    #[test]
+    fn an_attributed_context_reaches_a_helper_that_takes_a_plain_one() {
+        fn helper(ctx: &RuleContext<'_>) -> Violation {
+            ctx.report(&FIXED)
+        }
+        let resolved = unit_resolved();
+        let table = all_reporting(&[crate::lint::Severity::Warn, crate::lint::Severity::Error]);
+        let ctx = per_site_context(&resolved, &table);
+        assert_eq!(
+            helper(&ctx.by_server()).party,
+            Some(crate::lint::Party::Server),
+        );
+    }
+
+    /// A rule that has not been read for the question reports findings that say
+    /// so — and `None` has to survive as `None`, because the whole point of the
+    /// filter downstream is that it can tell "nobody decided" from "nobody is
+    /// answerable".
+    #[test]
+    fn a_rule_that_names_no_party_makes_findings_that_name_none() {
+        let resolved = unit_resolved();
+        let table = all_reporting(&[crate::lint::Severity::Warn, crate::lint::Severity::Error]);
+        let ctx = reporting_context(&resolved, &table);
+        assert_eq!(ctx.report(&FIXED).party, None);
+        assert_eq!(ctx.report_with(&PARAMETERISED, "x".into()).party, None);
+    }
+
+    /// The rule's own answer reaches every site in it, which is what makes the
+    /// one-line declaration worth having: 297 reporting sites are attributed by
+    /// 97 lines rather than by 297 edits.
+    #[test]
+    fn a_rules_party_reaches_the_sites_that_do_not_override_it() {
+        let resolved = unit_resolved();
+        let table = all_reporting(&[crate::lint::Severity::Warn, crate::lint::Severity::Error]);
+        let ctx = answering_context(&resolved, &table);
+        assert_eq!(ctx.report(&FIXED).party, Some(crate::lint::Party::Server));
+        assert_eq!(
+            ctx.report_with(&PARAMETERISED, "x".into()).party,
+            Some(crate::lint::Party::Server),
+        );
+    }
+
+    /// A site that knows better than its rule wins — the case the wrapper
+    /// exists for, since a rule reading both halves has no single answer to
+    /// declare. Asserted against a rule that *does* declare one, so what is
+    /// under test is the override and not the absence of a default.
+    #[test]
+    fn a_site_overrides_the_party_its_rule_declared() {
+        let resolved = unit_resolved();
+        let table = all_reporting(&[crate::lint::Severity::Warn, crate::lint::Severity::Error]);
+        let ctx = answering_context(&resolved, &table);
+        assert_eq!(
+            ctx.by_client().report(&FIXED).party,
+            Some(crate::lint::Party::Client),
+        );
+        assert_eq!(
+            ctx.by_neither().report(&FIXED).party,
+            Some(crate::lint::Party::Neither),
+        );
+        // And the same override on the rule that declares nothing, which is
+        // where every one of the 217 remaining sites will be written.
+        let ctx = reporting_context(&resolved, &table);
+        assert_eq!(
+            ctx.by_server()
+                .report_with(&PARAMETERISED, "x".into())
+                .party,
+            Some(crate::lint::Party::Server),
+        );
+    }
+
+    /// Attribution changes who a finding names and nothing else. The severity
+    /// still comes from the table, the citation still from the def, the id
+    /// still from the def — a wrapper that quietly rebuilt any of those would
+    /// pass every test above and be wrong.
+    #[test]
+    fn attributing_a_finding_changes_only_its_party() {
+        let resolved = unit_resolved();
+        let table = all_reporting(&[crate::lint::Severity::Info, crate::lint::Severity::Error]);
+        let ctx = reporting_context(&resolved, &table);
+        let plain = ctx.report(&FIXED);
+        let attributed = ctx.by_client().report(&FIXED);
+        assert_eq!(plain.rule, attributed.rule);
+        assert_eq!(plain.violation, attributed.violation);
+        assert_eq!(plain.severity, attributed.severity);
+        assert_eq!(plain.message, attributed.message);
+        assert_eq!(plain.cite, attributed.cite);
+        assert_ne!(plain.party, attributed.party);
+    }
+
+    /// An attributed finding is still one an operator can switch off. The drop
+    /// happens in `reported`, which reads the defect id — a wrapper that
+    /// produced findings the enabled table could not match would make
+    /// `[violations.<id>] enabled = false` silently stop working on exactly
+    /// the sites this campaign is converting.
+    #[test]
+    fn an_attributed_finding_is_still_dropped_when_its_defect_is_off() {
+        let mut cfg = crate::config::Config::default();
+        crate::test_helpers::disable_violation(&mut cfg, "test_fixture_defect_fixed");
+        let resolved = unit_resolved();
+        let table = violations_for(&ReportingRule, &cfg);
+        let ctx = reporting_context(&resolved, &table);
+        let reported = ctx.reported(vec![
+            ctx.by_client().report(&FIXED),
+            ctx.by_server().report_with(&PARAMETERISED, "kept".into()),
+        ]);
+        assert_eq!(reported.len(), 1);
+        assert_eq!(reported[0].violation, "test_fixture_defect_parameterised");
+        assert_eq!(reported[0].party, Some(crate::lint::Party::Server));
+    }
+
     /// A table of severities, every entry reporting — the shape a
     /// configuration with no `[violations.*]` section resolves to.
     fn all_reporting(severities: &[crate::lint::Severity]) -> Vec<ResolvedViolation> {
@@ -1902,6 +2348,7 @@ enabled = "true"
             severity: crate::lint::Severity::Warn,
             message: "from somewhere else".into(),
             cite: None,
+            party: None,
         };
         assert_eq!(ctx.reported(vec![stray]).len(), 1);
     }
