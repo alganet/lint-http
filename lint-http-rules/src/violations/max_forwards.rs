@@ -19,6 +19,7 @@
 //! grammar failure — so there is no `_invalid` entry here and cannot be one.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -44,8 +45,9 @@ defects! {
         id: "max_forwards_empty",
         title: "Max-Forwards is written with no digits on it",
         message: "Max-Forwards is present with no digits; the field is `Max-Forwards = 1*DIGIT`, which requires at least one",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_7_6_2],
+        strength: Strength::Grammar,
     }
 
     /// A `Max-Forwards` holding an octet that is not a `DIGIT`.
@@ -59,8 +61,9 @@ defects! {
         id: "max_forwards_malformed",
         title: "Max-Forwards holds something that is not a digit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_7_6_2],
+        strength: Strength::Grammar,
     }
 }
 

@@ -698,7 +698,7 @@ mod tests {
         ] {
             let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value:?}"));
             assert_eq!(violation, id, "{value:?}");
-            assert_eq!(severity, crate::lint::Severity::Warn, "{value:?}");
+            assert_eq!(severity, crate::lint::Severity::Error, "{value:?}");
         }
     }
 
@@ -722,6 +722,10 @@ mod tests {
     /// §4 writes that half unmodified, and the two list ids §3 says this field
     /// takes from HTTP rather than defines — so an operator who silenced the
     /// stray comma in a `Vary` has silenced it here too.
+    ///
+    /// Seven of the eight are values no production generates and report at
+    /// `error`; the eighth is the lone comma, which lists no member and which
+    /// no sentence prohibits.
     #[test]
     fn the_fields_own_grammar_reports_the_subjects_it_is_written_from() {
         for (value, id) in [
@@ -738,12 +742,17 @@ mod tests {
                 "forwarded_parameter_duplicated",
             ),
             ("for=192.0.2.1,,for=192.0.2.2", "list_member_empty"),
-            (",", "list_member_missing"),
         ] {
             let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value}"));
             assert_eq!(violation, id, "{value}");
-            assert_eq!(severity, crate::lint::Severity::Warn, "{value}");
+            assert_eq!(severity, crate::lint::Severity::Error, "{value}");
         }
+        // The one id here whose entry claims no sentence: a field value that is
+        // a lone comma lists no member, and § 5.6.1 prohibits nobody from
+        // writing one.
+        let (violation, severity) = judge_defect(",").expect("a finding for a lone comma");
+        assert_eq!(violation, "list_member_missing");
+        assert_eq!(severity, crate::lint::Severity::Warn);
     }
 
     /// The spelling recommendation is the only thing this rule says at `info`,
@@ -753,11 +762,11 @@ mod tests {
     fn the_recommended_spelling_reports_below_the_grammar() {
         let (violation, severity) = judge_defect("for=\"[2001:DB8::1]\"").expect("a finding");
         assert_eq!(violation, "node_ipv6_representation_invalid");
-        assert_eq!(severity, crate::lint::Severity::Info);
+        assert_eq!(severity, crate::lint::Severity::Warn);
 
         let (violation, severity) = judge_defect("for=x-foo").expect("a finding");
         assert_eq!(violation, "node_malformed");
-        assert_eq!(severity, crate::lint::Severity::Warn);
+        assert_eq!(severity, crate::lint::Severity::Error);
     }
 
     #[test]

@@ -359,9 +359,9 @@ mod tests {
         assert_eq!(all.len(), 2, "{all:?}");
         // The method's own MUST, and the open-ended SHOULD ranked below it.
         assert_eq!(all[0].violation, "method_options_content_type_missing");
-        assert_eq!(all[0].severity, crate::lint::Severity::Warn);
+        assert_eq!(all[0].severity, crate::lint::Severity::Error);
         assert_eq!(all[1].violation, "method_options_capabilities_missing");
-        assert_eq!(all[1].severity, crate::lint::Severity::Info);
+        assert_eq!(all[1].severity, crate::lint::Severity::Warn);
         assert!(
             all[0].message.contains("no Content-Type"),
             "{}",

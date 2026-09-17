@@ -25,6 +25,7 @@
 
 use crate::helpers::language::LanguageTagDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -50,8 +51,9 @@ defects! {
         id: "language_tag_empty",
         title: "Language tag is empty",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5646_2_1],
+        strength: Strength::Grammar,
     }
 
     /// A control octet or whitespace inside the tag — neither of which any
@@ -78,8 +80,9 @@ defects! {
         id: "language_tag_character_forbidden",
         title: "Language tag holds a character outside letters, digits and hyphen",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5646_2_1],
+        strength: Strength::Grammar,
     }
 
     /// A leading or trailing `-`. The hyphen separates subtags, so one at
@@ -116,8 +119,9 @@ defects! {
         id: "language_tag_leading_letter_missing",
         title: "Language tag does not begin with a letter",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5646_2_1],
+        strength: Strength::Grammar,
     }
 
     /// A subtag over eight characters. Every subtag alternative in the grammar
@@ -129,8 +133,9 @@ defects! {
         id: "language_tag_subtag_length_invalid",
         title: "Language subtag is longer than eight characters",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5646_2_1],
+        strength: Strength::Grammar,
     }
 }
 

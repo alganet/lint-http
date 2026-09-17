@@ -26,6 +26,7 @@
 //! rest.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -141,7 +142,8 @@ defects! {
         id: "cross_origin_resource_policy_invalid",
         title: "Cross-Origin-Resource-Policy names no resource policy",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[FETCH_3_7],
+        strength: Strength::Grammar,
     }
 }

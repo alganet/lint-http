@@ -28,6 +28,7 @@
 //! a reference except the one whose antecedent RFC 2617 supplies as well.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -148,8 +149,9 @@ defects! {
         id: "digest_credentials_quoting_invalid",
         title: "A Digest parameter is written in the syntax its definition refuses",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7616_3_4],
+        strength: Strength::Must,
     }
 
     /// A credential naming a `nonce` no challenge in this exchange offered:
@@ -232,8 +234,9 @@ defects! {
         id: "digest_credentials_nc_malformed",
         title: "A Digest nonce-count is not eight hexadecimal digits",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7616_3_5],
+        strength: Strength::Must,
     }
 
     /// Eight good hex digits naming the wrong number: a count that did not

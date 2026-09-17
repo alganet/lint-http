@@ -14,7 +14,7 @@ Strict-Transport-Security header missing required 'max-age' directive
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+A **`MUST`** binding the sender of the message, so a finding here reports at `error` by default.
 
 ## Specifications
 
@@ -25,7 +25,8 @@ Strict-Transport-Security header missing required 'max-age' directive
 ```toml
 [violations.strict_transport_security_max_age_missing]
 # The policy states no max-age
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 ```
 
 ## Reported By

@@ -280,7 +280,7 @@ mod tests {
             } else {
                 (
                     "x_content_type_options_invalid",
-                    crate::lint::Severity::Warn,
+                    crate::lint::Severity::Error,
                 )
             };
             assert_eq!(found.violation, id);

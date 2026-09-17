@@ -24,6 +24,7 @@
 //! for the reasoning all four share.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -84,6 +85,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_8_4],
+        strength: Strength::Should,
     }
 
     /// One coding named twice in one field: `Content-Encoding: gzip, gzip`.

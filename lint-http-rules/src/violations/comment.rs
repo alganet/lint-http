@@ -19,6 +19,7 @@
 
 use crate::helpers::comment::CommentDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::{defects, ViolationDef};
@@ -47,8 +48,9 @@ defects! {
         id: "comment_delimiter_missing",
         title: "Comment is never closed",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_5],
+        strength: Strength::Grammar,
     }
 
     /// An octet `ctext` does not admit — a control character, DEL — where the
@@ -68,8 +70,9 @@ defects! {
         id: "comment_character_forbidden",
         title: "Comment holds a character ctext does not admit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_5],
+        strength: Strength::Grammar,
     }
 }
 

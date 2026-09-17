@@ -14,7 +14,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+A **`MUST`** binding the sender of the message, so a finding here reports at `error` by default.
 
 ## Specifications
 
@@ -26,6 +26,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.te_member_forbidden]
 # A request's TE holds a member other than trailers
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 ```
 

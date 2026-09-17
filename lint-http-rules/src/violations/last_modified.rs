@@ -12,6 +12,7 @@
 //! thing only the surrounding message can decide.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -50,7 +51,8 @@ defects! {
         id: "last_modified_conflicting",
         title: "A Last-Modified is later than the Date beside it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_8_8_2_1],
+        strength: Strength::Must,
     }
 }

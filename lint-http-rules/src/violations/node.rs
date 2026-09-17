@@ -17,6 +17,7 @@
 
 use crate::helpers::forwarded_node::NodeDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -55,7 +56,7 @@ defects! {
         id: "node_ipv6_brackets_missing",
         title: "Node identifier holds an IPv6 address without its square brackets",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_6_1],
     }
 
@@ -68,8 +69,9 @@ defects! {
         id: "node_ipv6_closing_bracket_missing",
         title: "Node identifier opens an IPv6 literal and never closes it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_6],
+        strength: Strength::Grammar,
     }
 
     /// Brackets around something that is not an `IPv6address`. The brackets are
@@ -81,8 +83,9 @@ defects! {
         id: "node_ipv6_address_malformed",
         title: "Node identifier brackets something that is not an IPv6 address",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_6],
+        strength: Strength::Grammar,
     }
 
     /// Digits and dots that are not an `IPv4address` — `010.1.2.3`, `1.2.3`,
@@ -94,8 +97,9 @@ defects! {
         id: "node_ipv4_address_malformed",
         title: "Node identifier is digits and dots that are not an IPv4 address",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_6],
+        strength: Strength::Grammar,
     }
 
     /// A nodename no alternative of the production generates. The everyday
@@ -107,8 +111,9 @@ defects! {
         id: "node_malformed",
         title: "Node identifier derives from no alternative of the production",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_6],
+        strength: Strength::Grammar,
     }
 
     /// A well-formed `IPv6address` written against §6.1's recommendation —
@@ -122,8 +127,9 @@ defects! {
         id: "node_ipv6_representation_invalid",
         title: "Node identifier writes an IPv6 address outside the recommended representation",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Warn,
         spec: &[RFC_7239_6_1],
+        strength: Strength::Should,
     }
 
     /// Something after the `:` that is neither `1*5DIGIT` nor an `obfport`.
@@ -135,8 +141,9 @@ defects! {
         id: "node_port_malformed",
         title: "Node identifier holds something that is not a node-port",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_6],
+        strength: Strength::Grammar,
     }
 }
 
@@ -209,7 +216,7 @@ mod tests {
     fn the_recommended_representation_sits_below_the_grammar() {
         assert_eq!(
             NODE_IPV6_REPRESENTATION_INVALID.default_severity,
-            Severity::Info
+            Severity::Warn
         );
         for def in [
             &NODE_IPV6_BRACKETS_MISSING,

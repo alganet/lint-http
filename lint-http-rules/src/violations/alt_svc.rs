@@ -62,6 +62,7 @@
 // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -150,8 +151,9 @@ defects! {
         id: "alt_svc_alternative_equals_missing",
         title: "Alt-Svc alternative has no '=' between its protocol-id and its alt-authority",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7838_3],
+        strength: Strength::Grammar,
     }
 
     /// A `parameter` whose value and delimiter are both absent: `; ma`.
@@ -178,8 +180,9 @@ defects! {
         id: "alt_svc_parameter_equals_missing",
         title: "Alt-Svc parameter has no '=' and no value",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7838_3],
+        strength: Strength::Grammar,
     }
 
     /// A repetition of the parameter group holding no parameter: `h2=":443"; ;`
@@ -208,8 +211,9 @@ defects! {
         id: "alt_svc_parameter_empty",
         title: "Alt-Svc writes a semicolon with no parameter behind it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7838_3],
+        strength: Strength::Unstated,
     }
 
     /// An `=` with nothing after it: `ma=`.
@@ -236,8 +240,9 @@ defects! {
         id: "alt_svc_parameter_value_empty",
         title: "Alt-Svc parameter is written with no value after its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7838_3],
+        strength: Strength::Grammar,
     }
 
     /// Whitespace touching one of the field's two `=` delimiters: `h2 = ":443"`
@@ -270,8 +275,9 @@ defects! {
         id: "alt_svc_equals_whitespace_forbidden",
         title: "Alt-Svc writes whitespace beside an '=' its grammar prints bare",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7838_3],
+        strength: Strength::Grammar,
     }
 
     /// An octet at or above %x80 anywhere inside an `alt-authority`:
@@ -299,8 +305,9 @@ defects! {
         id: "alt_svc_authority_character_forbidden",
         title: "Alt-Svc alt-authority holds an octet no production of it admits",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7838_8],
+        strength: Strength::Must,
     }
 
     /// An `alt-authority` with no colon in it: `h2="example.com"`.
@@ -328,6 +335,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_7838_3],
+        strength: Strength::Unstated,
     }
 
     /// An `alt-authority` that carries the colon and no digits after it:
@@ -348,6 +356,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_7838_3],
+        strength: Strength::Unstated,
     }
 
     /// An `alt-authority` naming a number no transport has: `h2=":65536"`.
@@ -378,6 +387,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_7838_3],
+        strength: Strength::Unstated,
     }
 
     /// A `protocol-id` that is a well-formed `token` of well-formed triplets
@@ -445,6 +455,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_7838_3_1],
+        strength: Strength::Unstated,
     }
 
     /// A freshness lifetime that derives from `delta-seconds` and states
@@ -495,9 +506,15 @@ mod tests {
 
     /// The two delimiters this field prints bare, measured against the
     /// `parameter` subject they may not borrow from: same shape, different
-    /// document, and the rank is where the difference shows. § 5.6.6's readers
-    /// trim the whitespace and the specification publishes the leniency, so
-    /// that entry is `info`; nothing publishes one here.
+    /// document, and the ids say so.
+    ///
+    /// **The rank used to be where the difference showed** — that entry was
+    /// `info` because six rules trim the whitespace and publish the leniency,
+    /// this one `warn` because nothing publishes one here. Both productions
+    /// print the `=` bare, so neither value derives, so both are `error`: what
+    /// a reader of this crate does with an octet is not what a specification
+    /// obliged a sender to write. The separation that survives is the one that
+    /// mattered — two ids naming two documents.
     #[test]
     fn the_field_writes_its_own_delimiter_entries_rather_than_borrowing() {
         use crate::violations::parameter::{
@@ -510,11 +527,7 @@ mod tests {
         );
         assert_eq!(
             ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN.default_severity,
-            Severity::Warn
-        );
-        assert_eq!(
             PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.default_severity,
-            Severity::Info
         );
         for def in [
             &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
@@ -524,7 +537,7 @@ mod tests {
             &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
         ] {
             assert_eq!(def.spec, [RFC_7838_3], "{}", def.id);
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
     }
 

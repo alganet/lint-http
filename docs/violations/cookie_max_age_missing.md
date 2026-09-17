@@ -14,7 +14,7 @@ Set-Cookie attribute 'Max-Age' requires a numeric value
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+A **`SHOULD`** binding the sender of the message — advice the specification gives in its own voice and the sender declined — so a finding here reports at `warn` by default.
 
 ## Specifications
 
@@ -25,6 +25,7 @@ Set-Cookie attribute 'Max-Age' requires a numeric value
 ```toml
 [violations.cookie_max_age_missing]
 # Set-Cookie Max-Age attribute carries no value
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 ```
 

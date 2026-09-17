@@ -36,6 +36,7 @@
 //! be delimited have no order to judge.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -73,8 +74,9 @@ defects! {
         id: "transfer_encoding_chunked_duplicated",
         title: "The chunked transfer coding is applied more than once",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9112_6_1],
+        strength: Strength::Must,
     }
 
     /// `chunked` is in the sequence and something is applied after it, so the
@@ -92,8 +94,9 @@ defects! {
         id: "transfer_encoding_chunked_position_invalid",
         title: "The chunked transfer coding is not the final one",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9112_6_1],
+        strength: Strength::Must,
     }
 
     /// A coding was applied and `chunked` was not, so nothing frames the
@@ -112,8 +115,9 @@ defects! {
         id: "transfer_encoding_chunked_missing",
         title: "A coding is applied and chunked never is",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9112_6_1],
+        strength: Strength::Must,
     }
 
     /// A coding applied in transit that the representation already carries:
@@ -140,6 +144,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9112_7_3],
+        strength: Strength::Unstated,
     }
 }
 

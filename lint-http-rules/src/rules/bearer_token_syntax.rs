@@ -162,13 +162,13 @@ mod tests {
     #[case(
         "Bearer a@b",
         "token68_character_forbidden",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
-    #[case("Bearer ==", "token68_body_empty", crate::lint::Severity::Warn)]
+    #[case("Bearer ==", "token68_body_empty", crate::lint::Severity::Error)]
     #[case(
         "Bearer ab=c",
         "token68_padding_malformed",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     fn each_finding_names_the_defect_and_carries_its_severity(
         #[case] header: &str,

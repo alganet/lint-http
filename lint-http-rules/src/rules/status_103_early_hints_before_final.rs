@@ -242,13 +242,22 @@ mod tests {
     /// The two entries, and which sentence each rests on: the class a version
     /// cannot place at all, and the interim response standing where the one
     /// final response goes.
+    ///
+    /// The levels differ for the same reason the ids do. § 15.2 prohibits a
+    /// server from sending any `1xx` to an HTTP/1.0 client in as many words;
+    /// nothing prohibits a `103` and the second entry says so by ending in
+    /// `_ambiguous`.
     #[rstest]
-    #[case::http_1_0("HTTP/1.0", "status_1xx_forbidden")]
-    #[case::in_the_final_slot("HTTP/1.1", "status_103_ambiguous")]
-    fn each_finding_names_its_entry(#[case] version: &str, #[case] id: &str) {
+    #[case::http_1_0("HTTP/1.0", "status_1xx_forbidden", crate::lint::Severity::Error)]
+    #[case::in_the_final_slot("HTTP/1.1", "status_103_ambiguous", crate::lint::Severity::Warn)]
+    fn each_finding_names_its_entry(
+        #[case] version: &str,
+        #[case] id: &str,
+        #[case] severity: crate::lint::Severity,
+    ) {
         let found = run(&tx_with(103, version)).expect("a finding");
         assert_eq!(found.violation, id);
-        assert_eq!(found.severity, crate::lint::Severity::Warn);
+        assert_eq!(found.severity, severity);
     }
 
     #[test]

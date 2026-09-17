@@ -794,13 +794,17 @@ mod tests {
 
     /// This rule's own severity is `error`, chosen for the requirements it is
     /// named after, and until the catalogue existed every grammar quibble it
-    /// noticed inherited that level. **The configured level now reaches none of
-    /// them**: three findings out of one rule come out at the three levels their
-    /// entries default to — the spelling of a `=` at `info`, a stray comma at
-    /// `warn`, and the MUST NOT about content at `warn` because the exchange
-    /// survives it, whatever the rule was configured with.
+    /// noticed inherited that level. **The configured level still reaches none
+    /// of them** — which is the claim, and it survives the three findings
+    /// arriving at one level rather than three.
+    ///
+    /// They arrive there because each names a sentence addressed to the sender:
+    /// two productions the value derives from neither of, and § 10.1.1's "A
+    /// client MUST NOT generate a 100-continue expectation in a request that
+    /// does not include content". The rule is not what put them there, and
+    /// switching its configured severity does not move them.
     #[test]
-    fn one_rule_now_reports_at_three_levels() {
+    fn one_rules_findings_take_their_entries_levels_and_not_the_rules() {
         let severity_of = |value: &str| {
             let tx = tx_with_expect_lines(&[value.as_bytes()]);
             let rule = ExpectHeaderValid;
@@ -814,11 +818,11 @@ mod tests {
         };
 
         let spelling = severity_of("a=b; c = d");
-        assert_eq!(spelling.severity, crate::lint::Severity::Info);
+        assert_eq!(spelling.severity, crate::lint::Severity::Error);
 
         let comma = severity_of("a,,b");
         assert_eq!(comma.violation, "list_member_empty");
-        assert_eq!(comma.severity, crate::lint::Severity::Warn);
+        assert_eq!(comma.severity, crate::lint::Severity::Error);
 
         // The 100-continue expectation on a request with no content: its own
         // entry now, and its own rank. The fixture above gives every request
@@ -833,7 +837,7 @@ mod tests {
         )
         .expect("the MUST NOT about content");
         assert_eq!(framing.violation, "expect_100_continue_forbidden");
-        assert_eq!(framing.severity, crate::lint::Severity::Warn);
+        assert_eq!(framing.severity, crate::lint::Severity::Error);
     }
 
     #[test]

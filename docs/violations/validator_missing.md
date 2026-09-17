@@ -14,7 +14,7 @@ Response 200 without ETag or Last-Modified validator
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+A **`SHOULD`** binding the sender of the message — advice the specification gives in its own voice and the sender declined — so a finding here reports at `warn` by default.
 
 ## Specifications
 
@@ -26,7 +26,8 @@ Response 200 without ETag or Last-Modified validator
 ```toml
 [violations.validator_missing]
 # A response gives a later request nothing to validate against
-severity = "info"
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
 ```
 
 ## Reported By

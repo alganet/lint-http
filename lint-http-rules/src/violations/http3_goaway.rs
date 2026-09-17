@@ -22,6 +22,7 @@
 //! pair of things a sender or a recipient did wrong.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -55,6 +56,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9114_5_2],
+        strength: Strength::Must,
     }
 
     /// A request stream opened past the last stream id a server's `GOAWAY`
@@ -78,8 +80,9 @@ defects! {
         id: "http3_goaway_ignored",
         title: "A request stream opens past the limit a server's GOAWAY set",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9114_5_2],
+        strength: Strength::Must,
     }
 }
 
@@ -87,15 +90,22 @@ defects! {
 mod tests {
     use super::*;
 
-    /// The split is the stated consequence and nothing else: one sentence ends
-    /// in a connection error and the other ends.
+    /// The split used to be the stated consequence: one sentence ends in a
+    /// connection error of type `H3_ID_ERROR` and the other ends. Both are
+    /// `MUST`s addressed to an endpoint, and an endpoint that initiates a
+    /// request after a GOAWAY has broken one whether or not § 5.2 names a code
+    /// for the peer to answer with.
+    ///
+    /// What the connection error still buys is a *citation* difference rather
+    /// than a rank, so the assertion that survives is about which entry names
+    /// which sentence.
     #[test]
-    fn only_the_entry_whose_sentence_ends_the_connection_is_an_error() {
+    fn both_entries_break_a_must_and_only_one_names_the_error_code() {
         assert_eq!(
             HTTP3_GOAWAY_IDENTIFIER_INVALID.default_severity,
             Severity::Error
         );
-        assert_eq!(HTTP3_GOAWAY_IGNORED.default_severity, Severity::Warn);
+        assert_eq!(HTTP3_GOAWAY_IGNORED.default_severity, Severity::Error);
     }
 
     /// One entry is about the frame's sender and the other about its reader,

@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.via_received_by_obsolete]
 # Via received-by is spelled as a uri-host
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

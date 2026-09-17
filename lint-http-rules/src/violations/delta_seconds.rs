@@ -23,6 +23,7 @@
 // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -47,8 +48,9 @@ defects! {
         id: "delta_seconds_empty",
         title: "A time in seconds is stated with no digits",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9111_1_2_2],
+        strength: Strength::Grammar,
     }
 
     /// An octet the production does not admit: the sign of `-1` or `+5`, the
@@ -67,8 +69,9 @@ defects! {
         id: "delta_seconds_character_forbidden",
         title: "A time in seconds holds an octet DIGIT does not admit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9111_1_2_2],
+        strength: Strength::Grammar,
     }
 }
 
@@ -84,7 +87,7 @@ mod tests {
     fn the_floor_and_the_alphabet_are_two_entries_of_one_rank() {
         assert_ne!(DELTA_SECONDS_EMPTY.id, DELTA_SECONDS_CHARACTER_FORBIDDEN.id);
         for def in [&DELTA_SECONDS_EMPTY, &DELTA_SECONDS_CHARACTER_FORBIDDEN] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
             assert_eq!(def.spec, [RFC_9111_1_2_2], "{}", def.id);
         }
     }

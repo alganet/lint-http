@@ -22,6 +22,7 @@
 
 use crate::helpers::auth::BasicCredentialsDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::base64::BASE64_MALFORMED;
 use crate::violations::credentials::CREDENTIALS_MISSING;
@@ -64,6 +65,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_7617_2],
+        strength: Strength::Must,
     }
 }
 

@@ -447,7 +447,7 @@ mod tests {
         let (violation, severity) =
             judge_defect(&[("x-forwarded-for", "not-an-ip")]).expect("a finding");
         assert_eq!(violation, "node_malformed");
-        assert_eq!(severity, crate::lint::Severity::Warn);
+        assert_eq!(severity, crate::lint::Severity::Error);
 
         // `[::1]:70000` is a `Host` value and `192.0.2.43:999999` is not a node
         // identifier: two ports, two productions, one of them silent.

@@ -25,6 +25,7 @@
 //! one literal, so there is no production to borrow from.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -73,8 +74,9 @@ defects! {
         id: "early_data_forbidden",
         title: "Early-Data appears where the section forbids it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8470_5_1],
+        strength: Strength::Must,
     }
 
     /// A request marked as early data whose method is not one the deployment
@@ -105,8 +107,9 @@ defects! {
         id: "early_data_method_forbidden",
         title: "A request in early data uses a method whose safety is not known",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8470_4],
+        strength: Strength::Must,
     }
 
     /// More than one `Early-Data` field line in a request.
@@ -126,6 +129,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_8470_5_1],
+        strength: Strength::Unstated,
     }
 
     /// An `Early-Data` whose value is not the literal `1`.

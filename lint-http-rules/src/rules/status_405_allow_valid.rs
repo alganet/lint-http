@@ -373,7 +373,7 @@ mod tests {
     fn each_half_of_the_must_names_its_entry() {
         let missing = check("DELETE", 405, &[]).expect("a finding");
         assert_eq!(missing.violation, "status_405_allow_missing");
-        assert_eq!(missing.severity, crate::lint::Severity::Warn);
+        assert_eq!(missing.severity, crate::lint::Severity::Error);
 
         let conflicting = check("DELETE", 405, &[("allow", b"GET, DELETE")]).expect("a finding");
         assert_eq!(conflicting.violation, "status_405_allow_conflicting");

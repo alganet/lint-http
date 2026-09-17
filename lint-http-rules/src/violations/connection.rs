@@ -20,6 +20,7 @@
 //! declaration itself.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -60,7 +61,8 @@ defects! {
         id: "connection_option_forbidden",
         title: "A connection-option names a field the whole chain must read",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_7_6_1],
+        strength: Strength::Must,
     }
 }

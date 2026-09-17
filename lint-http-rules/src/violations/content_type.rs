@@ -18,6 +18,7 @@
 //! one.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -60,6 +61,7 @@ defects! {
         message: "Response contains content but no Content-Type header",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_8_3],
+        strength: Strength::Should,
     }
 
     /// A `text/*` media type written with no `charset` parameter.

@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.forwarded_response_forbidden]
 # Response carries a Forwarded field
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

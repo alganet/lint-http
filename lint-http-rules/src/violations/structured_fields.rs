@@ -26,6 +26,7 @@
 
 use crate::helpers::structured_fields::SfDefectKind;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -244,6 +245,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9651_4_2],
+        strength: Strength::Unstated,
     }
 
     /// A value that is none of the seven bare item types: `u=+1`, `a=)))`,

@@ -23,6 +23,7 @@
 
 use crate::helpers::auth::BearerTokenDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::violations::auth_scheme::RFC_9110_11_2;
 use crate::violations::credentials::CREDENTIALS_MISSING;
 use crate::violations::{defects, ViolationDef};
@@ -49,6 +50,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 
     /// A visible octet outside the alphabet — the `%` of a value that was
@@ -60,8 +62,9 @@ defects! {
         id: "token68_character_forbidden",
         title: "token68 holds a character outside its alphabet",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 
     /// Padding and nothing before it. The production is `1*(…)` and then its
@@ -73,8 +76,9 @@ defects! {
         id: "token68_body_empty",
         title: "token68 is padding with no body",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 
     /// Something other than `=` at or after the first `=`. Padding is the only
@@ -87,8 +91,9 @@ defects! {
         id: "token68_padding_malformed",
         title: "token68 padding holds something other than '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 }
 

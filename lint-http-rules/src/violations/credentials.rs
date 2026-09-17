@@ -21,6 +21,7 @@
 
 use crate::helpers::auth::AuthorizationDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::auth_scheme::AUTH_SCHEME_CHARACTER_FORBIDDEN;
 use crate::violations::{defects, ViolationDef};
@@ -54,8 +55,9 @@ defects! {
         id: "credentials_empty",
         title: "Credentials are empty",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_6_2],
+        strength: Strength::Grammar,
     }
 
     /// A scheme with nothing after it. § 11.4's grammar makes the second half
@@ -86,6 +88,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_11_4],
+        strength: Strength::Grammar,
     }
 }
 

@@ -31,6 +31,7 @@
 // cite(RFC 9110 § 16.3.2): "If the field is allowable in trailers; by default, it will not be"
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -86,8 +87,9 @@ defects! {
         id: "trailer_field_forbidden",
         title: "A trailer field's definition does not permit the usage",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_6_5_1],
+        strength: Strength::Must,
     }
 
     /// A trailer field this message's own `Connection` names as a
@@ -122,6 +124,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_7_6_1],
+        strength: Strength::Unstated,
     }
 
     /// A field arrives in the trailer section that the message's `Trailer`
@@ -149,8 +152,9 @@ defects! {
         id: "trailer_member_missing",
         title: "A trailer field was not named in the Trailer declaration",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Warn,
         spec: &[RFC_9110_6_6_2],
+        strength: Strength::Should,
     }
 
     /// A `Trailer` declaration naming a field that cannot arrive in the section
@@ -187,6 +191,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9110_6_6_2],
+        strength: Strength::Unstated,
     }
 }
 
@@ -194,22 +199,27 @@ defects! {
 mod tests {
     use super::*;
 
-    /// The two prohibitions rank together and the two declaration entries below
-    /// them, which is the split between a value that was lost and a preparation
-    /// that was — in either direction, a list too short or a list naming
-    /// something that cannot come.
+    /// Four entries and three levels, and every step is a different sentence
+    /// rather than a different loss.
+    ///
+    /// `trailer_field_forbidden` quotes a sender told not to generate the
+    /// field. `trailer_member_missing` quotes a sender told it `SHOULD`
+    /// announce what it intends to send. `trailer_connection_option_forbidden`
+    /// quotes an *intermediary* required to strip the field, which prohibits
+    /// the sender nothing, and `trailer_member_invalid` quotes a list that
+    /// "indicates which fields might be present" — which a name that cannot
+    /// arrive still satisfies. The two prohibitions used to rank together and
+    /// the two declarations below them; the line now falls between the two
+    /// prohibitions instead.
     #[test]
-    fn the_declaration_ranks_below_the_two_prohibitions() {
-        assert_eq!(TRAILER_FIELD_FORBIDDEN.default_severity, Severity::Warn);
+    fn the_subject_ranks_on_which_sentence_reaches_the_sender() {
+        assert_eq!(TRAILER_FIELD_FORBIDDEN.default_severity, Severity::Error);
         assert_eq!(
             TRAILER_CONNECTION_OPTION_FORBIDDEN.default_severity,
             Severity::Warn
         );
-        assert_eq!(TRAILER_MEMBER_MISSING.default_severity, Severity::Info);
-        assert_eq!(
-            TRAILER_MEMBER_INVALID.default_severity,
-            TRAILER_MEMBER_MISSING.default_severity
-        );
+        assert_eq!(TRAILER_MEMBER_MISSING.default_severity, Severity::Warn);
+        assert!(TRAILER_MEMBER_INVALID.default_severity < TRAILER_MEMBER_MISSING.default_severity);
         assert!(TRAILER_MEMBER_INVALID.default_severity < TRAILER_FIELD_FORBIDDEN.default_severity);
     }
 }

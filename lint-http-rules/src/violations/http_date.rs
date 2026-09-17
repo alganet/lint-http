@@ -33,6 +33,7 @@
 
 use crate::http_date::HttpDateDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -56,8 +57,9 @@ defects! {
         id: "http_date_malformed",
         title: "Timestamp derives from no HTTP-date format",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_7],
+        strength: Strength::Grammar,
     }
 
     /// A date-valued field written with nothing on it, or with nothing but
@@ -83,8 +85,9 @@ defects! {
         id: "http_date_empty",
         title: "A date field is written with no timestamp on it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_7],
+        strength: Strength::Grammar,
     }
 
     /// A timestamp written in RFC 850's or asctime's format. Both parse, both
@@ -102,8 +105,9 @@ defects! {
         id: "http_date_obsolete",
         title: "Timestamp is written in an obsolete date format",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_7],
+        strength: Strength::Must,
     }
 
     /// An IMF-fixdate with whitespace around it, inside the value. The
@@ -130,8 +134,9 @@ defects! {
         id: "http_date_whitespace_forbidden",
         title: "Timestamp is padded with whitespace the grammar does not print",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_7],
+        strength: Strength::Must,
     }
 }
 
@@ -194,16 +199,24 @@ mod tests {
         }
     }
 
-    /// The ranking is by what a conformant recipient does with the value, not
-    /// by the strength of the sentence the sender broke. Every recipient MUST
-    /// read an obsolete format, so it sits alone at the bottom; a padded date
-    /// and an unreadable one are both values a strict recipient refuses.
+    /// **This test used to assert the opposite, and its old comment said why in
+    /// as many words: "the ranking is by what a conformant recipient does with
+    /// the value, not by the strength of the sentence the sender broke."**
+    /// That is the doctrine the catalogue no longer holds.
+    ///
+    /// § 5.6.7 addresses the sender three times and this subject is all three:
+    /// generate IMF-fixdate, generate no extra whitespace, and generate
+    /// something the production admits. A recipient is separately required to
+    /// read the obsolete formats, which is why the message still works — and
+    /// working is not the question the level answers.
     #[test]
-    fn the_timestamp_every_recipient_must_read_sits_below_the_two_it_may_refuse() {
-        assert!(HTTP_DATE_OBSOLETE.default_severity < HTTP_DATE_MALFORMED.default_severity);
-        assert_eq!(
-            HTTP_DATE_WHITESPACE_FORBIDDEN.default_severity,
-            HTTP_DATE_MALFORMED.default_severity,
-        );
+    fn the_three_ways_to_write_the_timestamp_wrongly_rank_together() {
+        for def in [
+            &HTTP_DATE_OBSOLETE,
+            &HTTP_DATE_MALFORMED,
+            &HTTP_DATE_WHITESPACE_FORBIDDEN,
+        ] {
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
+        }
     }
 }

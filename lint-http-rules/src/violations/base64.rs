@@ -32,6 +32,7 @@
 
 use crate::helpers::websocket::SecWebSocketKeyDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -73,8 +74,9 @@ defects! {
         id: "base64_malformed",
         title: "Value is not a base64 encoding",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_4648_3_3],
+        strength: Strength::Must,
     }
 
     /// An octet the sixty-four characters do not hold. The finer half of
@@ -88,8 +90,9 @@ defects! {
         id: "base64_character_forbidden",
         title: "Value holds an octet outside the base64 alphabet",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_4648_3_3],
+        strength: Strength::Must,
     }
 
     /// Every character is one the alphabet holds, and the sequence of them is
@@ -105,7 +108,7 @@ defects! {
         id: "base64_quantum_malformed",
         title: "Value is not a whole number of base64 groups",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_4648_4],
     }
 
@@ -132,8 +135,9 @@ defects! {
         id: "base64_pad_bits_invalid",
         title: "Final base64 symbol carries bits a conforming encoder zeroes",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Error,
         spec: &[RFC_4648_3_5],
+        strength: Strength::Must,
     }
 }
 
@@ -224,12 +228,22 @@ mod tests {
         assert!(!websocket.contains(&"base64_malformed"), "{websocket:?}");
     }
 
-    /// The value every decoder reads correctly sits below the three it is told
-    /// to reject.
+    /// The four entries sit at one level, and the one that moved is the
+    /// argument for the whole subject.
+    ///
+    /// `base64_pad_bits_invalid` used to sit below the rest because the value
+    /// decodes to exactly the octets it meant and § 3.5 lets a decoder accept
+    /// it. That is a fact about consequences. What the entry cites is *"These
+    /// pad bits MUST be set to zero by conforming encoders"* — addressed to
+    /// whoever wrote the encoder, which is the sender — and a catalogue that
+    /// ranks by obligation cannot read a sender's MUST and report a
+    /// preference. The decoder's licence is still true and is still on the
+    /// entry; it is no longer what sets the level.
     #[test]
-    fn the_spelling_a_decoder_may_accept_sits_below_the_ones_it_must_not() {
-        assert!(
-            BASE64_PAD_BITS_INVALID.default_severity < BASE64_CHARACTER_FORBIDDEN.default_severity
+    fn the_subject_ranks_on_the_sentence_and_not_on_what_decodes() {
+        assert_eq!(
+            BASE64_PAD_BITS_INVALID.default_severity,
+            BASE64_CHARACTER_FORBIDDEN.default_severity,
         );
         assert_eq!(
             BASE64_QUANTUM_MALFORMED.default_severity,

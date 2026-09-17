@@ -18,6 +18,7 @@
 //! document, not the container.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::violations::defects;
 
 // The section is § 5.6.4, which the `quoted_string` subject is named for and
@@ -41,8 +42,9 @@ defects! {
         id: "quoted_pair_malformed",
         title: "Escape is not a quoted-pair",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_4],
+        strength: Strength::Grammar,
     }
 }
 
@@ -55,6 +57,6 @@ mod tests {
     #[test]
     fn the_id_names_the_escape_and_not_its_container() {
         assert_eq!(QUOTED_PAIR_MALFORMED.id, "quoted_pair_malformed");
-        assert_eq!(QUOTED_PAIR_MALFORMED.default_severity, Severity::Warn);
+        assert_eq!(QUOTED_PAIR_MALFORMED.default_severity, Severity::Error);
     }
 }

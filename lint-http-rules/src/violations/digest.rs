@@ -29,6 +29,7 @@
 // cite(RFC 9530 § 2, label: content-digest dictionary): "It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:"
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -207,8 +208,9 @@ defects! {
         id: "digest_equals_missing",
         title: "Digest member is written without its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3230_4_2],
+        strength: Strength::Grammar,
     }
 
     /// A digest field member whose value is not a Byte Sequence:

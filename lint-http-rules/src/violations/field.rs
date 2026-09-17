@@ -48,6 +48,7 @@
 //! is the only reason that was ever load-bearing.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -132,8 +133,9 @@ defects! {
         id: "field_line_duplicated",
         title: "A field is written on more lines than its definition allows",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_3],
+        strength: Strength::Must,
     }
 
     /// A field stating hop-by-hop control — `Connection` and the fields it
@@ -170,6 +172,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9113_8_2_2, RFC_9114_4_2],
+        strength: Strength::Must,
     }
 
     /// A field name the deployment does not expect. The seventh registry entry
@@ -254,7 +257,7 @@ mod tests {
     #[test]
     fn the_subject_is_the_line_and_not_the_field_that_carried_it() {
         assert_eq!(FIELD_LINE_DUPLICATED.id, "field_line_duplicated");
-        assert_eq!(FIELD_LINE_DUPLICATED.default_severity, Severity::Warn);
+        assert_eq!(FIELD_LINE_DUPLICATED.default_severity, Severity::Error);
         assert_eq!(FIELD_LINE_DUPLICATED.spec, [RFC_9110_5_3]);
     }
 

@@ -230,7 +230,7 @@ mod tests {
             )
             .unwrap_or_else(|| panic!("a finding for {request} / {response:?}"));
             assert_eq!(found.violation, "http_version_malformed");
-            assert_eq!(found.severity, crate::lint::Severity::Warn);
+            assert_eq!(found.severity, crate::lint::Severity::Error);
         }
     }
 

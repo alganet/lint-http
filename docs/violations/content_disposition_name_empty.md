@@ -21,7 +21,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.content_disposition_name_empty]
 # A form-data Content-Disposition names an empty form field
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

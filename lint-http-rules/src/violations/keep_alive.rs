@@ -42,6 +42,7 @@
 //! advising a smaller one.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -95,8 +96,9 @@ defects! {
         id: "keep_alive_connection_option_missing",
         title: "Keep-Alive is sent with no keep-alive connection-option in Connection",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_2068_19_7_1_1],
+        strength: Strength::Must,
     }
 
     /// A member with no `"="` in it at all. The production writes the delimiter
@@ -115,8 +117,9 @@ defects! {
         id: "keep_alive_parameter_equals_missing",
         title: "Keep-Alive writes a parameter with no '=' and no value",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_2068_19_7_1_1],
+        strength: Strength::Grammar,
     }
 
     /// A member that begins with its `"="`, so it names no parameter: the
@@ -135,8 +138,9 @@ defects! {
         id: "keep_alive_parameter_name_missing",
         title: "Keep-Alive writes a parameter that names nothing before its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_2068_19_7_1_1],
+        strength: Strength::Grammar,
     }
 
     /// A member ending on its `"="`. Neither alternative of `value = token |
@@ -156,8 +160,9 @@ defects! {
         id: "keep_alive_parameter_value_empty",
         title: "Keep-Alive writes a parameter '=' with no value after it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_2068_3_7],
+        strength: Strength::Grammar,
     }
 
     /// A `timeout` larger than the maximum this deployment configured.
@@ -206,7 +211,7 @@ mod tests {
             &TE_CONNECTION_OPTION_MISSING,
             &UPGRADE_CONNECTION_OPTION_MISSING,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
             assert_eq!(def.spec.len(), 1, "{}", def.id);
         }
         let sections: Vec<_> = [

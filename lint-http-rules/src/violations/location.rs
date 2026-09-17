@@ -32,6 +32,7 @@
 //! did while the finding carried no reference at all.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -177,6 +178,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_4],
+        strength: Strength::Unstated,
     }
 
     /// A `Location` written and left blank.

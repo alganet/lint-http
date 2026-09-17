@@ -49,6 +49,7 @@
 
 use crate::helpers::websocket::VersionDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 // Item 9 is one numbered item of the same list item 7 is in, so the reference is
 // written once — in the subject that reached it first — and the two subjects
@@ -82,6 +83,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_4_3],
+        strength: Strength::Grammar,
     }
 
     /// A value that is not empty and derives from no alternative of `version`:
@@ -106,6 +108,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_4_3],
+        strength: Strength::Grammar,
     }
 
     /// An opening handshake with no `Sec-WebSocket-Version` field on it at all.
@@ -123,6 +126,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_4_1],
+        strength: Strength::Must,
     }
 
     /// A request whose version derives from the production and is not 13.
@@ -152,8 +156,9 @@ defects! {
         id: "sec_websocket_version_invalid",
         title: "WebSocket handshake asks for a version other than 13",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_4_1],
+        strength: Strength::Must,
     }
 
     /// A response whose `1#version` advertises nothing: written empty, or
@@ -177,6 +182,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_2616_2_1],
+        strength: Strength::Must,
     }
 
     /// A response advertising a list that holds the version the request asked
@@ -262,10 +268,15 @@ mod tests {
     }
 
     /// A version nobody can read is a handshake nobody can negotiate, whichever
-    /// side wrote it — so those rank at the top, and the one value the document
-    /// answers by refusing ranks below them.
+    /// side wrote it — and the one value the document answers by refusing used
+    /// to rank below the three that cannot be read at all.
+    ///
+    /// It does not any more: § 4.1 says "The value of this header field MUST be
+    /// 13" in the same breath as requiring the field, so a version that is
+    /// readable and wrong breaks the same sentence as a version that is
+    /// missing.
     #[test]
-    fn a_version_that_cannot_be_read_ends_the_negotiation() {
+    fn every_way_of_writing_the_version_wrongly_ends_the_negotiation() {
         assert_eq!(
             SEC_WEBSOCKET_VERSION_EMPTY.default_severity,
             Severity::Error
@@ -278,9 +289,9 @@ mod tests {
             SEC_WEBSOCKET_VERSION_MISSING.default_severity,
             Severity::Error
         );
-        assert!(
-            SEC_WEBSOCKET_VERSION_INVALID.default_severity
-                < SEC_WEBSOCKET_VERSION_MALFORMED.default_severity
+        assert_eq!(
+            SEC_WEBSOCKET_VERSION_INVALID.default_severity,
+            SEC_WEBSOCKET_VERSION_MALFORMED.default_severity,
         );
     }
 

@@ -20,6 +20,7 @@
 
 use crate::helpers::quoted_string::QuotedStringDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::{defects, ViolationDef};
@@ -45,8 +46,9 @@ defects! {
         id: "quoted_string_delimiter_missing",
         title: "Quoted-string is missing one of its DQUOTEs",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_4],
+        strength: Strength::Grammar,
     }
 
     /// A DQUOTE inside the interior that no backslash introduced. The interior
@@ -60,8 +62,9 @@ defects! {
         id: "quoted_string_quote_escape_missing",
         title: "Quoted-string holds an unescaped DQUOTE",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_4],
+        strength: Strength::Grammar,
     }
 
     /// A control octet `qdtext` excludes — HTAB is not one of them, since it is
@@ -78,6 +81,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_4],
+        strength: Strength::Grammar,
     }
 }
 

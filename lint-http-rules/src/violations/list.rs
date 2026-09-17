@@ -38,6 +38,7 @@
 use crate::helpers::auth::AuthParamsDefect;
 use crate::helpers::cache_control::MemberDefect as CacheControlMemberDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::token::{token_character, TOKEN_EMPTY};
 use crate::violations::{defects, ViolationDef};
@@ -74,8 +75,9 @@ defects! {
         id: "list_member_empty",
         title: "List holds an empty element",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_1_1],
+        strength: Strength::Must,
     }
 
     /// A list written with a floor under it and nothing above the floor: a
@@ -226,6 +228,6 @@ mod tests {
     #[test]
     fn the_empty_member_is_named_after_the_list_and_not_after_a_field() {
         assert_eq!(LIST_MEMBER_EMPTY.id, "list_member_empty");
-        assert_eq!(LIST_MEMBER_EMPTY.default_severity, Severity::Warn);
+        assert_eq!(LIST_MEMBER_EMPTY.default_severity, Severity::Error);
     }
 }

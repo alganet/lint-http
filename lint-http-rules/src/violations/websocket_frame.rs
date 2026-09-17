@@ -41,6 +41,7 @@
 //! rule reading bits would otherwise have to publish a note about opcodes.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -132,6 +133,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_5_1],
+        strength: Strength::Must,
     }
 
     /// A frame the server sent with the MASK bit set.
@@ -153,6 +155,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_5_1],
+        strength: Strength::Must,
     }
 
     /// A reserved bit set in a session whose opening handshake accepted no
@@ -178,6 +181,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_5_2_RSV_BITS],
+        strength: Strength::Must,
     }
 
     /// A recorded reserved-bits value the three-bit field has no room for.
@@ -255,6 +259,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_5_2_OPCODES],
+        strength: Strength::Must,
     }
 
     /// A control frame carrying more than 125 bytes of payload.
@@ -275,8 +280,9 @@ defects! {
         id: "websocket_frame_control_payload_invalid",
         title: "A control frame carries more payload than its class allows",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_5_5],
+        strength: Strength::Must,
     }
 
     /// A control frame with the FIN bit clear.
@@ -291,8 +297,9 @@ defects! {
         id: "websocket_frame_control_fragmentation_forbidden",
         title: "A control frame is fragmented",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_5_4],
+        strength: Strength::Must,
     }
 
     /// A Close frame whose payload is exactly one byte.
@@ -309,8 +316,9 @@ defects! {
         id: "websocket_frame_close_body_malformed",
         title: "A Close body is too short to hold the status code it opens with",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_5_5_1],
+        strength: Strength::Must,
     }
 
     /// A data frame an endpoint sent after its own Close.
@@ -326,8 +334,9 @@ defects! {
         id: "websocket_frame_data_after_close_forbidden",
         title: "A data frame follows the same endpoint's Close frame",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_5_5_1],
+        strength: Strength::Must,
     }
 
     /// A continuation frame with no fragmented message open to continue.
@@ -361,8 +370,9 @@ defects! {
         id: "websocket_frame_message_interleaving_forbidden",
         title: "A second message opens while a fragmented one is unterminated",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_5_4],
+        strength: Strength::Must,
     }
 }
 
@@ -388,25 +398,40 @@ mod tests {
         &WEBSOCKET_FRAME_MESSAGE_INTERLEAVING_FORBIDDEN,
     ];
 
-    /// `error` means *this session ends*, and the four entries carrying it are
-    /// exactly the four whose sections state the recipient's answer. Everything
-    /// else here breaks a MUST too and is ranked by the stated consequence
-    /// rather than by the strength of the word.
+    /// `error` used to mean *this session ends*, and the four entries carrying
+    /// it were the four whose sections state the recipient's answer — the old
+    /// comment said outright that everything else here "breaks a MUST too and
+    /// is ranked by the stated consequence rather than by the strength of the
+    /// word."
+    ///
+    /// Nine of the twelve break a `MUST` addressed to whoever sent the frame,
+    /// and they are the nine errors. The other three are the ones RFC 6455
+    /// says nothing to a sender about: an opcode or a reserved bit this crate
+    /// refuses because nothing defines it, and a continuation with nothing to
+    /// continue.
     #[test]
-    fn error_is_reserved_for_the_entries_whose_document_ends_the_session() {
-        let ends_the_session = [
-            "websocket_frame_mask_missing",
-            "websocket_frame_mask_forbidden",
-            "websocket_frame_rsv_forbidden",
-            "websocket_frame_opcode_unregistered",
+    fn every_entry_quoting_a_must_is_an_error_and_the_other_three_are_not() {
+        // The three that quote no sentence about the sender: two values this
+        // crate refuses because no opcode or reserved bit can carry them, and a
+        // continuation that arrives with nothing to continue.
+        let claims_no_sentence = [
+            "websocket_frame_opcode_malformed",
+            "websocket_frame_rsv_malformed",
+            "websocket_frame_continuation_unsolicited",
         ];
         for def in ALL {
-            let expected = if ends_the_session.contains(&def.id) {
-                Severity::Error
-            } else {
+            let expected = if claims_no_sentence.contains(&def.id) {
                 Severity::Warn
+            } else {
+                Severity::Error
             };
             assert_eq!(def.default_severity, expected, "{}", def.id);
+            assert_eq!(
+                def.strength == crate::lint::Strength::Must,
+                expected == Severity::Error,
+                "{}",
+                def.id,
+            );
         }
     }
 

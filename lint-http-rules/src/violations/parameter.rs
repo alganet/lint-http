@@ -42,6 +42,7 @@
 //! wrong is only the spelling; the entry says so at length.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -71,8 +72,9 @@ defects! {
         id: "parameter_equals_missing",
         title: "Parameter is written without its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_6],
+        strength: Strength::Grammar,
     }
 
     /// An `=` with nothing after it. Neither alternative of
@@ -93,8 +95,9 @@ defects! {
         id: "parameter_value_empty",
         title: "Parameter is written with no value after its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_6],
+        strength: Strength::Grammar,
     }
 
     /// Whitespace beside the `=`. The production writes none — `parameter =
@@ -116,13 +119,15 @@ defects! {
     /// which is something that happened to the value. This octet sits between
     /// two constructs, where a sender put it on purpose.
     ///
+    // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
     // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
     PARAMETER_EQUALS_WHITESPACE_FORBIDDEN = {
         id: "parameter_equals_whitespace_forbidden",
         title: "Parameter writes whitespace beside its '='",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_6],
+        strength: Strength::Grammar,
     }
 }
 
@@ -140,19 +145,27 @@ mod tests {
         assert_eq!(PARAMETER_VALUE_EMPTY.id, "parameter_value_empty");
     }
 
-    /// Nothing here is invisible and nothing here parses, so the two absences
-    /// sit at one level — and the whitespace sits below them, because the
-    /// parameter it is written beside is whole.
+    /// All three are one production refusing one value, so all three rank
+    /// together.
+    ///
+    /// **The whitespace entry used to sit below the two absences**, on the
+    /// argument that six rules trim it before reading and publish the leniency
+    /// in their `description()`. That argument is about what this crate does
+    /// with the octet. `parameter = parameter-name "=" parameter-value` prints
+    /// no `OWS` anywhere inside it and § 5.6.6 says so again in prose, so a
+    /// value carrying one derives from nothing — which is what the level now
+    /// reports. The leniency is still true, still documented on the entry, and
+    /// still what an operator switches the entry off for.
     #[test]
-    fn neither_absence_outranks_the_other_and_the_spelling_sits_below_both() {
+    fn the_three_ways_a_parameter_fails_to_derive_rank_together() {
         assert_eq!(
             PARAMETER_EQUALS_MISSING.default_severity,
             PARAMETER_VALUE_EMPTY.default_severity,
         );
-        assert_eq!(PARAMETER_EQUALS_MISSING.default_severity, Severity::Warn);
-        assert!(
-            PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.default_severity
-                < PARAMETER_VALUE_EMPTY.default_severity,
+        assert_eq!(PARAMETER_EQUALS_MISSING.default_severity, Severity::Error);
+        assert_eq!(
+            PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.default_severity,
+            PARAMETER_VALUE_EMPTY.default_severity,
         );
     }
 }

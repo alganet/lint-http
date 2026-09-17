@@ -24,6 +24,7 @@
 //! server about what to answer with.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -120,8 +121,9 @@ defects! {
         id: "method_trace_content_forbidden",
         title: "A TRACE request carries content",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_8],
+        strength: Strength::Must,
     }
 
     /// Content on a `GET`, a `HEAD` or a `DELETE`.
@@ -204,8 +206,9 @@ defects! {
         id: "method_trace_disclosure_forbidden",
         title: "A TRACE request carries a field that echoes back a secret",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_8],
+        strength: Strength::Must,
     }
 
     /// An `OPTIONS` request carrying content with no `Content-Type`.
@@ -220,8 +223,9 @@ defects! {
         id: "method_options_content_type_missing",
         title: "An OPTIONS request carries content without saying what it is",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_7],
+        strength: Strength::Must,
     }
 
     /// A successful `OPTIONS` response advertising none of the fields a client
@@ -240,8 +244,9 @@ defects! {
         id: "method_options_capabilities_missing",
         title: "A successful OPTIONS answers with none of the capabilities it was asked for",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Warn,
         spec: &[RFC_9110_9_3_7],
+        strength: Strength::Should,
     }
     /// A `201 (Created)` answering a `POST`, with no `Location`.
     ///
@@ -260,6 +265,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_9_3_3],
+        strength: Strength::Should,
     }
 
     /// A `PATCH` request carrying content with no `Content-Type`.
@@ -295,6 +301,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_9_3_2],
+        strength: Strength::Should,
     }
 
     /// A response to a `HEAD` request that carries content octets, whatever its
@@ -331,6 +338,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_2],
+        strength: Strength::Must,
     }
 
     /// A method token that is a registered method's name written in another
@@ -369,6 +377,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_9_1],
+        strength: Strength::Unstated,
     }
 
 }
@@ -393,21 +402,24 @@ mod tests {
         );
     }
 
-    /// The one entry whose sentence names a class rather than a list is the one
-    /// ranked below the rest: the rule can only look for what it knows, and the
-    /// SHOULD is deliberately open-ended.
+    /// The one entry whose sentence names a class rather than a list is still
+    /// the one ranked below the rest — and now for the sentence's own reason
+    /// rather than for the rule's. § 9.3.7 asks a server to send "any header
+    /// that might indicate optional features", which is a `SHOULD` and
+    /// deliberately open-ended; the other three are `MUST`s a client or server
+    /// broke in one message.
     #[test]
-    fn the_open_ended_should_is_the_only_entry_below_warn() {
+    fn the_open_ended_should_is_the_only_entry_below_the_musts() {
         for def in [
             &METHOD_TRACE_CONTENT_FORBIDDEN,
             &METHOD_TRACE_DISCLOSURE_FORBIDDEN,
             &METHOD_OPTIONS_CONTENT_TYPE_MISSING,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
         assert_eq!(
             METHOD_OPTIONS_CAPABILITIES_MISSING.default_severity,
-            Severity::Info
+            Severity::Warn
         );
     }
 

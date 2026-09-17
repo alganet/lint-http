@@ -288,18 +288,24 @@ mod tests {
     /// Every defect this deprecated field reports is a borrowed one, and the
     /// ids say which document it was borrowed from: the list construct, the
     /// token and the quoted-string, all RFC 9110 § 5.6. `Pragma`'s own document
-    /// states no grammar, so there was never anything else for these findings to
-    /// be named after — and the space in `bad token` is `error` while the `@` a
-    /// sender typed is `warn`, which one rule severity could not express.
+    /// states no grammar, so there was never anything else for these findings
+    /// to be named after.
+    ///
+    /// **Four of the five are `error` and the `@` a sender typed is `warn`**,
+    /// which one rule severity could not express either way. The four are
+    /// values no production generates; the fifth is
+    /// `token_character_forbidden`, which the catalogue keeps a level below its
+    /// `_whitespace_or_control_forbidden` twin because an octet nobody typed
+    /// and a character somebody chose are not the same report.
     #[test]
     fn every_defect_is_the_borrowed_productions_and_not_the_fields() {
         for (value, id, severity) in [
             (
                 "no-cache,,foo",
                 "list_member_empty",
-                crate::lint::Severity::Warn,
+                crate::lint::Severity::Error,
             ),
-            ("=abc", "token_empty", crate::lint::Severity::Warn),
+            ("=abc", "token_empty", crate::lint::Severity::Error),
             (
                 "bad token",
                 "token_whitespace_or_control_forbidden",
@@ -313,7 +319,7 @@ mod tests {
             (
                 "foo=\"unterminated",
                 "quoted_string_delimiter_missing",
-                crate::lint::Severity::Warn,
+                crate::lint::Severity::Error,
             ),
         ] {
             let found = crate::test_helpers::run_rule(

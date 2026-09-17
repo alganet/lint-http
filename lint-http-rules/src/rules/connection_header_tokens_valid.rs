@@ -473,7 +473,7 @@ mod tests {
         // The field's own entry: every other id this rule reports belongs to
         // the list or to the token a member is written in.
         assert_eq!(v.violation, "connection_option_forbidden");
-        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert_eq!(v.severity, crate::lint::Severity::Error);
     }
 
     /// The values § 5.6.1.2 prints, run through the rule.

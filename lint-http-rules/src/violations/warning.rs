@@ -40,6 +40,7 @@
 // cite(RFC 7234 § 5.5, label: warning-value assembly): "warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]"
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -78,8 +79,9 @@ defects! {
         id: "warning_code_malformed",
         title: "Warning member's warn-code is not three digits",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7234_5_5],
+        strength: Strength::Grammar,
     }
 
     /// A member that is a `warn-code` and nothing else: `Warning: 110`.
@@ -96,8 +98,9 @@ defects! {
         id: "warning_agent_missing",
         title: "Warning member names no warn-agent",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7234_5_5],
+        strength: Strength::Grammar,
     }
 
     /// A member that ends after its `warn-agent`: `Warning: 110 example.com`.
@@ -115,8 +118,9 @@ defects! {
         id: "warning_text_missing",
         title: "Warning member carries no warn-text",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7234_5_5],
+        strength: Strength::Grammar,
     }
 
     /// A member whose parts do not go together the way the production writes
@@ -137,8 +141,9 @@ defects! {
         id: "warning_member_malformed",
         title: "Warning member does not derive where the production continues it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7234_5_5],
+        strength: Strength::Grammar,
     }
 }
 
@@ -158,7 +163,7 @@ mod tests {
             &WARNING_TEXT_MISSING,
             &WARNING_MEMBER_MALFORMED,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
             assert_eq!(def.spec, [RFC_7234_5_5], "{}", def.id);
         }
     }

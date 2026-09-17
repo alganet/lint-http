@@ -27,6 +27,7 @@
 //! the reason the entry naming `none` is one entry and not two.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -157,6 +158,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9110_14_2],
+        strength: Strength::Unstated,
     }
 }
 

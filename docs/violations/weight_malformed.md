@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.weight_malformed]
 # Something other than a weight follows the member's ';'
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

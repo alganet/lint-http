@@ -1044,6 +1044,19 @@ mod tests {
         })
     }
 
+    /// Whether `text` is the conformance sentence itself: a `MUST` about
+    /// matching a grammar.
+    ///
+    /// The other half of what satisfies a `Grammar` entry. Almost all of them
+    /// quote the production they measure a value against, and RFC 9110 § 2.2 is
+    /// what turns that production into an obligation — but two entries quote
+    /// § 2.2 *directly*, because the request-target has forms rather than one
+    /// production and no single rule name is the thing the value failed to
+    /// derive from. Both spellings are the same claim, so both are accepted.
+    fn is_conformance_sentence(text: &str) -> bool {
+        states_keyword(text, "MUST") && text.contains("grammar")
+    }
+
     /// Whether `text` is an ABNF rule definition: a rule name, `=` or `=/`,
     /// and something after it.
     ///
@@ -1187,7 +1200,9 @@ mod tests {
                 .map(|(_, _, text)| text.as_str())
                 .collect();
             let satisfied = match def.strength {
-                Strength::Grammar => quoted.iter().any(|t| is_abnf_production(t)),
+                Strength::Grammar => quoted
+                    .iter()
+                    .any(|t| is_abnf_production(t) || is_conformance_sentence(t)),
                 Strength::Unstated => true,
                 _ => quoted
                     .iter()
@@ -1200,7 +1215,8 @@ mod tests {
                     def.strength.name(),
                     quoted.len(),
                     match def.strength {
-                        Strength::Grammar => "is an ABNF production".to_string(),
+                        Strength::Grammar =>
+                            "is an ABNF production or the conformance sentence".to_string(),
                         _ => format!("states {}", words.join(" / ")),
                     },
                 ));
@@ -1245,6 +1261,16 @@ mod tests {
         ));
         assert!(!is_abnf_production("= leads with the operator"));
         assert!(!is_abnf_production("trailing = "));
+        // The conformance sentence, which stands in for a production on the
+        // two entries whose value derives from a set of forms rather than one
+        // rule. A MUST about anything else is not it.
+        assert!(is_conformance_sentence(
+            "A sender MUST NOT generate protocol elements that do not match the \
+             grammar defined by the corresponding ABNF rules."
+        ));
+        assert!(!is_conformance_sentence(
+            "The value of this header field MUST be 13."
+        ));
         // The citation parse, including the two shapes it must refuse. Every
         // sample is built from `MARKER` rather than written out: a citation
         // spelled in a string literal is a quote `apycite` cannot verify, and
@@ -1281,7 +1307,7 @@ mod tests {
     /// written on its entry, not this constant bumped.
     #[test]
     fn few_defects_depart_from_their_strength() {
-        const CEILING: usize = 4;
+        const CEILING: usize = 2;
         let departures: Vec<&str> = VIOLATIONS
             .iter()
             .filter(|d| d.departure.is_some())

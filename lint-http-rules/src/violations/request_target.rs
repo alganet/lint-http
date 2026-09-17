@@ -44,6 +44,7 @@
 //! [`authority`](crate::violations::authority)'s.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::authority::{RFC_9113_8_3_1, RFC_9114_4_3_1};
 use crate::violations::defects;
@@ -130,6 +131,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_1],
+        strength: Strength::Must,
     }
 
     /// A request whose target is a host and port — the authority-form — on a
@@ -164,6 +166,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_1],
+        strength: Strength::Must,
     }
 
     /// A request-target that derives from the authority-form *and* from the
@@ -232,6 +235,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9112_3_2_3],
+        strength: Strength::Must,
     }
 
     /// A request whose target carries no path component, on a method that owes
@@ -265,6 +269,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9113_8_3_1, RFC_9114_4_3_1],
+        strength: Strength::Must,
     }
 
     /// Whitespace inside a request-target: a SP or HTAB, or a CR, LF or FF. The
@@ -318,6 +323,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_2_2],
+        strength: Strength::Grammar,
     }
 
     /// A request-target that derives from none of the four forms. The four are
@@ -338,6 +344,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_2_2],
+        strength: Strength::Grammar,
     }
     /// A request target carrying a fragment: the number sign and everything
     /// after it.

@@ -200,12 +200,22 @@ word in that test move in one commit.
 **One pair is spelled the same way everywhere.** When a subject separates the
 octets nobody typed from the ones a sender chose, the two ids are
 `<subject>_whitespace_or_control_forbidden` and
-`<subject>_character_forbidden`, and the first defaults a level above the
-second. A control octet or a space inside a value whose grammar admits neither
-is something that happened to the value — in transit, or in whatever assembled
-it — while a `_` in a host name or an `@` in a token is a sender being wrong on
-purpose. Three subjects reached this split independently before it was written
-down here; a fourth should not invent a fourth spelling for it.
+`<subject>_character_forbidden`. A control octet or a space inside a value whose
+grammar admits neither is something that happened to the value — in transit, or
+in whatever assembled it — while a `_` in a host name or an `@` in a token is a
+sender being wrong on purpose. Three subjects reached this split independently
+before it was written down here; a fourth should not invent a fourth spelling
+for it.
+
+**The first used to default a level above the second, and no longer does where
+both halves quote a production.** Blame for the octet is not what sets a level:
+if the production admits neither, then neither value derives, and RFC 9110 §2.2
+says the same thing about both. `token` still ranks them apart, and for a
+reason that is about the sentences rather than about the octets — its
+`_character_forbidden` half quotes §5.6.2's list of delimiters, which is prose
+describing the alphabet rather than the production the value failed, so that
+entry states no strength and keeps the level its page argues for. `language_tag`
+and `token68` quote a production on both halves and rank together.
 
 An id must be a valid Rust identifier, because the def is a `static` named by
 the id in `SCREAMING_SNAKE_CASE` — `IF_MATCH_MEMBER_MALFORMED` — the same
@@ -263,17 +273,47 @@ not because the level does: a `Must` entry quotes its requirement on itself, a
 `Grammar` entry quotes a production and inherits one. Keeping them apart means
 that judgement is one line to revisit rather than 147 entries to re-read.
 
-**`Unstated` is the honest answer for a third of the catalogue** and is the
-default, so an entry states only what someone read. It covers both the entries
-no sentence obliges — a value this implementation refuses, a bound a deployment
-configured — and the entries whose keyword binds the other side.
+**`Unstated` is the honest answer for half the catalogue** and is the default,
+so an entry states only what someone read. Three shapes reach it:
+
+- **No sentence obliges anything.** A value this implementation refuses, a bound
+  a deployment configured, a status code whose *definition* is written in terms
+  of a request that did not happen.
+- **The keyword binds the other side**, as above.
+- **The evidence does not establish that this sender is the obliged party.**
+  `cache_response_conflicting` quotes a cache's `MUST NOT` about stale
+  responses, and its own entry says a proxy "cannot tell a cache serving
+  something stale from an origin that reverted a deployment".
+  `cache_control_no_store_ignored`, `cache_control_private_ignored`,
+  `vary_ignored` and `cookie_scope_ignored` are the same shape — a
+  reconstruction of a store nothing here can see — and `referer_empty` is its
+  sharpest form: nothing in a message says where the target URI came from, so
+  the cited `MUST`'s antecedent is unreachable from a capture.
+
+A fourth shape is worth naming because it looks like a departure and is not:
+**an entry whose two reporting sites are governed by different keywords**.
+`content_range_missing` is required of a `206` and recommended of a `416`, one
+id covers both, and an operator raising the entry raises both — so no single
+strength governs it and the weaker level stands.
+
+**A document may weaken its own grammar, and then `Grammar` is the wrong word.**
+RFC 6265 writes the whole `Set-Cookie` grammar as "Servers SHOULD NOT send
+Set-Cookie headers that fail to conform to the following grammar", deliberately
+and for historical reasons. Its six grammar entries therefore state `Should` and
+cite that sentence beside the production. §2.2 supplies the `MUST` for every
+production whose document does not say otherwise; it does not overrule one that
+does.
 
 Two gates hold this, and the split between them is the point:
 
 - `a_stated_strength_sets_the_default_severity` compares the level against the
   mapping. An entry may depart from it, and then `departure:` carries the
-  argument — on the entry, where a reader is. The departure this key was
-  written for is `cookie_path_control_character_forbidden`: RFC 6265 §4.1.1 writes its own
+  argument — on the entry, where a reader is. Two entries carry one, both in the
+  cookie subject and both for the same reason — RFC 6265's grammar is a `SHOULD
+  NOT`, so `warn` is what every defect in a `Set-Cookie` inherits from one
+  sentence. `cookie_pair_missing` departs because what is lost is the cookie
+  rather than an attribute. The departure this key was written for is
+  `cookie_path_control_character_forbidden`: RFC 6265 §4.1.1 writes its own
   grammar as "Servers SHOULD NOT send Set-Cookie headers that fail to conform",
   weakly and for historical reasons, and a control character in a cookie `Path`
   is a hazard regardless. `few_defects_depart_from_their_strength` caps how many

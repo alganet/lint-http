@@ -21,6 +21,7 @@
 
 use crate::helpers::validator::EntityTagDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -49,8 +50,9 @@ defects! {
         id: "etag_weak_indicator_invalid",
         title: "Weakness indicator is not written W/",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_8_8_3],
+        strength: Strength::Grammar,
     }
 
     /// No opening DQUOTE, or nothing closing it.
@@ -65,8 +67,9 @@ defects! {
         id: "etag_delimiter_missing",
         title: "Entity-tag is not quoted",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_8_8_3],
+        strength: Strength::Grammar,
     }
 
     /// A character `etagc` does not admit.
@@ -84,8 +87,9 @@ defects! {
         id: "etag_character_forbidden",
         title: "Entity-tag holds a character etagc does not admit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_8_8_3],
+        strength: Strength::Grammar,
     }
 
     /// An `ETag` whose whole value is `*`.
@@ -155,7 +159,7 @@ mod tests {
             &ETAG_DELIMITER_MISSING,
             &ETAG_CHARACTER_FORBIDDEN,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn);
+            assert_eq!(def.default_severity, Severity::Error);
         }
     }
 }

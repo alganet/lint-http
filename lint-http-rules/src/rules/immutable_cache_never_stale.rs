@@ -290,7 +290,7 @@ mod tests {
         // The entry, and the severity that goes with what the miss costs.
         let v = v.expect("a finding");
         assert_eq!(v.violation, "cache_control_immutable_ignored");
-        assert_eq!(v.severity, crate::lint::Severity::Info);
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
         assert!(v.message.contains("Unnecessary revalidation"));
     }
 

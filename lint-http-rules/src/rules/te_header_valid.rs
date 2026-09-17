@@ -683,7 +683,7 @@ mod tests {
         // parameter name is not a `token` still reports at the rule's own
         // severity, and this does not.
         assert_ne!(parameter.message, preference.message);
-        assert_eq!(parameter.severity, crate::lint::Severity::Info);
+        assert_eq!(parameter.severity, crate::lint::Severity::Error);
     }
 
     fn response(te: &[u8]) -> Option<Violation> {

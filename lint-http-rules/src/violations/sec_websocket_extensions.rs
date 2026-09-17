@@ -46,6 +46,7 @@
 // cite(RFC 6455 § 9.1): "If a value is received by either the client or the server during negotiation that does not conform to the ABNF below, the recipient of such malformed data MUST immediately _Fail the WebSocket Connection_."
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 // One definition of the server's section for both subjects a server chooses
@@ -108,6 +109,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_2616_2_1],
+        strength: Strength::Must,
     }
 
     /// A `;` inside a member with no parameter after it. The repetition prints
@@ -129,6 +131,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_9_1],
+        strength: Strength::Grammar,
     }
 
     /// An `=` with nothing after it. The value is optional in this production —
@@ -157,6 +160,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_9_1],
+        strength: Strength::Grammar,
     }
 
     /// An extension in a response the request never offered — a name outside
@@ -189,6 +193,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_4_2_2],
+        strength: Strength::Must,
     }
 }
 

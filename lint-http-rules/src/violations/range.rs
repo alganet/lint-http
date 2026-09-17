@@ -35,6 +35,7 @@
 //! request has not seen.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -84,8 +85,9 @@ defects! {
         id: "range_spec_character_forbidden",
         title: "Range specifier holds an octet no range-spec admits",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_1_1],
+        strength: Strength::Grammar,
     }
 
     /// A `bytes` specifier that is neither an `int-range` nor a
@@ -102,7 +104,7 @@ defects! {
         id: "range_spec_malformed",
         title: "A bytes range specifier derives from neither of the unit's two forms",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_1_2],
     }
 
@@ -124,8 +126,9 @@ defects! {
         id: "range_position_malformed",
         title: "Range position is not 1*DIGIT",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_1_1],
+        strength: Strength::Grammar,
     }
 
     /// A `last-pos` below its `first-pos`: a range that runs backwards.
@@ -175,8 +178,9 @@ defects! {
         id: "range_equals_missing",
         title: "Range value is written without its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_1_1],
+        strength: Strength::Grammar,
     }
 }
 
@@ -222,16 +226,22 @@ mod tests {
         );
     }
 
-    /// The grammar entries rank below it, and the one that reads a unit's
-    /// withdrawal of `other-range` is the only one citing the unit's section.
+    /// The grammar entries used to rank below the one that reads a range
+    /// running backwards, and the one that reads a unit's withdrawal of
+    /// `other-range` is still the only one citing the unit's section.
+    ///
+    /// § 14.1.1 calls an `int-range` whose `last-pos` precedes its `first-pos`
+    /// invalid, and § 2.2 refuses a value that derives from no production at
+    /// all. Both are sentences addressed to whoever wrote the field, so both
+    /// arrive at the same level; the citation is what still tells them apart.
     #[test]
-    fn the_grammar_entries_rank_below_the_arithmetic() {
+    fn the_grammar_entries_rank_with_the_arithmetic() {
         for def in [
             &RANGE_SPEC_CHARACTER_FORBIDDEN,
             &RANGE_SPEC_MALFORMED,
             &RANGE_POSITION_MALFORMED,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
         assert_eq!(RANGE_SPEC_MALFORMED.spec, [RFC_9110_14_1_2]);
     }

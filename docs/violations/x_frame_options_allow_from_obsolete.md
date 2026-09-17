@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.x_frame_options_allow_from_obsolete]
 # X-Frame-Options carries the retired ALLOW-FROM variant
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

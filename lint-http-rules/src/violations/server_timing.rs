@@ -53,6 +53,7 @@
 // cite(Server Timing § 2, label: server-timing-metric assembly): "server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )"
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -87,8 +88,9 @@ defects! {
         id: "server_timing_param_empty",
         title: "Server-Timing writes a semicolon with no parameter behind it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[SERVER_TIMING_2],
+        strength: Strength::Grammar,
     }
 
     /// A parameter written as a bare name: `db;desc`.
@@ -112,8 +114,9 @@ defects! {
         id: "server_timing_param_equals_missing",
         title: "Server-Timing parameter has no '=' and no value",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[SERVER_TIMING_2],
+        strength: Strength::Grammar,
     }
 
     /// An `=` with nothing after it: `db;desc=`.
@@ -137,8 +140,9 @@ defects! {
         id: "server_timing_param_value_empty",
         title: "Server-Timing parameter is written with no value after its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[SERVER_TIMING_2],
+        strength: Strength::Grammar,
     }
 
     /// A parameter named `DUR` or `Desc`: one of the two established names in
@@ -240,6 +244,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[SERVER_TIMING_2],
+        strength: Strength::Should,
     }
 
     /// Content after the closing DQUOTE of a quoted value: `db;desc="abc"x`.
@@ -266,8 +271,9 @@ defects! {
         id: "server_timing_param_value_malformed",
         title: "Server-Timing parameter value carries content past the alternative it derives from",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[SERVER_TIMING_2],
+        strength: Strength::Grammar,
     }
 }
 
@@ -281,6 +287,10 @@ mod tests {
     /// RFC 9110 § 2.2 is what makes a grammar defect reportable when a document
     /// addresses every keyword it has to the recipient, and it stays on the
     /// rule so that these findings keep a citation.
+    ///
+    /// The subject is no longer flat, and the split is the section's own: four
+    /// of these are productions and the fifth quotes "individual
+    /// server-timing-param-names SHOULD NOT appear multiple times".
     #[test]
     fn every_entry_names_the_production_and_none_names_the_modal() {
         for def in [
@@ -291,8 +301,21 @@ mod tests {
             &SERVER_TIMING_PARAM_DUPLICATED,
         ] {
             assert_eq!(def.spec, [SERVER_TIMING_2], "{}", def.id);
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
         }
+        // Four productions and one `SHOULD NOT`, which is the one sentence in
+        // this section addressed to a sender in words rather than in grammar.
+        for def in [
+            &SERVER_TIMING_PARAM_EMPTY,
+            &SERVER_TIMING_PARAM_EQUALS_MISSING,
+            &SERVER_TIMING_PARAM_VALUE_EMPTY,
+            &SERVER_TIMING_PARAM_VALUE_MALFORMED,
+        ] {
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
+        }
+        assert_eq!(
+            SERVER_TIMING_PARAM_DUPLICATED.default_severity,
+            Severity::Warn
+        );
     }
 
     /// The two entries the getters supply are the two with no sentence, and

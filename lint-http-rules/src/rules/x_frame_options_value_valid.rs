@@ -268,7 +268,7 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(found.violation, id, "{value}");
-        assert_eq!(found.severity, crate::lint::Severity::Warn, "{value}");
+        assert_eq!(found.severity, crate::lint::Severity::Error, "{value}");
     }
 
     #[test]

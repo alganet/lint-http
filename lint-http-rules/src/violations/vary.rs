@@ -17,6 +17,7 @@
 //! the field whose statement that pairing kills.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -63,6 +64,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_4_1],
+        strength: Strength::Unstated,
     }
 
     /// A response saying it applied a preference that changes what the entity
@@ -96,8 +98,9 @@ defects! {
         id: "vary_prefer_missing",
         title: "A response applied a preference its Vary does not nominate",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7240_2],
+        strength: Strength::Must,
     }
 }
 

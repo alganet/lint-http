@@ -941,7 +941,7 @@ mod tests {
         // The third id of a family that ranks together and cites apart: the
         // sentence behind this one is the field's own, and it is RFC 2068's.
         assert_eq!(found.violation, "keep_alive_connection_option_missing");
-        assert_eq!(found.severity, crate::lint::Severity::Warn);
+        assert_eq!(found.severity, crate::lint::Severity::Error);
     }
 
     /// The option is a field name, so the comparison folds case, and it is one

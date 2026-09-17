@@ -274,7 +274,7 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(repeated_frame.violation, "http3_settings_duplicated");
-        assert_eq!(repeated_frame.severity, crate::lint::Severity::Warn);
+        assert_eq!(repeated_frame.severity, crate::lint::Severity::Error);
 
         let reserved = crate::test_helpers::run_protocol_rule(
             &rule,
@@ -297,7 +297,7 @@ mod tests {
             repeated_id.violation,
             "http3_settings_identifier_duplicated"
         );
-        assert_eq!(repeated_id.severity, crate::lint::Severity::Warn);
+        assert_eq!(repeated_id.severity, crate::lint::Severity::Error);
     }
 
     #[test]

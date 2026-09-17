@@ -38,6 +38,7 @@
 //! nothing asks a recipient to parse.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -86,8 +87,9 @@ defects! {
         id: "via_received_by_missing",
         title: "Via member names no received-by",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_7_6_3],
+        strength: Strength::Grammar,
     }
 
     /// A member that has ended and is followed by something that is neither the
@@ -106,8 +108,9 @@ defects! {
         id: "via_member_malformed",
         title: "Via member does not end where the production ends it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_7_6_3],
+        strength: Strength::Grammar,
     }
 
     /// Two comments in one member: `Via: 1.1 fred (a) (b)`. The optional group
@@ -126,8 +129,9 @@ defects! {
         id: "via_comment_duplicated",
         title: "Via member carries more than one comment",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_7_6_3],
+        strength: Strength::Grammar,
     }
 
     /// A `received-by` written as a bracketed IPv6 literal —
@@ -153,7 +157,7 @@ defects! {
         id: "via_received_by_obsolete",
         title: "Via received-by is spelled as a uri-host",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_B_2],
     }
 }
@@ -173,7 +177,7 @@ mod tests {
             &VIA_COMMENT_DUPLICATED,
             &VIA_RECEIVED_BY_OBSOLETE,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
     }
 

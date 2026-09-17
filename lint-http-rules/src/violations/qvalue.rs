@@ -44,6 +44,7 @@
 //! not generate, in the one place this construct has no `OWS` to spare.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -78,8 +79,9 @@ defects! {
         id: "qvalue_malformed",
         title: "Weight is not a qvalue",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_12_4_2],
+        strength: Strength::Grammar,
     }
 
     /// Whitespace beside the weight's `=`: `q =0.5`, `q= 0.5`. The three
@@ -110,8 +112,9 @@ defects! {
         id: "weight_equals_whitespace_forbidden",
         title: "Whitespace is written beside the weight's '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_12_4_2],
+        strength: Strength::Grammar,
     }
 
     /// A `;` with nothing after it, in a field where the `;` can only be the
@@ -140,8 +143,9 @@ defects! {
         id: "weight_missing",
         title: "Member writes the weight's ';' and no weight after it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_12_4_2],
+        strength: Strength::Grammar,
     }
 
     /// Something stands where the weight must and is not one: `en;charset=utf-8`,
@@ -171,7 +175,7 @@ defects! {
         id: "weight_malformed",
         title: "Something other than a weight follows the member's ';'",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_12_4_2],
     }
 
@@ -196,7 +200,7 @@ defects! {
         id: "weight_duplicated",
         title: "Member carries more than one weight",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[],
     }
 }
@@ -208,8 +212,8 @@ mod tests {
     /// The one thing a single-entry subject can get wrong on its own: the
     /// default, which is what four rules stop imposing on this defect.
     #[test]
-    fn a_weight_that_is_not_one_is_a_warning() {
-        assert_eq!(QVALUE_MALFORMED.default_severity, Severity::Warn);
+    fn a_weight_that_is_not_one_is_an_error() {
+        assert_eq!(QVALUE_MALFORMED.default_severity, Severity::Error);
     }
 
     /// Every way a member can fail to carry one readable weight leaves the
@@ -225,7 +229,7 @@ mod tests {
             &WEIGHT_DUPLICATED,
             &WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
     }
 

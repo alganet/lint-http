@@ -166,11 +166,11 @@ mod tests {
 
         let obsolete = last_modified("Sunday, 06-Nov-94 08:49:37 GMT");
         assert_eq!(obsolete.violation, "http_date_obsolete");
-        assert_eq!(obsolete.severity, crate::lint::Severity::Info);
+        assert_eq!(obsolete.severity, crate::lint::Severity::Error);
 
         let unreadable = last_modified("not-a-date");
         assert_eq!(unreadable.violation, "http_date_malformed");
-        assert_eq!(unreadable.severity, crate::lint::Severity::Warn);
+        assert_eq!(unreadable.severity, crate::lint::Severity::Error);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[

@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.link_target_delimiter_missing]
 # Link member's target is not inside angle brackets
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

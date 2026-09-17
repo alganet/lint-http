@@ -622,21 +622,21 @@ mod tests {
         200,
         true,
         "websocket_frame_control_payload_invalid",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case::fragmented_control(
         10,
         4,
         false,
         "websocket_frame_control_fragmentation_forbidden",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case::short_close(
         8,
         1,
         true,
         "websocket_frame_close_body_malformed",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case::orphan_continuation(
         0,

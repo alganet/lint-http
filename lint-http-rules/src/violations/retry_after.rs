@@ -16,6 +16,7 @@
 //! else.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -83,8 +84,9 @@ defects! {
         id: "retry_after_malformed",
         title: "A Retry-After is neither a date nor a delay",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_10_2_3],
+        strength: Strength::Grammar,
     }
 }
 

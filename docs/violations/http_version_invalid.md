@@ -21,7 +21,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.http_version_invalid]
 # A protocol version is below the floor the exchange requires
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

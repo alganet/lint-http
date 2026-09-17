@@ -581,7 +581,7 @@ mod tests {
     #[case(
         "http://example.com/a#b",
         "referer_fragment_forbidden",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case("", "referer_empty", crate::lint::Severity::Info)]
     fn the_fields_own_findings_rank_on_what_they_disclose(

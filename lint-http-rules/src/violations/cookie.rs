@@ -44,6 +44,7 @@
 use crate::helpers::cookie::CookiePathDefect;
 use crate::helpers::domain::CookieDomainDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::domain::preferred_name_defect;
 use crate::violations::uri::percent_encoding;
@@ -158,6 +159,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
+        strength: Strength::Should,
     }
 
     /// A `CTL`, which `path-value` excludes by name. The most serious of the seven
@@ -171,6 +173,12 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6265_4_1_1],
+        strength: Strength::Should,
+        departure: "RFC 6265 states its own grammar as a SHOULD NOT for historical reasons, and \
+            says in the same section that it is stricter than what a user agent \
+            will accept. A control octet in a `Path` is a hazard whatever the \
+            keyword: it is what smuggles a header boundary past a parser that \
+            splits on one, and no deployment wants it at `warn`.",
     }
 
     /// A space, which `CHAR` admits and this crate refuses anyway — the one defect
@@ -262,12 +270,14 @@ defects! {
     /// behaviour it would have had without the attribute at all.
     ///
     // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1): "samesite-value = "Strict" / "Lax" / "None""
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
     COOKIE_SAME_SITE_MISSING = {
         id: "cookie_same_site_missing",
         title: "Set-Cookie SameSite attribute carries no value",
         message: "Set-Cookie attribute 'SameSite' requires a value",
         default_severity: Severity::Warn,
         spec: &[DRAFT_IETF_HTTPBIS_RFC6265BIS],
+        strength: Strength::Should,
     }
 
     /// A `SameSite` value that is none of the three the grammar lists. It is
@@ -281,23 +291,27 @@ defects! {
     /// alternatives are ABNF string literals.
     ///
     // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1): "samesite-value = "Strict" / "Lax" / "None""
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
     COOKIE_SAME_SITE_INVALID = {
         id: "cookie_same_site_invalid",
         title: "Set-Cookie SameSite names no policy the grammar defines",
         message: "",
         default_severity: Severity::Warn,
         spec: &[DRAFT_IETF_HTTPBIS_RFC6265BIS],
+        strength: Strength::Should,
     }
 
     /// `Max-Age` written as a bare attribute, with no number after it.
     ///
     // cite(RFC 6265 § 4.1.1, label: cookie-av alternatives): "max-age-av        = "Max-Age=" non-zero-digit *DIGIT"
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
     COOKIE_MAX_AGE_MISSING = {
         id: "cookie_max_age_missing",
         title: "Set-Cookie Max-Age attribute carries no value",
         message: "Set-Cookie attribute 'Max-Age' requires a numeric value",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
+        strength: Strength::Should,
     }
 
     /// A `Max-Age` a user agent will not read a number out of. § 5.2.2 states
@@ -330,12 +344,19 @@ defects! {
     /// lost is the whole cookie rather than one of its attributes.
     ///
     // cite(RFC 6265 § 4.1.1, label: set-cookie-string): "set-cookie-header = "Set-Cookie:" SP set-cookie-string set-cookie-string = cookie-pair *( ";" SP cookie-av )"
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
     COOKIE_PAIR_MISSING = {
         id: "cookie_pair_missing",
         title: "Set-Cookie carries no cookie-pair",
         message: "Set-Cookie header missing cookie-pair",
         default_severity: Severity::Error,
         spec: &[RFC_6265_4_1_1],
+        strength: Strength::Should,
+        departure: "RFC 6265 writes its whole grammar as a SHOULD NOT, so every defect in a \
+            `Set-Cookie` inherits `warn` from one sentence. What is lost here is \
+            not an attribute but the cookie: a server that wrote this believes \
+            it stored state and stored none, and no reading of the line \
+            recovers what the pair would have said.",
     }
 
     /// A value written on `Secure` or `HttpOnly`. Both attributes are their own
@@ -348,12 +369,14 @@ defects! {
     /// what it wrote rather than the state it stored.
     ///
     // cite(RFC 6265 § 4.1.1, label: the flag attributes): "secure-av         = "Secure" httponly-av       = "HttpOnly""
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
     COOKIE_FLAG_VALUE_FORBIDDEN = {
         id: "cookie_flag_value_forbidden",
         title: "Set-Cookie writes a value on a flag attribute",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
+        strength: Strength::Should,
     }
 
     /// `SameSite=None` on a cookie that is not `Secure`. The two attributes are
@@ -383,12 +406,14 @@ defects! {
     /// attribute having no value for that production to read.
     ///
     // cite(RFC 6265 § 4.1.1, label: expires-av): "expires-av        = "Expires=" sane-cookie-date"
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
     COOKIE_EXPIRES_MISSING = {
         id: "cookie_expires_missing",
         title: "Set-Cookie Expires attribute carries no value",
         message: "Set-Cookie attribute 'Expires' requires a HTTP-date value",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
+        strength: Strength::Should,
     }
 
     /// A cookie carrying the `Secure` attribute, sent on a request whose scheme
@@ -451,6 +476,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_6265_5_3, RFC_6265_5_4],
+        strength: Strength::Unstated,
     }
 
     /// A cookie whose value differs from the one the most specific applicable
