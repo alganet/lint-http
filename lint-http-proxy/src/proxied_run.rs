@@ -320,6 +320,7 @@ pub async fn run_proxied(
     program: &str,
     args: &[String],
     keep_captures: Option<&Path>,
+    show_child_stderr: bool,
 ) -> anyhow::Result<WrappedRun> {
     let session = ProxySession::start(cfg, keep_captures).await?;
     let status = await_child(spawn_child(
@@ -327,6 +328,7 @@ pub async fn run_proxied(
         args,
         session.addr,
         session.trust_bundle.clone(),
+        show_child_stderr,
     ))
     .await;
 
@@ -350,17 +352,28 @@ pub async fn run_proxied(
 
 /// Spawn the child with the proxy variables added to its environment.
 ///
-/// Everything else about the environment is inherited, and stdin, stdout and
-/// stderr are the parent's: a wrapper that swallowed the wrapped command's
-/// output would not be one.
+/// Everything else about the environment is inherited, and so are stdin and
+/// **stdout**: stdout is the wrapped command's actual output — a body, a test
+/// runner's results — and a wrapper that swallowed it would not be one.
+///
+/// Stderr is the exception, and it is discarded unless asked for. Two streams
+/// were competing for it: the child's, and the report, which is the thing the
+/// user ran this command to read. Since a report on stdout would corrupt the
+/// child's output, the report gets stderr and the child's goes to the void by
+/// default. `show_stderr` hands it back for the case where the wrapped command
+/// is itself what is being debugged; a shell redirect can then separate them.
 async fn spawn_child(
     program: &str,
     args: &[String],
     addr: SocketAddr,
     ca_path: Option<PathBuf>,
+    show_stderr: bool,
 ) -> anyhow::Result<std::process::ExitStatus> {
     let mut command = tokio::process::Command::new(program);
     command.args(args);
+    if !show_stderr {
+        command.stderr(std::process::Stdio::null());
+    }
     for (name, value) in client_env::client_env(addr, ca_path.as_deref()) {
         command.env(name, value);
     }
@@ -487,6 +500,7 @@ mod tests {
             "sh",
             &["-c".to_string(), "exit 7".to_string()],
             None,
+            false,
         )
         .await?;
         assert_eq!(run.exit_code, Some(7));
@@ -510,6 +524,7 @@ mod tests {
                 ),
             ],
             None,
+            false,
         )
         .await?;
         assert_eq!(run.exit_code, Some(0));
@@ -537,7 +552,7 @@ mod tests {
     /// says which program could not be run.
     #[tokio::test]
     async fn a_missing_program_names_itself() {
-        let err = run_proxied(builtin(), "lint-http-no-such-program", &[], None)
+        let err = run_proxied(builtin(), "lint-http-no-such-program", &[], None, false)
             .await
             .expect_err("a missing program is an error");
         let msg = err.to_string();
@@ -569,7 +584,7 @@ mod tests {
             ),
         )?;
 
-        let run = run_proxied(builtin(), "true", &[], Some(&caps)).await?;
+        let run = run_proxied(builtin(), "true", &[], Some(&caps), false).await?;
         let _ = std::fs::remove_file(&caps);
         assert!(
             run.records.is_empty(),
@@ -597,6 +612,7 @@ mod tests {
                 ),
             ],
             None,
+            false,
         )
         .await?;
         assert_eq!(run.exit_code, Some(0));
@@ -667,6 +683,7 @@ mod tests {
                 format!("printf '%s' \"$SSL_CERT_FILE\" > {}", out.display()),
             ],
             None,
+            false,
         )
         .await?;
         assert_eq!(run.exit_code, Some(0));
