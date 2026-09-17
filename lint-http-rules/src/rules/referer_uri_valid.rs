@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::authority::{
+    authority_component, split_userinfo, validate_host_and_optional_port,
+};
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::percent_encoding::percent_encoding_defect;
 use crate::helpers::scheme::{scheme_authority_marker, scheme_prefix, validate_scheme_name};
 use crate::helpers::shown::{describe_char, shown_in_finding};
-use crate::helpers::uri::{
-    authority_component, find_non_uri_char, split_userinfo, validate_host_and_optional_port,
-};
+use crate::helpers::uri::find_non_uri_char;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
@@ -78,12 +79,12 @@ fn shown_referer(value: &str) -> String {
 /// `Some(value with the password elided)`, or `None` when there is nothing to
 /// elide. Separate from [`shown_referer`] so the userinfo finding can say which
 /// of the two it is showing. The elision itself is
-/// [`crate::helpers::uri::userinfo_password_withheld`]'s, shared with the two
+/// [`crate::helpers::authority::userinfo_password_withheld`]'s, shared with the two
 /// pseudo-header rules that print an authority; what stays here is putting the
 /// redacted authority back into the whole reference this rule shows.
 fn redacted_userinfo(value: &str) -> Option<String> {
     let authority = authority_component(value)?;
-    let redacted = crate::helpers::uri::userinfo_password_withheld(authority)?;
+    let redacted = crate::helpers::authority::userinfo_password_withheld(authority)?;
     Some(value.replacen(authority, &redacted, 1))
 }
 
@@ -460,7 +461,7 @@ impl Rule for RefererUriValid {
                 // The defect is the *reference's* and not this field's: the same
                 // two sentences answer an absolute-form request target and a
                 // `Location`, and the entry that holds them names both sections.
-                if let Some(scheme) = crate::helpers::uri::empty_host_scheme(value) {
+                if let Some(scheme) = crate::helpers::authority::empty_host_scheme(value) {
                     return Some(ctx.report_with(&URI_HOST_EMPTY, format!(
                         "Referer value '{}' names the scheme '{}' and then an empty host identifier: a sender MUST NOT generate an \"{}\" URI with one (RFC 9110 §4.2.{})",
                         shown_referer(value),

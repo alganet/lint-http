@@ -62,7 +62,7 @@ impl PercentEncodingDefect<'_> {
 ///
 /// This is [`percent_encoding_defect`] rendered, and the twenty-odd callers that
 /// embed the sentence in one of their own keep asking it. A caller that needs
-/// the failure inside a finding of its own — [`super::uri::validate_uri_host`] names the
+/// the failure inside a finding of its own — [`super::authority::validate_uri_host`] names the
 /// host the triplet was in — asks the typed one.
 pub fn check_percent_encoding(s: &str) -> Option<String> {
     percent_encoding_defect(s).map(PercentEncodingDefect::message)

@@ -263,7 +263,7 @@ impl Rule for HostHeader {
             // those two productions; what each of them *is* moved onto the
             // defects, which is why the finding is named after the authority
             // and not after the field that carried it.
-            if let Err(defect) = crate::helpers::uri::validate_host_and_optional_port(s) {
+            if let Err(defect) = crate::helpers::authority::validate_host_and_optional_port(s) {
                 return Some(ctx.report_with(
                     host_and_port(defect),
                     format!(

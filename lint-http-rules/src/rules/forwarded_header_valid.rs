@@ -147,7 +147,7 @@ fn validate_node(param: &str, value: &str) -> Option<(&'static ViolationDef, Str
 // cite(RFC 7239 § 5.3): "The syntax for a "host" value, after potential quoted-string unescaping, MUST conform to the Host ABNF described in Section 5.4 of [RFC7230]."
 // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
 fn validate_host(value: &str) -> Option<(&'static ViolationDef, String)> {
-    crate::helpers::uri::validate_host_and_optional_port(value)
+    crate::helpers::authority::validate_host_and_optional_port(value)
         .err()
         .map(|defect| {
             (

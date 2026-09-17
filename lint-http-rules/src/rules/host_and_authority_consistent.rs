@@ -56,8 +56,8 @@ impl HostAndAuthorityConsistent {
     fn normalized(value: &str, scheme: Option<&str>) -> String {
         // Where the userinfo ends is `authority`'s question and not this rule's;
         // the shared reader owns it, and this was the copy that hand-wrote it.
-        let (userinfo, host_and_port) = crate::helpers::uri::split_userinfo(value);
-        let (host, port) = crate::helpers::uri::split_host_and_port(host_and_port);
+        let (userinfo, host_and_port) = crate::helpers::authority::split_userinfo(value);
+        let (host, port) = crate::helpers::authority::split_host_and_port(host_and_port);
 
         // Only the two schemes RFC 9110 gives a default port to, matched without
         // regard to case because the scheme is case-insensitive by the sentence
