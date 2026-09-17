@@ -192,7 +192,7 @@ impl Rule for AccessControlAllowOriginValid {
                 return None;
             }
 
-            if !crate::helpers::uri::is_valid_serialized_origin(&member) {
+            if !crate::helpers::origin::is_valid_serialized_origin(&member) {
                 return Some(ctx.report_with(
                     &ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED,
                     format!(

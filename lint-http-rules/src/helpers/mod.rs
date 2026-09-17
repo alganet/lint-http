@@ -75,6 +75,7 @@ pub mod language;
 pub mod list;
 pub mod mailbox;
 pub mod media_type;
+pub mod origin;
 pub mod parameter;
 pub mod percent_encoding;
 pub mod product;

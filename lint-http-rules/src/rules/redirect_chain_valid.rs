@@ -331,8 +331,8 @@ impl Rule for RedirectChainValid {
             //
             // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
             // cite(RFC 9112 § 3.3): "Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http"."
-            let target_origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
-            let location_origin = crate::helpers::uri::extract_origin_if_absolute(value);
+            let target_origin = crate::helpers::origin::extract_origin_if_absolute(&tx.request.uri);
+            let location_origin = crate::helpers::origin::extract_origin_if_absolute(value);
             match (target_origin.as_deref(), location_origin.as_deref()) {
                 (Some(target), Some(location)) if !target.eq_ignore_ascii_case(location) => {
                     return None

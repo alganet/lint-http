@@ -401,9 +401,9 @@ impl Rule for ContentLocationAndUriConsistent {
                         crate::helpers::uri::resolve_reference_path_and_query(&req_path, s);
 
                     // If absolute, also compare origin
-                    let cl_origin_opt = crate::helpers::uri::extract_origin_if_absolute(s);
+                    let cl_origin_opt = crate::helpers::origin::extract_origin_if_absolute(s);
                     let req_origin_opt =
-                        crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
+                        crate::helpers::origin::extract_origin_if_absolute(&tx.request.uri);
 
                     // The target URI's authority is in the request-target only when
                     // that is in absolute form; an origin-form target keeps it in

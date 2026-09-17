@@ -163,7 +163,7 @@ impl Rule for OriginMatchingForCors {
             // catalogue names — the scheme and the URI alphabet — and two are
             // this field's own: a path where the production has no component for
             // one, and a value deriving from neither alternative.
-            if let Err(defect) = crate::helpers::uri::validate_origin_value(origin) {
+            if let Err(defect) = crate::helpers::origin::validate_origin_value(origin) {
                 let message = format!(
                     "Invalid Origin header value '{}': {}",
                     crate::helpers::shown::shown_in_finding(origin),

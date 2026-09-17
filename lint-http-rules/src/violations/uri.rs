@@ -28,9 +28,9 @@
 //! rule that can name the transport.
 
 use crate::helpers::authority::{HostAndPortDefect, UriHostDefect};
+use crate::helpers::origin::OriginDefect;
 use crate::helpers::percent_encoding::PercentEncodingDefect;
 use crate::helpers::scheme::SchemeNameDefect;
-use crate::helpers::uri::OriginDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
