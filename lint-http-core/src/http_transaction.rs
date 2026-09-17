@@ -130,6 +130,26 @@ pub struct HttpTransaction {
     #[serde(default)]
     pub was_upgraded: bool,
 
+    /// True when the `response` on this record was written by **this proxy**
+    /// rather than by the origin: a 502 for an upstream that could not be
+    /// reached, a 413 for a request body over the limit, a 503 at connection
+    /// capacity. The upstream produced nothing at all.
+    ///
+    /// **The record keeps the response anyway, and the flag is why that is
+    /// safe.** What the client was told is a fact worth recording, and
+    /// dropping it would leave an error exchange with no status at all. But the
+    /// response half of this record is then not the origin's message, and a
+    /// rule reading it would report the proxy's own reply as the origin's — a
+    /// headerless one, at that, which is every "response is missing field X"
+    /// rule in the catalogue firing at once and being attributed to a peer that
+    /// never spoke. So the engine treats such a transaction as response-less
+    /// for dispatch: see [`Rule::needs_response`] and the dispatch site in
+    /// `engine.rs`.
+    ///
+    /// [`Rule::needs_response`]: https://docs.rs/lint-http-rules
+    #[serde(default)]
+    pub upstream_never_answered: bool,
+
     /// True when the captured request body is incomplete: either it was rejected
     /// for exceeding `max_body_bytes`, or (when streaming) `request_body` holds
     /// only a truncated prefix of `captures_max_body_bytes`. Rules that need the
@@ -173,6 +193,7 @@ impl HttpTransaction {
             connection_id: None,
             sequence_number: None,
             was_upgraded: false,
+            upstream_never_answered: false,
             request_body_over_limit: false,
             response_body_over_limit: false,
             upgrade_protocol: None,

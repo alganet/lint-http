@@ -481,11 +481,17 @@ async fn record_exchange_error(
 
 /// The response-side facts of a failed exchange: everything
 /// [`record_error_transaction`] cannot read from the request facts.
+///
+/// There are no response headers here, and there never were any to carry: every
+/// caller of [`record_error_transaction`] is a path where the upstream produced
+/// nothing, so the status is the whole of what the client was told. The field
+/// that used to sit here was `Option<HeaderMap>` and no caller ever set it —
+/// which made the empty map it defaulted to look like an origin's field section
+/// to every rule that read one.
 #[derive(Default)]
 pub(super) struct ErrorFacts {
     pub status: u16,
     pub duration_ms: u64,
-    pub response_headers: Option<HeaderMap>,
     pub req_body: Option<Bytes>,
     pub request_body_over_limit: bool,
     pub response_body_over_limit: bool,
@@ -496,6 +502,14 @@ pub(super) struct ErrorFacts {
 /// exchanges are linted and enter `TransactionHistory` like any other traffic.
 /// Used on the error paths where the upstream exchange never completes
 /// normally. Shared by both transports and the WebSocket handshake.
+///
+/// The response half it builds is **this proxy's own reply** — an empty field
+/// section and the request's version, because the origin wrote nothing to copy.
+/// `upstream_never_answered` says so on the record, and the engine reads it: a
+/// rule that needs a response is not dispatched against one the origin never
+/// sent. Without that flag every "the response is missing X" rule in the
+/// catalogue fired on every 502, and the party campaign then attributed each
+/// one to a peer that had not spoken.
 pub(super) async fn record_error_transaction(
     shared: &Arc<Shared>,
     facts: &RequestFacts,
@@ -506,12 +520,13 @@ pub(super) async fn record_error_transaction(
         ResponseFacts {
             status: err.status,
             version: facts.version.clone(),
-            headers: err.response_headers.unwrap_or_default(),
+            headers: HeaderMap::new(),
             body_length: None,
             trailers: None,
         },
         err.duration_ms,
     );
+    tx.upstream_never_answered = true;
     if let Some(b) = err.req_body {
         tx.request.body_length = Some(b.len() as u64);
         tx.request_body = Some(b);
@@ -570,6 +585,34 @@ mod tests {
         let resp = tx.response.expect("assembled response");
         assert_eq!(resp.status, 101);
         assert_eq!(resp.body_length, Some(0));
+    }
+
+    /// The response `record_error_transaction` builds is this proxy's, and the
+    /// record says so.
+    ///
+    /// The flag is what keeps a response-reading rule off it — see
+    /// `engine.rs` — and the assertion that matters is not the flag alone but
+    /// the field section beside it: an empty one that a rule would read as an
+    /// origin's message that omitted everything.
+    #[tokio::test]
+    async fn an_error_record_says_the_upstream_never_answered() {
+        let facts = test_facts();
+        let mut tx = assemble_transaction(
+            &facts,
+            ResponseFacts {
+                status: 502,
+                version: facts.version.clone(),
+                headers: HeaderMap::new(),
+                body_length: None,
+                trailers: None,
+            },
+            3,
+        );
+        tx.upstream_never_answered = true;
+        let resp = tx.response.as_ref().expect("a status to report");
+        assert_eq!(resp.status, 502);
+        assert!(resp.headers.is_empty());
+        assert!(tx.upstream_never_answered);
     }
 
     /// A non-101 assembles with the upgrade facts at rest.

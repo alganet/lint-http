@@ -141,9 +141,17 @@ impl PreparedEngine {
         let origin = crate::helpers::origin::extract_origin_if_absolute(&tx.request.uri);
 
         // Enabled rules only — disabled rules were filtered out at construction.
-        // `Server` rules are excluded when the response isn't collected yet
-        // (mirrors `crate::rules::rules_for_transaction`, see `Rule::needs_response`).
-        let scoped = if tx.response.is_some() {
+        // A rule that needs a response is excluded when there is none (mirrors
+        // `crate::rules::rules_for_transaction`, see `Rule::needs_response`).
+        //
+        // **A response this proxy wrote is not a response for this purpose.**
+        // An error record carries a status so the report can say what the
+        // client was told, and nothing else the origin sent — it sent nothing.
+        // Dispatching the response-reading rules against it reports the proxy's
+        // own headerless reply as the origin's, which is the one place
+        // `Party::Server` is provably wrong. `upstream_never_answered` carries
+        // the argument.
+        let scoped = if tx.response.is_some() && !tx.upstream_never_answered {
             &self.enabled_full
         } else {
             &self.enabled_request_only
@@ -221,13 +229,13 @@ mod tests {
 
     #[test]
     fn prepared_engine_keeps_only_enabled_rules() {
-        // Enable two Server-scoped rules and one Client-scoped rule. The full
-        // set keeps all three; the request-only set keeps just the Client rule —
-        // exercising both the enabled filter and the Server-scope exclusion.
+        // Enable two rules that need a response and one that does not. The
+        // full set keeps all three; the request-only set keeps just the third —
+        // exercising both the enabled filter and the response precondition.
         let cfg = make_test_config_with_enabled_rules(&[
-            "cache_control_present",         // Server
-            "etag_or_last_modified_present", // Server
-            "user_agent_present",            // Client (survives into request-only)
+            "cache_control_present",         // needs a response
+            "etag_or_last_modified_present", // needs a response
+            "user_agent_present",            // does not; survives into request-only
         ]);
         let engine = PreparedEngine::new(&cfg).unwrap();
 
@@ -248,6 +256,46 @@ mod tests {
         let empty = PreparedEngine::new(&Config::default()).unwrap();
         assert_eq!(empty.enabled_full.len(), 0);
         assert_eq!(empty.enabled_protocol.len(), 0);
+    }
+
+    /// A record whose response this proxy wrote is dispatched as if it had
+    /// none.
+    ///
+    /// The 502 an unreachable upstream produces carries a status and an empty
+    /// field section, and nothing else — the origin sent nothing to copy. A
+    /// response-reading rule dispatched against it reports the proxy's own
+    /// reply as the origin's, and since the party campaign that finding now
+    /// says `server` in as many words: the one place `Party::Server` is
+    /// provably wrong. `status_and_caching_semantics` is the rule this was
+    /// measured with — a live `use curl http://nonexistent.invalid/` reported
+    /// its `cache_control_freshness_missing` against a 502 the origin never
+    /// sent — and `user_agent_present` is in the same config to keep the second
+    /// assertion non-vacuous, since it reads the request and still reports.
+    #[test]
+    fn a_response_this_proxy_wrote_is_not_a_response_for_dispatch() {
+        let cfg = make_test_config_with_enabled_rules(&[
+            "status_and_caching_semantics", // needs a response
+            "user_agent_present",           // does not
+        ]);
+        let engine = PreparedEngine::new(&cfg).unwrap();
+        let state = crate::state::StateStore::new(300, 10);
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(502, &[]);
+        tx.request.headers.remove("user-agent");
+
+        let from_the_origin = engine.lint_transaction(&tx, &state);
+        assert!(from_the_origin
+            .iter()
+            .any(|v| v.rule == "status_and_caching_semantics"));
+
+        tx.upstream_never_answered = true;
+        let from_this_proxy = engine.lint_transaction(&tx, &state);
+        assert!(!from_this_proxy
+            .iter()
+            .any(|v| v.rule == "status_and_caching_semantics"));
+        assert!(from_this_proxy
+            .iter()
+            .any(|v| v.rule == "user_agent_present"));
     }
 
     /// The whole path, from a `[violations.<id>]` section to a report that
