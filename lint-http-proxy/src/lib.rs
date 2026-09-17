@@ -38,9 +38,11 @@ pub(crate) mod temp_files;
 
 pub mod ca;
 pub mod capture;
+pub mod client_env;
 pub mod config;
 pub mod connection;
 pub mod h3_instrument;
+pub mod proxied_run;
 pub mod proxy;
 pub mod websocket_session;
 

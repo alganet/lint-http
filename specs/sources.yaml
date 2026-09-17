@@ -258,6 +258,70 @@ sources:
   - label: MDN X-XSS-Protection
     url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
 
+  # ── Client documentation ──────────────────────────────────────────────
+  #
+  # Not specifications of HTTP, and normative anyway — for one file. `run` puts
+  # variables into a child process's environment, and what each one does is
+  # decided by the client that reads it, not by any RFC. `lint-http-proxy/src/client_env.rs`
+  # is the whole of that claim, one row per variable, and each row quotes the
+  # document that defines it.
+  #
+  # This is the drift these entries exist to catch. A variable that a client
+  # renames, stops reading, or scopes to one TLS backend leaves no trace in a
+  # Rust program: the wrapper keeps exporting it, the child keeps ignoring it,
+  # and the failure surfaces as a TLS error in somebody else's terminal. The
+  # sentence is the only part that can be checked, so it is the part that is
+  # written down.
+
+  - label: curl
+    url: https://curl.se/docs/manpage.html
+    type: text/html
+    # The manpage's ENVIRONMENT section, and the reason the wrapper exports each
+    # proxy variable in both cases: curl gives the lower-case spelling
+    # precedence and reads `http_proxy` in lower case only.
+
+  - label: OpenSSL Environment
+    url: https://docs.openssl.org/master/man7/openssl-env/
+    type: text/html
+    # openssl-env(7). SSL_CERT_FILE is the widest-reach row in the table — it is
+    # read by everything that verifies through OpenSSL rather than through a
+    # platform store, which on Linux is most things.
+
+  - label: Node.js CLI
+    url: https://nodejs.org/api/cli.html
+    type: text/html
+    # The environment-variable half of the Node CLI page, for NODE_EXTRA_CA_CERTS.
+
+  - label: Requests Advanced Usage
+    url: https://requests.readthedocs.io/en/latest/user/advanced/
+    type: text/html
+    # REQUESTS_CA_BUNDLE, and its documented fallback to CURL_CA_BUNDLE — which
+    # is why the table sets both rather than choosing.
+
+  - label: git-config
+    url: https://git-scm.com/docs/git-config
+    type: text/html
+    # GIT_SSL_CAINFO is documented as the override for `http.sslCAInfo` rather
+    # than in its own entry, so the quote names the configuration key.
+
+  - label: Cargo Environment Variables
+    url: https://doc.rust-lang.org/cargo/reference/environment-variables.html
+    type: text/html
+    # CARGO_HTTP_CAINFO. Cargo's own downloads go through libcurl, so this
+    # reaches `cargo build`; it says nothing about a Rust binary cargo produced,
+    # which is the gap the module's doc comment records.
+
+  - label: AWS CLI Environment Variables
+    url: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
+    type: text/html
+    # AWS_CA_BUNDLE.
+
+  - label: Deno Environment Variables
+    url: https://docs.deno.com/runtime/reference/env_variables/
+    type: text/html
+    # DENO_CERT. Deno also reads NODE_EXTRA_CA_CERTS, which the table already
+    # sets for Node — one variable, two readers, one row.
+
   # ── Not specifications ────────────────────────────────────────────────
   #
   # Cited by rules as background. They justify no normative sentence, so nothing
