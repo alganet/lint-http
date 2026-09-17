@@ -60,9 +60,9 @@ impl RequestScope {
             } else {
                 "http".into()
             },
-            host: crate::helpers::uri::extract_host_from_request_target(request_uri)
+            host: crate::helpers::request_target::extract_host_from_request_target(request_uri)
                 .unwrap_or_default(),
-            path: crate::helpers::uri::extract_path_from_request_target(request_uri)
+            path: crate::helpers::request_target::extract_path_from_request_target(request_uri)
                 .unwrap_or_else(|| "/".into()),
         }
     }

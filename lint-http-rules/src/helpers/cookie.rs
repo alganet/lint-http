@@ -285,7 +285,8 @@ fn default_domain(request_uri: &str) -> String {
 /// The branches are § 5.1.4's numbered steps, in its order.
 // cite(RFC 6265 § 5.1.4): "The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:"
 fn default_path(request_uri: &str) -> String {
-    let Some(p) = crate::helpers::uri::extract_path_from_request_target(request_uri) else {
+    let Some(p) = crate::helpers::request_target::extract_path_from_request_target(request_uri)
+    else {
         return "/".into();
     };
     // Step 2. Quoted here only as its tail: the step opens "If the uri-path is

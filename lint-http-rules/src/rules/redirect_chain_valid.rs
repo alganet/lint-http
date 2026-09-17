@@ -268,8 +268,10 @@ impl Rule for RedirectChainValid {
             // cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
             // cite(RFC 9110 § 10.2.2): "When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5)."
             let target_path_and_query =
-                crate::helpers::uri::extract_path_and_query_from_request_target(&tx.request.uri)
-                    .map(|p| crate::helpers::uri::normalize_path_and_query(&p))?;
+                crate::helpers::request_target::extract_path_and_query_from_request_target(
+                    &tx.request.uri,
+                )
+                .map(|p| crate::helpers::uri::normalize_path_and_query(&p))?;
 
             // Neither side's fragment takes part: §10.2.2 hands a fragmentless
             // `Location` the target's own fragment, so two references differing only
@@ -298,8 +300,10 @@ impl Rule for RedirectChainValid {
             // redirects, and this rule used to report every one of them, because an
             // origin-form request-target carries no authority to disagree with. The
             // target URI's authority is in `Host` for exactly that reason.
-            let target_authority =
-                crate::helpers::uri::target_uri_authority(&tx.request.uri, &tx.request.headers);
+            let target_authority = crate::helpers::request_target::target_uri_authority(
+                &tx.request.uri,
+                &tx.request.headers,
+            );
             let location_authority = crate::helpers::uri::reference_authority(value);
             match (target_authority.as_deref(), location_authority.as_deref()) {
                 // cite(RFC 3986 § 6.2.2.1): "the scheme and host are case-insensitive and therefore should be normalized to lowercase"

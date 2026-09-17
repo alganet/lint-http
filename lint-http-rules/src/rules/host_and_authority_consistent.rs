@@ -336,8 +336,9 @@ impl Rule for HostAndAuthorityConsistent {
             // question rather than this one's.
             //
             // cite(RFC 9113 § 8.3.1): "The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP])."
-            let authority =
-                crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri)?;
+            let authority = crate::helpers::request_target::extract_authority_from_request_target(
+                &tx.request.uri,
+            )?;
 
             // An asterisk-form OPTIONS is unreadable here, and the tell is that `*`
             // is a legal `sub-delim` — so `example.com*` is a `reg-name` and the

@@ -286,7 +286,8 @@ impl Rule for Http3PseudoHeadersValid {
                 // from nobody else — the twin's judgment, made here late.
                 // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
                 let target = tx.request.uri.as_str();
-                let authority = crate::helpers::uri::extract_authority_from_request_target(target);
+                let authority =
+                    crate::helpers::request_target::extract_authority_from_request_target(target);
                 if authority.is_none() && !tx.request.headers.contains_key("host") {
                     return Some(ctx.report_with(
                         &AUTHORITY_TUNNEL_MISSING,
@@ -392,7 +393,8 @@ impl Rule for Http3PseudoHeadersValid {
                     // here. An absent `:path` and a blank one reassemble into the
                     // same target, which is the reading the entry carries.
                     let has_path =
-                        crate::helpers::uri::extract_path_from_request_target(target).is_some();
+                        crate::helpers::request_target::extract_path_from_request_target(target)
+                            .is_some();
                     if !has_path {
                         return Some(
                             ctx.report_with(
@@ -418,7 +420,8 @@ impl Rule for Http3PseudoHeadersValid {
                 // cited from it. The HTTP/2 twin declares no such entry: § 8.3.1
                 // tells a client to omit `:authority` where there is no
                 // authority to convey, which is the opposite requirement.
-                let authority = crate::helpers::uri::extract_authority_from_request_target(target);
+                let authority =
+                    crate::helpers::request_target::extract_authority_from_request_target(target);
                 if authority.is_none() {
                     // The same clause asks two things of a request whose target
                     // names no authority: that one of the two fields be there,

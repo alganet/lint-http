@@ -466,7 +466,7 @@ impl Rule for Http2PseudoHeadersValid {
                 // version and neither governing the other.
                 // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
                 let target_authority =
-                    crate::helpers::uri::extract_authority_from_request_target(target);
+                    crate::helpers::request_target::extract_authority_from_request_target(target);
                 if target_authority.is_none() && !tx.request.headers.contains_key("host") {
                     return Some(ctx.report_with(
                         &AUTHORITY_TUNNEL_MISSING,
@@ -517,7 +517,9 @@ impl Rule for Http2PseudoHeadersValid {
                     // message names the one governing here. Both quotes are on
                     // the entry; the reading that an absent `:path` and a blank
                     // one arrive identically is there too.
-                    if crate::helpers::uri::extract_path_from_request_target(target).is_none() {
+                    if crate::helpers::request_target::extract_path_from_request_target(target)
+                        .is_none()
+                    {
                         return Some(ctx.report_with(
                             &REQUEST_TARGET_PATH_MISSING,
                             format!(
@@ -572,7 +574,7 @@ impl Rule for Http2PseudoHeadersValid {
                 // schemes' own sentences, so a target under any other scheme is
                 // outside them and this rule reported it for years anyway.
                 let Some(authority) =
-                    crate::helpers::uri::extract_authority_from_request_target(target)
+                    crate::helpers::request_target::extract_authority_from_request_target(target)
                 else {
                     if scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https") {
                         // The entry names § 4.2.1 and § 4.2.2, one per scheme, so
