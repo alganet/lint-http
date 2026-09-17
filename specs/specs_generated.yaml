@@ -22,7 +22,7 @@ sources:
     - file: lint-http-rules/src/rules/access_control_allow_origin_valid.rs
       line: 151
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 190
+      line: 199
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
       line: 60
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
@@ -64,7 +64,7 @@ sources:
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 219
+      line: 228
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
       line: 89
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
@@ -74,7 +74,7 @@ sources:
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 237
+      line: 247
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
       line: 109
   - label: refresh_header_syntax
@@ -204,7 +204,7 @@ sources:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
       line: 114
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 276
+      line: 280
   - label: refresh_header_syntax
     section: § 7.8
     snippet: It takes the same value and works largely the same.
@@ -496,7 +496,7 @@ sources:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
       line: 58
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 275
+      line: 279
     - file: lint-http-rules/src/violations/content_security_policy.rs
       line: 257
   - label: content_security_policy_and_frame_options_consistent (2)
@@ -504,7 +504,7 @@ sources:
     snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 274
+      line: 278
   - label: content_security_policy_valid
     section: § 2.3
     snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
@@ -527,13 +527,13 @@ sources:
     snippet: A user signs out of Super Secret Social Network via a CSRF-protected POST to https://supersecretsocialnetwork.example.com/logout, and the site author wishes to ensure that locally stored data is removed as a result
     cited_by:
     - file: lint-http-rules/src/rules/clear_site_data_present.rs
-      line: 179
+      line: 183
   - label: clear_site_data_present (2)
     section: § 3.1
     snippet: The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types.
     cited_by:
     - file: lint-http-rules/src/rules/clear_site_data_present.rs
-      line: 182
+      line: 186
     - file: lint-http-rules/src/violations/clear_site_data.rs
       line: 40
 - label: Fetch Metadata
@@ -1489,7 +1489,7 @@ sources:
     snippet: Some protocol elements allow only the absolute form of a URI without a fragment identifier.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 358
+      line: 362
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 391
   - label: host_and_authority_consistent
@@ -1663,7 +1663,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 48
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 284
+      line: 288
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 225
     - file: lint-http-rules/src/violations/uri.rs
@@ -1803,7 +1803,7 @@ sources:
     - file: lint-http-rules/src/helpers/reference.rs
       line: 152
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 429
+      line: 433
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 312
   - label: lint-http-rules/src/helpers/reference.rs (11)
@@ -1819,9 +1819,9 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 135
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 428
+      line: 432
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 310
+      line: 314
   - label: lint-http-rules/src/helpers/scheme.rs
     section: § 3.1
     snippet: Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-").
@@ -1897,7 +1897,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 79
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 226
+      line: 230
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 363
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -2401,7 +2401,7 @@ sources:
     snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 418
+      line: 422
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 299
     - file: lint-http-rules/src/rules/patch_partial_update.rs
@@ -2417,7 +2417,7 @@ sources:
     snippet: The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 458
+      line: 462
   - label: Accept-Patch grammar
     section: § 3.1
     snippet: Accept-Patch = "Accept-Patch" ":" 1#media-type
@@ -2439,7 +2439,7 @@ sources:
     snippet: The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 398
+      line: 402
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 260
   - label: accept_patch_header_valid (6)
@@ -2447,7 +2447,7 @@ sources:
     snippet: This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 371
+      line: 375
   - label: options_method_capabilities
     section: § 3.1
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
@@ -3196,7 +3196,7 @@ sources:
     snippet: ABNF rules with the "-Client" suffix in the name are only used in requests sent by the client to the server; ABNF rules with the "-Server" suffix in the name are only used in responses sent by the server to the client.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 213
+      line: 217
   - label: sec_websocket_version_advertised (4)
     section: § 4.3
     snippet: This section is using ABNF syntax/rules from Section 2.1 of [RFC2616], including the "implied *LWS rule".
@@ -3994,7 +3994,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 415
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 362
+      line: 366
     - file: lint-http-rules/src/violations/prefer.rs
       line: 200
   - label: prefer_header_and_preference_applied (3)
@@ -4010,19 +4010,19 @@ sources:
     snippet: Preference-Applied = "Preference-Applied" ":" 1#applied-pref
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 280
+      line: 284
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 274
+      line: 278
   - label: prefer_header_and_preference_applied (4)
     section: § 3
     snippet: The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 231
+      line: 235
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 245
+      line: 249
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 380
+      line: 384
     - file: lint-http-rules/src/violations/prefer.rs
       line: 177
   - label: prefer_header_and_preference_applied (5)
@@ -4030,9 +4030,9 @@ sources:
     snippet: applied-pref = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 292
+      line: 296
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 326
+      line: 330
     - file: lint-http-rules/src/violations/prefer.rs
       line: 134
   - label: prefer_header_and_preference_applied (6)
@@ -4108,7 +4108,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 72
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 367
+      line: 371
   - label: prefer_header_valid (6)
     section: § 2
     snippet: If any preference is specified more than once, only the first instance is to be considered.
@@ -4208,7 +4208,7 @@ sources:
     snippet: The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included.
     cited_by:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 318
+      line: 322
     - file: lint-http-rules/src/violations/prefer.rs
       line: 28
     - file: lint-http-rules/src/violations/prefer.rs
@@ -4959,7 +4959,7 @@ sources:
     snippet: The 103 (Early Hints) informational status code indicates to the client that the server is likely to send a final response with the header fields included in the informational response.
     cited_by:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
-      line: 158
+      line: 162
   - label: status_103_early_hints_before_final (8)
     section: § 2
     snippet: Typically, a server will include the header fields sent in a 103 (Early Hints) response in the final response as well.
@@ -4971,7 +4971,7 @@ sources:
     snippet: In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response.
     cited_by:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
-      line: 195
+      line: 199
 - label: RFC 8441
   url: https://www.rfc-editor.org/rfc/rfc8441.html
   fragments:
@@ -5544,19 +5544,19 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 57
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 279
+      line: 283
   - label: accept_patch_header_valid (2)
     section: § 15.5.16
     snippet: If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 420
+      line: 424
   - label: accept_patch_header_valid (3)
     section: § 15.5.16
     snippet: The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 419
+      line: 423
   - label: accept_patch_header_valid (4)
     section: § 5.6.1.2
     snippet: 'Empty elements do not contribute to the count of elements present.  A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism.'
@@ -5574,7 +5574,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 329
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 285
+      line: 289
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 391
     - file: lint-http-rules/src/violations/list.rs
@@ -5586,13 +5586,13 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 249
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 407
+      line: 411
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 92
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 285
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 256
+      line: 260
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 361
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
@@ -5608,7 +5608,7 @@ sources:
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 154
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 109
+      line: 113
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 185
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
@@ -5618,9 +5618,9 @@ sources:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
       line: 160
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 170
+      line: 174
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
-      line: 202
+      line: 206
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 57
     - file: lint-http-rules/src/rules/trace_method_echo.rs
@@ -5632,7 +5632,7 @@ sources:
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 459
+      line: 463
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 252
   - label: accept_ranges_and_206_consistent
@@ -5794,7 +5794,7 @@ sources:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 169
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 208
+      line: 212
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 168
     - file: lint-http-rules/src/violations/field.rs
@@ -5808,7 +5808,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 54
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 241
+      line: 245
   - label: allow_header_method_tokens_valid (3)
     section: § 10.2.1
     snippet: The purpose of this field is strictly to inform the recipient of valid request methods associated with the resource.
@@ -5822,7 +5822,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 301
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 359
+      line: 363
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 401
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
@@ -5892,7 +5892,7 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 368
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 193
+      line: 197
   - label: auth_scheme
     section: § 11.1
     snippet: New and existing authentication schemes are specified independently and ought to be registered
@@ -5938,13 +5938,13 @@ sources:
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 123
+      line: 127
   - label: cache_coherence (2)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 148
+      line: 152
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 115
   - label: cache_coherence (3)
@@ -5952,7 +5952,7 @@ sources:
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 135
+      line: 139
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 44
   - label: cache_control_directive_valid
@@ -5974,13 +5974,13 @@ sources:
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 145
+      line: 149
   - label: cached_validators_reused (2)
     section: § 13.1.3
     snippet: 'If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag'
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 146
+      line: 150
   - label: challenge
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
@@ -6304,15 +6304,15 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 189
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 233
+      line: 237
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 209
+      line: 213
   - label: content_location_and_uri_consistent
     section: § 4.1
     snippet: A "partial-URI" rule is defined for protocol elements that can contain a relative URI but not a fragment component.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 356
+      line: 360
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 389
     - file: lint-http-rules/src/violations/content_location.rs
@@ -6322,7 +6322,7 @@ sources:
     snippet: Each protocol element in HTTP that allows a URI reference will indicate in its ABNF production whether the element allows any form of reference (URI-reference), only a URI in absolute form (absolute-URI), only the path and optional query components (partial-URI), or some combination of the above.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 357
+      line: 361
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 390
   - label: content_location_and_uri_consistent (3)
@@ -6330,43 +6330,43 @@ sources:
     snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 252
+      line: 256
   - label: content_location_and_uri_consistent (4)
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 225
+      line: 229
   - label: content_location_and_uri_consistent (5)
     section: § 8.7
     snippet: For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 461
+      line: 465
   - label: content_location_and_uri_consistent (6)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 460
+      line: 464
   - label: content_location_and_uri_consistent (7)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 371
+      line: 375
   - label: content_location_and_uri_consistent (8)
     section: § 8.7
     snippet: In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 399
+      line: 403
   - label: content_location_and_uri_consistent (9)
     section: § 8.7
     snippet: Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 462
+      line: 466
     - file: lint-http-rules/src/violations/content_location.rs
       line: 118
   - label: content_location_and_uri_consistent (10)
@@ -6374,15 +6374,15 @@ sources:
     snippet: The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 212
+      line: 216
   - label: content_location_and_uri_consistent (11)
     section: § 8.7
     snippet: The field value is either an absolute-URI or a partial-URI.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 283
+      line: 287
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 355
+      line: 359
   - label: content_range
     section: § 14.4
     snippet: The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation.
@@ -6412,7 +6412,7 @@ sources:
     snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 119
+      line: 123
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 185
   - label: content_type_present (2)
@@ -6420,7 +6420,7 @@ sources:
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 180
+      line: 184
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 168
     - file: lint-http-rules/src/violations/content_type.rs
@@ -6430,7 +6430,7 @@ sources:
     snippet: Content-Type = media-type
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 181
+      line: 185
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 211
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
@@ -6440,7 +6440,7 @@ sources:
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 187
+      line: 191
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 205
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
@@ -6450,17 +6450,17 @@ sources:
     snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 188
+      line: 192
   - label: content_type_present (6)
     section: § 9.3.2
     snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 130
+      line: 134
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 255
+      line: 259
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 174
+      line: 178
     - file: lint-http-rules/src/violations/method.rs
       line: 326
   - label: content_type_valid
@@ -6752,7 +6752,7 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 163
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 360
+      line: 364
     - file: lint-http-rules/src/violations/field.rs
       line: 192
   - label: extension_headers_registered (5)
@@ -6772,19 +6772,19 @@ sources:
     snippet: A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 359
+      line: 363
   - label: head_response_headers_match_get (2)
     section: § 12.5.5
     snippet: To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 366
+      line: 370
   - label: head_response_headers_match_get (3)
     section: § 15
     snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 284
+      line: 288
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 121
   - label: head_response_headers_match_get (4)
@@ -6800,9 +6800,9 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 77
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 142
+      line: 146
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 181
+      line: 185
   - label: head_response_headers_match_get (6)
     section: § 8.8
     snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
@@ -6844,9 +6844,9 @@ sources:
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 250
+      line: 254
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 154
+      line: 158
     - file: lint-http-rules/src/violations/method.rs
       line: 291
   - label: field-name grammar
@@ -6964,7 +6964,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 472
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 351
+      line: 355
   - label: link_header_valid (2)
     section: § 5.6.3
     snippet: A sender MUST NOT generate BWS in messages.
@@ -6976,7 +6976,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 471
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 350
+      line: 354
     - file: lint-http-rules/src/violations/bws.rs
       line: 62
   - label: lint-http-core/src/http_date.rs
@@ -7220,7 +7220,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 393
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 292
+      line: 296
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 36
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -7318,7 +7318,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 328
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 284
+      line: 288
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 336
   - label: lint-http-rules/src/helpers/auth.rs (5)
@@ -7358,7 +7358,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 342
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 298
+      line: 302
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 345
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -7662,13 +7662,13 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 55
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 146
+      line: 150
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
       line: 170
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 400
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 243
+      line: 247
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 211
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
@@ -7772,7 +7772,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 319
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 253
+      line: 257
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 235
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -7992,7 +7992,7 @@ sources:
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 184
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 245
+      line: 249
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 303
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
@@ -8228,7 +8228,7 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 50
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 268
+      line: 272
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 227
   - label: lint-http-rules/src/helpers/request_target.rs (2)
@@ -8394,7 +8394,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 37
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 154
+      line: 158
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 93
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
@@ -8416,7 +8416,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 36
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 140
+      line: 144
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 94
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
@@ -8432,7 +8432,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 51
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
-      line: 189
+      line: 193
   - label: location_on_redirect_present (5)
     section: § 15.4.1
     snippet: For request methods other than HEAD, the server SHOULD generate content in the 300 response containing a list of representation metadata and URI reference(s) from which the user or user agent can choose the one most preferred.
@@ -8608,7 +8608,7 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 260
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 230
+      line: 234
   - label: no_body_for_1xx_204_304 (4)
     section: § 6.4.1
     snippet: All 1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content.
@@ -8624,7 +8624,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 261
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 143
+      line: 147
   - label: no_body_for_1xx_204_304 (6)
     section: § 8.6
     snippet: A server MUST NOT send a Content-Length header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -8666,7 +8666,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 268
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 219
+      line: 223
   - label: options_method_capabilities (2)
     section: § 15.3
     snippet: The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted.
@@ -8740,13 +8740,13 @@ sources:
     snippet: The 201 (Created) status code indicates that the request has been fulfilled and has resulted in one or more new resources being created.
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 128
+      line: 132
   - label: post_creates_resource (2)
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1.
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 139
+      line: 143
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 195
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
@@ -8758,31 +8758,31 @@ sources:
     snippet: An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable)).
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 117
+      line: 121
   - label: post_creates_resource (4)
     section: § 9.3.3
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created (Section 10.2.2) and a representation that describes the status of the request while referring to the new resource(s).
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 153
+      line: 157
   - label: prefer_header_and_preference_applied
     section: § 9.1
     snippet: The method token is case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 263
+      line: 267
   - label: prefer_header_and_preference_applied (2)
     section: § 9.2.3
     snippet: This specification defines caching semantics for GET, HEAD, and POST, although the overwhelming majority of cache implementations only support GET and HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 261
+      line: 265
   - label: prefer_header_and_preference_applied (3)
     section: § 9.3.3
     snippet: Responses to POST requests are only cacheable when they include explicit freshness information
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
-      line: 262
+      line: 266
   - label: problem_details_structure_valid
     section: § 8.1
     snippet: The representation data is in a format and encoding defined by the representation metadata header fields.
@@ -8822,61 +8822,61 @@ sources:
     snippet: If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 354
+      line: 358
   - label: range_and_content_range_consistent (2)
     section: § 14.1.2
     snippet: The first-pos value in a bytes int-range gives the offset of the first byte in a range.  The last-pos value gives the offset of the last byte in the range; that is, the byte positions specified are inclusive.  Byte offsets start at zero.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 341
+      line: 345
   - label: range_and_content_range_consistent (3)
     section: § 14.4
     snippet: 'A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:'
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 427
+      line: 431
   - label: range_and_content_range_consistent (4)
     section: § 14.4
     snippet: If a 206 (Partial Content) response contains a Content-Range header field with a range unit (Section 14.1) that the recipient does not understand, the recipient MUST NOT attempt to recombine it with a stored representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 342
+      line: 346
   - label: range_and_content_range_consistent (5)
     section: § 14.4
     snippet: The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 230
+      line: 234
   - label: range_and_content_range_consistent (6)
     section: § 14.4
     snippet: The complete-length in a 416 response indicates the current length of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 446
+      line: 450
   - label: range_and_content_range_consistent (7)
     section: § 14.5
     snippet: Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 411
+      line: 415
   - label: range_and_content_range_consistent (8)
     section: § 15.3.7.2
     snippet: If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 279
+      line: 283
   - label: range_and_content_range_consistent (9)
     section: § 15.3.7.2
     snippet: Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 303
+      line: 307
   - label: range_and_content_range_consistent (10)
     section: § 15.5.17
     snippet: A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4).
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 426
+      line: 430
   - label: range_header_syntax
     section: § 14.1.1
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
@@ -9030,13 +9030,13 @@ sources:
     snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 280
+      line: 284
   - label: redirect_chain_valid (2)
     section: § 10.2.2
     snippet: When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 269
+      line: 273
   - label: redirect_chain_valid (3)
     section: § 15
     snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
@@ -9344,7 +9344,7 @@ sources:
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
     cited_by:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 222
+      line: 226
   - label: retry_after_date_or_delay
     section: § 10.2.3
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
@@ -9506,7 +9506,7 @@ sources:
     snippet: Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client.
     cited_by:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
-      line: 172
+      line: 176
     - file: lint-http-rules/src/violations/status.rs
       line: 956
   - label: status_103_early_hints_before_final (2)
@@ -9514,19 +9514,19 @@ sources:
     snippet: The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response.
     cited_by:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
-      line: 194
+      line: 198
   - label: status_200_vs_204_body_consistent
     section: § 15.3.1
     snippet: Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 162
+      line: 166
   - label: status_200_vs_204_body_consistent (2)
     section: § 15.3.1
     snippet: For CONNECT, there is no content because the successful result is a tunnel, which begins immediately after the 200 response header section.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 190
+      line: 194
   - label: status_200_vs_204_body_consistent (3)
     section: § 15.3.1
     snippet: If some aspect of the request indicates a preference for no content upon success, the origin server ought to send a 204 (No Content) response instead.
@@ -9540,7 +9540,7 @@ sources:
     snippet: The 200 (OK) status code indicates that the request has succeeded.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 161
+      line: 165
   - label: status_200_vs_204_body_consistent (5)
     section: § 15.3.5
     snippet: The 204 (No Content) status code indicates that the server has successfully fulfilled the request and that there is no additional content to send in the response content.
@@ -9552,13 +9552,13 @@ sources:
     snippet: 2xx (Successful) responses to a CONNECT request method (Section 9.3.6) switch the connection to tunnel mode instead of having content.
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 191
+      line: 195
   - label: status_200_vs_204_body_consistent (7)
     section: § 6.4.1
     snippet: Responses to the HEAD request method (Section 9.3.2) never include content; the associated response header fields indicate only what their values would have been if the request method had been GET (Section 9.3.1).
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 175
+      line: 179
   - label: status_3xx_vs_request_method
     section: § 15.4
     snippet: 307 (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] were later added to unambiguously indicate method-preserving redirects, and status codes 301 and 302 have been adjusted to allow a POST request to be redirected as GET.
@@ -9570,19 +9570,19 @@ sources:
     snippet: If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field.
     cited_by:
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
-      line: 211
+      line: 215
   - label: status_405_allow_valid
     section: § 10.2.1
     snippet: The actual set of allowed methods is defined by the origin server at the time of each request.
     cited_by:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 280
+      line: 284
   - label: status_405_allow_valid (2)
     section: § 15.5.6
     snippet: The 405 (Method Not Allowed) status code indicates that the method received in the request-line is known by the origin server but not supported by the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 278
+      line: 282
     - file: lint-http-rules/src/violations/status.rs
       line: 816
   - label: status_405_allow_valid (3)
@@ -9590,9 +9590,9 @@ sources:
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
     cited_by:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 242
+      line: 246
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 277
+      line: 281
     - file: lint-http-rules/src/violations/status.rs
       line: 792
   - label: status_405_allow_valid (4)
@@ -9600,7 +9600,7 @@ sources:
     snippet: However, the set of allowed methods can change dynamically.
     cited_by:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 281
+      line: 285
   - label: status_426_upgrade_valid
     section: § 15.5.22
     snippet: The 426 (Upgrade Required) status code indicates that the server refuses to perform the request using the current protocol but might be willing to do so after the client upgrades to a different protocol.
@@ -10161,7 +10161,7 @@ sources:
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 187
+      line: 191
     - file: lint-http-rules/src/violations/cache.rs
       line: 22
     - file: lint-http-rules/src/violations/cache.rs
@@ -10622,9 +10622,9 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 144
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 208
+      line: 212
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 206
+      line: 210
   - label: content_transfer_encoding_valid
     section: § B.5
     snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
@@ -10644,19 +10644,19 @@ sources:
     snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 135
+      line: 139
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 195
+      line: 199
   - label: content_type_present (2)
     section: § 6.3
     snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 111
+      line: 115
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 178
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 137
+      line: 141
     - file: lint-http-rules/src/violations/method.rs
       line: 327
   - label: content_type_present (3)
@@ -10664,21 +10664,21 @@ sources:
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 157
+      line: 161
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 228
+      line: 232
   - label: head_response_headers_match_get
     section: § 6.1
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 309
+      line: 313
   - label: head_response_headers_match_get (2)
     section: § 6.1
     snippet: Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 308
+      line: 312
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 292
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -10826,9 +10826,9 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 53
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 164
+      line: 168
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 337
+      line: 341
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -10842,7 +10842,7 @@ sources:
     snippet: Otherwise, the target URI's combined path and query component is the request-target.
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 165
+      line: 169
   - label: problem_details_structure_valid
     section: § 6.3
     snippet: If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets.
@@ -10852,9 +10852,9 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 139
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 209
+      line: 213
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 208
+      line: 212
   - label: proxy_connection_discouraged
     section: § C.2.2
     snippet: As a result, clients are encouraged not to send the Proxy-Connection header field in any requests.
@@ -10874,7 +10874,7 @@ sources:
     snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 338
+      line: 342
   - label: Content-Length not in a transfer-coded message
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
@@ -10882,7 +10882,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 161
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 213
+      line: 217
     - file: lint-http-rules/src/violations/content_length.rs
       line: 102
   - label: request_body_length_accuracy
@@ -10892,7 +10892,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 172
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 223
+      line: 227
     - file: lint-http-rules/src/violations/content_length.rs
       line: 75
   - label: request_body_length_accuracy (2)
@@ -10920,7 +10920,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 131
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 125
+      line: 129
   - label: request_target_form_valid
     section: § 3.2
     snippet: A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain.
@@ -11036,7 +11036,7 @@ sources:
     snippet: A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message.
     cited_by:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 196
+      line: 200
   - label: status_code_valid_range
     section: § 4
     snippet: A client SHOULD ignore the reason-phrase content because it is not a reliable channel for information

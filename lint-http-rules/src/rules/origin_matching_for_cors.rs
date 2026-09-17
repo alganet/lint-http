@@ -94,6 +94,15 @@ impl RuleMeta for OriginMatchingForCors {
         DECLARED
     }
 
+    /// **This rule reads a field from each peer, so it answers one finding at
+    /// a time.** The `Origin` it validates first is the request's, written by
+    /// the client; every finding after it is about the
+    /// `Access-Control-Allow-Origin` the origin server sent back. One
+    /// presumption would have been wrong for one side or the other.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -169,7 +178,7 @@ impl Rule for OriginMatchingForCors {
                     crate::helpers::shown::shown_in_finding(origin),
                     defect.message()
                 );
-                return Some(ctx.report_with(origin_defect(defect), message));
+                return Some(ctx.by_client().report_with(origin_defect(defect), message));
             }
 
             let resp = tx.response.as_ref()?;
@@ -189,7 +198,7 @@ impl Rule for OriginMatchingForCors {
             // Multiple header fields are not permitted; treat as violation early
             // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
             if acao_values.len() > 1 {
-                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into()));
+                return Some(ctx.by_server().report_with(&FIELD_LINE_DUPLICATED, "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into()));
             }
 
             // Now we have exactly one header field; validate its value semantics
@@ -203,7 +212,7 @@ impl Rule for OriginMatchingForCors {
                 // break, so what a second member produces is a value the CORS
                 // check matches against no origin — the same thing
                 // `example.com` produces, and the same entry.
-                return Some(ctx.report_with(
+                return Some(ctx.by_server().report_with(
                     &ACCESS_CONTROL_ALLOW_ORIGIN_MALFORMED,
                     "Access-Control-Allow-Origin must be a single value".into(),
                 ));
@@ -224,7 +233,8 @@ impl Rule for OriginMatchingForCors {
                 ) {
                     if cred.trim().eq_ignore_ascii_case("true") {
                         return Some(
-                            ctx.report(&ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING),
+                            ctx.by_server()
+                                .report(&ACCESS_CONTROL_ALLOW_ORIGIN_CREDENTIALS_CONFLICTING),
                         );
                     }
                 }
@@ -236,7 +246,7 @@ impl Rule for OriginMatchingForCors {
             // case normalisation is applied on either side.
             // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
             if acao_val != origin {
-                return Some(ctx.report_with(
+                return Some(ctx.by_server().report_with(
                     &ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING,
                     format!(
                         "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",

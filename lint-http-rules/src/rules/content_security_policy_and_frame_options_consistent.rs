@@ -215,6 +215,10 @@ impl RuleMeta for ContentSecurityPolicyAndFrameOptionsConsistent {
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[CSP3_6_4_2, HTML_SPECULATIVE_LOADING, MDN_X_FRAME_OPTIONS]
     }
