@@ -114,6 +114,17 @@ GET https://example.com/ -> 200
 hidden: 26 on other hosts in 7 transactions (--all-hosts)
 ```
 
+Narrowed to one end of the exchange, the closing lines say what that cost and
+what could not be measured:
+
+```
+$ lint-http use --about server curl https://example.com
+
+1 finding (1 info) in 1 transaction
+hidden: 2 the client is answerable for (--about any)
+unattributed: 4 kept, because no rule says whose they are
+```
+
 A session that makes hundreds of requests repeats its findings hundreds of
 times. `--group` gives one entry per defect with a count and the targets it
 happened on, and `-q` narrows that to a single line each — the defect's
@@ -135,6 +146,11 @@ Reading the command line is worth four things:
   every origin the page or the transfer reached. `--only-host <HOST>` picks the
   scope yourself, `--all-hosts` turns it off, and the last line always counts
   what was left out.
+- **It also knows which end of the exchange a finding is about.** `--about
+  server` drops what your client is answerable for, `--about client` drops the
+  origin's — the difference between debugging your service and debugging the
+  tool you reached it with. Findings no rule has attributed yet are kept either
+  way and counted separately, so a filter is never quietly hiding one.
 - **Options that would make a finding meaningless are named before a proxy
   starts** — `-k`, `-x`, `--http3-only`, and a `~/.curlrc` that mentions any of
   them.

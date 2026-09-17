@@ -28,6 +28,7 @@ or after the subcommand — `lint-http --config c.toml run -- curl` and
 | `--config <PATH>` | Config TOML. Omitted, the built-in configuration is used. |
 | `--format <text\|json>` | Report format. Default `text`. |
 | `--min-severity <info\|warn\|error>` | Only report findings at or above this. Default `info`. |
+| `--about <client\|server\|any>` | Only report findings the named peer is answerable for. Default `any`. A finding no rule has attributed yet is kept whichever peer is named, and counted on its own line. |
 | `--captures <PATH>` | The JSONL capture file this command reads or writes. |
 | `-q`, `--quiet` | One line per defect: its catalogue title and how often it happened. |
 | `-v`, `--verbose` | Everything a finding knows — the rule, the specification reference, the docs page, and how to switch it off. |
@@ -157,6 +158,17 @@ lint-http run --fail-on error --captures run.jsonl -- pytest
   `--show-child-stderr` hands the child's stderr back when the wrapped command
   is itself what is being debugged. Note this does hide progress output from
   tools that write it to stderr (`npm`, `pytest`); that flag is the way back.
+- `--about` narrows the report to one end of the exchange: `--about server` drops
+  the findings your client is answerable for, `--about client` drops the origin's.
+  It composes with `--only-host`, which answers *whose traffic* where this answers
+  *which end*, and the filters apply in that order so adding `--about` never
+  changes a number that was already on the line.
+
+  A finding that no rule has attributed yet is **kept under either**, and the
+  report says how many on an `unattributed:` line. Hiding them would turn an
+  unread rule into a green build, and `--fail-on` reads the filtered report — a
+  false negative through a gate is the one failure this cannot have. The line
+  disappears as the catalogue is read.
 - `--min-severity` decides what the report contains; `--fail-on` decides what the
   exit code means. Without `--fail-on`, the exit code is the wrapped command's,
   untouched. With it, a clean child that produced findings at or above that
