@@ -422,7 +422,7 @@ impl Rule for RefererUriValid {
             // empty authority and `None` for one carrying no authority at all. This
             // rule is the reason it keeps the two apart: the empty-host branch below
             // is a MUST NOT about exactly the first of them, and
-            // `helpers::uri::reference_authority` — the neighbouring question —
+            // `helpers::reference::reference_authority` — the neighbouring question —
             // folds it away, because a reference with an empty authority defines
             // none *to compare against*.
             if let Some(authority) = authority_component(value) {

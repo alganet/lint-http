@@ -92,7 +92,7 @@ pub fn userinfo_password_withheld(authority: &str) -> Option<String> {
 /// NOTs are about exactly the first of those, which is why the empty one is
 /// returned rather than folded away here. A caller that compares one authority
 /// against another has nothing to compare in that case and folds it itself;
-/// [`super::uri::reference_authority`] is that caller, and says so at its own site.
+/// [`super::reference::reference_authority`] is that caller, and says so at its own site.
 ///
 /// The `//` must follow the scheme's colon immediately, which is why the scheme
 /// is taken with [`scheme_prefix`] rather than by looking for a `://`: in

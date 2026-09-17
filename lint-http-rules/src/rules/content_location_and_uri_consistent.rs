@@ -391,14 +391,14 @@ impl Rule for ContentLocationAndUriConsistent {
                     // one. This branch reports a *difference*, so every equivalence
                     // §6.2.2 states and this comparison misses is a finding about a
                     // spelling.
-                    let req_path = crate::helpers::uri::normalize_path_and_query(&req_path);
+                    let req_path = crate::helpers::reference::normalize_path_and_query(&req_path);
 
                     // "Conversion to absolute form", concretely: a `partial-URI`
                     // means nothing on its own — it names a resource only once
                     // resolved against the target URI.
                     // cite(RFC 9110 § 8.7): "In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5)."
                     let cl_path_opt =
-                        crate::helpers::uri::resolve_reference_path_and_query(&req_path, s);
+                        crate::helpers::reference::resolve_reference_path_and_query(&req_path, s);
 
                     // If absolute, also compare origin
                     let cl_origin_opt = crate::helpers::origin::extract_origin_if_absolute(s);
@@ -419,7 +419,7 @@ impl Rule for ContentLocationAndUriConsistent {
                         &tx.request.uri,
                         &tx.request.headers,
                     );
-                    let cl_authority = crate::helpers::uri::reference_authority(s);
+                    let cl_authority = crate::helpers::reference::reference_authority(s);
 
                     let mut matches = false;
                     if let Some(cl_path) = cl_path_opt.as_deref() {
