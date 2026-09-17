@@ -97,7 +97,7 @@ defects! {
     /// judgement that a server which advertises no connection window and then
     /// has to raise it has configured something it did not mean.
     ///
-    /// `info`, for a heuristic with a definition behind it and no requirement.
+    /// `warn`, for a heuristic with a definition behind it and no requirement.
     ///
     // cite(RFC 9000 § 18.2): "the initial value for the maximum amount of data that can be sent on the connection"
     QUIC_CONNECTION_FLOW_CONTROL_INVALID = {

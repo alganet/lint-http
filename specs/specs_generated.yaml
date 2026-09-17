@@ -116,7 +116,7 @@ sources:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
       line: 157
     - file: lint-http-rules/src/violations/x_content_type_options.rs
-      line: 63
+      line: 64
   - label: x_content_type_options_present (2)
     section: § 3.6
     snippet: The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request.
@@ -130,7 +130,7 @@ sources:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
       line: 156
     - file: lint-http-rules/src/violations/x_content_type_options.rs
-      line: 43
+      line: 44
   - label: x_content_type_options_present (4)
     section: § 3.6.1
     snippet: Only request destinations that are script-like or "style" are considered as any exploits pertain to them.
@@ -224,19 +224,19 @@ sources:
     snippet: For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions.
     cited_by:
     - file: lint-http-rules/src/violations/x_frame_options.rs
-      line: 60
+      line: 61
   - label: x_frame_options (2)
     section: § 7.7
     snippet: In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented.
     cited_by:
     - file: lint-http-rules/src/violations/x_frame_options.rs
-      line: 91
+      line: 92
   - label: x_frame_options (3)
     section: § 7.7
     snippet: X-Frame-Options = "DENY" / "SAMEORIGIN"
     cited_by:
     - file: lint-http-rules/src/violations/x_frame_options.rs
-      line: 59
+      line: 60
   - label: x_frame_options_value_valid
     section: § 7.7
     snippet: HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable
@@ -450,45 +450,45 @@ sources:
     snippet: 'A serialized CSP is an ASCII string consisting of a semicolon-delimited series of serialized directives, adhering to the following ABNF grammar [RFC5234]:'
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 86
+      line: 90
   - label: serialized-policy grammar
     section: § 2.2
     snippet: serialized-policy = serialized-directive *( optional-ascii-whitespace ";" [ optional-ascii-whitespace serialized-directive ] )
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 115
+      line: 121
   - label: base64-value grammar
     section: § 2.3.1
     snippet: base64-value  = 1*( ALPHA / DIGIT / "+" / "/" / "-" / "_" )*2( "=" )
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 211
+      line: 219
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 231
+      line: 239
   - label: hash-source grammar
     section: § 2.3.1
     snippet: hash-source    = "'" hash-algorithm "-" base64-value "'"
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 166
+      line: 174
   - label: nonce-source grammar
     section: § 2.3.1
     snippet: nonce-source  = "'nonce-" base64-value "'"
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 165
+      line: 173
   - label: source-expression alternatives
     section: § 2.3.1
     snippet: source-expression      = scheme-source / host-source / keyword-source / nonce-source / hash-source
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 186
+      line: 194
   - label: frame-ancestors overrides X-Frame-Options
     section: § 6.4.2.2
     snippet: In order to allow backwards-compatible deployment, the frame-ancestors directive overrides the
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 265
+      line: 273
   - label: content_security_policy_and_frame_options_consistent
     section: § 6.4.2
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
@@ -498,7 +498,7 @@ sources:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
       line: 279
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 264
+      line: 272
   - label: content_security_policy_and_frame_options_consistent (2)
     section: § 6.4.2.2
     snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
@@ -512,7 +512,7 @@ sources:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
       line: 106
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 139
+      line: 147
   - label: content_security_policy_valid (2)
     section: § 2.3
     snippet: hash-algorithm = "sha256" / "sha384" / "sha512"
@@ -729,7 +729,7 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 660
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 240
+      line: 241
   - label: server_timing_header_syntax (8)
     section: § 2
     snippet: User agents MUST ignore extraneous characters found after a server-timing-param-value but before the next server-timing-param and before the end of the current server-timing-metric.
@@ -745,7 +745,7 @@ sources:
     - file: lint-http-rules/src/violations/server_timing.rs
       line: 53
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 86
+      line: 87
   - label: server-timing-param grammar
     section: § 2
     snippet: server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value
@@ -753,7 +753,7 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 580
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 112
+      line: 113
   - label: server-timing-param-name grammar
     section: § 2
     snippet: server-timing-param-name = token
@@ -767,9 +767,9 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 727
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 138
+      line: 139
     - file: lint-http-rules/src/violations/server_timing.rs
-      line: 269
+      line: 271
   - label: server_timing_header_syntax (9)
     section: § 3.2
     snippet: If dur is an error, return 0; Otherwise return dur.
@@ -1335,7 +1335,7 @@ sources:
     snippet: If the Keep-Alive header is sent, the corresponding connection token MUST be transmitted.
     cited_by:
     - file: lint-http-rules/src/violations/keep_alive.rs
-      line: 94
+      line: 95
   - label: keep_alive_header_valid
     section: § 19.7.1.1
     snippet: HTTP/1.1 does not define any parameters.
@@ -1367,9 +1367,9 @@ sources:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 577
     - file: lint-http-rules/src/violations/keep_alive.rs
-      line: 115
+      line: 116
     - file: lint-http-rules/src/violations/keep_alive.rs
-      line: 136
+      line: 137
   - label: keep_alive_header_valid (5)
     section: § 2.1
     snippet: At least one delimiter (tspecials) must exist between any two tokens, since they would otherwise be interpreted as a single token.
@@ -1419,7 +1419,7 @@ sources:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 660
     - file: lint-http-rules/src/violations/keep_alive.rs
-      line: 158
+      line: 159
 - label: RFC 2616
   url: https://www.rfc-editor.org/rfc/rfc2616.html
   fragments:
@@ -1440,7 +1440,7 @@ sources:
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
       line: 105
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
-      line: 178
+      line: 180
   - label: sec_websocket_extensions_syntax (3)
     section: § 2.1
     snippet: Wherever this construct is used, null elements are allowed, but do not contribute to the count of elements present.
@@ -1466,7 +1466,7 @@ sources:
     snippet: instance-digest = digest-algorithm "=" <encoded digest output>
     cited_by:
     - file: lint-http-rules/src/violations/digest.rs
-      line: 206
+      line: 208
   - label: digest_header_syntax
     section: § 4.1.1
     snippet: All digest-algorithm values are case-insensitive.
@@ -2065,7 +2065,7 @@ sources:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 250
     - file: lint-http-rules/src/violations/base64.rs
-      line: 133
+      line: 136
 - label: RFC 5234
   url: https://www.rfc-editor.org/rfc/rfc5234.html
   fragments:
@@ -2495,7 +2495,7 @@ sources:
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 184
     - file: lint-http-rules/src/violations/method.rs
-      line: 279
+      line: 280
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
@@ -3102,7 +3102,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 248
     - file: lint-http-rules/src/violations/sec_websocket_protocol.rs
-      line: 70
+      line: 72
   - label: sec_websocket_headers_consistent (3)
     section: § 4.1
     snippet: The request MUST include a header field with the name |Sec-WebSocket-Key|.
@@ -3120,7 +3120,7 @@ sources:
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
       line: 122
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
-      line: 154
+      line: 156
   - label: sec_websocket_headers_consistent (5)
     section: § 4.2.1
     snippet: A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value.
@@ -3142,7 +3142,7 @@ sources:
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 156
     - file: lint-http-rules/src/violations/status.rs
-      line: 477
+      line: 482
   - label: Sec-WebSocket-Protocol-Client
     section: § 4.3
     snippet: Sec-WebSocket-Protocol-Client = 1#token
@@ -3182,13 +3182,13 @@ sources:
     snippet: The empty string is not the same as the null value for these purposes and is not a legal value for this field.
     cited_by:
     - file: lint-http-rules/src/violations/sec_websocket_protocol.rs
-      line: 100
+      line: 102
   - label: sec_websocket_protocol (2)
     section: § 4.2.2
     snippet: The value chosen MUST be derived from the client's handshake, specifically by selecting one of the values from the |Sec-WebSocket-Protocol| field that the server is willing to use for this connection (if any).
     cited_by:
     - file: lint-http-rules/src/violations/sec_websocket_protocol.rs
-      line: 134
+      line: 136
   - label: sec_websocket_version_advertised
     section: § 11.3.5
     snippet: In such a case, the header field includes the protocol version(s) supported by the server.
@@ -3202,7 +3202,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 124
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
-      line: 208
+      line: 210
   - label: sec_websocket_version_advertised (3)
     section: § 4.3
     snippet: ABNF rules with the "-Client" suffix in the name are only used in requests sent by the client to the server; ABNF rules with the "-Server" suffix in the name are only used in responses sent by the server to the client.
@@ -3773,27 +3773,27 @@ sources:
     snippet: '"Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses.'
     cited_by:
     - file: lint-http-rules/src/violations/forwarded.rs
-      line: 189
+      line: 197
   - label: forwarded-element grammar
     section: § 4
     snippet: forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )
     cited_by:
     - file: lint-http-rules/src/violations/forwarded.rs
-      line: 75
+      line: 79
   - label: forwarded-pair grammar
     section: § 4
     snippet: forwarded-pair = token "=" value value          = token / quoted-string
     cited_by:
     - file: lint-http-rules/src/violations/forwarded.rs
-      line: 102
+      line: 107
     - file: lint-http-rules/src/violations/forwarded.rs
-      line: 134
+      line: 140
   - label: forwarded (2)
     section: § 8.2
     snippet: This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client.
     cited_by:
     - file: lint-http-rules/src/violations/forwarded.rs
-      line: 190
+      line: 198
   - label: forwarded_header_valid
     section: § 3
     snippet: This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230].
@@ -3809,7 +3809,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 217
     - file: lint-http-rules/src/violations/forwarded.rs
-      line: 161
+      line: 168
   - label: Forwarded grammar
     section: § 4
     snippet: Forwarded   = 1#forwarded-element
@@ -4008,7 +4008,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 366
     - file: lint-http-rules/src/violations/prefer.rs
-      line: 205
+      line: 206
   - label: prefer_header_and_preference_applied (3)
     section: § 2
     snippet: If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request.
@@ -4016,7 +4016,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 29
     - file: lint-http-rules/src/violations/vary.rs
-      line: 96
+      line: 98
   - label: Preference-Applied grammar
     section: § 3
     snippet: Preference-Applied = "Preference-Applied" ":" 1#applied-pref
@@ -4036,7 +4036,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 384
     - file: lint-http-rules/src/violations/prefer.rs
-      line: 181
+      line: 182
   - label: prefer_header_and_preference_applied (5)
     section: § 3
     snippet: applied-pref = token [ BWS "=" BWS word ]
@@ -4046,7 +4046,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 330
     - file: lint-http-rules/src/violations/prefer.rs
-      line: 137
+      line: 138
   - label: prefer_header_and_preference_applied (6)
     section: § 4.1
     snippet: the server can honor the "respond-async" preference by returning a 202 (Accepted) response.
@@ -4156,7 +4156,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 484
     - file: lint-http-rules/src/violations/prefer.rs
-      line: 120
+      line: 121
   - label: prefer_header_valid (11)
     section: § 2
     snippet: parameter  = token [ BWS "=" BWS word ]
@@ -4170,7 +4170,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 364
     - file: lint-http-rules/src/violations/prefer.rs
-      line: 77
+      line: 78
   - label: prefer_header_valid (13)
     section: § 4
     snippet: The following subsections define an initial set of preferences.
@@ -4178,7 +4178,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 79
     - file: lint-http-rules/src/violations/prefer.rs
-      line: 99
+      line: 100
   - label: prefer_header_valid (14)
     section: § 4.1
     snippet: respond-async = "respond-async"
@@ -4224,7 +4224,7 @@ sources:
     - file: lint-http-rules/src/violations/prefer.rs
       line: 28
     - file: lint-http-rules/src/violations/prefer.rs
-      line: 158
+      line: 159
 - label: RFC 7301
   url: https://www.rfc-editor.org/rfc/rfc7301.html
   fragments:
@@ -4293,7 +4293,7 @@ sources:
     snippet: The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form
     cited_by:
     - file: lint-http-rules/src/violations/content_disposition.rs
-      line: 121
+      line: 122
   - label: form_data_content_disposition_valid
     section: § 4.2
     snippet: where the disposition type is "form-data".
@@ -4368,7 +4368,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 741
     - file: lint-http-rules/src/violations/digest_credentials.rs
-      line: 232
+      line: 233
 - label: RFC 7617
   url: https://www.rfc-editor.org/rfc/rfc7617.html
   fragments:
@@ -4420,31 +4420,31 @@ sources:
     snippet: 'In order to have precisely one way to represent any ALPN protocol name, the following additional constraints apply:'
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 419
+      line: 435
   - label: alt_svc (3)
     section: § 3
     snippet: With these constraints, recipients can apply simple string comparison to match protocol identifiers.
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 420
+      line: 436
   - label: alt_svc (4)
     section: § 3.1
     snippet: Clients MUST ignore "persist" parameters with values other than "1".
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 451
+      line: 467
   - label: alt_svc (5)
     section: § 3.1
     snippet: This specification only defines a single value for "persist".
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 450
+      line: 466
   - label: alt_svc (6)
     section: § 8
     snippet: An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1).
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 303
+      line: 319
   - label: Alt-Svc grammar
     section: § 3
     snippet: Alt-Svc       = clear / 1#alt-value
@@ -4474,7 +4474,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 408
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 209
+      line: 216
   - label: alt_svc_h3_advertisement_valid (3)
     section: § 3
     snippet: Unknown parameters MUST be ignored.
@@ -4506,9 +4506,9 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 407
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 178
+      line: 182
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 238
+      line: 246
   - label: alt_svc_h3_advertisement_valid (6)
     section: § 3.1
     snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
@@ -4570,11 +4570,11 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 255
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 331
+      line: 347
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 352
+      line: 368
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 383
+      line: 399
   - label: alt_svc_header_syntax (9)
     section: § 3
     snippet: The field value consists either of a list of values, each of which indicates one alternative service, or the keyword "clear".
@@ -4604,7 +4604,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 389
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 273
+      line: 285
   - label: alt_svc_header_syntax (13)
     section: § 3
     snippet: alternative   = protocol-id "=" alt-authority
@@ -4614,7 +4614,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 400
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 149
+      line: 151
   - label: alt_svc_header_syntax (14)
     section: § 3
     snippet: protocol-id   = token ; percent-encoded ALPN protocol name
@@ -4790,7 +4790,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 807
     - file: lint-http-rules/src/violations/link.rs
-      line: 389
+      line: 390
   - label: link-value assembly
     section: § 3
     snippet: link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )
@@ -4802,9 +4802,9 @@ sources:
     - file: lint-http-rules/src/violations/link.rs
       line: 35
     - file: lint-http-rules/src/violations/link.rs
-      line: 340
+      line: 341
     - file: lint-http-rules/src/violations/link.rs
-      line: 364
+      line: 365
   - label: link_header_valid (10)
     section: § 3.1
     snippet: Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>").
@@ -4812,7 +4812,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 754
     - file: lint-http-rules/src/violations/link.rs
-      line: 319
+      line: 320
   - label: link_header_valid (11)
     section: § 3.3
     snippet: Note that extension relation types are REQUIRED to be absolute URIs in Link header fields and MUST be quoted when they contain characters not allowed in tokens
@@ -5036,7 +5036,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 290
     - file: lint-http-rules/src/violations/early_data.rs
-      line: 105
+      line: 108
   - label: early_data_header_safe_method (2)
     section: § 5.1
     snippet: A request that is marked with Early-Data was sent in early data on a previous hop.
@@ -5056,7 +5056,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 304
     - file: lint-http-rules/src/violations/early_data.rs
-      line: 125
+      line: 128
   - label: early_data_header_safe_method (5)
     section: § 5.1
     snippet: Early-Data MUST NOT appear in a Connection header field.
@@ -5064,7 +5064,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 339
     - file: lint-http-rules/src/violations/early_data.rs
-      line: 71
+      line: 72
   - label: early_data_header_safe_method (6)
     section: § 5.1
     snippet: 'It has just one valid value: "1".'
@@ -5072,7 +5072,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 318
     - file: lint-http-rules/src/violations/early_data.rs
-      line: 147
+      line: 150
   - label: early_data_header_safe_method (7)
     section: § 5.1
     snippet: Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server.
@@ -5102,7 +5102,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 345
     - file: lint-http-rules/src/violations/early_data.rs
-      line: 72
+      line: 73
 - label: RFC 8594
   url: https://www.rfc-editor.org/rfc/rfc8594.html
   fragments:
@@ -5115,7 +5115,7 @@ sources:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 129
     - file: lint-http-rules/src/violations/deprecation.rs
-      line: 97
+      line: 98
 - label: RFC 8615
   url: https://www.rfc-editor.org/rfc/rfc8615.html
   fragments:
@@ -5368,7 +5368,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 213
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 173
+      line: 176
   - label: the weight production
     section: § 12.4.2
     snippet: weight = OWS ";" OWS "q=" qvalue
@@ -5386,9 +5386,9 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 319
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 110
+      line: 113
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 141
+      line: 144
   - label: accept_encoding_parameter_valid (2)
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
@@ -5638,7 +5638,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 174
     - file: lint-http-rules/src/violations/method.rs
-      line: 372
+      line: 373
   - label: accept_patch_header_valid (7)
     section: § 9.3.7
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
@@ -6184,7 +6184,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 212
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 79
+      line: 81
   - label: conditional_headers_consistent (6)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
@@ -6192,7 +6192,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 198
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 53
+      line: 55
   - label: conditional_headers_consistent (7)
     section: § 13.1.5
     snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
@@ -6210,7 +6210,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 49
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 133
+      line: 136
   - label: conditional_request_handling
     section: § 13.1.2
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
@@ -6248,7 +6248,7 @@ sources:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 126
     - file: lint-http-rules/src/violations/connection.rs
-      line: 59
+      line: 60
   - label: Connection grammar
     section: § 7.6.1
     snippet: 'Connection        = #connection-option connection-option = token'
@@ -6474,7 +6474,7 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 178
     - file: lint-http-rules/src/violations/method.rs
-      line: 333
+      line: 334
   - label: content_type_valid
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -6580,7 +6580,7 @@ sources:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 136
     - file: lint-http-rules/src/violations/last_modified.rs
-      line: 49
+      line: 51
   - label: early_data_header_safe_method
     section: § 16.1.1
     snippet: 'HTTP method registrations MUST include the following fields:'
@@ -6634,7 +6634,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
       line: 94
     - file: lint-http-rules/src/violations/validator.rs
-      line: 60
+      line: 63
   - label: etag_or_last_modified_present (2)
     section: § 8.8.3.1
     snippet: An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined
@@ -6642,7 +6642,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
       line: 95
     - file: lint-http-rules/src/violations/validator.rs
-      line: 61
+      line: 64
   - label: etag_syntax
     section: § 8.8.3
     snippet: The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request.
@@ -6664,7 +6664,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 289
     - file: lint-http-rules/src/violations/expect.rs
-      line: 119
+      line: 121
   - label: expect_header_valid (3)
     section: § 10.1.1
     snippet: A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server).
@@ -6672,7 +6672,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 309
     - file: lint-http-rules/src/violations/status.rs
-      line: 511
+      line: 516
   - label: expect_header_valid (4)
     section: § 10.1.1
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
@@ -6694,7 +6694,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 91
     - file: lint-http-rules/src/violations/expect.rs
-      line: 145
+      line: 147
   - label: expectation production
     section: § 10.1.1
     snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
@@ -6702,9 +6702,9 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 400
     - file: lint-http-rules/src/violations/expect.rs
-      line: 69
+      line: 70
     - file: lint-http-rules/src/violations/expect.rs
-      line: 91
+      line: 92
   - label: expect_header_valid (7)
     section: § 15.5.18
     snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
@@ -6718,7 +6718,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 579
     - file: lint-http-rules/src/violations/parameter.rs
-      line: 123
+      line: 127
   - label: expect_header_valid (9)
     section: § A
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
@@ -6860,7 +6860,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 158
     - file: lint-http-rules/src/violations/method.rs
-      line: 297
+      line: 298
   - label: field-name grammar
     section: § A
     snippet: field-name = token field-value = *field-content
@@ -7008,7 +7008,7 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 682
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 132
+      line: 137
   - label: lint-http-core/src/http_date.rs (3)
     section: § 5.6.7
     snippet: HTTP-date = IMF-fixdate / obs-date
@@ -7018,7 +7018,7 @@ sources:
     - file: lint-http-rules/src/violations/http_date.rs
       line: 55
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 83
+      line: 84
   - label: lint-http-core/src/http_date.rs (4)
     section: § 5.6.7
     snippet: IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT
@@ -7038,7 +7038,7 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 710
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 103
+      line: 108
   - label: lint-http-core/src/http_date.rs (6)
     section: § 5.6.7
     snippet: obs-date = rfc850-date / asctime-date
@@ -7054,7 +7054,7 @@ sources:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 24
     - file: lint-http-rules/src/violations/status.rs
-      line: 998
+      line: 1005
   - label: lint-http-core/src/http_version.rs
     section: § 2.5
     snippet: HTTP's version number consists of two decimal digits separated by a "." (period or decimal point).
@@ -7162,7 +7162,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 170
     - file: lint-http-rules/src/violations/status.rs
-      line: 908
+      line: 915
   - label: lint-http-rules/src/helpers/accept_ranges.rs
     section: § 14.1
     snippet: All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1.
@@ -7272,7 +7272,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 698
     - file: lint-http-rules/src/violations/auth_param.rs
-      line: 58
+      line: 60
     - file: lint-http-rules/src/violations/challenge.rs
       line: 140
     - file: lint-http-rules/src/violations/challenge.rs
@@ -7538,7 +7538,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 230
     - file: lint-http-rules/src/violations/range.rs
-      line: 176
+      line: 178
   - label: lint-http-rules/src/helpers/content_range.rs (3)
     section: § 14.1.2
     snippet: In the byte-range syntax, first-pos, last-pos, and suffix-length are expressed as decimal number of octets.  Since there is no predefined limit to the length of content, recipients MUST anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows.
@@ -7694,7 +7694,7 @@ sources:
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 179
     - file: lint-http-rules/src/violations/trailer.rs
-      line: 85
+      line: 86
   - label: lint-http-rules/src/helpers/field_placement.rs (6)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -8136,7 +8136,7 @@ sources:
     - file: lint-http-rules/src/violations/parameter.rs
       line: 70
     - file: lint-http-rules/src/violations/parameter.rs
-      line: 122
+      line: 126
   - label: lint-http-rules/src/helpers/product.rs
     section: § 10.1.5
     snippet: The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts.
@@ -8168,7 +8168,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 431
     - file: lint-http-rules/src/violations/product.rs
-      line: 103
+      line: 105
   - label: lint-http-rules/src/helpers/product.rs (5)
     section: § 5.6.3
     snippet: The RWS rule is used when at least one linear whitespace octet is required to separate field tokens.
@@ -8178,7 +8178,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 430
     - file: lint-http-rules/src/violations/product.rs
-      line: 102
+      line: 104
   - label: lint-http-rules/src/helpers/product.rs (6)
     section: § A
     snippet: Server = product *( RWS ( product / comment ) )
@@ -8186,7 +8186,7 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 14
     - file: lint-http-rules/src/violations/product.rs
-      line: 71
+      line: 72
   - label: lint-http-rules/src/helpers/product.rs (7)
     section: § A
     snippet: User-Agent = product *( RWS ( product / comment ) )
@@ -8194,7 +8194,7 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 15
     - file: lint-http-rules/src/violations/product.rs
-      line: 72
+      line: 73
   - label: lint-http-rules/src/helpers/product.rs (8)
     section: § A
     snippet: product = token [ "/" product-version ] product-version = token
@@ -8560,7 +8560,7 @@ sources:
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created
     cited_by:
     - file: lint-http-rules/src/violations/method.rs
-      line: 261
+      line: 262
   - label: multipart_boundary_syntax
     section: § 5.6.6
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
@@ -8630,7 +8630,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 165
     - file: lint-http-rules/src/violations/status.rs
-      line: 884
+      line: 891
   - label: no_body_for_1xx_204_304 (5)
     section: § 8.6
     snippet: A server MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request (Section 15.4.5); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a 200 (OK) response to the same request.
@@ -8646,7 +8646,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 250
     - file: lint-http-rules/src/violations/status.rs
-      line: 931
+      line: 938
   - label: no_connection_specific_fields
     section: § 7.6.1
     snippet: 'This includes but is not limited to:'
@@ -8706,7 +8706,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 275
     - file: lint-http-rules/src/violations/method.rs
-      line: 242
+      line: 243
   - label: options_method_capabilities (5)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
@@ -8904,7 +8904,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 450
     - file: lint-http-rules/src/violations/range.rs
-      line: 148
+      line: 149
   - label: int-range position grammar
     section: § 14.1.1
     snippet: first-pos     = 1*DIGIT last-pos      = 1*DIGIT
@@ -8912,7 +8912,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 397
     - file: lint-http-rules/src/violations/range.rs
-      line: 124
+      line: 125
   - label: int-range grammar
     section: § 14.1.1
     snippet: int-range     = first-pos "-" [ last-pos ]
@@ -8928,7 +8928,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 355
     - file: lint-http-rules/src/violations/range.rs
-      line: 83
+      line: 84
   - label: range-set grammar
     section: § 14.1.1
     snippet: range-set        = 1#range-spec
@@ -8966,7 +8966,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 392
     - file: lint-http-rules/src/violations/range.rs
-      line: 102
+      line: 103
   - label: range_header_syntax (6)
     section: § 14.1.2
     snippet: 'For a GET request, a valid bytes range-spec is satisfiable if it is either:'
@@ -9026,7 +9026,7 @@ sources:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 295
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 110
+      line: 112
   - label: range_request_and_caching (3)
     section: § 15.3.7.3
     snippet: A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator.
@@ -9130,7 +9130,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 59
     - file: lint-http-rules/src/violations/status.rs
-      line: 780
+      line: 787
   - label: referer_uri_valid
     section: § 10.1.3
     snippet: A user agent MUST NOT include the fragment and userinfo components of the URI reference [URI], if any, when generating the Referer field value.
@@ -9140,7 +9140,7 @@ sources:
     - file: lint-http-rules/src/violations/referer.rs
       line: 61
     - file: lint-http-rules/src/violations/referer.rs
-      line: 89
+      line: 92
   - label: referer_uri_valid (2)
     section: § 10.1.3
     snippet: A user agent MUST NOT send a Referer header field in an unsecured HTTP request if the referring resource was accessed with a secure protocol.
@@ -9148,7 +9148,7 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 514
     - file: lint-http-rules/src/violations/referer.rs
-      line: 119
+      line: 122
   - label: referer_uri_valid (3)
     section: § 10.1.3
     snippet: If the target URI was obtained from a source that does not have its own URI (e.g., input from the user keyboard, or an entry within the user's bookmarks/favorites), the user agent MUST either exclude the Referer header field or send it with a value of "about:blank".
@@ -9156,7 +9156,7 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 323
     - file: lint-http-rules/src/violations/referer.rs
-      line: 149
+      line: 152
   - label: Referer grammar
     section: § 10.1.3
     snippet: Referer = absolute-URI / partial-URI
@@ -9196,7 +9196,7 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 518
     - file: lint-http-rules/src/violations/referer.rs
-      line: 120
+      line: 123
   - label: referer_uri_valid (8)
     section: § 4.2.2
     snippet: The "https" URI scheme is hereby defined for minting identifiers within the hierarchical namespace governed by a potential origin server listening for TCP connections on a given port and capable of establishing a TLS ([TLS13]) connection that has been secured for HTTP communication.
@@ -9216,7 +9216,7 @@ sources:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 374
     - file: lint-http-rules/src/violations/method.rs
-      line: 373
+      line: 374
   - label: request_method_token_valid (3)
     section: § 9.1
     snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
@@ -9374,7 +9374,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 54
     - file: lint-http-rules/src/violations/retry_after.rs
-      line: 82
+      line: 83
   - label: retry_after_status_valid
     section: § 10.2.3
     snippet: When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client.
@@ -9472,19 +9472,19 @@ sources:
     snippet: For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 308 (Permanent Redirect) status code can be used instead.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 732
+      line: 739
   - label: status (4)
     section: § 15.4.3
     snippet: For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 307 (Temporary Redirect) status code can be used instead.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 750
+      line: 757
   - label: status (5)
     section: § 15.4.5
     snippet: Since the goal of a 304 response is to minimize information transfer when the recipient already has one or more cached representations, a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates (e.g., Last-Modified might be useful if the response does not have an ETag field).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 538
+      line: 543
   - label: status (6)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
@@ -9496,7 +9496,7 @@ sources:
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 675
+      line: 682
   - label: status (8)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
@@ -9522,7 +9522,7 @@ sources:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 176
     - file: lint-http-rules/src/violations/status.rs
-      line: 972
+      line: 979
   - label: status_103_early_hints_before_final (2)
     section: § 15.2
     snippet: The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response.
@@ -9548,7 +9548,7 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 28
     - file: lint-http-rules/src/violations/status.rs
-      line: 860
+      line: 867
   - label: status_200_vs_204_body_consistent (4)
     section: § 15.3.1
     snippet: The 200 (OK) status code indicates that the request has succeeded.
@@ -9598,7 +9598,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 282
     - file: lint-http-rules/src/violations/status.rs
-      line: 830
+      line: 837
   - label: status_405_allow_valid (3)
     section: § 15.5.6
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
@@ -9608,7 +9608,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 281
     - file: lint-http-rules/src/violations/status.rs
-      line: 805
+      line: 812
   - label: status_405_allow_valid (4)
     section: § 9.1
     snippet: However, the set of allowed methods can change dynamically.
@@ -9708,7 +9708,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 220
     - file: lint-http-rules/src/violations/status.rs
-      line: 638
+      line: 645
   - label: status_code_semantics (9)
     section: § 15.5.8
     snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
@@ -9724,7 +9724,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 258
     - file: lint-http-rules/src/violations/status.rs
-      line: 702
+      line: 709
   - label: status_code_semantics (11)
     section: § A
     snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
@@ -9744,7 +9744,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 142
     - file: lint-http-rules/src/violations/status.rs
-      line: 779
+      line: 786
   - label: status_code_valid_range (2)
     section: § 15
     snippet: Implementations often use three-digit integer values outside of that range (i.e., 600..999) for internal communication of non-HTTP status (e.g., library errors).
@@ -9872,7 +9872,7 @@ sources:
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself
     cited_by:
     - file: lint-http-rules/src/violations/trailer.rs
-      line: 120
+      line: 121
   - label: trailer_fields_valid
     section: § 6.5.1
     snippet: A trailer section is only possible when supported by the version of HTTP in use and enabled by an explicit framing mechanism.
@@ -9888,9 +9888,9 @@ sources:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 119
     - file: lint-http-rules/src/violations/trailer.rs
-      line: 150
+      line: 153
     - file: lint-http-rules/src/violations/trailer.rs
-      line: 187
+      line: 190
   - label: trailer_fields_valid (3)
     section: § 7.6.1
     snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
@@ -10120,7 +10120,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 455
     - file: lint-http-rules/src/violations/via.rs
-      line: 155
+      line: 156
   - label: warning_header_syntax
     section: § 5.6.7
     snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
@@ -10257,7 +10257,7 @@ sources:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 258
     - file: lint-http-rules/src/violations/conditional.rs
-      line: 211
+      line: 193
   - label: cache_validation_chain (3)
     section: § 4.3.1
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
@@ -10672,7 +10672,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 141
     - file: lint-http-rules/src/violations/method.rs
-      line: 334
+      line: 335
   - label: content_type_present (3)
     section: § 6.3
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
@@ -10850,7 +10850,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 291
     - file: lint-http-rules/src/violations/status.rs
-      line: 952
+      line: 959
   - label: post_creates_resource
     section: § 3.3
     snippet: Otherwise, the target URI's combined path and query component is the request-target.
@@ -11578,19 +11578,19 @@ sources:
     snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
     cited_by:
     - file: lint-http-rules/src/violations/http3_settings.rs
-      line: 61
+      line: 64
   - label: http3_settings (2)
     section: § 7.2.4
     snippet: The same setting identifier MUST NOT occur more than once in the SETTINGS frame
     cited_by:
     - file: lint-http-rules/src/violations/http3_settings.rs
-      line: 102
+      line: 106
   - label: http3_settings (3)
     section: § 7.2.4.1
     snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
     cited_by:
     - file: lint-http-rules/src/violations/http3_settings.rs
-      line: 82
+      line: 85
   - label: http3_settings_frame
     section: § 11.2.2
     snippet: The entries in Table 3 are registered by this document
@@ -11981,7 +11981,7 @@ sources:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
       line: 530
     - file: lint-http-rules/src/violations/digest.rs
-      line: 234
+      line: 236
   - label: digest_header_syntax (3)
     section: § 4
     snippet: 'Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:'
@@ -11995,9 +11995,9 @@ sources:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
       line: 609
     - file: lint-http-rules/src/violations/digest.rs
-      line: 279
+      line: 281
     - file: lint-http-rules/src/violations/digest.rs
-      line: 301
+      line: 303
 - label: RFC 9651
   url: https://www.rfc-editor.org/rfc/rfc9651.html
   fragments:
@@ -12498,7 +12498,7 @@ sources:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 163
     - file: lint-http-rules/src/violations/deprecation.rs
-      line: 70
+      line: 71
   - label: sunset_and_deprecation_consistent
     section: § 4
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
@@ -12506,4 +12506,4 @@ sources:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 196
     - file: lint-http-rules/src/violations/deprecation.rs
-      line: 122
+      line: 125

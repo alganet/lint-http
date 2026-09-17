@@ -43,8 +43,10 @@ defects! {
     /// than the sentence's: clocks disagree by seconds and reporting that would
     /// report the world.
     ///
-    /// `warn`. Nothing is unreadable and the response is usable; what is wrong
-    /// is that its two timestamps cannot both be right.
+    /// `error`: § 8.8.2.1 says an origin server with a clock MUST NOT generate
+    /// a `Last-Modified` later than its own `Date`. Nothing is unreadable and
+    /// the response is usable; what is wrong is that its two timestamps cannot
+    /// both be right.
     ///
     // cite(RFC 9110 § 8.8.2.1): "An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1)."
     LAST_MODIFIED_CONFLICTING = {

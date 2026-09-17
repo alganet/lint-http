@@ -87,9 +87,10 @@ defects! {
     /// it: HTTP/2 and HTTP/3 forbid both fields outright, so asking for the
     /// option there would be asking a sender to make its own message malformed.
     ///
-    /// `warn`, with the two siblings: nothing about the message is unreadable,
-    /// and a guard that was not set risks a *later* hop being misled — which no
-    /// recipient of this message can detect.
+    /// `error`, with the two siblings, and for the sentence rather than the
+    /// consequence: nothing about the message is unreadable, and a guard that
+    /// was not set risks a *later* hop being misled — which no recipient of
+    /// this message can detect.
     ///
     // cite(RFC 2068 § 19.7.1.1): "If the Keep-Alive header is sent, the corresponding connection token MUST be transmitted."
     KEEP_ALIVE_CONNECTION_OPTION_MISSING = {

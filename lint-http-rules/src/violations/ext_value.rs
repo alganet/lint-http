@@ -46,10 +46,10 @@ defects! {
     /// configuring the parts of the production against each other, and that
     /// arrives when the reader is typed and not before.
     ///
-    /// `warn`. A `filename*` a recipient cannot decode falls back to the plain
-    /// `filename` where the field carries one and to the recipient's own
-    /// default where it does not, so the download is named badly rather than
-    /// not at all.
+    /// `error`, from `ext-value`'s production. A `filename*` a recipient cannot
+    /// decode falls back to the plain `filename` where the field carries one
+    /// and to the recipient's own default where it does not, so the download is
+    /// named badly rather than not at all.
     ///
     // cite(RFC 8187 § 3.2.1): "ext-value     = charset  "'" [ language ] "'" value-chars"
     EXT_VALUE_MALFORMED = {

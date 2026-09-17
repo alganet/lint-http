@@ -145,12 +145,13 @@ defects! {
     /// against a document that was replaced, and the fix is a name or a bare
     /// address rather than a different character.
     ///
-    /// **`warn`, where the catalogue's other obsolete spellings are `info`.**
-    /// An RFC 850 timestamp is retired for senders and every recipient is still
-    /// required to read it, so the message works; nothing anywhere requires a
-    /// recipient to parse a host form this production no longer generates. The
-    /// ending says the sender was conforming under a document that has been
-    /// replaced — it does not promise that the value still arrives.
+    /// **`error`, with the rest of the subject, where the catalogue's other
+    /// obsolete spellings sit lower.** Nothing anywhere requires a recipient to
+    /// parse a host form this production no longer generates — unlike an RFC
+    /// 850 timestamp, which is retired for senders while every recipient is
+    /// still required to read it. The ending says the sender was conforming
+    /// under a document that has been replaced; it does not promise that the
+    /// value still arrives.
     ///
     // cite(RFC 9110 § B.2): "For simplicity, we have removed uri-host from the received-by production because it can be encompassed by the existing grammar for pseudonym."
     VIA_RECEIVED_BY_OBSOLETE = {

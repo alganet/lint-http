@@ -36,9 +36,10 @@ defects! {
     /// no production to break — a value that is not that literal is simply one
     /// the algorithm reads as "not nosniff" and moves past.
     ///
-    /// `warn`, and the difference from the entry below is intent: a server
-    /// that wrote this field meant to turn sniffing off, and has not. The
-    /// deployment believes it has a protection it does not have.
+    /// `error`, from the production, which generates one value. The difference
+    /// from the entry below is intent: a server that wrote this field meant to
+    /// turn sniffing off, and has not — the deployment believes it has a
+    /// protection it does not have.
     ///
     // cite(Fetch § 3.6): "X-Content-Type-Options = "nosniff" ; case-insensitive"
     X_CONTENT_TYPE_OPTIONS_INVALID = {

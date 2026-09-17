@@ -50,10 +50,12 @@ defects! {
     /// them prints; borrowing that id would put § 5.6.6's Note behind a finding
     /// about a construct § 5.6.6 does not describe.
     ///
-    /// `warn`: the member is unreadable and the scheme's own definition decides
-    /// what happens next, which for `Digest` is a credential no verifier can
-    /// compute a response over and for a challenge is a parameter the client
-    /// never sees.
+    /// `error`, from `auth-param`'s own production, which prints the `=`
+    /// between the two halves. What follows is the cost and not the rank: the
+    /// member is unreadable and the scheme's own definition decides what
+    /// happens next, which for `Digest` is a credential no verifier can compute
+    /// a response over and for a challenge is a parameter the client never
+    /// sees.
     ///
     // cite(RFC 9110 § 11.2, label: auth-param grammar): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
     AUTH_PARAM_EQUALS_MISSING = {

@@ -45,10 +45,12 @@ defects! {
     /// govern. § 13.1.5 states that twice, once per side: a client MUST NOT
     /// generate it, and a server MUST ignore it.
     ///
-    /// `warn`. The recipient's half of the sentence is what caps it — the field
-    /// is discarded and the request proceeds as the unconditional one it
-    /// already was, so nothing about the response changes. What the finding
-    /// reports is a client that believes it sent a conditional request.
+    /// `error`: § 13.1.5 says a client MUST NOT generate the field in a request
+    /// with no `Range`. The recipient's half of the sentence is what the
+    /// finding costs rather than what ranks it — the field is discarded and the
+    /// request proceeds as the unconditional one it already was, so nothing
+    /// about the response changes, and what is reported is a client that
+    /// believes it sent a conditional request.
     ///
     // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field."
     IF_RANGE_FORBIDDEN = {
@@ -126,7 +128,8 @@ defects! {
     /// value to one half has nothing to look at. *An alternation owns no defect
     /// until the reading cannot commit, and this is the case where it cannot.*
     ///
-    /// `warn`, with the others: a validator the recipient cannot read is a
+    /// `error`, with the others: `If-Range` generates an entity-tag or an
+    /// HTTP-date and nothing else. A validator the recipient cannot read is a
     /// condition that evaluates false, and false means the whole
     /// representation.
     ///

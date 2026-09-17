@@ -79,10 +79,12 @@ defects! {
     /// declarer arrives. The message names the sentence it was read from,
     /// which is what a finding does when its def cannot.
     ///
-    /// `warn`. Nothing is unreadable and the request is a well-formed HTTP
-    /// message; what it asks for is an exchange the version cannot carry, and
-    /// the recipient's own instruction — stop processing and answer with an
-    /// error status — is what the finding is predicting.
+    /// `error`, level with the entry beside it, which is where this subject
+    /// puts both halves of one production. Nothing is unreadable and the
+    /// request is a well-formed HTTP message; what it asks for is an exchange
+    /// the version cannot carry, and the recipient's own instruction — stop
+    /// processing and answer with an error status — is what the finding is
+    /// predicting.
     HTTP_VERSION_INVALID = {
         id: "http_version_invalid",
         title: "A protocol version is below the floor the exchange requires",

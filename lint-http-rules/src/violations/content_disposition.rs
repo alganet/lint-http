@@ -115,8 +115,9 @@ defects! {
     /// quoting makes unknowable — and a `name` the scan did find is judged
     /// either way.
     ///
-    /// `warn`. A receiving application has nothing to associate the part's data
-    /// with, so the data arrives and belongs to no field of the form.
+    /// `error`: § 4.2 says the field MUST also carry a `name` parameter. A
+    /// receiving application has nothing to associate the part's data with, so
+    /// the data arrives and belongs to no field of the form.
     ///
     // cite(RFC 7578 § 4.2): "The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form"
     CONTENT_DISPOSITION_NAME_MISSING = {

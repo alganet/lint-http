@@ -51,9 +51,10 @@ defects! {
     /// anything looks at it, so `sameorigin` protects a resource exactly as
     /// `SAMEORIGIN` does and reporting it would report a spelling nothing reads.
     ///
-    /// `warn`. A server that wrote this field meant to refuse being framed, and
-    /// a value the algorithm does not recognise leaves the resource embeddable
-    /// by anyone — the deployment believes it has a protection it does not
+    /// `error`, from the production, which generates two values and no others.
+    /// A server that wrote this field meant to refuse being framed, and a value
+    /// the algorithm does not recognise leaves the resource embeddable by
+    /// anyone — the deployment believes it has a protection it does not
     /// have.
     ///
     // cite(HTML Speculative Loading § 7.7): "X-Frame-Options = "DENY" / "SAMEORIGIN""

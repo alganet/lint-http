@@ -71,8 +71,9 @@ defects! {
     /// the sender wrote is an `=` that means nothing, on a member the
     /// production had no room for it in.
     ///
-    /// `warn`, with the rest: the preference is still read, and what is wrong
-    /// is a grammar the member does not derive from.
+    /// `error`, with the rest: the preference is still read, and what is wrong
+    /// is that the member derives from no `preference` — which is the sentence
+    /// § 2.2 attaches to every production.
     ///
     // cite(RFC 7240 § 2): "preference = token [ BWS "=" BWS word ]"
     PREFER_VALUE_EMPTY = {

@@ -79,9 +79,10 @@ defects! {
     /// `_empty` rather than `_missing`: the semicolon is the repetition's
     /// delimiter, so a sender that wrote one knew a parameter was due.
     ///
-    /// `warn`. Nothing is lost — a user agent reading leniently finds the same
-    /// parameters — so what is reported is the writing rather than a
-    /// consequence.
+    /// `error`, from the production: `server-timing-metric` writes a
+    /// `server-timing-param` after every `;` it prints. Nothing is lost — a
+    /// user agent reading leniently finds the same parameters — so what is
+    /// reported is the writing, and the level is the grammar's.
     ///
     // cite(Server Timing § 2, label: server-timing-param repetition): "server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )"
     SERVER_TIMING_PARAM_EMPTY = {
@@ -106,8 +107,8 @@ defects! {
     /// around its `=`. Two documents, one shape, two sentences — and this one
     /// is not even an RFC.
     ///
-    /// `warn`. The parameter is dropped, so the metric arrives saying less than
-    /// the server wrote.
+    /// `error`, from the production, which prints the `=`. The parameter is
+    /// dropped, so the metric arrives saying less than the server wrote.
     ///
     // cite(Server Timing § 2, label: server-timing-param assembly): "server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value"
     SERVER_TIMING_PARAM_EQUALS_MISSING = {
@@ -131,9 +132,9 @@ defects! {
     /// the fields reading it answered differently. Here it means a parameter
     /// whose whole content is its name.
     ///
-    /// `warn`, beside [`SERVER_TIMING_PARAM_EQUALS_MISSING`] rather than folded
-    /// into it: the `=` is the delimiter that tells the two apart, and a sender
-    /// that wrote one knew a value was due.
+    /// `error`, beside [`SERVER_TIMING_PARAM_EQUALS_MISSING`] rather than
+    /// folded into it: the `=` is the delimiter that tells the two apart, and a
+    /// sender that wrote one knew a value was due. Both derive from nothing.
     ///
     // cite(Server Timing § 2, label: server-timing-param-value alternation): "server-timing-param-value = token / quoted-string"
     SERVER_TIMING_PARAM_VALUE_EMPTY = {
@@ -263,8 +264,9 @@ defects! {
     /// the tail.
     ///
     /// `_malformed`: the value as written derives from neither alternative,
-    /// which is the word for a value the grammar does not generate. `warn`,
-    /// with the rest of the assembly.
+    /// which is the word for a value the grammar does not generate — and
+    /// `error`, with the rest of the assembly, which is what that word now
+    /// carries.
     ///
     // cite(Server Timing § 2, label: server-timing-param-value grammar under the field): "server-timing-param-value = token / quoted-string"
     SERVER_TIMING_PARAM_VALUE_MALFORMED = {

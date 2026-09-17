@@ -140,11 +140,13 @@ defects! {
     /// says which version a request may carry. Both are true, and only one of
     /// them is addressed to the sender.
     ///
-    /// `warn`, alone in this subject, and § 4.4 is why: the exchange has a
-    /// defined outcome that leaves the connection an ordinary HTTP one and the
-    /// client able to ask again. A version nobody can *read* has no such reply —
-    /// the advertisement is written for a version a server understood and does
-    /// not speak.
+    /// `error`, with the rest of the subject, and § 4.1 is why: "The value of
+    /// this header field MUST be 13" is written in the same breath as requiring
+    /// the field at all. **It used to sit alone below them**, because § 4.4
+    /// gives this case a defined outcome — the connection stays an ordinary
+    /// HTTP one and the client can ask again — where a version nobody can
+    /// *read* has no such reply. That outcome is still the difference a reader
+    /// wants and is no longer the difference the level carries.
     ///
     /// The NOTE beside item 9 is worth knowing before raising this: the draft
     /// values 9 through 12 were reserved in the registry and never used, so a

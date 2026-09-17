@@ -65,8 +65,9 @@ defects! {
     /// hop. The response case is a request header field sent where there is
     /// nothing to mark, which says nothing and costs nothing.
     ///
-    /// `warn`, taken from the first: a finding that can mean the mark is gone
-    /// does not sit at the level of a field nobody reads.
+    /// `error`, from § 5.1's two `MUST NOT`s, which are addressed to whoever
+    /// wrote the field. A finding here can also mean the mark is gone, which is
+    /// why the message says which shape it found.
     ///
     // cite(RFC 8470 § 5.1): "Early-Data MUST NOT appear in a Connection header field."
     // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
@@ -99,8 +100,10 @@ defects! {
     /// would report conforming requests; the operator's array is the answer to
     /// the sentence's "absent other information".
     ///
-    /// `warn`: the request is well formed and the origin may have information
-    /// this proxy does not.
+    /// `error`: § 4 permits safe methods in early data and prohibits unsafe
+    /// ones in the same sentence. The request is well formed and the origin may
+    /// have information this proxy does not — which is a reason to configure
+    /// the entry down, not a reason to rank it there.
     ///
     // cite(RFC 8470 § 4): "Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data."
     EARLY_DATA_METHOD_FORBIDDEN = {

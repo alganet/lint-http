@@ -78,9 +78,10 @@ defects! {
     /// describes a body already consumed. Nothing is malformed; something
     /// arrived too late to be used.
     ///
-    /// `warn`. A MUST NOT, but the message is well formed and the recipient's
-    /// escape — ignoring the trailer section, which § 6.5.1 permits — is the
-    /// one deployments take.
+    /// `error`. A `MUST NOT` addressed to the sender — and the recipient's
+    /// escape, ignoring the trailer section as § 6.5.1 permits, is the one
+    /// deployments take. That is what the finding costs and it is why an
+    /// operator may turn the entry down; it is not what ranks it.
     ///
     // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
     TRAILER_FIELD_FORBIDDEN = {
@@ -140,12 +141,14 @@ defects! {
     /// short of — and an empty one still counts: `Trailer:` announces a list of
     /// no names, so every field that then arrives is one it did not indicate.
     ///
-    /// `info`, and the document argues it in both directions. The `Trailer`
-    /// field exists so a recipient can prepare for the metadata before it
-    /// starts processing the content, which is a preparation lost rather than a
-    /// value; and § 6.6.2 says outright that there is no guarantee a sender of
-    /// `Trailer` follows through with the names it wrote. A list that is a hint
-    /// when complete cannot be an error when short.
+    /// `warn`, and the document argues both halves of it. The `Trailer` field
+    /// exists so a recipient can prepare for the metadata before it starts
+    /// processing the content, which is a preparation lost rather than a value;
+    /// and § 6.6.2 says outright that there is no guarantee a sender of
+    /// `Trailer` follows through with the names it wrote, so a list that is a
+    /// hint when complete cannot be an error when short. What it *is* is a
+    /// `SHOULD` addressed to the sender that intends to write trailers, which
+    /// is the level exactly.
     ///
     // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
     TRAILER_MEMBER_MISSING = {

@@ -313,8 +313,9 @@ defects! {
     /// answer `quoted_string_delimiter_missing` gives for its DQUOTEs, and the
     /// message says which bracket was the missing one.
     ///
-    /// `warn`, with the subject: the member is dropped and the exchange is
-    /// untouched.
+    /// `error`, with the subject, which is flat: the member is dropped and the
+    /// exchange is untouched, and the entries beside it take that level from
+    /// the production they quote.
     ///
     // cite(RFC 8288 § 3.1): "Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>")."
     LINK_TARGET_DELIMITER_MISSING = {

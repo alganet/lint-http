@@ -467,6 +467,18 @@ Every violation carries a default severity in the catalogue and reports unless
 you say otherwise, so this section is optional and mostly stays empty: write a
 table only to disagree with a default.
 
+**The default is derived, not chosen.** A defect states what the specification
+sentence it enforces obliges *of the sender of the message it is in* — a `MUST`,
+a `SHOULD`, a `MAY`, or an ABNF production RFC 9110 §2.2 obliges a sender not to
+break — and the level follows from that: `error`, `warn`, `info`, `error`. So
+`--fail-on error` means "a sentence addressed to you was broken", which is a
+line you can put in a CI policy. Half the catalogue states nothing, because
+nothing obliges the sender it reports or because the keyword in its sentence
+binds the recipient; those levels are the catalogue's judgement and each page
+argues for its own. Every `docs/violations/<id>.md` page prints the reading under
+**Obligation**, and a finding carries it as `strength` in JSON when it is not
+`unstated`.
+
 The shape — every id below is a real one, and `config_example.toml` lists the rest:
 
 ```toml

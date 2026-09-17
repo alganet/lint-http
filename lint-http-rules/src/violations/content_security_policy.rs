@@ -77,11 +77,15 @@ defects! {
     /// brackets, and a `directive-name` is one character or more — so a policy
     /// with nothing in it derives from the production not at all.
     ///
-    /// **`warn`, and higher than the two entries below it, because of what the
-    /// field is.** A blank `Content-Security-Policy` is a security control that
-    /// is present in the response, visible to anyone auditing the headers, and
-    /// enforcing nothing whatsoever. The other two leave a policy that still
-    /// restricts something.
+    /// **`error`, level with the two entries below it.** A blank
+    /// `Content-Security-Policy` is a security control that is present in the
+    /// response, visible to anyone auditing the headers, and enforcing nothing
+    /// whatsoever.
+    ///
+    /// It used to rank *above* them on exactly that — the other two leave a
+    /// policy that still restricts something. What they have since taken from
+    /// their own production is the level this one keeps for its own reason, so
+    /// the three agree by two different routes.
     ///
     // cite(CSP3 § 2.2): "A serialized CSP is an ASCII string consisting of a semicolon-delimited series of serialized directives, adhering to the following ABNF grammar [RFC5234]:"
     CONTENT_SECURITY_POLICY_EMPTY = {
@@ -107,10 +111,12 @@ defects! {
     /// what a `;` means is decided by whether the production brackets what
     /// follows it, and nothing else.
     ///
-    /// `info`. The policy still enforces every directive it does name, and a
-    /// user agent parsing it discards the empty position exactly as the grammar
-    /// says it may; what is left is a stray character in a header a person will
-    /// read.
+    /// `error`, from `serialized-policy`, which writes a `serialized-directive`
+    /// before the first `;` it prints. The policy still enforces every
+    /// directive it does name, and a user agent parsing it discards the empty
+    /// position exactly as the grammar says it may — so what is left for a
+    /// person to read is a stray character, and what the level reports is a
+    /// value nothing generates.
     ///
     // cite(CSP3 § 2.2, label: serialized-policy grammar): "serialized-policy = serialized-directive *( optional-ascii-whitespace ";" [ optional-ascii-whitespace serialized-directive ] )"
     CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY = {
@@ -133,8 +139,10 @@ defects! {
     /// the directive, so the policy silently drops whatever that line was
     /// supposed to restrict.
     ///
-    /// `warn` for exactly that: the finding is about a restriction that is not
-    /// being applied, and nothing in the response says so.
+    /// `error`, from `directive-name = 1*( ALPHA / DIGIT / "-" )`. The finding
+    /// is still about a restriction that is not being applied with nothing in
+    /// the response saying so, which is what makes it worth reporting rather
+    /// than what ranks it.
     ///
     // cite(CSP3 § 2.3): "directive-name = 1*( ALPHA / DIGIT / "-" )"
     CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN = {
