@@ -166,9 +166,10 @@ pub mod x_xss_protection;
 /// `every_defect_comes_from_the_macro` keeps that the only way in.
 pub struct ViolationDef {
     /// This violation's id: the `[violations.<id>]` section that configures
-    /// it, the `Violation.violation` its findings will carry, and the section
-    /// heading in the owning rule's generated doc page. Disjoint from the rule
-    /// ids — see `violation_ids_are_unique_and_disjoint_from_rule_ids`.
+    /// it, the `Violation.violation` its findings will carry, the
+    /// `docs/violations/<id>.md` page that documents it, and the link every
+    /// rule page that reports it carries. Disjoint from the rule ids — see
+    /// `violation_ids_are_unique_and_disjoint_from_rule_ids`.
     ///
     /// `<subject>[_<part>]_<defect>`, the defect drawn from the closed list
     /// "Violation ids" in `docs/development.md` defines and
@@ -177,7 +178,14 @@ pub struct ViolationDef {
     /// vocabularies cannot collide — and why the id names the defect rather
     /// than the rule reporting it, since two rules may report one defect.
     pub id: &'static str,
-    /// One line naming the defect, for the docs heading and `rules list`.
+    /// One line naming the defect, in the four places the catalogue is read
+    /// out: the lead line of its `docs/violations/<id>.md` page, the summary
+    /// beside it in the `docs/violations.md` index, the bullet beside it on
+    /// every rule page that reports it, and the comment above its
+    /// `[violations.<id>]` section in `config_example.toml`.
+    ///
+    /// Not a heading: a page is headed by the id, since a title is a sentence
+    /// with no derivable relation to the name a finding carried.
     pub title: &'static str,
     /// The whole message, when this defect always reads the same way. Empty
     /// when the message is parameterised, in which case the site formats it —
@@ -251,7 +259,9 @@ pub struct ViolationDef {
 ///   def in the catalogue, and it is separate from the def itself. Forgotten,
 ///   the defect still reports — the rule declares it, the severity resolves —
 ///   and vanishes from everything that *enumerates* the catalogue: no
-///   `[violations.<id>]` section, no docs.
+///   `[violations.<id>]` section, no `docs/violations/<id>.md` page, and no
+///   bullet on the page of any rule that reports it. That last clause was
+///   aspiration when it was written and is now literally true.
 ///
 /// Each entry hides its registration in an anonymous `const` block, so every
 /// one can use the same name for it: the linker collects the section entry, and
@@ -355,9 +365,13 @@ mod tests {
     ///
     /// Disjointness from the rule ids is what keeps the configuration and the
     /// docs unambiguous. `[rules.<id>]` and `[violations.<id>]` are separate
-    /// tables, but they are read by the same person, and a violation rendered
-    /// as a section inside its rule's page would collide with that page's own
-    /// anchor if the two shared a name.
+    /// tables, but they are read by the same person — and the two catalogues
+    /// are two page trees, so a shared name would mean `docs/rules/x.md` and
+    /// `docs/violations/x.md`, a pair no reader can tell apart from a link and
+    /// no sentence can name without spelling out which table it means.
+    ///
+    /// The rationale used to be about anchor collision inside a rule's page,
+    /// which was a layout considered and not built.
     #[test]
     fn violation_ids_are_unique_and_disjoint_from_rule_ids() {
         let mut seen = std::collections::HashSet::new();
@@ -431,6 +445,36 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Every registered defect is declared by some rule — the converse of
+    /// `every_declared_violation_is_registered`, which this file had in one
+    /// direction and not the other.
+    ///
+    /// A def nothing declares is unreachable: no rule can report it, so its
+    /// `[violations.<id>]` section tunes nothing and its page names no rule.
+    /// It is not a compile error and it is not a run-time one either — it is a
+    /// catalogue entry describing a defect the linter cannot find, which reads
+    /// exactly like one it can.
+    ///
+    /// A merge is how one appears. Folding two rules into one, or moving a
+    /// reading to a shared helper, leaves behind the defs the retired side was
+    /// the only declarer of, and nothing else looks.
+    #[test]
+    fn every_defect_is_reported_by_some_rule() {
+        let declared: std::collections::HashSet<&str> = crate::rules::all_rules()
+            .flat_map(|rule| rule.violations().iter().map(|def| def.id))
+            .collect();
+        let orphans: Vec<&str> = VIOLATIONS
+            .iter()
+            .map(|def| def.id)
+            .filter(|id| !declared.contains(id))
+            .collect();
+        assert!(
+            orphans.is_empty(),
+            "no rule declares these defects, so nothing can report them: {:?}",
+            orphans,
+        );
     }
 
     /// A def's `spec` is what its findings cite, and `specifications()` is
