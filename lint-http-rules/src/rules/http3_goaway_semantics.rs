@@ -336,7 +336,7 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(opened.violation, "http3_goaway_ignored");
-        assert_eq!(opened.severity, crate::lint::Severity::Warn);
+        assert_eq!(opened.severity, crate::lint::Severity::Error);
     }
 
     // ── GOAWAY stream ID must not increase ──────────────────────────────

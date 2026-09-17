@@ -227,28 +227,32 @@ mod tests {
     #[case(
         ", Basic realm=\"x\"",
         "challenge_member_empty",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
-    #[case("realm=\"x\"", "challenge_scheme_missing", crate::lint::Severity::Warn)]
+    #[case(
+        "realm=\"x\"",
+        "challenge_scheme_missing",
+        crate::lint::Severity::Error
+    )]
     #[case(
         "Basic realm=\"x\", , error=\"y\"",
         "challenge_member_empty",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case(
         "Basic =\"x\"",
         "challenge_parameter_name_empty",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case(
         "Basic realm=",
         "challenge_parameter_value_missing",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case(
         "Basic re@alm=\"x\"",
         "challenge_parameter_name_character_forbidden",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case(
         "NewScheme word",
@@ -258,12 +262,12 @@ mod tests {
     #[case(
         "Basic realm=\"unfinished",
         "quoted_string_delimiter_missing",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case(
         "Basic realm=\"a\\\"",
         "quoted_pair_malformed",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     fn each_finding_names_the_defect_and_carries_its_severity(
         #[case] val: &str,

@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.content_security_policy_empty]
 # Content-Security-Policy is written with no policy in it
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

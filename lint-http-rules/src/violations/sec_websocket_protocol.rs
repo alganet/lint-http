@@ -29,6 +29,7 @@
 //! request beside the response and so the only one able to ask the second.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 use crate::violations::sec_websocket_key::RFC_6455_4_1;
@@ -71,8 +72,9 @@ defects! {
         id: "sec_websocket_protocol_duplicated",
         title: "Sec-WebSocket-Protocol names one subprotocol twice",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_4_1],
+        strength: Strength::Must,
     }
 
     /// The server's field written with nothing in it.
@@ -136,6 +138,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_4_2_2],
+        strength: Strength::Must,
     }
 }
 
@@ -143,15 +146,18 @@ defects! {
 mod tests {
     use super::*;
 
-    /// The rank that separates the request's entry from the response's two: a
-    /// repeated preference is a value a server reads straight past, and both
-    /// halves of what a server may write wrong are a connection the client is
-    /// told to fail.
+    /// The rank used to separate the request's entry from the response's two:
+    /// a repeated preference is a value a server reads straight past.
+    ///
+    /// § 4.1 says the elements "MUST all be unique strings", which is a
+    /// sentence about what the client may write and not about what the server
+    /// will do with it. What still separates the three is the section each
+    /// cites, which is what this test now asserts.
     #[test]
-    fn a_repeated_name_leaves_the_handshake_working() {
+    fn the_request_entry_and_the_responses_two_cite_apart_and_rank_together() {
         assert_eq!(
             SEC_WEBSOCKET_PROTOCOL_DUPLICATED.default_severity,
-            Severity::Warn
+            Severity::Error
         );
         assert_eq!(SEC_WEBSOCKET_PROTOCOL_DUPLICATED.spec, [RFC_6455_4_1]);
         for def in [

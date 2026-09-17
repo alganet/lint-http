@@ -29,6 +29,7 @@
 
 use crate::helpers::content_range::ContentRangeDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::status::RFC_9110_15_3_7;
 use crate::violations::{defects, ViolationDef};
@@ -86,8 +87,9 @@ defects! {
         id: "content_range_empty",
         title: "Content-Range is empty",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_4],
+        strength: Strength::Grammar,
     }
 
     /// A `range-unit` that is not a `token`. Not a unit this parser fails to
@@ -111,8 +113,9 @@ defects! {
         id: "content_range_spec_missing",
         title: "Content-Range has no range after its unit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_4],
+        strength: Strength::Grammar,
     }
 
     /// Whitespace inside the part after the space. The production holds exactly
@@ -123,8 +126,9 @@ defects! {
         id: "content_range_spec_whitespace_forbidden",
         title: "Content-Range holds whitespace after its single space",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_4],
+        strength: Strength::Grammar,
     }
 
     /// No `/`. Both forms the field can take have one.
@@ -134,8 +138,9 @@ defects! {
         id: "content_range_slash_missing",
         title: "Content-Range has no '/'",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_4],
+        strength: Strength::Grammar,
     }
 
     /// Something before the `/` that opens with `*` and is not exactly `*`.
@@ -147,8 +152,9 @@ defects! {
         id: "content_range_unsatisfied_range_malformed",
         title: "Content-Range writes something other than '*' before its '/'",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_4],
+        strength: Strength::Grammar,
     }
 
     /// An `incl-range` that is not two positions around a `-`: the dash
@@ -160,8 +166,9 @@ defects! {
         id: "content_range_incl_range_malformed",
         title: "Content-Range range is not first-pos '-' last-pos",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_4],
+        strength: Strength::Grammar,
     }
 
     /// A numeral that is not `1*DIGIT` — whichever of the three it was, which
@@ -172,8 +179,9 @@ defects! {
         id: "content_range_numeral_malformed",
         title: "Content-Range numeral is not 1*DIGIT",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_14_4],
+        strength: Strength::Grammar,
     }
 
     /// A numeral that *is* `1*DIGIT` and is larger than a reader can hold. It
@@ -190,6 +198,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_14_1_2],
+        strength: Strength::Unstated,
     }
 
     /// `last-pos` below `first-pos`. The first of § 14.4's two invalidity
@@ -247,6 +256,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_3_7_1],
+        strength: Strength::Unstated,
     }
 
     /// The field written in the header section of a multipart 206, where each
@@ -260,8 +270,9 @@ defects! {
         id: "content_range_forbidden",
         title: "Content-Range is written in the header section of a multipart 206",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_15_3_7_2],
+        strength: Strength::Must,
     }
 
     /// The wrong one of the field's two forms for the status carrying it. A 206
@@ -427,11 +438,17 @@ mod tests {
         assert_eq!(CONTENT_RANGE_MISSING.default_severity, Severity::Warn);
     }
 
-    /// The two conditions § 14.4 calls *invalid* rank above the ones a parser
-    /// simply cannot get past: both of those values are well formed, and both
-    /// describe a representation that cannot exist.
+    /// § 14.4 calls two of these *invalid* — a well-formed value describing a
+    /// representation that cannot exist — and the third is a value a parser
+    /// cannot get past at all. They used to rank apart on exactly that.
+    ///
+    /// They rank together now because both readings end in the same
+    /// obligation: § 2.2 refuses a value that does not derive from
+    /// `range-resp`, and § 14.4 refuses the two that do derive and describe
+    /// nothing. What separates them is still the ending — `_conflicting`
+    /// against `_missing` — and that is what the ids are for.
     #[test]
-    fn the_two_invalidity_conditions_rank_above_the_parse_failures() {
+    fn the_invalidity_conditions_and_the_parse_failures_rank_together() {
         assert_eq!(
             CONTENT_RANGE_POSITIONS_CONFLICTING.default_severity,
             Severity::Error
@@ -440,6 +457,9 @@ mod tests {
             CONTENT_RANGE_COMPLETE_LENGTH_CONFLICTING.default_severity,
             Severity::Error
         );
-        assert_eq!(CONTENT_RANGE_SLASH_MISSING.default_severity, Severity::Warn);
+        assert_eq!(
+            CONTENT_RANGE_SLASH_MISSING.default_severity,
+            Severity::Error
+        );
     }
 }

@@ -22,6 +22,7 @@
 //! of the coding**, so it lives in [`crate::violations::te`] and not here.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 use crate::violations::te::RFC_9110_A;
@@ -67,8 +68,9 @@ defects! {
         id: "transfer_coding_parameter_missing",
         title: "A coding writes a ';' with no parameter after it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_A],
+        strength: Strength::Grammar,
     }
 
     /// A parameter hung off a coding that defines none. § 7.2 says so of the
@@ -91,6 +93,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9112_7_2],
+        strength: Strength::Should,
     }
 
     /// A coding name the deployment does not recognise — the fifth registry

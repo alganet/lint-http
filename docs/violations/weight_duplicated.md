@@ -21,7 +21,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.weight_duplicated]
 # Member carries more than one weight
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

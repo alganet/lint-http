@@ -25,6 +25,7 @@
 
 use crate::helpers::media_type::MediaTypeError;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -75,8 +76,9 @@ defects! {
         id: "media_type_empty",
         title: "Media type is written with nothing in it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_8_3_1],
+        strength: Strength::Grammar,
     }
 
     /// A value that is not a `type "/" subtype` pair: no `/` anywhere, or a `/`
@@ -95,8 +97,9 @@ defects! {
         id: "media_type_malformed",
         title: "Media type is not a type/subtype pair",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_8_3_1],
+        strength: Strength::Grammar,
     }
 
     /// An asterisk in either half of a `Content-Type`. `*` is a `tchar`, so
@@ -162,8 +165,9 @@ defects! {
         id: "media_type_suffix_empty",
         title: "A media type subtype ends in a bare plus",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6838_4_2],
+        strength: Strength::Grammar,
     }
 
     /// A subtype that is *only* a suffix: `application/+json`.
@@ -186,8 +190,9 @@ defects! {
         id: "media_type_name_empty",
         title: "A media type subtype is a suffix with no base name",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6838_4_2],
+        strength: Strength::Grammar,
     }
 
     /// A `+suffix` the deployment does not recognise: `application/foo+xmls`.
@@ -217,6 +222,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6838_4_2_8],
+        strength: Strength::Should,
     }
 }
 

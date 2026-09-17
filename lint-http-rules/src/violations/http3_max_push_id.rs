@@ -26,6 +26,7 @@
 //! defect.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -56,6 +57,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9114_7_2_7],
+        strength: Strength::Must,
     }
 
     /// A `MAX_PUSH_ID` smaller than one already sent on the connection.
@@ -76,6 +78,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9114_7_2_7],
+        strength: Strength::Must,
     }
 }
 

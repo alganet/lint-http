@@ -30,6 +30,7 @@
 
 use crate::helpers::content_length::ContentLengthError;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -106,6 +107,7 @@ defects! {
         message: "Both Content-Length and Transfer-Encoding present",
         default_severity: Severity::Error,
         spec: &[RFC_9112_6_2],
+        strength: Strength::Must,
     }
 
     /// A field line carrying no digit at all: an empty value, or one written as
@@ -120,6 +122,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_8_6],
+        strength: Strength::Grammar,
     }
 
     /// An octet in the value that `DIGIT` does not admit — the sign of `-1`,
@@ -137,6 +140,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_8_6],
+        strength: Strength::Grammar,
     }
 
     /// A numeral that *is* `1*DIGIT` and is larger than a reader can hold. It
@@ -166,6 +170,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9112_6_3],
+        strength: Strength::Must,
     }
 }
 

@@ -22,6 +22,7 @@
 // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -68,5 +69,6 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_4_2_4],
+        strength: Strength::Unstated,
     }
 }

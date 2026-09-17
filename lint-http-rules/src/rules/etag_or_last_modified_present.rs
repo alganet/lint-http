@@ -148,7 +148,7 @@ mod tests {
             // because the exception the sentence carries is not on the wire.
             let found = violation.clone().expect("a finding");
             assert_eq!(found.violation, "validator_missing");
-            assert_eq!(found.severity, crate::lint::Severity::Info);
+            assert_eq!(found.severity, crate::lint::Severity::Warn);
             assert_eq!(
                 violation.map(|v| v.message),
                 Some("Response 200 without ETag or Last-Modified validator".to_string())

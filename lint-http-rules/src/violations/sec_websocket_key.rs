@@ -35,6 +35,7 @@
 //! one handshake holds no evidence of either.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -67,6 +68,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6455_4_1],
+        strength: Strength::Must,
     }
 
     /// A field whose value is a well-formed base64 encoding of some number of
@@ -95,8 +97,9 @@ defects! {
         id: "sec_websocket_key_length_invalid",
         title: "Sec-WebSocket-Key is not a sixteen-byte nonce",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_4_1],
+        strength: Strength::Must,
     }
 }
 
@@ -104,13 +107,18 @@ defects! {
 mod tests {
     use super::*;
 
-    /// One numbered item, two sentences, two entries — and the rank is what
-    /// they disagree about: a server can answer one of these and not the other.
+    /// One numbered item, two sentences, two entries — and they used to rank
+    /// apart on what a server can answer: an absent field ends the handshake,
+    /// a sixteen-byte nonce that is not sixteen bytes does not.
+    ///
+    /// § 4.1 states both with `MUST` and states both about the request the
+    /// client wrote. The two ids stay, because a server that wants to fix one
+    /// is not fixing the other.
     #[test]
-    fn the_absent_field_outranks_the_wrong_length() {
-        assert!(
-            SEC_WEBSOCKET_KEY_LENGTH_INVALID.default_severity
-                < SEC_WEBSOCKET_KEY_MISSING.default_severity
+    fn one_numbered_item_two_sentences_and_one_rank() {
+        assert_eq!(
+            SEC_WEBSOCKET_KEY_LENGTH_INVALID.default_severity,
+            SEC_WEBSOCKET_KEY_MISSING.default_severity,
         );
         assert_eq!(SEC_WEBSOCKET_KEY_MISSING.default_severity, Severity::Error);
     }

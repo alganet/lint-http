@@ -23,6 +23,7 @@
 // cite(RFC 9110 § 17.9): "Since the Referer header field tells a target site about the context that resulted in a request, it has the potential to reveal information about the user's immediate browsing history and any personal information that might be found in the referring resource's URI."
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -65,6 +66,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_10_1_3],
+        strength: Strength::Must,
     }
 
     /// A `Referer` carrying a fragment component.
@@ -89,8 +91,9 @@ defects! {
         id: "referer_fragment_forbidden",
         title: "A Referer carries a fragment component",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_10_1_3],
+        strength: Strength::Must,
     }
 
     /// A `Referer` naming an `https` resource, on a request whose own target
@@ -119,8 +122,9 @@ defects! {
         id: "referer_forbidden",
         title: "A Referer names a secure resource on an unsecured request",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_10_1_3],
+        strength: Strength::Must,
     }
 
     /// A `Referer` written and left blank.
@@ -149,6 +153,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9110_10_1_3],
+        strength: Strength::Unstated,
     }
 }
 
@@ -156,19 +161,25 @@ defects! {
 mod tests {
     use super::*;
 
-    /// The subject ranks on what a finding discloses, which is the reading its
-    /// module doc argues: a credential, then a component, then a value that
-    /// discloses nothing and helps nobody.
+    /// The subject used to rank on what a finding discloses: a credential,
+    /// then a component, then a value that discloses nothing.
+    ///
+    /// § 10.1.3 writes one sentence over the first two — "A user agent MUST NOT
+    /// include the fragment and userinfo components" — so no reading of it puts
+    /// them at two levels, and the third `MUST NOT` in the same section joins
+    /// them. What still sits below is `referer_empty`, and for the reason its
+    /// own entry gives: nothing in a message says where the target URI came
+    /// from, so that sentence's antecedent is not reachable from a capture and
+    /// the entry claims no obligation at all.
     #[test]
-    fn the_subject_ranks_on_what_leaves_with_the_field() {
-        assert!(
-            REFERER_FRAGMENT_FORBIDDEN.default_severity
-                < REFERER_USERINFO_FORBIDDEN.default_severity
-        );
-        assert_eq!(
-            REFERER_FORBIDDEN.default_severity,
-            REFERER_FRAGMENT_FORBIDDEN.default_severity
-        );
+    fn the_three_disclosures_rank_together_and_the_empty_value_below_them() {
+        for def in [
+            &REFERER_USERINFO_FORBIDDEN,
+            &REFERER_FRAGMENT_FORBIDDEN,
+            &REFERER_FORBIDDEN,
+        ] {
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
+        }
         assert!(REFERER_EMPTY.default_severity < REFERER_FRAGMENT_FORBIDDEN.default_severity);
     }
 

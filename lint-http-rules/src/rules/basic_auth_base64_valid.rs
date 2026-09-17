@@ -158,7 +158,7 @@ mod tests {
     /// in either half in so many words.
     #[rstest]
     #[case("Basic", "credentials_missing", crate::lint::Severity::Warn)]
-    #[case("Basic not-base64", "base64_malformed", crate::lint::Severity::Warn)]
+    #[case("Basic not-base64", "base64_malformed", crate::lint::Severity::Error)]
     #[case(
         "Basic YWJj",
         "basic_credentials_separator_missing",

@@ -24,6 +24,7 @@
 //! value reached a reader at all.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -55,8 +56,9 @@ defects! {
         id: "http_version_malformed",
         title: "A protocol version derives from no reading of HTTP-version",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9112_2_3],
+        strength: Strength::Grammar,
     }
 
     /// A version that derives from the production and is below the floor the
@@ -85,7 +87,7 @@ defects! {
         id: "http_version_invalid",
         title: "A protocol version is below the floor the exchange requires",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[],
     }
 }

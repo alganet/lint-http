@@ -57,6 +57,7 @@
 //! which is the same question `status`'s entries are ranked by.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 // The section a server's half of a WebSocket handshake is written from, defined
@@ -134,8 +135,9 @@ defects! {
         id: "upgrade_connection_option_missing",
         title: "Upgrade is sent with no upgrade connection-option in Connection",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_7_8],
+        strength: Strength::Must,
     }
 
     /// A `101` response with no `Upgrade` field on it at all. The connection
@@ -149,6 +151,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_15_2_2],
+        strength: Strength::Must,
     }
 
     /// The field written, and no protocol name on it: an empty value, or one
@@ -168,6 +171,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_15_2_2],
+        strength: Strength::Must,
     }
 
     /// A `101` whose `Upgrade` names a protocol the exchange it completes does
@@ -228,8 +232,9 @@ defects! {
         id: "upgrade_426_missing",
         title: "A 426 response carries no Upgrade field",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_15_5_22],
+        strength: Strength::Must,
     }
 
     /// The field written on a `426`, and no protocol name on it. `Upgrade` is
@@ -248,8 +253,9 @@ defects! {
         id: "upgrade_426_empty",
         title: "A 426 response names no protocol on its Upgrade field",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_15_5_22],
+        strength: Strength::Must,
     }
 }
 
@@ -268,22 +274,23 @@ mod tests {
         assert_eq!(UPGRADE_101_EMPTY.default_severity, Severity::Error);
         assert_eq!(UPGRADE_426_MISSING.id, "upgrade_426_missing");
         assert_eq!(UPGRADE_426_EMPTY.id, "upgrade_426_empty");
-        assert_eq!(UPGRADE_426_MISSING.default_severity, Severity::Warn);
-        assert_eq!(UPGRADE_426_EMPTY.default_severity, Severity::Warn);
+        assert_eq!(UPGRADE_426_MISSING.default_severity, Severity::Error);
+        assert_eq!(UPGRADE_426_EMPTY.default_severity, Severity::Error);
     }
 
     /// The id names the status code because the sentence requiring the field
     /// does: one entry over both codes would name two sections and carry
     /// neither onto a finding, and every site here knows which status it read.
-    /// The ranks differ for a reason no shared entry could hold — a `101` has
-    /// left HTTP and a `426` has not.
+    ///
+    /// **The ranks used to differ too** — a `101` has left HTTP and a `426` has
+    /// not — and they no longer do, because § 15.2.2 and § 15.5.22 both say the
+    /// server MUST send the field. What the two ids still hold apart is the
+    /// citation, which is the half no shared entry could have carried either
+    /// way.
     #[test]
     fn each_status_codes_pair_names_its_own_sentence() {
         assert_eq!(UPGRADE_101_MISSING.spec, [RFC_9110_15_2_2]);
         assert_eq!(UPGRADE_426_MISSING.spec, [RFC_9110_15_5_22]);
-        assert_ne!(
-            UPGRADE_101_MISSING.default_severity,
-            UPGRADE_426_MISSING.default_severity
-        );
+        assert_ne!(UPGRADE_101_MISSING.spec, UPGRADE_426_MISSING.spec);
     }
 }

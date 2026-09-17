@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.base64_quantum_malformed]
 # Value is not a whole number of base64 groups
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

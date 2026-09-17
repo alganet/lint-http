@@ -29,6 +29,7 @@
 //! its own production with its own callers.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::violations::auth_scheme::RFC_9110_11_2;
 use crate::violations::defects;
 
@@ -59,8 +60,9 @@ defects! {
         id: "auth_param_equals_missing",
         title: "An authentication parameter is written without its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 }
 

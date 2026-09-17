@@ -25,6 +25,7 @@
 //! that a receiver *MAY* reject the frame — so they are `warn`.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -62,8 +63,9 @@ defects! {
         id: "http3_settings_duplicated",
         title: "A peer sent a second SETTINGS frame on one connection",
         message: "HTTP/3 duplicate SETTINGS frame from the same peer on one connection",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9114_7_2_4],
+        strength: Strength::Must,
     }
 
     /// A `SETTINGS` carrying one of the identifiers HTTP/3 reserves.
@@ -84,6 +86,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9114_7_2_4_1],
+        strength: Strength::Must,
     }
 
     /// One `SETTINGS` frame carrying the same identifier twice.
@@ -101,8 +104,9 @@ defects! {
         id: "http3_settings_identifier_duplicated",
         title: "One SETTINGS frame states the same identifier twice",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9114_7_2_4],
+        strength: Strength::Must,
     }
 }
 
@@ -110,19 +114,21 @@ defects! {
 mod tests {
     use super::*;
 
-    /// Only the entry whose section names a connection error is an `error`;
-    /// the other two break MUST NOTs the document attaches no recipient answer
-    /// to.
+    /// All three now rank together, and the old comment named the reason they
+    /// did not: the other two "break MUST NOTs the document attaches no
+    /// recipient answer to". A `MUST NOT` with no stated answer is still a
+    /// `MUST NOT`, and § 7.2.4 addresses both of these to the peer that sends
+    /// the frame.
     #[test]
-    fn only_the_connection_error_outranks_the_repetitions() {
+    fn every_entry_breaks_a_must_and_the_repetitions_are_no_exception() {
         assert_eq!(
             HTTP3_SETTINGS_IDENTIFIER_FORBIDDEN.default_severity,
             Severity::Error
         );
-        assert_eq!(HTTP3_SETTINGS_DUPLICATED.default_severity, Severity::Warn);
+        assert_eq!(HTTP3_SETTINGS_DUPLICATED.default_severity, Severity::Error);
         assert_eq!(
             HTTP3_SETTINGS_IDENTIFIER_DUPLICATED.default_severity,
-            Severity::Warn
+            Severity::Error
         );
     }
 

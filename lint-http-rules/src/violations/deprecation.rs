@@ -19,6 +19,7 @@
 // cite(RFC 9745 § 2): "The Deprecation HTTP response header field allows a server to communicate to a client application that the resource in the context of the message will be or has been deprecated."
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -71,8 +72,9 @@ defects! {
         id: "deprecation_malformed",
         title: "A Deprecation is not a Structured Field Date",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9745_2_1],
+        strength: Strength::Must,
     }
 
     /// A `Sunset` at or before the `Date` of the response carrying it.
@@ -99,6 +101,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_8594_3],
+        strength: Strength::Should,
     }
 
     /// A response whose `Sunset` names a time before its `Deprecation`.
@@ -121,7 +124,8 @@ defects! {
         id: "sunset_conflicting",
         title: "A Sunset names a time before the Deprecation beside it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9745_4],
+        strength: Strength::Must,
     }
 }

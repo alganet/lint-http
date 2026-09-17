@@ -32,6 +32,7 @@
 //! instead of at a format.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -64,8 +65,9 @@ defects! {
         id: "bws_forbidden",
         title: "Whitespace written where the grammar admits BWS",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_3],
+        strength: Strength::Must,
     }
 }
 

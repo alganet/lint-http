@@ -61,6 +61,7 @@
 //! used and once by the document that asked.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -155,6 +156,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9113_8_3_1, RFC_9114_4_3_1],
+        strength: Strength::Must,
     }
 
     /// A CONNECT's `:authority` carrying a userinfo subcomponent and its `@`.
@@ -225,6 +227,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_6],
+        strength: Strength::Must,
     }
 
     /// A CONNECT whose destination names a port number no transport has. `port`
@@ -260,6 +263,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_6],
+        strength: Strength::Must,
     }
 
     /// A CONNECT whose destination names a host and no port at all — no colon
@@ -284,6 +288,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_6],
+        strength: Strength::Must,
     }
 
     /// A CONNECT request with no host and port anywhere in it. The method asks a
@@ -328,6 +333,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9113_8_5, RFC_9114_4_4],
+        strength: Strength::Must,
     }
 
     /// A request whose scheme requires an authority and which carries none —
@@ -371,6 +377,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9114_4_3_1],
+        strength: Strength::Must,
     }
 
     /// A request that answered the requirement above with a field written and
@@ -409,6 +416,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9114_4_3_1],
+        strength: Strength::Must,
     }
 
     /// A request carrying both an `:authority` and a `Host` that name different
@@ -475,6 +483,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9114_4_3_1],
+        strength: Strength::Unstated,
     }
 }
 

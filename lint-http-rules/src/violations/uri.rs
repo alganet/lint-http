@@ -32,6 +32,7 @@ use crate::helpers::origin::OriginDefect;
 use crate::helpers::percent_encoding::PercentEncodingDefect;
 use crate::helpers::scheme::SchemeNameDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -145,8 +146,9 @@ defects! {
         id: "percent_encoding_digits_missing",
         title: "Percent-encoding stops before its two hexadecimal digits",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_2_1],
+        strength: Strength::Grammar,
     }
 
     /// Two characters after the `%` that are not both `HEXDIG` — a literal
@@ -157,8 +159,9 @@ defects! {
         id: "percent_encoding_malformed",
         title: "Percent-encoding is not two hexadecimal digits",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_2_1],
+        strength: Strength::Grammar,
     }
     /// A value whose scheme candidate is empty — the colon with nothing before
     /// it. `ALPHA *( … )` generates nothing empty, so this derives from no
@@ -169,8 +172,9 @@ defects! {
         id: "uri_scheme_empty",
         title: "URI scheme is empty",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_3_1],
+        strength: Strength::Grammar,
     }
 
     /// A scheme opening on something that is not a letter — a digit, most
@@ -181,8 +185,9 @@ defects! {
         id: "uri_scheme_leading_letter_missing",
         title: "URI scheme does not begin with a letter",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_3_1],
+        strength: Strength::Grammar,
     }
 
     /// A character after the first that the production does not admit: only
@@ -193,8 +198,9 @@ defects! {
         id: "uri_scheme_character_forbidden",
         title: "URI scheme holds a character outside letters, digits, '+', '-' and '.'",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_3_1],
+        strength: Strength::Grammar,
     }
     /// A host that opens an IP literal and never closes it. The `[` is what
     /// chooses that alternative, so there is no reading of the value in which
@@ -205,8 +211,9 @@ defects! {
         id: "uri_host_closing_bracket_missing",
         title: "Host opens an IP literal and never closes it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_3_2_2],
+        strength: Strength::Grammar,
     }
 
     /// Brackets around something that is neither an `IPv6address` nor an
@@ -219,8 +226,9 @@ defects! {
         id: "uri_host_ip_literal_malformed",
         title: "Host brackets something that is not an IP literal",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_3_2_2],
+        strength: Strength::Grammar,
     }
 
     /// An IPv6 address written with no brackets at all: `fe80::1`,
@@ -272,8 +280,9 @@ defects! {
         id: "uri_host_character_forbidden",
         title: "Host holds a character outside the registered-name alphabet",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_3_2_2],
+        strength: Strength::Grammar,
     }
 
     /// An `http` or `https` reference whose host identifier is empty — a `://`
@@ -312,6 +321,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_4_2_1, RFC_9110_4_2_2],
+        strength: Strength::Must,
     }
 
     /// A character in the port that is not a digit. There is no companion

@@ -27,6 +27,7 @@
 //! reported by the rules that read each value.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -93,6 +94,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9110_13_1_3, RFC_9110_13_1_4],
+        strength: Strength::Unstated,
     }
 
     /// An `If-Modified-Since` on a method that is neither `GET` nor `HEAD`.
@@ -114,6 +116,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_13_1_3],
+        strength: Strength::Unstated,
     }
 
     /// An `If-Modified-Since` naming a time later than the `Date` of the
@@ -210,8 +213,9 @@ defects! {
         id: "conditional_entity_tag_missing",
         title: "A revalidating request omits the entity tags it holds",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9111_4_3_1],
+        strength: Strength::Must,
     }
 
     /// A precondition naming a validator this exchange never provided: a

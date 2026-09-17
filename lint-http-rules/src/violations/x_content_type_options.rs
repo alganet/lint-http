@@ -16,6 +16,7 @@
 //! opt in, and did not.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -44,8 +45,9 @@ defects! {
         id: "x_content_type_options_invalid",
         title: "X-Content-Type-Options carries a value that is not nosniff",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[FETCH_3_6],
+        strength: Strength::Grammar,
     }
 
     /// A response that does not carry the field at all.

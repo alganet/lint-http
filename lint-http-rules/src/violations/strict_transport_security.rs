@@ -25,6 +25,7 @@
 //! this crate's problem.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -94,8 +95,9 @@ defects! {
         id: "strict_transport_security_max_age_missing",
         title: "The policy states no max-age",
         message: "Strict-Transport-Security header missing required 'max-age' directive",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6797_6_1_1],
+        strength: Strength::Must,
     }
 
     /// One directive written twice in one field. § 6.1 admits no such thing,
@@ -108,8 +110,9 @@ defects! {
         id: "strict_transport_security_directive_duplicated",
         title: "A directive is written more than once in one policy",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6797_6_1],
+        strength: Strength::Must,
     }
 
     /// A directive whose definition requires a value, written without one —
@@ -123,8 +126,9 @@ defects! {
         id: "strict_transport_security_directive_value_missing",
         title: "A directive that requires a value carries none",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6797_6_1_1],
+        strength: Strength::Must,
     }
 
     /// A valueless directive carrying a value: `includeSubDomains=1`, or a
@@ -144,6 +148,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6797_6_1_2],
+        strength: Strength::Unstated,
     }
 }
 

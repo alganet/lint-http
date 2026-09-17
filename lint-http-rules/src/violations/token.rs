@@ -27,6 +27,7 @@
 use crate::helpers::media_type::MediaTypeDefect;
 use crate::helpers::word::{TokenBwsWordDefect, WordDefect};
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::parameter::{PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY};
 use crate::violations::quoted_string::quoted_string_defect;
@@ -60,6 +61,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_2],
+        strength: Strength::Grammar,
     }
 
     /// A token with no characters in it: the `=` of a parameter with nothing
@@ -77,8 +79,9 @@ defects! {
         id: "token_empty",
         title: "Token is written with no characters in it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_2],
+        strength: Strength::Grammar,
     }
 
     /// A visible octet outside `tchar` — one of the delimiters § 5.6.2 names,

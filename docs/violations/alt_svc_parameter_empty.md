@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.alt_svc_parameter_empty]
 # Alt-Svc writes a semicolon with no parameter behind it
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

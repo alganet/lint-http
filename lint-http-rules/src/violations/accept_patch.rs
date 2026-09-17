@@ -30,6 +30,7 @@
 //! to change.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -80,6 +81,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_5789_2_2, RFC_5789_3_1],
+        strength: Strength::Should,
     }
     /// A `PATCH` whose `Content-Type` names a format no `Accept-Patch` for this
     /// resource has advertised.

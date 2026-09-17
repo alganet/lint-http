@@ -21,6 +21,7 @@
 //! choose between them.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -55,8 +56,9 @@ defects! {
         id: "ext_value_malformed",
         title: "An extended parameter value is no ext-value",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8187_3_2_1],
+        strength: Strength::Grammar,
     }
 }
 

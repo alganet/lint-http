@@ -378,7 +378,7 @@ mod tests {
     #[case(
         "en_US",
         "language_tag_character_forbidden",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     // HTAB rather than a stricter control octet: `HeaderValue` refuses to hold
     // one at all, and a tab is `is_whitespace` on the same branch.
@@ -396,12 +396,12 @@ mod tests {
     #[case(
         "1en",
         "language_tag_leading_letter_missing",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     #[case(
         "en-toolongsubtag",
         "language_tag_subtag_length_invalid",
-        crate::lint::Severity::Warn
+        crate::lint::Severity::Error
     )]
     fn each_defect_reports_under_its_own_name(
         #[case] tag: &str,

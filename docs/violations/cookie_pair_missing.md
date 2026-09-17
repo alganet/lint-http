@@ -14,7 +14,9 @@ Set-Cookie header missing cookie-pair
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+A **`SHOULD`** binding the sender of the message — advice the specification gives in its own voice and the sender declined — so a finding here reports at `warn` by default.
+
+**It departs from that level.** RFC 6265 writes its whole grammar as a SHOULD NOT, so every defect in a `Set-Cookie` inherits `warn` from one sentence. What is lost here is not an attribute but the cookie: a server that wrote this believes it stored state and stored none, and no reading of the line recovers what the pair would have said.
 
 ## Specifications
 
@@ -25,6 +27,8 @@ Set-Cookie header missing cookie-pair
 ```toml
 [violations.cookie_pair_missing]
 # Set-Cookie carries no cookie-pair
+# SHOULD obliges the sender, so this defaults to warn.
+# Departs from that: RFC 6265 writes its whole grammar as a SHOULD NOT, so every defect in a `Set-Cookie` inherits `warn` from one sentence. What is lost here is not an attribute but the cookie: a server that wrote this believes it stored state and stored none, and no reading of the line recovers what the pair would have said.
 severity = "error"
 ```
 

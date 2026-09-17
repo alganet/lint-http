@@ -1142,7 +1142,7 @@ mod tests {
             vec![("upgrade", "websocket"), ("connection", "Upgrade")],
         );
         let found = run(&tx).unwrap();
-        assert_eq!(found.severity, crate::lint::Severity::Warn);
+        assert_eq!(found.severity, crate::lint::Severity::Error);
         assert_eq!(found.violation, "status_101_forbidden");
     }
 

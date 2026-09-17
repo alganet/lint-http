@@ -31,6 +31,7 @@
 //! report.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -87,7 +88,7 @@ defects! {
         id: "content_security_policy_empty",
         title: "Content-Security-Policy is written with no policy in it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[CSP3_2_2],
     }
 
@@ -116,8 +117,9 @@ defects! {
         id: "content_security_policy_directive_empty",
         title: "A policy opens with a semicolon and names no first directive",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Error,
         spec: &[CSP3_2_2],
+        strength: Strength::Grammar,
     }
 
     /// A character in a `directive-name` that the production does not admit:
@@ -139,8 +141,9 @@ defects! {
         id: "content_security_policy_directive_name_character_forbidden",
         title: "A CSP directive name holds a character the production does not admit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[CSP3_2_3],
+        strength: Strength::Grammar,
     }
 
     /// A nonce or hash source written without the single quotes the production
@@ -165,8 +168,9 @@ defects! {
         id: "content_security_policy_source_delimiter_missing",
         title: "A nonce or hash source is written without its single quotes",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[CSP3_2_3_1],
+        strength: Strength::Grammar,
     }
 
     /// A quoted source expression with nothing between the quotes: `''`.
@@ -184,8 +188,9 @@ defects! {
         id: "content_security_policy_source_empty",
         title: "A quoted source expression is written with nothing in it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[CSP3_2_3_1],
+        strength: Strength::Grammar,
     }
 
     /// A nonce or hash source naming no value: `'nonce-'`, `'sha256-'`,
@@ -208,8 +213,9 @@ defects! {
         id: "content_security_policy_base64_value_empty",
         title: "A nonce or hash source names no value",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[CSP3_2_3_1],
+        strength: Strength::Grammar,
     }
 
     /// A nonce whose value holds a character `base64-value` does not admit —
@@ -227,8 +233,9 @@ defects! {
         id: "content_security_policy_base64_value_malformed",
         title: "A nonce value holds a character base64-value does not admit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[CSP3_2_3_1],
+        strength: Strength::Grammar,
     }
 
     /// A response whose `X-Frame-Options` and whose `frame-ancestors` say
@@ -269,14 +276,19 @@ defects! {
 mod tests {
     use super::*;
 
-    /// The ranking is what the rule's one severity could not express: a header
-    /// enforcing nothing at all, a directive that will be ignored, and a stray
-    /// semicolon are three different amounts of security policy.
+    /// The three used to be three different amounts of security policy, and a
+    /// stray semicolon was the least of them.
+    ///
+    /// `serialized-policy` derives neither an empty header nor an empty first
+    /// directive, so both are values the grammar does not generate and both
+    /// carry the level that reading carries. "How much policy is left" is a
+    /// consequence, and the entries still say it — in their titles, where a
+    /// reader triaging a report is looking.
     #[test]
-    fn a_policy_that_enforces_nothing_outranks_a_stray_semicolon() {
-        assert!(
-            CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY.default_severity
-                < CONTENT_SECURITY_POLICY_EMPTY.default_severity
+    fn a_policy_that_enforces_nothing_ranks_with_the_stray_semicolon() {
+        assert_eq!(
+            CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY.default_severity,
+            CONTENT_SECURITY_POLICY_EMPTY.default_severity,
         );
         assert_eq!(
             CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN.default_severity,

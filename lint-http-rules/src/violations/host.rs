@@ -29,6 +29,7 @@
 //! a def whose sections one rule states, and these are stated one per rule.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -75,6 +76,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_2],
+        strength: Strength::Must,
     }
 
     /// A `Host` field value carrying a userinfo subcomponent and its `@`.
@@ -100,6 +102,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9112_3_2],
+        strength: Strength::Must,
     }
 }
 

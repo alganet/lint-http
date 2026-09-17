@@ -73,6 +73,7 @@
 //! conversation.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 // The sentence a `417` leaves a client with, written in the field's section
 // rather than the status code's — defined where the field's entries are, and
@@ -327,8 +328,9 @@ defects! {
         id: "status_206_multipart_forbidden",
         title: "A multipart 206 answers a request that asked for a single range",
         message: "multipart/byteranges 206 response sent to a request for a single range",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_15_3_7_2],
+        strength: Strength::Must,
     }
 
     /// A `101` carried by a version that has no upgrade mechanism to answer.
@@ -371,6 +373,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5],
+        strength: Strength::Unstated,
     }
 
     /// A `101` switching to a protocol the client did not name. The version has
@@ -406,6 +409,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_8],
+        strength: Strength::Must,
     }
 
     /// HTTP spoken on a connection a `101` already handed over. The status code
@@ -475,8 +479,9 @@ defects! {
         id: "status_101_forbidden",
         title: "A 101 completes a WebSocket handshake the server had to refuse",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6455_4_2_1],
+        strength: Strength::Must,
     }
 
     /// A request carrying a `100-continue` expectation after a `417
@@ -510,6 +515,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_10_1_1],
+        strength: Strength::Should,
     }
 
     /// A 304 carrying representation metadata beyond the fields it is required
@@ -536,6 +542,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_4_5],
+        strength: Strength::Should,
     }
 
     /// Representation metadata on a response that cannot carry content at all —
@@ -633,8 +640,9 @@ defects! {
         id: "status_401_challenge_missing",
         title: "A 401 presents no challenge to authenticate against",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_15_5_2],
+        strength: Strength::Must,
     }
 
     /// A client answering a `401` with the credentials a `401` has already
@@ -671,6 +679,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_5_2],
+        strength: Strength::Unstated,
     }
 
     /// A `407 (Proxy Authentication Required)` that presents no challenge: no
@@ -695,8 +704,9 @@ defects! {
         id: "status_407_challenge_missing",
         title: "A 407 presents no challenge to authenticate against",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_15_5_8],
+        strength: Strength::Must,
     }
     /// A `301` answering a `POST`, with a `Location` for the user agent to
     /// follow.
@@ -726,6 +736,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_4_2],
+        strength: Strength::Unstated,
     }
 
     /// A `302` answering a `POST`, with a `Location` for the user agent to
@@ -743,6 +754,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_4_3],
+        strength: Strength::Unstated,
     }
 
     /// A status code outside 100..599.
@@ -772,6 +784,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15],
+        strength: Strength::Unstated,
     }
 
     /// A `405` carrying no `Allow` header field.
@@ -794,8 +807,9 @@ defects! {
         id: "status_405_allow_missing",
         title: "A 405 answers without the Allow field it must generate",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_15_5_6],
+        strength: Strength::Must,
     }
 
     /// A `405` whose `Allow` names the very method the response refuses.
@@ -921,6 +935,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_8_6],
+        strength: Strength::Must,
     }
 
     /// A `Transfer-Encoding` on a `1xx` or a `204` over a version that has the
@@ -941,6 +956,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9112_6_1],
+        strength: Strength::Must,
     }
 
     /// A `1xx` answering an HTTP/1.0 request.
@@ -958,8 +974,9 @@ defects! {
         id: "status_1xx_forbidden",
         title: "An interim response answers a client whose version has none",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_15_2],
+        strength: Strength::Must,
     }
 
     /// A `103 (Early Hints)` recorded as *the* response to a request.
@@ -1085,20 +1102,28 @@ mod tests {
         assert!(STATUS_101_UNSOLICITED.message.is_empty());
     }
 
-    /// The level is decided by whether the exchange can continue, and not by
-    /// which entries quote a prohibition. Two of the five do; one of those two
-    /// hands the connection to a protocol the client cannot speak, and it is the
-    /// only `error` here.
+    /// The level used to be decided by whether the exchange can continue, and
+    /// two of these five quote a prohibition while only one was an `error`.
+    ///
+    /// Both of them are now, and the three that are not are the three whose
+    /// sentence says nothing to the sender: an `_unsolicited` status is one
+    /// whose *definition* is written in terms of a request that did not
+    /// happen — no sentence prohibits the code — and `status_101_ignored`
+    /// quotes a server told to ignore an `Upgrade`, which is an instruction to
+    /// the recipient and a fault of nobody's.
     #[test]
-    fn the_entry_that_ends_the_conversation_is_the_only_error() {
+    fn the_two_entries_quoting_a_prohibition_are_the_two_errors() {
         assert_eq!(
             STATUS_101_PROTOCOL_FORBIDDEN.default_severity,
+            Severity::Error
+        );
+        assert_eq!(
+            STATUS_206_MULTIPART_FORBIDDEN.default_severity,
             Severity::Error
         );
         for def in [
             &STATUS_206_UNSOLICITED,
             &STATUS_416_UNSOLICITED,
-            &STATUS_206_MULTIPART_FORBIDDEN,
             &STATUS_101_UNSOLICITED,
             &STATUS_101_IGNORED,
         ] {

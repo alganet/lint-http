@@ -148,6 +148,12 @@ mod tests {
     /// Three ways a name identifies nothing anyone will answer to, and one
     /// rank between them — including the `_obsolete` one, which is where this
     /// subject parts company with the catalogue's other retired spellings.
+    ///
+    /// **The comparison against `http_date_obsolete` used to run the other
+    /// way**, and what turned it over is the only thing that should: that entry
+    /// quotes a sentence telling a sender in as many words which format to
+    /// generate, and RFC 7301 tells a sender nothing at all about a draft
+    /// token. A retired spelling is not a rank; a broken MUST is.
     #[test]
     fn every_name_nobody_answers_to_ranks_the_same() {
         for def in [
@@ -158,8 +164,8 @@ mod tests {
             assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
         }
         assert!(
-            crate::violations::http_date::HTTP_DATE_OBSOLETE.default_severity
-                < ALPN_PROTOCOL_NAME_OBSOLETE.default_severity
+            ALPN_PROTOCOL_NAME_OBSOLETE.default_severity
+                < crate::violations::http_date::HTTP_DATE_OBSOLETE.default_severity
         );
     }
 }

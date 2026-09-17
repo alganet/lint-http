@@ -26,6 +26,7 @@
 // cite(RFC 8615 § 1): "Furthermore, defining well-known locations usurps the origin's control over its own URI space [RFC7320]."
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -126,6 +127,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_8615_3],
+        strength: Strength::Unstated,
     }
 
     /// A registered name holding an octet `pchar` does not admit.
@@ -146,6 +148,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_3986_3_3],
+        strength: Strength::Unstated,
     }
 }
 

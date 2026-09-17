@@ -33,6 +33,7 @@
 
 use crate::helpers::mailbox::MailboxSyntaxDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -113,8 +114,9 @@ defects! {
         id: "mailbox_empty",
         title: "Mailbox field is present with an empty value",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4_1],
+        strength: Strength::Grammar,
     }
 
     /// A comma outside every `quoted-string`, `comment` and `angle-addr`. The
@@ -128,8 +130,9 @@ defects! {
         id: "mailbox_list_separator_forbidden",
         title: "Mailbox holds a comma where one address goes",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4],
+        strength: Strength::Grammar,
     }
 
     /// An octet inside a parenthesised `comment` that `ctext` does not admit.
@@ -139,8 +142,9 @@ defects! {
         id: "mailbox_comment_character_forbidden",
         title: "Mailbox comment holds a character outside ctext",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_2_2],
+        strength: Strength::Grammar,
     }
 
     /// A `comment` opened and never closed. The count is the production and
@@ -152,8 +156,9 @@ defects! {
         id: "mailbox_comment_terminator_missing",
         title: "Mailbox comment is never closed",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_2_2],
+        strength: Strength::Grammar,
     }
 
     /// An octet between two DQUOTEs that `qtext` does not admit — and that no
@@ -164,8 +169,9 @@ defects! {
         id: "mailbox_quoted_string_character_forbidden",
         title: "Mailbox quoted-string holds a character outside qtext",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_2_4],
+        strength: Strength::Grammar,
     }
 
     /// A `quoted-string` opened and never closed — the closing DQUOTE is not
@@ -176,8 +182,9 @@ defects! {
         id: "mailbox_quoted_string_terminator_missing",
         title: "Mailbox quoted-string is never closed",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_2_4],
+        strength: Strength::Grammar,
     }
 
     /// A backslash quoting nothing, or quoting an octet that is neither
@@ -189,8 +196,9 @@ defects! {
         id: "mailbox_quoted_pair_malformed",
         title: "Mailbox escape is not a quoted-pair",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_2_1],
+        strength: Strength::Grammar,
     }
 
     /// An octet in a `dot-atom` — the `local-part` or the `domain` — that
@@ -204,8 +212,9 @@ defects! {
         id: "mailbox_atom_character_forbidden",
         title: "Mailbox atom holds a character outside atext",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_2_3],
+        strength: Strength::Grammar,
     }
 
     /// A `.` with no `atext` after it: a trailing dot, or two of them in a row.
@@ -217,8 +226,9 @@ defects! {
         id: "mailbox_atom_empty",
         title: "Mailbox atom is empty beside a dot",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_2_3],
+        strength: Strength::Grammar,
     }
 
     /// The value ends where the `addr-spec` has its `local-part` — the half
@@ -230,8 +240,9 @@ defects! {
         id: "mailbox_local_part_missing",
         title: "Mailbox has no local-part",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4_1],
+        strength: Strength::Grammar,
     }
 
     /// No `"@"` where the `addr-spec` writes one — the defect a value with no
@@ -255,8 +266,9 @@ defects! {
         id: "mailbox_domain_missing",
         title: "Mailbox has no domain",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4_1],
+        strength: Strength::Grammar,
     }
 
     /// An octet inside a bracketed `domain-literal` that `dtext` does not
@@ -269,8 +281,9 @@ defects! {
         id: "mailbox_domain_literal_character_forbidden",
         title: "Mailbox domain-literal holds a character outside dtext",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4_1],
+        strength: Strength::Grammar,
     }
 
     /// A `domain-literal` opened and never closed: the `]` is missing, so the
@@ -281,8 +294,9 @@ defects! {
         id: "mailbox_domain_literal_terminator_missing",
         title: "Mailbox domain-literal is never closed",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4_1],
+        strength: Strength::Grammar,
     }
 
     /// Something between the display-name and the `angle-addr` that no `word`
@@ -294,8 +308,9 @@ defects! {
         id: "mailbox_angle_addr_missing",
         title: "Mailbox has no angle-addr where the name-addr wants one",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4],
+        strength: Strength::Grammar,
     }
 
     /// An `angle-addr` opened and never closed — the `>` is missing, or
@@ -306,8 +321,9 @@ defects! {
         id: "mailbox_angle_addr_terminator_missing",
         title: "Mailbox angle-addr is never closed",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4],
+        strength: Strength::Grammar,
     }
 
     /// A display-name that was opened and holds no `word` at all. The
@@ -320,8 +336,9 @@ defects! {
         id: "mailbox_display_name_word_missing",
         title: "Mailbox display-name holds no word",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_2_5],
+        strength: Strength::Grammar,
     }
 
     /// A complete `mailbox` with something after it that is not a comma. One
@@ -333,8 +350,9 @@ defects! {
         id: "mailbox_trailing_character_forbidden",
         title: "Mailbox is followed by something else",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4],
+        strength: Strength::Grammar,
     }
 }
 

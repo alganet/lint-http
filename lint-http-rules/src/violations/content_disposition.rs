@@ -26,6 +26,7 @@
 //! changes.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -122,8 +123,9 @@ defects! {
         id: "content_disposition_name_missing",
         title: "A form-data Content-Disposition names no form field",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7578_4_2],
+        strength: Strength::Must,
     }
 
     /// A `name` parameter written as a pair of DQUOTEs around nothing:
@@ -154,7 +156,7 @@ defects! {
         id: "content_disposition_name_empty",
         title: "A form-data Content-Disposition names an empty form field",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[],
     }
 }

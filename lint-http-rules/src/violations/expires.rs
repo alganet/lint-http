@@ -20,6 +20,7 @@
 //! nothing an error.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -66,6 +67,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_5_3],
+        strength: Strength::Unstated,
     }
 }
 

@@ -24,6 +24,7 @@
 
 use crate::helpers::product::{Part, ProductDefect};
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::comment::comment_defect;
 use crate::violations::token::{token_character, TOKEN_EMPTY};
@@ -73,8 +74,9 @@ defects! {
         id: "product_missing",
         title: "A product list opens with something that is not a product",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_A],
+        strength: Strength::Grammar,
     }
 
     /// Two elements with nothing between them: `nginx/1.0(Ubuntu)`, or
@@ -103,8 +105,9 @@ defects! {
         id: "product_separator_missing",
         title: "A product list writes no whitespace between two elements",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_3],
+        strength: Strength::Grammar,
     }
 }
 

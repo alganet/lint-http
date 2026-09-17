@@ -22,6 +22,7 @@
 //! the correctness of what comes back.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -54,8 +55,9 @@ defects! {
         id: "if_range_forbidden",
         title: "If-Range is sent in a request with no Range",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_13_1_5],
+        strength: Strength::Must,
     }
 
     /// An `If-Range` carrying a weak entity-tag: `W/"abc"`.
@@ -79,8 +81,9 @@ defects! {
         id: "if_range_validator_weak_forbidden",
         title: "If-Range carries a weak entity-tag",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_13_1_5],
+        strength: Strength::Must,
     }
 
     /// An `If-Range` carrying an `HTTP-date` for a representation the client
@@ -132,8 +135,9 @@ defects! {
         id: "if_range_empty",
         title: "If-Range is written with no validator in it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_13_1_5],
+        strength: Strength::Grammar,
     }
 }
 
@@ -153,7 +157,7 @@ mod tests {
             &IF_RANGE_VALIDATOR_WEAK_FORBIDDEN,
             &IF_RANGE_EMPTY,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
     }
 }

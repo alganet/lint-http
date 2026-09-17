@@ -31,6 +31,7 @@
 
 use crate::helpers::auth::ChallengeDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::quoted_string::quoted_string_defect;
@@ -72,8 +73,9 @@ defects! {
         id: "challenge_empty",
         title: "Authentication challenge is empty",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_3],
+        strength: Strength::Grammar,
     }
 
     /// An empty member of the field's `#challenge` list — a doubled comma, or
@@ -86,8 +88,9 @@ defects! {
         id: "challenge_member_empty",
         title: "Authentication challenge list has an empty member",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_6_1],
+        strength: Strength::Grammar,
     }
 
     /// An `auth-param` where the list has not had an `auth-scheme` yet. The
@@ -99,8 +102,9 @@ defects! {
         id: "challenge_scheme_missing",
         title: "Authentication parameter arrives before any scheme",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_3],
+        strength: Strength::Grammar,
     }
 
     /// A single bare word after the scheme: `token68` by the grammar, and an
@@ -125,8 +129,9 @@ defects! {
         id: "challenge_parameter_empty",
         title: "Authentication challenge has an empty parameter",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_3],
+        strength: Strength::Grammar,
     }
 
     /// A parameter whose name is empty — `=x`, which has a value and nothing
@@ -137,8 +142,9 @@ defects! {
         id: "challenge_parameter_name_empty",
         title: "Authentication parameter has an empty name",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 
     /// An `auth-param` with no value. The production writes the `"="` and both
@@ -150,8 +156,9 @@ defects! {
         id: "challenge_parameter_value_missing",
         title: "Authentication parameter has no value",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 
     /// A non-`tchar` octet in an `auth-param` name. The same complaint as
@@ -164,8 +171,9 @@ defects! {
         id: "challenge_parameter_name_character_forbidden",
         title: "Authentication parameter name holds a character outside token",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 
     /// A non-`tchar` octet in an unquoted `auth-param` value. The value has a
@@ -178,8 +186,9 @@ defects! {
         id: "challenge_parameter_value_character_forbidden",
         title: "Authentication parameter value holds a character outside token",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
+        strength: Strength::Grammar,
     }
 
     /// One `realm` value carried by challenges of two different auth-schemes in
@@ -309,6 +318,6 @@ mod tests {
     fn the_heuristic_is_the_one_without_a_spec() {
         assert!(CHALLENGE_TOKEN68_INVALID.spec.is_empty());
         assert_eq!(CHALLENGE_TOKEN68_INVALID.default_severity, Severity::Info);
-        assert_eq!(CHALLENGE_EMPTY.default_severity, Severity::Warn);
+        assert_eq!(CHALLENGE_EMPTY.default_severity, Severity::Error);
     }
 }

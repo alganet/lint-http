@@ -882,6 +882,7 @@ severity = "warn"
 
 [violations.accept_patch_missing]
 # A response that should name the patch formats names none
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.accept_ranges_ignored]
@@ -938,11 +939,13 @@ severity = "warn"
 
 [violations.alt_svc_alternative_equals_missing]
 # Alt-Svc alternative has no '=' between its protocol-id and its alt-authority
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.alt_svc_authority_character_forbidden]
 # Alt-Svc alt-authority holds an octet no production of it admits
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.alt_svc_clear_conflicting]
 # Alt-Svc carries the clear keyword beside an alternative service
@@ -950,7 +953,8 @@ severity = "error"
 
 [violations.alt_svc_equals_whitespace_forbidden]
 # Alt-Svc writes whitespace beside an '=' its grammar prints bare
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.alt_svc_ma_invalid]
 # Alt-Svc states a freshness lifetime that cannot be what was meant
@@ -958,15 +962,17 @@ severity = "warn"
 
 [violations.alt_svc_parameter_empty]
 # Alt-Svc writes a semicolon with no parameter behind it
-severity = "warn"
+severity = "error"
 
 [violations.alt_svc_parameter_equals_missing]
 # Alt-Svc parameter has no '=' and no value
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.alt_svc_parameter_value_empty]
 # Alt-Svc parameter is written with no value after its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.alt_svc_persist_invalid]
 # Alt-Svc sets persist to a value the parameter does not define
@@ -990,7 +996,8 @@ severity = "warn"
 
 [violations.auth_param_equals_missing]
 # An authentication parameter is written without its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.auth_scheme_character_forbidden]
 # Authentication scheme holds a character outside token
@@ -1006,10 +1013,12 @@ severity = "error"
 
 [violations.authority_empty]
 # A request's authority field is present and empty
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.authority_missing]
 # A request that owes an authority names none
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.authority_tunnel_host_empty]
@@ -1018,18 +1027,22 @@ severity = "error"
 
 [violations.authority_tunnel_missing]
 # A CONNECT names no host and port to open a tunnel to
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.authority_tunnel_port_empty]
 # A CONNECT's destination ends at the colon with no port
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.authority_tunnel_port_invalid]
 # A CONNECT's destination names a port no transport has
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.authority_tunnel_port_missing]
 # A CONNECT's destination names no port
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.authority_tunnel_userinfo_forbidden]
@@ -1038,6 +1051,7 @@ severity = "error"
 
 [violations.authority_userinfo_forbidden]
 # An :authority carries the deprecated userinfo subcomponent
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.authority_value_conflicting]
@@ -1046,22 +1060,26 @@ severity = "warn"
 
 [violations.base64_character_forbidden]
 # Value holds an octet outside the base64 alphabet
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.base64_malformed]
 # Value is not a base64 encoding
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.base64_pad_bits_invalid]
 # Final base64 symbol carries bits a conforming encoder zeroes
-severity = "info"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.base64_quantum_malformed]
 # Value is not a whole number of base64 groups
-severity = "warn"
+severity = "error"
 
 [violations.basic_credentials_control_character_forbidden]
 # Basic credentials hold a control character
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.basic_credentials_separator_missing]
@@ -1086,7 +1104,8 @@ severity = "warn"
 
 [violations.bws_forbidden]
 # Whitespace written where the grammar admits BWS
-severity = "info"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.cache_control_freshness_conflicting]
 # A Cache-Control freshness directive is given more than one value
@@ -1098,7 +1117,8 @@ severity = "info"
 
 [violations.cache_control_immutable_ignored]
 # A still-fresh immutable response is revalidated anyway
-severity = "info"
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
 
 [violations.cache_control_immutable_redundant]
 # immutable sits on a response with no freshness lifetime
@@ -1110,7 +1130,8 @@ severity = "info"
 
 [violations.cache_control_must_revalidate_ignored]
 # A stale must-revalidate response is reused without validation
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.cache_control_no_cache_argument_empty]
 # Cache-Control no-cache is qualified by no field name
@@ -1118,7 +1139,8 @@ severity = "info"
 
 [violations.cache_control_no_cache_ignored]
 # A no-cache response is reused without being revalidated
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.cache_control_no_store_ignored]
 # A validator from a no-store response comes back on a later request
@@ -1150,31 +1172,38 @@ severity = "warn"
 
 [violations.challenge_empty]
 # Authentication challenge is empty
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.challenge_member_empty]
 # Authentication challenge list has an empty member
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.challenge_parameter_empty]
 # Authentication challenge has an empty parameter
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.challenge_parameter_name_character_forbidden]
 # Authentication parameter name holds a character outside token
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.challenge_parameter_name_empty]
 # Authentication parameter has an empty name
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.challenge_parameter_value_character_forbidden]
 # Authentication parameter value holds a character outside token
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.challenge_parameter_value_missing]
 # Authentication parameter has no value
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.challenge_realm_ambiguous]
 # One realm is advertised by two authentication schemes
@@ -1182,7 +1211,8 @@ severity = "warn"
 
 [violations.challenge_scheme_missing]
 # Authentication parameter arrives before any scheme
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.challenge_token68_invalid]
 # Authentication token68 is indistinguishable from a parameter
@@ -1202,11 +1232,13 @@ severity = "info"
 
 [violations.comment_character_forbidden]
 # Comment holds a character ctext does not admit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.comment_delimiter_missing]
 # Comment is never closed
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.conditional_date_conflicting]
 # A date precondition names a time after the request's own Date
@@ -1226,7 +1258,8 @@ severity = "warn"
 
 [violations.conditional_entity_tag_missing]
 # A revalidating request omits the entity tags it holds
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.conditional_missing]
 # A repeat request declines a validator the server provided
@@ -1246,10 +1279,12 @@ severity = "info"
 
 [violations.connection_option_forbidden]
 # A connection-option names a field the whole chain must read
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_coding_identity_forbidden]
 # The identity coding is named where a coding belongs
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.content_coding_redundant]
@@ -1266,11 +1301,12 @@ severity = "warn"
 
 [violations.content_disposition_name_empty]
 # A form-data Content-Disposition names an empty form field
-severity = "warn"
+severity = "error"
 
 [violations.content_disposition_name_missing]
 # A form-data Content-Disposition names no form field
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_disposition_parameter_duplicated]
 # Content-Disposition names one parameter twice
@@ -1282,6 +1318,7 @@ severity = "info"
 
 [violations.content_length_character_forbidden]
 # Content-Length value holds an octet DIGIT does not admit
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.content_length_conflicting]
@@ -1290,14 +1327,17 @@ severity = "error"
 
 [violations.content_length_empty]
 # Content-Length declares no length
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.content_length_forbidden]
 # Content-Length is sent in a message that is transfer-coded
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.content_length_members_conflicting]
 # Content-Length is declared twice with different numbers
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.content_length_numeral_invalid]
@@ -1330,11 +1370,13 @@ severity = "error"
 
 [violations.content_range_empty]
 # Content-Range is empty
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_range_forbidden]
 # Content-Range is written in the header section of a multipart 206
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_range_form_invalid]
 # Content-Range uses the form belonging to the other status code
@@ -1342,7 +1384,8 @@ severity = "warn"
 
 [violations.content_range_incl_range_malformed]
 # Content-Range range is not first-pos '-' last-pos
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_range_length_conflicting]
 # Content-Range describes a range that is not the declared Content-Length
@@ -1358,7 +1401,8 @@ severity = "warn"
 
 [violations.content_range_numeral_malformed]
 # Content-Range numeral is not 1*DIGIT
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_range_positions_conflicting]
 # Content-Range first-pos is greater than its last-pos
@@ -1366,15 +1410,18 @@ severity = "error"
 
 [violations.content_range_slash_missing]
 # Content-Range has no '/'
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_range_spec_missing]
 # Content-Range has no range after its unit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_range_spec_whitespace_forbidden]
 # Content-Range holds whitespace after its single space
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_range_unit_malformed]
 # Content-Range unit is not a token
@@ -1382,27 +1429,32 @@ severity = "warn"
 
 [violations.content_range_unsatisfied_range_malformed]
 # Content-Range writes something other than '*' before its '/'
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_security_policy_base64_value_empty]
 # A nonce or hash source names no value
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_security_policy_base64_value_malformed]
 # A nonce value holds a character base64-value does not admit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_security_policy_directive_empty]
 # A policy opens with a semicolon and names no first directive
-severity = "info"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_security_policy_directive_name_character_forbidden]
 # A CSP directive name holds a character the production does not admit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_security_policy_empty]
 # Content-Security-Policy is written with no policy in it
-severity = "warn"
+severity = "error"
 
 [violations.content_security_policy_frame_ancestors_conflicting]
 # frame-ancestors and X-Frame-Options state different framing policies
@@ -1410,11 +1462,13 @@ severity = "warn"
 
 [violations.content_security_policy_source_delimiter_missing]
 # A nonce or hash source is written without its single quotes
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_security_policy_source_empty]
 # A quoted source expression is written with nothing in it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_transfer_encoding_forbidden]
 # A MIME field HTTP does not use survived into an HTTP message
@@ -1426,6 +1480,7 @@ severity = "info"
 
 [violations.content_type_missing]
 # A message carries content and does not say what it is
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.cookie_domain_empty]
@@ -1450,10 +1505,12 @@ severity = "warn"
 
 [violations.cookie_expires_missing]
 # Set-Cookie Expires attribute carries no value
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.cookie_flag_value_forbidden]
 # Set-Cookie writes a value on a flag attribute
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.cookie_max_age_malformed]
@@ -1462,14 +1519,19 @@ severity = "warn"
 
 [violations.cookie_max_age_missing]
 # Set-Cookie Max-Age attribute carries no value
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.cookie_pair_missing]
 # Set-Cookie carries no cookie-pair
+# SHOULD obliges the sender, so this defaults to warn.
+# Departs from that: RFC 6265 writes its whole grammar as a SHOULD NOT, so every defect in a `Set-Cookie` inherits `warn` from one sentence. What is lost here is not an attribute but the cookie: a server that wrote this believes it stored state and stored none, and no reading of the line recovers what the pair would have said.
 severity = "error"
 
 [violations.cookie_path_control_character_forbidden]
 # Set-Cookie Path attribute holds a control character
+# SHOULD obliges the sender, so this defaults to warn.
+# Departs from that: RFC 6265 states its own grammar as a SHOULD NOT for historical reasons, and says in the same section that it is stricter than what a user agent will accept. A control octet in a `Path` is a hazard whatever the keyword: it is what smuggles a header boundary past a parser that splits on one, and no deployment wants it at `warn`.
 severity = "error"
 
 [violations.cookie_path_empty]
@@ -1486,6 +1548,7 @@ severity = "warn"
 
 [violations.cookie_path_non_ascii_character_forbidden]
 # Set-Cookie Path attribute holds a raw non-ASCII character
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.cookie_path_whitespace_invalid]
@@ -1498,10 +1561,12 @@ severity = "info"
 
 [violations.cookie_same_site_invalid]
 # Set-Cookie SameSite names no policy the grammar defines
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.cookie_same_site_missing]
 # Set-Cookie SameSite attribute carries no value
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.cookie_scope_ignored]
@@ -1522,11 +1587,13 @@ severity = "info"
 
 [violations.credentials_control_character_forbidden]
 # Credentials hold a control character
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.credentials_empty]
 # Credentials are empty
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.credentials_missing]
 # Credentials are absent after the scheme
@@ -1546,19 +1613,23 @@ severity = "warn"
 
 [violations.cross_origin_resource_policy_invalid]
 # Cross-Origin-Resource-Policy names no resource policy
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.delta_seconds_character_forbidden]
 # A time in seconds holds an octet DIGIT does not admit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.delta_seconds_empty]
 # A time in seconds is stated with no digits
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.deprecation_malformed]
 # A Deprecation is not a Structured Field Date
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.digest_credentials_challenge_missing]
 # Digest credentials name a nonce no observed challenge offered
@@ -1570,7 +1641,8 @@ severity = "warn"
 
 [violations.digest_credentials_nc_malformed]
 # A Digest nonce-count is not eight hexadecimal digits
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.digest_credentials_opaque_conflicting]
 # Digest credentials do not return the opaque the challenge supplied
@@ -1586,11 +1658,13 @@ severity = "warn"
 
 [violations.digest_credentials_quoting_invalid]
 # A Digest parameter is written in the syntax its definition refuses
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.digest_equals_missing]
 # Digest member is written without its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.digest_field_obsolete]
 # Digest or Want-Digest is a field RFC 9530 retired
@@ -1646,7 +1720,8 @@ severity = "info"
 
 [violations.early_data_forbidden]
 # Early-Data appears where the section forbids it
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.early_data_invalid]
 # Early-Data carries a value other than 1
@@ -1654,19 +1729,23 @@ severity = "info"
 
 [violations.early_data_method_forbidden]
 # A request in early data uses a method whose safety is not known
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.etag_character_forbidden]
 # Entity-tag holds a character etagc does not admit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.etag_delimiter_missing]
 # Entity-tag is not quoted
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.etag_weak_indicator_invalid]
 # Weakness indicator is not written W/
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.etag_wildcard_forbidden]
 # An ETag carries the wildcard the conditional fields take
@@ -1674,7 +1753,8 @@ severity = "warn"
 
 [violations.expect_100_continue_forbidden]
 # A 100-continue expectation is sent in a request with no content
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.expect_100_continue_invalid]
 # The 100-continue expectation is written with an argument
@@ -1682,11 +1762,13 @@ severity = "info"
 
 [violations.expect_member_malformed]
 # Expect member holds octets the expectation production does not admit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.expect_value_empty]
 # Expect writes an expectation '=' with no value after it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.expires_conflicting]
 # Expires and the Cache-Control freshness directives disagree
@@ -1694,15 +1776,18 @@ severity = "warn"
 
 [violations.ext_value_malformed]
 # An extended parameter value is no ext-value
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.field_connection_specific_forbidden]
 # A connection-specific field is written on a version that has none
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.field_line_duplicated]
 # A field is written on more lines than its definition allows
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.field_name_unregistered]
 # Field name is not one the deployment expects
@@ -1718,91 +1803,111 @@ severity = "info"
 
 [violations.forwarded_element_whitespace_forbidden]
 # Forwarded element holds whitespace its grammar does not admit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.forwarded_pair_equals_missing]
 # Forwarded pair is written without its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.forwarded_pair_value_empty]
 # Forwarded pair is written with no value after its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.forwarded_parameter_duplicated]
 # Forwarded element names one parameter more than once
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.forwarded_response_forbidden]
 # Response carries a Forwarded field
-severity = "warn"
+severity = "error"
 
 [violations.host_missing]
 # A request names its authority in neither Host nor :authority
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.host_userinfo_forbidden]
 # A Host field value carries the userinfo subcomponent
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.http3_goaway_identifier_invalid]
 # A GOAWAY identifier is larger than one already sent
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.http3_goaway_ignored]
 # A request stream opens past the limit a server's GOAWAY set
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.http3_max_push_id_forbidden]
 # A server sent a MAX_PUSH_ID frame
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.http3_max_push_id_invalid]
 # A MAX_PUSH_ID reduces a maximum already set on the connection
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.http3_settings_duplicated]
 # A peer sent a second SETTINGS frame on one connection
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.http3_settings_identifier_duplicated]
 # One SETTINGS frame states the same identifier twice
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.http3_settings_identifier_forbidden]
 # SETTINGS carries an identifier HTTP/3 reserves
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.http_date_empty]
 # A date field is written with no timestamp on it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.http_date_malformed]
 # Timestamp derives from no HTTP-date format
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.http_date_obsolete]
 # Timestamp is written in an obsolete date format
-severity = "info"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.http_date_whitespace_forbidden]
 # Timestamp is padded with whitespace the grammar does not print
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.http_version_invalid]
 # A protocol version is below the floor the exchange requires
-severity = "warn"
+severity = "error"
 
 [violations.http_version_malformed]
 # A protocol version derives from no reading of HTTP-version
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.if_range_empty]
 # If-Range is written with no validator in it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.if_range_forbidden]
 # If-Range is sent in a request with no Range
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.if_range_validator_date_forbidden]
 # If-Range carries a date for a representation with an entity tag
@@ -1810,23 +1915,28 @@ severity = "warn"
 
 [violations.if_range_validator_weak_forbidden]
 # If-Range carries a weak entity-tag
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.keep_alive_connection_option_missing]
 # Keep-Alive is sent with no keep-alive connection-option in Connection
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.keep_alive_parameter_equals_missing]
 # Keep-Alive writes a parameter with no '=' and no value
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.keep_alive_parameter_name_missing]
 # Keep-Alive writes a parameter that names nothing before its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.keep_alive_parameter_value_empty]
 # Keep-Alive writes a parameter '=' with no value after it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.keep_alive_timeout_invalid]
 # Keep-Alive asks for a timeout above the configured maximum
@@ -1834,7 +1944,8 @@ severity = "warn"
 
 [violations.language_tag_character_forbidden]
 # Language tag holds a character outside letters, digits and hyphen
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.language_tag_edge_hyphen_forbidden]
 # Language tag starts or ends with a hyphen
@@ -1842,11 +1953,13 @@ severity = "warn"
 
 [violations.language_tag_empty]
 # Language tag is empty
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.language_tag_leading_letter_missing]
 # Language tag does not begin with a letter
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.language_tag_subtag_empty]
 # Language tag has an empty subtag
@@ -1854,7 +1967,8 @@ severity = "warn"
 
 [violations.language_tag_subtag_length_invalid]
 # Language subtag is longer than eight characters
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.language_tag_whitespace_or_control_forbidden]
 # Language tag holds whitespace or a control character
@@ -1862,23 +1976,28 @@ severity = "error"
 
 [violations.last_modified_conflicting]
 # A Last-Modified is later than the Date beside it
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.link_attribute_duplicated]
 # Link member writes one of the bounded attributes more than once
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.link_member_malformed]
 # Link member carries content the production does not continue with
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.link_param_empty]
 # Link member writes a semicolon with no link-param behind it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.link_param_value_empty]
 # Link parameter writes an '=' with no value after it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.link_preload_as_invalid]
 # A response's preload link names no preload destination in its as
@@ -1890,7 +2009,8 @@ severity = "warn"
 
 [violations.link_rel_duplicated]
 # Link member writes rel more than once
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.link_rel_empty]
 # Link member writes a rel with no relation type in it
@@ -1902,15 +2022,17 @@ severity = "warn"
 
 [violations.link_rel_missing]
 # Link member carries no rel parameter
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.link_relation_type_malformed]
 # Link names a relation type that is neither registered-shaped nor a URI
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.link_target_delimiter_missing]
 # Link member's target is not inside angle brackets
-severity = "warn"
+severity = "error"
 
 [violations.link_type_malformed]
 # Link type attribute does not derive from type-name "/" subtype-name
@@ -1918,7 +2040,8 @@ severity = "warn"
 
 [violations.list_member_empty]
 # List holds an empty element
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.list_member_missing]
 # List with a one-element floor holds no element
@@ -1942,11 +2065,13 @@ severity = "info"
 
 [violations.mailbox_angle_addr_missing]
 # Mailbox has no angle-addr where the name-addr wants one
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_angle_addr_terminator_missing]
 # Mailbox angle-addr is never closed
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_at_sign_missing]
 # Mailbox has no at-sign
@@ -1954,71 +2079,88 @@ severity = "warn"
 
 [violations.mailbox_atom_character_forbidden]
 # Mailbox atom holds a character outside atext
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_atom_empty]
 # Mailbox atom is empty beside a dot
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_comment_character_forbidden]
 # Mailbox comment holds a character outside ctext
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_comment_terminator_missing]
 # Mailbox comment is never closed
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_display_name_word_missing]
 # Mailbox display-name holds no word
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_domain_literal_character_forbidden]
 # Mailbox domain-literal holds a character outside dtext
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_domain_literal_terminator_missing]
 # Mailbox domain-literal is never closed
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_domain_missing]
 # Mailbox has no domain
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_empty]
 # Mailbox field is present with an empty value
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_list_separator_forbidden]
 # Mailbox holds a comma where one address goes
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_local_part_missing]
 # Mailbox has no local-part
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_quoted_pair_malformed]
 # Mailbox escape is not a quoted-pair
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_quoted_string_character_forbidden]
 # Mailbox quoted-string holds a character outside qtext
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_quoted_string_terminator_missing]
 # Mailbox quoted-string is never closed
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_trailing_character_forbidden]
 # Mailbox is followed by something else
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.max_forwards_empty]
 # Max-Forwards is written with no digits on it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.max_forwards_malformed]
 # Max-Forwards holds something that is not a digit
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.media_range_parameter_forbidden]
 # Accept member writes a parameter after the weight
@@ -2030,22 +2172,27 @@ severity = "warn"
 
 [violations.media_type_empty]
 # Media type is written with nothing in it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.media_type_malformed]
 # Media type is not a type/subtype pair
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.media_type_name_empty]
 # A media type subtype is a suffix with no base name
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.media_type_suffix_empty]
 # A media type subtype ends in a bare plus
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.media_type_suffix_unregistered]
 # A structured syntax suffix is not one the deployment recognises
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.media_type_unregistered]
@@ -2070,19 +2217,23 @@ severity = "warn"
 
 [violations.method_head_conflicting]
 # A HEAD response disagrees with the GET it stands in for
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.method_head_content_forbidden]
 # A response to HEAD carries content octets
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.method_options_capabilities_missing]
 # A successful OPTIONS answers with none of the capabilities it was asked for
-severity = "info"
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
 
 [violations.method_options_content_type_missing]
 # An OPTIONS request carries content without saying what it is
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.method_patch_content_type_missing]
 # A PATCH request does not name its patch document format
@@ -2090,15 +2241,18 @@ severity = "warn"
 
 [violations.method_post_location_missing]
 # A 201 answering a POST does not say what it created
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.method_trace_content_forbidden]
 # A TRACE request carries content
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.method_trace_disclosure_forbidden]
 # A TRACE request carries a field that echoes back a secret
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.multipart_body_delimiter_missing]
 # The body carries no delimiter line for its boundary
@@ -2114,38 +2268,46 @@ severity = "warn"
 
 [violations.node_ipv4_address_malformed]
 # Node identifier is digits and dots that are not an IPv4 address
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.node_ipv6_address_malformed]
 # Node identifier brackets something that is not an IPv6 address
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.node_ipv6_brackets_missing]
 # Node identifier holds an IPv6 address without its square brackets
-severity = "warn"
+severity = "error"
 
 [violations.node_ipv6_closing_bracket_missing]
 # Node identifier opens an IPv6 literal and never closes it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.node_ipv6_representation_invalid]
 # Node identifier writes an IPv6 address outside the recommended representation
-severity = "info"
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
 
 [violations.node_malformed]
 # Node identifier derives from no alternative of the production
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.node_port_malformed]
 # Node identifier holds something that is not a node-port
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.oauth2_callback_state_missing]
 # An authorization callback carries a code and no state
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.oauth2_request_state_missing]
 # An authorization request carries no state to bind against
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.oauth2_state_conflicting]
@@ -2166,7 +2328,8 @@ severity = "warn"
 
 [violations.origin_malformed]
 # An Origin derives from neither null nor a serialized origin
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.origin_missing]
 # A request that must say where it came from carries no Origin
@@ -2174,27 +2337,33 @@ severity = "warn"
 
 [violations.origin_path_forbidden]
 # An Origin names a path the production has no component for
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.parameter_equals_missing]
 # Parameter is written without its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.parameter_equals_whitespace_forbidden]
 # Parameter writes whitespace beside its '='
-severity = "info"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.parameter_value_empty]
 # Parameter is written with no value after its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.percent_encoding_digits_missing]
 # Percent-encoding stops before its two hexadecimal digits
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.percent_encoding_malformed]
 # Percent-encoding is not two hexadecimal digits
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.permissions_policy_allowlist_invalid]
 # A directive's allowlist is none of the permitted forms
@@ -2214,6 +2383,7 @@ severity = "info"
 
 [violations.prefer_preference_duplicated]
 # A Prefer names one preference more than once
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.prefer_preference_invalid]
@@ -2222,7 +2392,8 @@ severity = "warn"
 
 [violations.prefer_value_empty]
 # A Prefer member writes an = with no word after it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.preference_applied_conflicting]
 # A Preference-Applied reports a value the request did not ask for
@@ -2238,7 +2409,8 @@ severity = "warn"
 
 [violations.preference_applied_value_empty]
 # A Preference-Applied member writes an = with no word after it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.priority_cacheability_missing]
 # A Priority response says nothing about caching
@@ -2274,11 +2446,13 @@ severity = "info"
 
 [violations.product_missing]
 # A product list opens with something that is not a product
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.product_separator_missing]
 # A product list writes no whitespace between two elements
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.proxy_authenticate_redundant]
 # Proxy-Authenticate arrives on a status that gives it nothing to do
@@ -2302,35 +2476,43 @@ severity = "info"
 
 [violations.quic_request_stream_limit_invalid]
 # QUIC parameters leave no room for an HTTP/3 request stream
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.quoted_pair_malformed]
 # Escape is not a quoted-pair
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.quoted_string_control_character_forbidden]
 # Quoted-string holds a control character
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.quoted_string_delimiter_missing]
 # Quoted-string is missing one of its DQUOTEs
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.quoted_string_quote_escape_missing]
 # Quoted-string holds an unescaped DQUOTE
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.qvalue_malformed]
 # Weight is not a qvalue
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.range_equals_missing]
 # Range value is written without its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.range_position_malformed]
 # Range position is not 1*DIGIT
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.range_positions_conflicting]
 # Range asks for a last-pos below its first-pos
@@ -2338,11 +2520,12 @@ severity = "error"
 
 [violations.range_spec_character_forbidden]
 # Range specifier holds an octet no range-spec admits
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.range_spec_malformed]
 # A bytes range specifier derives from neither of the unit's two forms
-severity = "warn"
+severity = "error"
 
 [violations.referer_empty]
 # A Referer is written with nothing in it
@@ -2350,14 +2533,17 @@ severity = "info"
 
 [violations.referer_forbidden]
 # A Referer names a secure resource on an unsecured request
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.referer_fragment_forbidden]
 # A Referer carries a fragment component
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.referer_userinfo_forbidden]
 # A Referer carries the deprecated userinfo subcomponent
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.refresh_url_empty]
@@ -2374,18 +2560,22 @@ severity = "warn"
 
 [violations.request_target_asterisk_forbidden]
 # The asterisk target is sent with a method other than OPTIONS
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.request_target_authority_form_forbidden]
 # The host-and-port target is sent with a method other than CONNECT
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.request_target_connect_form_invalid]
 # A CONNECT's request-target is not a host and port
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.request_target_empty]
 # A request-line carries no request-target
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.request_target_form_ambiguous]
@@ -2398,10 +2588,12 @@ severity = "warn"
 
 [violations.request_target_malformed]
 # A request-target derives from none of the four forms
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.request_target_path_missing]
 # A request that owes a path names none
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.request_target_whitespace_forbidden]
@@ -2410,7 +2602,8 @@ severity = "error"
 
 [violations.retry_after_malformed]
 # A Retry-After is neither a date nor a delay
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.retry_after_redundant]
 # Retry-After is sent on a status no document pairs it with
@@ -2450,31 +2643,38 @@ severity = "error"
 
 [violations.sec_websocket_extensions_empty]
 # Sec-WebSocket-Extensions names no extension
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_extensions_parameter_missing]
 # Sec-WebSocket-Extensions writes a ';' with no parameter after it
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_extensions_parameter_value_empty]
 # Sec-WebSocket-Extensions writes a parameter '=' with no value after it
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_extensions_unsolicited]
 # Sec-WebSocket-Extensions names an extension the request did not offer
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_key_length_invalid]
 # Sec-WebSocket-Key is not a sixteen-byte nonce
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.sec_websocket_key_missing]
 # WebSocket handshake carries no Sec-WebSocket-Key
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_protocol_duplicated]
 # Sec-WebSocket-Protocol names one subprotocol twice
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.sec_websocket_protocol_empty]
 # Sec-WebSocket-Protocol is written with no subprotocol in it
@@ -2482,6 +2682,7 @@ severity = "error"
 
 [violations.sec_websocket_protocol_unsolicited]
 # Sec-WebSocket-Protocol names a subprotocol the request did not offer
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_version_conflicting]
@@ -2490,22 +2691,27 @@ severity = "warn"
 
 [violations.sec_websocket_version_empty]
 # Sec-WebSocket-Version is written with no value
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_version_invalid]
 # WebSocket handshake asks for a version other than 13
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.sec_websocket_version_list_empty]
 # Sec-WebSocket-Version advertises no version
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_version_malformed]
 # Sec-WebSocket-Version derives from no version production
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.sec_websocket_version_missing]
 # WebSocket handshake carries no Sec-WebSocket-Version
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.server_timing_dur_invalid]
@@ -2514,15 +2720,18 @@ severity = "info"
 
 [violations.server_timing_param_duplicated]
 # Server-Timing metric names one parameter more than once
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.server_timing_param_empty]
 # Server-Timing writes a semicolon with no parameter behind it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.server_timing_param_equals_missing]
 # Server-Timing parameter has no '=' and no value
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.server_timing_param_name_invalid]
 # Server-Timing names an established parameter in a case no getter matches
@@ -2530,15 +2739,18 @@ severity = "info"
 
 [violations.server_timing_param_value_empty]
 # Server-Timing parameter is written with no value after its '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.server_timing_param_value_malformed]
 # Server-Timing parameter value carries content past the alternative it derives from
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.status_101_forbidden]
 # A 101 completes a WebSocket handshake the server had to refuse
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.status_101_ignored]
 # HTTP continues on a connection a 101 handed off
@@ -2546,6 +2758,7 @@ severity = "warn"
 
 [violations.status_101_protocol_forbidden]
 # A 101 switches to a protocol the client did not indicate
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.status_101_unsolicited]
@@ -2558,7 +2771,8 @@ severity = "warn"
 
 [violations.status_1xx_forbidden]
 # An interim response answers a client whose version has none
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.status_200_ambiguous]
 # A 200 carries no content, where a 204 would say so on purpose
@@ -2566,7 +2780,8 @@ severity = "info"
 
 [violations.status_206_multipart_forbidden]
 # A multipart 206 answers a request that asked for a single range
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.status_206_unsolicited]
 # 206 Partial Content answers a request that asked for no range
@@ -2582,6 +2797,7 @@ severity = "warn"
 
 [violations.status_304_metadata_forbidden]
 # A 304 sends representation metadata beyond the fields it owes
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.status_304_missing]
@@ -2590,7 +2806,8 @@ severity = "warn"
 
 [violations.status_401_challenge_missing]
 # A 401 presents no challenge to authenticate against
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.status_401_ignored]
 # A client replays credentials a 401 keeps refusing
@@ -2602,11 +2819,13 @@ severity = "warn"
 
 [violations.status_405_allow_missing]
 # A 405 answers without the Allow field it must generate
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.status_407_challenge_missing]
 # A 407 presents no challenge to authenticate against
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.status_416_unsolicited]
 # 416 Range Not Satisfiable answers a request that named no range
@@ -2614,6 +2833,7 @@ severity = "warn"
 
 [violations.status_417_ignored]
 # A request repeats an expectation a 417 already refused
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.status_content_forbidden]
@@ -2622,6 +2842,7 @@ severity = "error"
 
 [violations.status_content_length_forbidden]
 # A 1xx or 204 carries a Content-Length field
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.status_invalid]
@@ -2638,11 +2859,13 @@ severity = "error"
 
 [violations.status_transfer_encoding_forbidden]
 # A 1xx or 204 carries a Transfer-Encoding field
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.strict_transport_security_directive_duplicated]
 # A directive is written more than once in one policy
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.strict_transport_security_directive_empty]
 # The policy holds a separator with no directive
@@ -2654,7 +2877,8 @@ severity = "warn"
 
 [violations.strict_transport_security_directive_value_missing]
 # A directive that requires a value carries none
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.strict_transport_security_empty]
 # The policy is written with nothing in it
@@ -2662,7 +2886,8 @@ severity = "warn"
 
 [violations.strict_transport_security_max_age_missing]
 # The policy states no max-age
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.structured_field_character_forbidden]
 # Structured field holds an octet outside US-ASCII
@@ -2702,42 +2927,52 @@ severity = "warn"
 
 [violations.sunset_conflicting]
 # A Sunset names a time before the Deprecation beside it
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.sunset_invalid]
 # A Sunset names a time that has already passed
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.te_chunked_forbidden]
 # TE names the chunked coding, which cannot be declined
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.te_connection_option_missing]
 # TE is sent without a TE connection option beside it
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.te_member_forbidden]
 # A request's TE holds a member other than trailers
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.te_trailers_parameter_forbidden]
 # TE hangs a parameter or a weight off the trailers keyword
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.token68_body_empty]
 # token68 is padding with no body
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.token68_character_forbidden]
 # token68 holds a character outside its alphabet
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.token68_padding_malformed]
 # token68 padding holds something other than '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.token68_whitespace_or_control_forbidden]
 # token68 holds whitespace or a control character
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.token_character_forbidden]
@@ -2746,10 +2981,12 @@ severity = "warn"
 
 [violations.token_empty]
 # Token is written with no characters in it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.token_whitespace_or_control_forbidden]
 # Token holds whitespace or a control character
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.trailer_connection_option_forbidden]
@@ -2758,7 +2995,8 @@ severity = "warn"
 
 [violations.trailer_field_forbidden]
 # A trailer field's definition does not permit the usage
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.trailer_member_invalid]
 # A Trailer declaration names a field that cannot arrive
@@ -2766,15 +3004,18 @@ severity = "info"
 
 [violations.trailer_member_missing]
 # A trailer field was not named in the Trailer declaration
-severity = "info"
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
 
 [violations.transfer_coding_parameter_forbidden]
 # A coding that defines no parameters carries one
+# SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
 [violations.transfer_coding_parameter_missing]
 # A coding writes a ';' with no parameter after it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.transfer_coding_unregistered]
 # Transfer coding is not one the deployment recognises
@@ -2782,15 +3023,18 @@ severity = "warn"
 
 [violations.transfer_encoding_chunked_duplicated]
 # The chunked transfer coding is applied more than once
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.transfer_encoding_chunked_missing]
 # A coding is applied and chunked never is
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.transfer_encoding_chunked_position_invalid]
 # The chunked transfer coding is not the final one
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.transfer_encoding_coding_redundant]
 # A coding is applied in transit that the representation already carries
@@ -2798,6 +3042,7 @@ severity = "info"
 
 [violations.upgrade_101_empty]
 # A 101 response names no protocol on its Upgrade field
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.upgrade_101_invalid]
@@ -2806,19 +3051,23 @@ severity = "error"
 
 [violations.upgrade_101_missing]
 # A 101 response carries no Upgrade field
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.upgrade_426_empty]
 # A 426 response names no protocol on its Upgrade field
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.upgrade_426_missing]
 # A 426 response carries no Upgrade field
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.upgrade_connection_option_missing]
 # Upgrade is sent with no upgrade connection-option in Connection
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.uri_character_forbidden]
 # Value holds a character no URI is written with
@@ -2830,14 +3079,17 @@ severity = "warn"
 
 [violations.uri_host_character_forbidden]
 # Host holds a character outside the registered-name alphabet
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.uri_host_closing_bracket_missing]
 # Host opens an IP literal and never closes it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.uri_host_empty]
 # An http or https reference names no host
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.uri_host_ip_literal_delimiter_missing]
@@ -2846,7 +3098,8 @@ severity = "warn"
 
 [violations.uri_host_ip_literal_malformed]
 # Host brackets something that is not an IP literal
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.uri_port_character_forbidden]
 # Port holds a character that is not a digit
@@ -2854,15 +3107,18 @@ severity = "warn"
 
 [violations.uri_scheme_character_forbidden]
 # URI scheme holds a character outside letters, digits, '+', '-' and '.'
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.uri_scheme_empty]
 # URI scheme is empty
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.uri_scheme_leading_letter_missing]
 # URI scheme does not begin with a letter
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.user_agent_missing]
 # A request does not say what sent it
@@ -2870,7 +3126,8 @@ severity = "info"
 
 [violations.validator_missing]
 # A response gives a later request nothing to validate against
-severity = "info"
+# SHOULD obliges the sender, so this defaults to warn.
+severity = "warn"
 
 [violations.vary_ignored]
 # A response is reused across a dimension its Vary nominated
@@ -2878,43 +3135,52 @@ severity = "warn"
 
 [violations.vary_prefer_missing]
 # A response applied a preference its Vary does not nominate
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.via_comment_duplicated]
 # Via member carries more than one comment
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.via_member_malformed]
 # Via member does not end where the production ends it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.via_received_by_missing]
 # Via member names no received-by
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.via_received_by_obsolete]
 # Via received-by is spelled as a uri-host
-severity = "warn"
+severity = "error"
 
 [violations.warning_agent_missing]
 # Warning member names no warn-agent
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.warning_code_malformed]
 # Warning member's warn-code is not three digits
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.warning_member_malformed]
 # Warning member does not derive where the production continues it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.warning_text_missing]
 # Warning member carries no warn-text
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.websocket_frame_close_body_malformed]
 # A Close body is too short to hold the status code it opens with
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.websocket_frame_continuation_unsolicited]
 # A continuation frame has no fragmented message to continue
@@ -2922,27 +3188,33 @@ severity = "warn"
 
 [violations.websocket_frame_control_fragmentation_forbidden]
 # A control frame is fragmented
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.websocket_frame_control_payload_invalid]
 # A control frame carries more payload than its class allows
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.websocket_frame_data_after_close_forbidden]
 # A data frame follows the same endpoint's Close frame
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.websocket_frame_mask_forbidden]
 # A server frame is masked
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.websocket_frame_mask_missing]
 # A client frame is not masked
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.websocket_frame_message_interleaving_forbidden]
 # A second message opens while a fragmented one is unterminated
-severity = "warn"
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.websocket_frame_opcode_malformed]
 # The recorded opcode does not fit the four bits the header holds
@@ -2950,10 +3222,12 @@ severity = "warn"
 
 [violations.websocket_frame_opcode_unregistered]
 # The opcode is in a reserved range and denotes no frame type
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.websocket_frame_rsv_forbidden]
 # A reserved bit is set and no extension was negotiated to give it a meaning
+# MUST obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.websocket_frame_rsv_malformed]
@@ -2962,19 +3236,21 @@ severity = "warn"
 
 [violations.weight_duplicated]
 # Member carries more than one weight
-severity = "warn"
+severity = "error"
 
 [violations.weight_equals_whitespace_forbidden]
 # Whitespace is written beside the weight's '='
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.weight_malformed]
 # Something other than a weight follows the member's ';'
-severity = "warn"
+severity = "error"
 
 [violations.weight_missing]
 # Member writes the weight's ';' and no weight after it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.well_known_name_empty]
 # The reserved prefix carries no name after it
@@ -2994,7 +3270,8 @@ severity = "info"
 
 [violations.x_content_type_options_invalid]
 # X-Content-Type-Options carries a value that is not nosniff
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.x_content_type_options_missing]
 # A response does not ask for its content type to be respected
@@ -3002,11 +3279,12 @@ severity = "info"
 
 [violations.x_frame_options_allow_from_obsolete]
 # X-Frame-Options carries the retired ALLOW-FROM variant
-severity = "warn"
+severity = "error"
 
 [violations.x_frame_options_invalid]
 # X-Frame-Options carries neither DENY nor SAMEORIGIN
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.x_xss_protection_invalid]
 # X-XSS-Protection asks for something other than the filter off

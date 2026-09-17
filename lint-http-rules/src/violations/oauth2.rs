@@ -27,6 +27,7 @@
 // cite(RFC 6749 § 10.12): "The client MUST implement CSRF protection for its redirection URI."
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -82,6 +83,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6749_10_12],
+        strength: Strength::Should,
     }
 
     /// A callback carrying an authorization `code` and no usable `state`.
@@ -99,8 +101,9 @@ defects! {
         id: "oauth2_callback_state_missing",
         title: "An authorization callback carries a code and no state",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6749_4_1_2],
+        strength: Strength::Must,
     }
 
     /// A callback whose `state` matches no authorization request this client
@@ -126,5 +129,6 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6749_4_1_1],
+        strength: Strength::Unstated,
     }
 }

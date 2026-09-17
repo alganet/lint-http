@@ -28,6 +28,7 @@
 // cite(RFC 7240 § 3): "The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included."
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -78,8 +79,9 @@ defects! {
         id: "prefer_value_empty",
         title: "A Prefer member writes an = with no word after it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7240_2],
+        strength: Strength::Grammar,
     }
 
     /// A preference RFC 7240 defines, carrying a value its own production does
@@ -122,6 +124,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_7240_2],
+        strength: Strength::Should,
     }
 
     /// A `Preference-Applied` member written `name=` with nothing after it.
@@ -136,8 +139,9 @@ defects! {
         id: "preference_applied_value_empty",
         title: "A Preference-Applied member writes an = with no word after it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7240_3],
+        strength: Strength::Grammar,
     }
 
     /// A `Preference-Applied` member carrying a `;` parameter.
@@ -181,6 +185,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_7240_3],
+        strength: Strength::Unstated,
     }
 
     /// A `Preference-Applied` reporting a preference applied with a value other

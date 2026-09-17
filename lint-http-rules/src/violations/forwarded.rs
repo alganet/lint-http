@@ -28,6 +28,7 @@
 // cite(RFC 7239 § 3): "This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230]."
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -76,8 +77,9 @@ defects! {
         id: "forwarded_element_whitespace_forbidden",
         title: "Forwarded element holds whitespace its grammar does not admit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_4],
+        strength: Strength::Grammar,
     }
 
     /// A segment of an element with no `=` in it: `for=192.0.2.1;proto`.
@@ -102,8 +104,9 @@ defects! {
         id: "forwarded_pair_equals_missing",
         title: "Forwarded pair is written without its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_4],
+        strength: Strength::Grammar,
     }
 
     /// A pair that names a parameter and states nothing for it: `for=`, or
@@ -133,8 +136,9 @@ defects! {
         id: "forwarded_pair_value_empty",
         title: "Forwarded pair is written with no value after its '='",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_4],
+        strength: Strength::Grammar,
     }
 
     /// One element naming a parameter twice: `for=192.0.2.1;for=192.0.2.2`.
@@ -159,8 +163,9 @@ defects! {
         id: "forwarded_parameter_duplicated",
         title: "Forwarded element names one parameter more than once",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_4],
+        strength: Strength::Must,
     }
 
     /// A `Forwarded` in a response, in either of its field sections.
@@ -187,7 +192,7 @@ defects! {
         id: "forwarded_response_forbidden",
         title: "Response carries a Forwarded field",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_7239_4],
     }
 }
@@ -198,12 +203,22 @@ mod tests {
 
     /// The argument on [`FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN`], asserted
     /// rather than only described: this entry reports a position the parameter
-    /// subject's cannot reach, so it cannot rank level with it.
+    /// subject's cannot reach, which is why it is its own id.
+    ///
+    /// **It used to outrank that one**, because that one was `info` on an
+    /// argument about what six rules trim before reading. Both productions
+    /// print their delimiters bare, so neither value derives and the two now
+    /// rank together. The position they report is still two different
+    /// positions, and that is what the two ids are for.
     #[test]
-    fn an_elements_whitespace_outranks_a_parameters() {
-        assert!(
-            crate::violations::parameter::PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.default_severity
-                < FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN.default_severity
+    fn an_elements_whitespace_is_not_a_parameters() {
+        assert_ne!(
+            crate::violations::parameter::PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.id,
+            FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN.id,
+        );
+        assert_eq!(
+            crate::violations::parameter::PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.default_severity,
+            FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN.default_severity,
         );
     }
 
@@ -220,7 +235,7 @@ mod tests {
             &FORWARDED_PARAMETER_DUPLICATED,
             &FORWARDED_RESPONSE_FORBIDDEN,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
         }
     }
 }

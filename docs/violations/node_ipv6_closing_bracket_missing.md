@@ -14,7 +14,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+**A value that does not derive from the ABNF production it cites.** The production states no keyword; what obliges it is RFC 9110 §2.2 — "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules" — which binds the sender, so a finding here reports at `error` by default.
 
 ## Specifications
 
@@ -25,7 +25,8 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.node_ipv6_closing_bracket_missing]
 # Node identifier opens an IPv6 literal and never closes it
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 ```
 
 ## Reported By

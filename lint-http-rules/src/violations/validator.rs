@@ -16,6 +16,7 @@
 //! that hands one over.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -62,8 +63,9 @@ defects! {
         id: "validator_missing",
         title: "A response gives a later request nothing to validate against",
         message: "Response 200 without ETag or Last-Modified validator",
-        default_severity: Severity::Info,
+        default_severity: Severity::Warn,
         spec: &[RFC_9110_8_8_2_1, RFC_9110_8_8_3_1],
+        strength: Strength::Should,
     }
 }
 
@@ -76,6 +78,6 @@ mod tests {
     #[test]
     fn the_entry_names_both_sections_because_either_field_answers_it() {
         assert_eq!(VALIDATOR_MISSING.spec.len(), 2);
-        assert_eq!(VALIDATOR_MISSING.default_severity, Severity::Info);
+        assert_eq!(VALIDATOR_MISSING.default_severity, Severity::Warn);
     }
 }

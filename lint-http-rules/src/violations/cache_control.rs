@@ -35,6 +35,7 @@
 //! for. The exchange continues, and continues conservatively.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -205,6 +206,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_5_2_2_9, RFC_9111_5_2_2_7, RFC_9111_5_2_2_5],
+        strength: Strength::Unstated,
     }
 
     /// A `max-age` or `s-maxage` written more than once in one field section
@@ -283,6 +285,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_5_2_2_5],
+        strength: Strength::Unstated,
     }
 
     /// A stale response carrying `must-revalidate`, reused without a
@@ -297,8 +300,9 @@ defects! {
         id: "cache_control_must_revalidate_ignored",
         title: "A stale must-revalidate response is reused without validation",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9111_5_2_2_2],
+        strength: Strength::Must,
     }
 
     /// A response marked `no-cache` reused without forwarding the later request
@@ -313,8 +317,9 @@ defects! {
         id: "cache_control_no_cache_ignored",
         title: "A no-cache response is reused without being revalidated",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9111_5_2_2_4],
+        strength: Strength::Must,
     }
 
     /// A validator from an unqualified-`private` response arriving from a
@@ -333,6 +338,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_5_2_2_7],
+        strength: Strength::Unstated,
     }
 
     /// A response revalidated at its `s-maxage` boundary by a cache the
@@ -396,8 +402,9 @@ defects! {
         id: "cache_control_immutable_ignored",
         title: "A still-fresh immutable response is revalidated anyway",
         message: "",
-        default_severity: Severity::Info,
+        default_severity: Severity::Warn,
         spec: &[RFC_8246_2],
+        strength: Strength::Should,
     }
 
     /// A `200` carrying no `Cache-Control` at all.
@@ -420,6 +427,7 @@ defects! {
         message: "Response 200 without Cache-Control header",
         default_severity: Severity::Info,
         spec: &[RFC_9111_4_2_2],
+        strength: Strength::Unstated,
     }
 
     /// A response on a status outside the heuristically cacheable set, carrying

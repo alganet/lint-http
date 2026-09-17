@@ -14,7 +14,9 @@ _Written where it is reported: this defect's message names the value that caused
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+A **`SHOULD`** binding the sender of the message — advice the specification gives in its own voice and the sender declined — so a finding here reports at `warn` by default.
+
+**It departs from that level.** RFC 6265 states its own grammar as a SHOULD NOT for historical reasons, and says in the same section that it is stricter than what a user agent will accept. A control octet in a `Path` is a hazard whatever the keyword: it is what smuggles a header boundary past a parser that splits on one, and no deployment wants it at `warn`.
 
 ## Specifications
 
@@ -25,6 +27,8 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.cookie_path_control_character_forbidden]
 # Set-Cookie Path attribute holds a control character
+# SHOULD obliges the sender, so this defaults to warn.
+# Departs from that: RFC 6265 states its own grammar as a SHOULD NOT for historical reasons, and says in the same section that it is stricter than what a user agent will accept. A control octet in a `Path` is a hazard whatever the keyword: it is what smuggles a header boundary past a parser that splits on one, and no deployment wants it at `warn`.
 severity = "error"
 ```
 

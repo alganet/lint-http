@@ -271,7 +271,7 @@ mod tests {
         // did not honour it.
         let v = v.expect("a finding");
         assert_eq!(v.violation, "cache_control_no_cache_ignored");
-        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert_eq!(v.severity, crate::lint::Severity::Error);
         assert!(v.message.contains("no-cache"));
     }
 

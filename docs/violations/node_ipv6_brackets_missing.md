@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.node_ipv6_brackets_missing]
 # Node identifier holds an IPv6 address without its square brackets
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By

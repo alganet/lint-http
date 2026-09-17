@@ -353,7 +353,7 @@ mod tests {
         tx.request.headers = make_headers_from_pairs(header_pairs.as_slice());
         let violation = run(&tx).expect("a field without its option");
         assert_eq!(violation.violation, "upgrade_connection_option_missing");
-        assert_eq!(violation.severity, crate::lint::Severity::Warn);
+        assert_eq!(violation.severity, crate::lint::Severity::Error);
     }
 
     /// The version gate, over the fixture the rule *does* report. Only the version

@@ -38,6 +38,7 @@
 //! production involved is intact — which is what keeps them here.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 use crate::violations::field::{RFC_9113_8_2_2, RFC_9114_4_2};
@@ -100,6 +101,7 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9113_8_2_2, RFC_9114_4_2],
+        strength: Strength::Must,
     }
 
     /// `chunked` named in a `TE`. The name is a real transfer coding and is
@@ -118,8 +120,9 @@ defects! {
         id: "te_chunked_forbidden",
         title: "TE names the chunked coding, which cannot be declined",
         message: "A client must not send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9112_7_4],
+        strength: Strength::Must,
     }
 
     /// A parameter or a weight written on the `trailers` keyword. The
@@ -143,8 +146,9 @@ defects! {
         id: "te_trailers_parameter_forbidden",
         title: "TE hangs a parameter or a weight off the trailers keyword",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_A],
+        strength: Strength::Grammar,
     }
 
     /// A request carrying `TE` and no `TE` connection option in `Connection`.
@@ -168,8 +172,9 @@ defects! {
         id: "te_connection_option_missing",
         title: "TE is sent without a TE connection option beside it",
         message: "Request carries a TE header field without a 'TE' connection option in Connection; TE applies to the immediate connection only, and the option is what stops an intermediary from forwarding it",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_10_1_4],
+        strength: Strength::Must,
     }
 }
 

@@ -27,6 +27,7 @@
 
 use crate::helpers::origin::OriginDefect;
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
@@ -68,8 +69,9 @@ defects! {
         id: "origin_path_forbidden",
         title: "An Origin names a path the production has no component for",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6454_7_1],
+        strength: Strength::Grammar,
     }
 
     /// A value that is neither `null` nor anything a `serialized-origin`
@@ -92,8 +94,9 @@ defects! {
         id: "origin_malformed",
         title: "An Origin derives from neither null nor a serialized origin",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_6454_7_1],
+        strength: Strength::Grammar,
     }
 
     /// A request that needs to say where it came from and does not: a CORS

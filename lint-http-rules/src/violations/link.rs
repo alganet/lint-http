@@ -35,6 +35,7 @@
 // cite(RFC 8288 § 3, label: link-value assembly): "link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -111,8 +112,9 @@ defects! {
         id: "link_rel_duplicated",
         title: "Link member writes rel more than once",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8288_3_3],
+        strength: Strength::Must,
     }
 
     /// A `media`, `title`, `title*` or `type` written twice in one member.
@@ -132,8 +134,9 @@ defects! {
         id: "link_attribute_duplicated",
         title: "Link member writes one of the bounded attributes more than once",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8288_3_4_1],
+        strength: Strength::Must,
     }
 
     /// A `type` whose value is not `type-name "/" subtype-name`: `type=text`,
@@ -222,8 +225,9 @@ defects! {
         id: "link_rel_missing",
         title: "Link member carries no rel parameter",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8288_3_3],
+        strength: Strength::Must,
     }
 
     /// A `rel` that is present and says nothing: a bare `rel`, or `rel=""`.
@@ -294,8 +298,9 @@ defects! {
         id: "link_relation_type_malformed",
         title: "Link names a relation type that is neither registered-shaped nor a URI",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8288_3_3],
+        strength: Strength::Grammar,
     }
 
     /// A member whose target is not between angle brackets: `http://x>`, or
@@ -316,7 +321,7 @@ defects! {
         id: "link_target_delimiter_missing",
         title: "Link member's target is not inside angle brackets",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8288_3],
     }
 
@@ -337,8 +342,9 @@ defects! {
         id: "link_member_malformed",
         title: "Link member carries content the production does not continue with",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8288_3],
+        strength: Strength::Grammar,
     }
 
     /// A semicolon with no parameter behind it: `<http://x>; rel=next;;`.
@@ -360,8 +366,9 @@ defects! {
         id: "link_param_empty",
         title: "Link member writes a semicolon with no link-param behind it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8288_3],
+        strength: Strength::Grammar,
     }
 
     /// A parameter whose `=` is written with nothing after it: `rel=`.
@@ -384,8 +391,9 @@ defects! {
         id: "link_param_value_empty",
         title: "Link parameter writes an '=' with no value after it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_8288_3],
+        strength: Strength::Grammar,
     }
 }
 
@@ -404,7 +412,7 @@ mod tests {
             &LINK_PARAM_EMPTY,
             &LINK_PARAM_VALUE_EMPTY,
         ] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
             assert_eq!(def.spec.len(), 1, "{}", def.id);
         }
     }

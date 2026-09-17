@@ -22,6 +22,7 @@
 //! which is exactly where the misspelling leaves it.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -61,8 +62,9 @@ defects! {
         id: "x_frame_options_invalid",
         title: "X-Frame-Options carries neither DENY nor SAMEORIGIN",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[HTML_SPECULATIVE_LOADING_7_7],
+        strength: Strength::Grammar,
     }
 
     /// The `ALLOW-FROM` variant, whatever origin follows it.
@@ -91,7 +93,7 @@ defects! {
         id: "x_frame_options_allow_from_obsolete",
         title: "X-Frame-Options carries the retired ALLOW-FROM variant",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[HTML_SPECULATIVE_LOADING_7_7],
     }
 }
@@ -101,17 +103,22 @@ mod tests {
     use super::*;
 
     /// The argument on the retired variant, asserted: it does not rank below
-    /// its sibling the way this catalogue's other `_obsolete` entries rank
-    /// below theirs, because no recipient honours what it reports.
+    /// its sibling the way this catalogue's other `_obsolete` entries once
+    /// ranked below theirs, because no recipient honours what it reports.
+    ///
+    /// **The comparison against `http_date_obsolete` used to show that** and no
+    /// longer can: that entry moved up to its own siblings for the same kind of
+    /// reason, so the two now agree instead of contrasting. The claim that
+    /// survives is the one inside this subject.
     #[test]
     fn the_retired_variant_ranks_with_the_value_that_was_never_one() {
         assert_eq!(
             X_FRAME_OPTIONS_ALLOW_FROM_OBSOLETE.default_severity,
             X_FRAME_OPTIONS_INVALID.default_severity
         );
-        assert!(
-            crate::violations::http_date::HTTP_DATE_OBSOLETE.default_severity
-                < X_FRAME_OPTIONS_ALLOW_FROM_OBSOLETE.default_severity
+        assert_eq!(
+            crate::violations::http_date::HTTP_DATE_OBSOLETE.default_severity,
+            X_FRAME_OPTIONS_ALLOW_FROM_OBSOLETE.default_severity,
         );
     }
 }

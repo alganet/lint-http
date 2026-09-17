@@ -37,6 +37,7 @@
 //! entry that needs a third message to see.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -70,8 +71,9 @@ defects! {
         id: "expect_member_malformed",
         title: "Expect member holds octets the expectation production does not admit",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_10_1_1],
+        strength: Strength::Grammar,
     }
 
     /// A member ending on its `=`. The optional group writes the delimiter and
@@ -91,8 +93,9 @@ defects! {
         id: "expect_value_empty",
         title: "Expect writes an expectation '=' with no value after it",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_10_1_1],
+        strength: Strength::Grammar,
     }
 
     /// A `100-continue` expectation in a request that carries no content.
@@ -118,8 +121,9 @@ defects! {
         id: "expect_100_continue_forbidden",
         title: "A 100-continue expectation is sent in a request with no content",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_10_1_1],
+        strength: Strength::Must,
     }
 
     /// A `100-continue` written with a value or parameters hung off it.
@@ -160,7 +164,7 @@ mod tests {
     fn the_assembly_and_the_empty_value_are_two_entries_of_one_rank() {
         assert_ne!(EXPECT_MEMBER_MALFORMED.id, EXPECT_VALUE_EMPTY.id);
         for def in [&EXPECT_MEMBER_MALFORMED, &EXPECT_VALUE_EMPTY] {
-            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+            assert_eq!(def.default_severity, Severity::Error, "{}", def.id);
             assert_eq!(def.spec, [RFC_9110_10_1_1], "{}", def.id);
         }
     }

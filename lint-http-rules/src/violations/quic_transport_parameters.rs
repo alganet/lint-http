@@ -26,6 +26,7 @@
 //! rule reporting it quoted that very sentence one line above the finding.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -82,6 +83,7 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9114_6_1],
+        strength: Strength::Should,
     }
 
     /// `initial_max_data` set to zero: no data may be sent on the connection

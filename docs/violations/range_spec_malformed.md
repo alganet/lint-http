@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.range_spec_malformed]
 # A bytes range specifier derives from neither of the unit's two forms
-severity = "warn"
+severity = "error"
 ```
 
 ## Reported By
