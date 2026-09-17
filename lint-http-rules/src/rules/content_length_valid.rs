@@ -54,6 +54,14 @@ impl RuleMeta for ContentLengthValid {
         DECLARED
     }
 
+    /// **A `Content-Length` states the length of the content its own sender
+    /// framed**, so a value that is empty, over-large, or two field lines
+    /// disagreeing is the framing peer's defect — the request's and then the
+    /// response's, read by the same four-verdict helper.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -92,7 +100,9 @@ impl Rule for ContentLengthValid {
             // What this rule keeps is its own claim — that a malformed or self-contradictory
             // Content-Length is worth reporting wherever it appears.
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
-            let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            let check = |headers: &hyper::HeaderMap,
+                         party: crate::lint::Party|
+             -> Option<Violation> {
                 match crate::helpers::content_length::validate_content_length(headers) {
                     Ok(_) => None,
                     Err(e) => {
@@ -124,19 +134,22 @@ impl Rule for ContentLengthValid {
                             }
                         };
 
-                        Some(ctx.report_with(content_length_defect(&e), message))
+                        Some(
+                            ctx.by(party)
+                                .report_with(content_length_defect(&e), message),
+                        )
                     }
                 }
             };
 
             // Request
-            if let Some(v) = check(&tx.request.headers) {
+            if let Some(v) = check(&tx.request.headers, crate::lint::Party::Client) {
                 return Some(v);
             }
 
             // Response
             if let Some(resp) = &tx.response {
-                if let Some(v) = check(&resp.headers) {
+                if let Some(v) = check(&resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }

@@ -327,6 +327,14 @@ impl RuleMeta for UpgradeHeaderSyntax {
         DECLARED
     }
 
+    /// **`Upgrade` is written by whichever peer offers or accepts a protocol
+    /// change**, so the same production is read out of the request and then the
+    /// response, and the party travels with the judgement rather than being
+    /// decided at the single reporting site.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -394,14 +402,20 @@ impl Rule for UpgradeHeaderSyntax {
             // rule, and declining the value there and here would leave the question
             // asked by nobody. `connection_header_tokens_valid` reads its own
             // connection-specific field the same way for the same reason.
-            let defect = Self::defect(&tx.request.headers, "Request").or_else(|| {
-                let resp = tx.response.as_ref()?;
-                Self::defect(&resp.headers, "Response")
-            })?;
+            // The half that produced the judgement travels with it: the one
+            // reporting site below cannot tell afterwards which of the two calls
+            // answered.
+            let (party, defect) = Self::defect(&tx.request.headers, "Request")
+                .map(|defect| (crate::lint::Party::Client, defect))
+                .or_else(|| {
+                    let resp = tx.response.as_ref()?;
+                    Self::defect(&resp.headers, "Response")
+                        .map(|defect| (crate::lint::Party::Server, defect))
+                })?;
 
             // Read last: a message about to be reported is the only one that pays
             // for the map probes and the two lookups of the rule id.
-            Some(ctx.report_with(defect.def, defect.message))
+            Some(ctx.by(party).report_with(defect.def, defect.message))
         };
         Vec::from_iter(finding())
     }

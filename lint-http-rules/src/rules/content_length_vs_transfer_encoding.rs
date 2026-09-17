@@ -50,6 +50,14 @@ impl RuleMeta for ContentLengthVsTransferEncoding {
         DECLARED
     }
 
+    /// **One defect, asked of each half separately.** A message that frames its
+    /// content twice is ambiguous to its recipient, and the sender that framed
+    /// it is the one answerable — the client for the request, the origin for the
+    /// response.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -97,7 +105,7 @@ impl Rule for ContentLengthVsTransferEncoding {
             if tx.request.headers.contains_key("content-length")
                 && tx.request.headers.contains_key("transfer-encoding")
             {
-                return Some(ctx.report(&CONTENT_LENGTH_FORBIDDEN));
+                return Some(ctx.by_client().report(&CONTENT_LENGTH_FORBIDDEN));
             }
 
             // Check response headers if present
@@ -105,7 +113,7 @@ impl Rule for ContentLengthVsTransferEncoding {
                 if resp.headers.contains_key("content-length")
                     && resp.headers.contains_key("transfer-encoding")
                 {
-                    return Some(ctx.report(&CONTENT_LENGTH_FORBIDDEN));
+                    return Some(ctx.by_server().report(&CONTENT_LENGTH_FORBIDDEN));
                 }
             }
 

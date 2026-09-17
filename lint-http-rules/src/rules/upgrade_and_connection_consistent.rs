@@ -175,6 +175,14 @@ impl RuleMeta for UpgradeAndConnectionConsistent {
         DECLARED
     }
 
+    /// **An `Upgrade` unnamed by its own `Connection` is a mistake inside one
+    /// field section**, and both halves have one. The party travels with the
+    /// judgement, since the single reporting site cannot tell afterwards which
+    /// of the two calls answered.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -215,15 +223,21 @@ impl Rule for UpgradeAndConnectionConsistent {
             // the request may have arrived over HTTP/3 while the response came back from
             // the origin over HTTP/1.1, and the sender the sentence is about is the one
             // that wrote the section being read.
-            let (def, message) = Self::defect(&tx.request.headers, &tx.request.version, "Request")
-                .or_else(|| {
-                    let resp = tx.response.as_ref()?;
-                    Self::defect(&resp.headers, &resp.version, "Response")
-                })?;
+            // The half that produced the judgement travels with it: the one
+            // reporting site below cannot tell afterwards which of the two calls
+            // answered.
+            let (party, (def, message)) =
+                Self::defect(&tx.request.headers, &tx.request.version, "Request")
+                    .map(|defect| (crate::lint::Party::Client, defect))
+                    .or_else(|| {
+                        let resp = tx.response.as_ref()?;
+                        Self::defect(&resp.headers, &resp.version, "Response")
+                            .map(|defect| (crate::lint::Party::Server, defect))
+                    })?;
 
             // Read last: every gate above ends the rule, so only a message about to be
             // reported pays for the map probes and the hash over the rule id.
-            Some(ctx.report_with(def, message))
+            Some(ctx.by(party).report_with(def, message))
         };
         Vec::from_iter(finding())
     }

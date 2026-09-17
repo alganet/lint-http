@@ -138,6 +138,14 @@ allowed = ["chunked", "compress", "gzip", "deflate"]
         DECLARED
     }
 
+    /// **One coding vocabulary read out of three field sections.** A
+    /// `Transfer-Encoding` states what its own sender applied, so the response's
+    /// is the origin's and the request's is the client's; the `TE` beside them
+    /// is a request field throughout.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -193,7 +201,8 @@ impl Rule for TransferCodingRegistered {
             // check a list-style header value (Transfer-Encoding or TE) against allowed list
             let check_value = |hdr_name: &str,
                                val: &str,
-                               allowed: &[String]|
+                               allowed: &[String],
+                               party: crate::lint::Party|
              -> Option<Violation> {
                 // An odd number of unescaped DQUOTEs means the quoting never
                 // closes, and then no comma after it is a separator: the splitter
@@ -209,7 +218,7 @@ impl Rule for TransferCodingRegistered {
                 // `Transfer-Encoding` no such rule exists, and silence here would
                 // be the whole of the answer.
                 if !crate::helpers::list::quoting_is_balanced(val) {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by(party).report_with(
                         &QUOTED_STRING_DELIMITER_MISSING,
                         format!(
                             "Unterminated quoted-string in {} header: '{}'",
@@ -272,7 +281,7 @@ impl Rule for TransferCodingRegistered {
                     // named `''`, which describes the wrong defect.
                     // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
                     if token.is_empty() {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &TOKEN_EMPTY,
                             format!(
                                 "Missing transfer-coding name in {} header member '{}'",
@@ -281,7 +290,7 @@ impl Rule for TransferCodingRegistered {
                         ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             token_character(c),
                             // The offending character alone does not locate itself
                             // on a field with several members -- `Invalid token
@@ -304,7 +313,7 @@ impl Rule for TransferCodingRegistered {
                     // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
                     if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("chunked")
                     {
-                        return Some(ctx.report(&TE_CHUNKED_FORBIDDEN));
+                        return Some(ctx.by(party).report(&TE_CHUNKED_FORBIDDEN));
                     }
                     // § 7.2 defines exactly these five names by reference to the
                     // content codings of the same name, and then says outright what
@@ -351,7 +360,7 @@ impl Rule for TransferCodingRegistered {
                             {
                                 continue;
                             }
-                            return Some(ctx.report_with(
+                            return Some(ctx.by(party).report_with(
                                 &TRANSFER_CODING_PARAMETER_FORBIDDEN,
                                 format!(
                                     "Transfer-coding '{}' defines no parameters, but '{}' is \
@@ -380,7 +389,7 @@ impl Rule for TransferCodingRegistered {
                     // is the same sentence the config parser folds by.
                     // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
                     if !allowed.contains(&token.to_ascii_lowercase()) {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &TRANSFER_CODING_UNREGISTERED,
                             format!(
                                 "Unrecognized transfer-coding '{}' in {} header",
@@ -431,15 +440,24 @@ impl Rule for TransferCodingRegistered {
             // cite(RFC 9112 § 6.1): "Transfer-Encoding = #transfer-coding"
             if let Some(resp) = &tx.response {
                 for hv in resp.headers.get_all("transfer-encoding").iter() {
-                    if let Some(v) = check_value("Transfer-Encoding", &decode(hv), &config.allowed)
-                    {
+                    if let Some(v) = check_value(
+                        "Transfer-Encoding",
+                        &decode(hv),
+                        &config.allowed,
+                        crate::lint::Party::Server,
+                    ) {
                         return Some(v);
                     }
                 }
             }
 
             for hv in tx.request.headers.get_all("transfer-encoding").iter() {
-                if let Some(v) = check_value("Transfer-Encoding", &decode(hv), &config.allowed) {
+                if let Some(v) = check_value(
+                    "Transfer-Encoding",
+                    &decode(hv),
+                    &config.allowed,
+                    crate::lint::Party::Client,
+                ) {
                     return Some(v);
                 }
             }
@@ -455,7 +473,12 @@ impl Rule for TransferCodingRegistered {
             // cite(RFC 9112 § 7.4): "If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked."
             // cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
             for hv in tx.request.headers.get_all("te").iter() {
-                if let Some(v) = check_value("TE", &decode(hv), &config.allowed) {
+                if let Some(v) = check_value(
+                    "TE",
+                    &decode(hv),
+                    &config.allowed,
+                    crate::lint::Party::Client,
+                ) {
                     return Some(v);
                 }
             }

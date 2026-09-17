@@ -89,6 +89,13 @@ impl RuleMeta for HttpVersionSyntax {
         DECLARED
     }
 
+    /// **A version that is not an `HTTP-version` was written by whichever peer
+    /// wrote the message it labels.** This rule judges the request's start line
+    /// and then the response's, so the party travels with the judgement.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -143,12 +150,18 @@ impl Rule for HttpVersionSyntax {
             // it is the one a capture always holds.
             // cite(RFC 9112 § 3): "A request-line begins with a method token, followed by a single space (SP), the request-target, and another single space (SP), and ends with the protocol version."
             // cite(RFC 9112 § 4): "The first line of a response message is the status-line, consisting of the protocol version, a space (SP), the status code, and another space and ending with an OPTIONAL textual phrase describing the status code."
-            let finding = judge("request", &tx.request.version).or_else(|| {
-                let resp = tx.response.as_ref()?;
-                judge("response", &resp.version)
-            })?;
+            // The half that produced the judgement travels with it: the one
+            // reporting site below cannot tell afterwards which of the two calls
+            // answered.
+            let (party, finding) = judge("request", &tx.request.version)
+                .map(|finding| (crate::lint::Party::Client, finding))
+                .or_else(|| {
+                    let resp = tx.response.as_ref()?;
+                    judge("response", &resp.version)
+                        .map(|finding| (crate::lint::Party::Server, finding))
+                })?;
 
-            Some(ctx.report_with(&HTTP_VERSION_MALFORMED, finding))
+            Some(ctx.by(party).report_with(&HTTP_VERSION_MALFORMED, finding))
         };
         Vec::from_iter(finding())
     }

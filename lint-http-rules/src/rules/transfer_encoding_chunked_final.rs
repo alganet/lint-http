@@ -71,6 +71,15 @@ impl RuleMeta for TransferEncodingChunkedFinal {
         DECLARED
     }
 
+    /// **The `is_request` this reader already branches on is the answer.** A
+    /// `Transfer-Encoding` names the codings its own sender applied, and this
+    /// rule reads the request's section and then the response's — two of its
+    /// three findings are asked only of a request, and all three belong to
+    /// whoever wrote the field.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -191,6 +200,13 @@ impl Rule for TransferEncodingChunkedFinal {
         };
 
         let check = |headers: &hyper::HeaderMap, is_request: bool| -> Option<Violation> {
+            // Which half this reading is of, which for a field naming what its
+            // own sender applied is also who is answerable for it.
+            let party = if is_request {
+                crate::lint::Party::Client
+            } else {
+                crate::lint::Party::Server
+            };
             let codings = collect(headers)?;
 
             if codings.is_empty() {
@@ -209,7 +225,7 @@ impl Rule for TransferEncodingChunkedFinal {
             // in § 6.1 lets a closed connection excuse chunking twice.
             let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
             if chunked_count > 1 {
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     &TRANSFER_ENCODING_CHUNKED_DUPLICATED,
                     format!(
                         "The chunked transfer coding must not be applied more than once: \
@@ -250,7 +266,7 @@ impl Rule for TransferEncodingChunkedFinal {
             // If 'chunked' appears anywhere other than the final coding it's a violation
             if let Some(pos) = codings.iter().position(|c| c == "chunked") {
                 if pos != codings.len() - 1 {
-                    return Some(ctx.report_with(&TRANSFER_ENCODING_CHUNKED_POSITION_INVALID, format!(
+                    return Some(ctx.by(party).report_with(&TRANSFER_ENCODING_CHUNKED_POSITION_INVALID, format!(
                             "Transfer-Encoding 'chunked' must be the final coding: codings found '{}'",
                             codings.join(", ")
                         )));
@@ -276,7 +292,7 @@ impl Rule for TransferEncodingChunkedFinal {
                 && codings.iter().any(|c| c != "chunked")
                 && codings.last().map(String::as_str) != Some("chunked")
             {
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     &TRANSFER_ENCODING_CHUNKED_MISSING,
                     format!(
                         "A request that applies any transfer coding other than chunked must apply \

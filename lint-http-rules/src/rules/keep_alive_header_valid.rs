@@ -338,6 +338,14 @@ max_timeout_seconds = 3600
         DECLARED
     }
 
+    /// **The `side` the judgement was made on is the answer.** `Keep-Alive` is
+    /// a hop-by-hop field either peer may send, and the single reporting site
+    /// below emits whichever of the two judgements returned first — so the party
+    /// travels with the judgement rather than being decided at the report.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -433,12 +441,16 @@ impl Rule for KeepAliveHeaderValid {
             }
 
             let config: &MessageKeepAliveConfig = ctx.state();
-            let message = judge(
+            // The half that produced the judgement travels with it: the one
+            // reporting site below cannot tell afterwards which of the two calls
+            // answered, and `side` is a string for the message.
+            let (party, message) = judge(
                 &tx.request.headers,
                 &tx.request.version,
                 "Request",
                 config.max_timeout_seconds,
             )
+            .map(|message| (crate::lint::Party::Client, message))
             .or_else(|| {
                 tx.response.as_ref().and_then(|resp| {
                     judge(
@@ -447,10 +459,11 @@ impl Rule for KeepAliveHeaderValid {
                         "Response",
                         config.max_timeout_seconds,
                     )
+                    .map(|message| (crate::lint::Party::Server, message))
                 })
             })?;
 
-            Some(ctx.report_with(message.def, message.message))
+            Some(ctx.by(party).report_with(message.def, message.message))
         };
         Vec::from_iter(finding())
     }
