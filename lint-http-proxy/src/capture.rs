@@ -124,6 +124,18 @@ impl CaptureWriter {
         self.events.subscribe()
     }
 
+    /// A handle that can make subscribers later without being one.
+    ///
+    /// Holding a [`broadcast::Receiver`] is not free: it keeps
+    /// `receiver_count()` above zero, which switches on the tee in
+    /// the writer task for a session that may never read a record, and it
+    /// pins the channel's whole backlog — bodies included — alive behind it.
+    /// A `Sender` clone costs neither, so a caller that only *might* subscribe
+    /// takes this and calls `subscribe()` on it if it does.
+    pub fn events(&self) -> broadcast::Sender<Arc<CaptureEnvelope>> {
+        self.events.clone()
+    }
+
     /// Queue a record for the writer task. Returns `Err` only if the task is
     /// gone (e.g. after [`Self::shutdown`]); serialization and IO errors are
     /// logged in the task, not returned here.
