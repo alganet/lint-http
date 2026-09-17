@@ -199,25 +199,34 @@ struct SessionArgs {
 impl SessionArgs {
     /// Which hosts this session's report is about.
     ///
-    /// `target` is what the session was pointed at, when the command knows —
-    /// the URL a browser was opened on, or the one a driver read out of the
-    /// tool's own arguments. It is the default first party, because a report
-    /// about a page is about that page and not about the eleven CDNs it
+    /// `targets` is what the session was pointed at, when the command knows —
+    /// the URLs a browser was opened on, or the ones a driver read out of the
+    /// tool's own arguments. They are the default first parties, because a
+    /// report about a page is about that page and not about the eleven CDNs it
     /// reaches. `run --` knows no target, so it reports everything, which is
     /// what it always did.
-    fn scope(&self, target: Option<&str>) -> HostScope {
+    ///
+    /// All of them, not the first: `curl https://a/ https://b/` is one
+    /// invocation of two hosts, and scoping to `a` would drop `b` from the
+    /// report without saying so.
+    fn scope(&self, targets: &[String]) -> HostScope {
         if self.all_hosts {
             return HostScope::all();
         }
         if !self.only_host.is_empty() {
             return HostScope::new(self.only_host.clone());
         }
-        // Narrowing to nothing would report nothing, so a target this cannot
-        // read widens rather than narrows.
-        match target.and_then(uri_host) {
-            Some(host) => HostScope::new([host.to_string()]),
-            None => HostScope::all(),
+        // Narrowing to nothing would report nothing, so targets this cannot
+        // read widen rather than narrow.
+        let hosts: Vec<String> = targets
+            .iter()
+            .filter_map(|target| uri_host(target))
+            .map(str::to_string)
+            .collect();
+        if hosts.is_empty() {
+            return HostScope::all();
         }
+        HostScope::new(hosts)
     }
 }
 
@@ -1217,7 +1226,7 @@ async fn run_wrapped(args: RunArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
     // No target: `run --` is tool-blind by design and cannot know what the
     // command it wrapped was aimed at, so without `--only-host` it reports
     // every origin the child reached.
-    let scope = args.session.scope(None);
+    let scope = args.session.scope(&[]);
     let findings = report_session(
         &run.records,
         &scope,
@@ -1327,7 +1336,7 @@ async fn drive(
     // The scope, decided before anything opens so it can be reported. The first
     // party is whatever the invocation was aimed at; with no target there is
     // none to infer.
-    let scope = session_args.scope(invocation.target.as_deref());
+    let scope = session_args.scope(&invocation.targets);
 
     let session = proxied_run::ProxySession::start((*cfg).clone(), global.captures_path()).await?;
     let pin = session.spki_pin().await?;
@@ -2787,7 +2796,7 @@ enabled = true
     /// The scope a session reports, in the order the three inputs win.
     #[test]
     fn a_session_scopes_to_its_target_unless_told_otherwise() {
-        let target = Some("https://example.com/app");
+        let target = &["https://example.com/app".to_string()][..];
 
         // Nothing said, and a target to infer from: that target's host.
         let inferred = SessionArgs::default().scope(target);
@@ -2795,7 +2804,17 @@ enabled = true
         assert!(!inferred.includes("https://cdn.other.net/x"));
 
         // Nothing said and no target — `run --`, which cannot know one.
-        assert!(SessionArgs::default().scope(None).is_all());
+        assert!(SessionArgs::default().scope(&[]).is_all());
+
+        // Every target, not the first: one invocation may name two hosts, and
+        // scoping to one of them would drop the other without saying so.
+        let both = SessionArgs::default().scope(&[
+            "https://example.com/".to_string(),
+            "https://www.iana.org/".to_string(),
+        ]);
+        assert!(both.includes("https://example.com/"));
+        assert!(both.includes("https://www.iana.org/"));
+        assert!(!both.includes("https://cdn.other.net/x"));
 
         // `--only-host` replaces the inferred first party rather than adding to it.
         let named = SessionArgs {

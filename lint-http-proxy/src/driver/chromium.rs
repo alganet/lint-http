@@ -68,7 +68,11 @@ impl Driver for Chromium {
     fn inspect(&self, args: &[String]) -> Invocation {
         Invocation {
             args: args.to_vec(),
-            target: args.iter().find(|arg| !arg.starts_with('-')).cloned(),
+            targets: args
+                .iter()
+                .filter(|arg| !arg.starts_with('-'))
+                .cloned()
+                .collect(),
             sends_body: false,
             objections: args.iter().filter_map(|arg| objection(arg)).collect(),
         }
@@ -165,19 +169,16 @@ mod tests {
     /// The URL is the scope, and it is read rather than removed: what the user
     /// typed reaches the browser in the order they typed it.
     #[test]
-    fn the_first_non_switch_is_the_target() {
+    fn every_non_switch_is_a_target() {
         let invocation = inspect(&["--incognito", "https://example.com/app"]);
-        assert_eq!(
-            invocation.target.as_deref(),
-            Some("https://example.com/app")
-        );
+        assert_eq!(invocation.targets, ["https://example.com/app"]);
         assert_eq!(invocation.args, ["--incognito", "https://example.com/app"]);
     }
 
     #[test]
     fn a_session_on_no_url_has_no_target() {
-        assert!(inspect(&[]).target.is_none());
-        assert!(inspect(&["--incognito"]).target.is_none());
+        assert!(inspect(&[]).targets.is_empty());
+        assert!(inspect(&["--incognito"]).targets.is_empty());
     }
 
     /// An unrecognized switch is opaque and reaches the browser unchanged.

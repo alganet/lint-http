@@ -51,9 +51,10 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 pub mod chromium;
+pub mod curl;
 
 /// Every driver, in the order a name is searched for.
-pub static DRIVERS: &[&dyn Driver] = &[&chromium::Chromium];
+pub static DRIVERS: &[&dyn Driver] = &[&chromium::Chromium, &curl::Curl];
 
 /// An executable a driver will run.
 #[derive(Debug, Clone)]
@@ -97,9 +98,14 @@ pub struct Invocation {
     /// user typed, and an argument it does not recognize reaches the tool
     /// byte-identical.
     pub args: Vec<String>,
-    /// The URL this invocation is aimed at, when the driver could tell. The
-    /// default host scope comes from here.
-    pub target: Option<String>,
+    /// The URLs this invocation is aimed at, when the driver could tell. The
+    /// default host scope covers all of them.
+    ///
+    /// Plural because one command can name several — `curl https://a/ https://b/`
+    /// is one invocation of two hosts, and scoping the report to the first would
+    /// silently drop the second. That is the failure this whole seam is against:
+    /// a report that is clean because it was not looking.
+    pub targets: Vec<String>,
     /// This invocation sends a request body, so the session should capture
     /// bodies — which is what makes the rules that read one worth having.
     pub sends_body: bool,
@@ -171,6 +177,38 @@ pub trait Driver: Sync {
     fn command(&self, tool: &Tool, invocation: &Invocation, at: &Target<'_>) -> Result<Launch>;
 }
 
+/// Find an executable on `PATH`.
+///
+/// Here rather than beside the browser search that first needed it: "where is
+/// this executable" is what a driver asks about its tool, and every driver asks
+/// it. Hand-rolled rather than a dependency — this is the whole of what `which`
+/// does that is needed, and the crate would be one more thing in the
+/// supply-chain gate for eight lines.
+pub fn which(name: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|dir| dir.join(name))
+        .find(|candidate| is_executable(candidate))
+}
+
+fn is_executable(path: &Path) -> bool {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    if !meta.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        meta.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
 /// The driver a name selects, if any.
 ///
 /// A name with a path separator in it is a path, and its file stem chooses the
@@ -203,8 +241,7 @@ pub fn resolve(typed: &str) -> Result<(&'static dyn Driver, Tool)> {
             known_names().join(", ")
         )
     })?;
-    let names_a_file =
-        typed.contains(std::path::MAIN_SEPARATOR) || crate::browser::which(typed).is_some();
+    let names_a_file = typed.contains(std::path::MAIN_SEPARATOR) || which(typed).is_some();
     let tool = driver.locate(names_a_file.then_some(typed))?;
     Ok((driver, tool))
 }

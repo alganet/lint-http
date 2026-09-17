@@ -75,7 +75,7 @@ pub fn discover(explicit: Option<&str>) -> Result<Browser> {
         let resolved = if path.components().count() > 1 {
             path.exists().then_some(path.clone())
         } else {
-            which(given)
+            crate::driver::which(given)
         };
         let path = resolved.with_context(|| format!("no such browser: {given}"))?;
         return Ok(Browser {
@@ -85,7 +85,7 @@ pub fn discover(explicit: Option<&str>) -> Result<Browser> {
     }
 
     for candidate in PATH_CANDIDATES {
-        if let Some(path) = which(candidate) {
+        if let Some(path) = crate::driver::which(candidate) {
             return Ok(Browser {
                 name: (*candidate).to_string(),
                 path,
@@ -106,40 +106,6 @@ pub fn discover(explicit: Option<&str>) -> Result<Browser> {
         "no Chromium-family browser found (looked for {}); name one with --browser <PATH>",
         PATH_CANDIDATES.join(", ")
     )
-}
-
-/// Find an executable on `PATH`.
-///
-/// `pub(crate)` because [`crate::driver::resolve`] asks the same question of a
-/// name a user typed after `use`, and the answer decides whether that name is
-/// an executable to run or a family to search for.
-///
-/// Hand-rolled rather than a dependency: this is the whole of what `which`
-/// does that is needed here, and the crate would be one more thing in the
-/// supply-chain gate for eight lines.
-pub(crate) fn which(name: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|dir| dir.join(name))
-        .find(|candidate| is_executable(candidate))
-}
-
-fn is_executable(path: &Path) -> bool {
-    let Ok(meta) = std::fs::metadata(path) else {
-        return false;
-    };
-    if !meta.is_file() {
-        return false;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        meta.permissions().mode() & 0o111 != 0
-    }
-    #[cfg(not(unix))]
-    {
-        true
-    }
 }
 
 fn file_name(path: &Path) -> String {
