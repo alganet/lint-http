@@ -12,6 +12,10 @@ A GET, HEAD or DELETE request carries content
 
 _Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 9110 §9.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1): GET — the client `SHOULD NOT` on content, its `unless` clause, the sentence declining to rely on the private agreement that clause describes, and the statement that framing is independent of the method

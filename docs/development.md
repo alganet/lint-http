@@ -218,6 +218,79 @@ Renaming a violation breaks a configuration exactly as renaming a rule does,
 and for the same reason: `[violations.<id>]` is refused at startup when the id
 names nothing.
 
+#### What a defect's sentence obliges
+
+A def carries a `strength:` — what the sentence it enforces obliges, and of
+whom — and that answer fixes its `default_severity`. `Strength::default_severity`
+is the mapping and the only copy of it:
+
+| `strength` | The sentence states | `default_severity` |
+| --- | --- | --- |
+| `Must` | `MUST` / `MUST NOT` / `SHALL` / `SHALL NOT` / `REQUIRED` | `error` |
+| `Should` | `SHOULD` / `SHOULD NOT` / `RECOMMENDED` / `NOT RECOMMENDED` | `warn` |
+| `May` | `MAY` / `OPTIONAL` | `info` |
+| `Grammar` | an ABNF production, obliged by RFC 9110 §2.2 | `error` |
+| `Unstated` | nothing that binds this sender | the author's, argued on the entry |
+
+**The keyword alone does not decide it.** A keyword binds somebody, and the only
+reading that says anything about a defect is the one binding the **sender of the
+message the defect is in**. RFC 9110 §13.1.3 says "a recipient MUST ignore
+`If-Modified-Since` if the request contains an `If-None-Match` header field" —
+an obligation on the server, leaving the client that sent both having broken
+nothing. `conditional_date_redundant` cites that sentence, states `Unstated`, and
+is `info`. Sixteen entries are of that shape, and a rule reading the keyword
+alone would call every one of them an error.
+
+**A recipient-directed keyword can still oblige the sender, and the test is
+what it says about the message.** "A recipient MUST ignore `If-Modified-Since`
+if the request contains an `If-None-Match`" neutralises an element and blames
+nobody: `Unstated`. "A server MUST reject a CONNECT request that targets an
+empty or invalid port number" condemns the message, and a sender that writes one
+gets a 400: `Must`. So does "is malformed", and so does any sentence naming the
+status code the recipient answers with. Ignore and discard are not faults;
+reject, refuse and malformed are.
+
+**Sender and recipient, not client and server.** This is deliberately coarser
+than the party a *finding* names, because 69 defects are reported by rules of
+differing party — the same syntax defect occurs in either half — so "which peer"
+has no answer at catalogue level. "Whoever wrote this message" always has one.
+
+**`Grammar` is `Must` with the obligation one level up.** A production states no
+keyword; what obliges every production at once is §2.2 — "A sender MUST NOT
+generate protocol elements that do not match the grammar defined by the
+corresponding ABNF rules". It is a separate word because the *evidence* differs,
+not because the level does: a `Must` entry quotes its requirement on itself, a
+`Grammar` entry quotes a production and inherits one. Keeping them apart means
+that judgement is one line to revisit rather than 147 entries to re-read.
+
+**`Unstated` is the honest answer for a third of the catalogue** and is the
+default, so an entry states only what someone read. It covers both the entries
+no sentence obliges — a value this implementation refuses, a bound a deployment
+configured — and the entries whose keyword binds the other side.
+
+Two gates hold this, and the split between them is the point:
+
+- `a_stated_strength_sets_the_default_severity` compares the level against the
+  mapping. An entry may depart from it, and then `departure:` carries the
+  argument — on the entry, where a reader is. The departure this key was
+  written for is `cookie_path_control_character_forbidden`: RFC 6265 §4.1.1 writes its own
+  grammar as "Servers SHOULD NOT send Set-Cookie headers that fail to conform",
+  weakly and for historical reasons, and a control character in a cookie `Path`
+  is a hazard regardless. `few_defects_depart_from_their_strength` caps how many
+  may exist, in the shape `few_defects_blame_the_instrument` established.
+- `a_stated_strength_quotes_the_keyword_it_claims` reads the `// cite` comments
+  in `src/violations/*.rs`, attaches each to the entry below it, and checks that
+  an entry claiming a keyword quotes one. **It is one-directional on purpose.**
+  It can say "you claimed a keyword that is not there" and can never say "you
+  missed one" — because an entry quoting a `MUST` and stating `Unstated` is the
+  recipient case, and a converse gate would fail on all sixteen and push a
+  maintainer to relabel them rather than keep them right.
+
+The keyword scan is upper-case only, which is RFC 8174's rule and not a
+shortcut: 35 entries cite a sentence using "must" or "ought to" descriptively,
+and reading those as requirements is the mistake the vocabulary exists to
+prevent.
+
 ### 2. Implementation
 
 Create a new file in `src/rules/<rule_name>.rs`. Every rule implements two

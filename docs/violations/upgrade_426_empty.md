@@ -12,6 +12,10 @@ A 426 response names no protocol on its Upgrade field
 
 _Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 9110 §15.5.22](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.22): 426 Upgrade Required — the server refuses the request under the current protocol, and MUST send an `Upgrade` field to indicate the required protocol(s). RFC 9110 §7.8 states the same MUST from the field's side.

@@ -176,6 +176,27 @@ pub struct Violation {
     /// build whose catalogue has moved on.
     #[serde(default, skip_serializing_if = "is_not_induced")]
     pub proxy_induced: bool,
+    /// What the sentence this defect enforces obliges, and of whom — the
+    /// catalogue's [`Strength`], copied onto the finding.
+    ///
+    /// Copied rather than looked up, following `cite` and `proxy_induced`: a
+    /// capture has to stay readable by a build whose catalogue has moved on,
+    /// and a consumer asking "show me only the broken MUSTs" should not have to
+    /// carry a copy of the catalogue to ask it.
+    ///
+    /// **A plain value where `party` is an `Option`**, for the reason
+    /// `proxy_induced` is a `bool`: [`Strength::Unstated`] and "nobody has read
+    /// this yet" are the same fact about a finding, so a third state would
+    /// distinguish nothing. It is skipped on the wire, so a finding whose
+    /// defect states no reading serializes exactly as it always has.
+    #[serde(default, skip_serializing_if = "is_unstated")]
+    pub strength: Strength,
+}
+
+/// `skip_serializing_if` for [`Violation::strength`]. A free function for the
+/// same reason [`is_not_induced`] is one: serde needs a path.
+fn is_unstated(strength: &Strength) -> bool {
+    matches!(strength, Strength::Unstated)
 }
 
 /// `skip_serializing_if` for [`Violation::proxy_induced`]. A free function
@@ -199,6 +220,7 @@ impl Violation {
             cite: None,
             party: None,
             proxy_induced: false,
+            strength: Strength::Unstated,
         }
     }
 }
@@ -238,6 +260,123 @@ impl Severity {
             "warn" => Some(Self::Warn),
             "error" => Some(Self::Error),
             _ => None,
+        }
+    }
+}
+
+/// What the specification sentence a defect enforces obliges, and of whom.
+///
+/// Not the RFC 2119 keyword by itself. A keyword binds *somebody*, and the
+/// only reading that says anything about a defect is the one that binds the
+/// **sender of the message the defect is in** — RFC 9110 § 13.1.3 says "a
+/// recipient MUST ignore `If-Modified-Since` if the request contains an
+/// `If-None-Match` header field", which is an obligation on the server and
+/// leaves the client that sent both having broken no sentence at all. So a def
+/// quoting a `MUST` is not thereby [`Must`](Strength::Must); a def quoting a
+/// `MUST` *addressed to the sender it is reporting* is.
+///
+/// # Sender and recipient, not client and server
+///
+/// Deliberately coarser than [`Party`], which names the peer a *finding* holds
+/// answerable. 69 defects are reported by rules of differing party, because the
+/// same syntax defect occurs in either half — `bws_forbidden`,
+/// `etag_delimiter_missing`, `media_type_empty` — so "which peer" has no answer
+/// at catalogue level. "Whoever wrote this message" always does: "a sender MUST
+/// NOT generate BWS in messages" binds whichever half the octet turned up in.
+///
+/// # Why this is a level and not a lookup
+///
+/// The keyword is mechanically readable out of the `// cite` comment beside a
+/// def; the addressee is not, and no regex has ever got it right. This field is
+/// where the reading is written down once, so that the half a machine can check
+/// — that a def claiming `Must` does quote a `MUST` — is checked on every run,
+/// and the half only a reader can settle is settled in review. See
+/// `a_stated_strength_quotes_the_keyword_it_claims` in the rules crate.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum Strength {
+    /// `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT` or `REQUIRED`, binding the
+    /// sender of the message. The message breaks a requirement, so the finding
+    /// is an `error`.
+    Must,
+    /// `SHOULD`, `SHOULD NOT`, `RECOMMENDED` or `NOT RECOMMENDED`, binding the
+    /// sender. Advice a specification gives in its own voice and the sender
+    /// declined, so the finding is a `warn`.
+    Should,
+    /// `MAY` or `OPTIONAL`: a permission the sender did not take up, or a
+    /// component its own definition marks optional. Nothing is broken and the
+    /// finding is worth saying anyway, so it is an `info`.
+    May,
+    /// The defect is a value that does not derive from the ABNF production it
+    /// quotes.
+    ///
+    /// The obligation is not in the quoted production — a grammar states no
+    /// keyword — it is in the one sentence that governs every production HTTP
+    /// has: *"A sender MUST NOT generate protocol elements that do not match
+    /// the grammar defined by the corresponding ABNF rules"* (RFC 9110 § 2.2).
+    /// That is a sender-binding `MUST`, so this maps to `error` exactly as
+    /// [`Must`](Strength::Must) does.
+    ///
+    /// **It is a separate variant because the evidence is different, not
+    /// because the level is.** A `Must` def quotes its requirement on itself; a
+    /// `Grammar` def quotes a production and inherits the requirement. Keeping
+    /// the two apart means the 147 defects that inherit it can be re-levelled
+    /// by one line here if that judgement is ever revisited, instead of by
+    /// re-reading 147 entries to find out which ones were which.
+    Grammar,
+    /// The default, and the honest answer far more often than not.
+    ///
+    /// Either nothing states a requirement about this defect at all — 37
+    /// entries cite no sentence, because the value is refused by this
+    /// implementation, or the bound was configured by a deployment — or a
+    /// keyword is present and binds the *recipient*, and so says nothing about
+    /// the sender being reported. Severity is then the author's, argued in the
+    /// doc comment above the entry, and no gate derives it.
+    Unstated,
+}
+
+impl Default for Strength {
+    /// [`Unstated`](Strength::Unstated), which is what a defect nobody has read
+    /// says — and what a capture written before this field existed reads back
+    /// as. The two are the same claim, which is why one value serves both.
+    fn default() -> Self {
+        Self::Unstated
+    }
+}
+
+impl Strength {
+    /// The name this reading goes by outside the type: what a generated
+    /// configuration comments, what a documentation page prints, and what a
+    /// finding carries on the wire. One vocabulary, spelled once, exactly as
+    /// [`Severity::name`] is.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Must => "must",
+            Self::Should => "should",
+            Self::May => "may",
+            Self::Grammar => "grammar",
+            Self::Unstated => "unstated",
+        }
+    }
+
+    /// The severity a defect carries by default when it states this reading,
+    /// or `None` where the reading derives no level.
+    ///
+    /// [`Unstated`](Strength::Unstated) is the `None`, and it is the whole
+    /// reason this returns an `Option` rather than a `Severity`: a defect no
+    /// sentence obliges still has a level, and that level is a judgement
+    /// nothing here can make for it.
+    ///
+    /// This is the mapping, and it is the only copy of it. The gate that holds
+    /// the catalogue to it, the documentation page that prints it and the
+    /// argument in `docs/development.md` all name this function rather than
+    /// restating the three-way correspondence.
+    pub fn default_severity(self) -> Option<Severity> {
+        match self {
+            Self::Must | Self::Grammar => Some(Severity::Error),
+            Self::Should => Some(Severity::Warn),
+            Self::May => Some(Severity::Info),
+            Self::Unstated => None,
         }
     }
 }

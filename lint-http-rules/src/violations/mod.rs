@@ -27,7 +27,7 @@
 //! `RuleMeta::cited` — coexisted with these while the catalogue filled and were
 //! deleted with the last site that called them.
 
-use crate::lint::Severity;
+use crate::lint::{Severity, Strength};
 use crate::rules::SpecRef;
 use linkme::distributed_slice;
 use std::sync::LazyLock;
@@ -262,10 +262,44 @@ pub struct ViolationDef {
     /// [`specifications()`](crate::rules::RuleMeta::specifications).
     pub spec: &'static [SpecRef],
     /// Whether the instrument produced what this reports. Defaults to
-    /// [`Induced::No`], which makes it the one key in this struct an entry may
+    /// [`Induced::No`], one of the three keys in this struct an entry may
     /// omit: an entry that says nothing is describing traffic, which is what
     /// all but one of them do.
     pub induced: Induced,
+    /// What the sentence this defect enforces obliges, and of whom.
+    ///
+    /// [`Strength::Unstated`] by default, and the default is the honest answer
+    /// for a third of the catalogue — see the type. Where it is *not*
+    /// unstated, [`Strength::default_severity`] fixes `default_severity`
+    /// above, and `a_stated_strength_sets_the_default_severity` holds the two
+    /// together.
+    ///
+    /// **This is a reading, not a scan.** A `// cite` comment beside the entry
+    /// carries the sentence; a machine can see the keyword in it and cannot see
+    /// whom the keyword binds. So the reading is written here once and the
+    /// mechanical half is checked against the comment by
+    /// `a_stated_strength_quotes_the_keyword_it_claims`.
+    pub strength: Strength,
+    /// Why this entry's severity is not the one its strength implies.
+    ///
+    /// `None` for all but a handful. A def that states a strength takes the
+    /// level that strength maps to; anything else is a decision someone made
+    /// against the mapping, and this is where the decision is written — on the
+    /// entry, where a reader of the catalogue is, rather than in a side file
+    /// nobody opens. `a_stated_strength_sets_the_default_severity` prints it
+    /// when it fails, so the argument is what a maintainer sees first.
+    ///
+    /// The archetype is `cookie_path_control_character_forbidden`: RFC 6265
+    /// § 4.1.1 states its own grammar as "Servers SHOULD NOT send Set-Cookie
+    /// headers that fail to conform to the following grammar", weakly and for
+    /// historical reasons, and a control character in a cookie `Path` is a
+    /// hazard regardless. The mapping says `warn`; the entry says `error` and
+    /// says why.
+    ///
+    /// **Capped, not merely available.** `few_defects_depart_from_their_strength`
+    /// is a ceiling in the shape `few_defects_blame_the_instrument` already
+    /// established: an escape hatch with no ceiling stops being an exception.
+    pub departure: Option<&'static str>,
 }
 
 /// Define a subject's defects, and register every one of them.
@@ -302,6 +336,11 @@ pub struct ViolationDef {
 ///   bullet on the page of any rule that reports it. That last clause was
 ///   aspiration when it was written and is now literally true.
 ///
+/// Three keys may be left out, and are written in this order when they are
+/// not: `strength`, then `departure`, then `induced`. Each defaults to the
+/// answer that says nothing — `Strength::Unstated`, no departure, traffic
+/// rather than instrument — so an entry states only what someone read.
+///
 /// Each entry hides its registration in an anonymous `const` block, so every
 /// one can use the same name for it: the linker collects the section entry, and
 /// nothing needs a second name derived from the first.
@@ -317,6 +356,18 @@ macro_rules! defects {
     (@induced $value:expr) => {
         $value
     };
+    (@strength) => {
+        $crate::lint::Strength::Unstated
+    };
+    (@strength $value:expr) => {
+        $value
+    };
+    (@departure) => {
+        ::core::option::Option::None
+    };
+    (@departure $value:expr) => {
+        ::core::option::Option::Some($value)
+    };
     ($(
         $(#[$attr:meta])*
         $name:ident = {
@@ -325,6 +376,8 @@ macro_rules! defects {
             message: $message:literal,
             default_severity: $severity:expr,
             spec: $spec:expr,
+            $(strength: $strength:expr,)?
+            $(departure: $departure:expr,)?
             $(induced: $induced:expr,)?
         }
     )*) => {$(
@@ -336,6 +389,8 @@ macro_rules! defects {
             default_severity: $severity,
             spec: $spec,
             induced: $crate::violations::defects!(@induced $($induced)?),
+            strength: $crate::violations::defects!(@strength $($strength)?),
+            departure: $crate::violations::defects!(@departure $($departure)?),
         };
 
         const _: () = {
@@ -856,6 +911,388 @@ mod tests {
                 "{id} is not the shape",
             );
         }
+    }
+
+    /// Every `// cite` comment in this tree, attached to the def whose doc
+    /// block it sits in.
+    ///
+    /// Returns `(id, source, quoted text)`. A cite in a module doc or in a test
+    /// belongs to no entry and is not returned — 21 of the 564 in this tree are
+    /// one of those, and attaching them to whatever def happened to follow is
+    /// the failure mode this shape exists to avoid.
+    ///
+    /// **A textual read, like `every_defect_comes_from_the_macro`, and for the
+    /// same reason**: what is being checked is a relation between an entry and
+    /// the *comment* above it, and a comment is not reachable from any type. It
+    /// is safe to read this way because the shape is uniform — every one of the
+    /// cites in `src/violations/` is a single line ending in its closing quote,
+    /// which `a_cite_is_one_line` pins so this parse cannot silently start
+    /// missing half of one.
+    ///
+    /// It deliberately does not read `specs/specs_generated.yaml`, which holds
+    /// the same sentences with their file and line. That file is `apycite`'s
+    /// derivation of these comments; reading it here would put a YAML parser
+    /// between this gate and the text it is checking, to learn something the
+    /// text says directly.
+    fn cites_by_violation() -> Vec<(String, String, String)> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/violations");
+        let mut out = Vec::new();
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
+            .expect("cannot read src/violations")
+            .map(|e| e.expect("a directory entry").path())
+            .filter(|p| p.extension().is_some_and(|e| e == "rs"))
+            .filter(|p| p.file_name().is_some_and(|n| n != "mod.rs"))
+            .collect();
+        files.sort();
+        for path in files {
+            let src = std::fs::read_to_string(&path).expect("a subject file");
+            let lines: Vec<&str> = src.lines().collect();
+            for (i, line) in lines.iter().enumerate() {
+                // An entry opens at exactly one indent inside the `defects!`
+                // block: `    NAME = {`. Nothing else in these files is written
+                // that way.
+                let Some(rest) = line.strip_prefix("    ") else {
+                    continue;
+                };
+                if rest.starts_with(' ') || !rest.ends_with(" = {") {
+                    continue;
+                }
+                if !rest
+                    .trim_end_matches(" = {")
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+                {
+                    continue;
+                }
+                // The id is in the body, which is where the catalogue's own
+                // name for this entry lives — the `static`'s name is a second
+                // spelling of it and not the one anything else uses.
+                let id = lines[i..]
+                    .iter()
+                    .take_while(|l| l.trim() != "}")
+                    .find_map(|l| {
+                        l.trim()
+                            .strip_prefix("id: \"")
+                            .and_then(|r| r.strip_suffix("\","))
+                    })
+                    .unwrap_or_else(|| panic!("{}:{}: entry with no id", path.display(), i + 1));
+                // Walk the contiguous comment block above the entry. A blank
+                // line ends it: two entries are always separated by one, so
+                // this cannot reach past the entry above.
+                for line in lines[..i].iter().rev() {
+                    let trimmed = line.trim();
+                    if !trimmed.starts_with("//") {
+                        break;
+                    }
+                    if let Some((source, text)) = parse_cite(trimmed) {
+                        out.push((id.to_string(), source.to_string(), text.to_string()));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// The token a citation comment opens with, assembled rather than spelled.
+    ///
+    /// Written out, it would be cite-shaped text that `apycite` cannot read as
+    /// a citation, and its `marker_outside_comments` gate refuses that for a
+    /// good reason: a quote in that shape is a quote nobody is verifying. This
+    /// scanner needs the token as *data*, so it gets it as data — and every
+    /// fixture below builds its sample lines from this rather than writing one.
+    const MARKER: &str = concat!("ci", "te(");
+
+    /// A citation comment split into the source it names and the sentence it
+    /// quotes, or `None` for a comment that is not one.
+    ///
+    /// The comment has to *open* with the marker once its slashes are off, not
+    /// merely contain it. Prose in a doc comment may talk about the form —
+    /// [`cites_by_violation`] above does — and a scan that matched anywhere
+    /// would read that sentence as a citation of a document called "source".
+    fn parse_cite(comment: &str) -> Option<(&str, &str)> {
+        let rest = comment.trim_start_matches('/').trim_start();
+        let (source, rest) = rest.strip_prefix(MARKER)?.split_once("): \"")?;
+        Some((source, rest.strip_suffix('"')?))
+    }
+
+    /// Whether `line` is an attempt at a citation: a comment opening with the
+    /// marker. What [`a_cite_is_one_line`] holds to the one-line shape, and the
+    /// same test [`parse_cite`] applies before it splits.
+    fn opens_a_cite(line: &str) -> bool {
+        let trimmed = line.trim();
+        trimmed.starts_with("//")
+            && trimmed
+                .trim_start_matches('/')
+                .trim_start()
+                .starts_with(MARKER)
+    }
+
+    /// Whether `text` states `word` as an RFC 2119 keyword: the letters in
+    /// upper case, standing as a whole word.
+    ///
+    /// Upper case only, which is RFC 8174's rule and not a shortcut — HTTP's
+    /// documents are full of lower-case "must" and "should" used descriptively,
+    /// and 35 entries in this catalogue cite one. Treating those as
+    /// requirements is exactly the mistake this vocabulary exists to prevent.
+    fn states_keyword(text: &str, word: &str) -> bool {
+        let bytes = text.as_bytes();
+        text.match_indices(word).any(|(at, _)| {
+            let before = at == 0 || !bytes[at - 1].is_ascii_alphanumeric();
+            let after_at = at + word.len();
+            let after = after_at == bytes.len() || !bytes[after_at].is_ascii_alphanumeric();
+            before && after
+        })
+    }
+
+    /// Whether `text` is an ABNF rule definition: a rule name, `=` or `=/`,
+    /// and something after it.
+    ///
+    /// The shape RFC 5234 § 2.2 prints, and the reason a `Grammar` entry needs
+    /// no keyword of its own — what obliges it is RFC 9110 § 2.2, which
+    /// obliges every production at once.
+    fn is_abnf_production(text: &str) -> bool {
+        let text = text.trim_start();
+        let name: String = text
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+            .collect();
+        if name.is_empty() || !name.starts_with(|c: char| c.is_ascii_alphabetic()) {
+            return false;
+        }
+        let rest = text[name.len()..].trim_start();
+        let rest = rest.strip_prefix('=').map(|r| r.trim_start_matches('/'));
+        rest.is_some_and(|r| r.starts_with(char::is_whitespace) && !r.trim().is_empty())
+    }
+
+    /// **The parse above is only safe while every cite is one line.**
+    ///
+    /// A cite whose quoted sentence wrapped onto a second line would be read
+    /// here as a truncated sentence, and a truncated sentence is exactly where
+    /// a keyword goes missing without anything failing. `apycite` has its own
+    /// reasons to want them unwrapped; this is the gate that lets
+    /// [`cites_by_violation`] assume it.
+
+    #[test]
+    fn a_cite_is_one_line() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/violations");
+        for entry in std::fs::read_dir(&dir).expect("cannot read src/violations") {
+            let path = entry.expect("a directory entry").path();
+            if path.extension().is_none_or(|e| e != "rs")
+                || path.file_name().is_some_and(|n| n == "mod.rs")
+            {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path).expect("a subject file");
+            for (i, line) in src.lines().enumerate() {
+                if opens_a_cite(line) {
+                    assert!(
+                        parse_cite(line.trim()).is_some(),
+                        "{}:{}: a cite is written on one line, ending in its closing quote",
+                        path.display(),
+                        i + 1,
+                    );
+                }
+            }
+        }
+    }
+
+    /// **Gate A: a defect that states what its sentence obliges takes the level
+    /// that obligation carries.**
+    ///
+    /// [`Strength::default_severity`] is the mapping and the only copy of it.
+    /// An entry may depart from it — RFC 6265 writes its own grammar as a
+    /// `SHOULD NOT` and a control character in a cookie `Path` is a hazard
+    /// anyway — but a departure is a decision, so it is written on the entry in
+    /// `departure:` and printed here when this fails.
+    ///
+    /// Two directions, because both are wrong in ways nothing else notices:
+    /// an entry whose level contradicts its reading with no argument, and an
+    /// argument on an entry whose level does not contradict anything. The
+    /// second is what a departure becomes after someone fixes the severity and
+    /// leaves the prose, and it reads to the next maintainer as a live
+    /// exception.
+    #[test]
+    fn a_stated_strength_sets_the_default_severity() {
+        let mut wrong = Vec::new();
+        for def in VIOLATIONS.iter() {
+            match (def.strength.default_severity(), def.departure) {
+                (Some(implied), None) if implied != def.default_severity => wrong.push(format!(
+                    "{}: states {} and so reports at {}, but its default is {} — \
+                     move it, or write a `departure:` saying why not",
+                    def.id,
+                    def.strength.name(),
+                    implied.name(),
+                    def.default_severity.name(),
+                )),
+                (Some(implied), Some(why)) if implied == def.default_severity => {
+                    wrong.push(format!(
+                        "{}: departs from nothing — it states {} and already reports at {}. \
+                         Drop the departure: {why}",
+                        def.id,
+                        def.strength.name(),
+                        implied.name(),
+                    ))
+                }
+                (None, Some(why)) => wrong.push(format!(
+                    "{}: states no strength, so there is nothing to depart from: {why}",
+                    def.id,
+                )),
+                _ => {}
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "{} defects disagree with what they say their sentence obliges:\n{}",
+            wrong.len(),
+            wrong.join("\n"),
+        );
+    }
+
+    /// **Gate B: a defect that claims a keyword quotes one.**
+    ///
+    /// The half of the reading a machine can check. A `Must` entry has to cite
+    /// a sentence stating `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT` or
+    /// `REQUIRED`; a `Should` entry one stating `SHOULD`, `SHOULD NOT` or
+    /// `RECOMMENDED`; a `May` entry one stating `MAY` or `OPTIONAL`; a
+    /// `Grammar` entry an ABNF production.
+    ///
+    /// # It is deliberately one-directional
+    ///
+    /// Nothing here objects to an entry that quotes a `MUST` and states
+    /// [`Strength::Unstated`]. That is not an oversight, it is the point: 16
+    /// entries quote a `MUST` addressed to the *recipient* —
+    /// `conditional_date_redundant` quotes "a recipient MUST ignore
+    /// If-Modified-Since if the request contains an If-None-Match header
+    /// field", and the client that sent both broke nothing — and they are
+    /// `info` correctly. A converse gate would fail on every one of them, and
+    /// the pressure would be to relabel them rather than to keep them right.
+    ///
+    /// So this test can say "you claimed a keyword that is not there" and can
+    /// never say "you missed one". The second question is a reading, and
+    /// `every_defect_states_a_strength` is what keeps it from going unasked.
+    #[test]
+    fn a_stated_strength_quotes_the_keyword_it_claims() {
+        let cites = cites_by_violation();
+        let mut wrong = Vec::new();
+        for def in VIOLATIONS.iter() {
+            let words: &[&str] = match def.strength {
+                Strength::Must => &["MUST", "SHALL", "REQUIRED"],
+                Strength::Should => &["SHOULD", "RECOMMENDED"],
+                Strength::May => &["MAY", "OPTIONAL"],
+                Strength::Grammar | Strength::Unstated => &[],
+            };
+            let quoted: Vec<&str> = cites
+                .iter()
+                .filter(|(id, _, _)| id == def.id)
+                .map(|(_, _, text)| text.as_str())
+                .collect();
+            let satisfied = match def.strength {
+                Strength::Grammar => quoted.iter().any(|t| is_abnf_production(t)),
+                Strength::Unstated => true,
+                _ => quoted
+                    .iter()
+                    .any(|t| words.iter().any(|w| states_keyword(t, w))),
+            };
+            if !satisfied {
+                wrong.push(format!(
+                    "{}: states {}, and none of its {} cited sentences {}",
+                    def.id,
+                    def.strength.name(),
+                    quoted.len(),
+                    match def.strength {
+                        Strength::Grammar => "is an ABNF production".to_string(),
+                        _ => format!("states {}", words.join(" / ")),
+                    },
+                ));
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "{} defects claim a reading their cited text does not carry:\n{}",
+            wrong.len(),
+            wrong.join("\n"),
+        );
+    }
+
+    /// The parse and the two predicates, pinned against text written here
+    /// rather than against the catalogue — so the convention holds whatever the
+    /// catalogue happens to contain, which is the same reason
+    /// `the_id_shape_takes_a_defect_and_refuses_a_claim` exists.
+    #[test]
+    fn the_keyword_scan_reads_case_and_word_boundaries() {
+        // RFC 8174: the keyword is the upper-case spelling. Everything else is
+        // a document using an English word.
+        assert!(states_keyword(
+            "A sender MUST NOT generate BWS in messages.",
+            "MUST"
+        ));
+        assert!(!states_keyword(
+            "the request-uri's scheme must denote a \"secure\" protocol",
+            "MUST"
+        ));
+        // A whole word, so a keyword inside a longer token is not one.
+        assert!(!states_keyword("MUSTARD is not a keyword", "MUST"));
+        assert!(states_keyword("value MUST be a Date", "MUST"));
+        // Productions, in the two forms RFC 5234 prints.
+        assert!(is_abnf_production("Content-Length = 1*DIGIT"));
+        assert!(is_abnf_production(
+            "alternative   = protocol-id \"=\" alt-authority"
+        ));
+        assert!(is_abnf_production("qdtext =/ obs-text"));
+        // Prose that happens to contain an `=` is not a production.
+        assert!(!is_abnf_production(
+            "Clients MUST ignore \"persist\" parameters with values other than \"1\"."
+        ));
+        assert!(!is_abnf_production("= leads with the operator"));
+        assert!(!is_abnf_production("trailing = "));
+        // The citation parse, including the two shapes it must refuse. Every
+        // sample is built from `MARKER` rather than written out: a citation
+        // spelled in a string literal is a quote `apycite` cannot verify, and
+        // it fails the tree for exactly that.
+        let good = format!("// {MARKER}RFC 9110 \u{a7} 8.6): \"Content-Length = 1*DIGIT\"");
+        assert_eq!(
+            parse_cite(&good),
+            Some(("RFC 9110 \u{a7} 8.6", "Content-Length = 1*DIGIT")),
+        );
+        assert!(opens_a_cite(&format!("    {good}")));
+        assert_eq!(parse_cite("// an ordinary comment"), None);
+        assert_eq!(
+            parse_cite(&format!("// {MARKER}RFC 9110 \u{a7} 8.6): \"unterminated")),
+            None,
+        );
+        // Prose about the form is not the form.
+        let prose = format!("/// Every `// {MARKER}source): \"text\"` comment");
+        assert_eq!(parse_cite(&prose), None);
+        assert!(!opens_a_cite(&prose));
+    }
+
+    /// **A ceiling, and the second one in this file** — see
+    /// `few_defects_blame_the_instrument`, which this is shaped after and for
+    /// the same reason.
+    ///
+    /// A departure is an argument that the mapping is wrong about one entry.
+    /// Each one is defensible; what is not defensible is a catalogue where the
+    /// mapping is advisory, and the pressure runs that way, because writing a
+    /// sentence is always easier than moving a level and re-reading what the
+    /// move does to a report. So they are counted, and the count is small
+    /// enough that a new one arrives in a commit that argues for it.
+    ///
+    /// Read what the assertion prints. A further departure wants the argument
+    /// written on its entry, not this constant bumped.
+    #[test]
+    fn few_defects_depart_from_their_strength() {
+        const CEILING: usize = 4;
+        let departures: Vec<&str> = VIOLATIONS
+            .iter()
+            .filter(|d| d.departure.is_some())
+            .map(|d| d.id)
+            .collect();
+        assert!(
+            departures.len() <= CEILING,
+            "{} defects depart from the severity their strength implies, above the \
+             ceiling of {CEILING}: {departures:?}",
+            departures.len(),
+        );
     }
 
     /// The sorted view must hold exactly what was registered, in id order —

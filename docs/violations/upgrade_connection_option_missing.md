@@ -12,6 +12,10 @@ Upgrade is sent with no upgrade connection-option in Connection
 
 _Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade — the sender's obligation to name the field as a connection-option beside it, and the `#protocol` grammar that makes the field's presence the thing the obligation turns on

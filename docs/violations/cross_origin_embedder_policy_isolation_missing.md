@@ -12,6 +12,10 @@ A Cross-Origin-Embedder-Policy is set to the value that does not isolate
 
 Cross-Origin-Embedder-Policy is 'unsafe-none', which is valid and does not enable cross-origin isolation (use 'require-corp' or 'credentialless')
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Configuration
 
 ```toml

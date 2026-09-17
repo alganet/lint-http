@@ -12,6 +12,10 @@ The policy holds a separator with no directive
 
 Empty directive in Strict-Transport-Security header
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Configuration
 
 ```toml

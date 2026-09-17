@@ -167,12 +167,24 @@ ca_key_path = "ca.key"
 /// function, not because two functions are believed to agree — which is the
 /// property a reader copying from either one is relying on.
 pub(crate) fn violation_section(def: &ViolationDef) -> String {
-    format!(
-        "[violations.{}]\n# {}\nseverity = \"{}\"\n",
-        def.id,
-        def.title,
-        def.default_severity.name(),
-    )
+    let mut out = format!("[violations.{}]\n# {}\n", def.id, def.title);
+    // The one fact an operator deciding whether to override this level wants
+    // and cannot get from the id: whether the level was derived from a
+    // sentence or chosen. An entry that states no strength says nothing here,
+    // because "nobody read it" and "a keyword binds the other side" are both
+    // answered by the entry's own doc comment and neither fits a config line.
+    if let Some(obliged) = def.strength.default_severity() {
+        out.push_str(&format!(
+            "# {} obliges the sender, so this defaults to {}.\n",
+            def.strength.name().to_uppercase(),
+            obliged.name(),
+        ));
+        if let Some(why) = def.departure {
+            out.push_str(&format!("# Departs from that: {why}\n"));
+        }
+    }
+    out.push_str(&format!("severity = \"{}\"\n", def.default_severity.name()));
+    out
 }
 
 /// The whole file, as bytes on disk: the preamble, then one `[rules.<id>]`
@@ -211,6 +223,7 @@ pub fn write(path: &Path) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lint_http_rules::lint::Strength;
     use lint_http_rules::rules::{PROTOCOL_RULES, RULES};
 
     #[test]
@@ -239,6 +252,8 @@ mod tests {
             default_severity: lint_http_rules::lint::Severity::Error,
             spec: &[],
             induced: lint_http_rules::violations::Induced::No,
+            strength: Strength::Unstated,
+            departure: None,
         };
         assert_eq!(
             violation_section(&def),
