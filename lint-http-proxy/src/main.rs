@@ -863,6 +863,7 @@ fn gated_block(
                         method: tx.request.method.clone(),
                         uri: tx.request.uri.clone(),
                         status: tx.response.as_ref().map(|r| r.status),
+                        answered_by_this_proxy: tx.upstream_never_answered,
                         violations,
                     })
                 }),
@@ -1005,6 +1006,7 @@ fn lint_records(
                 // The record is owned, so the report fields move out of it.
                 findings.push(FindingsBlock::HttpTransaction(TransactionFindings {
                     status: tx.response.as_ref().map(|r| r.status),
+                    answered_by_this_proxy: tx.upstream_never_answered,
                     method: tx.request.method,
                     uri: tx.request.uri,
                     violations,
@@ -1112,6 +1114,14 @@ struct TransactionFindings {
     method: String,
     uri: String,
     status: Option<u16>,
+    /// True when that status is **this proxy's** answer and not the origin's.
+    /// It reads on the block header, because a reader comparing a 502 against
+    /// what the origin does would otherwise be comparing it against a message
+    /// the origin never sent. The rules already know — the engine dispatches
+    /// none of the response-reading ones at such a record — so this is the
+    /// report saying the same thing to the person.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    answered_by_this_proxy: bool,
     violations: Vec<lint::Violation>,
 }
 
@@ -1655,12 +1665,21 @@ fn render_findings_block(block: &FindingsBlock, opts: RenderOpts) -> anyhow::Res
                 .status
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "-".to_string());
+            // The origin never spoke on this exchange, so the status came
+            // from here. Said on the header rather than on each finding: it is
+            // a fact about the record, and the findings that would have been
+            // wrong because of it were not made at all.
+            let whose = match f.answered_by_this_proxy {
+                true => " (this proxy's own reply)",
+                false => "",
+            };
             writeln!(
                 out,
-                "{} {} -> {}",
+                "{} {} -> {}{}",
                 opts.styles.paint(opts.styles.name(), &f.method),
                 f.uri,
-                opts.styles.paint(opts.styles.status(f.status), &status)
+                opts.styles.paint(opts.styles.status(f.status), &status),
+                opts.styles.paint(opts.styles.dim(), whose),
             )?;
         }
         FindingsBlock::WebsocketSession(f) => {
@@ -3436,6 +3455,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![sample_violation()],
         })]
     }
@@ -3449,10 +3469,44 @@ enabled = true
                     method: "GET".to_string(),
                     uri: format!("http://example.test/{i}"),
                     status: Some(200),
+                    answered_by_this_proxy: false,
                     violations: vec![sample_violation()],
                 })
             })
             .collect()
+    }
+
+    /// A 502 this proxy wrote says so on its block header.
+    ///
+    /// The rules already know — the engine dispatches none of the
+    /// response-reading ones at such a record, so the findings that would have
+    /// blamed the origin are not made. This is the same fact told to the person
+    /// reading, who would otherwise compare a status against what the origin
+    /// does and be comparing it against a message the origin never sent.
+    #[test]
+    fn a_status_this_proxy_wrote_is_marked_on_the_header() -> anyhow::Result<()> {
+        let opts = RenderOpts {
+            styles: style::Styles::default(),
+            ..Default::default()
+        };
+        let mine = FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://unreachable.test/".to_string(),
+            status: Some(502),
+            answered_by_this_proxy: true,
+            violations: vec![sample_violation()],
+        });
+        let out = render_findings_block(&mine, opts)?;
+        assert!(
+            out.contains("-> 502 (this proxy's own reply)"),
+            "block header should name whose reply it is: {out}"
+        );
+
+        // And an origin's status carries no such note.
+        let theirs = render_findings_block(&sample_findings()[0], opts)?;
+        assert!(theirs.contains("-> 200"));
+        assert!(!theirs.contains("this proxy's own reply"));
+        Ok(())
     }
 
     /// **The shape a pipe gets has not changed.** One line per finding,
@@ -3473,6 +3527,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![v],
         })];
         let out = render_findings(&findings, RenderOpts::plain())?;
@@ -3542,6 +3597,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![sample_violation(), other],
         })];
         let groups = group_findings(&findings);
@@ -3560,6 +3616,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![sample_violation(), loud],
         })];
         let groups = group_findings(&findings);
@@ -3580,6 +3637,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![v],
         })];
         let out = render_findings(
@@ -3647,6 +3705,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![v],
         })];
         let out = render_findings(
@@ -3689,6 +3748,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![v],
         })];
         let out = render_findings(
@@ -3892,6 +3952,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![v, sample_violation()],
         })];
         let summary = Summary {
@@ -3918,12 +3979,14 @@ enabled = true
                 method: "GET".to_string(),
                 uri: "http://a.test/".to_string(),
                 status: Some(200),
+                answered_by_this_proxy: false,
                 violations: vec![sample_violation()],
             }),
             FindingsBlock::HttpTransaction(TransactionFindings {
                 method: "GET".to_string(),
                 uri: "http://b.test/".to_string(),
                 status: Some(200),
+                answered_by_this_proxy: false,
                 violations: vec![sample_violation()],
             }),
         ];
@@ -4023,6 +4086,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: None,
+            answered_by_this_proxy: false,
             violations: vec![sample_violation()],
         })];
         let out = render_lint_report(
@@ -4048,6 +4112,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![v, sample_violation()],
         })];
         let out = render_lint_report(
@@ -4077,6 +4142,7 @@ enabled = true
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![v, sample_violation()],
         })];
         let out = render_lint_report(
@@ -4473,12 +4539,14 @@ enabled = true
             method: "GET".into(),
             uri: "https://example.com/".into(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![sample_violation()],
         });
         let theirs = FindingsBlock::HttpTransaction(TransactionFindings {
             method: "GET".into(),
             uri: "https://cdn.other.net/x.js".into(),
             status: Some(200),
+            answered_by_this_proxy: false,
             violations: vec![sample_violation(), sample_violation()],
         });
         let scope = HostScope {
