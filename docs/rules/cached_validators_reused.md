@@ -12,6 +12,10 @@ This rule checks if the client correctly uses conditional headers (`If-None-Matc
 
 If a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.
 
+## Violations
+
+- [conditional_missing](../violations/conditional_missing.md) — A repeat request declines a validator the server provided
+
 ## Specifications
 
 - [RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2): If-None-Match — a client SHOULD send it for stored responses that have entity tags when making a GET request

@@ -16,6 +16,24 @@ This rule validates that each challenge:
 - If parameters are present, each parameter is of the form `token=token` or `token="quoted-string"` and quoted-strings are well-formed.
 - Token68 values are accepted as a single token-like remainder (no control characters).
 
+## Violations
+
+- [auth_scheme_character_forbidden](../violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
+- [challenge_empty](../violations/challenge_empty.md) — Authentication challenge is empty
+- [challenge_member_empty](../violations/challenge_member_empty.md) — Authentication challenge list has an empty member
+- [challenge_parameter_empty](../violations/challenge_parameter_empty.md) — Authentication challenge has an empty parameter
+- [challenge_parameter_name_character_forbidden](../violations/challenge_parameter_name_character_forbidden.md) — Authentication parameter name holds a character outside token
+- [challenge_parameter_name_empty](../violations/challenge_parameter_name_empty.md) — Authentication parameter has an empty name
+- [challenge_parameter_value_character_forbidden](../violations/challenge_parameter_value_character_forbidden.md) — Authentication parameter value holds a character outside token
+- [challenge_parameter_value_missing](../violations/challenge_parameter_value_missing.md) — Authentication parameter has no value
+- [challenge_scheme_missing](../violations/challenge_scheme_missing.md) — Authentication parameter arrives before any scheme
+- [challenge_token68_invalid](../violations/challenge_token68_invalid.md) — Authentication token68 is indistinguishable from a parameter
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token68_whitespace_or_control_forbidden](../violations/token68_whitespace_or_control_forbidden.md) — token68 holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): `WWW-Authenticate = #challenge` — the list whose members are grouped into challenges before any of them is read

@@ -22,6 +22,24 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 
 **Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `"q="` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do.
 
+## Violations
+
+- [media_range_parameter_forbidden](../violations/media_range_parameter_forbidden.md) — Accept member writes a parameter after the weight
+- [media_range_wildcard_invalid](../violations/media_range_wildcard_invalid.md) — A wildcard type is written beside a concrete subtype
+- [media_type_empty](../violations/media_type_empty.md) — Media type is written with nothing in it
+- [media_type_malformed](../violations/media_type_malformed.md) — Media type is not a type/subtype pair
+- [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [qvalue_malformed](../violations/qvalue_malformed.md) — Weight is not a qvalue
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [weight_equals_whitespace_forbidden](../violations/weight_equals_whitespace_forbidden.md) — Whitespace is written beside the weight's '='
+
 ## Specifications
 
 - [RFC 9110 §12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1): Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, and the removal of the extension parameters that once followed the weight

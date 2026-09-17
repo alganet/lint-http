@@ -22,6 +22,13 @@ What is *not* claimed here is that they fall outside §7.6.1's general MUST, whi
 
 Scope: this rule reads header sections — a request's and a response's — and measures the value whatever protocol version carried it. Some versions of HTTP do not allow the field at all (§7.6.1); `no_connection_specific_fields` is the rule that reports its presence over HTTP/2 and HTTP/3. Whether `Connection` may appear in a *trailer* section is §6.5.1's question and `trailer_fields_valid`'s. Whether an `Upgrade` field is backed by an `upgrade` option is `upgrade_and_connection_consistent`'s.
 
+## Violations
+
+- [connection_option_forbidden](../violations/connection_option_forbidden.md) — A connection-option names a field the whole chain must read
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §7.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1): The field itself: its grammar, the case-insensitivity of its options, the note that an option need not correspond to a field present in the message, and the MUST NOT on naming a field that is intended for all recipients of the content

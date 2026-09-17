@@ -10,6 +10,14 @@ SPDX-License-Identifier: ISC
 
 Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues.
 
+## Violations
+
+- [credentials_missing](../violations/credentials_missing.md) — Credentials are absent after the scheme
+- [token68_body_empty](../violations/token68_body_empty.md) — token68 is padding with no body
+- [token68_character_forbidden](../violations/token68_character_forbidden.md) — token68 holds a character outside its alphabet
+- [token68_padding_malformed](../violations/token68_padding_malformed.md) — token68 padding holds something other than '='
+- [token68_whitespace_or_control_forbidden](../violations/token68_whitespace_or_control_forbidden.md) — token68 holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1): Bearer credentials — `credentials = "Bearer" 1*SP b64token`; the Authorization header form and grammar for the Bearer scheme

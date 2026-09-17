@@ -16,6 +16,11 @@ A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single reques
 
 **Where a `103` in a capture comes from.** On the HTTP/1.x and HTTP/2 upstream legs this proxy discards interim responses before recording anything — hyper's HTTP/1.x client skips `100` and `102..=199` outright, and its HTTP/2 client reads `h2`'s main response, which steps over interim headers. The HTTP/3 leg does not: `h3`'s `recv_response` returns the first HEADERS frame whatever its status, so a `103` from an HTTP/3 origin becomes the recorded response. That leg and `lint` over capture files written elsewhere are where this rule's findings live.
 
+## Violations
+
+- [status_103_ambiguous](../violations/status_103_ambiguous.md) — A 103 stands where the one final response should be
+- [status_1xx_forbidden](../violations/status_1xx_forbidden.md) — An interim response answers a client whose version has none
+
 ## Specifications
 
 - [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, what a client does with an invalid code, and that a request's interim responses are followed by exactly one final response

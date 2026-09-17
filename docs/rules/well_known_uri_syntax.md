@@ -34,6 +34,13 @@ Reads the request target's path component against RFC 8615's definition of a wel
 
 **What other rules own.** A malformed percent-encoding anywhere in the request target, and any character outside the set a URI is composed from, are `request_uri_percent_encoding_valid`'s findings, asked of the whole target; the `pchar` check here is the same question at a narrower width, and within a path segment the only characters it adds are `[` and `]`. A fragment on the request target is `request_target_no_fragment`'s, and which of the four request-target forms may carry a path is `request_target_form_valid`'.
 
+## Violations
+
+- [well_known_name_empty](../violations/well_known_name_empty.md) — The reserved prefix carries no name after it
+- [well_known_name_malformed](../violations/well_known_name_malformed.md) — A well-known name holds a character outside pchar
+- [well_known_path_invalid](../violations/well_known_path_invalid.md) — A .well-known segment sits below the top of the path
+- [well_known_prefix_malformed](../violations/well_known_prefix_malformed.md) — A path stops one character short of the reserved prefix
+
 ## Specifications
 
 - [RFC 8615 §1](https://www.rfc-editor.org/rfc/rfc8615.html#section-1): Introduction — the prefix this memo reserves, trailing slash included; that other schemes carry well-known URIs only where their definitions allow it; and the origin's control over its own URI space

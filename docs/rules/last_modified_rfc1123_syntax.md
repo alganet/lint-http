@@ -10,6 +10,12 @@ SPDX-License-Identifier: ISC
 
 Verifies that the `Last-Modified` header (when present) uses the IMF-fixdate format (a.k.a. RFC 1123 date) as required by HTTP date formatting rules.
 
+## Violations
+
+- [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
+- [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
+- [http_date_whitespace_forbidden](../violations/http_date_whitespace_forbidden.md) — Timestamp is padded with whitespace the grammar does not print
+
 ## Specifications
 
 - [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats — `HTTP-date = IMF-fixdate / obs-date`, the recipient's MUST to accept all three, and the sender's MUST to generate only the first

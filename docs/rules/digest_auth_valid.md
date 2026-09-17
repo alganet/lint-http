@@ -16,6 +16,21 @@ Digest `Authorization` credentials must include the required auth-params and use
 
 Servers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed.
 
+## Violations
+
+- [auth_param_equals_missing](../violations/auth_param_equals_missing.md) — An authentication parameter is written without its '='
+- [digest_credentials_parameter_empty](../violations/digest_credentials_parameter_empty.md) — A required Digest parameter is written with nothing in it
+- [digest_credentials_parameter_missing](../violations/digest_credentials_parameter_missing.md) — Digest credentials omit a parameter the response computation needs
+- [digest_credentials_quoting_invalid](../violations/digest_credentials_quoting_invalid.md) — A Digest parameter is written in the syntax its definition refuses
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the "MUST be used by all implementations" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced in both directions

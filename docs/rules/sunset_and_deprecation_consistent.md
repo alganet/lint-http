@@ -10,6 +10,10 @@ SPDX-License-Identifier: ISC
 
 When both `Sunset` and `Deprecation` response headers are present they must be logically consistent: `Deprecation` (a Structured Field Date, `@<seconds>`, RFC 9745 §2.1) marks when a resource was or will be deprecated, and `Sunset` (an HTTP-date, RFC 8594 §3) marks the removal date. RFC 9745 §4 requires that the Sunset timestamp not be earlier than the Deprecation timestamp; this rule flags the reverse (subject to a small clock-skew tolerance). It also validates the `Sunset` syntax: a `Sunset` header that is not a parseable HTTP-date is reported even when `Deprecation` is absent. Legacy/non-structured `Deprecation` forms are left to `deprecation_header_syntax`.
 
+## Violations
+
+- [sunset_conflicting](../violations/sunset_conflicting.md) — A Sunset names a time before the Deprecation beside it
+
 ## Specifications
 
 - [RFC 8594 §3](https://www.rfc-editor.org/rfc/rfc8594.html#section-3): `Sunset` header semantics (HTTP-date)

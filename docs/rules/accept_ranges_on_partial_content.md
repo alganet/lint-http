@@ -20,6 +20,10 @@ Advice a client was given, and whether the next request took it. `Accept-Ranges`
 
 **What it reads, and what that assumes.** The transaction immediately preceding this one from the same client for the same request URI, which is what "the same request path" is measured against; a later response supersedes what an earlier one advised, so only the most recent is read. `Accept-Ranges` is read from the trailer section as well as the header section, which §14.3 permits. Two assumptions come with that and are worth knowing before enabling this rule. *The same client* is an address and a `User-Agent` string, so several user agents behind one address that send the same `User-Agent` are one client here, and advice given to one of them is measured against another's request. And the rule's name is historical: nothing it checks depends on the previous response being a `206 Partial Content`, and after the corrections above it does not read the status code at all.
 
+## Violations
+
+- [accept_ranges_ignored](../violations/accept_ranges_ignored.md) — A range is requested outside what the resource advertised
+
 ## Specifications
 
 - [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges`: `acceptable-ranges = 1#range-unit`, what advertising a unit is for, the reservation of `none` for a server supporting no kind of range request, and the MAYs on both sides that make every finding here advice rather than a broken requirement

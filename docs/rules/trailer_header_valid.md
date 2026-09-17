@@ -20,6 +20,13 @@ A member is reported when it names a field that cannot reach a recipient's trail
 
 The broader question — whether a *nameable* field such as `ETag` or `Expires` may be sent in trailers at all (RFC 9110 §6.5.1 permits a trailer field only where the field's own definition does) — is asked of the fields that actually arrive, by `trailer_fields_valid`. This rule reads only the declaration.
 
+## Violations
+
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [trailer_member_invalid](../violations/trailer_member_invalid.md) — A Trailer declaration names a field that cannot arrive
+
 ## Specifications
 
 - [RFC 9110 §6.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2): `Trailer = #field-name` — the list a sender is asked to write so a recipient can prepare for the metadata before it starts processing the content, and the note that the list is a hint rather than a promise

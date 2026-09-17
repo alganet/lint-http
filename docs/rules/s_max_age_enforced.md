@@ -12,6 +12,10 @@ Responses that include a `Cache-Control: s-maxage=<seconds>` directive are inten
 
 This rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case.
 
+## Violations
+
+- [cache_control_s_maxage_ignored](../violations/cache_control_s_maxage_ignored.md) — A cache s-maxage does not address used it for freshness
+
 ## Specifications
 
 - [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.10): `s-maxage` — the directive is defined for a shared cache, where it overrides the maximum age given by `max-age` or `Expires`; it says nothing to any other kind of cache

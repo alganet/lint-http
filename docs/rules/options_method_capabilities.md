@@ -20,6 +20,11 @@ Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that
 
 **Not checked: where `Max-Forwards` came from.** §9.3.7's "A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field" is about who wrote a field, and no field of a message records its author. A capture cannot distinguish a client's `Max-Forwards` from one an intermediary invented.
 
+## Violations
+
+- [method_options_capabilities_missing](../violations/method_options_capabilities_missing.md) — A successful OPTIONS answers with none of the capabilities it was asked for
+- [method_options_content_type_missing](../violations/method_options_content_type_missing.md) — An OPTIONS request carries content without saying what it is
+
 ## Specifications
 
 - [RFC 9110 §9.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7): OPTIONS — the client `MUST` about `Content-Type`, and the `SHOULD` to advertise, which names a class ending "including potential extensions not defined by this specification" rather than a field

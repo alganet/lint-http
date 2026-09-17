@@ -13,6 +13,11 @@ Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  A GOAWAY's
 * **GOAWAY identifier must not increase** — when multiple GOAWAY frames are received from the same peer on a connection, the identifier in each subsequent GOAWAY MUST NOT be greater than the previous one (RFC 9114 §5.2).
 * **No request streams beyond a server GOAWAY limit** — after a *server* GOAWAY (whose identifier is a request stream ID), no new request stream should be opened with an ID greater than the indicated last stream ID (RFC 9114 §5.2).  A client GOAWAY carries a push ID and does not constrain request streams.
 
+## Violations
+
+- [http3_goaway_identifier_invalid](../violations/http3_goaway_identifier_invalid.md) — A GOAWAY identifier is larger than one already sent
+- [http3_goaway_ignored](../violations/http3_goaway_ignored.md) — A request stream opens past the limit a server's GOAWAY set
+
 ## Specifications
 
 - [RFC 9114 §5.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-5.2): Connection Shutdown — the GOAWAY identifier and whose id space it is drawn from, the connection error a larger one draws, and the prohibition on starting anything new past it

@@ -20,6 +20,19 @@ Checks that a `Range` request header field is a well-formed `ranges-specifier`: 
 
 **What a finding costs.** §14.2 lets a server that supports range requests "ignore or reject" a field carrying an invalid ranges-specifier, so the price of one is the range request rather than the request — a client that asked for part of a representation is answered with all of it.
 
+## Violations
+
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [range_equals_missing](../violations/range_equals_missing.md) — Range value is written without its '='
+- [range_position_malformed](../violations/range_position_malformed.md) — Range position is not 1*DIGIT
+- [range_positions_conflicting](../violations/range_positions_conflicting.md) — Range asks for a last-pos below its first-pos
+- [range_spec_character_forbidden](../violations/range_spec_character_forbidden.md) — Range specifier holds an octet no range-spec admits
+- [range_spec_malformed](../violations/range_spec_malformed.md) — A bytes range specifier derives from neither of the unit's two forms
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §14.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.1): Range Specifiers: `ranges-specifier = range-unit "=" range-set`, and the grammar under it is generic — each range unit says which of `int-range`, `suffix-range` and `other-range` its specifiers may use. A ranges-specifier is invalid when it holds a range-spec "that is invalid or undefined for the indicated range-unit", which is the sentence every check here rests on and the one that bounds them to the unit the rule knows

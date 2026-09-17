@@ -12,6 +12,10 @@ This rule checks if `200 OK` responses include either an `ETag` or a `Last-Modif
 
 These headers act as validators, allowing clients to perform conditional requests (`If-None-Match` or `If-Modified-Since`). This enables efficient caching and revalidation, significantly reducing bandwidth when resources haven't changed.
 
+## Violations
+
+- [validator_missing](../violations/validator_missing.md) — A response gives a later request nothing to validate against
+
 ## Specifications
 
 - [RFC 9110 §8.8.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2.1): Generation: an origin server SHOULD send Last-Modified for any selected representation whose last modification date can be reasonably and consistently determined

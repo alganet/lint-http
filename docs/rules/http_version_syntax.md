@@ -18,6 +18,10 @@ The finding names which of the production's three terminals failed, because they
 
 Two things it does not check. RFC 9112 §2.3 requires an intermediary that is not a tunnel to send **its own** `HTTP-version` in forwarded messages; a capture records the message as received, not as forwarded, so nothing here can compare the two. And the relation between a request's version and the response's is left alone deliberately: §2.3 says a server **MAY** send an HTTP/1.0 response to an HTTP/1.1 request, and states no requirement for the pair to agree.
 
+## Violations
+
+- [http_version_malformed](../violations/http_version_malformed.md) — A protocol version derives from no reading of HTTP-version
+
 ## Specifications
 
 - [RFC 9112 §2.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-2.3): The production, the sentence saying it is case-sensitive, and the sentence saying only an HTTP/1.x message carries it in a start-line

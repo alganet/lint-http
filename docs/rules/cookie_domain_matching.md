@@ -12,6 +12,10 @@ A client should only send a cookie back to a server when the request URI satisfi
 
 To avoid spurious warnings the check only considers cookies that have been seen in the capture history and matches on the exact value.  Unknown cookies are assumed to pre‑date the capture and are ignored.  The related `cookie_lifecycle` rule already handles path‑mismatch diagnostics and secure‑cookie checks; this rule is primarily intended to catch domain mismatches that the other rule overlooks.
 
+## Violations
+
+- [cookie_scope_ignored](../violations/cookie_scope_ignored.md) — A cookie is sent where the store's own rules exclude it
+
 ## Specifications
 
 - [RFC 6265 §5.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4): The Cookie Header — the algorithm a user agent MUST use to compute the cookie-string, whose first step excludes a cookie whose path does not path-match and one whose secure-only-flag is set on a scheme that is not secure

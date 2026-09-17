@@ -20,6 +20,19 @@ Reports a `Permissions-Policy` response header carrying something a browser will
 
 **Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here.
 
+## Violations
+
+- [permissions_policy_allowlist_invalid](../violations/permissions_policy_allowlist_invalid.md) — A directive's allowlist is none of the permitted forms
+- [permissions_policy_report_to_malformed](../violations/permissions_policy_report_to_malformed.md) — A directive's report-to parameter is not a String
+- [structured_field_character_forbidden](../violations/structured_field_character_forbidden.md) — Structured field holds an octet outside US-ASCII
+- [structured_field_empty](../violations/structured_field_empty.md) — Structured field is written with nothing on it
+- [structured_field_inner_list_malformed](../violations/structured_field_inner_list_malformed.md) — Structured field Inner List has no closing parenthesis
+- [structured_field_key_duplicated](../violations/structured_field_key_duplicated.md) — Structured field gives one Dictionary key more than once
+- [structured_field_key_malformed](../violations/structured_field_key_malformed.md) — Structured field key is not a key production
+- [structured_field_member_empty](../violations/structured_field_member_empty.md) — Structured field writes a comma with no member beside it
+- [structured_field_value_empty](../violations/structured_field_value_empty.md) — Structured field writes a value slot with nothing in it
+- [structured_field_value_malformed](../violations/structured_field_value_malformed.md) — Structured field value is none of the bare item types
+
 ## Specifications
 
 - [Permissions Policy](https://w3c.github.io/webappsec-permissions-policy/#structured-header-serialization): §5.2 Structured header serialization — the production this subject answers for. Not §5.1, which is the HTML attribute and has a feature-identifier grammar of its own

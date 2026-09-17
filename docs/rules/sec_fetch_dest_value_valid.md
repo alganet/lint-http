@@ -10,6 +10,13 @@ SPDX-License-Identifier: ISC
 
 Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). The match is exact — destinations are lowercase tokens and structured-field tokens carry no case folding, so `Image` is not a valid value. Token syntax is enforced. Multiple header fields are treated as a violation.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [sec_fetch_dest_value_invalid](../violations/sec_fetch_dest_value_invalid.md) — Sec-Fetch-Dest names no request destination Fetch defines
+- [sec_fetch_value_empty](../violations/sec_fetch_value_empty.md) — A Sec-Fetch-* field is written with no value on it
+- [sec_fetch_value_malformed](../violations/sec_fetch_value_malformed.md) — A Sec-Fetch-* value holds a character no token admits
+
 ## Specifications
 
 - [Fetch Metadata §2.1](https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header): Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations

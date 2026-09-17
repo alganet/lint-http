@@ -14,6 +14,10 @@ This rule applies weak comparison semantics for entity-tags, meaning a weak ETag
 
 This rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen.
 
+## Violations
+
+- [conditional_validator_conflicting](../violations/conditional_validator_conflicting.md) — A precondition names a validator older than the last one seen
+
 ## Specifications
 
 - [RFC 9111 §4.3.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1): Sending a Validation Request — a cache builds preconditions from stored validators (entity tags MUST, Last-Modified SHOULD)

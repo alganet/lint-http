@@ -23,6 +23,19 @@ Parses `Sec-WebSocket-Extensions` — a request's and a response's — against t
 
 Scope: this rule reads header sections — a request's and a response's — and each finding names which. Where the field appears on several lines in one section they are one value (§5.2), which §9.1 states for this field by name and demonstrates with a worked example. A value carrying an octet outside US-ASCII is measured rather than skipped: it reaches the production that excludes it and is reported there. The member split is quote-aware, because a `quoted-string` parameter value may hold a comma; a value whose quoting never closes is reported as that, before any member is judged, since every separator after an unclosed quote is data.
 
+## Violations
+
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [sec_websocket_extensions_empty](../violations/sec_websocket_extensions_empty.md) — Sec-WebSocket-Extensions names no extension
+- [sec_websocket_extensions_parameter_missing](../violations/sec_websocket_extensions_parameter_missing.md) — Sec-WebSocket-Extensions writes a ';' with no parameter after it
+- [sec_websocket_extensions_parameter_value_empty](../violations/sec_websocket_extensions_parameter_value_empty.md) — Sec-WebSocket-Extensions writes a parameter '=' with no value after it
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 6455 §9.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1): Negotiating Extensions — the grammar, the MUST that makes a non-conforming value a failure of the connection, the note that the notation is RFC 2616's, and the requirement on a quoted-string value after unescaping

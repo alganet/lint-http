@@ -14,6 +14,11 @@ This security header prevents browsers from "MIME-sniffing" a response away from
 
 A header that is present but whose first value is not `nosniff` (matched case-insensitively, per the Fetch standard's determine-nosniff algorithm) is also flagged: it does not enable the protection.
 
+## Violations
+
+- [x_content_type_options_invalid](../violations/x_content_type_options_invalid.md) — X-Content-Type-Options carries a value that is not nosniff
+- [x_content_type_options_missing](../violations/x_content_type_options_missing.md) — A response does not ask for its content type to be respected
+
 ## Specifications
 
 - [Fetch §3.6](https://fetch.spec.whatwg.org/#x-content-type-options-header): `X-Content-Type-Options`: the conformance value ABNF (`"nosniff" ; case-insensitive`) and the determine-nosniff algorithm

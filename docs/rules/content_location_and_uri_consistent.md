@@ -16,6 +16,20 @@ For 2xx responses the rule additionally compares the value against the request t
 
 **A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means "the origin server claims that the URI is an identifier for a different resource", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim "can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target.
 
+## Violations
+
+- [content_location_ambiguous](../violations/content_location_ambiguous.md) — Content-Location names a resource other than the request target
+- [content_location_empty](../violations/content_location_empty.md) — Content-Location is written with nothing in it
+- [content_location_fragment_forbidden](../violations/content_location_fragment_forbidden.md) — Content-Location carries a fragment component
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_host_empty](../violations/uri_host_empty.md) — An http or https reference names no host
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 9110 §8.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7): Content-Location — `absolute-URI / partial-URI`, the three meanings a value differing from the target URI carries, and the sentence saying such a claim can only be trusted between identifiers with one resource owner, which HTTP cannot determine

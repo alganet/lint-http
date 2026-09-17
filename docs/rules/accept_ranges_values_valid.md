@@ -22,6 +22,14 @@ Checks that an `Accept-Ranges` response header field is what RFC 9110 §14.3 def
 
 **What else it does not report.** A trailer section carrying the field rather than a header section — §14.3 prefers the header section, gives its reason, and attaches no modal. And a response whose next range request is answered in full: §14.3 says in as many words that a client "MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses", which is addressed to the client and measures nothing about the response that carried the field.
 
+## Violations
+
+- [accept_ranges_none_conflicting](../violations/accept_ranges_none_conflicting.md) — Accept-Ranges says 'none' where range requests demonstrably work
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges`: `acceptable-ranges = 1#range-unit`, what advertising a unit is for, the reservation of `none` for a server supporting no kind of range request, and the MAYs on both sides that make every finding here advice rather than a broken requirement

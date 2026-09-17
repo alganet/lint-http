@@ -21,6 +21,12 @@ Both MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an
 
 The response status and those two fields are the whole input — whether a challenge is there, never what it says. A 401 is measured from the response as it arrived rather than as it was generated, which §11.6.1 makes the same question by forbidding an intermediary from modifying the field; for the 407 no such sentence exists, and §11.7.1 addresses that field to a single hop, so an absence there is weaker evidence about the proxy that generated the status. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response.
 
+## Violations
+
+- [proxy_authenticate_redundant](../violations/proxy_authenticate_redundant.md) — Proxy-Authenticate arrives on a status that gives it nothing to do
+- [status_401_challenge_missing](../violations/status_401_challenge_missing.md) — A 401 presents no challenge to authenticate against
+- [status_407_challenge_missing](../violations/status_407_challenge_missing.md) — A 407 presents no challenge to authenticate against
+
 ## Specifications
 
 - [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource, and a user agent that has already attempted authentication and gets the same challenge back SHOULD show the representation to the user

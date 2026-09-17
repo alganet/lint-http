@@ -14,6 +14,10 @@ The consequence is silent corruption rather than a mere style problem — an HTT
 
 The value is reported as detail: a single `token` naming one of `7bit`, `8bit`, `binary`, `quoted-printable`, `base64` (case-insensitive), or a private `x-` mechanism, is well-formed MIME — but being well-formed MIME does not make the field belong in HTTP.
 
+## Violations
+
+- [content_transfer_encoding_forbidden](../violations/content_transfer_encoding_forbidden.md) — A MIME field HTTP does not use survived into an HTTP message
+
 ## Specifications
 
 - [RFC 9112 §B.5](https://www.rfc-editor.org/rfc/rfc9112.html#appendix-B.5): Why the field is reported at all: HTTP does not use Content-Transfer-Encoding, and gateways from MIME-compliant protocols must remove it

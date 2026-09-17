@@ -14,6 +14,10 @@ Reports field names this deployment has not listed in the rule's `allowed` array
 
 Because the array has to name every field the deployment sees, no useful list is deployment-independent and `config_example.toml` ships the rule disabled with an illustrative one. For a private field prefer a short name scoped to its use and no `X-` prefix: RFC 9110 §16.3.2.1 says field names ought not be prefixed with `X-`.
 
+## Violations
+
+- [field_name_unregistered](../violations/field_name_unregistered.md) — Field name is not one the deployment expects
+
 ## Specifications
 
 - [RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1): Field Names (case-insensitive, and registration is an "ought to"; the same paragraph makes a proxy forward what it does not recognize)

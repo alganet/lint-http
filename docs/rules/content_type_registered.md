@@ -14,6 +14,10 @@ This rule checks that `Content-Type` media types (in both requests and responses
 
 Entries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a structured syntax suffix (`+json`, matching `application/vnd.example+json` but not `application/json` or `text/notjson`). The wildcard and suffix forms are conveniences of this configuration, not media-type syntax. Comparisons are case-insensitive.
 
+## Violations
+
+- [media_type_unregistered](../violations/media_type_unregistered.md) — Media type is not one the deployment recognises
+
 ## Specifications
 
 - [RFC 9110 §8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1): Media Type: `media-type = type "/" subtype parameters`, both halves `token` and both case-insensitive, and the "ought to be registered with IANA" guidance — guidance rather than a requirement, and not something this crate verifies

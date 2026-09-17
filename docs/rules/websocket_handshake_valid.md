@@ -24,6 +24,21 @@ Only HTTP/1.x exchanges are measured: over HTTP/2 and HTTP/3 the handshake is an
 
 Two neighbours own the sentences this rule does not. The obligation to send an `Upgrade` in *any* `101`, and to name in it only protocols the client offered, is RFC 9110's and belongs to `status_101_switching_protocols`. `Sec-WebSocket-Version: 13` is asked of the request by `sec_websocket_headers_consistent` and is deliberately not asked of the server here: RFC 6455 § 4.2.1's list makes every one of its items a MUST-refuse, while § 4.2.2 aborts a handshake only for a version *that does not match a version understood by the server* — a fact about the server, which a `101` is that server asserting. `Sec-WebSocket-Extensions` is measured here only against what the request offered; its own grammar (`extension-list`, `extension-param`) is `sec_websocket_extensions_syntax`'s, in both directions.
 
+## Violations
+
+- [sec_websocket_accept_conflicting](../violations/sec_websocket_accept_conflicting.md) — Sec-WebSocket-Accept is not the value the request's key derives
+- [sec_websocket_accept_missing](../violations/sec_websocket_accept_missing.md) — A WebSocket handshake response carries no Sec-WebSocket-Accept
+- [sec_websocket_extensions_unsolicited](../violations/sec_websocket_extensions_unsolicited.md) — Sec-WebSocket-Extensions names an extension the request did not offer
+- [sec_websocket_protocol_empty](../violations/sec_websocket_protocol_empty.md) — Sec-WebSocket-Protocol is written with no subprotocol in it
+- [sec_websocket_protocol_unsolicited](../violations/sec_websocket_protocol_unsolicited.md) — Sec-WebSocket-Protocol names a subprotocol the request did not offer
+- [status_101_forbidden](../violations/status_101_forbidden.md) — A 101 completes a WebSocket handshake the server had to refuse
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [upgrade_101_empty](../violations/upgrade_101_empty.md) — A 101 response names no protocol on its Upgrade field
+- [upgrade_101_invalid](../violations/upgrade_101_invalid.md) — A 101 response names a protocol its handshake does not permit
+- [upgrade_101_missing](../violations/upgrade_101_missing.md) — A 101 response carries no Upgrade field
+- [upgrade_connection_option_missing](../violations/upgrade_connection_option_missing.md) — Upgrade is sent with no upgrade connection-option in Connection
+
 ## Specifications
 
 - [RFC 6455 §4.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1): Client Requirements — the numbered list a client validates the server's response against, and the sentence handing every non-101 back to plain HTTP

@@ -10,6 +10,11 @@ SPDX-License-Identifier: ISC
 
 The `Deprecation` response header signals that a resource is deprecated. RFC 9745 defines the header as a Structured Field `Date` item (a numeric timestamp expressed as `@<seconds>`). This rule validates the canonical structured form and flags legacy or invalid forms (literal `true`, HTTP-date, non-numeric `@` values) with helpful messages.
 
+## Violations
+
+- [deprecation_malformed](../violations/deprecation_malformed.md) — A Deprecation is not a Structured Field Date
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+
 ## Specifications
 
 - [RFC 9745 §2.1](https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1): Syntax: `Deprecation` is an Item Structured Header Field whose value MUST be a `Date`

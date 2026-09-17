@@ -21,6 +21,19 @@ origin and enforces the credential restriction on `*`.  If the request's
 
 This check applies to server responses (RuleScope::Server).
 
+## Violations
+
+- [access_control_allow_origin_conflicting](../violations/access_control_allow_origin_conflicting.md) — Access-Control-Allow-Origin echoes an origin that did not ask
+- [access_control_allow_origin_credentials_conflicting](../violations/access_control_allow_origin_credentials_conflicting.md) — The wildcard origin sits on a response that also allows credentials
+- [access_control_allow_origin_malformed](../violations/access_control_allow_origin_malformed.md) — Access-Control-Allow-Origin states a value that is none of `*`, `null` and a serialized origin
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [origin_malformed](../violations/origin_malformed.md) — An Origin derives from neither null nor a serialized origin
+- [origin_path_forbidden](../violations/origin_path_forbidden.md) — An Origin names a path the production has no component for
+- [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): The Web Origin Concept

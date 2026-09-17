@@ -94,13 +94,22 @@ pub fn title_from_id(id: &str) -> String {
 }
 
 /// Render a single per-rule markdown document from its metadata. Sections that
-/// have no content (Specifications when `specifications` is empty, Examples when
-/// `examples` is empty, Configuration when `config_block` is `None`) are omitted
-/// entirely. `title` overrides the id-derived heading when `Some`.
+/// have no content (Violations when `violations` is empty, Specifications when
+/// `specifications` is empty, Examples when `examples` is empty, Configuration
+/// when `config_block` is `None`) are omitted entirely. `title` overrides the
+/// id-derived heading when `Some`.
+///
+/// Parameter order is render order, which is the one property that makes six
+/// loose `&str`-ish arguments readable, and it is why `violations` arrives as a
+/// seventh parameter rather than as a params struct. Seven is the last one that
+/// can: `too_many_arguments` keeps its default threshold of 7 and fires above
+/// it, and this crate builds under `-D warnings`. **The eighth field is the one
+/// that has to become a struct, because clippy will say so.**
 pub fn render_doc(
     id: &str,
     title: Option<&str>,
     description: &str,
+    violations: &[&'static ViolationDef],
     specifications: &[SpecRef],
     examples: &[Example],
     config_block: Option<&str>,
@@ -118,6 +127,10 @@ pub fn render_doc(
     } else {
         out.push_str(description.trim_end());
         out.push('\n');
+    }
+
+    if !violations.is_empty() {
+        render_violations(&mut out, violations);
     }
 
     if !specifications.is_empty() {
@@ -140,6 +153,42 @@ pub fn render_doc(
     }
 
     out
+}
+
+/// Append the `## Violations` section: one bullet per declared defect, linking
+/// to the page that documents it.
+///
+/// It sits between Description and Specifications because `violations()` is the
+/// only one of a rule's metadata members with **no default** — a rule must
+/// declare what it reports, while a description, a citation list, examples and a
+/// config block are each optional. So this is the rule's own output and belongs
+/// with the description; everything below it is reference material the rule may
+/// or may not carry.
+///
+/// A bullet, not the defect's detail. The 190 rules declare 1025 entries over
+/// 537 distinct defects, so writing each defect's title, severity and citations
+/// onto every page that reports it would write 488 of them twice or more —
+/// `token_character_forbidden` 42 times. The detail lives on the defect's own
+/// page and this is the way to it.
+///
+/// Sorted here rather than by the caller: a rule's declared array is written in
+/// whatever order its author reached for the defs, and a generated page may not
+/// inherit that.
+///
+/// The link is relative from `docs/rules/`, which is where every caller writes
+/// this page, and [`render_violation_doc`] makes the same assumption in the
+/// other direction.
+fn render_violations(out: &mut String, violations: &[&'static ViolationDef]) {
+    let mut defs: Vec<&&'static ViolationDef> = violations.iter().collect();
+    defs.sort_by_key(|def| def.id);
+
+    out.push_str("\n## Violations\n\n");
+    for def in defs {
+        out.push_str(&format!(
+            "- [{0}](../violations/{0}.md) — {1}\n",
+            def.id, def.title
+        ));
+    }
 }
 
 /// Append the Examples subsections. Consecutive examples sharing the same
@@ -434,6 +483,7 @@ fn write_rule_pages(out_dir: &Path) -> anyhow::Result<()> {
             rule.id(),
             rule.title(),
             rule.description(),
+            rule.violations(),
             rule.specifications(),
             rule.examples(),
             Some(&config_section(rule)),
@@ -501,6 +551,7 @@ mod tests {
     use crate::repo_root;
     use lint_http_rules::lint::Severity;
     use lint_http_rules::rules::REGISTERED_RULES;
+    use lint_http_rules::violations::user_agent::USER_AGENT_MISSING;
     use lint_http_rules::violations::REGISTERED_VIOLATIONS;
 
     #[test]
@@ -524,10 +575,12 @@ mod tests {
                 snippet: "GET / HTTP/1.1\nHost: example.com",
             },
         ];
+        let declared: &[&ViolationDef] = &[&USER_AGENT_MISSING];
         let doc = render_doc(
             "user_agent_present",
             Some("User-Agent Present"),
             "Requests should carry a User-Agent header.",
+            declared,
             &[
                 SpecRef {
                     spec: "RFC 9110",
@@ -547,6 +600,7 @@ mod tests {
         );
 
         assert!(doc.starts_with("<!--\nSPDX-FileCopyrightText"));
+        assert!(doc.contains("- [user_agent_missing](../violations/user_agent_missing.md) — "));
         // `title` override preserves header casing the id can't reproduce.
         assert!(doc.contains("# User-Agent Present"));
         assert!(doc.contains("## Description\n\nRequests should carry a User-Agent header."));
@@ -570,10 +624,11 @@ mod tests {
     fn render_doc_derives_title_and_omits_empty_sections() {
         // No title override → derived from id; no rfc/config/examples → those
         // sections are omitted.
-        let doc = render_doc("server_some_rule", None, "", &[], &[], None);
+        let doc = render_doc("server_some_rule", None, "", &[], &[], &[], None);
 
         assert!(doc.contains("# Server Some Rule"));
         assert!(doc.contains("## Description\n\n_No description provided yet._"));
+        assert!(!doc.contains("## Violations"));
         assert!(!doc.contains("## Specifications"));
         assert!(!doc.contains("## Configuration"));
         assert!(!doc.contains("## Examples"));
@@ -587,6 +642,7 @@ mod tests {
                 rule.id(),
                 rule.title(),
                 rule.description(),
+                rule.violations(),
                 rule.specifications(),
                 rule.examples(),
                 Some(&config_section(rule)),
@@ -594,6 +650,11 @@ mod tests {
             assert!(
                 doc.starts_with(SPDX_HEADER),
                 "{} missing SPDX header",
+                rule.id()
+            );
+            assert!(
+                doc.contains("\n## Violations\n"),
+                "{} does not list what it reports",
                 rule.id()
             );
             assert!(
@@ -923,6 +984,7 @@ mod tests {
                     rule.id(),
                     rule.title(),
                     rule.description(),
+                    rule.violations(),
                     rule.specifications(),
                     rule.examples(),
                     Some(&config_section(rule)),
@@ -946,6 +1008,60 @@ mod tests {
             "docs/violations.md".to_string(),
             render_violation_index(&VIOLATIONS),
         );
+    }
+
+    /// Every rule's page lists exactly the defects that rule declares.
+    ///
+    /// This is the gate that makes a shipped sentence true. When a configuration
+    /// carries the `[rules.*] severity` key that no longer exists, `validate_rules`
+    /// refuses it and tells the operator to use `[violations.<id>]` "for the
+    /// defects this rule reports — `docs/rules/<id>.md` lists them". That page
+    /// did not list them for as long as the error has said so.
+    ///
+    /// Equality, not `contains`: a page listing all 537 defects would satisfy a
+    /// presence check on every rule while telling an operator nothing. The whole
+    /// bullet is compared, href included, so a wrong relative prefix fails here
+    /// rather than in a reader's browser — nothing in CI resolves a markdown
+    /// link.
+    ///
+    /// Rendered in memory rather than read off disk. Whether the tree agrees
+    /// with the renderer is `docs_match_generated`'s question, and asking it
+    /// twice would make this gate fail for that reason instead of its own.
+    #[test]
+    fn every_rule_page_lists_the_defects_it_declares() {
+        assert!(!RULES.is_empty(), "catalogue did not collect");
+        for rule in all_rules() {
+            let doc = render_doc(
+                rule.id(),
+                rule.title(),
+                rule.description(),
+                rule.violations(),
+                rule.specifications(),
+                rule.examples(),
+                Some(&config_section(rule)),
+            );
+            let listed: Vec<&str> = doc
+                .split("\n## Violations\n\n")
+                .nth(1)
+                .unwrap_or_else(|| panic!("{} has no Violations section", rule.id()))
+                .lines()
+                .take_while(|line| line.starts_with("- ["))
+                .collect();
+
+            let mut expected: Vec<String> = rule
+                .violations()
+                .iter()
+                .map(|def| format!("- [{0}](../violations/{0}.md) — {1}", def.id, def.title))
+                .collect();
+            expected.sort();
+
+            assert_eq!(
+                listed,
+                expected,
+                "docs/rules/{}.md does not list the defects it declares",
+                rule.id()
+            );
+        }
     }
 
     /// Every defect's page names exactly the rules that report it.

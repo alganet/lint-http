@@ -20,6 +20,11 @@ Reports a message context field arriving in the direction it is not defined for:
 
 **Fields defined for both directions are not here.** `Content-Location` is defined in both (§8.7 gives the request side its own meaning), and the general representation fields travel with content in either direction, so nothing about them is a placement fault.
 
+## Violations
+
+- [field_request_context_misdirected](../violations/field_request_context_misdirected.md) — A request context field is written in a response
+- [field_response_context_misdirected](../violations/field_response_context_misdirected.md) — A response context field is written in a request
+
 ## Specifications
 
 - [RFC 9110 §10.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1): Request Context Fields — the five fields whose subjects are the user, user agent and resource behind a request; the section split the direction is read from

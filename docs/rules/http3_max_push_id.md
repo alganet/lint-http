@@ -16,6 +16,11 @@ Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connecti
 
 The first `MAX_PUSH_ID` on a connection establishes the initial limit and is always accepted, regardless of value (zero is valid and means the server is not allowed to push).
 
+## Violations
+
+- [http3_max_push_id_forbidden](../violations/http3_max_push_id_forbidden.md) — A server sent a MAX_PUSH_ID frame
+- [http3_max_push_id_invalid](../violations/http3_max_push_id_invalid.md) — A MAX_PUSH_ID reduces a maximum already set on the connection
+
 ## Specifications
 
 - [RFC 9114 §7.2.7](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7): MAX_PUSH_ID — a client-only frame that raises the push limit, the prohibition on a server sending one, and the rule that a later frame cannot reduce the maximum

@@ -16,6 +16,21 @@ A member's optional comment is parsed as §5.6.5's `comment`: nested parentheses
 
 What the rule does not judge: whether a proxy sent a `Via` at all. §7.6.3's MUST is about each message a proxy *forwards*, and a capture does not record whether the message arrived through an intermediary, so an absent field is not evidence of anything. Neither are the section's requirements about combining members (a sender MUST NOT combine members with different received-protocols, and SHOULD NOT combine members outside one organization) or the firewall SHOULD NOT: a combined member and a member that was always one are the same octets, and no field records the topology the other sentences are about.
 
+## Violations
+
+- [comment_character_forbidden](../violations/comment_character_forbidden.md) — Comment holds a character ctext does not admit
+- [comment_delimiter_missing](../violations/comment_delimiter_missing.md) — Comment is never closed
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+- [via_comment_duplicated](../violations/via_comment_duplicated.md) — Via member carries more than one comment
+- [via_member_malformed](../violations/via_member_malformed.md) — Via member does not end where the production ends it
+- [via_received_by_missing](../violations/via_received_by_missing.md) — Via member names no received-by
+- [via_received_by_obsolete](../violations/via_received_by_obsolete.md) — Via received-by is spelled as a uri-host
+
 ## Specifications
 
 - [RFC 9110 §7.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3): The `Via` grammar — `Via = #( received-protocol RWS received-by [ RWS comment ] )` — the sentence that puts the field in both directions, and the requirements about forwarding and combining that a single captured message cannot answer

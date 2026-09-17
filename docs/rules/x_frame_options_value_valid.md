@@ -10,6 +10,12 @@ SPDX-License-Identifier: ISC
 
 The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the two values in the HTML Standard's conformance ABNF: `DENY` or `SAMEORIGIN` (matched case-insensitively). The `ALLOW-FROM` variant from RFC 7034 is flagged: the HTML Standard supersedes that document, browsers do not implement it, and a resource relying on it is unprotected — use the CSP `frame-ancestors` directive instead. Multiple header occurrences are also rejected.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [x_frame_options_allow_from_obsolete](../violations/x_frame_options_allow_from_obsolete.md) — X-Frame-Options carries the retired ALLOW-FROM variant
+- [x_frame_options_invalid](../violations/x_frame_options_invalid.md) — X-Frame-Options carries neither DENY nor SAMEORIGIN
+
 ## Specifications
 
 - [HTML Speculative Loading §7.7](https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header): Governing definition: conformance ABNF `"DENY" / "SAMEORIGIN"`, case-insensitive processing, `ALLOW-FROM` not to be implemented

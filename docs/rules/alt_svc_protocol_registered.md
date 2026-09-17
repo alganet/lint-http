@@ -20,6 +20,11 @@ Read the `protocol-id` of each `Alt-Svc` alternative as the ALPN protocol name i
 
 **What this rule declines, and to whom.** Everything that is the field's grammar rather than its registry goes to `alt_svc_header_syntax`, which reads the same field under the same scope with no gate this rule lacks: an unterminated `quoted-string`, an empty list element, an alternative with no `=`, an empty `protocol-id`, a character no `tchar` admits, a malformed percent triplet, and whitespace beside the `=`. So are the three spelling MUSTs on a well-formed triplet — a lowercase hex digit, an encoded `tchar`, an unencoded `%` — which that rule reports with the reason `x%3dy` and `x%3Dy` are two protocols to a recipient. Here a well-formed triplet is simply decoded, so `%68%32` is read as `h2` and reported once rather than twice. The `clear` keyword nominates no service and is skipped, matched case-sensitively because `%s"clear"` is. RFC 7838 §2.1's *"Clients MUST have reasonable assurances that the alternative service is under control of and valid for the whole origin"* — with the §2.1 example that `h2c` cannot provide them — is addressed to clients and is not reported against the server that advertised it. Draft HTTP/3 tokens are `alt_svc_h3_advertisement_valid`'s.
 
+## Violations
+
+- [alpn_protocol_name_length_invalid](../violations/alpn_protocol_name_length_invalid.md) — ALPN protocol name is longer than the vector that carries it
+- [alpn_protocol_name_unregistered](../violations/alpn_protocol_name_unregistered.md) — ALPN protocol name is not one this deployment serves
+
 ## Specifications
 
 - [RFC 7838 §2](https://www.rfc-editor.org/rfc/rfc7838.html#section-2): Alternative Services Concepts: an alternative service is identified by an ALPN protocol name as per RFC 7301, a host and a port; §2.4 requires a client to treat a connection that does not negotiate the expected protocol as failed

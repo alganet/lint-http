@@ -15,6 +15,14 @@ Validates that `101 Switching Protocols` responses follow correct HTTP upgrade s
 - 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.
 - After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol.
 
+## Violations
+
+- [status_101_ignored](../violations/status_101_ignored.md) — HTTP continues on a connection a 101 handed off
+- [status_101_protocol_forbidden](../violations/status_101_protocol_forbidden.md) — A 101 switches to a protocol the client did not indicate
+- [status_101_unsolicited](../violations/status_101_unsolicited.md) — 101 Switching Protocols is sent on a version with no upgrade mechanism
+- [upgrade_101_empty](../violations/upgrade_101_empty.md) — A 101 response names no protocol on its Upgrade field
+- [upgrade_101_missing](../violations/upgrade_101_missing.md) — A 101 response carries no Upgrade field
+
 ## Specifications
 
 - [RFC 9110 §15.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2): 101 Switching Protocols — the status code is a change in the application protocol being used on this connection, and the response MUST generate an `Upgrade` field naming the protocol(s) in effect after it

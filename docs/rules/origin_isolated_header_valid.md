@@ -12,6 +12,13 @@ Checks the `Origin-Agent-Cluster` response header and ensures it uses the struct
 
 (The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [origin_agent_cluster_empty](../violations/origin_agent_cluster_empty.md) — Origin-Agent-Cluster is written with no boolean on it
+- [origin_agent_cluster_invalid](../violations/origin_agent_cluster_invalid.md) — Origin-Agent-Cluster states a value that is not `?1`
+- [origin_agent_cluster_malformed](../violations/origin_agent_cluster_malformed.md) — Origin-Agent-Cluster carries a list where a boolean is due
+
 ## Specifications
 
 - [HTML §7.1.2](https://html.spec.whatwg.org/multipage/browsers.html#origin-keyed-agent-clusters): `Origin-Agent-Cluster` — a structured-header boolean; only the `?1` true value requests an origin-keyed agent cluster

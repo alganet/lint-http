@@ -10,6 +10,10 @@ SPDX-License-Identifier: ISC
 
 Checks that configured logout paths include a `Clear-Site-Data` header so client-side storage (cookies, cache, storage) is cleared on logout.
 
+## Violations
+
+- [clear_site_data_missing](../violations/clear_site_data_missing.md) — A sign-out response does not ask the client to clear its storage
+
 ## Specifications
 
 - [Clear-Site-Data §3.1](https://www.w3.org/TR/clear-site-data/#header): The `Clear-Site-Data` HTTP response header field (its purpose; §1.1.1 is the sign-out example this finding encodes)

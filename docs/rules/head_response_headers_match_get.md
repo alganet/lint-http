@@ -14,6 +14,10 @@ Ensure responses to `HEAD` carry the header fields the server would have sent fo
 
 **The exceptions are an open class.** §9.3.2 permits a server to omit any header field whose value is determined only while generating the content, and no field announces its membership — so the rule can only excuse the ones a specification names: `Content-Length` (§8.6), `Vary` (§9.3.2's own example) and `Transfer-Encoding` (RFC 9112 §6.1, which also makes its value incomparable). A field outside that set which the server legitimately omitted is still reported; configure `headers` accordingly.
 
+## Violations
+
+- [method_head_conflicting](../violations/method_head_conflicting.md) — A HEAD response disagrees with the GET it stands in for
+
 ## Specifications
 
 - [RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2): HEAD — the SHOULD to send the same header fields a GET would have carried, the MAY that excuses fields whose value is determined only while generating the content, and GET's content paragraph repeated word for word

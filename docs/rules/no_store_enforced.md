@@ -14,6 +14,10 @@ This stateful rule observes the history of a particular client+resource and reme
 
 The check is scoped to resource histories (the engine filters transactions by URI) and therefore does not attempt to reason about unrelated traffic.  The rule does not flag unconditional requests, nor does it attempt to detect improper storage of requests (which is rarely visible from traffic capture).
 
+## Violations
+
+- [cache_control_no_store_ignored](../violations/cache_control_no_store_ignored.md) — A validator from a no-store response comes back on a later request
+
 ## Specifications
 
 - [RFC 9111 §5.2.2.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5): `no-store` — a cache MUST NOT store any part of the request or the response, and MUST NOT use the response to satisfy another request

@@ -22,6 +22,26 @@ All four field names are read across every field line of the request, and each l
 
 Despite its name, this rule checks each field on its own and cross-checks nothing: a message carrying both `Forwarded` and `X-Forwarded-For`, or an `X-Forwarded-Host` disagreeing with `Host`, is not reported. §7.4 encourages the conversion between the two families but states no relationship a receiver could measure, and it is explicit that where several `X-Forwarded-*` fields are present the order they were added in cannot be recovered.
 
+## Violations
+
+- [node_ipv4_address_malformed](../violations/node_ipv4_address_malformed.md) — Node identifier is digits and dots that are not an IPv4 address
+- [node_ipv6_address_malformed](../violations/node_ipv6_address_malformed.md) — Node identifier brackets something that is not an IPv6 address
+- [node_ipv6_brackets_missing](../violations/node_ipv6_brackets_missing.md) — Node identifier holds an IPv6 address without its square brackets
+- [node_ipv6_closing_bracket_missing](../violations/node_ipv6_closing_bracket_missing.md) — Node identifier opens an IPv6 literal and never closes it
+- [node_ipv6_representation_invalid](../violations/node_ipv6_representation_invalid.md) — Node identifier writes an IPv6 address outside the recommended representation
+- [node_malformed](../violations/node_malformed.md) — Node identifier derives from no alternative of the production
+- [node_port_malformed](../violations/node_port_malformed.md) — Node identifier holds something that is not a node-port
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 7239 §7.4](https://www.rfc-editor.org/rfc/rfc7239.html#section-7.4): Transition: what each `X-Forwarded-*` field converts into, and the one difference in how an IPv6 address is written there. The only sentences in any specification that reach these fields.

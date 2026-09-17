@@ -17,6 +17,12 @@ Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule insp
 
 Identifiers outside the reserved set — including the `0x1f * N + 0x21` greasing values and unregistered extensions — are ignored, per RFC 9114 §7.2.4's requirement that unknown parameters be ignored.
 
+## Violations
+
+- [http3_settings_duplicated](../violations/http3_settings_duplicated.md) — A peer sent a second SETTINGS frame on one connection
+- [http3_settings_identifier_duplicated](../violations/http3_settings_identifier_duplicated.md) — One SETTINGS frame states the same identifier twice
+- [http3_settings_identifier_forbidden](../violations/http3_settings_identifier_forbidden.md) — SETTINGS carries an identifier HTTP/3 reserves
+
 ## Specifications
 
 - [RFC 9114 §7.2.4](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4): SETTINGS — the frame each peer sends first on its control stream and never again, and the prohibition on one identifier occurring twice inside it

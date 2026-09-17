@@ -16,6 +16,10 @@ Flags a message that names the same coding in both `Content-Encoding` and `Trans
 
 **Parsing.** The two fields are split by their own grammars: `content-coding` is a bare `token`, so every comma separates; `transfer-coding` carries parameters whose values may be quoted-strings, so that split respects quoting. Names are compared case-insensitively, as both specifications define them to be, and values are decoded from raw octets so that one bad byte cannot hide the names beside it.
 
+## Violations
+
+- [transfer_encoding_coding_redundant](../violations/transfer_encoding_coding_redundant.md) — A coding is applied in transit that the representation already carries
+
 ## Specifications
 
 - [RFC 9110 §8.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4): Content-Encoding — a property of the representation, and the MUST that makes it a trustworthy record of what was applied. Also contemplates a coding applied a second time, which is why this rule is advisory

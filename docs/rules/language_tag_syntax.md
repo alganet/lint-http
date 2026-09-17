@@ -22,6 +22,16 @@ Check the language tags in `Content-Language` and the language ranges in `Accept
 
 **Every field line of both fields is read**, since each is a list whose members may be spread across lines.
 
+## Violations
+
+- [language_tag_character_forbidden](../violations/language_tag_character_forbidden.md) — Language tag holds a character outside letters, digits and hyphen
+- [language_tag_edge_hyphen_forbidden](../violations/language_tag_edge_hyphen_forbidden.md) — Language tag starts or ends with a hyphen
+- [language_tag_empty](../violations/language_tag_empty.md) — Language tag is empty
+- [language_tag_leading_letter_missing](../violations/language_tag_leading_letter_missing.md) — Language tag does not begin with a letter
+- [language_tag_subtag_empty](../violations/language_tag_subtag_empty.md) — Language tag has an empty subtag
+- [language_tag_subtag_length_invalid](../violations/language_tag_subtag_length_invalid.md) — Language subtag is longer than eight characters
+- [language_tag_whitespace_or_control_forbidden](../violations/language_tag_whitespace_or_control_forbidden.md) — Language tag holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §8.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5.1): Language Tags: the sentence that assigns a different production to each of the two fields — `language-range` for Accept-Language, `language-tag` for Content-Language

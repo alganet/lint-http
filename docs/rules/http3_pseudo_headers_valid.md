@@ -22,6 +22,24 @@ For schemes with a mandatory authority component (including `http` and `https`),
 
 **This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3.
 
+## Violations
+
+- [authority_empty](../violations/authority_empty.md) — A request's authority field is present and empty
+- [authority_missing](../violations/authority_missing.md) — A request that owes an authority names none
+- [authority_tunnel_missing](../violations/authority_tunnel_missing.md) — A CONNECT names no host and port to open a tunnel to
+- [authority_tunnel_userinfo_forbidden](../violations/authority_tunnel_userinfo_forbidden.md) — A CONNECT's :authority carries a userinfo subcomponent
+- [authority_userinfo_forbidden](../violations/authority_userinfo_forbidden.md) — An :authority carries the deprecated userinfo subcomponent
+- [request_target_asterisk_forbidden](../violations/request_target_asterisk_forbidden.md) — The asterisk target is sent with a method other than OPTIONS
+- [request_target_path_missing](../violations/request_target_path_missing.md) — A request that owes a path names none
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 9114 §4.3](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3): HTTP Control Data

@@ -33,6 +33,42 @@ Parses the `Link` field of a request and of a response — every field line of o
 - **`rev`.** §3.3 deprecates it in a sentence holding no BCP 14 keyword at all, so nothing there makes writing it a defect.
 - **Whether the target exists, or the relation type is registered.** §2.1.1.2 registers relation types under Specification Required and §2.1.2 hands every unregistered name to the URI form, so an unrecognised lowercase name is an extension the registry has not been asked about — not a finding.
 
+## Violations
+
+- [bws_forbidden](../violations/bws_forbidden.md) — Whitespace written where the grammar admits BWS
+- [language_tag_character_forbidden](../violations/language_tag_character_forbidden.md) — Language tag holds a character outside letters, digits and hyphen
+- [language_tag_edge_hyphen_forbidden](../violations/language_tag_edge_hyphen_forbidden.md) — Language tag starts or ends with a hyphen
+- [language_tag_empty](../violations/language_tag_empty.md) — Language tag is empty
+- [language_tag_leading_letter_missing](../violations/language_tag_leading_letter_missing.md) — Language tag does not begin with a letter
+- [language_tag_subtag_empty](../violations/language_tag_subtag_empty.md) — Language tag has an empty subtag
+- [language_tag_subtag_length_invalid](../violations/language_tag_subtag_length_invalid.md) — Language subtag is longer than eight characters
+- [language_tag_whitespace_or_control_forbidden](../violations/language_tag_whitespace_or_control_forbidden.md) — Language tag holds whitespace or a control character
+- [link_attribute_duplicated](../violations/link_attribute_duplicated.md) — Link member writes one of the bounded attributes more than once
+- [link_member_malformed](../violations/link_member_malformed.md) — Link member carries content the production does not continue with
+- [link_param_empty](../violations/link_param_empty.md) — Link member writes a semicolon with no link-param behind it
+- [link_param_value_empty](../violations/link_param_value_empty.md) — Link parameter writes an '=' with no value after it
+- [link_preload_as_invalid](../violations/link_preload_as_invalid.md) — A response's preload link names no preload destination in its as
+- [link_preload_as_missing](../violations/link_preload_as_missing.md) — A response's preload link carries no as parameter
+- [link_rel_duplicated](../violations/link_rel_duplicated.md) — Link member writes rel more than once
+- [link_rel_empty](../violations/link_rel_empty.md) — Link member writes a rel with no relation type in it
+- [link_rel_malformed](../violations/link_rel_malformed.md) — Link rel value opens or closes on a space
+- [link_rel_missing](../violations/link_rel_missing.md) — Link member carries no rel parameter
+- [link_relation_type_malformed](../violations/link_relation_type_malformed.md) — Link names a relation type that is neither registered-shaped nor a URI
+- [link_target_delimiter_missing](../violations/link_target_delimiter_missing.md) — Link member's target is not inside angle brackets
+- [link_type_malformed](../violations/link_type_malformed.md) — Link type attribute does not derive from type-name "/" subtype-name
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 8288 §3](https://www.rfc-editor.org/rfc/rfc8288.html#section-3): The serialisation: `Link = #link-value`, the angle-bracketed `URI-Reference`, and `link-param = token BWS [ "=" BWS ( token / quoted-string ) ]` — whose optional group is what makes a valueless parameter conforming. Also the sentence equating the token and quoted-string forms, which is why a value is judged after unquoting

@@ -22,6 +22,13 @@ Methods are matched exactly. RFC 9110 §9.1: "The method token is case-sensitive
 
 **Not checked here.** Whether a request was in fact sent in early data when no field marks it: a user agent that sends its own request in early data "does not need to include the Early-Data header field", so an unmarked early-data request is invisible to any observer of the message. Whether a server answered a request it could not safely process with 425 (Too Early), which turns on the origin's own judgement of replay risk for a resource. And whether "other information" existed: an out-of-band agreement that a particular resource tolerates replay leaves no trace in the message, which is why the deployment's array is the place to record it.
 
+## Violations
+
+- [early_data_duplicated](../violations/early_data_duplicated.md) — A request carries more than one Early-Data field line
+- [early_data_forbidden](../violations/early_data_forbidden.md) — Early-Data appears where the section forbids it
+- [early_data_invalid](../violations/early_data_invalid.md) — Early-Data carries a value other than 1
+- [early_data_method_forbidden](../violations/early_data_method_forbidden.md) — A request in early data uses a method whose safety is not known
+
 ## Specifications
 
 - [RFC 8470 §4](https://www.rfc-editor.org/rfc/rfc8470.html#section-4): Using Early Data in HTTP Clients — the MUST NOT covering unsafe methods and methods whose safety is not known, opening with an "Absent other information" no message records

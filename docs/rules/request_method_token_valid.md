@@ -26,6 +26,13 @@ Reports a request whose method token does not derive from `method = token` (RFC 
 
 **The two grammar findings do not arise in traffic this proxy captured.** A capture's method comes from `hyper::Method`, whose accepted character table is `tchar` exactly and which refuses a zero-length method, so a request that reaches the wire through this proxy cannot carry either defect. They are reachable in a capture written elsewhere and deserialized into the transaction model, which is the only reason the checks are here.
 
+## Violations
+
+- [method_case_invalid](../violations/method_case_invalid.md) — A method is a standardized name written in another case
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): `method = token`, the token's case-sensitivity, the convention that standardized methods are defined in all-uppercase US-ASCII letters, and the 501 an origin server gives an unrecognized method

@@ -24,6 +24,12 @@ When a `Content-Type` declares a `multipart/*` media type, the body it describes
 
 **Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `content_type_valid`'s finding. Whether the boundary *value* is syntactically legal is `multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored.
 
+## Violations
+
+- [multipart_body_delimiter_missing](../violations/multipart_body_delimiter_missing.md) — The body carries no delimiter line for its boundary
+- [multipart_body_part_missing](../violations/multipart_body_part_missing.md) — The only delimiter line is the terminating one
+- [multipart_body_terminator_missing](../violations/multipart_body_terminator_missing.md) — The body never closes its last part
+
 ## Specifications
 
 - [RFC 2046 §5.1.1](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1): Multipart common syntax: `dash-boundary`, `delimiter` and `close-delimiter`, the requirement that a delimiter begin a line, the instruction to compare against the beginning of a candidate line rather than the whole of it, and the ignoring of preamble and epilogue

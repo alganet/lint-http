@@ -22,6 +22,12 @@ Reads the characters of the request target and asks whether it is properly perce
 
 **What this rule does not decide.** Whether a character sits in a component that admits it. The alphabet measured is the union of every component's, and the generic syntax writes several: `pchar` admits `:` and `@`, `query` adds `/` and `?`, `reg-name` has neither (RFC 3986 §3.3, §3.4, §3.2.2). A `[` is in the union — the host productions use it for an IP-literal — and derives from none of those three, so `/a[b]c` is not reported here, because splitting the target into its components is not something this rule does. What it reports is a character that no component admits, which is a finding wherever it sits. Which of the four forms an HTTP/1.x request-target derives from, and whether the method may use that form, is `request_target_form_valid` — which also reports whitespace in a request-line's target on a sentence of its own (RFC 9112 §3.2 excludes whitespace from the request-target by name and asks a recipient not to autocorrect it), so a space in an HTTP/1.x target draws two findings saying two different things about it. Whether the target carries a fragment is `request_target_no_fragment`. Whether an encoded octet *should* have been left decoded — RFC 3986 §6.2.2.2's normalization of a percent-encoded unreserved character — is nobody's finding: the two spellings identify the same resource.
 
+## Violations
+
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+
 ## Specifications
 
 - [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes

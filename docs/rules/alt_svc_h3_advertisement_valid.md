@@ -22,6 +22,13 @@ Reads the `Alt-Svc` response header field for the entries that advertise HTTP/3,
 
 The field lines are joined before they are read (RFC 9110 §5.3), because `1#alt-value` is the list that licenses the join, and the value is read one `char` per octet so that an `obs-text` octet is measured rather than hiding the line it is written on.
 
+## Violations
+
+- [alpn_protocol_name_obsolete](../violations/alpn_protocol_name_obsolete.md) — ALPN protocol name identifies a draft of a shipped protocol
+- [alt_svc_ma_invalid](../violations/alt_svc_ma_invalid.md) — Alt-Svc states a freshness lifetime that cannot be what was meant
+- [delta_seconds_character_forbidden](../violations/delta_seconds_character_forbidden.md) — A time in seconds holds an octet DIGIT does not admit
+- [delta_seconds_empty](../violations/delta_seconds_empty.md) — A time in seconds is stated with no digits
+
 ## Specifications
 
 - [RFC 9114 §3.1.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1): HTTP Alternative Services — advertising HTTP/3 via Alt-Svc using the "h3" ALPN token

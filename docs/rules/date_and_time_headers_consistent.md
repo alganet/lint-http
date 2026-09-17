@@ -10,6 +10,13 @@ SPDX-License-Identifier: ISC
 
 Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. A value that is not a parseable HTTP-date is flagged for the field this rule owns the reading of — `Date` and `Sunset` — and left to the per-field format rule otherwise. The value is read as octets: every octet an HTTP-date prints is visible US-ASCII in all three formats, so a field line no string reader accepts is one no format accepts, and it is reported as the timestamp defect it is.
 
+## Violations
+
+- [conditional_date_conflicting](../violations/conditional_date_conflicting.md) — A date precondition names a time after the request's own Date
+- [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
+- [last_modified_conflicting](../violations/last_modified_conflicting.md) — A Last-Modified is later than the Date beside it
+- [sunset_invalid](../violations/sunset_invalid.md) — A Sunset names a time that has already passed
+
 ## Specifications
 
 - [RFC 9110 §6.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1): `Date` header (parsed as HTTP-date for comparison)

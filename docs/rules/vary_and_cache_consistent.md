@@ -10,6 +10,10 @@ SPDX-License-Identifier: ISC
 
 When a response includes `Vary: *`, caches cannot select that stored response for subsequent requests (a `Vary: *` always fails to match). If the same response advertises explicit cacheability directives (such as `Cache-Control: max-age`/`s-maxage` or `public`), those directives are likely ineffective for reuse by caches. This rule flags cases where `Vary: *` and explicit cacheability directives are both present.
 
+## Violations
+
+- [cache_control_redundant](../violations/cache_control_redundant.md) — A reuse directive sits on a response no cache may select
+
 ## Specifications
 
 - [RFC 9111 §4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1): Calculating Cache Keys with the Vary Header Field — a `Vary: *` never matches, so no stored response of that resource can be selected and a directive advertising reuse has nothing to act on

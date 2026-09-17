@@ -18,6 +18,10 @@ The rule is intentionally forgiving:
 * `Vary: *` is ignored, since it precludes reuse and offers no explicit fields to compare.
 * When no `Vary` header is present on the candidate response, no check is performed.
 
+## Violations
+
+- [vary_ignored](../violations/vary_ignored.md) — A response is reused across a dimension its Vary nominated
+
 ## Specifications
 
 - [RFC 9111 §4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1): Calculating Cache Keys with the Vary Header Field — a stored response may only be reused without revalidation where every request field the response nominated matches the original request's

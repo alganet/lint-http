@@ -23,6 +23,13 @@ A `1xx (Informational)`, `204 (No Content)` or `304 (Not Modified)` response *"i
 
 **`205 (Reset Content)` is not in this set.** Its prohibition (§15.3.6, *"a server MUST NOT generate content in a 205 response"*) is about generating content, and its framing is ordinary — so `Content-Length: 0` on a `205` is conforming where the same field on a `204` violates a MUST NOT. It needs its own rule, not a fourth status here.
 
+## Violations
+
+- [status_content_forbidden](../violations/status_content_forbidden.md) — A status that cannot carry content carries some
+- [status_content_length_forbidden](../violations/status_content_length_forbidden.md) — A 1xx or 204 carries a Content-Length field
+- [status_trailers_forbidden](../violations/status_trailers_forbidden.md) — A status that ends at its header section carries a trailer section
+- [status_transfer_encoding_forbidden](../violations/status_transfer_encoding_forbidden.md) — A 1xx or 204 carries a Transfer-Encoding field
+
 ## Specifications
 
 - [RFC 9110 §15.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2): Informational 1xx — the class is interim, such a response is terminated by the end of the header section and cannot contain content or trailers, and a server must not send one to an HTTP/1.0 client, which defined no 1xx status codes

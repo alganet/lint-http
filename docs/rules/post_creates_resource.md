@@ -24,6 +24,10 @@ RFC 9110 §9.3.3 asks an origin server that has created one or more resources wh
 
 **Not reported: a `PUT` that created a resource.** §9.3.4 requires the `201` there with a MUST and asks nothing about `Location`, because the target URI of a `PUT` is already the identifier of what it creates. The method is compared exactly, since §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request, and `request_method_token_valid` is the rule that reports it.
 
+## Violations
+
+- [method_post_location_missing](../violations/method_post_location_missing.md) — A 201 answering a POST does not say what it created
+
 ## Specifications
 
 - [RFC 9110 §9.3.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3): POST — the SHOULD asking an origin server that created a resource to answer 201 with a Location naming it, which is the sentence that makes a 201 without one a finding

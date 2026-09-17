@@ -14,6 +14,10 @@ The requirement ends in an exception: *unless specifically configured not to do 
 
 Only the header section is examined. A `User-Agent` field line that is present but empty is not reported here: it is a field that fails the field's own grammar, and `user_agent_token_valid` owns and reports that.
 
+## Violations
+
+- [user_agent_missing](../violations/user_agent_missing.md) — A request does not say what sent it
+
 ## Specifications
 
 - [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): `A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.` The exception is a fact about the sender's configuration rather than about the request, so a conforming suppression and a plain omission are the same absence here and both are reported

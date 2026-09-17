@@ -24,6 +24,10 @@ Five status codes name a `Location` header field in their own definition — fou
 
 Only presence is read. Whether the value is a usable `URI-reference` belongs to `location_header_uri_valid`, and a `Location` on a status that gives it no referent belongs to `redirect_status_and_location_valid`.
 
+## Violations
+
+- [location_missing](../violations/location_missing.md) — A status that asks for Location carries none
+
 ## Specifications
 
 - [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2): Defines `Location = URI-reference` and what the value refers to on a 201 and on a 3xx; it asks no one to send the field

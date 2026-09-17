@@ -24,6 +24,11 @@ SPDX-License-Identifier: ISC
 
 **Not reported:** a `301` or `302` carrying no `Location`. With nothing to follow there is no redirected request whose method could differ, and the missing field is `location_on_redirect_present`'s finding.
 
+## Violations
+
+- [status_301_ambiguous](../violations/status_301_ambiguous.md) — A 301 answers a POST, leaving the redirected method undetermined
+- [status_302_ambiguous](../violations/status_302_ambiguous.md) — A 302 answers a POST, leaving the redirected method undetermined
+
 ## Specifications
 
 - [RFC 9110 §15.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2): 301 Moved Permanently: a user agent MAY change the method from POST to GET, and 308 is the status named for a server that does not want that

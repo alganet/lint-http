@@ -12,6 +12,10 @@ This rule flags messages (requests or responses) that include both `Content-Leng
 
 Recipients are told to let `Transfer-Encoding` win and an intermediary that forwards the message must strip the `Content-Length` first. Where that does not happen consistently, two recipients can disagree about the message boundary — the primitive behind request smuggling and response splitting — so the combination is treated as an attack signal rather than mere redundancy.
 
+## Violations
+
+- [content_length_forbidden](../violations/content_length_forbidden.md) — Content-Length is sent in a message that is transfer-coded
+
 ## Specifications
 
 - [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length as framing — the declared length is how a recipient determines where the data and the message end, and the sender-side prohibition on sending it in a message that carries a Transfer-Encoding

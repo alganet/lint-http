@@ -22,6 +22,10 @@ The rule is therefore **not version-gated**: only the last sentence of the findi
 
 **What this rule does not decide.** Which of the four forms a request-target derives from, and whether the method may use that form, is `request_target_form_valid`; whether a percent-encoded triplet is well formed is `request_uri_percent_encoding_valid`. Whether a *field* carrying a URI reference may hold a fragment is that field's own question and not this one's — `Location = URI-reference` admits one (RFC 9110 §10.2.2), and `Referer` forbids one (§10.1.3).
 
+## Violations
+
+- [request_target_fragment_forbidden](../violations/request_target_fragment_forbidden.md) — A request target carries a fragment identifier
+
 ## Specifications
 
 - [RFC 3986 §3.5](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.5): Fragment: indicated by a number sign and terminated by the end of the URI; separated from the rest of the URI before a dereference and resolved solely by the user agent

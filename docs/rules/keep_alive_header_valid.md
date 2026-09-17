@@ -30,6 +30,21 @@ Reading it from that document rather than from RFC 9110 changes three answers.
 - **The field over HTTP/2 and HTTP/3.** Both versions forbid connection-specific fields outright, which is a different finding from a malformed value and belongs to the rules that own the version. `no_connection_specific_fields` reports both halves, each against the version that carried the field section it is in. The connection-option requirement here is gated to HTTP/1.x for the same reason — demanding `Connection: keep-alive` of an HTTP/2 message would be advice to violate RFC 9113 §8.2.2.
 - **Whether the timeout was honoured.** The draft's own sentence about it is a MAY paired with a SHOULD about a host's future behaviour, which no capture records.
 
+## Violations
+
+- [delta_seconds_character_forbidden](../violations/delta_seconds_character_forbidden.md) — A time in seconds holds an octet DIGIT does not admit
+- [keep_alive_connection_option_missing](../violations/keep_alive_connection_option_missing.md) — Keep-Alive is sent with no keep-alive connection-option in Connection
+- [keep_alive_parameter_equals_missing](../violations/keep_alive_parameter_equals_missing.md) — Keep-Alive writes a parameter with no '=' and no value
+- [keep_alive_parameter_name_missing](../violations/keep_alive_parameter_name_missing.md) — Keep-Alive writes a parameter that names nothing before its '='
+- [keep_alive_parameter_value_empty](../violations/keep_alive_parameter_value_empty.md) — Keep-Alive writes a parameter '=' with no value after it
+- [keep_alive_timeout_invalid](../violations/keep_alive_timeout_invalid.md) — Keep-Alive asks for a timeout above the configured maximum
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 2068 §19.7.1.1](https://www.rfc-editor.org/rfc/rfc2068.html#section-19.7.1.1): The `Keep-Alive` grammar, the sentence saying HTTP/1.1 defines no parameters for it, and the field's one requirement on a sender — the matching connection token. Obsoleted, and still the document RFC 9110 §7.6.1 names for this field, so this is where the productions are read from. The reference here used to be RFC 7230 §6.7, which is `Upgrade`

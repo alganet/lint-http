@@ -18,6 +18,11 @@ Advice, not conformance: nothing in HTTP requires a client to send `Accept-Encod
 
 **`CONNECT` is skipped.** It asks for a tunnel rather than a representation (§9.3.6), so no content coding applies to what comes back.
 
+## Violations
+
+- [accept_encoding_empty](../violations/accept_encoding_empty.md) — Request declines every content coding
+- [accept_encoding_missing](../violations/accept_encoding_missing.md) — Request expresses no content-coding preference
+
 ## Specifications
 
 - [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): `Accept-Encoding`: `#( codings [ weight ] )`, and the two sentences that make absence the most permissive value the field has and an empty value the most restrictive

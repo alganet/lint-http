@@ -34,6 +34,37 @@ parameter     = token "=" ( token / quoted-string )
 
 **What this rule declines.** RFC 7838 §3 says that over HTTP/2 *"servers SHOULD instead send an ALTSVC frame"*, and the next sentence says *"Alt-Svc header fields remain valid in responses delivered over HTTP/2"*. The frame is not in a capture, HTTP/3 has no such frame at all and RFC 9114 §3.1.1 has an HTTP/3 server use this field, so the SHOULD is not reported. Nothing here reads *which* protocol a well-spelled `protocol-id` names — `alt_svc_protocol_registered` decodes it back into its ALPN protocol name and asks that against a configured list.
 
+## Violations
+
+- [alt_svc_alternative_equals_missing](../violations/alt_svc_alternative_equals_missing.md) — Alt-Svc alternative has no '=' between its protocol-id and its alt-authority
+- [alt_svc_authority_character_forbidden](../violations/alt_svc_authority_character_forbidden.md) — Alt-Svc alt-authority holds an octet no production of it admits
+- [alt_svc_clear_conflicting](../violations/alt_svc_clear_conflicting.md) — Alt-Svc carries the clear keyword beside an alternative service
+- [alt_svc_equals_whitespace_forbidden](../violations/alt_svc_equals_whitespace_forbidden.md) — Alt-Svc writes whitespace beside an '=' its grammar prints bare
+- [alt_svc_parameter_empty](../violations/alt_svc_parameter_empty.md) — Alt-Svc writes a semicolon with no parameter behind it
+- [alt_svc_parameter_equals_missing](../violations/alt_svc_parameter_equals_missing.md) — Alt-Svc parameter has no '=' and no value
+- [alt_svc_parameter_value_empty](../violations/alt_svc_parameter_value_empty.md) — Alt-Svc parameter is written with no value after its '='
+- [alt_svc_persist_invalid](../violations/alt_svc_persist_invalid.md) — Alt-Svc sets persist to a value the parameter does not define
+- [alt_svc_port_empty](../violations/alt_svc_port_empty.md) — Alt-Svc alt-authority ends at the colon with no port
+- [alt_svc_port_invalid](../violations/alt_svc_port_invalid.md) — Alt-Svc alt-authority names a port no transport has
+- [alt_svc_port_missing](../violations/alt_svc_port_missing.md) — Alt-Svc alt-authority names no port
+- [alt_svc_protocol_id_invalid](../violations/alt_svc_protocol_id_invalid.md) — Alt-Svc protocol-id is not the one spelling this field allows for its ALPN name
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+
 ## Specifications
 
 - [RFC 7838 §3](https://www.rfc-editor.org/rfc/rfc7838.html#section-3): The Alt-Svc HTTP Header Field: `Alt-Svc = clear / 1#alt-value` and the productions under it, the case-sensitive `clear` keyword, the three percent-encoding constraints on a `protocol-id`, and the prose requiring a colon and a port inside the `alt-authority`

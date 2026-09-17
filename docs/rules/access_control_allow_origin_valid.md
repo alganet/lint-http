@@ -14,6 +14,12 @@ The field has no list form, so a comma-separated value is not a broken list — 
 
 A line written with nothing on it is reported separately: that sender meant to state an origin and stated none. Repeated field lines are the field-order defect twenty other fields report.
 
+## Violations
+
+- [access_control_allow_origin_empty](../violations/access_control_allow_origin_empty.md) — Access-Control-Allow-Origin is written with no value on it
+- [access_control_allow_origin_malformed](../violations/access_control_allow_origin_malformed.md) — Access-Control-Allow-Origin states a value that is none of `*`, `null` and a serialized origin
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+
 ## Specifications
 
 - [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin

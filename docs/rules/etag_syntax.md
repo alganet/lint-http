@@ -10,6 +10,14 @@ SPDX-License-Identifier: ISC
 
 Validate that the `ETag` response header contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags non-UTF-8 header values, the use of the special `*` value (which is only meaningful in conditional request headers), and the presence of multiple `ETag` header fields.
 
+## Violations
+
+- [etag_character_forbidden](../violations/etag_character_forbidden.md) — Entity-tag holds a character etagc does not admit
+- [etag_delimiter_missing](../violations/etag_delimiter_missing.md) — Entity-tag is not quoted
+- [etag_weak_indicator_invalid](../violations/etag_weak_indicator_invalid.md) — Weakness indicator is not written W/
+- [etag_wildcard_forbidden](../violations/etag_wildcard_forbidden.md) — An ETag carries the wildcard the conditional fields take
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+
 ## Specifications
 
 - [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): Entity Tags — `entity-tag = [ weak ] opaque-tag`, `weak = %s"W/"` (case-sensitive by the `%s` prefix), `opaque-tag = DQUOTE *etagc DQUOTE`, and `etagc` as VCHAR minus the DQUOTE plus obs-text

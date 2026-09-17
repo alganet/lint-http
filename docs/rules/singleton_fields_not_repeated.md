@@ -18,6 +18,10 @@ Reports a message writing more than one field line of a singleton field. RFC 911
 
 **What a recipient does with the repetition is each field's own hazard**, and this rule does not guess at it: the finding names the field's grammar and §5.3, not a reconstruction of what any particular recipient would read. §5.2's recombination is defined within a section, and for none of these fields does the recombined value derive from the field's grammar.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+
 ## Specifications
 
 - [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list

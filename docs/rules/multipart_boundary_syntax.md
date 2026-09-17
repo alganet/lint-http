@@ -22,6 +22,20 @@ Check that a `Content-Type` naming a `multipart/*` media type carries a `boundar
 
 **Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `boundary= abc` is accepted. It never causes a false report, only a missed one — and the missed report belongs to `content_type_valid`, which is lenient in the same place.
 
+## Violations
+
+- [boundary_character_forbidden](../violations/boundary_character_forbidden.md) — Boundary holds a character outside the delimiter set
+- [boundary_length_invalid](../violations/boundary_length_invalid.md) — Boundary is empty or longer than seventy characters
+- [boundary_missing](../violations/boundary_missing.md) — A multipart media type carries no boundary parameter
+- [boundary_trailing_space_forbidden](../violations/boundary_trailing_space_forbidden.md) — Boundary ends with a space
+- [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 2046 §5.1.1](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1): Multipart common syntax: the required `boundary` parameter, the `boundary`/`bchars`/`bcharsnospace` grammar, the 1-to-70-character limit and the ban on a trailing space, and the warning that a boundary often has to be quoted

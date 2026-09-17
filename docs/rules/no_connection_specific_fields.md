@@ -24,6 +24,11 @@ The one HTTP/2 finding that survives the library is the **`TE` in a response**: 
 
 Scope: this rule reads header sections. The word both documents use is *field section*, which includes a trailer section — that half is `trailer_fields_valid`'s, whose §6.5.1 table holds `Connection`, `Keep-Alive`, `Upgrade`, `Transfer-Encoding` and `TE`, for every version rather than only these two. **It does not hold `Proxy-Connection`**, so that one field arriving in a trailer section is reported by neither rule: this one does not read trailers, and the other's table omits it. The omission is that rule's to answer and is recorded rather than fixed here, because widening its table changes the verdicts of a rule whose own audit is closed. What a `Connection` value may itself contain is `connection_header_tokens_valid`'s and what an `Upgrade` value may is `upgrade_header_syntax`'s — both measure their field on every version, because this rule reads no value; whether an `Upgrade` field is backed by an `upgrade` connection option is `upgrade_and_connection_consistent`'s; the rest of what a `TE` value may hold in a request is `te_header_valid`'s.
 
+## Violations
+
+- [field_connection_specific_forbidden](../violations/field_connection_specific_forbidden.md) — A connection-specific field is written on a version that has none
+- [te_member_forbidden](../violations/te_member_forbidden.md) — A request's TE holds a member other than trailers
+
 ## Specifications
 
 - [RFC 9113 §8.2.2](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2): Connection-Specific Header Fields — HTTP/2's prohibition, and the one sentence of the two that closes the list of names

@@ -22,6 +22,10 @@ Report a response whose `Content-Type` is not covered by any `media-range` the r
 
 **Known leniency: media-range parameters are ignored.** §12.5.1 lets a range carry media type parameters and makes a more specific range take precedence, so `text/plain;format=flowed` and `text/plain;format=fixed` are different preferences. This rule compares only type and subtype, which can only make it quieter — a response whose *parameters* nobody asked for goes unmentioned.
 
+## Violations
+
+- [accept_ignored](../violations/accept_ignored.md) — Response sends a media type the request did not accept
+
 ## Specifications
 
 - [RFC 9110 §12.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.1): Absence: what a missing negotiation field means, and the origin server's explicit choice between sending a 406 and disregarding the field — which is why a finding about an unhonoured preference is advice and never a violation

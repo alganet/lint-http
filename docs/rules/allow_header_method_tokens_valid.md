@@ -24,6 +24,12 @@ Where the field appears on several lines in one section, the lines are one value
 
 Scope: this rule reads header sections — a request's and a response's — and measures the value whatever protocol version carried it, because the production is written in the version-independent document. §10.2 places the field among response context fields; an `Allow` in a request is unusual rather than forbidden, so it is measured and not reported for being there. **A trailer section is not read.** Whether a field name may arrive as a trailer at all is §6.5.1's question, and it is asked of every name at once by `trailer_fields_valid` rather than field by field here — so an `Allow` in a trailer draws whatever that rule says about it and nothing from this one. Whether a 405 response carries the field at all is §15.5.6's question and `status_405_allow_valid`'s; whether an OPTIONS response carries it is `options_method_capabilities`'s.
 
+## Violations
+
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): The field itself: its grammar, what the set of methods means, and the sentence that gives an empty field value a meaning rather than making it a defect

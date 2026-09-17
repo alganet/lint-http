@@ -20,6 +20,12 @@ Reports a response whose `Content-Type` is `application/problem+json` but whose 
 
 Captured bodies are available to rules in memory; the `captures_include_body` setting only controls whether bodies are persisted to the captures file. A body captured as a truncated prefix is not parsed. Where no bytes are available — a transaction read back from a capture file — the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it.
 
+## Violations
+
+- [problem_details_empty](../violations/problem_details_empty.md) — A response labelled as problem details carries no content
+- [problem_details_invalid](../violations/problem_details_invalid.md) — Content labelled as problem details is a JSON value other than an object
+- [problem_details_malformed](../violations/problem_details_malformed.md) — Content labelled as problem details is not a JSON document
+
 ## Specifications
 
 - [RFC 9457 §3](https://www.rfc-editor.org/rfc/rfc9457.html#section-3): The problem details JSON object and the media type that identifies it; §3.1 and §3.1.1 are where every member is made optional and `type` is given a value for its own absence
