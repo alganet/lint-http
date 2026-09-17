@@ -1599,7 +1599,7 @@ sources:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 223
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 618
+      line: 631
     - file: lint-http-rules/src/violations/uri.rs
       line: 270
   - label: lint-http-rules/src/helpers/authority.rs (10)
@@ -3698,31 +3698,31 @@ sources:
     snippet: Warning = 1#warning-value
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 390
+      line: 403
   - label: warning_header_syntax (2)
     section: § 5.5
     snippet: Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 316
+      line: 324
   - label: warning_header_syntax (3)
     section: § 5.5
     snippet: Warnings are assigned three digit warn-codes.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 435
+      line: 448
   - label: warning_header_syntax (4)
     section: § 5.5
     snippet: warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 590
+      line: 603
   - label: warn-code grammar
     section: § 5.5
     snippet: warn-code = 3DIGIT warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 434
+      line: 447
     - file: lint-http-rules/src/violations/warning.rs
       line: 76
   - label: warning_header_syntax (5)
@@ -3730,15 +3730,15 @@ sources:
     snippet: warn-date = DQUOTE HTTP-date DQUOTE
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 534
+      line: 547
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 648
+      line: 661
   - label: warn-text position
     section: § 5.5
     snippet: warn-text = quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 492
+      line: 505
     - file: lint-http-rules/src/violations/warning.rs
       line: 113
   - label: warning-value assembly
@@ -3746,7 +3746,7 @@ sources:
     snippet: warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 428
+      line: 441
     - file: lint-http-rules/src/violations/warning.rs
       line: 40
     - file: lint-http-rules/src/violations/warning.rs
@@ -5576,7 +5576,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 289
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 391
+      line: 404
     - file: lint-http-rules/src/violations/list.rs
       line: 99
   - label: accept_patch_header_valid (6)
@@ -5858,7 +5858,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 185
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 377
+      line: 390
     - file: lint-http-rules/src/violations/request_target.rs
       line: 314
     - file: lint-http-rules/src/violations/request_target.rs
@@ -5960,7 +5960,7 @@ sources:
     snippet: A field name labels the corresponding field value as having the semantics defined by that name.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 320
+      line: 335
   - label: cache_validation_chain
     section: § 13.1.2
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
@@ -6994,7 +6994,7 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 98
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 672
+      line: 685
     - file: lint-http-rules/src/violations/http_date.rs
       line: 128
   - label: lint-http-core/src/http_date.rs (3)
@@ -7024,7 +7024,7 @@ sources:
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 119
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 700
+      line: 713
     - file: lint-http-rules/src/violations/http_date.rs
       line: 100
   - label: lint-http-core/src/http_date.rs (6)
@@ -7344,7 +7344,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 805
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 120
+      line: 130
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 215
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -7354,7 +7354,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 596
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 185
+      line: 194
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 342
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -7440,7 +7440,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 126
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 348
+      line: 363
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
@@ -7626,7 +7626,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 299
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 379
+      line: 392
   - label: lint-http-rules/src/helpers/field_placement.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -8204,7 +8204,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 430
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 673
+      line: 686
     - file: lint-http-rules/src/violations/quoted_string.rs
       line: 58
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -8270,7 +8270,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 407
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 196
+      line: 205
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 255
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -10080,7 +10080,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 447
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 623
+      line: 636
   - label: via_header_syntax (13)
     section: § 7.6.3
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
@@ -10112,7 +10112,7 @@ sources:
     snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 699
+      line: 712
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.html
   fragments:
@@ -10137,7 +10137,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 369
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 269
+      line: 284
     - file: lint-http-rules/src/violations/delta_seconds.rs
       line: 23
   - label: alt_svc_h3_advertisement_valid (2)
@@ -10147,7 +10147,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 343
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 235
+      line: 250
   - label: alt_svc_h3_advertisement_valid (3)
     section: § 1.2.2
     snippet: or the greatest positive integer it can conveniently represent.
@@ -10155,7 +10155,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 370
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 270
+      line: 285
   - label: cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -10187,7 +10187,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
       line: 96
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 128
+      line: 137
     - file: lint-http-rules/src/violations/pragma.rs
       line: 64
   - label: cache_control_directive_valid
@@ -10195,21 +10195,21 @@ sources:
     snippet: The "Cache-Control" header field is used to list directives for caches along the request/response chain.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 194
+      line: 204
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
-      line: 144
+      line: 154
   - label: max-age argument syntax
     section: § 5.2.2.1
     snippet: delta-seconds (see Section 1.2.2)
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 255
+      line: 270
   - label: cache_control_directive_valid (2)
     section: § 5.2.2.7
     snippet: If a qualified private response directive is present, with an argument that lists one or more field names
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 277
+      line: 292
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 171
   - label: private argument syntax
@@ -10217,7 +10217,7 @@ sources:
     snippet: This directive uses the quoted-string form of the argument syntax.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 319
+      line: 334
   - label: cache_control_present
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
@@ -10257,7 +10257,7 @@ sources:
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 175
+      line: 185
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 226
   - label: caching_directive_interaction (2)
@@ -10265,7 +10265,7 @@ sources:
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 150
+      line: 160
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 143
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
@@ -10277,7 +10277,7 @@ sources:
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 149
+      line: 159
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 200
   - label: expires_and_cache_control_consistent
@@ -10383,9 +10383,9 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 175
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 211
+      line: 226
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
-      line: 161
+      line: 176
   - label: lint-http-rules/src/helpers/cache_control.rs (8)
     section: § 5.2.2.4
     snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
@@ -10413,7 +10413,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 269
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 165
+      line: 175
     - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 176
     - file: lint-http-rules/src/rules/no_store_enforced.rs
@@ -10487,7 +10487,7 @@ sources:
     snippet: As a result, this specification deprecates Pragma.
     cited_by:
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 154
+      line: 163
   - label: range_request_and_caching
     section: § 3.3
     snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.

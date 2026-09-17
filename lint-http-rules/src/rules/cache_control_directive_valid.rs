@@ -110,6 +110,7 @@ impl CacheControlDirectiveValid {
         &self,
         headers: &hyper::HeaderMap,
         side: &str,
+        party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let value =
@@ -120,7 +121,7 @@ impl CacheControlDirectiveValid {
                     "Invalid Cache-Control header in {}: {}",
                     side, defect.message
                 );
-                return Some(ctx.report_with(defect.def, message));
+                return Some(ctx.by(party).report_with(defect.def, message));
             }
         }
         None
@@ -158,6 +159,15 @@ impl RuleMeta for CacheControlDirectiveValid {
         DECLARED
     }
 
+    /// **Both halves send `Cache-Control`, and the directives are not the same
+    /// vocabulary in each.** A request states what its sender will accept from a
+    /// cache and a response states what may be done with it, so a malformed
+    /// directive is the defect of whichever peer wrote the field — which is the
+    /// same `side` this reader already words its finding with.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -193,11 +203,16 @@ impl Rule for CacheControlDirectiveValid {
         // only the word in the finding differs.
         // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         let finding = || -> Option<Violation> {
-            self.defect(&tx.request.headers, "request", ctx)
-                .or_else(|| {
-                    let resp = tx.response.as_ref()?;
-                    self.defect(&resp.headers, "response", ctx)
-                })
+            self.defect(
+                &tx.request.headers,
+                "request",
+                crate::lint::Party::Client,
+                ctx,
+            )
+            .or_else(|| {
+                let resp = tx.response.as_ref()?;
+                self.defect(&resp.headers, "response", crate::lint::Party::Server, ctx)
+            })
         };
         Vec::from_iter(finding())
     }
