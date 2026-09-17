@@ -1418,7 +1418,30 @@ enabled = "true"
         /// which is why it is the one rule this commit reads rather than
         /// none: a floor of zero is a gate that cannot fail, and clippy says
         /// so.
-        const FLOOR: usize = 1;
+        ///
+        /// **81 of 190** with the rules that read exactly one half of a
+        /// transaction and consult no history: whichever peer wrote that half
+        /// is the one their findings are about, every time. The batch was
+        /// bounded by what those rules *read* and then checked by what their
+        /// defects *say* — every declared title was scanned for one naming the
+        /// other peer, and the four that did turned out to confirm the
+        /// assignment rather than upset it. `digest_auth_valid` is the one
+        /// worth remembering: its "response" is the Digest response-parameter,
+        /// not an HTTP response.
+        ///
+        /// **87 of 190** with the six rules whose scope said `Both` and whose
+        /// bodies read one half — five about conditional requests and the two
+        /// pseudo-header families, one about a response's own `Expires`. Their
+        /// scope was over-broad rather than their party ambiguous, and each
+        /// description says which direction it is about in its first sentence.
+        ///
+        /// **The trap that batch set**, worth more than the six: a body-reading
+        /// heuristic missed `tx\n    .response` split across lines, and
+        /// `allow_header_method_tokens_valid` reads both sections while looking
+        /// request-only. Match `tx\s*\.\s*response`, and check the rules
+        /// already converted when the method that chose them turns out to have
+        /// a blind spot.
+        const FLOOR: usize = 87;
         let read = all_rules()
             .filter(|rule| rule.party() != RuleParty::Unread)
             .count();

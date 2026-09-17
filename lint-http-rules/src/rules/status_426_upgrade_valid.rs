@@ -89,6 +89,10 @@ impl RuleMeta for Status426UpgradeValid {
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9110_15_5_22,
