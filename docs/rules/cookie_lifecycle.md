@@ -16,6 +16,12 @@ Cookies sent by servers via the `Set-Cookie` header establish state that a clien
 
 The check relies solely on the captured traffic for a given client+origin; if a cookie appears in a request but the linter has never seen it set in the past, the rule assumes it pre‑dates the capture and does not complain.
 
+## Violations
+
+- [cookie_scope_ignored](../violations/cookie_scope_ignored.md) — A cookie is sent where the store's own rules exclude it
+- [cookie_secure_ignored](../violations/cookie_secure_ignored.md) — A Secure cookie is sent over a scheme that is not secure
+- [cookie_value_conflicting](../violations/cookie_value_conflicting.md) — A cookie carries a value the observed exchange did not set
+
 ## Specifications
 
 - [RFC 6265 §5.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.3): Storage Model — what a user agent stores about each cookie, and the MUST to evict every expired cookie from the store as soon as one exists in it

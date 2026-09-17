@@ -18,6 +18,12 @@ The lint rule observes outgoing requests from a user agent.  It records any `sta
 
 The check does not assume the authorization request and callback share a common origin; the redirect is typically to the client's own domain while the initial request targets the identity provider.
 
+## Violations
+
+- [oauth2_callback_state_missing](../violations/oauth2_callback_state_missing.md) — An authorization callback carries a code and no state
+- [oauth2_request_state_missing](../violations/oauth2_request_state_missing.md) — An authorization request carries no state to bind against
+- [oauth2_state_conflicting](../violations/oauth2_state_conflicting.md) — A callback's state matches no request that was seen
+
 ## Specifications
 
 - [RFC 6749 §4.1.1](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.1): Authorization Request — response_type MUST be "code"; the state parameter is RECOMMENDED

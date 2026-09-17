@@ -18,6 +18,13 @@ The field lines are read as the octets the sender wrote, so an octet outside US-
 
 Improper `Content-Length` values can lead to message framing errors or truncated bodies; the rule flags invalid or inconsistent values.
 
+## Violations
+
+- [content_length_character_forbidden](../violations/content_length_character_forbidden.md) — Content-Length value holds an octet DIGIT does not admit
+- [content_length_empty](../violations/content_length_empty.md) — Content-Length declares no length
+- [content_length_members_conflicting](../violations/content_length_members_conflicting.md) — Content-Length is declared twice with different numbers
+- [content_length_numeral_invalid](../violations/content_length_numeral_invalid.md) — Content-Length numeral is too large to represent
+
 ## Specifications
 
 - [RFC 9110 §8.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6): Where `Content-Length = 1*DIGIT` is defined — the grammar every value here is checked against

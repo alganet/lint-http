@@ -24,6 +24,10 @@ Reports a redirect whose `Location` resolves to the target URI of the request it
 
 The field's grammar, an empty value, and a response carrying more than one `Location` field line are `location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `redirect_status_and_location_valid`'s; a redirect status carrying *no* `Location` is `location_on_redirect_present`'s.
 
+## Violations
+
+- [location_redirect_redundant](../violations/location_redirect_redundant.md) — A redirect names the target URI of the request it answers
+
 ## Specifications
 
 - [RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4): Redirection 3xx: a client SHOULD detect and intervene in cyclical redirections, and MAY follow a Location even where the specific status code is not understood

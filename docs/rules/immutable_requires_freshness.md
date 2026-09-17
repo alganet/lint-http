@@ -12,6 +12,10 @@ This rule flags responses whose `Cache-Control` header pairs `immutable` with a 
 
 Note: `immutable` together with `must-revalidate` is **not** flagged. Those directives govern disjoint windows — `immutable` applies while the response is fresh, `must-revalidate` binds once it has gone stale — and RFC 8246 says stale responses "SHOULD be revalidated as they normally would be in the absence of the immutable extension". `Cache-Control: max-age=3600, immutable, must-revalidate` is coherent. An earlier version of this rule (`server_must_revalidate_and_immutable_mismatch`) reported that pairing as an error. It was wrong: no sentence in RFC 9111 or RFC 8246 supported it.
 
+## Violations
+
+- [cache_control_immutable_redundant](../violations/cache_control_immutable_redundant.md) — immutable sits on a response with no freshness lifetime
+
 ## Specifications
 
 - [RFC 8246 §2](https://www.rfc-editor.org/rfc/rfc8246.html#section-2): `immutable` — clients SHOULD NOT revalidate during the response's freshness lifetime, and the extension applies during that lifetime only, so a response with none is outside it entirely

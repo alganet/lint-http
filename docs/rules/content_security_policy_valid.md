@@ -12,6 +12,16 @@ Validate basic `Content-Security-Policy` syntax in responses. This rule checks t
 
 This rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations.
 
+## Violations
+
+- [content_security_policy_base64_value_empty](../violations/content_security_policy_base64_value_empty.md) — A nonce or hash source names no value
+- [content_security_policy_base64_value_malformed](../violations/content_security_policy_base64_value_malformed.md) — A nonce value holds a character base64-value does not admit
+- [content_security_policy_directive_empty](../violations/content_security_policy_directive_empty.md) — A policy opens with a semicolon and names no first directive
+- [content_security_policy_directive_name_character_forbidden](../violations/content_security_policy_directive_name_character_forbidden.md) — A CSP directive name holds a character the production does not admit
+- [content_security_policy_empty](../violations/content_security_policy_empty.md) — Content-Security-Policy is written with no policy in it
+- [content_security_policy_source_delimiter_missing](../violations/content_security_policy_source_delimiter_missing.md) — A nonce or hash source is written without its single quotes
+- [content_security_policy_source_empty](../violations/content_security_policy_source_empty.md) — A quoted source expression is written with nothing in it
+
 ## Specifications
 
 - [CSP3](https://www.w3.org/TR/CSP3/): W3C Content Security Policy Level 3 — directive and source-list syntax

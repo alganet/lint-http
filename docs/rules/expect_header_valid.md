@@ -24,6 +24,24 @@ Reads a request's `Expect` field as `#expectation`, where each member is `token 
 
 **Not checked here:** whether a client that waited for a 100 (Continue) sent the expectation, and how long it waited — §10.1.1 states both as client requirements, and neither the waiting nor its duration appears in a captured message. The server requirements in the same section (ignoring the expectation in an HTTP/1.0 request, sending a final status after a 100) are about a response and are outside a rule scoped to the client. `Expect` in a *response* is not reported: §10.1 defines these as request header fields, but no sentence forbids sending one elsewhere.
 
+## Violations
+
+- [expect_100_continue_forbidden](../violations/expect_100_continue_forbidden.md) — A 100-continue expectation is sent in a request with no content
+- [expect_100_continue_invalid](../violations/expect_100_continue_invalid.md) — The 100-continue expectation is written with an argument
+- [expect_member_malformed](../violations/expect_member_malformed.md) — Expect member holds octets the expectation production does not admit
+- [expect_value_empty](../violations/expect_value_empty.md) — Expect writes an expectation '=' with no value after it
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_equals_whitespace_forbidden](../violations/parameter_equals_whitespace_forbidden.md) — Parameter writes whitespace beside its '='
+- [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [status_417_ignored](../violations/status_417_ignored.md) — A request repeats an expectation a 417 already refused
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+
 ## Specifications
 
 - [RFC 9110 §10.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1): Expect: the field's grammar, the one expectation this specification defines, and the four client requirements — of which the MUST NOT on a request without content and the SHOULD after a 417 are the two a captured message can measure

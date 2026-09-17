@@ -16,6 +16,12 @@ Where the stored response carried only a `Last-Modified` date the rule is silent
 
 **What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  Turn the rule off for traffic that is not caching.
 
+## Violations
+
+- [conditional_entity_tag_missing](../violations/conditional_entity_tag_missing.md) — A revalidating request omits the entity tags it holds
+- [conditional_validator_conflicting](../violations/conditional_validator_conflicting.md) — A precondition names a validator older than the last one seen
+- [if_range_validator_date_forbidden](../violations/if_range_validator_date_forbidden.md) — If-Range carries a date for a representation with an entity tag
+
 ## Specifications
 
 - [RFC 9111 §4.3.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1): Sending a Validation Request — a cache MUST send the entity tags of the stored responses it is validating, in `If-Match`, `If-None-Match` or `If-Range`, and SHOULD send the `Last-Modified` value where the conditions for it hold

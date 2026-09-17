@@ -23,6 +23,10 @@ The list is what is written down, not a grammar — a future status definition c
 
 The status the field arrived on is all this rule reads. The value's syntax (`Retry-After = HTTP-date / delay-seconds`) and a repeated `Retry-After` field line belong to `retry_after_date_or_delay`, which reports both.
 
+## Violations
+
+- [retry_after_redundant](../violations/retry_after_redundant.md) — Retry-After is sent on a status no document pairs it with
+
 ## Specifications
 
 - [RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): Defines Retry-After generally, with no condition on the status code, then says what it indicates on a 503 and on any 3xx

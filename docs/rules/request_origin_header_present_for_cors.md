@@ -15,6 +15,16 @@ This rule enforces that requests which indicate cross-origin intent include an `
 
 The rule validates that `Origin` is present where required and that its value is syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests (RuleScope::Client).
 
+## Violations
+
+- [origin_malformed](../violations/origin_malformed.md) — An Origin derives from neither null nor a serialized origin
+- [origin_missing](../violations/origin_missing.md) — A request that must say where it came from carries no Origin
+- [origin_path_forbidden](../violations/origin_path_forbidden.md) — An Origin names a path the production has no component for
+- [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Origin header field syntax — `origin-list-or-null` is the literal `null` or a list of `serialized-origin`, and a `serialized-origin` is a scheme, `://`, a host and an optional port, with no path component

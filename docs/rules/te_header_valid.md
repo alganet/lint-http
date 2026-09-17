@@ -20,6 +20,25 @@ Scope: this rule reads a request's header section, and a response's only to repo
 
 **A response carrying `TE` is reported, and RFC 9110 states no prohibition.** §10.1 gathers the request context fields and §10.1.4 defines this one as describing the client's capabilities; no sentence gives a `TE` in a response a meaning, and none forbids one in so many words either. The finding says that and no more. **It is asked only of a response carried by HTTP/1.x.** Over HTTP/2 and HTTP/3 there is a MUST NOT — a response is not the request their exception is written for, so the field is connection-specific there and the message is malformed — and `no_connection_specific_fields` reports it on each with that version's own sentence, which is the stronger of the two readings. Reporting it here as well would be two findings for one field.
 
+## Violations
+
+- [bws_forbidden](../violations/bws_forbidden.md) — Whitespace written where the grammar admits BWS
+- [field_request_context_misdirected](../violations/field_request_context_misdirected.md) — A request context field is written in a response
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [qvalue_malformed](../violations/qvalue_malformed.md) — Weight is not a qvalue
+- [te_connection_option_missing](../violations/te_connection_option_missing.md) — TE is sent without a TE connection option beside it
+- [te_trailers_parameter_forbidden](../violations/te_trailers_parameter_forbidden.md) — TE hangs a parameter or a weight off the trailers keyword
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [transfer_coding_parameter_missing](../violations/transfer_coding_parameter_missing.md) — A coding writes a ';' with no parameter after it
+- [weight_equals_whitespace_forbidden](../violations/weight_equals_whitespace_forbidden.md) — Whitespace is written beside the weight's '='
+
 ## Specifications
 
 - [RFC 9110 §5.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3): Whitespace — `BWS` is printed where a grammar allows optional whitespace for historical reasons only, with a MUST NOT on the sender and a matching MUST on the recipient to remove it before interpreting the element

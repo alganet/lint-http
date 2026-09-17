@@ -12,6 +12,10 @@ Detect contradictory framing directives between `Content-Security-Policy` (the `
 
 Note: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement.
 
+## Violations
+
+- [content_security_policy_frame_ancestors_conflicting](../violations/content_security_policy_frame_ancestors_conflicting.md) — frame-ancestors and X-Frame-Options state different framing policies
+
 ## Specifications
 
 - [CSP3 §6.4.2](https://www.w3.org/TR/CSP3/#directive-frame-ancestors): `frame-ancestors` — which URLs may embed the resource, the rough equivalences between its source expressions and `X-Frame-Options`' values, and § 6.4.2.2's statement that an enforced `frame-ancestors` overrides that header outright

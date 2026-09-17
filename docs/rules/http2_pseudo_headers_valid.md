@@ -29,6 +29,29 @@ HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `
 
 **Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `status_code_valid_range`.
 
+## Violations
+
+- [authority_tunnel_host_empty](../violations/authority_tunnel_host_empty.md) — A CONNECT's destination names a port and no host
+- [authority_tunnel_missing](../violations/authority_tunnel_missing.md) — A CONNECT names no host and port to open a tunnel to
+- [authority_tunnel_port_empty](../violations/authority_tunnel_port_empty.md) — A CONNECT's destination ends at the colon with no port
+- [authority_tunnel_port_invalid](../violations/authority_tunnel_port_invalid.md) — A CONNECT's destination names a port no transport has
+- [authority_tunnel_port_missing](../violations/authority_tunnel_port_missing.md) — A CONNECT's destination names no port
+- [authority_tunnel_userinfo_forbidden](../violations/authority_tunnel_userinfo_forbidden.md) — A CONNECT's :authority carries a userinfo subcomponent
+- [authority_userinfo_forbidden](../violations/authority_userinfo_forbidden.md) — An :authority carries the deprecated userinfo subcomponent
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [request_target_asterisk_forbidden](../violations/request_target_asterisk_forbidden.md) — The asterisk target is sent with a method other than OPTIONS
+- [request_target_path_missing](../violations/request_target_path_missing.md) — A request that owes a path names none
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_empty](../violations/uri_host_empty.md) — An http or https reference names no host
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 9113 §8.3](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3): HTTP Control Data — what a pseudo-header field is, and that a request carrying an invalid one is malformed. Its two requirements about the field block itself (ordering before regular field lines, one occurrence per name) are not checked: a capture holds no pseudo-header fields and no field order.

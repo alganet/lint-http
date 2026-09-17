@@ -10,6 +10,10 @@ SPDX-License-Identifier: ISC
 
 When an origin server includes a `Priority` response header (RFC 9218 §5) it is expected to control the cacheability or applicability of the cached response by using cache-control related fields (for example `Cache-Control` and/or `Vary`). This rule warns when a response includes `Priority` but lacks an explicit caching directive such as `Cache-Control` or `Vary` which can lead to incorrect caching of responses that differ by request properties.
 
+## Violations
+
+- [priority_cacheability_missing](../violations/priority_cacheability_missing.md) — A Priority response says nothing about caching
+
 ## Specifications
 
 - [RFC 9218 §5](https://www.rfc-editor.org/rfc/rfc9218.html#section-5): The `Priority` response header field — an end-to-end signal a server may generate from properties of the request, and the expectation that a server doing so also controls the cacheability of what it sends

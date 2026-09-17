@@ -18,6 +18,10 @@ It is an efficiency finding rather than a protocol violation: RFC 9111 §4.2 fra
 
 **The other side of the comparison is not reported here.** A stale entry refetched without a conditional request is [`cached_validators_reused`](cached_validators_reused.md)'s finding, from the same evidence: that rule asks for a validator on the stored response and no precondition on this request, without consulting freshness at all, so it makes every report this rule could make and does not need the freshness estimate to make it.
 
+## Violations
+
+- [conditional_redundant](../violations/conditional_redundant.md) — A still-fresh stored response is revalidated anyway
+
 ## Specifications
 
 - [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Freshness — fresh/stale definitions, and reuse without contacting the origin as an efficiency opportunity (age itself is calculated per §4.2.3)

@@ -25,6 +25,23 @@ Checks the `Accept-Patch` response header field — its grammar wherever it appe
 
 Scope: responses only — §3.1 defines `Accept-Patch` as a response header, and an `Accept-Patch` in a request is measured by nothing here. A trailer section is not read: whether a field name may arrive as a trailer at all is §6.5.1's question, asked of every name at once by `trailer_fields_valid`. Method comparisons are exact, because the method token is case-sensitive (§9.1).
 
+## Violations
+
+- [accept_patch_missing](../violations/accept_patch_missing.md) — A response that should name the patch formats names none
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [media_type_empty](../violations/media_type_empty.md) — Media type is written with nothing in it
+- [media_type_malformed](../violations/media_type_malformed.md) — Media type is not a type/subtype pair
+- [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): `Accept-Patch`: `1#media-type`, defined as a response header, and the SHOULD that asks for it in the OPTIONS response of any resource supporting PATCH

@@ -18,6 +18,21 @@ When a parameter value is syntactically invalid, the rule raises a `warn`-level 
 
 **Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type` and more than one `Content-Disposition` field line are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding. A value carrying octets outside visible US-ASCII is not decoded here either, and no rule reports it: RFC 6266 §4.3 makes a `filename` exactly as wide as ISO-8859-1, so such an octet is one of its characters and the `quoted-string` carrying it admits it as `obs-text`.
 
+## Violations
+
+- [content_disposition_parameter_duplicated](../violations/content_disposition_parameter_duplicated.md) — Content-Disposition names one parameter twice
+- [content_disposition_size_invalid](../violations/content_disposition_size_invalid.md) — A Content-Disposition size parameter is not a number
+- [ext_value_malformed](../violations/ext_value_malformed.md) — An extended parameter value is no ext-value
+- [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4): Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes)

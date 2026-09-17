@@ -16,6 +16,40 @@ A `Forwarded` field in a **response** is reported: RFC 7239 §4 restricts the fi
 
 What this rule does not check: an extension parameter's name against the IANA "HTTP Forwarded Parameters" registry, or a `proto` value against the URI scheme registry — both registries are open and live elsewhere. A `Forwarded` field in a trailer section is reported by the trailer-fields rule, not here. The IPv6 recommendation of RFC 7239 §6.1 (RFC 5952 form: lowercase, zeroes compressed) is a SHOULD, and a value that parses but is written differently is reported as one.
 
+## Violations
+
+- [forwarded_element_whitespace_forbidden](../violations/forwarded_element_whitespace_forbidden.md) — Forwarded element holds whitespace its grammar does not admit
+- [forwarded_pair_equals_missing](../violations/forwarded_pair_equals_missing.md) — Forwarded pair is written without its '='
+- [forwarded_pair_value_empty](../violations/forwarded_pair_value_empty.md) — Forwarded pair is written with no value after its '='
+- [forwarded_parameter_duplicated](../violations/forwarded_parameter_duplicated.md) — Forwarded element names one parameter more than once
+- [forwarded_response_forbidden](../violations/forwarded_response_forbidden.md) — Response carries a Forwarded field
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [node_ipv4_address_malformed](../violations/node_ipv4_address_malformed.md) — Node identifier is digits and dots that are not an IPv4 address
+- [node_ipv6_address_malformed](../violations/node_ipv6_address_malformed.md) — Node identifier brackets something that is not an IPv6 address
+- [node_ipv6_brackets_missing](../violations/node_ipv6_brackets_missing.md) — Node identifier holds an IPv6 address without its square brackets
+- [node_ipv6_closing_bracket_missing](../violations/node_ipv6_closing_bracket_missing.md) — Node identifier opens an IPv6 literal and never closes it
+- [node_ipv6_representation_invalid](../violations/node_ipv6_representation_invalid.md) — Node identifier writes an IPv6 address outside the recommended representation
+- [node_malformed](../violations/node_malformed.md) — Node identifier derives from no alternative of the production
+- [node_port_malformed](../violations/node_port_malformed.md) — Node identifier holds something that is not a node-port
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 7239 §4](https://www.rfc-editor.org/rfc/rfc7239.html#section-4): The field's grammar, the case-insensitivity of parameter names, the MUST NOT on naming a parameter twice in one element, and the sentence restricting the field to requests

@@ -10,6 +10,12 @@ SPDX-License-Identifier: ISC
 
 Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`/`private`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0` is a legal combination and is not flagged.
 
+## Violations
+
+- [cache_control_freshness_conflicting](../violations/cache_control_freshness_conflicting.md) — A Cache-Control freshness directive is given more than one value
+- [cache_control_storage_conflicting](../violations/cache_control_storage_conflicting.md) — Two Cache-Control directives disagree about storing the response
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+
 ## Specifications
 
 - [RFC 9111 §5.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2): Response directives: public (§5.2.2.9), private (§5.2.2.7), no-store (§5.2.2.5), max-age/s-maxage

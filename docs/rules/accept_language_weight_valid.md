@@ -22,6 +22,14 @@ Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`
 
 **The value is read as the octets the sender wrote**, and each is reported by whichever production it landed in. Nothing in this grammar is a quoted-string, so no octet outside visible US-ASCII is legal anywhere in the field — but this rule reads only what follows the `;`, where such an octet fails the `q` name or the `qvalue`. One inside the range is `language_tag_syntax`'s, which reads the same field the same way: the range's characters are deferred to the same place as the range's syntax. Refusing to decode the line reported the octet and put every other defect written beside it out of reach.
 
+## Violations
+
+- [qvalue_malformed](../violations/qvalue_malformed.md) — Weight is not a qvalue
+- [weight_duplicated](../violations/weight_duplicated.md) — Member carries more than one weight
+- [weight_equals_whitespace_forbidden](../violations/weight_equals_whitespace_forbidden.md) — Whitespace is written beside the weight's '='
+- [weight_malformed](../violations/weight_malformed.md) — Something other than a weight follows the member's ';'
+- [weight_missing](../violations/weight_missing.md) — Member writes the weight's ';' and no weight after it
+
 ## Specifications
 
 - [RFC 9110 §12.5.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4): Accept-Language: `#( language-range [ weight ] )` — the production that says a range may carry a weight and nothing else. Note that, unlike Accept and Accept-Encoding, this section gives the field no meaning in a response

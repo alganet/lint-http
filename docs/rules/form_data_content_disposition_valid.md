@@ -16,6 +16,16 @@ An empty `name` value is reported as a defect. The specification requires the pa
 
 **Quoting that never closes is declined, not guessed at.** After a stray `"` no separator can be trusted, so `form-data; p="x; name="a"` is not reported as missing a name — whether that text is a parameter is exactly what the broken quoting makes unknowable. This applies only to the *absence* claim: a `name` the scan did find is still judged.
 
+## Violations
+
+- [content_disposition_name_empty](../violations/content_disposition_name_empty.md) — A form-data Content-Disposition names an empty form field
+- [content_disposition_name_missing](../violations/content_disposition_name_missing.md) — A form-data Content-Disposition names no form field
+- [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+
 ## Specifications
 
 - [RFC 7578 §4.2](https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2): Each multipart/form-data *part* MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain a `name` parameter — a requirement on parts, which this rule approximates at the message level

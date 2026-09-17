@@ -32,6 +32,26 @@ Reads the `Referer` request header field against the production RFC 9110 §10.1.
 
 **What other rules own.** A fragment on the *request target* is `request_target_no_fragment`'s, on every version; a malformed percent-encoding in the target is `request_uri_percent_encoding_valid`'s. The same `absolute-URI / partial-URI` production governs `Content-Location` (RFC 9110 §8.7), whose rule reads the same fragment question from the grammar and RFC 9110 §2.2 alone — no MUST NOT names the component for that field.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [referer_empty](../violations/referer_empty.md) — A Referer is written with nothing in it
+- [referer_forbidden](../violations/referer_forbidden.md) — A Referer names a secure resource on an unsecured request
+- [referer_fragment_forbidden](../violations/referer_fragment_forbidden.md) — A Referer carries a fragment component
+- [referer_userinfo_forbidden](../violations/referer_userinfo_forbidden.md) — A Referer carries the deprecated userinfo subcomponent
+- [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_empty](../violations/uri_host_empty.md) — An http or https reference names no host
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 9110 §10.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.3): Referer — the field's grammar, the fragment and userinfo MUST NOT, the unsecured-request MUST NOT, and the two declined conditionals

@@ -30,6 +30,11 @@ Reports an HTTP/2 or HTTP/3 request whose `Host` header field and `:authority` p
 
 **Where the values come from, and what that costs on HTTP/3.** A capture records the request target as the URI these versions reassemble. Over HTTP/2 the authority in it is the `:authority` and nothing else — the library this proxy uses builds it from that pseudo-header alone and never reads `Host`. **Over HTTP/3 it is not**: that library takes the authority from the `Host` field when both are present, and rejects the request at the transport when the two differ as strings. So no HTTP/3 mismatch this proxy captured itself can reach this rule, and its HTTP/3 findings are for captures written by other tools and read back through `lint` — while the same transport's byte comparison is itself a reading of RFC 9114's "same value" that agrees with this rule's. The `Host` field is read as octets rather than through a UTF-8 decode, so a value carrying `obs-text` is compared rather than skipped.
 
+## Violations
+
+- [authority_conflicting](../violations/authority_conflicting.md) — A request's :authority and Host name different authorities
+- [authority_value_conflicting](../violations/authority_value_conflicting.md) — An :authority and Host are one authority in two spellings
+
 ## Specifications
 
 - [RFC 9113 §8.3.1](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1): Request Pseudo-Header Fields — what each of `:method`, `:scheme`, `:authority` and `:path` conveys, the `'*'` value for asterisk-form OPTIONS, the `:path`-must-not-be-empty MUST, and the userinfo MUST NOT written for `http` and `https` targets

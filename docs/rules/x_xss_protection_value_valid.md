@@ -10,6 +10,11 @@ SPDX-License-Identifier: ISC
 
 This rule checks that the `X-XSS-Protection` response header, when present, uses an expected and safe value. Historically, the header accepted `0` to disable the browser's cross-site scripting filter and `1; mode=block` to enable blocking; other values are unsupported or ambiguous and should be avoided.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [x_xss_protection_invalid](../violations/x_xss_protection_invalid.md) — X-XSS-Protection asks for something other than the filter off
+
 ## Specifications
 
 - [MDN X-XSS-Protection](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection): X-XSS-Protection

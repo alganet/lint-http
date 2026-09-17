@@ -27,6 +27,19 @@ Reads an HTTP/1.x request-line's request-target and asks two things: which of th
 - **Anything sent over HTTP/2 or HTTP/3.** Those versions carry the request target's components in pseudo-header fields, where the asterisk is a `:path` value (RFC 9113 §8.3.1, RFC 9114 §4.3.1) and a CONNECT's destination is an `:authority` with no `:path` at all. A capture of such a request holds the target URI its transport reassembled, not a request-target, so an asterisk arrives inside an authority and measuring it against these productions would report the reassembly rather than the sender. `http2_pseudo_headers_valid` and `http3_pseudo_headers_valid` are the rules that read pseudo-header fields, and the second of them asks §7.1's question about the asterisk in its own version's terms.
 - **A CONNECT this proxy itself handled.** A CONNECT request is answered by the tunnel and never becomes a transaction here, so the CONNECT findings above are reachable only in a capture recorded elsewhere and read back in.
 
+## Violations
+
+- [authority_tunnel_host_empty](../violations/authority_tunnel_host_empty.md) — A CONNECT's destination names a port and no host
+- [authority_tunnel_port_empty](../violations/authority_tunnel_port_empty.md) — A CONNECT's destination ends at the colon with no port
+- [authority_tunnel_port_invalid](../violations/authority_tunnel_port_invalid.md) — A CONNECT's destination names a port no transport has
+- [request_target_asterisk_forbidden](../violations/request_target_asterisk_forbidden.md) — The asterisk target is sent with a method other than OPTIONS
+- [request_target_authority_form_forbidden](../violations/request_target_authority_form_forbidden.md) — The host-and-port target is sent with a method other than CONNECT
+- [request_target_connect_form_invalid](../violations/request_target_connect_form_invalid.md) — A CONNECT's request-target is not a host and port
+- [request_target_empty](../violations/request_target_empty.md) — A request-line carries no request-target
+- [request_target_form_ambiguous](../violations/request_target_form_ambiguous.md) — A request-target derives from two of the four forms at once
+- [request_target_malformed](../violations/request_target_malformed.md) — A request-target derives from none of the four forms
+- [request_target_whitespace_forbidden](../violations/request_target_whitespace_forbidden.md) — A request-target carries whitespace
+
 ## Specifications
 
 - [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2): Request Target — `request-target = origin-form / absolute-form / authority-form / asterisk-form`, no whitespace allowed in any of them, the recipient's SHOULD to answer 400 rather than autocorrect, and why: a request-line like that might be crafted to bypass a filter along the chain

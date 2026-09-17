@@ -28,6 +28,29 @@ Four consequences of that grammar are worth stating.
 - **Repeated codes, and where a field line sits.** §5.5 permits multiple warnings with the same `warn-code` differing only in `warn-text`, so duplicates are not counted; and its MUST to append new field lines after existing ones distinguishes fields this message arrived with from fields its sender added, which a capture does not record.
 - **A `warn-agent` holding a comma.** `,` is a `sub-delim` and so a `reg-name` character, and it is also the list's separator: nothing in the field value tells the two apart. The separator wins here, which is what a list parser does, and the halves are then judged as members.
 
+## Violations
+
+- [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
+- [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
+- [http_date_whitespace_forbidden](../violations/http_date_whitespace_forbidden.md) — Timestamp is padded with whitespace the grammar does not print
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+- [warning_agent_missing](../violations/warning_agent_missing.md) — Warning member names no warn-agent
+- [warning_code_malformed](../violations/warning_code_malformed.md) — Warning member's warn-code is not three digits
+- [warning_member_malformed](../violations/warning_member_malformed.md) — Warning member does not derive where the production continues it
+- [warning_text_missing](../violations/warning_text_missing.md) — Warning member carries no warn-text
+
 ## Specifications
 
 - [RFC 7234 §5.5](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5): The last statement of the `Warning` grammar, and the requirements about warn-codes and warn-dates that go with it. Obsoleted by RFC 9111, which removed the field rather than restating it — so this is where the productions are read from, and RFC 9111 §5.5 is where the field's status is read from

@@ -16,6 +16,10 @@ RFC 9110 §10.2.2 gives the `Location` header field a referent twice — the pri
 
 **Only presence is read.** Whether the value is a usable `URI-reference`, whether it is empty, and whether the response sent several `Location` field lines are `location_header_uri_valid`'s questions. A `301` or `302` that carries *no* `Location` is `location_on_redirect_present`'s. Whether a `201` ought to carry one is `post_creates_resource`'s, because the sentence that asks for it (§9.3.3) is about `POST`.
 
+## Violations
+
+- [location_redundant](../violations/location_redundant.md) — Location is sent on a status that gives it no referent
+
 ## Specifications
 
 - [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2): `Location = URI-reference`; the value's referent is defined for 201 (Created) and for 3xx (Redirection) responses, and for no other status

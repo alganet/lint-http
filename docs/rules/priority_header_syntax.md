@@ -22,6 +22,19 @@ Reports a `Priority` header field (RFC 9218) carrying a priority parameter that 
 
 **Not reported:** an unknown parameter key. The "HTTP Priority" registry (§4.3.1) is open by design and holds only `u` and `i` today, so a key this rule does not know is an extension doing what §4.3 contemplates, and §4's MUST to ignore it is what makes sending one safe. Nor an empty field value, which RFC 9651 §4.2.2 parses into an empty Dictionary: it expresses no preference rather than failing.
 
+## Violations
+
+- [priority_incremental_malformed](../violations/priority_incremental_malformed.md) — Priority incremental is not a Boolean
+- [priority_urgency_invalid](../violations/priority_urgency_invalid.md) — Priority urgency is outside 0 to 7
+- [priority_urgency_malformed](../violations/priority_urgency_malformed.md) — Priority urgency is not an Integer
+- [structured_field_character_forbidden](../violations/structured_field_character_forbidden.md) — Structured field holds an octet outside US-ASCII
+- [structured_field_inner_list_malformed](../violations/structured_field_inner_list_malformed.md) — Structured field Inner List has no closing parenthesis
+- [structured_field_key_duplicated](../violations/structured_field_key_duplicated.md) — Structured field gives one Dictionary key more than once
+- [structured_field_key_malformed](../violations/structured_field_key_malformed.md) — Structured field key is not a key production
+- [structured_field_member_empty](../violations/structured_field_member_empty.md) — Structured field writes a comma with no member beside it
+- [structured_field_value_empty](../violations/structured_field_value_empty.md) — Structured field writes a value slot with nothing in it
+- [structured_field_value_malformed](../violations/structured_field_value_malformed.md) — Structured field value is none of the bare item types
+
 ## Specifications
 
 - [RFC 9218 §4](https://www.rfc-editor.org/rfc/rfc9218.html#section-4): Priority Parameters — the Dictionary encoding, and the MUST to ignore an unknown parameter, an out-of-range value or a value of unexpected type rather than treat it as an error

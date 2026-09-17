@@ -14,6 +14,10 @@ This rule reconstructs a small piece of cache state for a given client+resource 
 
 This stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled.
 
+## Violations
+
+- [cache_control_must_revalidate_ignored](../violations/cache_control_must_revalidate_ignored.md) — A stale must-revalidate response is reused without validation
+
 ## Specifications
 
 - [RFC 9111 §5.2.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2): `must-revalidate` — once the response is stale, a cache MUST NOT reuse it until it has been successfully validated by the origin

@@ -20,6 +20,10 @@ Reports a `PATCH` request that carries content without a `Content-Type` naming t
 
 **The method is compared exactly**, because RFC 9110 §9.1 says the method token is case-sensitive: a request whose method is `patch` is not a `PATCH` request, and `request_method_token_valid` is the rule that reports the spelling. A `Content-Type` whose octets are not visible ASCII counts as present here; `content_type_valid` reports what is wrong with it.
 
+## Violations
+
+- [method_patch_content_type_missing](../violations/method_patch_content_type_missing.md) — A PATCH request does not name its patch document format
+
 ## Specifications
 
 - [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2): PATCH — the set of changes is represented in a format identified by a media type, and no single default patch document format exists for a recipient to assume

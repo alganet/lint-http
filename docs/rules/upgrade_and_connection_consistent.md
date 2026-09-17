@@ -22,6 +22,10 @@ The field's presence is what the sentence turns on, not what it holds. `Upgrade`
 
 Scope: this rule reads header sections — a request's and a response's, each against its own protocol version, since a reverse proxy may have received the two over different ones. Where either field appears on several lines in one section they are one value (§5.2), so an `upgrade` option written on a second `Connection` line is listed. A value carrying an octet outside US-ASCII is measured rather than skipped: reading it back through a UTF-8 decoder would turn a field the sender wrote into a message that has no such field, and the obligation would go with it. Whether `Upgrade` may appear in a *trailer* section is §6.5.1's question and `trailer_fields_valid`'s, which holds the table `Upgrade` is listed in.
 
+## Violations
+
+- [upgrade_connection_option_missing](../violations/upgrade_connection_option_missing.md) — Upgrade is sent with no upgrade connection-option in Connection
+
 ## Specifications
 
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade — the sender's obligation to name the field as a connection-option beside it, and the `#protocol` grammar that makes the field's presence the thing the obligation turns on

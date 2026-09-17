@@ -20,6 +20,11 @@ Reports a client frame that is not masked, and a server frame that is.
 
 **Not reported: the masking key itself.** §5.3 has the client pick a *fresh masking key* per frame, derived from a *strong source of entropy*, and unpredictable from the previous one — the key is not recorded, and unpredictability is not a property of one observation anyway. Nor is any payload unmasked and re-checked: the relay never unmasks a data payload, and the record holds header facts rather than payload octets.
 
+## Violations
+
+- [websocket_frame_mask_forbidden](../violations/websocket_frame_mask_forbidden.md) — A server frame is masked
+- [websocket_frame_mask_missing](../violations/websocket_frame_mask_missing.md) — A client frame is not masked
+
 ## Specifications
 
 - [RFC 6455 §5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1): Overview — both masking MUSTs, the reason the client's exists, and the two recipient MUSTs that say what a conforming peer does about a breach

@@ -22,6 +22,16 @@ Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must 
 
 **A parameter on a coding that defines none is reported.** RFC 9112 §7.2 defines `compress`, `x-compress`, `deflate`, `gzip` and `x-gzip`, states that they "do not define any parameters", and says their presence "SHOULD be treated as an error". §7.1 says the same of `chunked` in its own two sentences, so all six are covered. The `q` in `TE: deflate;q=0.5` is exempt — the grammar puts the `weight` outside `transfer-coding` and §7.3 calls it a pseudo-parameter — but `Transfer-Encoding` has no weight in its grammar, so a `q` there is an ordinary parameter. A coding you add to `allowed` is not reached: its parameters answer to whatever registered it.
 
+## Violations
+
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [te_chunked_forbidden](../violations/te_chunked_forbidden.md) — TE names the chunked coding, which cannot be declined
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [transfer_coding_parameter_forbidden](../violations/transfer_coding_parameter_forbidden.md) — A coding that defines no parameters carries one
+- [transfer_coding_unregistered](../violations/transfer_coding_unregistered.md) — Transfer coding is not one the deployment recognises
+
 ## Specifications
 
 - [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer-Encoding = #transfer-coding, and the 501 a recipient owes a coding it does not understand

@@ -16,6 +16,11 @@ This rule reads the Cross-Origin Resource Sharing (CORS) response headers that d
 
 The origin header is only scanned for a `*` here; what its value may be is `access_control_allow_origin_valid`'s finding.
 
+## Violations
+
+- [access_control_allow_credentials_conflicting](../violations/access_control_allow_credentials_conflicting.md) — Access-Control-Allow-Credentials claims `true` beside a wildcard origin
+- [access_control_allow_credentials_invalid](../violations/access_control_allow_credentials_invalid.md) — Access-Control-Allow-Credentials states a value that is not `true`
+
 ## Specifications
 
 - [MDN Access-Control-Allow-Credentials](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials): Access-Control-Allow-Credentials

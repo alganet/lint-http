@@ -18,6 +18,11 @@ Reports a request that carries content under a method whose definition gives con
 
 **Not checked here.** TRACE's §9.3.8 MUST NOT is `trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it — that is `options_method_capabilities`'s finding, not this rule's. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id.
 
+## Violations
+
+- [method_connect_content_forbidden](../violations/method_connect_content_forbidden.md) — A CONNECT request declares content its definition has no room for
+- [method_content_forbidden](../violations/method_content_forbidden.md) — A GET, HEAD or DELETE request carries content
+
 ## Specifications
 
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): Methods overview — the method token is case-sensitive, which is why the four names below are matched exactly and a lowercase `get` is not a GET

@@ -20,6 +20,10 @@ Reports a `PATCH` request whose `Content-Type` names a patch document format tha
 
 **What is not judged here.** The advertisement's syntax: members that do not parse as a media type are skipped, and a field with no parseable member leaves the rule unable to answer, so it declines. `accept_patch_header_valid` is the rule that reports a malformed `Accept-Patch`, on a response to any method — including the `OPTIONS` response §3.1 asks for it in, which nothing validated until that rule was audited. On the request side, more than one `Content-Type` line makes the comparison meaningless, because recipients differ over which member wins (§8.3); a value that is not a media type, and an absent one, are `content_type_valid`'s and `patch_partial_update`'s findings. Parameters are not compared: whether one is significant depends on the media type's registration (§8.3.1), so `text/example` and `text/example;charset=utf-8` are treated as the same format.
 
+## Violations
+
+- [accept_patch_ignored](../violations/accept_patch_ignored.md) — A PATCH sends a format the resource never advertised
+
 ## Specifications
 
 - [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): `Accept-Patch`: `1#media-type`, defined as a response header, and the SHOULD that asks for it in the OPTIONS response of any resource supporting PATCH

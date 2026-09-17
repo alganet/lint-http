@@ -10,6 +10,13 @@ SPDX-License-Identifier: ISC
 
 Requests that include the `Sec-Fetch-Site` request header must use one of the canonical values defined by the Fetch Metadata specification: `cross-site`, `same-origin`, `same-site`, or `none`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — the values are lowercase tokens and structured-field tokens carry no case folding, so `Same-Origin` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Site`) are treated as a violation (possible header injection) and will be flagged.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [sec_fetch_site_value_invalid](../violations/sec_fetch_site_value_invalid.md) — Sec-Fetch-Site names no relationship the document defines
+- [sec_fetch_value_empty](../violations/sec_fetch_value_empty.md) — A Sec-Fetch-* field is written with no value on it
+- [sec_fetch_value_malformed](../violations/sec_fetch_value_malformed.md) — A Sec-Fetch-* value holds a character no token admits
+
 ## Specifications
 
 - [Fetch Metadata §2.3](https://www.w3.org/TR/fetch-metadata/#sec-fetch-site-header): Fetch Metadata (W3C) — `Sec-Fetch-Site`: an sf-token whose valid values are the four initiator/target relationships

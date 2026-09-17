@@ -10,6 +10,21 @@ SPDX-License-Identifier: ISC
 
 Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, measures an `If-Range` value against the alternative it chose — `If-Range = entity-tag / HTTP-date`, and §13.1.5's own test is to examine the first three characters for a DQUOTE — flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore.
 
+## Violations
+
+- [conditional_date_ignored](../violations/conditional_date_ignored.md) — A date conditional is sent where the recipient must discard it
+- [conditional_date_redundant](../violations/conditional_date_redundant.md) — A date conditional is sent beside the entity-tag conditional that supersedes it
+- [etag_character_forbidden](../violations/etag_character_forbidden.md) — Entity-tag holds a character etagc does not admit
+- [etag_delimiter_missing](../violations/etag_delimiter_missing.md) — Entity-tag is not quoted
+- [etag_weak_indicator_invalid](../violations/etag_weak_indicator_invalid.md) — Weakness indicator is not written W/
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
+- [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
+- [http_date_whitespace_forbidden](../violations/http_date_whitespace_forbidden.md) — Timestamp is padded with whitespace the grammar does not print
+- [if_range_empty](../violations/if_range_empty.md) — If-Range is written with no validator in it
+- [if_range_forbidden](../violations/if_range_forbidden.md) — If-Range is sent in a request with no Range
+- [if_range_validator_weak_forbidden](../violations/if_range_validator_weak_forbidden.md) — If-Range carries a weak entity-tag
+
 ## Specifications
 
 - [RFC 9110 §13.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1): Preconditions

@@ -26,6 +26,11 @@ Reports two things about a `405 (Method Not Allowed)` response: that it carries 
 
 **Scope and version.** Every HTTP version is measured: §15.5.6 says the method was "received in the request-line", which only an HTTP/1.x message has, but the status code it defines is the version-independent document's and HTTP/2 and HTTP/3 carry the same method in a `:method` pseudo-header. The requirement's subject is an origin server and a capture holds whatever answered — §3.7 carries every origin-server requirement onto "the outbound communication of a gateway", so a reverse proxy's 405 is measured on the same terms. A forward proxy that generates a 405 of its own is not an origin server for that response and is measured anyway, because no field of a message records which party wrote it.
 
+## Violations
+
+- [status_405_allow_conflicting](../violations/status_405_allow_conflicting.md) — A 405 advertises the method it refuses
+- [status_405_allow_missing](../violations/status_405_allow_missing.md) — A 405 answers without the Allow field it must generate
+
 ## Specifications
 
 - [RFC 9110 §15.5.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6): The status code and its MUST — including the clause after "containing", which asks the field to hold the methods the target resource supports and so contradicts a list naming the method this response refuses

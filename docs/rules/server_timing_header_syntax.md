@@ -24,6 +24,24 @@ Checks that a `Server-Timing` response field derives from the grammar the Server
 
 **What is not reported.** An empty field value: `#server-timing-metric` has no floor, so `Server-Timing:` is zero metrics rather than an empty one — an empty *element* between commas is reported, on § 5.6.1.1's sender MUST NOT. Repeated `metric-name`s across metrics: § 2 grants a response a MAY to send them and requires the user agent to expose all of them. The order of metrics: the user agent MAY surface them in any order. An unregistered parameter name, which the document establishes exactly two of and tells recipients to ignore the rest of. And whether the numbers are true, which no capture can answer.
 
+## Violations
+
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [server_timing_dur_invalid](../violations/server_timing_dur_invalid.md) — Server-Timing writes a dur that is not a valid floating-point number
+- [server_timing_param_duplicated](../violations/server_timing_param_duplicated.md) — Server-Timing metric names one parameter more than once
+- [server_timing_param_empty](../violations/server_timing_param_empty.md) — Server-Timing writes a semicolon with no parameter behind it
+- [server_timing_param_equals_missing](../violations/server_timing_param_equals_missing.md) — Server-Timing parameter has no '=' and no value
+- [server_timing_param_name_invalid](../violations/server_timing_param_name_invalid.md) — Server-Timing names an established parameter in a case no getter matches
+- [server_timing_param_value_empty](../violations/server_timing_param_value_empty.md) — Server-Timing parameter is written with no value after its '='
+- [server_timing_param_value_malformed](../violations/server_timing_param_value_malformed.md) — Server-Timing parameter value carries content past the alternative it derives from
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [Server Timing §2](https://www.w3.org/TR/server-timing/#the-server-timing-header-field): The `Server-Timing` Header Field: the ABNF the entries here are written against, the two parameter names the specification establishes, and the user-agent parsing algorithm. Eight BCP 14 keywords: six addressed to the user agent, a MAY permitting a response to repeat a metric name, and a SHOULD NOT on a parameter name appearing twice in one metric — that last one is the only sentence in the whole document that measures what a server wrote. The section takes `#`, `*`, `OWS`, `token` and `quoted-string` from `[RFC7230]`, which is obsolete; the current productions are RFC 9110 § 5.6.1, § 5.6.3, § 5.6.2 and § 5.6.4 and are carried forward unchanged, so nothing decided here turns on which document is read. The document is a W3C Working Draft (7 April 2026) whose own Status section says "It is inappropriate to cite this document as other than a work in progress" — and it is nonetheless the field's only specification: the IANA HTTP Field Name Registry lists `Server-Timing` as **permanent** with this document as its sole reference, the same way it lists `Keep-Alive` against an obsoleted RFC. A work in progress is what there is to read

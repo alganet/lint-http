@@ -18,6 +18,11 @@ Reports a TRACE request that carries content, and a TRACE request that carries o
 
 **Not checked: whether the response reflected the request.** The reflection is a SHOULD addressed to "the final recipient" — the origin server, or the first server to receive a `Max-Forwards` of zero — and no field of a message says which recipient answered it.
 
+## Violations
+
+- [method_trace_content_forbidden](../violations/method_trace_content_forbidden.md) — A TRACE request carries content
+- [method_trace_disclosure_forbidden](../violations/method_trace_disclosure_forbidden.md) — A TRACE request carries a field that echoes back a secret
+
 ## Specifications
 
 - [RFC 9110 §9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8): TRACE — the two client `MUST NOT`s, the example naming credentials and cookies, and the `SHOULD` to reflect the message, which is addressed to a recipient no message identifies

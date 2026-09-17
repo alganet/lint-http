@@ -18,6 +18,11 @@ Reports a configured header field whose value fails RFC 9651 Structured Fields p
 
 **Not reported:** an empty field value, which §4.2.1 and §4.2.2 both parse into an empty structure rather than failing; and a duplicate Dictionary key, which §4.2.2 resolves silently in favour of the last one — a defect worth reporting, but only by a rule that knows the field is a Dictionary.
 
+## Violations
+
+- [structured_field_character_forbidden](../violations/structured_field_character_forbidden.md) — Structured field holds an octet outside US-ASCII
+- [structured_field_malformed](../violations/structured_field_malformed.md) — Structured field value derives from no structured type
+
 ## Specifications
 
 - [RFC 9651 §4.2](https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2): Parsing — the algorithm a recipient runs over a joined field value, the `field_type` it is given, the ASCII conversion it does before choosing one, and the two answers it offers when parsing fails

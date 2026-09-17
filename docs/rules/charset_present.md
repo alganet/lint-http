@@ -16,6 +16,10 @@ No specification requires the parameter — RFC 9110 defines what `charset` mean
 
 The parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `content_type_valid`'s finding, not an absent charset.
 
+## Violations
+
+- [content_type_charset_missing](../violations/content_type_charset_missing.md) — A text media type does not say which character encoding it used
+
 ## Specifications
 
 - [RFC 9110 §8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1): `media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here

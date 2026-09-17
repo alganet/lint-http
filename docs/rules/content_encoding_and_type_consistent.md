@@ -18,6 +18,16 @@ Repeating a coding is likewise a judgement call rather than a conformance failur
 
 **The value is read as octets and over the whole field section.** Every character of a `token` is visible US-ASCII, so an `obs-text` octet in a coding name is reported for what it is — a character the production does not admit, named as the byte it is — rather than as a verdict about the field's encoding. It used to be the second: a value the string reader refused was reported as *not valid UTF-8*, which is a claim about the whole value where the defect is one character of one member. The lines of a section are joined first, because `#content-coding` makes them one list.
 
+## Violations
+
+- [content_coding_redundant](../violations/content_coding_redundant.md) — One coding is named twice in one field
+- [content_coding_wildcard_forbidden](../violations/content_coding_wildcard_forbidden.md) — The Accept-Encoding wildcard is written where a coding belongs
+- [status_304_metadata_forbidden](../violations/status_304_metadata_forbidden.md) — A 304 sends representation metadata beyond the fields it owes
+- [status_metadata_redundant](../violations/status_metadata_redundant.md) — A response that cannot carry content sends representation metadata
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §8.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4): `Content-Encoding = #content-coding`, and the reservation of `identity` for Accept-Encoding — the reason it is flagged here

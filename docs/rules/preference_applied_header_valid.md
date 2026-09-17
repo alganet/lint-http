@@ -14,6 +14,23 @@ The field's lines are joined before they are split, because a client may spread 
 
 What it does not decide: whether a value is one the preference's own definition allows (RFC 7240 §4 gives `return` and `handling` closed value sets; `prefer_header_valid` is the rule holding the request those come from), and whether the `Prefer` the capture holds is the one the responding server saw — an intermediary between this observation point and the origin may add preferences of its own, so the comparison is against this exchange as observed. When the request's `Prefer` value cannot be split into members — its quoting never closes, or a member does not parse — both comparisons stand down rather than report as unrequested what is merely unreadable; the grammar checks on the response are unaffected.
 
+## Violations
+
+- [bws_forbidden](../violations/bws_forbidden.md) — Whitespace written where the grammar admits BWS
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [preference_applied_conflicting](../violations/preference_applied_conflicting.md) — A Preference-Applied reports a value the request did not ask for
+- [preference_applied_parameter_forbidden](../violations/preference_applied_parameter_forbidden.md) — A Preference-Applied member carries a parameter its grammar has none of
+- [preference_applied_unsolicited](../violations/preference_applied_unsolicited.md) — A Preference-Applied names a preference nobody asked for
+- [preference_applied_value_empty](../violations/preference_applied_value_empty.md) — A Preference-Applied member writes an = with no word after it
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3): `Preference-Applied` — the field's definition, its grammar, and the sentence saying it is the `Prefer` grammar without parameters

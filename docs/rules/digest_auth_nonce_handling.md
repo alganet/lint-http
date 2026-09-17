@@ -12,6 +12,13 @@ Digest authentication relies on a server-provided `nonce` value (and optionally 
 
 This rule ensures that an observed stream of transactions follows these lifecycle expectations by tracking challenges and responses across an origin.
 
+## Violations
+
+- [digest_credentials_challenge_missing](../violations/digest_credentials_challenge_missing.md) — Digest credentials name a nonce no observed challenge offered
+- [digest_credentials_nc_invalid](../violations/digest_credentials_nc_invalid.md) — A Digest nonce-count is not the number the exchange calls for
+- [digest_credentials_nc_malformed](../violations/digest_credentials_nc_malformed.md) — A Digest nonce-count is not eight hexadecimal digits
+- [digest_credentials_opaque_conflicting](../violations/digest_credentials_opaque_conflicting.md) — Digest credentials do not return the opaque the challenge supplied
+
 ## Specifications
 
 - [RFC 7616 §3.3](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3): The WWW-Authenticate Response Header Field — the server challenge, its `nonce` and `opaque` and the case-insensitive `stale` flag a client answers by restarting the count

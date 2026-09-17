@@ -12,6 +12,10 @@ Detects repeated `401 Unauthorized` challenges for the same protection space (or
 
 This rule tracks the transaction history by origin and flags if a client receives 4 or more consecutive `401 Unauthorized` challenges without a successful (or other non-401) response in between.
 
+## Violations
+
+- [status_401_ignored](../violations/status_401_ignored.md) — A client replays credentials a 401 keeps refusing
+
 ## Specifications
 
 - [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 (Unauthorized) — the server generating one MUST send a `WWW-Authenticate` containing at least one challenge applicable to the target resource, and a user agent that has already attempted authentication and gets the same challenge back SHOULD show the representation to the user

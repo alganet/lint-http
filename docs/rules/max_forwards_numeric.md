@@ -22,6 +22,12 @@ The value is never parsed into an integer. `1*DIGIT` puts no bound on its length
 
 The field on a method other than `TRACE` or `OPTIONS` is not reported. §7.6.2 says a recipient MAY ignore it there — a permission granted to the recipient, not a prohibition on the sender — so such a request has a syntactically valid field that limits nothing. Whether the field may appear in a *trailer* section is §6.5.1's question and `trailer_fields_valid`'s finding.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [max_forwards_empty](../violations/max_forwards_empty.md) — Max-Forwards is written with no digits on it
+- [max_forwards_malformed](../violations/max_forwards_malformed.md) — Max-Forwards holds something that is not a digit
+
 ## Specifications
 
 - [RFC 9110 §7.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2): The field: its grammar (`1*DIGIT`), the methods it works with, and the recipient's permission to ignore it on the others. The section's requirements on intermediaries — check and update the value, do not forward at zero — are stated here and are not measurable from one captured leg

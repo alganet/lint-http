@@ -18,6 +18,10 @@ No sentence spells this as a MUST, and it does not need one: the RFC states the 
 
 The reason-phrase beside the code is not read: RFC 9112 §4 makes it optional and asks clients to ignore it. What a *valid* status code implies for the rest of the message — which fields it may carry, whether it may have content, whether it is cacheable — belongs to the rules for each of those questions.
 
+## Violations
+
+- [status_invalid](../violations/status_invalid.md) — The status code is outside the range 100..599
+
 ## Specifications
 
 - [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, what a client does with an invalid code, and that a request's interim responses are followed by exactly one final response

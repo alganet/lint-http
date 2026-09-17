@@ -22,6 +22,12 @@ Two further sentences of §6.5.1 are left alone deliberately: that a trailer sec
 
 This rule complements `trailer_header_valid`, which reads the `Trailer` declaration's own syntax. Announcing a field and sending one are two acts; this rule judges the second.
 
+## Violations
+
+- [trailer_connection_option_forbidden](../violations/trailer_connection_option_forbidden.md) — A trailer field is named as a connection-option in this message
+- [trailer_field_forbidden](../violations/trailer_field_forbidden.md) — A trailer field's definition does not permit the usage
+- [trailer_member_missing](../violations/trailer_member_missing.md) — A trailer field was not named in the Trailer declaration
+
 ## Specifications
 
 - [RFC 9110 §6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5): Trailer fields: what a trailer section is, and why what it carries cannot unmake a routing or processing choice already made from the header section

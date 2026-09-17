@@ -21,6 +21,11 @@ Checks that a response's `Content-Length` matches the number of body octets actu
 
 **What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed.
 
+## Violations
+
+- [content_length_conflicting](../violations/content_length_conflicting.md) — Content-Length disagrees with the octets received
+- [method_head_content_forbidden](../violations/method_head_content_forbidden.md) — A response to HEAD carries content octets
+
 ## Specifications
 
 - [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): Message body length, in precedence order — this rule is item 6, and items 1, 2 and 3 are why most responses are exempt rather than checked

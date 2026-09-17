@@ -10,6 +10,12 @@ SPDX-License-Identifier: ISC
 
 This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses (RuleScope::Server).
 
+## Violations
+
+- [cross_origin_embedder_policy_invalid](../violations/cross_origin_embedder_policy_invalid.md) — Cross-Origin-Embedder-Policy names no embedder policy
+- [cross_origin_embedder_policy_isolation_missing](../violations/cross_origin_embedder_policy_isolation_missing.md) — A Cross-Origin-Embedder-Policy is set to the value that does not isolate
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+
 ## Specifications
 
 - [MDN Cross-Origin-Embedder-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy): Cross-Origin-Embedder-Policy

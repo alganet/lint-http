@@ -14,6 +14,10 @@ This stateful rule examines a sequence of transactions for the same resource acr
 
 The rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused.
 
+## Violations
+
+- [cache_control_private_ignored](../violations/cache_control_private_ignored.md) — A validator from a private response reaches a second client
+
 ## Specifications
 
 - [RFC 9111 §5.2.2.7](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7): private — the unqualified form's prohibition on a shared cache storing the response at all, the argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified private

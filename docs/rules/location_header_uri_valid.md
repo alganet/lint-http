@@ -22,6 +22,18 @@ A `%` must open a well-formed `pct-encoded` triplet, and a value that carries a 
 
 **Scope: this rule reads the field's syntax and nothing else.** Whether a given status code may carry a `Location` at all is `redirect_status_and_location_valid`'s finding, and whether a redirect status arrived without one is `location_on_redirect_present`'s; both are asked of every status, so no status gate is applied here. §10.2.2's requirement that a 3xx `Location` with no fragment component inherit the fragment of the reference that generated the target URI is addressed to the *user agent* processing the redirect, not to the sender, so no captured message can be measured against it. Only the header section is read: whether any field at all may be sent in a *trailer* section is RFC 9110 §6.5.1's deny-by-default question and `trailer_fields_valid`'s finding.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [location_empty](../violations/location_empty.md) — Location is written with nothing in it
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_host_empty](../violations/uri_host_empty.md) — An http or https reference names no host
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2): Location: the field definition, `Location = URI-reference`, and the Note explaining why the field cannot be a list — the comma list separator is valid data inside a URI-reference

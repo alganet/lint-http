@@ -18,6 +18,10 @@ An `Expires` value that is not a valid HTTP-date counts as contradictory too, ra
 than as no information: a cache is required to read it as already expired, so the
 common `Expires: 0` paired with a positive `max-age` is flagged.
 
+## Violations
+
+- [expires_conflicting](../violations/expires_conflicting.md) — Expires and the Cache-Control freshness directives disagree
+
 ## Specifications
 
 - [RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3): `Expires` — a recipient MUST ignore it when `max-age` is present and a shared cache when `s-maxage` is, an invalid date ("0" above all) MUST be read as already expired, and the field is only intended for recipients that have not implemented Cache-Control

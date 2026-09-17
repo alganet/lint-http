@@ -20,6 +20,12 @@ Advice about one field, and one contradiction. `Accept-Ranges` tells a client wh
 
 **Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `range_and_content_range_consistent`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field.
 
+## Violations
+
+- [accept_ranges_missing](../violations/accept_ranges_missing.md) — A partial response advertises no range units
+- [accept_ranges_none_conflicting](../violations/accept_ranges_none_conflicting.md) — Accept-Ranges says 'none' where range requests demonstrably work
+- [accept_ranges_unit_missing](../violations/accept_ranges_unit_missing.md) — A range unit in use is absent from what the response advertises
+
 ## Specifications
 
 - [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges`: `acceptable-ranges = 1#range-unit`, what advertising a unit is for, the reservation of `none` for a server supporting no kind of range request, and the MAYs on both sides that make every finding here advice rather than a broken requirement

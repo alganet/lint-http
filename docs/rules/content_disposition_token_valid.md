@@ -20,6 +20,13 @@ Since the grammar has no comma-separated-list alternative, a message section car
 
 The value is read as the octets the sender wrote, one character per octet, so an octet outside visible US-ASCII reaches the check that owns it: inside the `disposition-type` it is simply not a `tchar` and is reported as that. It is **not** reported inside a parameter. RFC 6266 §4.3 says `filename` and `filename*` differ only in that `filename*` reaches characters outside ISO-8859-1, so a `filename` is exactly as wide as that character set and the `quoted-string` carrying it admits every octet at or above %x80 as `obs-text`.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 6266 §4.1](https://www.rfc-editor.org/rfc/rfc6266.html#section-4.1): Grammar: a mandatory `disposition-type` followed by optional `;`-separated parameters, with `disp-ext-type = token`. Whitespace around the separators is implied rather than written

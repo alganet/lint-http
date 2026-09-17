@@ -14,6 +14,12 @@ Flags media types — in `Content-Type` on either side of a transaction, or in a
 
 **Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `content_type_valid`'s findings; whether the full media type is one you allow is `content_type_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice.
 
+## Violations
+
+- [media_type_name_empty](../violations/media_type_name_empty.md) — A media type subtype is a suffix with no base name
+- [media_type_suffix_empty](../violations/media_type_suffix_empty.md) — A media type subtype ends in a bare plus
+- [media_type_suffix_unregistered](../violations/media_type_suffix_unregistered.md) — A structured syntax suffix is not one the deployment recognises
+
 ## Specifications
 
 - [RFC 6838 §4.2.8](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8): Structured Syntax Name Suffixes: that an unregistered `+suffix` SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ

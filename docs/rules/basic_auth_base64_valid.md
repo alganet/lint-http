@@ -10,6 +10,13 @@ SPDX-License-Identifier: ISC
 
 Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters.
 
+## Violations
+
+- [base64_malformed](../violations/base64_malformed.md) — Value is not a base64 encoding
+- [basic_credentials_control_character_forbidden](../violations/basic_credentials_control_character_forbidden.md) — Basic credentials hold a control character
+- [basic_credentials_separator_missing](../violations/basic_credentials_separator_missing.md) — Basic credentials hold no ':' separator
+- [credentials_missing](../violations/credentials_missing.md) — Credentials are absent after the scheme
+
 ## Specifications
 
 - [RFC 7617 §2](https://www.rfc-editor.org/rfc/rfc7617.html#section-2): The 'Basic' Authentication Scheme — `user-pass = userid ":" password`, base64-encoded, with control characters forbidden in either half

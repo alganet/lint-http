@@ -10,6 +10,13 @@ SPDX-License-Identifier: ISC
 
 Requests that include the `Sec-Fetch-Mode` request header must use one of the canonical values defined by the Fetch Metadata specification: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — modes are lowercase tokens and structured-field tokens carry no case folding, so `CORS` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Mode`) are treated as a violation (possible header injection) and will be flagged.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [sec_fetch_mode_value_invalid](../violations/sec_fetch_mode_value_invalid.md) — Sec-Fetch-Mode names no request mode the document defines
+- [sec_fetch_value_empty](../violations/sec_fetch_value_empty.md) — A Sec-Fetch-* field is written with no value on it
+- [sec_fetch_value_malformed](../violations/sec_fetch_value_malformed.md) — A Sec-Fetch-* value holds a character no token admits
+
 ## Specifications
 
 - [Fetch Metadata §2.2](https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode-header): Fetch Metadata (W3C) — `Sec-Fetch-Mode`: an sf-token whose valid values are the five request modes

@@ -16,6 +16,10 @@ The check uses `Sec-Fetch-Site` (and, for Lax decisions, `Sec-Fetch-Mode`) heade
 
 If the relationship cannot be determined (e.g. missing `Sec-Fetch-Site`), the rule conservatively abstains rather than raising false positives.
 
+## Violations
+
+- [cookie_same_site_ignored](../violations/cookie_same_site_ignored.md) — A cookie is sent in a context its SameSite excludes
+
 ## Specifications
 
 - [draft-ietf-httpbis-rfc6265bis](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis): `SameSite` value grammar and the `SameSite=None` requires `Secure` rule. No section: a draft renumbers between revisions

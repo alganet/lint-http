@@ -12,6 +12,10 @@ Responses with certain status codes are cacheable by default (for example: `200`
 
 This rule warns when a response status that is not cacheable by default does not include explicit freshness information.
 
+## Violations
+
+- [cache_control_freshness_missing](../violations/cache_control_freshness_missing.md) — A status no cache stores by default states no freshness
+
 ## Specifications
 
 - [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3): Storing Responses in Caches (the freshness signals a cache requires: Expires, max-age, s-maxage, or a heuristically cacheable status)

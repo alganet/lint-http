@@ -20,6 +20,17 @@ Reads each WebSocket frame the relay observed and asks three groups of questions
 
 **Where these findings come from.** The relay forwards bytes and records each frame as the wire spelled it — reserved opcodes, control frames with FIN clear, and fragmentation included — so these findings arrive live off this proxy's own relay, and equally through `lint` over any capture that recorded frames.
 
+## Violations
+
+- [websocket_frame_close_body_malformed](../violations/websocket_frame_close_body_malformed.md) — A Close body is too short to hold the status code it opens with
+- [websocket_frame_continuation_unsolicited](../violations/websocket_frame_continuation_unsolicited.md) — A continuation frame has no fragmented message to continue
+- [websocket_frame_control_fragmentation_forbidden](../violations/websocket_frame_control_fragmentation_forbidden.md) — A control frame is fragmented
+- [websocket_frame_control_payload_invalid](../violations/websocket_frame_control_payload_invalid.md) — A control frame carries more payload than its class allows
+- [websocket_frame_data_after_close_forbidden](../violations/websocket_frame_data_after_close_forbidden.md) — A data frame follows the same endpoint's Close frame
+- [websocket_frame_message_interleaving_forbidden](../violations/websocket_frame_message_interleaving_forbidden.md) — A second message opens while a fragmented one is unterminated
+- [websocket_frame_opcode_malformed](../violations/websocket_frame_opcode_malformed.md) — The recorded opcode does not fit the four bits the header holds
+- [websocket_frame_opcode_unregistered](../violations/websocket_frame_opcode_unregistered.md) — The opcode is in a reserved range and denotes no frame type
+
 ## Specifications
 
 - [RFC 6455 §5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1): Overview: when an endpoint may transmit a data frame

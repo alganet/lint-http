@@ -16,6 +16,17 @@ list semantics. This rule detects header values that cannot be decoded as
 visible US-ASCII, an entirely empty header value, and invalid origin
 serializations.
 
+## Violations
+
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [origin_malformed](../violations/origin_malformed.md) — An Origin derives from neither null nor a serialized origin
+- [origin_path_forbidden](../violations/origin_path_forbidden.md) — An Origin names a path the production has no component for
+- [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+
 ## Specifications
 
 - [Resource Timing §3.5.2](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin): `Timing-Allow-Origin` response header and its ABNF

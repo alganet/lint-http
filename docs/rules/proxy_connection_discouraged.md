@@ -23,6 +23,10 @@ Reports a request carrying a `Proxy-Connection` header field.
 
 Scope: this rule reads a request's header section. Where the field appears on several lines they are read as one value (§5.2), and a value carrying an octet outside US-ASCII is measured rather than skipped — reading it back through a UTF-8 decoder would turn a field the sender wrote into a request that has none. **Whether `Proxy-Connection` may appear in a *trailer* section is §6.5.1's question, and `trailer_fields_valid` answers it on the merits**: its table names the field among its connection-specific entries, so a `Proxy-Connection` trailer is reported there whatever this message's own `Connection` or `Trailer` fields say. (The field's absence from that table was recorded here when this rule was written, and repaired in its own iteration — RULECITES P46.)
 
+## Violations
+
+- [proxy_connection_obsolete](../violations/proxy_connection_obsolete.md) — A request carries a field the specification asks clients not to send
+
 ## Specifications
 
 - [RFC 9112 §C.2.2](https://www.rfc-editor.org/rfc/rfc9112.html#appendix-C.2.2): Keep-Alive Connections — the only description of the field in either core document: an attempted fix for HTTP/1.0 proxies that did not understand Connection, recorded as unworkable, with clients encouraged not to send it in any request

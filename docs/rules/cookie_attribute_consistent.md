@@ -18,6 +18,26 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 - `SameSite=None` cookies that are not marked `Secure` (browser behaviour / compatibility requirement).
 - `Secure` and `HttpOnly` attributes that incorrectly include a value (they must be flags).
 
+## Violations
+
+- [cookie_domain_empty](../violations/cookie_domain_empty.md) — Set-Cookie Domain attribute is empty
+- [cookie_domain_missing](../violations/cookie_domain_missing.md) — Set-Cookie Domain attribute carries no value
+- [cookie_expires_missing](../violations/cookie_expires_missing.md) — Set-Cookie Expires attribute carries no value
+- [cookie_flag_value_forbidden](../violations/cookie_flag_value_forbidden.md) — Set-Cookie writes a value on a flag attribute
+- [cookie_max_age_malformed](../violations/cookie_max_age_malformed.md) — Set-Cookie Max-Age is not a number a user agent will read
+- [cookie_max_age_missing](../violations/cookie_max_age_missing.md) — Set-Cookie Max-Age attribute carries no value
+- [cookie_pair_missing](../violations/cookie_pair_missing.md) — Set-Cookie carries no cookie-pair
+- [cookie_path_leading_slash_missing](../violations/cookie_path_leading_slash_missing.md) — Set-Cookie Path attribute is not rooted at `/`
+- [cookie_path_missing](../violations/cookie_path_missing.md) — Set-Cookie Path attribute carries no value
+- [cookie_same_site_invalid](../violations/cookie_same_site_invalid.md) — Set-Cookie SameSite names no policy the grammar defines
+- [cookie_same_site_missing](../violations/cookie_same_site_missing.md) — Set-Cookie SameSite attribute carries no value
+- [cookie_secure_missing](../violations/cookie_secure_missing.md) — A SameSite=None cookie is not Secure
+- [domain_name_whitespace_or_control_forbidden](../violations/domain_name_whitespace_or_control_forbidden.md) — Domain name holds whitespace or a control character
+- [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 6265 §4.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1): Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; the `cookie-av` list, where each attribute is written with or without a value, and the `path-value` that excludes control characters and `;`

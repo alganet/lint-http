@@ -15,6 +15,13 @@ Validates that the QUIC transport parameters advertised for HTTP/3 are reasonabl
 * **Stream flow control** — the per-stream windows should be non-zero so streams can carry data: `initial_max_stream_data_bidi_remote` for the client's request streams (RFC 9114 §6.1) and `initial_max_stream_data_uni` for the control/QPACK streams (RFC 9114 §6.2). `initial_max_stream_data_bidi_local` governs server-initiated bidirectional streams, which HTTP/3 does not use, so its non-zero check is a reasonableness heuristic.
 * **Idle timeout** — `max_idle_timeout_ms` should be set (non-zero) to prevent idle connections from consuming server resources indefinitely, and should not be excessively large (>10 minutes); both are reasonableness heuristics, since 0/absent legally disables the timeout (RFC 9000 §18.2).
 
+## Violations
+
+- [quic_connection_flow_control_invalid](../violations/quic_connection_flow_control_invalid.md) — QUIC parameters advertise no connection-level flow control
+- [quic_control_stream_limit_invalid](../violations/quic_control_stream_limit_invalid.md) — QUIC parameters leave no room for HTTP/3's control streams
+- [quic_idle_timeout_invalid](../violations/quic_idle_timeout_invalid.md) — QUIC idle timeout reclaims nothing
+- [quic_request_stream_limit_invalid](../violations/quic_request_stream_limit_invalid.md) — QUIC parameters leave no room for an HTTP/3 request stream
+
 ## Specifications
 
 - [RFC 9000 §18.2](https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2): Transport Parameter Definitions — what each initial limit means, and that a zero or absent value is legal with a defined effect rather than a defect

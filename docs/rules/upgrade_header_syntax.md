@@ -26,6 +26,13 @@ So a member is one token, or two tokens with a single `/` between them: `websock
 
 Scope: this rule reads header sections — a request's and a response's — and each finding names which. Where the field appears on several lines in one section they are one value (§5.2), so an empty member written at a line boundary is an empty member. A value carrying an octet outside US-ASCII is measured rather than skipped: `obs-text` is an octet `field-content` admits and `token` does not, so the member is reported for not being a protocol, which is what is wrong with it. The members are split on commas without regard to quoting, because a `protocol` admits no `quoted-string` anywhere inside it — a DQUOTE here is a character no member may hold. Whether `Upgrade` may appear in a *trailer* section is §6.5.1's question and `trailer_fields_valid`'s, which holds the table `Upgrade` is listed in.
 
+## Violations
+
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade — the field's own section, where `protocol`, `protocol-name` and `protocol-version` are printed, both directions are licensed to carry the field, and the registry is named as advice

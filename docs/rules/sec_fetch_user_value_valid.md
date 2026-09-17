@@ -10,6 +10,12 @@ SPDX-License-Identifier: ISC
 
 Requests that include the `Sec-Fetch-User` request header MUST only include the structured-boolean `true` value (serialized as `?1`) when present. This header is sent by user agents for navigation requests that were triggered by a user activation. Multiple header fields, and any other value, will be flagged as violations.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [sec_fetch_user_value_invalid](../violations/sec_fetch_user_value_invalid.md) — Sec-Fetch-User carries something other than the boolean true
+- [sec_fetch_value_empty](../violations/sec_fetch_value_empty.md) — A Sec-Fetch-* field is written with no value on it
+
 ## Specifications
 
 - [Fetch Metadata §2.4](https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header): Fetch Metadata (W3C) — `Sec-Fetch-User`: a boolean, delivered only for navigation requests and only when its value is true

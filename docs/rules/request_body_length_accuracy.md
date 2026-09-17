@@ -16,6 +16,10 @@ Checks that a request's `Content-Length` matches the number of body octets actua
 
 **What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed.
 
+## Violations
+
+- [content_length_conflicting](../violations/content_length_conflicting.md) — Content-Length disagrees with the octets received
+
 ## Specifications
 
 - [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): Message body length — item 6 is what licenses this rule at all, and its condition is 'without Transfer-Encoding'; item 3 is why a message carrying both is measured by neither

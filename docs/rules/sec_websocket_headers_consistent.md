@@ -20,6 +20,25 @@ Only HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshak
 
 `Host` is asked for by the same list and reported by `host_header`; the server's half of the handshake is `websocket_handshake_valid`'s. RFC 6455 § 4.1 also requires an `Origin` field from a browser client, and nothing in a capture says whether a client is one — § 4.2.1 says as much, telling a server not to read a missing `Origin` as evidence either way — so no rule here reports its absence.
 
+## Violations
+
+- [base64_character_forbidden](../violations/base64_character_forbidden.md) — Value holds an octet outside the base64 alphabet
+- [base64_pad_bits_invalid](../violations/base64_pad_bits_invalid.md) — Final base64 symbol carries bits a conforming encoder zeroes
+- [base64_quantum_malformed](../violations/base64_quantum_malformed.md) — Value is not a whole number of base64 groups
+- [http_version_invalid](../violations/http_version_invalid.md) — A protocol version is below the floor the exchange requires
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [sec_websocket_key_length_invalid](../violations/sec_websocket_key_length_invalid.md) — Sec-WebSocket-Key is not a sixteen-byte nonce
+- [sec_websocket_key_missing](../violations/sec_websocket_key_missing.md) — WebSocket handshake carries no Sec-WebSocket-Key
+- [sec_websocket_protocol_duplicated](../violations/sec_websocket_protocol_duplicated.md) — Sec-WebSocket-Protocol names one subprotocol twice
+- [sec_websocket_version_empty](../violations/sec_websocket_version_empty.md) — Sec-WebSocket-Version is written with no value
+- [sec_websocket_version_invalid](../violations/sec_websocket_version_invalid.md) — WebSocket handshake asks for a version other than 13
+- [sec_websocket_version_malformed](../violations/sec_websocket_version_malformed.md) — Sec-WebSocket-Version derives from no version production
+- [sec_websocket_version_missing](../violations/sec_websocket_version_missing.md) — WebSocket handshake carries no Sec-WebSocket-Version
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [upgrade_connection_option_missing](../violations/upgrade_connection_option_missing.md) — Upgrade is sent with no upgrade connection-option in Connection
+
 ## Specifications
 
 - [RFC 6455 §4.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1): Client Requirements — the numbered list this rule measures: GET, HTTP version at least 1.1, `Upgrade: websocket`, the `Upgrade` connection-option, the `Sec-WebSocket-Key` nonce, `Sec-WebSocket-Version: 13`, and `Sec-WebSocket-Protocol`'s non-empty unique `token` members

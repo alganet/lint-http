@@ -22,6 +22,27 @@ A 416 answering a *partial PUT* is the exception: such a request names its range
 
 **Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing.
 
+## Violations
+
+- [content_range_complete_length_conflicting](../violations/content_range_complete_length_conflicting.md) — Content-Range complete-length does not exceed its last-pos
+- [content_range_empty](../violations/content_range_empty.md) — Content-Range is empty
+- [content_range_forbidden](../violations/content_range_forbidden.md) — Content-Range is written in the header section of a multipart 206
+- [content_range_form_invalid](../violations/content_range_form_invalid.md) — Content-Range uses the form belonging to the other status code
+- [content_range_incl_range_malformed](../violations/content_range_incl_range_malformed.md) — Content-Range range is not first-pos '-' last-pos
+- [content_range_length_conflicting](../violations/content_range_length_conflicting.md) — Content-Range describes a range that is not the declared Content-Length
+- [content_range_missing](../violations/content_range_missing.md) — Content-Range is absent from a response whose range it would describe
+- [content_range_numeral_invalid](../violations/content_range_numeral_invalid.md) — Content-Range numeral is too large to represent
+- [content_range_numeral_malformed](../violations/content_range_numeral_malformed.md) — Content-Range numeral is not 1*DIGIT
+- [content_range_positions_conflicting](../violations/content_range_positions_conflicting.md) — Content-Range first-pos is greater than its last-pos
+- [content_range_slash_missing](../violations/content_range_slash_missing.md) — Content-Range has no '/'
+- [content_range_spec_missing](../violations/content_range_spec_missing.md) — Content-Range has no range after its unit
+- [content_range_spec_whitespace_forbidden](../violations/content_range_spec_whitespace_forbidden.md) — Content-Range holds whitespace after its single space
+- [content_range_unit_malformed](../violations/content_range_unit_malformed.md) — Content-Range unit is not a token
+- [content_range_unsatisfied_range_malformed](../violations/content_range_unsatisfied_range_malformed.md) — Content-Range writes something other than '*' before its '/'
+- [status_206_multipart_forbidden](../violations/status_206_multipart_forbidden.md) — A multipart 206 answers a request that asked for a single range
+- [status_206_unsolicited](../violations/status_206_unsolicited.md) — 206 Partial Content answers a request that asked for no range
+- [status_416_unsolicited](../violations/status_416_unsolicited.md) — 416 Range Not Satisfiable answers a request that named no range
+
 ## Specifications
 
 - [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): 206 Partial Content: the status code is a range request being fulfilled, and a single-part 206 MUST carry a `Content-Range` describing the enclosed range

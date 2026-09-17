@@ -14,6 +14,10 @@ Reports an error response (4xx or 5xx) whose `Content-Type` is one of the three 
 
 That is why the reported set stops at the three generic media types. A subtype ending in `+json` or `+xml` (`application/hal+json`, `application/vnd.api+json`) names a specific format, so the sender has the one RFC 9457 prefers and the rule says nothing. It also says nothing about a `Content-Type` it cannot parse, which is `content_type_valid`'s finding, nor about a response carrying no `Content-Type` at all, which is `content_type_present`'s. A response carrying **two** `Content-Type` field lines is declined for a third reason: RFC 9110 §8.3 says recipients often act on the last syntactically valid member, so which media type the peer reads is not knowable, and `content_type_valid` reports the duplication itself.
 
+## Violations
+
+- [problem_details_missing](../violations/problem_details_missing.md) — An error response carries a generic media type and no error format
+
 ## Specifications
 
 - [RFC 9457 §1](https://www.rfc-editor.org/rfc/rfc9457.html#section-1): Which status codes problem details suit, and the two sentences saying an application-specific format is often the better answer — between them the reason this finding is advice and not a defect

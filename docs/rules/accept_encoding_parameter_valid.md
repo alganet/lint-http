@@ -24,6 +24,17 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 
 **The value is read as the octets the sender wrote**, and each is reported by the production it landed in. There are no quoted-strings in this field — a member is a `token`, one of two literals, and the weight's fixed text — so no octet outside visible US-ASCII is legal anywhere in it: one in a coding name is the `token`'s defect, one in a weight fails the `q` name or the `qvalue`. Refusing to decode the line named the octet and put every other defect written beside it out of reach.
 
+## Violations
+
+- [qvalue_malformed](../violations/qvalue_malformed.md) — Weight is not a qvalue
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [weight_duplicated](../violations/weight_duplicated.md) — Member carries more than one weight
+- [weight_equals_whitespace_forbidden](../violations/weight_equals_whitespace_forbidden.md) — Whitespace is written beside the weight's '='
+- [weight_malformed](../violations/weight_malformed.md) — Something other than a weight follows the member's ';'
+- [weight_missing](../violations/weight_missing.md) — Member writes the weight's ';' and no weight after it
+
 ## Specifications
 
 - [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding: `#( codings [ weight ] )` — the production that says a coding may carry a weight and nothing else. Also the three `codings` alternatives, the meaning of an empty field value, and the meaning of the field in a response

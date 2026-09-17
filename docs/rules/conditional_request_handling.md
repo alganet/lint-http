@@ -10,6 +10,11 @@ SPDX-License-Identifier: ISC
 
 Warn when conditional requests are used without a prior validator (ETag / Last-Modified) observed for the same resource and client. Also flag obvious cases where a server returns a `200` for a conditional `GET`/`HEAD` when the validator clearly matches (the server should return `304 Not Modified`).
 
+## Violations
+
+- [conditional_validator_missing](../violations/conditional_validator_missing.md) — A precondition names a validator this exchange never provided
+- [status_304_missing](../violations/status_304_missing.md) — A false precondition is answered with 200 rather than 304
+
 ## Specifications
 
 - [RFC 9110 §13.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1): Preconditions

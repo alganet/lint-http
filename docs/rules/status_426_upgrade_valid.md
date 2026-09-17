@@ -24,6 +24,11 @@ Reports a `426 (Upgrade Required)` response that carries no `Upgrade` header fie
 
 Scope: this rule reads a response's header section, and its subject is *the server* — whatever answered, which for a capture taken at a proxy is the party that wrote this response. Where the field appears on several lines they are one value (§5.2), and the value is read as written rather than through a UTF-8 decode, so a field carrying `obs-text` counts as a field that is there.
 
+## Violations
+
+- [upgrade_426_empty](../violations/upgrade_426_empty.md) — A 426 response names no protocol on its Upgrade field
+- [upgrade_426_missing](../violations/upgrade_426_missing.md) — A 426 response carries no Upgrade field
+
 ## Specifications
 
 - [RFC 9110 §15.5.22](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.22): 426 Upgrade Required — the server refuses the request under the current protocol, and MUST send an `Upgrade` field to indicate the required protocol(s). RFC 9110 §7.8 states the same MUST from the field's side.

@@ -22,6 +22,13 @@ Reads the `Sec-WebSocket-Version` a **response** carries — the versions a serv
 
 Scope: this rule reads a response's header section, and only where the request was RFC 6455's opening handshake — the same shared gate the other two handshake rules use. Above HTTP/1.x the handshake is an extended CONNECT (RFC 8441, RFC 9220) and this field is not part of it. A value carrying an octet outside US-ASCII is measured rather than skipped: it reaches the production that excludes it and is reported there.
 
+## Violations
+
+- [sec_websocket_version_conflicting](../violations/sec_websocket_version_conflicting.md) — Sec-WebSocket-Version advertises the version the request asked for
+- [sec_websocket_version_empty](../violations/sec_websocket_version_empty.md) — Sec-WebSocket-Version is written with no value
+- [sec_websocket_version_list_empty](../violations/sec_websocket_version_list_empty.md) — Sec-WebSocket-Version advertises no version
+- [sec_websocket_version_malformed](../violations/sec_websocket_version_malformed.md) — Sec-WebSocket-Version derives from no version production
+
 ## Specifications
 
 - [RFC 6455 §4.3](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3): Collected ABNF — `version = DIGIT | (NZDIGIT DIGIT) | ("1" DIGIT DIGIT) | ("2" DIGIT DIGIT)` with the comment limiting it to 0-255 and no leading zeros, the `-Client`/`-Server` suffixes that make a request's field one version and a response's a list of them, and the handshake's other fields collected beside it: `Sec-WebSocket-Key = base64-value-non-empty` and `Sec-WebSocket-Protocol-Client = 1#token`

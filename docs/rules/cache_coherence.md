@@ -24,6 +24,10 @@ Only transactions whose response contains a parseable HTTP-date are
 examined; missing or unparseable headers are ignored.  304 Not Modified
 responses are skipped since they do not convey a new representation.
 
+## Violations
+
+- [cache_response_conflicting](../violations/cache_response_conflicting.md) — Two responses for one URI disagree about which version is current
+
 ## Specifications
 
 - [RFC 9111 §4.2.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4): Serving Stale Responses — a cache MUST NOT generate one unless it is disconnected or a client or origin server explicitly permitted it

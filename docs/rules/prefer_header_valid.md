@@ -24,6 +24,22 @@ Reads a request's `Prefer` field against RFC 7240 §2's grammar — `Prefer = 1#
 
 **Not decided here:** whether the server honored anything — `preference_applied_header_valid` compares this field against the response's `Preference-Applied`. Nor §2's `Vary` MUST: its antecedent is a fact about the *server*, so the message that can state it is the response rather than this one. `prefer_header_and_preference_applied` reads a `Preference-Applied` as the server saying it applies that preference and asks for the `Vary` there.
 
+## Violations
+
+- [bws_forbidden](../violations/bws_forbidden.md) — Whitespace written where the grammar admits BWS
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
+- [prefer_preference_duplicated](../violations/prefer_preference_duplicated.md) — A Prefer names one preference more than once
+- [prefer_preference_invalid](../violations/prefer_preference_invalid.md) — A defined preference carries a value its production does not admit
+- [prefer_value_empty](../violations/prefer_value_empty.md) — A Prefer member writes an = with no word after it
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](../violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 7240 §2](https://www.rfc-editor.org/rfc/rfc7240.html#section-2): `Prefer` — the grammar, the equivalence of several field lines with one, the equivalence of an empty value with no value, the case rules for names and values, the SHOULD NOT against repeating a token, and the server's MUST to ignore a preference it does not recognize

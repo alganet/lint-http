@@ -12,6 +12,10 @@ This rule checks if `200 OK` responses include a `Cache-Control` header.
 
 The `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching.
 
+## Violations
+
+- [cache_control_missing](../violations/cache_control_missing.md) — A 200 leaves its freshness lifetime to be guessed
+
 ## Specifications
 
 - [RFC 9111 §4.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.2): Calculating Heuristic Freshness — without an explicit expiration time a cache MAY assign one of its own, estimated from other field values

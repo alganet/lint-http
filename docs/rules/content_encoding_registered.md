@@ -16,6 +16,14 @@ The two headers do not share a vocabulary. `Accept-Encoding` additionally admits
 
 **Both fields are read as octets and over the whole field section.** A coding name holding an octet outside visible US-ASCII is not a `token` and is reported as that; the reader this replaces refused such a value outright, so the field went unread and unreported. It also took only the first field line, where `#content-coding` makes every line of a section one list.
 
+## Violations
+
+- [content_coding_identity_forbidden](../violations/content_coding_identity_forbidden.md) — The identity coding is named where a coding belongs
+- [content_coding_unregistered](../violations/content_coding_unregistered.md) — Content coding is not one the deployment recognises
+- [content_coding_wildcard_forbidden](../violations/content_coding_wildcard_forbidden.md) — The Accept-Encoding wildcard is written where a coding belongs
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §8.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4): `Content-Encoding = #content-coding`, and the reservation of `identity` for Accept-Encoding — the reason it is flagged here

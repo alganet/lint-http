@@ -16,6 +16,13 @@ Only the URL's alphabet is checked. Whether its components are in a legal order,
 
 More than one `Refresh` field line is reported on its own terms: HTML records that it has no specification for that case, so the finding is an interoperability report rather than a violation of a stated requirement, and nothing further is measured — the string a recipient parses is the combination of the lines, not any one of them.
 
+## Violations
+
+- [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [refresh_url_empty](../violations/refresh_url_empty.md) — A Refresh value writes URL= with no URL
+- [refresh_url_malformed](../violations/refresh_url_malformed.md) — A Refresh URL is not a valid URL string
+- [refresh_value_malformed](../violations/refresh_value_malformed.md) — A Refresh value is neither of the two forms
+
 ## Specifications
 
 - [HTML Speculative Loading §7.8](https://html.spec.whatwg.org/multipage/speculative-loading.html#the-refresh-header): The `Refresh` header. Three sentences: it is the `meta` pragma's HTTP equivalent, it takes the same value, and its processing model is elsewhere. It states no requirement of its own

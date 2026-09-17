@@ -24,6 +24,12 @@ Enforces RFC 9112 §6.1's requirements on the sequence of transfer codings: `chu
 
 **Parsing.** Members are split on commas outside quoted-strings, the coding *name* is taken from in front of any parameters (so `chunked;ext=1` is still `chunked`), names are folded case-insensitively per §7, and values are decoded from raw octets — dropping a field line here would not merely lose a finding, it would silently reorder the sequence being judged. A value whose quoting never closes is declined, because its members cannot be delimited; `transfer_coding_registered` is the rule that reports it.
 
+## Violations
+
+- [transfer_encoding_chunked_duplicated](../violations/transfer_encoding_chunked_duplicated.md) — The chunked transfer coding is applied more than once
+- [transfer_encoding_chunked_missing](../violations/transfer_encoding_chunked_missing.md) — A coding is applied and chunked never is
+- [transfer_encoding_chunked_position_invalid](../violations/transfer_encoding_chunked_position_invalid.md) — The chunked transfer coding is not the final one
+
 ## Specifications
 
 - [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer-Encoding — every requirement this rule enforces is here: chunked at most once, and chunked last (unconditionally for requests, or the connection closes for responses)

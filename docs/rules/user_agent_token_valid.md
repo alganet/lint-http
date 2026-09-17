@@ -10,6 +10,17 @@ SPDX-License-Identifier: ISC
 
 Validate a `User-Agent` request header against `User-Agent = product *( RWS ( product / comment ) )`. Each product is a `token` with an optional `/`-separated version token; parenthesized comments may nest and may hold a `quoted-pair`, but a comment can only follow a product, so a value that opens with one — or holds nothing else — does not match the grammar. Required whitespace between elements is enforced, and `obs-text` is accepted inside a comment, where `ctext` allows it, and nowhere else. What §10.1.5 asks beyond the grammar — that a product identifier carry no advertising or other nonessential information, and no needlessly fine-grained detail — is a question about intent that the octets cannot answer, and is not checked.
 
+## Violations
+
+- [comment_character_forbidden](../violations/comment_character_forbidden.md) — Comment holds a character ctext does not admit
+- [comment_delimiter_missing](../violations/comment_delimiter_missing.md) — Comment is never closed
+- [product_missing](../violations/product_missing.md) — A product list opens with something that is not a product
+- [product_separator_missing](../violations/product_separator_missing.md) — A product list writes no whitespace between two elements
+- [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+
 ## Specifications
 
 - [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): `User-Agent = product *( RWS ( product / comment ) )`, a request context field; `product = token ["/" product-version]` is defined here once and `Server` shares it. The section's further requirements — no advertising or nonessential information in a product identifier, no needlessly fine-grained detail — are about intent and are not decidable from a field value

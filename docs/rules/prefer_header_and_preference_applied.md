@@ -20,6 +20,10 @@ Reports a response that states a preference was applied — `Preference-Applied`
 
 **The boundary.** §2's MUST binds a server that *supports* applying such a preference, whether or not it applied one here and whether or not the client asked. The only in-message evidence of that support is `Preference-Applied`, and §3 leaves a server free to apply a preference and say nothing — so a server that varies its responses silently is outside what any single capture can show. `prefer_header_valid` reads the request's field against its grammar and `preference_applied_header_valid` reads the response's against its own and against what was asked for; neither looks at `Vary`.
 
+## Violations
+
+- [vary_prefer_missing](../violations/vary_prefer_missing.md) — A response applied a preference its Vary does not nominate
+
 ## Specifications
 
 - [RFC 7240 §2](https://www.rfc-editor.org/rfc/rfc7240.html#section-2): The `Vary` MUST for a server that applies a preference which might vary a cache's handling of the response entity, and the `Vary: *` alternative it offers instead

@@ -14,6 +14,10 @@ This stateful rule reconstructs a small portion of cache state for the current c
 
 The check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache="field"` response may be reused (revalidating only the named fields) and is not flagged.  This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive.
 
+## Violations
+
+- [cache_control_no_cache_ignored](../violations/cache_control_no_cache_ignored.md) — A no-cache response is reused without being revalidated
+
 ## Specifications
 
 - [RFC 9111 §5.2.2.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.4): no-cache — the unqualified form's prohibition on reuse without forwarding for validation, the argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified no-cache

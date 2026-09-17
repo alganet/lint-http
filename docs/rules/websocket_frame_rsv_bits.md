@@ -22,6 +22,11 @@ Reports a WebSocket frame whose RSV1, RSV2 or RSV3 bit is set in a session whose
 
 **Not reported: what the bits mean when an extension is negotiated.** Whether the accepted extension actually defines the bit that was set, whether the extension was one the client offered, and whether the `Sec-WebSocket-Extensions` value derives from §9.1's `extension-list` grammar are three other questions; the second is `websocket_handshake_valid`'s and the third is `sec_websocket_extensions_syntax`'s.
 
+## Violations
+
+- [websocket_frame_rsv_forbidden](../violations/websocket_frame_rsv_forbidden.md) — A reserved bit is set and no extension was negotiated to give it a meaning
+- [websocket_frame_rsv_malformed](../violations/websocket_frame_rsv_malformed.md) — The recorded reserved bits do not fit the three the header holds
+
 ## Specifications
 
 - [RFC 6455 §5.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2): Base Framing Protocol — the three reserved bits, their width, the conditional MUST on the sender and the MUST-fail on the recipient

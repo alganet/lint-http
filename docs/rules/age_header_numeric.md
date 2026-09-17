@@ -12,6 +12,11 @@ The `Age` header, when present in a response, indicates the time (in seconds) si
 
 The value is read as the octets the sender wrote, so an octet outside US-ASCII is reported as the character `DIGIT` does not admit rather than as a verdict about the value's encoding — `delta-seconds` is ten visible US-ASCII characters, so there was never anything for the encoding to say first. A run of digits too long for any integer type is *not* reported: RFC 9111 §1.2.2 tells a cache to clamp such a value, which makes it conforming.
 
+## Violations
+
+- [delta_seconds_character_forbidden](../violations/delta_seconds_character_forbidden.md) — A time in seconds holds an octet DIGIT does not admit
+- [delta_seconds_empty](../violations/delta_seconds_empty.md) — A time in seconds is stated with no digits
+
 ## Specifications
 
 - [RFC 9111 §5.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1): `Age` field-value: delta-seconds (non-negative integer)
