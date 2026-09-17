@@ -151,7 +151,12 @@ suppress_headers = ["X-Sensitive-Header"]
 /// table redundant by construction — and that is the point of shipping it.
 /// A severity default lives in code precisely because a catalogue this size
 /// cannot be hand-answered; the generated file is how it stays visible anyway.
-fn violation_section(def: &ViolationDef) -> String {
+///
+/// `pub(crate)` because [`crate::gendocs`] renders the same block onto the
+/// defect's own page. The two are the same bytes because they are the same
+/// function, not because two functions are believed to agree — which is the
+/// property a reader copying from either one is relying on.
+pub(crate) fn violation_section(def: &ViolationDef) -> String {
     format!(
         "[violations.{}]\n# {}\nseverity = \"{}\"\n",
         def.id,

@@ -1,0 +1,29 @@
+<!--
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+SPDX-License-Identifier: ISC
+-->
+
+# cookie_domain_ipv4_address_forbidden
+
+Set-Cookie Domain attribute is an IPv4 address
+
+## Message
+
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
+
+## Specifications
+
+- [RFC 6265 §5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3): Domain matching — a cookie-domain that is not a host name matches only the identical string, so an IP address scopes the cookie to nothing it can be sent for
+
+## Configuration
+
+```toml
+[violations.cookie_domain_ipv4_address_forbidden]
+# Set-Cookie Domain attribute is an IPv4 address
+severity = "warn"
+```
+
+## Reported By
+
+- [cookie_domain_valid](../rules/cookie_domain_valid.md)

@@ -4,11 +4,12 @@
 
 //! Repository maintenance tasks, kept out of the delivered `lint-http` binary.
 //!
-//! `gendocs` regenerates `docs/rules/<id>.md` and the `docs/rules.md` index from
-//! rule metadata, and deletes the pages no rule claims any more (reported on
-//! stderr, since deleting quietly is how a file goes missing without a reader
-//! ever knowing). `genconfig` regenerates `config_example.toml` from the same
-//! metadata. Both are repo tools and not user tools: they write into the
+//! `gendocs` regenerates two page trees — `docs/rules/<id>.md` with its
+//! `docs/rules.md` index from rule metadata, and `docs/violations/<id>.md` with
+//! its `docs/violations.md` index from the defect catalogue — and deletes the
+//! pages nothing in either catalogue claims any more (reported on stderr, since
+//! deleting quietly is how a file goes missing without a reader ever knowing).
+//! `genconfig` regenerates `config_example.toml` from the same two. Both are repo tools and not user tools: they write into the
 //! working tree, resolved from the workspace root that this crate's manifest
 //! dir points at. An installed binary has no such tree, which is why this lives
 //! here and not in the CLI.
@@ -42,7 +43,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Regenerate the rule documentation under the --out directory from rule metadata.
+    /// Regenerate the rule and violation documentation under the --out directory.
     Gendocs(GendocsArgs),
     /// Regenerate the example configuration file from rule metadata.
     Genconfig(GenconfigArgs),
@@ -50,8 +51,9 @@ enum Command {
 
 #[derive(clap::Args, Debug)]
 struct GendocsArgs {
-    /// Output directory; `rules.md` and `rules/<id>.md` are written under it.
-    /// Defaults to `docs/` at the workspace root.
+    /// Output directory; `rules.md`, `rules/<id>.md`, `violations.md` and
+    /// `violations/<id>.md` are written under it. Defaults to `docs/` at the
+    /// workspace root.
     #[arg(long)]
     out: Option<PathBuf>,
 }
@@ -68,8 +70,8 @@ struct GenconfigArgs {
 ///
 /// The alias passes `--package`, so `cargo xtask gendocs` runs from any
 /// subdirectory — and the drift gate's failure message tells people to run
-/// exactly that. A relative default would let the suggested fix write 194 files
-/// into `lint-http-rules/docs/` and leave the gate red, which is a bad way to
+/// exactly that. A relative default would let the suggested fix write some 730
+/// files into `lint-http-rules/docs/` and leave the gate red, which is a bad way to
 /// find out what your working directory was. The inputs are already anchored to
 /// the repo root; the output now agrees with them.
 fn resolve_out(out: Option<PathBuf>) -> PathBuf {
@@ -90,9 +92,12 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Gendocs(args) => {
             let out = resolve_out(args.out);
             for path in gendocs::write_all(&out)? {
-                eprintln!("Removed {} — no rule claims it", path.display());
+                eprintln!(
+                    "Removed {} — nothing in the catalogue claims it",
+                    path.display()
+                );
             }
-            eprintln!("Wrote rule docs to {}", out.display());
+            eprintln!("Wrote rule and violation docs to {}", out.display());
             Ok(())
         }
         Command::Genconfig(args) => {
@@ -114,15 +119,19 @@ mod tests {
     use lint_http_rules::rules::{
         PROTOCOL_RULES, REGISTERED_PROTOCOL_RULES, REGISTERED_RULES, RULES,
     };
+    use lint_http_rules::violations::{REGISTERED_VIOLATIONS, VIOLATIONS};
 
     /// Cross-crate linkme guard, in this binary's link configuration.
     ///
     /// The rule catalogue self-registers into `linkme` distributed slices over in
     /// `lint-http-rules`; here it arrives across an rlib boundary, where dead-code
     /// elimination or a missing reference could leave the slices empty. That
-    /// matters more than it looks: every documentation gate iterates `RULES`, so
-    /// an empty catalogue would make them all pass over nothing at all rather
-    /// than fail. This test is what stands between that and a green build. The
+    /// matters more than it looks: every documentation gate iterates one of these
+    /// catalogues, so an empty one would make them all pass over nothing at all
+    /// rather than fail. This test is what stands between that and a green build.
+    /// The defect catalogue arrives the same way and is checked here beside the
+    /// rules, because `docs/violations/` is 537 byte comparisons that an empty
+    /// `VIOLATIONS` would satisfy in silence. The
     /// shipped binary has the same guard in
     /// `lint-http-proxy/tests/linkme_catalogue.rs`.
     #[test]
@@ -140,11 +149,18 @@ mod tests {
         assert_eq!(RULES.len(), REGISTERED_RULES.len());
         assert_eq!(PROTOCOL_RULES.len(), REGISTERED_PROTOCOL_RULES.len());
 
-        // Spot-check a known transaction rule and a known protocol rule.
+        assert!(
+            !REGISTERED_VIOLATIONS.is_empty(),
+            "no violations were collected by linkme in the xtask link config",
+        );
+        assert_eq!(VIOLATIONS.len(), REGISTERED_VIOLATIONS.len());
+
+        // Spot-check a known transaction rule, protocol rule and defect.
         assert!(RULES.iter().any(|r| r.id() == "host_header"));
         assert!(PROTOCOL_RULES
             .iter()
             .any(|r| r.id() == "quic_transport_parameters_valid"));
+        assert!(VIOLATIONS.iter().any(|d| d.id == "host_missing"));
     }
 
     /// One arm per subcommand, so a new one has to be given a place here rather
@@ -251,10 +267,27 @@ mod tests {
             .join(format!("{}.md", first.id()))
             .is_file());
 
+        assert!(dir.join("violations.md").is_file());
+        let defect = VIOLATIONS.first().expect("catalogue is non-empty");
+        assert!(dir
+            .join("violations")
+            .join(format!("{}.md", defect.id))
+            .is_file());
+
+        // One orphan in each tree: pruning reaches both page directories
+        // through `run`, not only the one this test used to know about.
         let orphan = dir.join("rules").join("rule_that_was_renamed.md");
+        let stale_defect = dir
+            .join("violations")
+            .join("defect_that_was_merged_away.md");
         std::fs::write(&orphan, "stale").expect("write orphan");
+        std::fs::write(&stale_defect, "stale").expect("write orphan");
         gendocs_here();
-        assert!(!orphan.exists(), "the orphan should be gone");
+        assert!(!orphan.exists(), "the orphan rule page should be gone");
+        assert!(
+            !stale_defect.exists(),
+            "the orphan defect page should be gone"
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }

@@ -1,0 +1,31 @@
+<!--
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+SPDX-License-Identifier: ISC
+-->
+
+# delta_seconds_empty
+
+A time in seconds is stated with no digits
+
+## Message
+
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
+
+## Specifications
+
+- [RFC 9111 §1.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2): `delta-seconds = 1*DIGIT` — the production every field carrying a time in seconds writes its value in, and the clamp that makes an over-long run of digits conforming
+
+## Configuration
+
+```toml
+[violations.delta_seconds_empty]
+# A time in seconds is stated with no digits
+severity = "warn"
+```
+
+## Reported By
+
+- [age_header_numeric](../rules/age_header_numeric.md)
+- [alt_svc_h3_advertisement_valid](../rules/alt_svc_h3_advertisement_valid.md)
+- [strict_transport_security_valid](../rules/strict_transport_security_valid.md)
