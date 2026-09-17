@@ -69,6 +69,9 @@ async fn write_private_key(path: &Path, pem: &str) -> Result<()> {
 /// Manages the Certificate Authority (CA) and generates leaf certificates for intercepted domains.
 pub struct CertificateAuthority {
     ca_cert_pem: String,
+    /// The same certificate in DER, because every forged chain now carries a
+    /// copy of it and re-parsing the PEM per domain would be work for nothing.
+    ca_cert_der: CertificateDer<'static>,
     /// The CA private key used for signing.
     ca_key_pair: KeyPair,
     /// Cache of generated certificates for domains to avoid expensive regeneration.
@@ -88,7 +91,15 @@ impl CertificateAuthority {
         }
     }
 
-    async fn load(cert_path: &Path, key_path: &Path) -> Result<Arc<Self>> {
+    /// Load an existing CA, failing if either half is missing.
+    ///
+    /// Public because a caller that only wants to *read* an existing CA must
+    /// have a way to say so. [`Self::load_or_generate`] answers a missing file
+    /// by minting a new authority, which is right at startup and wrong
+    /// everywhere else: doing it against a proxy that is already serving
+    /// replaces the key it signs with, and every certificate it then presents
+    /// is signed by an authority nobody was told about.
+    pub async fn load(cert_path: &Path, key_path: &Path) -> Result<Arc<Self>> {
         let cert_pem = fs::read_to_string(cert_path)
             .await
             .context("failed to read CA cert")?;
@@ -99,9 +110,21 @@ impl CertificateAuthority {
         let key_pair =
             KeyPair::from_pem(&key_pem).context("failed to parse CA key pair from PEM")?;
 
+        Self::new(cert_pem, key_pair)
+    }
+
+    /// Assemble from a certificate and the key that signed it.
+    ///
+    /// Shared by the load and generate paths so the DER is derived in exactly
+    /// one place: it is on the wire in every forged chain, and two derivations
+    /// would be two chances for it to disagree with the PEM beside it.
+    fn new(ca_cert_pem: String, ca_key_pair: KeyPair) -> Result<Arc<Self>> {
+        let ca_cert_der = CertificateDer::from_pem_slice(ca_cert_pem.as_bytes())
+            .context("failed to parse the CA certificate")?;
         Ok(Arc::new(Self {
-            ca_cert_pem: cert_pem,
-            ca_key_pair: key_pair,
+            ca_cert_pem,
+            ca_cert_der,
+            ca_key_pair,
             cache: Arc::new(RwLock::new(HashMap::new())),
         }))
     }
@@ -129,11 +152,42 @@ impl CertificateAuthority {
         fs::write(cert_path, &cert_pem).await?;
         write_private_key(key_path, &key_pem).await?;
 
-        Ok(Arc::new(Self {
-            ca_cert_pem: cert_pem,
-            ca_key_pair: key_pair,
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        }))
+        Self::new(cert_pem, key_pair)
+    }
+
+    /// The base64 SHA-256 of this CA's `SubjectPublicKeyInfo`.
+    ///
+    /// The value Chromium's `--ignore-certificate-errors-spki-list` takes, and
+    /// the same digest HPKP pins named. It lives here because it is a fact
+    /// about the key, and this is the only type that holds one.
+    ///
+    /// **Why a pin rather than installing the CA.** Chromium on Linux verifies
+    /// through NSS, whose database is per-*user* and not per-profile, so a
+    /// throwaway `--user-data-dir` does not isolate a certificate installed
+    /// into it — trusting the CA that way would edit the user's own trust store
+    /// and leave it edited. The pin is scoped to one launch and to this key
+    /// alone, and it is the reason `browse` can be run without installing
+    /// anything. It is emphatically not `--ignore-certificate-errors`, which
+    /// turns verification off wholesale and would make the session worthless
+    /// for judging TLS.
+    pub fn spki_pin(&self) -> Result<String> {
+        use base64::Engine;
+        use sha2::Digest;
+
+        // `public_key_pem` is the SPKI, PEM-wrapped; the DER inside it is what
+        // gets hashed. Going through PEM rather than reaching for the DER
+        // accessor keeps this on rcgen's public surface.
+        let pem = self.ca_key_pair.public_key_pem();
+        let body: String = pem
+            .lines()
+            .filter(|line| !line.starts_with("-----"))
+            .collect();
+        let der = base64::engine::general_purpose::STANDARD
+            .decode(body.trim())
+            .context("failed to decode the CA public key")?;
+
+        let digest = sha2::Sha256::digest(&der);
+        Ok(base64::engine::general_purpose::STANDARD.encode(digest))
     }
 
     /// Generates a leaf certificate for the given domain, signed by this CA.
@@ -174,7 +228,19 @@ impl CertificateAuthority {
 
         let signer = aws_any_supported_type(&leaf_key_der)
             .map_err(|e| anyhow::anyhow!("failed to create leaf key signer: {}", e))?;
-        let certified_key = Arc::new(rustls::sign::CertifiedKey::new(vec![leaf_cert], signer));
+        // Leaf *and* the CA that signed it. A chain of one is what a client
+        // gets from a server that forgot its intermediates, and it costs two
+        // things here. A client verifying against a bundle has to hold the
+        // issuer already — true for the bundle these commands write, and not
+        // true in general. And Chromium's `--ignore-certificate-errors-spki-list`
+        // matches a public key *in the presented chain*: with the CA absent
+        // from it, the pin `browse` computes can never match, and every
+        // interception fails with an authority error that looks like a broken
+        // proxy. Sending the signer is what a server is supposed to do anyway.
+        let certified_key = Arc::new(rustls::sign::CertifiedKey::new(
+            vec![leaf_cert, self.ca_cert_der.clone()],
+            signer,
+        ));
 
         // Update cache
         {
@@ -208,6 +274,47 @@ impl CertificateAuthority {
 
 #[cfg(test)]
 mod tests {
+    /// The pin is a base64 SHA-256, and it identifies *this* key.
+    ///
+    /// The value was checked once against
+    /// `openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`
+    /// and matched; what a test can hold without shelling out to openssl is
+    /// that it is the right shape, that reloading the same CA reproduces it,
+    /// and that a different CA does not — the three ways a wrong pin would
+    /// reach Chromium, which rejects one silently by simply not trusting the
+    /// certificate.
+    #[tokio::test]
+    async fn spki_pin_identifies_the_key_that_made_it() -> anyhow::Result<()> {
+        let dir = std::env::temp_dir().join(format!("lint-http-pin-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir)?;
+        let (cert, key) = (dir.join("ca.crt"), dir.join("ca.key"));
+
+        let pin = CertificateAuthority::load_or_generate(&cert, &key)
+            .await?
+            .spki_pin()?;
+        // 32 bytes of digest, base64: 44 characters with one pad.
+        assert_eq!(pin.len(), 44, "pin was {pin:?}");
+        assert!(pin.ends_with('='), "pin was {pin:?}");
+
+        // Loading the same CA again reproduces it.
+        let again = CertificateAuthority::load_or_generate(&cert, &key)
+            .await?
+            .spki_pin()?;
+        assert_eq!(pin, again);
+
+        // A different CA does not.
+        let other = dir.join("other");
+        std::fs::create_dir_all(&other)?;
+        let different =
+            CertificateAuthority::load_or_generate(&other.join("ca.crt"), &other.join("ca.key"))
+                .await?
+                .spki_pin()?;
+        assert_ne!(pin, different);
+
+        let _ = std::fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
     /// The key this writes signs certificates clients are told to trust, so it
     /// must not be readable by other users on the machine — the working
     /// directory of a checkout and a directory under `/tmp` are both shared.
