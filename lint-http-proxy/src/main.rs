@@ -8,12 +8,16 @@
 #[path = "../tests/common/temp_files.rs"]
 mod temp_files;
 
+// A module of the binary and not of the library: nothing in it is about HTTP,
+// and nothing that lints wants to know whether stderr is a terminal.
+mod style;
+
 use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
 use lint_http::{
     capture, client_env, config, driver, engine, lint, protocol_event_store, proxied_run, proxy,
-    rules, state,
+    rules, state, violations,
 };
 
 #[derive(Parser, Debug)]
@@ -47,7 +51,7 @@ struct Cli {
 /// A global option is not meaningful everywhere, and that is fine: `--config`
 /// says nothing to `config export`, which prints the built-in by definition.
 /// What matters is that where it *is* read, it is read the same way.
-#[derive(clap::Args, Debug, Clone)]
+#[derive(clap::Args, Debug, Clone, Default)]
 #[command(next_help_heading = "Global options")]
 struct GlobalArgs {
     /// Config TOML path. Defaults to the built-in configuration.
@@ -64,6 +68,45 @@ struct GlobalArgs {
     /// reads. Without it, `run` and `use` discard theirs.
     #[arg(long, value_name = "PATH", global = true)]
     captures: Option<String>,
+    /// When to colour the report: `auto` (a terminal, unless `NO_COLOR`),
+    /// `always`, `never`.
+    #[arg(long, value_enum, value_name = "WHEN", global = true)]
+    color: Option<style::ColorChoice>,
+    /// Wrap the report at this column. Defaults to `COLUMNS`, then to 100 on a
+    /// terminal; a report that is not going to one is never wrapped.
+    #[arg(long, value_name = "COLUMNS", global = true)]
+    width: Option<usize>,
+    /// One line per defect: its catalogue title and how often it happened.
+    #[arg(short = 'q', long, global = true, conflicts_with = "verbose")]
+    quiet: bool,
+    /// Everything a finding knows: the rule that reported it, the
+    /// specification reference in full, the docs page, and how to switch it off.
+    #[arg(short = 'v', long, global = true)]
+    verbose: bool,
+    /// Show one entry per defect with a count and the targets it happened on,
+    /// instead of one entry per transaction.
+    #[arg(long, global = true)]
+    group: bool,
+}
+
+/// Which stream a report is about to be written to.
+///
+/// Named rather than passed as a bool because the two commands disagree and
+/// the disagreement is easy to get backwards: a session's text report goes to
+/// stderr (stdout belongs to the child it wrapped), and `lint-captures` writes
+/// to stdout. Asking the wrong one is how escape sequences end up in a file.
+#[derive(Clone, Copy, Debug)]
+enum Stream {
+    Stdout,
+    Stderr,
+}
+
+fn is_terminal(stream: Stream) -> bool {
+    use std::io::IsTerminal;
+    match stream {
+        Stream::Stdout => std::io::stdout().is_terminal(),
+        Stream::Stderr => std::io::stderr().is_terminal(),
+    }
 }
 
 impl GlobalArgs {
@@ -83,6 +126,59 @@ impl GlobalArgs {
 
     fn captures_path(&self) -> Option<&std::path::Path> {
         self.captures.as_deref().map(std::path::Path::new)
+    }
+
+    /// The tier `-q` / `-v` selected. Neither is normal, and clap has already
+    /// refused both at once.
+    fn detail(&self) -> Detail {
+        match (self.quiet, self.verbose) {
+            (true, _) => Detail::Brief,
+            (_, true) => Detail::Full,
+            _ => Detail::Normal,
+        }
+    }
+
+    /// How this report is drawn, given what the stream it is headed for turned
+    /// out to be.
+    fn render_opts(&self, is_tty: bool) -> RenderOpts {
+        let styles = style::Styles::new(self.color.unwrap_or_default().resolve(is_tty));
+        RenderOpts {
+            styles,
+            detail: self.detail(),
+            wrap: self.wrap(is_tty),
+            group: self.group,
+        }
+    }
+
+    /// The column to wrap at, or `None` for the single-line shape.
+    ///
+    /// **There is no width probe here, and that is a decision.** Reading a
+    /// terminal's size means either an `ioctl` — which this workspace denies
+    /// outright, `unsafe_code = "deny"`, and a linter is the last place to
+    /// spend that budget — or a crate that does one, which is a supply-chain
+    /// entry bought for a cosmetic. So the width is *stated* rather than
+    /// discovered: `--width` if given, then `COLUMNS` if the shell exported
+    /// it, then a conservative 100. A report that is not going to a terminal
+    /// is never wrapped, whatever any of them said, because the only reader
+    /// there is another program.
+    fn wrap(&self, is_tty: bool) -> Option<usize> {
+        if let Some(width) = self.width {
+            return (width > 0).then_some(width);
+        }
+        if !is_tty {
+            return None;
+        }
+        Some(
+            std::env::var("COLUMNS")
+                .ok()
+                .and_then(|c| c.trim().parse::<usize>().ok())
+                // Floored rather than discarded: a 30-column terminal is
+                // narrow, and answering it with 100 wraps to a width wider
+                // than the thing being measured. `--width` is taken literally
+                // above, because there a person said the number.
+                .map(|w| w.max(40))
+                .unwrap_or(100),
+        )
     }
 }
 
@@ -513,7 +609,11 @@ fn collect_rule_info(cfg: Option<&config::Config>) -> Vec<RuleInfo> {
 /// Render the rule catalogue. Returns the output string so the dispatch arm can
 /// print it (and tests can assert on it). Needs no proxy; `cfg` is present only
 /// when the user asked for the enabled/disabled annotation.
-fn rules_list(format: OutputFormat, cfg: Option<&config::Config>) -> anyhow::Result<String> {
+fn rules_list(
+    format: OutputFormat,
+    cfg: Option<&config::Config>,
+    styles: style::Styles,
+) -> anyhow::Result<String> {
     let infos = collect_rule_info(cfg);
     match format {
         OutputFormat::Json => Ok(serde_json::to_string_pretty(&infos)?),
@@ -521,15 +621,32 @@ fn rules_list(format: OutputFormat, cfg: Option<&config::Config>) -> anyhow::Res
             use std::fmt::Write;
             let mut out = String::new();
             for info in &infos {
-                write!(out, "{:<60}", info.id)?;
+                // Padded on the plain id and painted afterwards: an escape
+                // sequence takes no columns on screen and every column in a
+                // `{:<60}`, so styling first would ragged every line by
+                // exactly the width of its own colour.
+                write!(
+                    out,
+                    "{}",
+                    styles.paint(styles.name(), &format!("{:<60}", info.id))
+                )?;
                 if let Some(enabled) = info.enabled {
-                    write!(out, " {:<8}", if enabled { "enabled" } else { "disabled" })?;
+                    let state = format!("{:<8}", if enabled { "enabled" } else { "disabled" });
+                    // A disabled rule recedes; an enabled one is the ordinary
+                    // case and takes no marking at all.
+                    let state = if enabled {
+                        state
+                    } else {
+                        styles.paint(styles.dim(), &state)
+                    };
+                    write!(out, " {state}")?;
                 }
                 // Most rules have no title override; omit the field entirely so
                 // those lines don't carry a trailing space.
+                let scope = styles.paint(styles.dim(), &format!("[{}]", info.scope));
                 match info.title {
-                    Some(title) => writeln!(out, " [{}] {}", info.scope, title)?,
-                    None => writeln!(out, " [{}]", info.scope)?,
+                    Some(title) => writeln!(out, " {scope} {title}")?,
+                    None => writeln!(out, " {scope}")?,
                 }
             }
             Ok(out)
@@ -552,9 +669,14 @@ fn rules_list(format: OutputFormat, cfg: Option<&config::Config>) -> anyhow::Res
 async fn lint_app(
     config_path: Option<&str>,
     captures_path: &str,
-    format: OutputFormat,
-    min_severity: lint::Severity,
+    global: &GlobalArgs,
 ) -> anyhow::Result<usize> {
+    let format = global.format();
+    let min_severity = global.min_severity();
+    // This report is the command's output, so it goes to stdout — unlike a
+    // session's, which yields stdout to the child it wrapped. Colour follows
+    // the stream that is actually written to.
+    let opts = global.render_opts(is_terminal(Stream::Stdout));
     let cfg = load_validated_config(config_path).await?;
     // `load_capture_records` tolerates a missing file (it backs the proxy's
     // optional cold-start seeding). For an explicit `lint-captures <file>` a
@@ -566,11 +688,20 @@ async fn lint_app(
     let records = capture::load_capture_records(captures_path).await?;
     let report = lint_records(&cfg, records, min_severity)?;
     let total = report.total();
+    let summary = Summary {
+        hidden_severity: report.suppressed,
+        min_severity,
+        ..Summary::counted(
+            &report.findings,
+            report.transaction_count,
+            report.websocket_count,
+        )
+    };
     write_stdout(&render_lint_report(
         &report.findings,
-        report.transaction_count,
-        report.websocket_count,
+        &summary,
         format,
+        opts,
     )?)?;
     Ok(total)
 }
@@ -580,6 +711,12 @@ struct LintReport {
     findings: Vec<FindingsBlock>,
     transaction_count: usize,
     websocket_count: usize,
+    /// Findings `--min-severity` removed before the report existed.
+    ///
+    /// Counted rather than merely dropped, because a filtered report and a
+    /// clean one are indistinguishable otherwise — and the flag that would
+    /// show them is the one thing the reader needs to be told.
+    suppressed: usize,
 }
 
 impl LintReport {
@@ -596,43 +733,57 @@ impl LintReport {
 /// from a replay, and the two disagreed: blocks scrolled past that the number
 /// at the bottom did not include. Two callers, one function, and the tally can
 /// no longer describe a different set of findings than the reader saw.
-fn gated_block(
-    record: &capture::CaptureRecord,
-    min_severity: lint::Severity,
-) -> Option<FindingsBlock> {
-    let gate = |violations: &[lint::Violation]| -> Vec<lint::Violation> {
-        violations
+fn gated_block(record: &capture::CaptureRecord, min_severity: lint::Severity) -> Gated {
+    let gate = |violations: &[lint::Violation]| -> (Vec<lint::Violation>, usize) {
+        let kept: Vec<lint::Violation> = violations
             .iter()
             .filter(|v| v.severity >= min_severity)
             .cloned()
-            .collect()
+            .collect();
+        let suppressed = violations.len() - kept.len();
+        (kept, suppressed)
     };
     match record {
         capture::CaptureRecord::HttpTransaction(tx) => {
-            let violations = gate(&tx.violations);
-            if violations.is_empty() {
-                return None;
+            let (violations, suppressed) = gate(&tx.violations);
+            Gated {
+                block: (!violations.is_empty()).then(|| {
+                    FindingsBlock::HttpTransaction(TransactionFindings {
+                        method: tx.request.method.clone(),
+                        uri: tx.request.uri.clone(),
+                        status: tx.response.as_ref().map(|r| r.status),
+                        violations,
+                    })
+                }),
+                suppressed,
             }
-            Some(FindingsBlock::HttpTransaction(TransactionFindings {
-                method: tx.request.method.clone(),
-                uri: tx.request.uri.clone(),
-                status: tx.response.as_ref().map(|r| r.status),
-                violations,
-            }))
         }
         capture::CaptureRecord::WebsocketSession(session) => {
-            let violations = gate(&session.violations);
-            if violations.is_empty() {
-                return None;
+            let (violations, suppressed) = gate(&session.violations);
+            Gated {
+                block: (!violations.is_empty()).then_some(FindingsBlock::WebsocketSession(
+                    WebsocketFindings {
+                        session_id: session.id,
+                        transaction_id: session.transaction_id,
+                        close_code: session.close_code,
+                        violations,
+                    },
+                )),
+                suppressed,
             }
-            Some(FindingsBlock::WebsocketSession(WebsocketFindings {
-                session_id: session.id,
-                transaction_id: session.transaction_id,
-                close_code: session.close_code,
-                violations,
-            }))
         }
     }
+}
+
+/// One record after the severity gate: what survived, and how much did not.
+///
+/// The second half is not bookkeeping. A report narrowed by `--min-severity`
+/// and a report with nothing to say print the same closing line unless
+/// somebody counted what the gate removed, and "clean" and "filtered" are the
+/// two answers a reader most needs told apart.
+struct Gated {
+    block: Option<FindingsBlock>,
+    suppressed: usize,
 }
 
 /// The findings a driven session's own proxy already made.
@@ -665,17 +816,21 @@ fn recorded_findings(
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
     let mut ws_count = 0usize;
+    let mut suppressed = 0usize;
     for record in records {
         match record {
             capture::CaptureRecord::HttpTransaction(_) => tx_count += 1,
             capture::CaptureRecord::WebsocketSession(_) => ws_count += 1,
         }
-        findings.extend(gated_block(record, min_severity));
+        let gated = gated_block(record, min_severity);
+        suppressed += gated.suppressed;
+        findings.extend(gated.block);
     }
     LintReport {
         findings,
         transaction_count: tx_count,
         websocket_count: ws_count,
+        suppressed,
     }
 }
 
@@ -705,6 +860,7 @@ fn lint_records(
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
     let mut ws_count = 0usize;
+    let mut suppressed = 0usize;
     for record in records {
         match record {
             capture::CaptureRecord::HttpTransaction(tx) => {
@@ -713,7 +869,9 @@ fn lint_records(
                 // Record *before* gating: stateful rules must see every
                 // transaction in the file regardless of what the report includes.
                 state.record_transaction(&tx);
+                let found = violations.len();
                 violations.retain(|v| v.severity >= min_severity);
+                suppressed += found - violations.len();
                 if violations.is_empty() {
                     continue;
                 }
@@ -728,7 +886,9 @@ fn lint_records(
             capture::CaptureRecord::WebsocketSession(session) => {
                 ws_count += 1;
                 let mut violations = lint_websocket_session(&session, cfg, &engine);
+                let found = violations.len();
                 violations.retain(|v| v.severity >= min_severity);
+                suppressed += found - violations.len();
                 if violations.is_empty() {
                     continue;
                 }
@@ -746,6 +906,7 @@ fn lint_records(
         findings,
         transaction_count: tx_count,
         websocket_count: ws_count,
+        suppressed,
     })
 }
 
@@ -803,6 +964,15 @@ impl FindingsBlock {
         match self {
             FindingsBlock::HttpTransaction(f) => &f.violations,
             FindingsBlock::WebsocketSession(f) => &f.violations,
+        }
+    }
+
+    /// Keep only the findings a predicate accepts. The live pass uses it to
+    /// drop what a collapsed report has already shown once.
+    fn retain_violations(&mut self, keep: impl FnMut(&lint::Violation) -> bool) {
+        match self {
+            FindingsBlock::HttpTransaction(f) => f.violations.retain(keep),
+            FindingsBlock::WebsocketSession(f) => f.violations.retain(keep),
         }
     }
 }
@@ -975,6 +1145,305 @@ fn uri_host(uri: &str) -> Option<&str> {
     (!host.is_empty()).then_some(host)
 }
 
+/// How much of a finding a report draws.
+///
+/// Three tiers, and the top and bottom of the range are made of data the
+/// binary already carried and never printed. The catalogue holds a one-line
+/// `title` per defect written to be read out of context, and a `spec` list
+/// whose notes say what each reference contributes; the report showed neither
+/// and the long parameterised `message` always.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Detail {
+    /// `-q`: one line per defect — its catalogue title and how often it
+    /// happened. No message, no citation, no request lines.
+    Brief,
+    /// The message, and the citation as a label.
+    #[default]
+    Normal,
+    /// `-v`: the rule that reported it, the specification reference in full
+    /// with the note that says what it contributes, the documentation page,
+    /// and the stanza that switches it off.
+    Full,
+}
+
+/// The choices a *reader* makes about a report, as against the findings in it.
+///
+/// Threaded through every renderer rather than read from a global, and carried
+/// as data rather than applied to the stream, because every function below
+/// returns a `String` that a test asserts on. A writer that styled its own
+/// bytes would put the decision somewhere no test can see, and would style the
+/// JSON document and the diagnostics along with the report.
+#[derive(Clone, Copy, Debug, Default)]
+struct RenderOpts {
+    styles: style::Styles,
+    detail: Detail,
+    /// Wrap the message at this column, or leave every finding on one line.
+    ///
+    /// `None` whenever the report is not going to a terminal, which is what
+    /// keeps a piped report one line per finding — the shape `grep` and every
+    /// script that has ever read this output expect. A terminal gets the
+    /// wrapped shape, because at 300 characters the alternative is not a long
+    /// line but three ragged ones with no indent.
+    wrap: Option<usize>,
+    /// Collapse findings that read identically into one entry with a count.
+    group: bool,
+}
+
+impl RenderOpts {
+    /// Unstyled, unwrapped, ungrouped, normal detail — what the tests assert
+    /// against, and what a real run produces for a pipe by resolving each of
+    /// those choices to the same answer. `#[cfg(test)]` because a real run
+    /// always has a `GlobalArgs` to derive them from and must never take a
+    /// short cut past `--color` and `--width`.
+    #[cfg(test)]
+    fn plain() -> Self {
+        Self::default()
+    }
+
+    /// Does this report show one entry per defect rather than one per finding?
+    ///
+    /// `--group` asks for it outright; `-q` implies it, because a tier whose
+    /// whole content is a title and a count has nothing to say a second time.
+    fn collapse(&self) -> bool {
+        self.group || self.detail == Detail::Brief
+    }
+}
+
+/// `n` of something, with the plural the sentence actually needs.
+///
+/// `violation(s)` was one line of output and one of the few places this tool
+/// wrote something no person would write. It is also, at `1 violation(s)`,
+/// wrong twice.
+fn plural(n: usize, singular: &str) -> String {
+    if n == 1 {
+        format!("{n} {singular}")
+    } else {
+        format!("{n} {singular}s")
+    }
+}
+
+/// Break `text` into lines no wider than `width`, each after `indent` spaces.
+///
+/// Words are never broken: a URL or a quoted field value longer than the
+/// column overflows it rather than being cut in half, because half a URL is
+/// worse than a long line — it cannot be clicked, copied, or recognised.
+fn wrap_text(text: &str, indent: usize, width: usize) -> Vec<String> {
+    let room = width.saturating_sub(indent).max(20);
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        if current.is_empty() {
+            current.push_str(word);
+        } else if current.chars().count() + 1 + word.chars().count() <= room {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current.push_str(word);
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
+}
+
+/// Push `text` at `indent`, wrapped when the report has a width to wrap to.
+fn push_wrapped(out: &mut String, text: &str, indent: usize, opts: RenderOpts) {
+    let pad = " ".repeat(indent);
+    match opts.wrap {
+        Some(width) => {
+            for line in wrap_text(text, indent, width) {
+                out.push_str(&pad);
+                out.push_str(&line);
+                out.push('\n');
+            }
+        }
+        None => {
+            out.push_str(&pad);
+            out.push_str(text);
+            out.push('\n');
+        }
+    }
+}
+
+/// Shorten a target that will not fit, keeping both ends.
+///
+/// The head of a URI is the scheme and host and the tail is the resource; the
+/// middle is the part a reader skims. Cutting from the end — the obvious
+/// truncation — keeps the two least distinguishing halves and drops the one
+/// that says *which* request this was.
+fn elide_middle(text: &str, max: usize) -> String {
+    let count = text.chars().count();
+    if count <= max || max < 8 {
+        return text.to_string();
+    }
+    let keep = max - 1;
+    let head = keep.div_ceil(2);
+    let tail = keep - head;
+    let chars: Vec<char> = text.chars().collect();
+    let mut out: String = chars[..head].iter().collect();
+    out.push('…');
+    out.extend(&chars[count - tail..]);
+    out
+}
+
+/// The name a finding goes by in the report.
+///
+/// The defect, when it names one. It is the unit of report — the name
+/// `[violations.<id>]` tunes, the name `enabled = false` switches off, and the
+/// name someone greps a capture for — while the rule is the unit of *analysis*
+/// and answers a different question. Printing `rule/defect` on every line
+/// spelled one stem twice while the eye was hunting for the difference between
+/// them; the rule is still there, under `-v`, where "which analysis do I switch
+/// off" is actually being asked.
+fn violation_name(v: &lint::Violation) -> &str {
+    if v.violation.is_empty() {
+        &v.rule
+    } else {
+        &v.violation
+    }
+}
+
+/// The catalogue's one-line name for this defect, for the tier that shows
+/// nothing else.
+///
+/// Falls back to the message when the catalogue has no entry — a finding from
+/// a rule that names no defect, or a capture written under an id since
+/// renamed. Never to the id itself: the id is already on the line.
+fn violation_title(v: &lint::Violation) -> String {
+    violations::by_id(&v.violation)
+        .map(|def| def.title.to_string())
+        .unwrap_or_else(|| v.message.clone())
+}
+
+/// A citation as the report shows it.
+///
+/// **The compaction is paid for by the hyperlink.** Under colour the label
+/// alone is printed and the URL rides along as an OSC 8 target, so
+/// `RFC 9110 §12.5.3` is both 58 characters shorter than what it replaces and
+/// still one click from the section. Where there is no colour there is no
+/// hyperlink either, so the URL is printed exactly as it always was — a report
+/// in a file must not lose the address of the sentence it enforces.
+fn render_cite(cite: &lint::SpecCitation, opts: RenderOpts) -> String {
+    let label = cite.label();
+    if opts.styles.is_enabled() {
+        opts.styles
+            .paint(opts.styles.citation(), &opts.styles.link(&cite.url, &label))
+    } else {
+        format!("[{label} {}]", cite.url)
+    }
+}
+
+/// The severity column: five characters wide, so the names line up under each
+/// other whatever mix a report holds.
+fn render_severity(severity: lint::Severity, opts: RenderOpts) -> String {
+    opts.styles.paint(
+        opts.styles.severity(severity),
+        &format!("{:<5}", severity.name()),
+    )
+}
+
+/// What `-v` adds under a finding: everything it knows that the line has no
+/// room for.
+///
+/// Four labelled sub-lines, each answering a question the default report
+/// leaves open — which analysis found this, what text it enforces, where to
+/// read more, and how to make it stop.
+fn render_violation_detail(v: &lint::Violation, indent: usize, opts: RenderOpts, out: &mut String) {
+    let pad = " ".repeat(indent);
+    let label = |name: &str| opts.styles.paint(opts.styles.dim(), name);
+
+    out.push_str(&format!("{pad}{}  {}\n", label("rule"), v.rule));
+
+    // **The catalogue is asked first, and it is asked for the whole reference.**
+    // A finding carries a citation only when its defect has exactly one
+    // governing statement, so reading the references off the *finding* leaves
+    // the 19 defects that name two with nothing under `spec` — and their notes,
+    // printed anyway, sitting indented under no heading at all.
+    //
+    // `note` is not a quotation. The verbatim sentence lives in the `// cite`
+    // comment at the enforcing statement, where the quote gate checks it
+    // against the published document; a second copy in a struct is a copy
+    // nothing verifies. This is what the reference contributes to this defect.
+    let def = violations::by_id(&v.violation);
+    match def {
+        Some(def) => {
+            for spec in def.spec {
+                let section = spec
+                    .section
+                    .map_or_else(|| spec.spec.to_string(), |s| format!("{} §{s}", spec.spec));
+                out.push_str(&format!("{pad}{}  {section}\n", label("spec")));
+                out.push_str(&format!("{pad}      {}\n", spec.url));
+                if !spec.note.is_empty() {
+                    push_wrapped(out, spec.note, indent + 6, opts);
+                }
+            }
+        }
+        // No catalogue entry — a finding from a rule that names no defect, or a
+        // capture written under an id since renamed. What it carries is all
+        // there is, and it is still worth printing.
+        None => {
+            if let Some(cite) = &v.cite {
+                out.push_str(&format!("{pad}{}  {}\n", label("spec"), cite.label()));
+                out.push_str(&format!("{pad}      {}\n", cite.url));
+            }
+        }
+    }
+
+    if let Some(def) = def {
+        out.push_str(&format!(
+            "{pad}{}  docs/violations/{}.md\n",
+            label("docs"),
+            def.id
+        ));
+        out.push_str(&format!(
+            "{pad}{}  [violations.{}]\n{pad}      enabled = false\n",
+            label("hush"),
+            def.id
+        ));
+    }
+}
+
+/// One finding, drawn at whatever detail and width the report asked for.
+///
+/// Two shapes, and which one is used is decided by [`RenderOpts::wrap`] alone:
+/// unwrapped it is the single line this tool has always printed, so a pipe
+/// keeps one line per finding; wrapped, the name takes its own line and the
+/// message is indented under it, because the alternative at a real terminal
+/// width is the same line soft-wrapped into three rows with no indent at all,
+/// which is the column structure destroying itself.
+fn render_violation(v: &lint::Violation, opts: RenderOpts, out: &mut String) {
+    let name = opts.styles.paint(opts.styles.name(), violation_name(v));
+    let severity = render_severity(v.severity, opts);
+    let cite = v.cite.as_ref().map(|c| render_cite(c, opts));
+
+    if opts.wrap.is_none() && opts.detail != Detail::Full {
+        out.push_str(&format!("  {severity} {name}  {}", v.message));
+        if let Some(cite) = &cite {
+            out.push_str("  ");
+            out.push_str(cite);
+        }
+        out.push('\n');
+        return;
+    }
+
+    out.push_str(&format!("  {severity} {name}\n"));
+    push_wrapped(out, &v.message, 8, opts);
+    if opts.detail == Detail::Full {
+        // No citation line here: the `spec` sub-line below says the same thing
+        // and more, and printing both would put the URL on screen twice under
+        // the one tier that was asked for detail rather than for brevity.
+        render_violation_detail(v, 8, opts, out);
+    } else if let Some(cite) = &cite {
+        // Its own line rather than the tail of the last one: the label is
+        // styled and hyperlinked, so appending it would mean measuring a run
+        // of text whose escapes take no columns, and getting that wrong shows
+        // up as a line that wraps one word early on every cited finding.
+        out.push_str(&format!("        {cite}\n"));
+    }
+}
+
 /// One record's findings, as the text report prints them.
 ///
 /// Extracted from [`render_lint_report`] so a session can print a block the
@@ -982,7 +1451,7 @@ fn uri_host(uri: &str) -> Option<&str> {
 /// makes hundreds of requests; saving every finding for the end would be the
 /// same output delivered when it is no longer about anything on screen. Same
 /// function, so the live lines and a replayed report cannot disagree on shape.
-fn render_findings_block(block: &FindingsBlock) -> anyhow::Result<String> {
+fn render_findings_block(block: &FindingsBlock, opts: RenderOpts) -> anyhow::Result<String> {
     use std::fmt::Write;
     let mut out = String::new();
     match block {
@@ -991,7 +1460,13 @@ fn render_findings_block(block: &FindingsBlock) -> anyhow::Result<String> {
                 .status
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "-".to_string());
-            writeln!(out, "{} {} -> {}", f.method, f.uri, status)?;
+            writeln!(
+                out,
+                "{} {} -> {}",
+                opts.styles.paint(opts.styles.name(), &f.method),
+                f.uri,
+                opts.styles.paint(opts.styles.status(f.status), &status)
+            )?;
         }
         FindingsBlock::WebsocketSession(f) => {
             let close = f
@@ -1006,27 +1481,146 @@ fn render_findings_block(block: &FindingsBlock) -> anyhow::Result<String> {
         }
     }
     for v in block.violations() {
-        // Both names, when the finding carries both: the rule is what ran, the
-        // defect is what it found, and they are tuned by two different sections
-        // of the configuration. `rule/defect` rather than either alone —
-        // dropping the rule would hide which analysis to switch off, and
-        // dropping the defect would hide the name `[violations.*]` takes. A
-        // finding from a rule that names no defect prints exactly as it always
-        // has.
-        let name = if v.violation.is_empty() {
-            v.rule.clone()
-        } else {
-            format!("{}/{}", v.rule, v.violation)
-        };
-        write!(out, "  {:<5} {}  {}", v.severity.name(), name, v.message)?;
-        // The specification text the finding enforces, when the rule attached
-        // one at the violation site.
-        if let Some(cite) = &v.cite {
-            write!(out, "  [{cite}]")?;
-        }
-        writeln!(out)?;
+        render_violation(v, opts, &mut out);
     }
     Ok(out)
+}
+
+/// One defect, and everywhere it happened.
+///
+/// **Grouping is not deduplication, and the difference is the count.** An
+/// earlier attempt to drop repeated findings was abandoned because its key
+/// could not tell one finding reported twice from two findings that read
+/// alike, and dropping either is a lie. Nothing is dropped here: every finding
+/// is still in the total, the count says how many there were, and the targets
+/// say where — so two findings that read alike are visible as two, on two
+/// lines, under one heading.
+struct Group<'a> {
+    severity: lint::Severity,
+    violation: &'a lint::Violation,
+    count: usize,
+    /// Where it happened, in order of first appearance, each with its own
+    /// count. A defect on one URL fetched ten times and a defect on ten URLs
+    /// are different problems and must not render the same.
+    targets: Vec<(String, usize)>,
+}
+
+/// Collapse a report into one entry per defect that reads identically.
+///
+/// The key is the whole rendered identity — severity, name, and message — so
+/// two findings collapse only when a reader could not have told them apart on
+/// the line anyway. A parameterised message that named two different header
+/// values stays two entries, which is the behaviour that makes this safe to
+/// switch on without reading the catalogue first.
+fn group_findings(findings: &[FindingsBlock]) -> Vec<Group<'_>> {
+    let mut order: Vec<Group<'_>> = Vec::new();
+    let mut index: std::collections::HashMap<(lint::Severity, &str, &str), usize> =
+        std::collections::HashMap::new();
+
+    for block in findings {
+        let target = match block {
+            FindingsBlock::HttpTransaction(f) => format!("{} {}", f.method, f.uri),
+            FindingsBlock::WebsocketSession(f) => format!("websocket session {}", f.session_id),
+        };
+        for v in block.violations() {
+            let key = (v.severity, violation_name(v), v.message.as_str());
+            let slot = *index.entry(key).or_insert_with(|| {
+                order.push(Group {
+                    severity: v.severity,
+                    violation: v,
+                    count: 0,
+                    targets: Vec::new(),
+                });
+                order.len() - 1
+            });
+            let group = &mut order[slot];
+            group.count += 1;
+            match group.targets.iter_mut().find(|(t, _)| *t == target) {
+                Some((_, n)) => *n += 1,
+                None => group.targets.push((target.clone(), 1)),
+            }
+        }
+    }
+
+    // Loudest first, then most frequent, then by name — so the ordering is a
+    // property of the findings and not of the order the capture happened to
+    // hold them in.
+    order.sort_by(|a, b| {
+        b.severity
+            .cmp(&a.severity)
+            .then(b.count.cmp(&a.count))
+            .then_with(|| violation_name(a.violation).cmp(violation_name(b.violation)))
+    });
+    order
+}
+
+/// How many example targets a group names before it starts counting them.
+const TARGETS_SHOWN: usize = 3;
+
+/// Draw the grouped report: one entry per defect, loudest first.
+fn render_groups(groups: &[Group<'_>], opts: RenderOpts) -> String {
+    let mut out = String::new();
+    for (i, group) in groups.iter().enumerate() {
+        let v = group.violation;
+        let severity = render_severity(v.severity, opts);
+        let count = opts
+            .styles
+            .paint(opts.styles.dim(), &format!("×{}", group.count));
+
+        if opts.detail == Detail::Brief {
+            // One line, and the catalogue's own words for it. Elided rather
+            // than wrapped: the whole promise of this tier is that a defect
+            // takes exactly one row.
+            let title = violation_title(v);
+            // Measured on the plain count, never the painted one: an escape
+            // sequence takes no columns on screen and would otherwise elide
+            // the title by the width of its own colour.
+            let room = opts.wrap.map_or(title.chars().count(), |w| {
+                w.saturating_sub(10 + group.count.to_string().len())
+            });
+            out.push_str(&format!(
+                "{severity} {count}  {}\n",
+                elide_middle(&title, room)
+            ));
+            continue;
+        }
+
+        if i > 0 {
+            out.push('\n');
+        }
+        let name = opts.styles.paint(opts.styles.name(), violation_name(v));
+        out.push_str(&format!("{severity} {name}  {count}\n"));
+        push_wrapped(&mut out, &v.message, 6, opts);
+        if opts.detail != Detail::Full {
+            if let Some(cite) = &v.cite {
+                out.push_str(&format!("      {}\n", render_cite(cite, opts)));
+            }
+        }
+        for (target, n) in group.targets.iter().take(TARGETS_SHOWN) {
+            let room = opts
+                .wrap
+                .map_or(target.chars().count(), |w| w.saturating_sub(14));
+            let line = match n {
+                1 => elide_middle(target, room),
+                n => format!("{}  ×{n}", elide_middle(target, room)),
+            };
+            out.push_str(&format!(
+                "      {}\n",
+                opts.styles.paint(opts.styles.dim(), &line)
+            ));
+        }
+        if group.targets.len() > TARGETS_SHOWN {
+            let more = plural(group.targets.len() - TARGETS_SHOWN, "other target");
+            out.push_str(&format!(
+                "      {}\n",
+                opts.styles.paint(opts.styles.dim(), &format!("and {more}"))
+            ));
+        }
+        if opts.detail == Detail::Full {
+            render_violation_detail(v, 6, opts, &mut out);
+        }
+    }
+    out
 }
 
 /// Render the `lint-captures` report: the text form ends with a human summary line
@@ -1037,38 +1631,260 @@ fn render_findings_block(block: &FindingsBlock) -> anyhow::Result<String> {
 /// unchanged.
 fn render_lint_report(
     findings: &[FindingsBlock],
-    transaction_count: usize,
-    websocket_count: usize,
+    summary: &Summary,
     format: OutputFormat,
+    opts: RenderOpts,
 ) -> anyhow::Result<String> {
     match format {
         OutputFormat::Json => Ok(format!("{}\n", serde_json::to_string_pretty(findings)?)),
         OutputFormat::Text => {
-            let mut out = String::new();
-            for block in findings {
-                out.push_str(&render_findings_block(block)?);
-            }
-            let total: usize = findings.iter().map(|f| f.violations().len()).sum();
-            out.push_str(&render_summary(total, transaction_count, websocket_count));
+            let mut out = render_findings(findings, opts)?;
+            out.push_str(&render_summary(summary, opts));
             Ok(out)
         }
     }
 }
 
-/// The line a text report ends with.
+/// The body of a text report — grouped or in capture order, as asked.
+fn render_findings(findings: &[FindingsBlock], opts: RenderOpts) -> anyhow::Result<String> {
+    if opts.collapse() {
+        return Ok(render_groups(&group_findings(findings), opts));
+    }
+    let mut out = String::new();
+    for block in findings {
+        out.push_str(&render_findings_block(block, opts)?);
+    }
+    Ok(out)
+}
+
+/// What a report's closing lines say.
+///
+/// A struct rather than a parameter list because the line grew three
+/// independent clauses — what was found, what was hidden, and what failed —
+/// and each of them is assembled by a different part of the report. Built in
+/// one place, so a session and a replay cannot describe their tallies
+/// differently.
+#[derive(Debug)]
+struct Summary {
+    total: usize,
+    /// Findings at each level, indexed by [`lint::Severity`] order.
+    by_severity: [usize; 3],
+    transactions: usize,
+    websockets: usize,
+    /// Distinct hosts the shown findings are about.
+    hosts: usize,
+    /// Findings the host scope kept out, and the transactions they were on.
+    hidden_hosts: usize,
+    hidden_host_transactions: usize,
+    /// Findings `--min-severity` filtered out before the report existed.
+    hidden_severity: usize,
+    min_severity: lint::Severity,
+    /// The gate this report will be read by, when one was asked for.
+    fail_on: Option<lint::Severity>,
+}
+
+/// An empty report of nothing, gated at the most permissive level.
+///
+/// Hand-written rather than derived: [`lint::Severity`] has no default and
+/// should not acquire one — which of three levels a *rule* means by silence is
+/// a question with no answer, while the level a *report* was gated at when
+/// nobody said is plainly `info`, the same value `--min-severity` defaults to.
+impl Default for Summary {
+    fn default() -> Self {
+        Self {
+            total: 0,
+            by_severity: [0; 3],
+            transactions: 0,
+            websockets: 0,
+            hosts: 0,
+            hidden_hosts: 0,
+            hidden_host_transactions: 0,
+            hidden_severity: 0,
+            min_severity: lint::Severity::Info,
+            fail_on: None,
+        }
+    }
+}
+
+impl Summary {
+    /// The counts that come straight off the findings being shown. What was
+    /// *not* shown — filtered by severity, scoped away by host, or about to
+    /// trip a gate — is known only to the caller, and is set on the result.
+    fn of(findings: &[FindingsBlock]) -> Self {
+        let mut summary = Summary::default();
+        let mut hosts: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for block in findings {
+            if let FindingsBlock::HttpTransaction(f) = block {
+                if let Some(host) = uri_host(&f.uri) {
+                    hosts.insert(host);
+                }
+            }
+            for v in block.violations() {
+                summary.total += 1;
+                summary.by_severity[severity_index(v.severity)] += 1;
+            }
+        }
+        summary.hosts = hosts.len();
+        summary
+    }
+
+    /// The same counts, plus the two totals every caller has to hand.
+    fn counted(findings: &[FindingsBlock], transactions: usize, websockets: usize) -> Self {
+        Self {
+            transactions,
+            websockets,
+            ..Self::of(findings)
+        }
+    }
+
+    /// How many findings would trip the gate, when there is one.
+    fn failing(&self) -> usize {
+        let Some(fail_on) = self.fail_on else {
+            return 0;
+        };
+        [
+            lint::Severity::Info,
+            lint::Severity::Warn,
+            lint::Severity::Error,
+        ]
+        .iter()
+        .filter(|s| **s >= fail_on)
+        .map(|s| self.by_severity[severity_index(*s)])
+        .sum()
+    }
+}
+
+fn severity_index(severity: lint::Severity) -> usize {
+    match severity {
+        lint::Severity::Info => 0,
+        lint::Severity::Warn => 1,
+        lint::Severity::Error => 2,
+    }
+}
+
+/// The lines a text report ends with.
 ///
 /// Its own function because a session that printed its findings as they
 /// happened has nothing left to print *but* this, and a second copy of the
 /// sentence is a second thing to keep in step with the first. It was two
 /// copies, and the one the browsing session used had already grown a websocket
 /// clause the other spelled differently.
-fn render_summary(total: usize, transaction_count: usize, websocket_count: usize) -> String {
+///
+/// Three lines at most, and each earns its place by being absent when it has
+/// nothing to say: what was found, what was hidden and by which flag, and what
+/// the gate made of it. The severity breakdown is what turns a count into a
+/// verdict — `12 findings` says nothing about whether to look, and
+/// `12 findings (2 errors, …)` says it in the first four words.
+fn render_summary(summary: &Summary, opts: RenderOpts) -> String {
     use std::fmt::Write;
-    let mut out = format!("\n{total} violation(s) in {transaction_count} transaction(s)");
-    if websocket_count > 0 {
-        let _ = write!(out, " and {websocket_count} websocket session(s)");
+    let styles = opts.styles;
+    let mut out = String::from("\n");
+
+    // A glyph only where it will render as one: it is drawn from the same
+    // decision that says a terminal is on the other end, and a redirect that
+    // caught `✖` in a log has gained nothing over the word beside it.
+    let glyph = |mark: &str, severity: lint::Severity| {
+        if styles.is_enabled() {
+            format!("{}  ", styles.paint(styles.severity(severity), mark))
+        } else {
+            String::new()
+        }
+    };
+
+    if summary.total == 0 {
+        let _ = write!(
+            out,
+            "{}no findings in {}",
+            glyph("✔", lint::Severity::Info),
+            plural(summary.transactions, "transaction")
+        );
+    } else {
+        let worst = if summary.by_severity[2] > 0 {
+            (lint::Severity::Error, "✖")
+        } else if summary.by_severity[1] > 0 {
+            (lint::Severity::Warn, "▲")
+        } else {
+            (lint::Severity::Info, "•")
+        };
+        let mut parts: Vec<String> = Vec::new();
+        for (severity, word) in [
+            (lint::Severity::Error, "error"),
+            (lint::Severity::Warn, "warning"),
+        ] {
+            let n = summary.by_severity[severity_index(severity)];
+            if n > 0 {
+                parts.push(styles.paint(styles.severity(severity), &plural(n, word)));
+            }
+        }
+        // `info` is already plural and takes no `s`, which is exactly the kind
+        // of thing `violation(s)` existed to avoid deciding.
+        let n = summary.by_severity[0];
+        if n > 0 {
+            parts.push(styles.paint(styles.severity(lint::Severity::Info), &format!("{n} info")));
+        }
+        let _ = write!(
+            out,
+            "{}{} ({}) in {}",
+            glyph(worst.1, worst.0),
+            styles.paint(styles.name(), &plural(summary.total, "finding")),
+            parts.join(", "),
+            plural(summary.transactions, "transaction")
+        );
+    }
+    if summary.websockets > 0 {
+        let _ = write!(
+            out,
+            " and {}",
+            plural(summary.websockets, "websocket session")
+        );
+    }
+    if summary.hosts > 1 {
+        let _ = write!(out, " across {}", plural(summary.hosts, "host"));
     }
     out.push('\n');
+
+    // One line for everything the report is not showing, whatever the reason,
+    // each clause naming the flag that would show it. It was one clause that
+    // grew per cause, so a report narrowed twice said so once.
+    let mut hidden: Vec<String> = Vec::new();
+    if summary.hidden_hosts > 0 {
+        hidden.push(format!(
+            "{} on other hosts in {} (--all-hosts)",
+            summary.hidden_hosts,
+            plural(summary.hidden_host_transactions, "transaction")
+        ));
+    }
+    if summary.hidden_severity > 0 {
+        hidden.push(format!(
+            "{} below {} (--min-severity)",
+            summary.hidden_severity,
+            summary.min_severity.name()
+        ));
+    }
+    if !hidden.is_empty() {
+        let _ = writeln!(
+            out,
+            "{}",
+            styles.paint(styles.dim(), &format!("hidden: {}", hidden.join("; ")))
+        );
+    }
+
+    // Why this run is about to exit non-zero, said before it does. A gate that
+    // fails without naming what tripped it sends the reader back through the
+    // report to work it out.
+    let failing = summary.failing();
+    if failing > 0 {
+        if let Some(fail_on) = summary.fail_on {
+            let _ = writeln!(
+                out,
+                "{}",
+                styles.paint(
+                    styles.dim(),
+                    &format!("failing: --fail-on {} matched {failing}", fail_on.name())
+                )
+            );
+        }
+    }
     out
 }
 
@@ -1094,6 +1910,9 @@ struct ReportStyle {
     /// promised since it existed. The *text* report is on stderr either way,
     /// and so is every diagnostic. Which one a session is comes off its driver.
     json_to_stdout: bool,
+    /// The gate this session's exit code will be read through, so the summary
+    /// can say what tripped it.
+    fail_on: Option<lint::Severity>,
 }
 
 /// Print one session's report, and hand back the findings a gate would read.
@@ -1109,6 +1928,10 @@ fn report_session(
     style: ReportStyle,
 ) -> anyhow::Result<Vec<FindingsBlock>> {
     let report = recorded_findings(records, global.min_severity());
+    // The report goes to stderr on a session whatever the format, except the
+    // JSON document a browsing session puts on stdout — so that is the stream
+    // to ask about colour, and the one clause below that changes it.
+    let opts = global.render_opts(is_terminal(Stream::Stderr));
 
     // The summary has to divide like with like: a scoped violation count over
     // an unscoped transaction count reads as "3 violation(s) in 480
@@ -1122,16 +1945,19 @@ fn report_session(
         .count();
 
     let (findings, elsewhere) = scope.apply(report.findings);
-    let total: usize = findings.iter().map(|f| f.violations().len()).sum();
+
+    let mut summary = Summary::counted(&findings, in_scope_transactions, report.websocket_count);
+    summary.hidden_hosts = elsewhere;
+    summary.hidden_host_transactions = report
+        .transaction_count
+        .saturating_sub(in_scope_transactions);
+    summary.hidden_severity = report.suppressed;
+    summary.min_severity = global.min_severity();
+    summary.fail_on = style.fail_on;
 
     match global.format() {
         OutputFormat::Json => {
-            let document = render_lint_report(
-                &findings,
-                in_scope_transactions,
-                report.websocket_count,
-                OutputFormat::Json,
-            )?;
+            let document = render_lint_report(&findings, &summary, OutputFormat::Json, opts)?;
             if style.json_to_stdout {
                 write_stdout(&document)?;
             } else {
@@ -1150,29 +1976,14 @@ fn report_session(
         }
         OutputFormat::Text => {
             let mut out = String::new();
-            // A live session already printed the blocks; only the tally is new.
-            if !style.live {
-                for block in &findings {
-                    out.push_str(&render_findings_block(block)?);
-                }
+            // A live session already printed its blocks in capture order, so
+            // only the tally is new — unless the report is collapsed, in which
+            // case the live pass showed each defect once and *without* a count,
+            // and the grouped table is the thing it was counting toward.
+            if !style.live || opts.collapse() {
+                out.push_str(&render_findings(&findings, opts)?);
             }
-            out.push_str(&render_summary(
-                total,
-                in_scope_transactions,
-                report.websocket_count,
-            ));
-            if elsewhere > 0 {
-                // Said rather than silently dropped: a reader has to be able to
-                // tell "clean" from "scoped away from the mess". The other
-                // transaction count goes with it, so both halves of the session
-                // are accounted for.
-                let others = report
-                    .transaction_count
-                    .saturating_sub(in_scope_transactions);
-                out.push_str(&format!(
-                    "{elsewhere} more violation(s) in {others} transaction(s) on other hosts, not shown (--all-hosts)\n"
-                ));
-            }
+            out.push_str(&render_summary(&summary, opts));
             write_stderr(&out)?;
         }
     }
@@ -1257,6 +2068,7 @@ async fn run_wrapped(args: RunArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         ReportStyle {
             live: false,
             json_to_stdout: false,
+            fail_on: args.session.fail_on.map(Into::into),
         },
     )?;
     Ok(session_exit(
@@ -1416,6 +2228,7 @@ async fn drive(
             session.subscribe(),
             scope.clone(),
             global.min_severity(),
+            global.render_opts(is_terminal(Stream::Stderr)),
         ))
     });
 
@@ -1453,6 +2266,7 @@ async fn drive(
             // A streaming session already printed the blocks as they committed.
             live: streaming,
             json_to_stdout: driver.json_to_stdout(),
+            fail_on: session_args.fail_on.map(Into::into),
         },
     )?;
     Ok(session_exit(exit, session_args.fail_on, &findings))
@@ -1515,7 +2329,16 @@ async fn live_reporter(
     mut events: tokio::sync::broadcast::Receiver<std::sync::Arc<capture::CaptureEnvelope>>,
     scope: HostScope,
     min_severity: lint::Severity,
+    opts: RenderOpts,
 ) {
+    // What a collapsed report has already said once. A session that repeats
+    // one defect on every request would otherwise scroll the interesting
+    // findings off the top with copies of the boring one — and under `--group`
+    // or `-q` the reader has asked for exactly the opposite. Nothing is lost:
+    // the end-of-session table names every defect with the count this was
+    // accumulating toward, so the suppressed lines are reported as a number
+    // rather than not reported.
+    let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     loop {
         let envelope = match events.recv().await {
             Ok(envelope) => envelope,
@@ -1532,13 +2355,30 @@ async fn live_reporter(
         // session that was only counted and never printed would show up as a
         // number with nothing behind it — it commits once, when the session
         // ends, which is exactly when there is something to say about it.
-        let Some(block) = gated_block(&envelope.record, min_severity) else {
+        let Some(mut block) = gated_block(&envelope.record, min_severity).block else {
             continue;
         };
         if !scope.keeps(&block) {
             continue;
         }
-        if let Ok(text) = render_findings_block(&block) {
+        if opts.collapse() {
+            block.retain_violations(|v| {
+                seen.insert((violation_name(v).to_string(), v.message.clone()))
+            });
+            if block.violations().is_empty() {
+                continue;
+            }
+        }
+        // `-q` promises one line per defect, and a live session is still that
+        // tier. Everything else stays a transcript: a session someone is
+        // watching wants the request the finding was on, which the brief line
+        // deliberately does not carry.
+        let rendered = if opts.detail == Detail::Brief {
+            render_findings(std::slice::from_ref(&block), opts)
+        } else {
+            render_findings_block(&block, opts)
+        };
+        if let Ok(text) = rendered {
             let _ = write_stderr(&text);
         }
     }
@@ -1569,13 +2409,7 @@ async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
         // Non-zero exit when findings exist, so CI fails on a dirty capture;
         // real errors (bad config / missing file) still bubble up as `Err`.
         Some(Command::LintCaptures(args)) => {
-            let found = lint_app(
-                global.config.as_deref(),
-                &args.path(&global)?,
-                global.format(),
-                global.min_severity(),
-            )
-            .await?;
+            let found = lint_app(global.config.as_deref(), &args.path(&global)?, &global).await?;
             Ok(if found > 0 { 1 } else { 0 })
         }
         Some(Command::Rules(args)) => match args.command {
@@ -1588,7 +2422,11 @@ async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
                     Some(path) => Some(load_validated_config(Some(path)).await?),
                     None => None,
                 };
-                write_stdout(&rules_list(global.format(), cfg.as_deref())?)?;
+                write_stdout(&rules_list(
+                    global.format(),
+                    cfg.as_deref(),
+                    global.render_opts(is_terminal(Stream::Stdout)).styles,
+                )?)?;
                 Ok(0)
             }
         },
@@ -1617,6 +2455,14 @@ mod tests {
     use clap::{CommandFactory, Parser};
     use tokio::fs;
     use uuid::Uuid;
+
+    /// The options a test that is not about the options would have typed:
+    /// nothing. Defaults throughout, which is text format, `info` and no
+    /// colour — and no colour is the one that matters, because a test asserting
+    /// on report text must not have to know about escape sequences.
+    fn plain_global() -> GlobalArgs {
+        GlobalArgs::default()
+    }
 
     /// A global option parses on either side of the subcommand, and means the
     /// same thing in both places.
@@ -1903,8 +2749,7 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await?;
         assert_eq!(found, 1);
@@ -1932,8 +2777,7 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await?;
         assert_eq!(found, 0);
@@ -1953,8 +2797,7 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await?;
         assert_eq!(found, 0);
@@ -1971,8 +2814,7 @@ enabled = true
         let result = lint_app(
             Some(cfg.to_str().unwrap()),
             "/nonexistent/does-not-exist.jsonl",
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await;
         assert!(result.is_err());
@@ -2033,8 +2875,7 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await?;
         assert_eq!(found, 1);
@@ -2064,8 +2905,7 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await?;
         assert_eq!(found, 1);
@@ -2096,8 +2936,7 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await?;
         assert_eq!(found, 0);
@@ -2135,8 +2974,7 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             tmp.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await?;
         assert_eq!(found, 0);
@@ -2162,8 +3000,10 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Warn,
+            &GlobalArgs {
+                min_severity: Some(SeverityArg::Warn),
+                ..plain_global()
+            },
         )
         .await?;
         assert_eq!(found, 0, "info finding must not survive a warn gate");
@@ -2172,8 +3012,7 @@ enabled = true
         let found = lint_app(
             Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
-            OutputFormat::Text,
-            lint::Severity::Info,
+            &plain_global(),
         )
         .await?;
         assert_eq!(found, 1);
@@ -2302,7 +3141,7 @@ enabled = true
         // because it builds them with the same function.
         let live: Vec<_> = records
             .iter()
-            .filter_map(|record| gated_block(record, lint::Severity::Warn))
+            .filter_map(|record| gated_block(record, lint::Severity::Warn).block)
             .collect();
         assert_eq!(live.len(), report.findings.len());
     }
@@ -2343,9 +3182,434 @@ enabled = true
         })]
     }
 
+    /// A block of `n` identical findings on `n` different targets, for the
+    /// tests about collapsing and counting.
+    fn repeated_findings(n: usize) -> Vec<FindingsBlock> {
+        (0..n)
+            .map(|i| {
+                FindingsBlock::HttpTransaction(TransactionFindings {
+                    method: "GET".to_string(),
+                    uri: format!("http://example.test/{i}"),
+                    status: Some(200),
+                    violations: vec![sample_violation()],
+                })
+            })
+            .collect()
+    }
+
+    /// **The shape a pipe gets has not changed.** One line per finding,
+    /// severity padded to five, the name, the message, the citation in
+    /// brackets with its URL — everything a script or a `grep` has ever read
+    /// out of this tool. The new shapes are all behind a width, a flag, or a
+    /// terminal; none of them is behind a default that would break a pipeline
+    /// nobody was asked about.
+    #[test]
+    fn a_piped_report_keeps_one_line_per_finding() -> anyhow::Result<()> {
+        let mut v = sample_violation();
+        v.cite = Some(lint::SpecCitation {
+            spec: "RFC 9111".to_string(),
+            section: Some("5.2".to_string()),
+            url: "https://example.test/rfc9111#section-5.2".to_string(),
+        });
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![v],
+        })];
+        let out = render_findings(&findings, RenderOpts::plain())?;
+        assert_eq!(
+            out,
+            "GET http://example.test/ -> 200\n  warn  cache_control_present  missing Cache-Control  \
+             [RFC 9111 §5.2 https://example.test/rfc9111#section-5.2]\n",
+            "{out}"
+        );
+        Ok(())
+    }
+
+    /// Given a width, the name takes its own line and the message is indented
+    /// under it. The alternative at a real terminal width is not a long line
+    /// but the same line soft-wrapped into rows with no indent at all, which
+    /// is the severity column destroying itself.
+    #[test]
+    fn a_width_indents_the_message_under_the_name() -> anyhow::Result<()> {
+        let opts = RenderOpts {
+            wrap: Some(48),
+            ..RenderOpts::plain()
+        };
+        let out = render_findings(&sample_findings(), opts)?;
+        assert!(out.contains("  warn  cache_control_present\n"), "{out}");
+        assert!(out.contains("\n        missing Cache-Control\n"), "{out}");
+        for line in out.lines() {
+            assert!(line.chars().count() <= 48, "too wide: {line:?}");
+        }
+        Ok(())
+    }
+
+    /// Grouping collapses what reads identically and **counts it**, which is
+    /// the whole difference between this and the deduplication that was
+    /// abandoned: nothing is dropped, so six findings on six targets stay six
+    /// in the total and say so on the entry.
+    #[test]
+    fn grouping_counts_rather_than_drops() -> anyhow::Result<()> {
+        let findings = repeated_findings(6);
+        let opts = RenderOpts {
+            group: true,
+            ..RenderOpts::plain()
+        };
+        let out = render_findings(&findings, opts)?;
+        assert_eq!(out.matches("cache_control_present").count(), 1, "{out}");
+        assert!(out.contains("×6"), "{out}");
+        // Three targets shown, and the rest counted rather than dropped.
+        assert!(out.contains("GET http://example.test/0"), "{out}");
+        assert!(out.contains("and 3 other targets"), "{out}");
+        // And the tally still knows there were six.
+        let summary = Summary::counted(&findings, 6, 0);
+        assert!(
+            render_summary(&summary, opts).contains("6 findings"),
+            "{out}"
+        );
+        Ok(())
+    }
+
+    /// Two findings that merely *read* alike are two entries, not one. The key
+    /// is the whole rendered identity, so a parameterised message naming two
+    /// different values never collapses — which is what makes `--group` safe
+    /// to switch on without reading the catalogue first.
+    #[test]
+    fn grouping_keys_on_the_whole_message() -> anyhow::Result<()> {
+        let mut other = sample_violation();
+        other.message = "missing Expires".to_string();
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![sample_violation(), other],
+        })];
+        let groups = group_findings(&findings);
+        assert_eq!(groups.len(), 2);
+        assert!(groups.iter().all(|g| g.count == 1));
+        Ok(())
+    }
+
+    /// The loudest defect leads, whatever order the capture held them in.
+    #[test]
+    fn grouping_puts_the_loudest_first() {
+        let mut loud = sample_violation();
+        loud.severity = lint::Severity::Error;
+        loud.message = "malformed".to_string();
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![sample_violation(), loud],
+        })];
+        let groups = group_findings(&findings);
+        assert_eq!(groups[0].severity, lint::Severity::Error);
+    }
+
+    /// `-q` prints the catalogue's own one-line title for the defect — the
+    /// field 537 entries carry and the report never showed, written to be read
+    /// out of context, which is exactly this tier's job.
+    #[test]
+    fn the_brief_tier_prints_the_catalogue_title() -> anyhow::Result<()> {
+        // A real catalogue id, so the lookup is the one a real finding does.
+        let id = "cache_control_missing";
+        let def = violations::by_id(id).expect("a catalogue entry for a real id");
+        let mut v = sample_violation();
+        v.violation = id.to_string();
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![v],
+        })];
+        let out = render_findings(
+            &findings,
+            RenderOpts {
+                detail: Detail::Brief,
+                ..RenderOpts::plain()
+            },
+        )?;
+        assert_eq!(out, format!("warn  ×1  {}\n", def.title), "{out}");
+        // And the message it replaced is not on the line.
+        assert!(!out.contains("missing Cache-Control"), "{out}");
+        Ok(())
+    }
+
+    /// A finding whose defect the catalogue does not know still says
+    /// something: the message, not the bare id, which is already on the line
+    /// in the ungrouped tiers and would be the only content of this one.
+    #[test]
+    fn the_brief_tier_falls_back_to_the_message() {
+        assert_eq!(
+            violation_title(&sample_violation()),
+            "missing Cache-Control"
+        );
+    }
+
+    /// **The citation compacts only because the label is clickable.** Under
+    /// colour it is the label alone with the URL behind an OSC 8 hyperlink;
+    /// without colour there is no hyperlink, so the URL is printed exactly as
+    /// it always was rather than being silently lost from a report in a file.
+    #[test]
+    fn a_citation_keeps_its_url_wherever_it_cannot_be_a_link() {
+        let cite = lint::SpecCitation {
+            spec: "RFC 9110".to_string(),
+            section: Some("12.5.3".to_string()),
+            url: "https://example.test/rfc9110#section-12.5.3".to_string(),
+        };
+        let plain = render_cite(&cite, RenderOpts::plain());
+        assert_eq!(
+            plain,
+            "[RFC 9110 §12.5.3 https://example.test/rfc9110#section-12.5.3]"
+        );
+
+        let coloured = render_cite(
+            &cite,
+            RenderOpts {
+                styles: style::Styles::new(true),
+                ..RenderOpts::plain()
+            },
+        );
+        assert!(coloured.contains("\x1b]8;;https://example.test/rfc9110#section-12.5.3"));
+        assert!(coloured.contains("RFC 9110 §12.5.3"));
+        // The URL is a hyperlink target, not text: it appears once, in the
+        // escape, and never beside the label it replaced.
+        assert_eq!(coloured.matches("https://").count(), 1, "{coloured:?}");
+    }
+
+    /// `-v` says the four things the line has no room for, and names the
+    /// stanza that switches the defect off.
+    #[test]
+    fn the_full_tier_names_the_rule_the_docs_and_the_off_switch() -> anyhow::Result<()> {
+        let mut v = sample_violation();
+        v.violation = "cache_control_missing".to_string();
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![v],
+        })];
+        let out = render_findings(
+            &findings,
+            RenderOpts {
+                detail: Detail::Full,
+                ..RenderOpts::plain()
+            },
+        )?;
+        assert!(out.contains("rule  cache_control_present"), "{out}");
+        assert!(
+            out.contains("docs  docs/violations/cache_control_missing.md"),
+            "{out}"
+        );
+        assert!(
+            out.contains("hush  [violations.cache_control_missing]"),
+            "{out}"
+        );
+        assert!(out.contains("enabled = false"), "{out}");
+        Ok(())
+    }
+
+    /// **A defect that names two governing statements still has a `spec`
+    /// block.** A finding carries a citation only when its defect has exactly
+    /// one, so reading the references off the finding left the 19 entries that
+    /// name two with nothing under `spec` — and their catalogue notes printed
+    /// anyway, indented under no heading at all.
+    #[test]
+    fn the_full_tier_reads_its_references_from_the_catalogue() -> anyhow::Result<()> {
+        // A real defect with two governing statements and therefore no
+        // citation on the finding, which is the shape that used to orphan.
+        let two = violations::VIOLATIONS
+            .iter()
+            .find(|d| d.spec.len() > 1)
+            .expect("the catalogue holds a defect with two governing statements");
+        let mut v = sample_violation();
+        v.violation = two.id.to_string();
+        v.cite = None;
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![v],
+        })];
+        let out = render_findings(
+            &findings,
+            RenderOpts {
+                detail: Detail::Full,
+                ..RenderOpts::plain()
+            },
+        )?;
+        assert_eq!(out.matches("spec  ").count(), two.spec.len(), "{out}");
+        for spec in two.spec {
+            assert!(out.contains(spec.url), "{out}");
+            // Every note sits under a heading, never on its own.
+            if !spec.note.is_empty() {
+                assert!(out.contains(spec.note), "{out}");
+            }
+        }
+        Ok(())
+    }
+
+    /// A clean report says so in words, and says how much it looked at — a
+    /// count of zero over no denominator is the shape a broken interception
+    /// and a tidy run both used to print.
+    #[test]
+    fn a_clean_report_says_what_it_looked_at() {
+        let summary = Summary::counted(&[], 12, 0);
+        assert_eq!(
+            render_summary(&summary, RenderOpts::plain()),
+            "\nno findings in 12 transactions\n"
+        );
+    }
+
+    /// Everything the report is not showing goes on one line, each clause
+    /// naming the flag that would show it. It was one clause that grew per
+    /// cause, so a report narrowed twice said so once.
+    #[test]
+    fn every_suppression_is_named_on_one_line() {
+        let findings = sample_findings();
+        let summary = Summary {
+            hidden_hosts: 26,
+            hidden_host_transactions: 7,
+            hidden_severity: 4,
+            min_severity: lint::Severity::Warn,
+            ..Summary::counted(&findings, 6, 0)
+        };
+        let out = render_summary(&summary, RenderOpts::plain());
+        assert!(
+            out.contains(
+                "hidden: 26 on other hosts in 7 transactions (--all-hosts); \
+                 4 below warn (--min-severity)\n"
+            ),
+            "{out}"
+        );
+    }
+
+    /// A gate that fails says what tripped it, before the exit code does.
+    #[test]
+    fn a_failing_gate_says_what_matched() {
+        let mut v = sample_violation();
+        v.severity = lint::Severity::Error;
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![v, sample_violation()],
+        })];
+        let summary = Summary {
+            fail_on: Some(lint::Severity::Warn),
+            ..Summary::counted(&findings, 1, 0)
+        };
+        let out = render_summary(&summary, RenderOpts::plain());
+        assert!(out.contains("failing: --fail-on warn matched 2"), "{out}");
+
+        // And a gate nobody asked for says nothing at all.
+        let quiet = Summary::counted(&findings, 1, 0);
+        assert!(
+            !render_summary(&quiet, RenderOpts::plain()).contains("failing:"),
+            "a report with no gate should not mention one"
+        );
+    }
+
+    /// The summary counts hosts only when there is more than one to count —
+    /// `across 1 host` is a clause that never tells anybody anything.
+    #[test]
+    fn hosts_are_counted_only_when_there_are_several() {
+        let findings = vec![
+            FindingsBlock::HttpTransaction(TransactionFindings {
+                method: "GET".to_string(),
+                uri: "http://a.test/".to_string(),
+                status: Some(200),
+                violations: vec![sample_violation()],
+            }),
+            FindingsBlock::HttpTransaction(TransactionFindings {
+                method: "GET".to_string(),
+                uri: "http://b.test/".to_string(),
+                status: Some(200),
+                violations: vec![sample_violation()],
+            }),
+        ];
+        let out = render_summary(&Summary::counted(&findings, 2, 0), RenderOpts::plain());
+        assert!(out.contains("across 2 hosts"), "{out}");
+        assert!(!render_summary(
+            &Summary::counted(&sample_findings(), 1, 0),
+            RenderOpts::plain()
+        )
+        .contains("across"),);
+    }
+
+    /// A word is never broken, whatever it costs: half a URL cannot be
+    /// clicked, copied or recognised, and a long line can be all three.
+    #[test]
+    fn wrapping_never_breaks_a_word() {
+        let long = "https://example.test/a/very/long/path/that/exceeds/the/column/on/its/own";
+        let lines = wrap_text(&format!("see {long} now"), 0, 30);
+        assert!(lines.iter().any(|l| l == long), "{lines:?}");
+        assert_eq!(
+            lines.concat().replace(' ', "").len(),
+            format!("see{long}now").len()
+        );
+    }
+
+    /// A target too wide for its column loses its middle, not its end: the
+    /// head names the host and the tail names the resource, and the part a
+    /// reader skims is the part between them.
+    #[test]
+    fn elision_keeps_both_ends() {
+        let out = elide_middle("https://example.test/orders/1234/items", 20);
+        assert_eq!(out.chars().count(), 20);
+        assert!(out.starts_with("https://ex"), "{out}");
+        assert!(out.ends_with("items"), "{out}");
+        // Short enough to fit is left exactly alone.
+        assert_eq!(elide_middle("short", 20), "short");
+    }
+
+    /// `--width 0` means "do not wrap", not "wrap at nothing".
+    #[test]
+    fn width_zero_is_not_a_column() {
+        let global = GlobalArgs {
+            width: Some(0),
+            ..GlobalArgs::default()
+        };
+        assert_eq!(global.wrap(true), None);
+        // And a stream that is not a terminal is never wrapped, whatever
+        // `COLUMNS` said, because the only reader there is another program.
+        assert_eq!(GlobalArgs::default().wrap(false), None);
+    }
+
+    /// `-q` and `-v` are the two ends of one dial and clap refuses both.
+    #[test]
+    fn the_two_verbosity_flags_are_exclusive() {
+        assert!(
+            Cli::try_parse_from(["lint-http", "-q", "-v", "lint-captures", "x.jsonl"]).is_err()
+        );
+        for (argv, detail) in [
+            (
+                vec!["lint-http", "lint-captures", "x.jsonl"],
+                Detail::Normal,
+            ),
+            (
+                vec!["lint-http", "-q", "lint-captures", "x.jsonl"],
+                Detail::Brief,
+            ),
+            (
+                vec!["lint-http", "lint-captures", "-v", "x.jsonl"],
+                Detail::Full,
+            ),
+        ] {
+            assert_eq!(Cli::parse_from(&argv).global.detail(), detail, "{argv:?}");
+        }
+    }
+
     #[test]
     fn render_lint_report_json_mirrors_the_text_block() -> anyhow::Result<()> {
-        let out = render_lint_report(&sample_findings(), 3, 0, OutputFormat::Json)?;
+        let out = render_lint_report(
+            &sample_findings(),
+            &Summary::counted(&sample_findings(), 3, 0),
+            OutputFormat::Json,
+            RenderOpts::plain(),
+        )?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0]["kind"], "http_transaction");
@@ -2364,7 +3628,12 @@ enabled = true
             status: None,
             violations: vec![sample_violation()],
         })];
-        let out = render_lint_report(&findings, 1, 0, OutputFormat::Json)?;
+        let out = render_lint_report(
+            &findings,
+            &Summary::counted(&findings, 1, 0),
+            OutputFormat::Json,
+            RenderOpts::plain(),
+        )?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert!(parsed[0]["status"].is_null());
         Ok(())
@@ -2384,7 +3653,12 @@ enabled = true
             status: Some(200),
             violations: vec![v, sample_violation()],
         })];
-        let out = render_lint_report(&findings, 1, 0, OutputFormat::Text)?;
+        let out = render_lint_report(
+            &findings,
+            &Summary::counted(&findings, 1, 0),
+            OutputFormat::Text,
+            RenderOpts::plain(),
+        )?;
         assert!(
             out.contains("[RFC 9111 §5.2 https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2]"),
             "{out}"
@@ -2408,17 +3682,33 @@ enabled = true
             status: Some(200),
             violations: vec![v, sample_violation()],
         })];
-        let out = render_lint_report(&findings, 1, 0, OutputFormat::Text)?;
+        let out = render_lint_report(
+            &findings,
+            &Summary::counted(&findings, 1, 0),
+            OutputFormat::Text,
+            RenderOpts::plain(),
+        )?;
+        // The defect leads, because it is the unit of report — the name
+        // `[violations.*]` tunes and the one a capture is grepped for. The
+        // rule that found it is a `-v` away, and the two used to be printed
+        // together on every line with their shared stem spelled twice.
         assert!(
-            out.contains("warn  cache_control_present/cache_control_missing  missing"),
+            out.contains("warn  cache_control_missing  missing"),
             "{out}"
         );
+        // A finding that names no defect still prints under its rule id: that
+        // is the only name it has.
         assert!(
             out.contains("warn  cache_control_present  missing"),
             "{out}"
         );
 
-        let json = render_lint_report(&findings, 1, 0, OutputFormat::Json)?;
+        let json = render_lint_report(
+            &findings,
+            &Summary::counted(&findings, 1, 0),
+            OutputFormat::Json,
+            RenderOpts::plain(),
+        )?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
         assert_eq!(
             parsed[0]["violations"][0]["violation"],
@@ -2430,11 +3720,21 @@ enabled = true
 
     #[test]
     fn render_lint_report_text_has_summary_line() -> anyhow::Result<()> {
-        let out = render_lint_report(&sample_findings(), 3, 0, OutputFormat::Text)?;
+        let out = render_lint_report(
+            &sample_findings(),
+            &Summary::counted(&sample_findings(), 3, 0),
+            OutputFormat::Text,
+            RenderOpts::plain(),
+        )?;
         assert!(out.contains("GET http://example.test/ -> 200"));
         assert!(out.contains("warn  cache_control_present"));
         // No websocket sessions in the capture → summary is the pure-HTTP form.
-        assert!(out.ends_with("1 violation(s) in 3 transaction(s)\n"));
+        // Real plurals, and the severity breakdown that turns a count into a
+        // verdict: `1 finding` says nothing about whether to look.
+        assert!(
+            out.ends_with("1 finding (1 warning) in 3 transactions\n"),
+            "{out}"
+        );
         Ok(())
     }
 
@@ -2449,13 +3749,26 @@ enabled = true
             violations: vec![sample_violation()],
         })];
 
-        let text = render_lint_report(&findings, 0, 2, OutputFormat::Text)?;
+        let text = render_lint_report(
+            &findings,
+            &Summary::counted(&findings, 0, 2),
+            OutputFormat::Text,
+            RenderOpts::plain(),
+        )?;
         assert!(text.contains(&format!(
             "websocket session {session_id} (upgrade {transaction_id}) -> close 1000"
         )));
-        assert!(text.ends_with("1 violation(s) in 0 transaction(s) and 2 websocket session(s)\n"));
+        assert!(
+            text.ends_with("1 finding (1 warning) in 0 transactions and 2 websocket sessions\n"),
+            "{text}"
+        );
 
-        let json = render_lint_report(&findings, 0, 2, OutputFormat::Json)?;
+        let json = render_lint_report(
+            &findings,
+            &Summary::counted(&findings, 0, 2),
+            OutputFormat::Json,
+            RenderOpts::plain(),
+        )?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
         assert_eq!(parsed[0]["kind"], "websocket_session");
         assert_eq!(parsed[0]["session_id"], session_id.to_string());
@@ -2988,6 +4301,7 @@ enabled = true
             ReportStyle {
                 live: false,
                 json_to_stdout: false,
+                fail_on: None,
             },
         )?;
         assert_eq!(findings.len(), 1, "one block, and it is the first party's");
@@ -3001,6 +4315,7 @@ enabled = true
             ReportStyle {
                 live: false,
                 json_to_stdout: false,
+                fail_on: None,
             },
         )?;
         assert_eq!(every.len(), 2);
@@ -3026,6 +4341,7 @@ enabled = true
                 ReportStyle {
                     live: true,
                     json_to_stdout: false,
+                    fail_on: None,
                 },
             ),
             (
@@ -3033,6 +4349,7 @@ enabled = true
                 ReportStyle {
                     live: false,
                     json_to_stdout: false,
+                    fail_on: None,
                 },
             ),
             (
@@ -3040,6 +4357,7 @@ enabled = true
                 ReportStyle {
                     live: false,
                     json_to_stdout: true,
+                    fail_on: None,
                 },
             ),
             (
@@ -3047,6 +4365,7 @@ enabled = true
                 ReportStyle {
                     live: false,
                     json_to_stdout: false,
+                    fail_on: None,
                 },
             ),
         ];
@@ -3228,7 +4547,7 @@ enabled = true
 
     #[test]
     fn rules_list_text_includes_a_known_rule() -> anyhow::Result<()> {
-        let out = rules_list(OutputFormat::Text, None)?;
+        let out = rules_list(OutputFormat::Text, None, style::Styles::default())?;
         // The catalogue lists transaction and protocol rules with a scope label.
         assert!(out.contains("cache_control_present"));
         assert!(out.contains("[server]"));
@@ -3241,7 +4560,7 @@ enabled = true
 
     #[test]
     fn rules_list_json_is_an_array_of_metadata() -> anyhow::Result<()> {
-        let out = rules_list(OutputFormat::Json, None)?;
+        let out = rules_list(OutputFormat::Json, None, style::Styles::default())?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert!(!parsed.is_empty());
         let cc = parsed
@@ -3259,7 +4578,7 @@ enabled = true
 
     #[test]
     fn rules_list_json_examples_carry_compliance_and_snippet() -> anyhow::Result<()> {
-        let out = rules_list(OutputFormat::Json, None)?;
+        let out = rules_list(OutputFormat::Json, None, style::Styles::default())?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         // At least one rule in the catalogue documents examples.
         let with_examples = parsed
@@ -3282,7 +4601,7 @@ enabled = true
         let cfg_path = write_cache_control_config(&mut temp).await?;
         let cfg = load_validated_config(Some(cfg_path.to_str().unwrap())).await?;
 
-        let text = rules_list(OutputFormat::Text, Some(&cfg))?;
+        let text = rules_list(OutputFormat::Text, Some(&cfg), style::Styles::default())?;
         let line = text
             .lines()
             .find(|l| l.starts_with("cache_control_present"))
@@ -3290,7 +4609,7 @@ enabled = true
         assert!(line.contains(" enabled "));
         assert!(text.contains(" disabled "));
 
-        let json = rules_list(OutputFormat::Json, Some(&cfg))?;
+        let json = rules_list(OutputFormat::Json, Some(&cfg), style::Styles::default())?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
         let cc = parsed
             .iter()

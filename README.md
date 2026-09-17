@@ -36,11 +36,22 @@ lint-http run -- curl https://example.com
 <!doctype html>...
 
 GET https://example.com/ -> 200
-  info  cache_control_present/cache_control_missing  Response 200 without Cache-Control header  [RFC 9111 §4.2.2 ...]
-  info  charset_present/content_type_charset_missing  Text-based Content-Type header missing charset parameter.  [RFC 9110 §8.3.2 ...]
+  info  cache_control_missing
+        Response 200 without Cache-Control header
+        RFC 9111 §4.2.2
+  info  content_type_charset_missing
+        Text-based Content-Type header missing charset parameter.
+        RFC 9110 §8.3.2
 
-2 violation(s) in 1 transaction(s)
+2 findings (2 info) in 1 transaction
 ```
+
+The finding is named by the **defect** — the name `[violations.*]` tunes and the
+one to grep a capture for; `-v` adds the rule that reported it, the
+specification text, and the stanza that switches it off. The citation is a
+terminal hyperlink, so `RFC 9111 §4.2.2` opens the section. Piped rather than
+watched, the same report is one line per finding with the URL spelled out, which
+is what it has always been.
 
 It is not curl-specific — the proxy lints whatever crosses it, so `run` works on
 anything that reads the usual proxy and CA environment variables:
@@ -95,10 +106,22 @@ lint-http use browser https://example.com
 ```
 chromium through 127.0.0.1:34013 — reporting example.com
 GET https://example.com/ -> 200
-  info  cache_control_present/cache_control_missing  Response 200 without Cache-Control header  [RFC 9111 §4.2.2 ...]
+  info  cache_control_missing
+        Response 200 without Cache-Control header
+        RFC 9111 §4.2.2
 
-3 violation(s) in 8 transaction(s)
-26 more violation(s) in 7 transaction(s) on other hosts, not shown (--all-hosts)
+▲  3 findings (1 warning, 2 info) in 8 transactions
+hidden: 26 on other hosts in 7 transactions (--all-hosts)
+```
+
+A session that makes hundreds of requests repeats its findings hundreds of
+times. `--group` gives one entry per defect with a count and the targets it
+happened on, and `-q` narrows that to a single line each — the defect's
+catalogue title and how often it happened:
+
+```
+warn  ×26  ALPN protocol name identifies a draft of a shipped protocol
+info  ×84  Response 200 without Cache-Control header
 ```
 
 Reading the command line is worth four things:
