@@ -51,6 +51,27 @@ impl RuleMeta for ProxyConnectionDiscouraged {
         DECLARED
     }
 
+    /// **The client, and the sentence says so in as many words.** RFC 9112
+    /// Appendix C.2.2 takes a client as its subject and names the direction
+    /// itself — *"in any requests"* — so the evidence is a field in a request
+    /// and the party answerable is the one that sent it. A proxy forwarding a
+    /// request is a client of its next hop, so this reaches whoever wrote the
+    /// field whether or not that party is the user agent.
+    ///
+    /// One answer for the whole rule rather than one per site, because there
+    /// is one sentence and one direction: nothing here asks anything of a
+    /// responder, so no finding of this rule can be the server's.
+    ///
+    /// **Worth knowing what the answer does not excuse.** This finding is the
+    /// client's and it exists *because a proxy is in the path* — curl writes
+    /// the field only when configured with one, so a session that runs through
+    /// this proxy provokes what it then reports. That is a separate fact from
+    /// who is answerable, and it wants a separate marker rather than a
+    /// different party.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
