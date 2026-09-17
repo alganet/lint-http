@@ -84,6 +84,9 @@ toml = "1.1"
 bytes = "1"
 base64 = "0.23"
 sha1 = "0.11"
+# SHA-256 for the SPKI pin `browse` hands Chromium. Its siblings (`digest`,
+# `block-buffer`) are already in the tree behind `sha1`, so this is one crate.
+sha2 = "0.11"
 linkme = "0.3"
 parking_lot = "0.12"
 
