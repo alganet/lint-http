@@ -213,6 +213,40 @@ mod tests {
         assert_eq!(inspect(&["--proxy-server", "http://x"]).objections.len(), 1);
     }
 
+    /// Somebody is watching this one, and a browser's stdout is nobody's.
+    #[test]
+    fn a_browsing_session_streams_and_may_have_stdout() {
+        assert!(Chromium.interactive());
+        assert!(Chromium.json_to_stdout());
+    }
+
+    /// The switch that would quietly undo the throwaway profile — and with it
+    /// the new process the profile forces, which is what keeps the session from
+    /// handing its URL to a browser already running outside the proxy.
+    #[test]
+    fn a_profile_of_the_users_own_is_warned_about() {
+        assert!(matches!(
+            inspect(&["--user-data-dir=/home/someone/.config/chromium"]).objections[..],
+            [Objection::Warn(_)]
+        ));
+    }
+
+    /// A browser named by path is that browser.
+    #[test]
+    fn a_browser_named_by_path_is_the_one_located() -> Result<()> {
+        let dir = std::env::temp_dir().join(format!("lint-http-chrome-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir)?;
+        let path = dir.join("chromium");
+        std::fs::write(&path, b"#!/bin/sh\n")?;
+
+        let tool = Chromium.locate(Some(&path.to_string_lossy()))?;
+        assert_eq!(tool.path, path);
+        assert_eq!(tool.name, "chromium");
+
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
     /// A session with no CA cannot verify anything, and the browser is the one
     /// that will show it — as a certificate error on every page.
     #[test]
