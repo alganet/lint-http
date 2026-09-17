@@ -143,7 +143,7 @@ pub fn percent_encoding_defect(s: &str) -> Option<PercentEncodingDefect<'_>> {
 /// are tested for being hexadecimal before they are read as a number, because
 /// `from_str_radix` accepts a leading `+` and no `pct-encoded` does.
 ///
-/// **[`super::uri::normalize_path_and_query`] runs this before its other two steps**, and
+/// **[`super::reference::normalize_path_and_query`] runs this before its other two steps**, and
 /// § 2.4's exception is why it may: an `unreserved` octet needs no component
 /// boundary established before it can be decoded, so nothing waits on it. What
 /// that ordering buys is written at that function. Callers that want one

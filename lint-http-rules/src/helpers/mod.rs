@@ -81,6 +81,7 @@ pub mod percent_encoding;
 pub mod product;
 pub mod quoted_string;
 pub mod qvalue;
+pub mod reference;
 pub mod request_target;
 pub mod rule_config;
 pub mod scheme;

@@ -1472,7 +1472,7 @@ sources:
     - file: lint-http-rules/src/helpers/origin.rs
       line: 161
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 38
+      line: 48
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 284
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
@@ -1504,13 +1504,13 @@ sources:
     - file: lint-http-rules/src/helpers/percent_encoding.rs
       line: 36
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 86
+      line: 96
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 186
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 144
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 64
+      line: 65
     - file: lint-http-rules/src/violations/uri.rs
       line: 143
     - file: lint-http-rules/src/violations/uri.rs
@@ -1522,7 +1522,7 @@ sources:
     - file: lint-http-rules/src/helpers/percent_encoding.rs
       line: 152
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 87
+      line: 88
   - label: lint-http-rules/src/helpers/percent_encoding.rs (6)
     section: § 2.3
     snippet: unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~"
@@ -1530,7 +1530,7 @@ sources:
     - file: lint-http-rules/src/helpers/percent_encoding.rs
       line: 151
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 55
+      line: 65
   - label: lint-http-rules/src/helpers/percent_encoding.rs (7)
     section: § 2.4
     snippet: When a URI is dereferenced, the components and subcomponents significant to the scheme-specific dereferencing process (if any) must be parsed and separated before the percent-encoded octets within those components can be safely decoded, as otherwise the data may be mistaken for component delimiters.
@@ -1553,6 +1553,76 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/percent_encoding.rs
       line: 153
+  - label: lint-http-rules/src/helpers/reference.rs
+    section: § 2.3
+    snippet: percent-encoded octets in the ranges of ALPHA (%41-%5A and %61-%7A), DIGIT (%30-%39), hyphen (%2D), period (%2E), underscore (%5F), or tilde (%7E) should not be created by URI producers and, when found in a URI, should be decoded to their corresponding unreserved characters by URI normalizers
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 149
+  - label: lint-http-rules/src/helpers/reference.rs (2)
+    section: § 2.4
+    snippet: The only exception is for percent-encoded octets corresponding to characters in the unreserved set, which can be decoded at any time.
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 148
+  - label: lint-http-rules/src/helpers/reference.rs (3)
+    section: § 4.2
+    snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 193
+  - label: lint-http-rules/src/helpers/reference.rs (4)
+    section: § 5.2.3
+    snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 165
+  - label: lint-http-rules/src/helpers/reference.rs (5)
+    section: § 5.2.3
+    snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 169
+  - label: lint-http-rules/src/helpers/reference.rs (6)
+    section: § 5.2.4
+    snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 62
+  - label: lint-http-rules/src/helpers/reference.rs (7)
+    section: § 5.4.2
+    snippet: Some applications fail to separate the reference's query and/or fragment components from the path component before merging it with the base path and removing dot-segments.
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 147
+  - label: lint-http-rules/src/helpers/reference.rs (8)
+    section: § 5.4.2
+    snippet: parsers must remove the dot-segments "." and ".." when they are complete components of a path, but not when they are only part of a segment.
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 151
+  - label: lint-http-rules/src/helpers/reference.rs (9)
+    section: § 6.2.2
+    snippet: Syntax-based normalization includes such techniques as case normalization, percent-encoding normalization, and removal of dot-segments.
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 146
+  - label: lint-http-rules/src/helpers/reference.rs (10)
+    section: § 6.2.2.1
+    snippet: The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3).
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 152
+    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
+      line: 429
+    - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
+      line: 308
+  - label: lint-http-rules/src/helpers/reference.rs (11)
+    section: § 6.2.2.3
+    snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
+    cited_by:
+    - file: lint-http-rules/src/helpers/reference.rs
+      line: 150
   - label: lint-http-rules/src/helpers/request_target.rs
     section: § 6.2.2.1
     snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
@@ -1562,7 +1632,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 428
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 309
+      line: 310
   - label: lint-http-rules/src/helpers/scheme.rs
     section: § 3.1
     snippet: Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-").
@@ -1596,7 +1666,7 @@ sources:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 217
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 63
+      line: 64
     - file: lint-http-rules/src/violations/well_known.rs
       line: 142
   - label: lint-http-rules/src/helpers/scheme.rs (3)
@@ -1614,7 +1684,7 @@ sources:
     snippet: A percent-encoding mechanism is used to represent a data octet in a component when that octet's corresponding character is outside the allowed set or is being used as a delimiter of, or within, the component.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 39
+      line: 49
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 220
   - label: lint-http-rules/src/helpers/uri.rs (2)
@@ -1622,21 +1692,21 @@ sources:
     snippet: A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 40
+      line: 50
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 85
+      line: 95
   - label: lint-http-rules/src/helpers/uri.rs (3)
     section: § 2.2
     snippet: gen-delims  = ":" / "/" / "?" / "#" / "[" / "]" / "@"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 84
+      line: 94
   - label: sub-delims
     section: § 2.2
     snippet: sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 69
+      line: 79
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 226
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
@@ -1645,76 +1715,6 @@ sources:
       line: 649
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 283
-  - label: lint-http-rules/src/helpers/uri.rs (4)
-    section: § 2.3
-    snippet: percent-encoded octets in the ranges of ALPHA (%41-%5A and %61-%7A), DIGIT (%30-%39), hyphen (%2D), period (%2E), underscore (%5F), or tilde (%7E) should not be created by URI producers and, when found in a URI, should be decoded to their corresponding unreserved characters by URI normalizers
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 204
-  - label: lint-http-rules/src/helpers/uri.rs (5)
-    section: § 2.4
-    snippet: The only exception is for percent-encoded octets corresponding to characters in the unreserved set, which can be decoded at any time.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 203
-  - label: lint-http-rules/src/helpers/uri.rs (6)
-    section: § 4.2
-    snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 248
-  - label: lint-http-rules/src/helpers/uri.rs (7)
-    section: § 5.2.3
-    snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 220
-  - label: lint-http-rules/src/helpers/uri.rs (8)
-    section: § 5.2.3
-    snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 224
-  - label: lint-http-rules/src/helpers/uri.rs (9)
-    section: § 5.2.4
-    snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 117
-  - label: lint-http-rules/src/helpers/uri.rs (10)
-    section: § 5.4.2
-    snippet: Some applications fail to separate the reference's query and/or fragment components from the path component before merging it with the base path and removing dot-segments.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 202
-  - label: lint-http-rules/src/helpers/uri.rs (11)
-    section: § 5.4.2
-    snippet: parsers must remove the dot-segments "." and ".." when they are complete components of a path, but not when they are only part of a segment.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 206
-  - label: lint-http-rules/src/helpers/uri.rs (12)
-    section: § 6.2.2
-    snippet: Syntax-based normalization includes such techniques as case normalization, percent-encoding normalization, and removal of dot-segments.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 201
-  - label: lint-http-rules/src/helpers/uri.rs (13)
-    section: § 6.2.2.1
-    snippet: The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3).
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 207
-    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 429
-    - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 307
-  - label: lint-http-rules/src/helpers/uri.rs (14)
-    section: § 6.2.2.3
-    snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 205
   - label: location_header_uri_valid
     section: § 4.1
     snippet: URI-reference = URI / relative-ref
@@ -1804,19 +1804,19 @@ sources:
     snippet: The path is terminated by the first question mark ("?") or number sign ("#") character, or by the end of the URI.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 290
+      line: 291
   - label: path-absolute
     section: § 3.3
     snippet: path-absolute = "/" [ segment-nz *( "/" segment ) ]
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 306
+      line: 307
   - label: segment-nz
     section: § 3.3
     snippet: segment-nz    = 1*pchar
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 402
+      line: 403
 - label: RFC 4647
   url: https://www.rfc-editor.org/rfc/rfc4647.html
   fragments:
@@ -4915,7 +4915,7 @@ sources:
     snippet: Furthermore, defining well-known locations usurps the origin's control over its own URI space [RFC7320].
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 372
+      line: 373
     - file: lint-http-rules/src/violations/well_known.rs
       line: 26
   - label: well_known_uri_syntax (2)
@@ -4923,7 +4923,7 @@ sources:
     snippet: To address these uses, this memo reserves a path prefix in HTTP, HTTPS, WebSocket (WS), and Secure WebSocket (WSS) URIs for these "well-known locations", "/.well-known/".
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 384
+      line: 385
     - file: lint-http-rules/src/violations/well_known.rs
       line: 99
   - label: well_known_uri_syntax (3)
@@ -4931,37 +4931,37 @@ sources:
     snippet: Well-known URIs can also be used with other URI schemes, but only when those schemes' definitions explicitly allow it.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 275
+      line: 276
   - label: well_known_uri_syntax (4)
     section: § 3
     snippet: A well-known URI is a URI [RFC3986] whose path component begins with the characters "/.well-known/", provided that the scheme is explicitly defined to support well-known URIs.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 273
+      line: 274
   - label: well_known_uri_syntax (5)
     section: § 3
     snippet: Also, this specification does not define a format or media type for the resource located at "/.well-known/", and clients should not expect a resource to exist at that location.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 403
+      line: 404
   - label: well_known_uri_syntax (6)
     section: § 3
     snippet: Applications that wish to mint new well-known URIs MUST register them, following the procedures in Section 5.1, subject to the following requirements.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 243
+      line: 244
   - label: well_known_uri_syntax (7)
     section: § 3
     snippet: For example, "/.well-known/example" is a well-known URI, whereas "/foo/.well-known/example" is not.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 371
+      line: 372
   - label: well_known_uri_syntax (8)
     section: § 3
     snippet: Registered names MUST conform to the "segment-nz" production in [RFC3986].
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 401
+      line: 402
     - file: lint-http-rules/src/violations/well_known.rs
       line: 122
   - label: well_known_uri_syntax (9)
@@ -4969,25 +4969,25 @@ sources:
     snippet: Registrations MAY also contain additional information, such as the syntax of additional path components, query strings, and/or fragment identifiers to be appended to the well-known URI
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 417
+      line: 418
   - label: well_known_uri_syntax (10)
     section: § 3
     snippet: This means they cannot contain the "/" character.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 416
+      line: 417
   - label: well_known_uri_syntax (11)
     section: § 3
     snippet: This specification updates the "http" [RFC7230] and "https" [RFC7230] schemes to support well-known URIs.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 274
+      line: 275
   - label: well_known_uri_syntax (12)
     section: § 3
     snippet: Well-known URIs are rooted in the top of the path's hierarchy; they are not well-known by definition in other parts of the path.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 370
+      line: 371
     - file: lint-http-rules/src/violations/well_known.rs
       line: 78
   - label: well_known_uri_syntax (13)
@@ -4995,7 +4995,7 @@ sources:
     snippet: If a URI scheme explicitly has been specified to use well-known URIs as per Section 3, the value changes to a reference to that specification.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 276
+      line: 277
 - label: RFC 9000
   url: https://www.rfc-editor.org/rfc/rfc9000.html
   fragments:
@@ -10609,7 +10609,7 @@ sources:
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 84
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 289
+      line: 290
   - label: lint-http-rules/src/helpers/request_target.rs (2)
     section: § 3.3
     snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
@@ -10631,7 +10631,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 164
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 336
+      line: 337
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -10677,7 +10677,7 @@ sources:
     snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 337
+      line: 338
   - label: Content-Length not in a transfer-coded message
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.

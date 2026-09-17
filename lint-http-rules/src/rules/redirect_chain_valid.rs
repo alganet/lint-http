@@ -271,17 +271,18 @@ impl Rule for RedirectChainValid {
                 crate::helpers::request_target::extract_path_and_query_from_request_target(
                     &tx.request.uri,
                 )
-                .map(|p| crate::helpers::uri::normalize_path_and_query(&p))?;
+                .map(|p| crate::helpers::reference::normalize_path_and_query(&p))?;
 
             // Neither side's fragment takes part: §10.2.2 hands a fragmentless
             // `Location` the target's own fragment, so two references differing only
             // there redirect to the same place. Both helpers drop it.
             //
             // cite(RFC 9110 § 10.2.2): "If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any)."
-            let location_path_and_query = crate::helpers::uri::resolve_reference_path_and_query(
-                &target_path_and_query,
-                value,
-            )?;
+            let location_path_and_query =
+                crate::helpers::reference::resolve_reference_path_and_query(
+                    &target_path_and_query,
+                    value,
+                )?;
 
             // All of §6.2.2 is applied to both sides, by the helper above: two
             // references differing in the percent-encoding of an `unreserved`
@@ -304,7 +305,7 @@ impl Rule for RedirectChainValid {
                 &tx.request.uri,
                 &tx.request.headers,
             );
-            let location_authority = crate::helpers::uri::reference_authority(value);
+            let location_authority = crate::helpers::reference::reference_authority(value);
             match (target_authority.as_deref(), location_authority.as_deref()) {
                 // cite(RFC 3986 § 6.2.2.1): "the scheme and host are case-insensitive and therefore should be normalized to lowercase"
                 (Some(target), Some(location)) if !target.eq_ignore_ascii_case(location) => {
