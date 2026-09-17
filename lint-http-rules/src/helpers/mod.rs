@@ -57,6 +57,32 @@
 //! by naming one set and adding to it will produce that shape every time, so the
 //! count that decides the move is the count of the *smallest thing two sites
 //! share*, not of the function one of them happens to have wrapped it in.
+//!
+//! **`uri` was the second module the rule caught, and it failed the rule for the
+//! opposite reason to `headers`.** That one was named for a data structure and
+//! shelved nothing because every field arrives in a `HeaderMap`; this one was
+//! named for a question that is real — *is this value a URI* — but is a
+//! superset of every question underneath it. A scheme, an authority, an origin,
+//! a request-target and a reference are each "a URI thing", so all five landed
+//! in one file with the `pct-encoded` triplet, and nothing about the name said
+//! any of them was there. It reached 2729 lines, the largest module in this
+//! directory, and six modules came out of it: `percent_encoding`, `scheme`,
+//! `authority`, `origin`, `request_target`, `reference`. **A name that is true
+//! of everything below it shelves as badly as a name that is true of every
+//! field** — the test is the *smallest* question a caller actually asks, which
+//! is the same count that decides an extraction.
+//!
+//! Two things the split had to decide, both of which point the same way. **What
+//! stayed is what genuinely belongs to the whole value**, and § 2.2 is what says
+//! so: a component rule never names `gen-delims` directly, it borrows characters
+//! from it one at a time, so the seven-at-once question is the only one asked of
+//! a URI as such — which makes the alphabet, and not a residue, what a module
+//! named `uri` holds. **And a function that transcribes no production has no
+//! production module to go to**: the query-string pair splitter left the
+//! directory entirely for the one rule that calls it, because `&` and `=` are
+//! ordinary data in `query` and the `key=value` shape is a practice RFC 3986
+//! remarks on, not a grammar. Shelving it with the productions was the same
+//! mistake as shelving by the field a value arrives in, one level up.
 
 pub mod accept_ranges;
 pub mod auth;
