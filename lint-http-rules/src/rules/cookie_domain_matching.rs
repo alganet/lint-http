@@ -115,9 +115,11 @@ impl Rule for CookieDomainMatching {
 
             // host and path information used for matching
             let req_host =
-                crate::helpers::uri::extract_host_from_request_target(req_uri).unwrap_or_default();
-            let req_path = crate::helpers::uri::extract_path_from_request_target(req_uri)
-                .unwrap_or_else(|| "/".into());
+                crate::helpers::request_target::extract_host_from_request_target(req_uri)
+                    .unwrap_or_default();
+            let req_path =
+                crate::helpers::request_target::extract_path_from_request_target(req_uri)
+                    .unwrap_or_else(|| "/".into());
 
             // build live cookie store (expires removed) so we only inspect
             // currently applicable cookies

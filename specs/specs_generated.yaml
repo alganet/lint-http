@@ -865,7 +865,7 @@ sources:
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 204
+      line: 206
     - file: lint-http-rules/src/violations/cookie.rs
       line: 503
   - label: cookie_same_site_enforced (2)
@@ -873,13 +873,13 @@ sources:
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 196
+      line: 198
   - label: cookie_same_site_enforced (3)
     section: § 4.1.2.7
     snippet: If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 214
+      line: 216
 - label: draft-thomson-hybi-http-timeout-03
   url: https://datatracker.ietf.org/doc/html/draft-thomson-hybi-http-timeout-03
   fragments:
@@ -1393,8 +1393,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/authority.rs
       line: 160
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 198
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 134
   - label: reg-name
     section: § 3.2.2
     snippet: reg-name    = *( unreserved / pct-encoded / sub-delims )
@@ -1406,7 +1406,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 290
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 357
+      line: 358
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 219
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
@@ -1510,7 +1510,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 144
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 65
+      line: 64
     - file: lint-http-rules/src/violations/uri.rs
       line: 143
     - file: lint-http-rules/src/violations/uri.rs
@@ -1522,7 +1522,7 @@ sources:
     - file: lint-http-rules/src/helpers/percent_encoding.rs
       line: 152
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 88
+      line: 87
   - label: lint-http-rules/src/helpers/percent_encoding.rs (6)
     section: § 2.3
     snippet: unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~"
@@ -1553,6 +1553,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/percent_encoding.rs
       line: 153
+  - label: lint-http-rules/src/helpers/request_target.rs
+    section: § 6.2.2.1
+    snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 135
+    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
+      line: 428
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 309
   - label: lint-http-rules/src/helpers/scheme.rs
     section: § 3.1
     snippet: Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-").
@@ -1586,7 +1596,7 @@ sources:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 217
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 64
+      line: 63
     - file: lint-http-rules/src/violations/well_known.rs
       line: 142
   - label: lint-http-rules/src/helpers/scheme.rs (3)
@@ -1630,7 +1640,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 226
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 358
+      line: 359
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 649
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
@@ -1640,81 +1650,71 @@ sources:
     snippet: percent-encoded octets in the ranges of ALPHA (%41-%5A and %61-%7A), DIGIT (%30-%39), hyphen (%2D), period (%2E), underscore (%5F), or tilde (%7E) should not be created by URI producers and, when found in a URI, should be decoded to their corresponding unreserved characters by URI normalizers
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 416
+      line: 204
   - label: lint-http-rules/src/helpers/uri.rs (5)
     section: § 2.4
     snippet: The only exception is for percent-encoded octets corresponding to characters in the unreserved set, which can be decoded at any time.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 415
+      line: 203
   - label: lint-http-rules/src/helpers/uri.rs (6)
     section: § 4.2
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 460
+      line: 248
   - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 5.2.3
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 432
+      line: 220
   - label: lint-http-rules/src/helpers/uri.rs (8)
     section: § 5.2.3
     snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 436
+      line: 224
   - label: lint-http-rules/src/helpers/uri.rs (9)
     section: § 5.2.4
     snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 329
+      line: 117
   - label: lint-http-rules/src/helpers/uri.rs (10)
     section: § 5.4.2
     snippet: Some applications fail to separate the reference's query and/or fragment components from the path component before merging it with the base path and removing dot-segments.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 414
+      line: 202
   - label: lint-http-rules/src/helpers/uri.rs (11)
     section: § 5.4.2
     snippet: parsers must remove the dot-segments "." and ".." when they are complete components of a path, but not when they are only part of a segment.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 418
+      line: 206
   - label: lint-http-rules/src/helpers/uri.rs (12)
     section: § 6.2.2
     snippet: Syntax-based normalization includes such techniques as case normalization, percent-encoding normalization, and removal of dot-segments.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 413
+      line: 201
   - label: lint-http-rules/src/helpers/uri.rs (13)
     section: § 6.2.2.1
     snippet: The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3).
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 419
+      line: 207
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 429
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 308
+      line: 307
   - label: lint-http-rules/src/helpers/uri.rs (14)
-    section: § 6.2.2.1
-    snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 199
-    - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 428
-    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 305
-  - label: lint-http-rules/src/helpers/uri.rs (15)
     section: § 6.2.2.3
     snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 417
+      line: 205
   - label: location_header_uri_valid
     section: § 4.1
     snippet: URI-reference = URI / relative-ref
@@ -1804,19 +1804,19 @@ sources:
     snippet: The path is terminated by the first question mark ("?") or number sign ("#") character, or by the end of the URI.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 291
+      line: 290
   - label: path-absolute
     section: § 3.3
     snippet: path-absolute = "/" [ segment-nz *( "/" segment ) ]
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 307
+      line: 306
   - label: segment-nz
     section: § 3.3
     snippet: segment-nz    = 1*pchar
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 403
+      line: 402
 - label: RFC 4647
   url: https://www.rfc-editor.org/rfc/rfc4647.html
   fragments:
@@ -2403,7 +2403,7 @@ sources:
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_matching.rs
-      line: 161
+      line: 163
   - label: cookie_domain_valid
     section: § 5.2
     snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
@@ -2489,13 +2489,13 @@ sources:
     snippet: If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 298
+      line: 299
   - label: lint-http-rules/src/helpers/cookie.rs (5)
     section: § 5.1.4
     snippet: Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/").
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 302
+      line: 303
   - label: lint-http-rules/src/helpers/cookie.rs (6)
     section: § 5.1.4
     snippet: 'The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:'
@@ -2507,7 +2507,7 @@ sources:
     snippet: output %x2F ("/") and skip the remaining steps.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 294
+      line: 295
   - label: lint-http-rules/src/helpers/cookie.rs (8)
     section: § 5.2.1
     snippet: If the attribute-name case-insensitively matches the string "Expires", the user agent MUST process the cookie-av as follows.
@@ -2519,7 +2519,7 @@ sources:
     snippet: 'If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 348
+      line: 349
     - file: lint-http-rules/src/violations/cookie.rs
       line: 118
     - file: lint-http-rules/src/violations/cookie.rs
@@ -2533,7 +2533,7 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 268
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 387
+      line: 388
   - label: lint-http-rules/src/helpers/cookie.rs (10)
     section: § 5.4
     snippet: The cookie's host-only-flag is true and the canonicalized request-host is identical to the cookie's domain.
@@ -4915,7 +4915,7 @@ sources:
     snippet: Furthermore, defining well-known locations usurps the origin's control over its own URI space [RFC7320].
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 373
+      line: 372
     - file: lint-http-rules/src/violations/well_known.rs
       line: 26
   - label: well_known_uri_syntax (2)
@@ -4923,7 +4923,7 @@ sources:
     snippet: To address these uses, this memo reserves a path prefix in HTTP, HTTPS, WebSocket (WS), and Secure WebSocket (WSS) URIs for these "well-known locations", "/.well-known/".
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 385
+      line: 384
     - file: lint-http-rules/src/violations/well_known.rs
       line: 99
   - label: well_known_uri_syntax (3)
@@ -4931,37 +4931,37 @@ sources:
     snippet: Well-known URIs can also be used with other URI schemes, but only when those schemes' definitions explicitly allow it.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 276
+      line: 275
   - label: well_known_uri_syntax (4)
     section: § 3
     snippet: A well-known URI is a URI [RFC3986] whose path component begins with the characters "/.well-known/", provided that the scheme is explicitly defined to support well-known URIs.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 274
+      line: 273
   - label: well_known_uri_syntax (5)
     section: § 3
     snippet: Also, this specification does not define a format or media type for the resource located at "/.well-known/", and clients should not expect a resource to exist at that location.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 404
+      line: 403
   - label: well_known_uri_syntax (6)
     section: § 3
     snippet: Applications that wish to mint new well-known URIs MUST register them, following the procedures in Section 5.1, subject to the following requirements.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 244
+      line: 243
   - label: well_known_uri_syntax (7)
     section: § 3
     snippet: For example, "/.well-known/example" is a well-known URI, whereas "/foo/.well-known/example" is not.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 372
+      line: 371
   - label: well_known_uri_syntax (8)
     section: § 3
     snippet: Registered names MUST conform to the "segment-nz" production in [RFC3986].
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 402
+      line: 401
     - file: lint-http-rules/src/violations/well_known.rs
       line: 122
   - label: well_known_uri_syntax (9)
@@ -4969,25 +4969,25 @@ sources:
     snippet: Registrations MAY also contain additional information, such as the syntax of additional path components, query strings, and/or fragment identifiers to be appended to the well-known URI
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 418
+      line: 417
   - label: well_known_uri_syntax (10)
     section: § 3
     snippet: This means they cannot contain the "/" character.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 417
+      line: 416
   - label: well_known_uri_syntax (11)
     section: § 3
     snippet: This specification updates the "http" [RFC7230] and "https" [RFC7230] schemes to support well-known URIs.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 275
+      line: 274
   - label: well_known_uri_syntax (12)
     section: § 3
     snippet: Well-known URIs are rooted in the top of the path's hierarchy; they are not well-known by definition in other parts of the path.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 371
+      line: 370
     - file: lint-http-rules/src/violations/well_known.rs
       line: 78
   - label: well_known_uri_syntax (13)
@@ -4995,7 +4995,7 @@ sources:
     snippet: If a URI scheme explicitly has been specified to use well-known URIs as per Section 3, the value changes to a reference to that specification.
     cited_by:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 277
+      line: 276
 - label: RFC 9000
   url: https://www.rfc-editor.org/rfc/rfc9000.html
   fragments:
@@ -5397,13 +5397,13 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 256
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 356
+      line: 357
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 439
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 258
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 378
+      line: 379
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 200
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -7413,9 +7413,9 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 287
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 372
+      line: 373
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 435
+      line: 438
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 518
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -7539,7 +7539,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 155
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 370
+      line: 371
     - file: lint-http-rules/src/rules/host_header.rs
       line: 187
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
@@ -7789,7 +7789,7 @@ sources:
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 289
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 398
+      line: 399
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 253
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
@@ -8024,6 +8024,34 @@ sources:
       line: 272
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 76
+  - label: lint-http-rules/src/helpers/request_target.rs
+    section: § 7.1
+    snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 50
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 268
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 223
+  - label: lint-http-rules/src/helpers/request_target.rs (2)
+    section: § 7.2
+    snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 52
+    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
+      line: 317
+    - file: lint-http-rules/src/rules/host_header.rs
+      line: 59
+    - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
+      line: 467
+  - label: lint-http-rules/src/helpers/request_target.rs (3)
+    section: § 7.2
+    snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 51
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -8058,34 +8086,6 @@ sources:
       line: 56
     - file: lint-http-rules/src/violations/token.rs
       line: 75
-  - label: lint-http-rules/src/helpers/uri.rs
-    section: § 7.1
-    snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 114
-    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 268
-    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
-      line: 223
-  - label: lint-http-rules/src/helpers/uri.rs (2)
-    section: § 7.2
-    snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 116
-    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 317
-    - file: lint-http-rules/src/rules/host_header.rs
-      line: 59
-    - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 467
-  - label: lint-http-rules/src/helpers/uri.rs (3)
-    section: § 7.2
-    snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 115
   - label: If-None-Match weak comparison
     section: § 13.1.2
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
@@ -8833,7 +8833,7 @@ sources:
     snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 278
+      line: 280
   - label: redirect_chain_valid (2)
     section: § 10.2.2
     snippet: When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5).
@@ -10590,48 +10590,48 @@ sources:
       line: 122
     - file: lint-http-rules/src/violations/content_length.rs
       line: 162
-  - label: lint-http-rules/src/helpers/uri.rs
+  - label: lint-http-rules/src/helpers/request_target.rs
     section: § 3.2
     snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
     cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 120
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 56
     - file: lint-http-rules/src/rules/host_header.rs
       line: 188
   - label: request-target forms
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 152
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 225
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 88
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 161
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 84
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
-      line: 290
-  - label: lint-http-rules/src/helpers/uri.rs (2)
+      line: 289
+  - label: lint-http-rules/src/helpers/request_target.rs (2)
     section: § 3.3
     snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
     cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 118
-  - label: lint-http-rules/src/helpers/uri.rs (3)
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 54
+  - label: lint-http-rules/src/helpers/request_target.rs (3)
     section: § 3.3
     snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
     cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 119
-  - label: lint-http-rules/src/helpers/uri.rs (4)
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 55
+  - label: lint-http-rules/src/helpers/request_target.rs (4)
     section: § 3.3
     snippet: The target URI is the request-target when the request-target is in absolute-form.
     cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 117
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 53
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 164
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 332
+      line: 336
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -10677,7 +10677,7 @@ sources:
     snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 333
+      line: 337
   - label: Content-Length not in a transfer-coded message
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
@@ -10996,7 +10996,7 @@ sources:
     snippet: A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 355
+      line: 356
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 502
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -11006,13 +11006,13 @@ sources:
     snippet: A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the ":authority" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 475
+      line: 476
   - label: host_and_authority_consistent (3)
     section: § 8.3.1
     snippet: An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 453
+      line: 454
   - label: host_and_authority_consistent (4)
     section: § 8.3.1
     snippet: Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field.
@@ -11020,7 +11020,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 292
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 474
+      line: 475
   - label: host_and_authority_consistent (5)
     section: § 8.3.1
     snippet: The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP]).
@@ -11028,13 +11028,13 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 338
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 542
+      line: 544
   - label: host_and_authority_consistent (6)
     section: § 8.3.1
     snippet: The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986]).
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 452
+      line: 453
   - label: http2_pseudo_headers_valid
     section: § 8.2.1
     snippet: A field value MUST NOT start or end with an ASCII whitespace character (ASCII SP or HTAB, 0x20 or 0x09).
@@ -11052,7 +11052,7 @@ sources:
     snippet: '":scheme" is not restricted to "http" and "https" schemed URIs.'
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 547
+      line: 549
   - label: http2_pseudo_headers_valid (4)
     section: § 8.3.1
     snippet: The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP]).
@@ -11066,19 +11066,19 @@ sources:
     snippet: The ":scheme" pseudo-header field includes the scheme portion of the request target.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 541
+      line: 543
   - label: http2_pseudo_headers_valid (6)
     section: § 8.3.2
     snippet: For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 657
+      line: 659
   - label: http2_pseudo_headers_valid (7)
     section: § 8.3.2
     snippet: This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 658
+      line: 660
   - label: http2_pseudo_headers_valid (8)
     section: § 8.5
     snippet: A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1).
@@ -11253,9 +11253,9 @@ sources:
     snippet: If both fields are present, they MUST contain the same value.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 454
+      line: 455
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 476
+      line: 477
     - file: lint-http-rules/src/violations/authority.rs
       line: 471
   - label: host_and_authority_consistent (2)
@@ -11263,9 +11263,9 @@ sources:
     snippet: If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 369
+      line: 370
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 417
+      line: 418
     - file: lint-http-rules/src/violations/authority.rs
       line: 367
   - label: host_and_authority_consistent (3)
@@ -11273,9 +11273,9 @@ sources:
     snippet: If these fields are present, they MUST NOT be empty.
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 418
+      line: 419
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 434
+      line: 437
     - file: lint-http-rules/src/violations/authority.rs
       line: 405
   - label: http3_goaway
@@ -11327,25 +11327,25 @@ sources:
     snippet: Contains the authority portion of the target URI (Section 3.2 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 520
+      line: 523
   - label: http3_pseudo_headers_valid (3)
     section: § 4.3.1
     snippet: Contains the scheme portion of the target URI (Section 3.1 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 488
+      line: 491
   - label: http3_pseudo_headers_valid (4)
     section: § 4.3.2
     snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 553
+      line: 556
   - label: http3_pseudo_headers_valid (5)
     section: § 4.3.2
     snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 554
+      line: 557
   - label: http3_pseudo_headers_valid (6)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
@@ -11353,9 +11353,9 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 278
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 319
+      line: 320
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 344
+      line: 345
   - label: http3_pseudo_headers_valid (7)
     section: § 4.4
     snippet: The :method pseudo-header field is set to "CONNECT"

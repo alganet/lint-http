@@ -372,7 +372,7 @@ impl Rule for ContentLocationAndUriConsistent {
                 if (200..300).contains(&resp.status) {
                     // Request path (if any) — preserve query when present and ignore fragment
                     let req_path_opt =
-                        crate::helpers::uri::extract_path_and_query_from_request_target(
+                        crate::helpers::request_target::extract_path_and_query_from_request_target(
                             &tx.request.uri,
                         );
 
@@ -415,7 +415,7 @@ impl Rule for ContentLocationAndUriConsistent {
                     // helper: `redirect_chain_valid` needed the same
                     // three lines, and a second copy of them is a second place for
                     // the answer to drift.
-                    let req_authority = crate::helpers::uri::target_uri_authority(
+                    let req_authority = crate::helpers::request_target::target_uri_authority(
                         &tx.request.uri,
                         &tx.request.headers,
                     );

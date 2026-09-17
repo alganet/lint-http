@@ -115,10 +115,12 @@ impl Rule for CookieSameSiteEnforced {
 
             // extract host portion (without port) using shared helper
             let req_host =
-                crate::helpers::uri::extract_host_from_request_target(req_uri).unwrap_or_default();
+                crate::helpers::request_target::extract_host_from_request_target(req_uri)
+                    .unwrap_or_default();
 
-            let req_path = crate::helpers::uri::extract_path_from_request_target(req_uri)
-                .unwrap_or_else(|| "/".into());
+            let req_path =
+                crate::helpers::request_target::extract_path_from_request_target(req_uri)
+                    .unwrap_or_else(|| "/".into());
 
             // determine site relationship; None means unknown and we skip enforcement
             let is_cross = match crate::helpers::headers::get_header_str(

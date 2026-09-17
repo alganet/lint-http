@@ -64,7 +64,7 @@ fn sends_authority_as_control_data(tx: &crate::http_transaction::HttpTransaction
     if !matches!(crate::http_version::major(version), Some(2 | 3)) {
         return false;
     }
-    crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri).is_some()
+    crate::helpers::request_target::extract_authority_from_request_target(&tx.request.uri).is_some()
 }
 
 /// The specification references this rule declares, each named so a finding
