@@ -92,6 +92,23 @@ impl RuleMeta for QuicTransportParametersValid {
         DECLARED
     }
 
+    /// **Neither peer, and the rule's own description says why.** The event
+    /// this reads is the one the proxy emits for the parameters *it* advertises
+    /// on its own client-facing endpoint — the QUIC stack exposes no way to
+    /// read a remote peer's, so an origin's are not observable and go unchecked.
+    /// So the client did not write these and neither did the origin, which is
+    /// exactly what `Neither` says.
+    ///
+    /// A reader narrowing to one peer therefore keeps these, as they keep every
+    /// `Neither` finding: the configuration being reported on is one they can
+    /// act on, it is simply not one either end of the exchange sent. The fuller
+    /// answer is that the finding exists *because* this proxy is in the path at
+    /// all, which is the induced marker's question rather than this one's, and
+    /// raising that ceiling wants its own argument.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Neither)
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[

@@ -82,6 +82,14 @@ impl RuleMeta for Http3SettingsFrame {
         DECLARED
     }
 
+    /// **A protocol event has no request half and no response half, but it does
+    /// have a sender**: every frame and control-frame record carries the leg it
+    /// was observed on. So this rule answers one finding at a time, from the
+    /// event in hand, rather than presuming a peer for the file.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -147,7 +155,10 @@ impl ProtocolRule for Http3SettingsFrame {
                     if *prev_dir != direction {
                         continue;
                     }
-                    return Some(ctx.report(&HTTP3_SETTINGS_DUPLICATED));
+                    return Some(
+                        ctx.by_direction(direction)
+                            .report(&HTTP3_SETTINGS_DUPLICATED),
+                    );
                 }
             }
 
@@ -155,7 +166,7 @@ impl ProtocolRule for Http3SettingsFrame {
             // forbidden from putting it on the wire.
             for &(id, _) in settings {
                 if RESERVED_SETTING_IDS.contains(&id) {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by_direction(direction).report_with(
                         &HTTP3_SETTINGS_IDENTIFIER_FORBIDDEN,
                         format!(
                             "HTTP/3 SETTINGS contains reserved HTTP/2 setting identifier \
@@ -172,7 +183,7 @@ impl ProtocolRule for Http3SettingsFrame {
             // a reserved identifier is named for what it is even when repeated.
             for (i, &(id, _)) in settings.iter().enumerate() {
                 if settings[..i].iter().any(|&(prev_id, _)| prev_id == id) {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by_direction(direction).report_with(
                         &HTTP3_SETTINGS_IDENTIFIER_DUPLICATED,
                         format!(
                             "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \

@@ -199,6 +199,10 @@ safe_methods = [
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_8470_4,
