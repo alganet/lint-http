@@ -52,6 +52,10 @@ impl RuleMeta for ExpiresAndCacheControlConsistent {
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9111_5_3, RFC_9111_4_2]
     }

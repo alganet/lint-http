@@ -59,6 +59,10 @@ impl RuleMeta for AcceptEncodingPresent {
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_12_5_3, RFC_9110_9_3_6, RFC_9110_5_6_1_2]
     }

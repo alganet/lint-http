@@ -103,6 +103,10 @@ impl RuleMeta for NoBodyFor1xx204304 {
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[

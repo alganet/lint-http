@@ -109,6 +109,10 @@ content_types = ["text/html", "application/javascript", "application/json"]
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
