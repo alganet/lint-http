@@ -21,31 +21,44 @@ We maintain high standards for code quality and testing.
 
 ### Requirements
 
-- **Code Coverage**: Minimum **95%** test coverage is required (see `.cargo/config.toml` for the configured threshold/alias).
-- **Tests**: All tests must pass (`cargo test`).
-- **Linting**: Use `cargo lint` (alias in `.cargo/config.toml`) — clippy warnings are treated as errors.
-- **Formatting**: Code must be formatted with `cargo fmt` (`rustfmt`).
+- **Code Coverage**: Minimum **95%** test coverage is required — `just coverage` (the threshold and the `cargo coverage` alias behind it are in `.cargo/config.toml`).
+- **Tests**: All tests must pass — `just test`.
+- **Linting**: `just lint` — clippy warnings are treated as errors (the `cargo lint` alias is in `.cargo/config.toml`).
+- **Formatting**: `just fmt` to format, `just fmt-check` to verify. Use these rather than `cargo fmt`, which cannot reach the rule modules; see [Running QA](#running-qa) below.
+- **Citations**: `just citations` (offline: the citations file is current and the ratchet holds) and `just quotes` (every quote still says what the code claims). Neither has a `cargo` spelling.
 - **Headers & Docs**: New source, test, and documentation files must include the SPDX header; new rules must carry their prose as metadata (regenerate with `cargo xtask gendocs`) and their example configuration as `config_example()` (regenerate with `cargo xtask genconfig`). Neither `docs/rules/` nor `config_example.toml` is hand-written — and the docs generator deletes any page no rule claims.
 - **Minimum Rust version**: `rust-version` in the workspace `Cargo.toml` — currently **1.94**, about three releases behind stable. It is a support window we choose, not the oldest toolchain that happens to compile. The `msrv` CI job builds on exactly that version; raising it is a deliberate edit to the manifest, not something a new API call does silently.
 - **Dependencies**: A manifest declares only what its code reads, and a crate used only from tests belongs in `[dev-dependencies]`. `cargo machete` gates this.
 
 ### Running QA
 
-Run the full suite before submitting a PR:
+The gates live in the `justfile`, in two tiers, and `just` on its own lists every recipe with a
+one-line summary of what it asks.
 
 ```bash
-# Format code
-cargo fmt
+# The fast tier — formatting, citations, clippy, docs, tests, quotes.
+# Cheap enough to run constantly.
+just check
 
-# Run linter (alias)
-cargo lint
+# Everything above plus the four slow gates: MSRV, supply chain,
+# release build, coverage. Run this before submitting a PR.
+just check-all
 
-# Run tests
-cargo test
-
-# Coverage (alias)
-cargo coverage
+# Fix formatting, including the rule modules `cargo fmt` cannot reach.
+just fmt
 ```
+
+Prefer these to the bare `cargo` commands, because three of the gates have no
+`cargo` spelling at all. `just fmt-check` *checks* the `#[path]`-included rule
+modules by invoking `rustfmt` on them directly — `cargo fmt` never visits them,
+and `just fmt` is the corresponding fixer — while `just citations` and
+`just quotes` are the two citation gates. A PR verified with
+`cargo fmt && cargo lint && cargo test` can still fail CI on a rule file nobody
+formatted or a quote nobody read.
+
+What `check-all` still cannot answer is what one machine cannot: the macOS and
+Windows legs of the build matrix, and the nightly job that re-fetches every
+cited document from the network. The `justfile` header names both.
 
 ## Rule Creation Guidelines
 
