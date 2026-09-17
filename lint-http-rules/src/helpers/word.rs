@@ -56,7 +56,7 @@ pub enum WordDefect {
     /// `quoted-string`, carrying that production's own defect.
     ///
     /// Nested rather than rendered, for the reason
-    /// [`UriHostDefect::PercentEncoding`](crate::helpers::uri::UriHostDefect::PercentEncoding)
+    /// [`UriHostDefect::PercentEncoding`](crate::helpers::authority::UriHostDefect::PercentEncoding)
     /// nests its own: a `quoted-string` is the same production wherever it is
     /// read, and this alternation adds nothing to it. It carried a `String`
     /// while [`unescape_quoted_string`] rendered one, which put prose inside a

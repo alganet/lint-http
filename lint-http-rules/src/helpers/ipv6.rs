@@ -33,7 +33,7 @@
 // namespace", which is a question about a URI component and not about an IPv6
 // literal, and it answered it a third time and differently: `1..=65535` where
 // the two rules that had audited the bound both admit `0`. It is
-// `crate::helpers::uri::port_number` now, with the sentences on it.
+// `crate::helpers::authority::port_number` now, with the sentences on it.
 
 /// Detects an unbracketed IPv6-ish string that contains a port-like suffix,
 /// e.g., `fe80::1:80` — callers should treat these as violations for headers

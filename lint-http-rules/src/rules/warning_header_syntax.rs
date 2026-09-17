@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::authority::validate_host_and_optional_port;
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::list_members_as_written;
 use crate::helpers::quoted_string::{
@@ -9,7 +10,6 @@ use crate::helpers::quoted_string::{
 };
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::token::find_invalid_token_char;
-use crate::helpers::uri::validate_host_and_optional_port;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{

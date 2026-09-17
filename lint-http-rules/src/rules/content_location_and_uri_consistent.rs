@@ -318,7 +318,7 @@ impl Rule for ContentLocationAndUriConsistent {
                 // representation on. The reader carries the condition and the case
                 // fold; the entry names both sentences, so the message names the
                 // one that governs the value read.
-                if let Some(scheme) = crate::helpers::uri::empty_host_scheme(s) {
+                if let Some(scheme) = crate::helpers::authority::empty_host_scheme(s) {
                     let section = if scheme.eq_ignore_ascii_case("http") {
                         "4.2.1"
                     } else {

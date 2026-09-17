@@ -313,7 +313,7 @@ impl Rule for LocationHeaderUriValid {
             // origin server a redirect would be followed to. The reader carries the
             // condition and the case fold; the entry names both sentences, so the
             // message names the one that governs the value read.
-            if let Some(scheme) = crate::helpers::uri::empty_host_scheme(value) {
+            if let Some(scheme) = crate::helpers::authority::empty_host_scheme(value) {
                 let section = if scheme.eq_ignore_ascii_case("http") {
                     "4.2.1"
                 } else {

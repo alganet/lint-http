@@ -266,7 +266,7 @@ pub fn validate_node(value: &str, form: NodeForm) -> Result<(), NodeDefect<'_>> 
 /// reader, which reported `for="192.0.2.1:99999"` — a value the production
 /// generates — while the obfuscated form it has no idea about was rejected
 /// outright. It also rejected `for=192.0.2.1:0` at the time, which
-/// `helpers::uri::port_number` no longer does; the ceiling is still not this
+/// `helpers::authority::port_number` no longer does; the ceiling is still not this
 /// production's, so the two answers stay apart for the reason above rather than
 /// by how far they happen to differ.
 ///

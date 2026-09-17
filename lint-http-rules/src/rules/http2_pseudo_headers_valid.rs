@@ -128,7 +128,7 @@ fn connect_authority_finding(authority: &str) -> Option<Defect> {
     // are written down in clear. The elision is the shared helper's, with
     // RFC 3986 § 3.2.1's sentence on it.
     if authority.contains('@') {
-        let shown = crate::helpers::uri::userinfo_password_withheld(authority)
+        let shown = crate::helpers::authority::userinfo_password_withheld(authority)
             .map(|redacted| crate::helpers::shown::shown_in_finding(&redacted))
             .unwrap_or(shown);
         return Some(Defect::named(
@@ -140,8 +140,8 @@ fn connect_authority_finding(authority: &str) -> Option<Defect> {
         ));
     }
 
-    let (host, port) = crate::helpers::uri::split_host_and_port(authority);
-    if let Err(defect) = crate::helpers::uri::validate_host_and_optional_port(authority) {
+    let (host, port) = crate::helpers::authority::split_host_and_port(authority);
+    if let Err(defect) = crate::helpers::authority::validate_host_and_optional_port(authority) {
         let message = defect.message();
         return Some(Defect::named(
             host_and_port(defect),
@@ -203,16 +203,18 @@ fn connect_authority_finding(authority: &str) -> Option<Defect> {
 // cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
 // cite(RFC 6335 § 6): "Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future."
 fn connect_port_range_finding(port: &str) -> Option<String> {
-    // The range itself is `helpers::uri::port_number`'s, shared with the two
+    // The range itself is `helpers::authority::port_number`'s, shared with the two
     // other callers that have a sentence naming a transport. The sentences
     // above are what license *this* caller to ask it; the reader holds the
     // width and the reserved-value reading and nothing about CONNECT.
-    crate::helpers::uri::port_number(port).is_none().then(|| {
-        format!(
-            "a TCP port number is one of 65536 values and '{port}' is not among them, so the \
+    crate::helpers::authority::port_number(port)
+        .is_none()
+        .then(|| {
+            format!(
+                "a TCP port number is one of 65536 values and '{port}' is not among them, so the \
              connection this CONNECT asks for cannot be opened to it"
-        )
-    })
+            )
+        })
 }
 
 /// The specification references this rule declares, each named so a finding
@@ -605,7 +607,7 @@ impl Rule for Http2PseudoHeadersValid {
                 if authority.contains('@')
                     && (scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"))
                 {
-                    let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
+                    let shown = crate::helpers::authority::userinfo_password_withheld(&authority)
                         .unwrap_or_else(|| authority.to_string());
                     return Some(ctx.report_with(
                         &AUTHORITY_USERINFO_FORBIDDEN,
@@ -623,7 +625,7 @@ impl Rule for Http2PseudoHeadersValid {
                 // copy this replaced guessed at an unbracketed IPv6 literal by
                 // counting colons.
                 if let Err(defect) =
-                    crate::helpers::uri::validate_host_and_optional_port(&authority)
+                    crate::helpers::authority::validate_host_and_optional_port(&authority)
                 {
                     return Some(ctx.report_with(
                         host_and_port(defect),

@@ -311,7 +311,7 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
     // it is what carries the production, and it names the delimiter this
     // split is looking for.
     // cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
-    let (host, port) = crate::helpers::uri::split_host_and_port(&inner);
+    let (host, port) = crate::helpers::authority::split_host_and_port(&inner);
     let Some(port) = port else {
         // The prose beside the production, and it is this document's: the two
         // halves are RFC 3986's and which of them is optional is § 3's.
@@ -324,7 +324,7 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
         ));
     };
     if !host.is_empty() {
-        if let Err(defect) = crate::helpers::uri::validate_uri_host(host) {
+        if let Err(defect) = crate::helpers::authority::validate_uri_host(host) {
             let message = defect.message();
             return Some(Defect::named(
                 uri_host(defect),
@@ -362,7 +362,7 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
     // cite(RFC 7838 § 2): "Note that for the purpose of this specification, an ALPN protocol name implicitly includes TLS in the suite of protocols it identifies, unless specified otherwise in its definition."
     // cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
     // cite(RFC 6335 § 6): "Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future."
-    if crate::helpers::uri::port_number(port).is_none() {
+    if crate::helpers::authority::port_number(port).is_none() {
         // A well-formed `port` naming a number no transport has. The `uri` def
         // above is about the octets and says in its own doc that a port outside
         // a transport's range is not its finding, because `port = *DIGIT` bounds

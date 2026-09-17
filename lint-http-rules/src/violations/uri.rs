@@ -27,9 +27,10 @@
 //! number too large for a socket is a different sentence and belongs to the
 //! rule that can name the transport.
 
+use crate::helpers::authority::{HostAndPortDefect, UriHostDefect};
 use crate::helpers::percent_encoding::PercentEncodingDefect;
 use crate::helpers::scheme::SchemeNameDefect;
-use crate::helpers::uri::{HostAndPortDefect, OriginDefect, UriHostDefect};
+use crate::helpers::uri::OriginDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};

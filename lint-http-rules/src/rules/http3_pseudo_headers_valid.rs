@@ -325,7 +325,7 @@ impl Rule for Http3PseudoHeadersValid {
                 let authority_form = authority.is_some()
                     && crate::helpers::scheme::scheme_authority_marker(target).is_none();
                 if authority_form && target.contains('@') {
-                    let shown = crate::helpers::uri::userinfo_password_withheld(target)
+                    let shown = crate::helpers::authority::userinfo_password_withheld(target)
                         .unwrap_or_else(|| target.to_string());
                     return Some(ctx.report_with(
                         &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
@@ -344,7 +344,7 @@ impl Rule for Http3PseudoHeadersValid {
                 // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
                 if authority_form {
                     if let Err(defect) =
-                        crate::helpers::uri::validate_host_and_optional_port(target)
+                        crate::helpers::authority::validate_host_and_optional_port(target)
                     {
                         return Some(ctx.report_with(
                             host_and_port(defect),
@@ -502,8 +502,9 @@ impl Rule for Http3PseudoHeadersValid {
                         if scheme.eq_ignore_ascii_case("http")
                             || scheme.eq_ignore_ascii_case("https")
                         {
-                            let shown = crate::helpers::uri::userinfo_password_withheld(authority)
-                                .unwrap_or_else(|| authority.clone());
+                            let shown =
+                                crate::helpers::authority::userinfo_password_withheld(authority)
+                                    .unwrap_or_else(|| authority.clone());
                             return Some(ctx.report_with(
                                 &AUTHORITY_USERINFO_FORBIDDEN,
                                 format!(
@@ -519,7 +520,7 @@ impl Rule for Http3PseudoHeadersValid {
                     // cite(RFC 9114 § 4.3.1): "Contains the authority portion of the target URI (Section 3.2 of [URI])."
                     if let Some(ref authority) = authority {
                         if let Err(defect) =
-                            crate::helpers::uri::validate_host_and_optional_port(authority)
+                            crate::helpers::authority::validate_host_and_optional_port(authority)
                         {
                             return Some(ctx.report_with(
                                 host_and_port(defect),

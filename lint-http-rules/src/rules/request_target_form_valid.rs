@@ -170,8 +170,8 @@ fn classify(target: &str) -> Option<TargetForm<'_>> {
 
     // `uri-host ":" port` with both halves as their own productions say -- which
     // is `Host`'s reader, one bracket stricter: the colon is required here.
-    if let (host, Some(port)) = crate::helpers::uri::split_host_and_port(target) {
-        if crate::helpers::uri::validate_host_and_optional_port(target).is_ok() {
+    if let (host, Some(port)) = crate::helpers::authority::split_host_and_port(target) {
+        if crate::helpers::authority::validate_host_and_optional_port(target).is_ok() {
             return Some(TargetForm::Authority {
                 host,
                 port,
@@ -402,7 +402,7 @@ impl Rule for RequestTargetFormValid {
                 // cite(RFC 9112 § 3.2.3): "When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target."
                 // cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
                 (Some(TargetForm::Authority { port, .. }), "CONNECT")
-                    if crate::helpers::uri::port_number(port).is_none() =>
+                    if crate::helpers::authority::port_number(port).is_none() =>
                 {
                     (
                         &AUTHORITY_TUNNEL_PORT_INVALID,
