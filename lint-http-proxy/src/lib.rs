@@ -42,6 +42,7 @@ pub mod capture;
 pub mod client_env;
 pub mod config;
 pub mod connection;
+pub mod driver;
 pub mod h3_instrument;
 pub mod proxied_run;
 pub mod proxy;

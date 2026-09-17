@@ -110,10 +110,14 @@ pub fn discover(explicit: Option<&str>) -> Result<Browser> {
 
 /// Find an executable on `PATH`.
 ///
+/// `pub(crate)` because [`crate::driver::resolve`] asks the same question of a
+/// name a user typed after `use`, and the answer decides whether that name is
+/// an executable to run or a family to search for.
+///
 /// Hand-rolled rather than a dependency: this is the whole of what `which`
 /// does that is needed here, and the crate would be one more thing in the
 /// supply-chain gate for eight lines.
-fn which(name: &str) -> Option<PathBuf> {
+pub(crate) fn which(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path)
         .map(|dir| dir.join(name))
@@ -147,15 +151,21 @@ fn file_name(path: &Path) -> String {
 /// The command line for one browsing session.
 ///
 /// `profile` is a directory that exists only for this session, `pin` is the
-/// CA's [`crate::ca::CertificateAuthority::spki_pin`], and `url` is where to
-/// open — omitted, the browser opens its own start page and everything it
-/// fetches is still linted.
+/// CA's [`crate::ca::CertificateAuthority::spki_pin`], and `args` is whatever
+/// the user gave the browser — a URL to open, switches of their own, or
+/// nothing, in which case the browser opens its own start page and everything
+/// it fetches is still linted.
+///
+/// The session's own switches go first and the user's arguments follow, in the
+/// order they were typed. Both halves matter: a URL Chromium is to open must
+/// come after every switch or it is read as a value, and an argument the user
+/// wrote must reach the browser unchanged.
 pub fn command(
     browser: &Browser,
     profile: &Path,
     addr: SocketAddr,
     pin: Option<&str>,
-    url: Option<&str>,
+    args: &[String],
 ) -> tokio::process::Command {
     let mut command = tokio::process::Command::new(&browser.path);
 
@@ -194,9 +204,7 @@ pub fn command(
         "--propagate-iph-for-testing",
     ]);
 
-    if let Some(url) = url {
-        command.arg(url);
-    }
+    command.args(args);
     command
 }
 
@@ -208,12 +216,13 @@ mod tests {
         "127.0.0.1:9111".parse().unwrap()
     }
 
-    fn rendered(pin: Option<&str>, url: Option<&str>) -> Vec<String> {
+    fn rendered(pin: Option<&str>, extra: &[&str]) -> Vec<String> {
         let browser = Browser {
             path: PathBuf::from("/usr/bin/chromium"),
             name: "chromium".into(),
         };
-        let command = command(&browser, Path::new("/tmp/profile"), addr(), pin, url);
+        let extra: Vec<String> = extra.iter().map(|a| (*a).to_string()).collect();
+        let command = command(&browser, Path::new("/tmp/profile"), addr(), pin, &extra);
         command
             .as_std()
             .get_args()
@@ -223,7 +232,7 @@ mod tests {
 
     #[test]
     fn the_session_gets_its_own_profile_and_the_proxy() {
-        let args = rendered(None, None);
+        let args = rendered(None, &[]);
         assert!(args.contains(&"--user-data-dir=/tmp/profile".to_string()));
         assert!(args.contains(&"--proxy-server=http://127.0.0.1:9111".to_string()));
     }
@@ -232,15 +241,15 @@ mod tests {
     /// reports nothing — the failure looks exactly like a clean site.
     #[test]
     fn loopback_is_not_bypassed() {
-        assert!(rendered(None, None).contains(&"--proxy-bypass-list=<-loopback>".to_string()));
+        assert!(rendered(None, &[]).contains(&"--proxy-bypass-list=<-loopback>".to_string()));
     }
 
     #[test]
     fn the_pin_is_passed_when_there_is_one() {
-        let args = rendered(Some("abc="), None);
+        let args = rendered(Some("abc="), &[]);
         assert!(args.contains(&"--ignore-certificate-errors-spki-list=abc=".to_string()));
         // And is simply absent otherwise, rather than empty.
-        assert!(!rendered(None, None)
+        assert!(!rendered(None, &[])
             .iter()
             .any(|a| a.starts_with("--ignore-certificate-errors-spki-list")));
     }
@@ -249,10 +258,7 @@ mod tests {
     /// would make the session worthless for judging TLS. It must never appear.
     #[test]
     fn verification_is_never_switched_off_wholesale() {
-        for args in [
-            rendered(None, None),
-            rendered(Some("abc="), Some("https://x")),
-        ] {
+        for args in [rendered(None, &[]), rendered(Some("abc="), &["https://x"])] {
             assert!(
                 !args.iter().any(|a| a == "--ignore-certificate-errors"),
                 "blanket certificate-error suppression was passed"
@@ -260,11 +266,23 @@ mod tests {
         }
     }
 
-    /// The URL goes last, after every switch, or Chromium reads it as a value.
+    /// The session's switches come first and the user's arguments follow, in
+    /// order. A URL Chromium is to open has to be after every switch or it is
+    /// read as a value — and a switch the user typed has to arrive as typed.
     #[test]
-    fn the_url_is_the_final_argument() {
-        let args = rendered(Some("abc="), Some("https://example.com"));
-        assert_eq!(args.last().map(String::as_str), Some("https://example.com"));
+    fn the_session_switches_come_before_what_the_user_typed() {
+        let args = rendered(Some("abc="), &["--incognito", "https://example.com"]);
+        assert_eq!(
+            &args[args.len() - 2..],
+            ["--incognito", "https://example.com"]
+        );
+        let ours = args.iter().position(|a| a == "--incognito").unwrap();
+        assert!(
+            args[..ours]
+                .iter()
+                .any(|a| a.starts_with("--proxy-server=")),
+            "the session's own switches were not first"
+        );
     }
 
     #[test]
