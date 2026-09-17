@@ -1154,6 +1154,7 @@ mod tests {
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
                 note: "Tokens",
             }],
+            induced: lint_http_rules::violations::Induced::No,
         };
         let page = render_violation_doc(&def, &["widget_count_valid", "widget_headers_consistent"]);
 
@@ -1179,6 +1180,7 @@ mod tests {
             message: "",
             default_severity: Severity::Warn,
             spec: &[],
+            induced: lint_http_rules::violations::Induced::No,
         };
         let page = render_violation_doc(&def, &["widget_count_valid"]);
         assert!(page.contains(PARAMETERISED_MESSAGE));
@@ -1196,6 +1198,7 @@ mod tests {
             message: "",
             default_severity: Severity::Info,
             spec: &[],
+            induced: lint_http_rules::violations::Induced::No,
         };
         let page = render_violation_doc(&def, &["widget_count_valid"]);
         assert!(!page.contains("## Specifications"));
@@ -1213,6 +1216,7 @@ mod tests {
             message: "",
             default_severity: Severity::Error,
             spec: &[],
+            induced: lint_http_rules::violations::Induced::No,
         };
         let page = render_violation_doc(&def, &[]);
         assert!(page.contains("_No rule reports this defect._"));

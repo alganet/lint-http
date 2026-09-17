@@ -42,6 +42,15 @@ defects! {
     /// appendix records is about what a proxy that *does* honour it does to a
     /// connection it should have closed.
     ///
+    /// **Induced, and it is the entry the marker was written for.** The field
+    /// exists to be sent *to a proxy*: curl writes it only when configured with
+    /// one, so a session run through this proxy provokes precisely what it then
+    /// reports, and a capture taken with no proxy in the path cannot contain
+    /// it. The finding stays true and stays the client's — it says something
+    /// real about that client, and a client author can act on it — but a reader
+    /// deserves to be told they are looking at a reflection before they go
+    /// hunting for a bug in traffic that would not exist unmeasured.
+    ///
     // cite(RFC 9112 § C.2.2): "As a result, clients are encouraged not to send the Proxy-Connection header field in any requests."
     PROXY_CONNECTION_OBSOLETE = {
         id: "proxy_connection_obsolete",
@@ -49,6 +58,7 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9112_C_2_2],
+        induced: crate::violations::Induced::ByTheProxy,
     }
 }
 
@@ -62,5 +72,16 @@ mod tests {
     fn the_entry_claims_no_prohibition() {
         assert!(!PROXY_CONNECTION_OBSOLETE.id.ends_with("_forbidden"));
         assert_eq!(PROXY_CONNECTION_OBSOLETE.default_severity, Severity::Info);
+    }
+
+    /// The one entry in the catalogue that exists because a proxy is in the
+    /// path. Asserted here, beside the reasoning, rather than only in the
+    /// ceiling that counts them.
+    #[test]
+    fn the_entry_is_induced_by_the_instrument() {
+        assert_eq!(
+            PROXY_CONNECTION_OBSOLETE.induced,
+            crate::violations::Induced::ByTheProxy,
+        );
     }
 }
