@@ -60,6 +60,8 @@ impl RuleMeta for PrivateCacheVisibility {
     /// the client, whether it is a browser or the cache in front of one. The
     /// `private` directive it disregarded is the yardstick, and the yardstick
     /// is the server's.
+    ///
+    /// need to observe both the current request and past responses
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -82,11 +84,6 @@ impl RuleMeta for PrivateCacheVisibility {
 }
 
 impl Rule for PrivateCacheVisibility {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // need to observe both the current request and past responses
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

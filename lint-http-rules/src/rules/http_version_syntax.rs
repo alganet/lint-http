@@ -92,6 +92,14 @@ impl RuleMeta for HttpVersionSyntax {
     /// **A version that is not an `HTTP-version` was written by whichever peer
     /// wrote the message it labels.** This rule judges the request's start line
     /// and then the response's, so the party travels with the judgement.
+    ///
+    /// Both start lines are read, and the request's is measured whether or not
+    /// a response arrived. The sentence under this rule is addressed to whoever
+    /// generated the protocol element, and a request whose version is
+    /// unreadable was already unreadable when it was sent — waiting for a
+    /// response would skip every exchange whose upstream failed and every
+    /// request-only lint.
+    /// cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -124,17 +132,6 @@ impl RuleMeta for HttpVersionSyntax {
 }
 
 impl Rule for HttpVersionSyntax {
-    /// Both directions, and the request half is measured whether or not a
-    /// response arrived. The sentence under this rule is addressed to whoever
-    /// generated the protocol element, and a request whose version is
-    /// unreadable was already unreadable when it was sent -- `Server` would
-    /// have skipped every exchange whose upstream failed and every
-    /// request-only lint.
-    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -327,11 +324,11 @@ mod tests {
     }
 
     /// A transaction whose upstream never answered still has its request
-    /// measured. `RuleScope::Server` would have skipped it.
+    /// measured. A rule that needed a response would have skipped it.
     #[test]
     fn a_request_with_no_response_is_still_measured() {
         assert!(judge_tx("HTTP/1.x", None).is_some());
-        assert_eq!(HttpVersionSyntax.scope(), crate::rules::RuleScope::Both);
+        assert!(!HttpVersionSyntax.needs_response());
     }
 
     /// The finding says nothing about which version of HTTP the message arrived

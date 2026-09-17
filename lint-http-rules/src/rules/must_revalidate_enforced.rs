@@ -87,6 +87,7 @@ impl RuleMeta for MustRevalidateEnforced {
         DECLARED
     }
 
+    /// we need to inspect both the request and prior responses
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -119,11 +120,6 @@ impl RuleMeta for MustRevalidateEnforced {
 }
 
 impl Rule for MustRevalidateEnforced {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // we need to inspect both the request and prior responses
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

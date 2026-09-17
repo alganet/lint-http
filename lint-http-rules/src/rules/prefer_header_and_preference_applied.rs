@@ -233,8 +233,8 @@ impl Rule for PreferHeaderAndPreferenceApplied {
     /// sentences it applies address the server.
     ///
     /// cite(RFC 7240 § 3): "The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -548,7 +548,7 @@ mod tests {
     fn rule_id_and_scope() {
         let rule = PreferHeaderAndPreferenceApplied;
         assert_eq!(rule.id(), "prefer_header_and_preference_applied");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

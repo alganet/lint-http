@@ -296,8 +296,8 @@ impl RuleMeta for ContentSecurityPolicyValid {
 }
 
 impl Rule for ContentSecurityPolicyValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -623,7 +623,7 @@ mod tests {
     fn scope_and_id_are_expected() {
         let rule = ContentSecurityPolicyValid;
         assert_eq!(rule.id(), "content_security_policy_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

@@ -411,6 +411,22 @@ impl RuleMeta for LinkHeaderValid {
     /// processing model those rest on is written for a response's `Link`
     /// headers. The party is that same fork, carried on the judgement so the one
     /// reporting site does not have to guess which call answered.
+    ///
+    /// Either direction of an exchange writes this field.
+    ///
+    /// RFC 8288 defines `Link` as a serialisation of links "into HTTP headers"
+    /// and states no direction anywhere: its IANA registration names the
+    /// protocol and not a message type, and § 3.2's default link context is
+    /// *the representation the field is associated with*, which a request
+    /// carrying content has as surely as a response does. The gate this
+    /// replaces was a comment — *"Link is meaningful on responses / 103 Early
+    /// Hints"* — with no document behind it, and it cost the grammar checks
+    /// every `Link` a client ever sent.
+    ///
+    /// One finding stays response-only, and it is gated where it is made
+    /// rather than here: the HTML processing model that discards a `preload`
+    /// member with no `as` runs over a *response*'s header list.
+    /// cite(RFC 8288 § 3): "The Link header field provides a means for serialising one or more links into HTTP headers."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -503,25 +519,6 @@ impl RuleMeta for LinkHeaderValid {
 }
 
 impl Rule for LinkHeaderValid {
-    /// Either direction of an exchange writes this field.
-    ///
-    /// RFC 8288 defines `Link` as a serialisation of links "into HTTP headers"
-    /// and states no direction anywhere: its IANA registration names the
-    /// protocol and not a message type, and § 3.2's default link context is
-    /// *the representation the field is associated with*, which a request
-    /// carrying content has as surely as a response does. The gate this
-    /// replaces was a comment — *"Link is meaningful on responses / 103 Early
-    /// Hints"* — with no document behind it, and it cost the grammar checks
-    /// every `Link` a client ever sent.
-    ///
-    /// One finding stays response-only, and it is gated where it is made
-    /// rather than here: the HTML processing model that discards a `preload`
-    /// member with no `as` runs over a *response*'s header list.
-    // cite(RFC 8288 § 3): "The Link header field provides a means for serialising one or more links into HTTP headers."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -1725,8 +1722,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
-        assert_eq!(LinkHeaderValid.scope(), crate::rules::RuleScope::Both);
+    fn needs_no_response() {
+        assert!(!LinkHeaderValid.needs_response());
     }
 
     #[test]

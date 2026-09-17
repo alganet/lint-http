@@ -70,6 +70,7 @@ impl RuleMeta for MaxAgeDirectiveValid {
         DECLARED
     }
 
+    /// examines both request and past responses
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
     }
@@ -102,11 +103,6 @@ impl RuleMeta for MaxAgeDirectiveValid {
 }
 
 impl Rule for MaxAgeDirectiveValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // examines both request and past responses
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

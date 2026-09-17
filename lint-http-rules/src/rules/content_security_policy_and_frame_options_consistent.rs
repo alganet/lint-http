@@ -251,8 +251,8 @@ impl RuleMeta for ContentSecurityPolicyAndFrameOptionsConsistent {
 }
 
 impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -446,7 +446,7 @@ mod tests {
             rule.id(),
             "content_security_policy_and_frame_options_consistent"
         );
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

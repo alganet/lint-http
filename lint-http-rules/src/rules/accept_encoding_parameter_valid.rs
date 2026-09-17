@@ -108,6 +108,13 @@ impl RuleMeta for AcceptEncodingParameterValid {
         DECLARED
     }
 
+    /// Both directions carry the field with a meaning of its own: a request
+    /// states what codings a response may use, a response what the resource was
+    /// willing to accept. §12.5.3 defines the two readings and gives them the
+    /// same syntax, which is why one grammar reads both.
+    /// cite(RFC 9110 § 12.5.3): "When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response."
+    /// cite(RFC 9110 § 12.5.3): "When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request."
+    /// cite(RFC 9110 § 12.5.3): "The field value is evaluated the same way as in a request."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -175,17 +182,6 @@ impl RuleMeta for AcceptEncodingParameterValid {
 }
 
 impl Rule for AcceptEncodingParameterValid {
-    // Both, because both directions carry the field with a meaning: a request
-    // states what codings a response may use, a response what the resource was
-    // willing to accept. The label said `Client` while §12.5.3 defines two
-    // readings and gives them the same syntax.
-    // cite(RFC 9110 § 12.5.3): "When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response."
-    // cite(RFC 9110 § 12.5.3): "When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request."
-    // cite(RFC 9110 § 12.5.3): "The field value is evaluated the same way as in a request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

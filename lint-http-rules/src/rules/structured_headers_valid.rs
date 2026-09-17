@@ -167,6 +167,11 @@ headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
     /// **A configured field is parsed out of whichever half carried it**, and a
     /// value that fails Structured Fields parsing was written by the peer that
     /// wrote the section — the same `section` the reader words its findings with.
+    ///
+    /// Both directions. Structured Fields is a way of writing a field value,
+    /// not a property of requests or of responses, and the configured names are
+    /// whatever the operator listed -- several registered Structured types are
+    /// defined for one direction and several for both.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -209,14 +214,6 @@ headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
 }
 
 impl Rule for StructuredHeadersValid {
-    /// Both directions. Structured Fields is a way of writing a field value,
-    /// not a property of requests or of responses, and the configured names are
-    /// whatever the operator listed -- several registered Structured types are
-    /// defined for one direction and several for both.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -904,9 +901,9 @@ mod tests {
     }
 
     #[rstest]
-    fn rule_scope_is_both() {
+    fn needs_no_response() {
         let r = StructuredHeadersValid;
-        assert_eq!(r.scope(), crate::rules::RuleScope::Both);
+        assert!(!r.needs_response());
     }
 
     #[rstest]

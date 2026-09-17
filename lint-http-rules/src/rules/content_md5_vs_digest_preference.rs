@@ -86,10 +86,6 @@ impl RuleMeta for ContentMd5VsDigestPreference {
 }
 
 impl Rule for ContentMd5VsDigestPreference {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -331,7 +327,7 @@ mod tests {
     fn id_and_scope_are_expected() {
         let rule = ContentMd5VsDigestPreference;
         assert_eq!(rule.id(), "content_md5_vs_digest_preference");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[test]

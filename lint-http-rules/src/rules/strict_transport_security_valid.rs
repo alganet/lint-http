@@ -138,8 +138,8 @@ impl RuleMeta for StrictTransportSecurityValid {
 }
 
 impl Rule for StrictTransportSecurityValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(

@@ -141,8 +141,8 @@ impl RuleMeta for NoBodyFor1xx204304 {
 }
 
 impl Rule for NoBodyFor1xx204304 {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -500,8 +500,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
-        assert_eq!(NoBodyFor1xx204304.scope(), crate::rules::RuleScope::Server);
+    fn needs_a_response() {
+        assert!(NoBodyFor1xx204304.needs_response());
     }
 
     #[test]

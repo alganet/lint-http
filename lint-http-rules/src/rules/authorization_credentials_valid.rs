@@ -132,10 +132,6 @@ impl RuleMeta for AuthorizationCredentialsValid {
 }
 
 impl Rule for AuthorizationCredentialsValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -304,7 +300,7 @@ mod tests {
     fn id_and_scope_are_expected() {
         let r = AuthorizationCredentialsValid;
         assert_eq!(r.id(), "authorization_credentials_valid");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Client);
+        assert!(!r.needs_response());
     }
 
     /// This rule reads a credential only as far as "a scheme, then something",

@@ -70,6 +70,14 @@ impl RuleMeta for AcceptAndContentTypeNegotiation {
         DECLARED
     }
 
+    /// A transaction rule: it reads a request field and a response field and
+    /// compares them, so neither half alone is its subject. Accept is the
+    /// request side of proactive negotiation — the field a user agent sends to
+    /// state a preference — and Content-Type is what the response came back
+    /// with. (Accept may also appear in a response, where §12.5.1 says it
+    /// describes a *subsequent* request; that is a different field's job and
+    /// this rule does not read it.)
+    /// cite(RFC 9110 § 12.5.1): "The "Accept" header field can be used by user agents to specify their preferences regarding response media types."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
     }
@@ -118,18 +126,6 @@ impl RuleMeta for AcceptAndContentTypeNegotiation {
 }
 
 impl Rule for AcceptAndContentTypeNegotiation {
-    // A transaction rule: it reads a request field and a response field and
-    // compares them, so neither half alone is its subject. Accept is the
-    // request side of proactive negotiation — the field a user agent sends to
-    // state a preference — and Content-Type is what the response came back
-    // with. (Accept may also appear in a response, where §12.5.1 says it
-    // describes a *subsequent* request; that is a different field's job and
-    // this rule does not read it.)
-    // cite(RFC 9110 § 12.5.1): "The "Accept" header field can be used by user agents to specify their preferences regarding response media types."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -565,7 +561,7 @@ mod tests {
     fn message_and_id() {
         let rule = AcceptAndContentTypeNegotiation;
         assert_eq!(rule.id(), "accept_and_content_type_negotiation");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[test]

@@ -342,6 +342,10 @@ max_timeout_seconds = 3600
     /// a hop-by-hop field either peer may send, and the single reporting site
     /// below emits whichever of the two judgements returned first — so the party
     /// travels with the judgement rather than being decided at the report.
+    ///
+    /// Either side of a connection writes this field, and the section that
+    /// specifies it says so in the sentence that permits it at all.
+    /// cite(RFC 2068 § 19.7.1.1): "When the Keep-Alive connection-token has been transmitted with a request or a response, a Keep-Alive header field MAY also be included."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -411,13 +415,6 @@ max_timeout_seconds = 3600
 }
 
 impl Rule for KeepAliveHeaderValid {
-    /// Either side of a connection writes this field, and the section that
-    /// specifies it says so in the sentence that permits it at all.
-    // cite(RFC 2068 § 19.7.1.1): "When the Keep-Alive connection-token has been transmitted with a request or a response, a Keep-Alive header field MAY also be included."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -1061,7 +1058,7 @@ mod tests {
     fn id_and_scope() {
         let rule = KeepAliveHeaderValid;
         assert_eq!(rule.id(), "keep_alive_header_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[rstest]

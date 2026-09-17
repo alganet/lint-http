@@ -195,8 +195,8 @@ impl Rule for Status405AllowValid {
     /// because no field of a message records which party wrote it.
     ///
     /// cite(RFC 9110 § 3.7): "All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -550,8 +550,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server_because_the_requirement_is_on_a_response() {
-        assert_eq!(Status405AllowValid.scope(), crate::rules::RuleScope::Server);
+    fn needs_a_response_because_the_requirement_is_on_one() {
+        assert!(Status405AllowValid.needs_response());
     }
 
     /// Every published example is a case this rule decides the way its label claims.

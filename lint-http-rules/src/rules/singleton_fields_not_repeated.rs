@@ -231,10 +231,6 @@ enabled = true
 }
 
 impl Rule for SingletonFieldsNotRepeated {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -458,11 +454,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
-        assert_eq!(
-            SingletonFieldsNotRepeated.scope(),
-            crate::rules::RuleScope::Both
-        );
+    fn needs_no_response() {
+        assert!(!SingletonFieldsNotRepeated.needs_response());
     }
 
     #[test]

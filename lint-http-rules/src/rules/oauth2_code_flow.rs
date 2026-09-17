@@ -71,6 +71,7 @@ impl RuleMeta for Oauth2CodeFlow {
         DECLARED
     }
 
+    /// Only examines outgoing requests; does not depend on server behaviour.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -103,11 +104,6 @@ impl RuleMeta for Oauth2CodeFlow {
 }
 
 impl Rule for Oauth2CodeFlow {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // Only examines outgoing requests; does not depend on server behaviour.
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

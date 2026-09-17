@@ -91,10 +91,6 @@ impl RuleMeta for CookieDomainMatching {
 }
 
 impl Rule for CookieDomainMatching {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

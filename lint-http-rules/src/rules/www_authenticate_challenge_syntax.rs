@@ -115,10 +115,10 @@ impl RuleMeta for WwwAuthenticateChallengeSyntax {
 }
 
 impl Rule for WwwAuthenticateChallengeSyntax {
-    fn scope(&self) -> crate::rules::RuleScope {
+    fn needs_response(&self) -> bool {
         // WWW-Authenticate is a response header field, so only responses are checked.
         // The challenge grammar and its validation are owned by helpers::auth (§11.3).
-        crate::rules::RuleScope::Server
+        true
     }
 
     fn findings(
@@ -872,12 +872,12 @@ mod tests {
     fn message_and_id() {
         let rule = WwwAuthenticateChallengeSyntax;
         assert_eq!(rule.id(), "www_authenticate_challenge_syntax");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = WwwAuthenticateChallengeSyntax;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 }

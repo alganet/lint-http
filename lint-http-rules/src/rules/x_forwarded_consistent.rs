@@ -260,6 +260,13 @@ impl RuleMeta for XForwardedConsistent {
         DECLARED
     }
 
+    /// The fields travel toward the origin. §7.4 is written about what a proxy
+    /// receives on a request, and §1 describes the family as the way a proxy
+    /// discloses to the *next* hop what it saw of the client — so a response
+    /// carrying one of these names has no sentence to be measured against. This
+    /// rule used to walk the response headers anyway, on a comment observing that
+    /// some proxies echo them, which is a fact about deployments and not a claim
+    /// about conformance; deleting the walk was the change.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -306,18 +313,6 @@ impl RuleMeta for XForwardedConsistent {
 }
 
 impl Rule for XForwardedConsistent {
-    /// The fields travel toward the origin. §7.4 is written about what a proxy
-    /// receives on a request, and §1 describes the family as the way a proxy
-    /// discloses to the *next* hop what it saw of the client — so a response
-    /// carrying one of these names has no sentence to be measured against. This
-    /// rule used to walk the response headers anyway, on a comment observing that
-    /// some proxies echo them, which is a fact about deployments and not a claim
-    /// about conformance. In this engine `Client` and `Both` dispatch alike, so
-    /// the enum documents the direction and deleting the walk is the change.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -647,11 +642,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_the_request_direction() {
-        assert_eq!(
-            XForwardedConsistent.scope(),
-            crate::rules::RuleScope::Client
-        );
+    fn needs_no_response_because_the_fields_travel_one_way() {
+        assert!(!XForwardedConsistent.needs_response());
     }
 
     #[test]

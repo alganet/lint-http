@@ -331,6 +331,14 @@ impl RuleMeta for UpgradeHeaderSyntax {
     /// change**, so the same production is read out of the request and then the
     /// response, and the party travels with the judgement rather than being
     /// decided at the single reporting site.
+    ///
+    /// Both directions carry the field by name in this section: a client offers
+    /// protocols in a request, and a server names them in a response — in the
+    /// `101` and `426` its own MUSTs are about, and in any other response it
+    /// chooses to advertise in.
+    ///
+    /// cite(RFC 9110 § 7.8): "A client MAY send a list of protocol names in the Upgrade header field of a request to invite the server to switch to one or more of the named protocols, in order of descending preference, before sending the final response."
+    /// cite(RFC 9110 § 7.8): "A server MAY send an Upgrade header field in any other response to advertise that it implements support for upgrading to the listed protocols, in order of descending preference, when appropriate for a future request."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -373,17 +381,6 @@ impl RuleMeta for UpgradeHeaderSyntax {
 }
 
 impl Rule for UpgradeHeaderSyntax {
-    /// Both directions carry the field by name in this section: a client offers
-    /// protocols in a request, and a server names them in a response — in the
-    /// `101` and `426` its own MUSTs are about, and in any other response it
-    /// chooses to advertise in.
-    ///
-    /// cite(RFC 9110 § 7.8): "A client MAY send a list of protocol names in the Upgrade header field of a request to invite the server to switch to one or more of the named protocols, in order of descending preference, before sending the final response."
-    /// cite(RFC 9110 § 7.8): "A server MAY send an Upgrade header field in any other response to advertise that it implements support for upgrading to the listed protocols, in order of descending preference, when appropriate for a future request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -726,9 +723,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         use crate::rules::Rule as _;
-        assert_eq!(UpgradeHeaderSyntax.scope(), crate::rules::RuleScope::Both);
+        assert!(!UpgradeHeaderSyntax.needs_response());
     }
 
     #[test]

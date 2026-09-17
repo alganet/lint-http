@@ -144,6 +144,11 @@ impl RuleMeta for FromHeaderEmailSyntax {
         DECLARED
     }
 
+    /// `From` is defined in § 10.1, *Request Context Fields* — the section is
+    /// about the party the field names, and there is no response half of it for
+    /// a server to write.
+    ///
+    /// cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -216,15 +221,6 @@ impl RuleMeta for FromHeaderEmailSyntax {
 }
 
 impl Rule for FromHeaderEmailSyntax {
-    /// `From` is defined in § 10.1, *Request Context Fields* — the section is
-    /// about the party the field names, and there is no response half of it for
-    /// a server to write.
-    ///
-    /// cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -601,11 +597,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
-        assert_eq!(
-            FromHeaderEmailSyntax.scope(),
-            crate::rules::RuleScope::Client
-        );
+    fn needs_no_response() {
+        assert!(!FromHeaderEmailSyntax.needs_response());
     }
 
     #[test]

@@ -112,6 +112,9 @@ impl RuleMeta for RangeRequestAndCaching {
         DECLARED
     }
 
+    /// The rule judges a request against earlier responses and never reads the
+    /// current one — a reader who assumed a response was in hand would be wrong
+    /// about every branch below.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -157,14 +160,6 @@ impl RuleMeta for RangeRequestAndCaching {
 }
 
 impl Rule for RangeRequestAndCaching {
-    /// The rule judges a request against earlier responses and never reads the
-    /// current one. In this engine only `Server` filters dispatch, so this is
-    /// documentation — but the reader who assumed a response was in hand would
-    /// be wrong about every branch below.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

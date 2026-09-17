@@ -92,6 +92,13 @@ impl RuleMeta for PatchPartialUpdate {
         DECLARED
     }
 
+    /// The field this rule reads is the request's, and on a PATCH request it
+    /// describes the enclosed patch document rather than the resource being
+    /// changed -- § 2 says so with a MUST NOT, and adds that a
+    /// `Content-Language` on such a request means only that the *patch* has
+    /// a language. A response encloses no patch document, so there is
+    /// nothing on that side for the sentence to be about.
+    /// cite(RFC 5789 § 2): "Note that entity-headers contained in the request apply only to the contained patch document and MUST NOT be applied to the resource being modified."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -124,19 +131,6 @@ impl RuleMeta for PatchPartialUpdate {
 }
 
 impl Rule for PatchPartialUpdate {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // The field this rule reads is the request's, and on a PATCH request it
-        // describes the enclosed patch document rather than the resource being
-        // changed -- § 2 says so with a MUST NOT, and adds that a
-        // `Content-Language` on such a request means only that the *patch* has
-        // a language. A response encloses no patch document, so there is
-        // nothing on that side for the sentence to be about. In this engine
-        // `Client` and `Both` dispatch identically -- only `Server` filters --
-        // so this states the subject rather than narrowing the input.
-        // cite(RFC 5789 § 2): "Note that entity-headers contained in the request apply only to the contained patch document and MUST NOT be applied to the resource being modified."
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

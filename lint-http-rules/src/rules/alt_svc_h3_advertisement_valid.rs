@@ -187,8 +187,8 @@ impl RuleMeta for AltSvcH3AdvertisementValid {
 }
 
 impl Rule for AltSvcH3AdvertisementValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -841,9 +841,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = AltSvcH3AdvertisementValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     /// Nothing runs a rule's own `examples()` through the engine, so a

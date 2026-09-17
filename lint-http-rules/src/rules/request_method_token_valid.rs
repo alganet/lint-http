@@ -245,6 +245,11 @@ registered_methods = [
         DECLARED
     }
 
+    /// Every sentence here is addressed to whoever generated the request, so
+    /// the rule has to run on a request whose upstream never answered as well as
+    /// on a complete exchange — needing a response would skip exactly the
+    /// captures where the request is all there is.
+    /// cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -281,15 +286,6 @@ registered_methods = [
 }
 
 impl Rule for RequestMethodTokenValid {
-    /// Every sentence here is addressed to whoever generated the request, so the rule
-    /// has to run on a request whose upstream never answered as well as on a complete
-    /// exchange. `Client` is the scope that survives into the request-only dispatch;
-    /// `Server` would skip exactly the captures where the request is all there is.
-    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -627,9 +623,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = RequestMethodTokenValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     /// The shipped array is what a deployment starts from, so it has to parse and to

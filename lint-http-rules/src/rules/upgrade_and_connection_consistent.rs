@@ -206,10 +206,6 @@ impl RuleMeta for UpgradeAndConnectionConsistent {
 }
 
 impl Rule for UpgradeAndConnectionConsistent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -402,8 +398,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = UpgradeAndConnectionConsistent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 }

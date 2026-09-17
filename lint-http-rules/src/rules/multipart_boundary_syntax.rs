@@ -103,6 +103,13 @@ impl RuleMeta for MultipartBoundarySyntax {
     /// runs over the request's `Content-Type` and then the response's, and is
     /// handed the answer along with the `which` it already words its findings
     /// with.
+    ///
+    /// The parameter this rule reads lives in Content-Type, and that field
+    /// describes a representation in either direction. RFC 9110 does not leave
+    /// this to inference for multipart in particular: it names a request type
+    /// and a response type in the same paragraph, multipart/form-data and
+    /// multipart/byteranges.
+    /// cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -160,16 +167,6 @@ impl RuleMeta for MultipartBoundarySyntax {
 }
 
 impl Rule for MultipartBoundarySyntax {
-    // The parameter this rule reads lives in Content-Type, and that field
-    // describes a representation in either direction. RFC 9110 does not leave
-    // this to inference for multipart in particular: it names a request type
-    // and a response type in the same paragraph, multipart/form-data and
-    // multipart/byteranges.
-    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

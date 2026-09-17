@@ -70,6 +70,9 @@ impl RuleMeta for ImmutableCacheNeverStale {
         DECLARED
     }
 
+    /// The rule correlates a client's conditional request with a prior origin
+    /// response that carried `immutable`, so it reads each side — the prior
+    /// response being the yardstick.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -97,12 +100,6 @@ impl RuleMeta for ImmutableCacheNeverStale {
 }
 
 impl Rule for ImmutableCacheNeverStale {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // Both: the rule correlates a client's conditional request with a prior
-        // origin response that carried immutable, so it needs to see each side.
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

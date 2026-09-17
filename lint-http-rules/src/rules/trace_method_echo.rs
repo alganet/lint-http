@@ -131,6 +131,9 @@ impl RuleMeta for TraceMethodEcho {
         DECLARED
     }
 
+    /// Both sentences this rule enforces are requirements on the client, and a
+    /// request that never drew a response has broken them or not already.
+    /// cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -158,13 +161,6 @@ impl RuleMeta for TraceMethodEcho {
 }
 
 impl Rule for TraceMethodEcho {
-    /// Both sentences this rule enforces are requirements on the client, and a
-    /// request that never drew a response has broken them or not already.
-    // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -326,7 +322,7 @@ mod tests {
     fn id_and_scope() {
         let r = TraceMethodEcho;
         assert_eq!(r.id(), "trace_method_echo");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Client);
+        assert!(!r.needs_response());
     }
 
     #[rstest]

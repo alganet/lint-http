@@ -163,8 +163,8 @@ impl RuleMeta for StatusCodeSemantics {
 }
 
 impl Rule for StatusCodeSemantics {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -355,7 +355,7 @@ mod tests {
     fn id_and_scope() {
         let r = StatusCodeSemantics;
         assert_eq!(r.id(), "status_code_semantics");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Server);
+        assert!(r.needs_response());
     }
 
     #[test]

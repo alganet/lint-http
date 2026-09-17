@@ -96,8 +96,8 @@ impl RuleMeta for StatusCodeValidRange {
 }
 
 impl Rule for StatusCodeValidRange {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -109,7 +109,7 @@ impl Rule for StatusCodeValidRange {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // A status code is something a *response* has. `RuleScope::Server` above is
+            // A status code is something a *response* has. The `needs_response` above is
             // the engine's dispatch filter and not a sentence; this is the sentence, and
             // it is the definition the range check below used to be hung on.
             //

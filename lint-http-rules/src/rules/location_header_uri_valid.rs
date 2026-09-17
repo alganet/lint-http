@@ -167,8 +167,8 @@ impl Rule for LocationHeaderUriValid {
     /// than the dispatch convenience of skipping transactions with no response.
     ///
     /// cite(RFC 9110 § 10.2): "The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -598,8 +598,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = LocationHeaderUriValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 }

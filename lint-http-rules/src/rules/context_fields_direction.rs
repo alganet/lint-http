@@ -172,10 +172,6 @@ enabled = true
 }
 
 impl Rule for ContextFieldsDirection {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -390,11 +386,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
-        assert_eq!(
-            ContextFieldsDirection.scope(),
-            crate::rules::RuleScope::Both
-        );
+    fn needs_no_response() {
+        assert!(!ContextFieldsDirection.needs_response());
     }
 
     #[test]

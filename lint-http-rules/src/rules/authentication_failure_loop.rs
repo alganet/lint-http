@@ -75,10 +75,6 @@ impl RuleMeta for AuthenticationFailureLoop {
 }
 
 impl Rule for AuthenticationFailureLoop {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

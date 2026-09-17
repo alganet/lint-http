@@ -203,8 +203,8 @@ impl RuleMeta for LocationOnRedirectPresent {
 }
 
 impl Rule for LocationOnRedirectPresent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -375,7 +375,7 @@ mod tests {
     fn id_and_scope() {
         let rule = LocationOnRedirectPresent;
         assert_eq!(rule.id(), "location_on_redirect_present");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

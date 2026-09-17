@@ -120,10 +120,6 @@ impl RuleMeta for PragmaTokenValid {
 }
 
 impl Rule for PragmaTokenValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -589,6 +585,6 @@ mod tests {
     fn id_and_scope_are_expected() {
         let r = PragmaTokenValid;
         assert_eq!(r.id(), "pragma_token_valid");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Both);
+        assert!(!r.needs_response());
     }
 }

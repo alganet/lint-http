@@ -111,10 +111,6 @@ impl RuleMeta for FormDataContentDispositionValid {
 }
 
 impl Rule for FormDataContentDispositionValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

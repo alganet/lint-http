@@ -199,6 +199,10 @@ safe_methods = [
         DECLARED
     }
 
+    /// The field is a request header field, and one of the sentences that
+    /// govern it names a response as a place it MUST NOT be — so the response
+    /// half is read too, without the rule needing one to run.
+    /// cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -246,15 +250,6 @@ safe_methods = [
 }
 
 impl Rule for EarlyDataHeaderSafeMethod {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // The field is a request header field, and one of the sentences that govern it
-        // names a response as a place it MUST NOT be — so the response half of a
-        // transaction is read too, and `Server` would have skipped every capture whose
-        // upstream never answered.
-        // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -672,11 +667,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
-        assert_eq!(
-            EarlyDataHeaderSafeMethod.scope(),
-            crate::rules::RuleScope::Both
-        );
+    fn needs_no_response() {
+        assert!(!EarlyDataHeaderSafeMethod.needs_response());
     }
 
     #[test]

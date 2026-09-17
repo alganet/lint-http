@@ -243,6 +243,13 @@ impl RuleMeta for AllowHeaderMethodTokensValid {
     /// one is the client's malformed field and a response carrying one is the
     /// origin's, which is the `section` the reader already words its findings
     /// with.
+    ///
+    /// The grammar is the whole of this rule and § 2.2 addresses whoever
+    /// generated the element, so both halves of the exchange are read and
+    /// neither needs the other to be present — which is also why the rule wants
+    /// no response to run.
+    ///
+    /// cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -302,17 +309,6 @@ impl RuleMeta for AllowHeaderMethodTokensValid {
 }
 
 impl Rule for AllowHeaderMethodTokensValid {
-    /// The grammar is the whole of this rule and § 2.2 addresses whoever generated
-    /// the element, so both halves of the exchange are read and neither needs the
-    /// other to be present. `Both` is the scope that survives into the request-only
-    /// dispatch; `Server` would skip exactly the captures where the request is all
-    /// there is.
-    ///
-    /// cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -610,9 +606,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both_because_either_party_can_write_the_field() {
+    fn needs_no_response_because_either_party_can_write_the_field() {
         let rule = AllowHeaderMethodTokensValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     /// Every published example is a case this rule actually decides the way the

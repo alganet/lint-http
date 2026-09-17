@@ -99,6 +99,12 @@ impl RuleMeta for RequestUriPercentEncodingValid {
         DECLARED
     }
 
+    /// The characters measured here were written by the client that resolved a
+    /// URI reference into a target URI and sent its components, so the rule has
+    /// to run on a capture whose upstream never answered as well as on a
+    /// complete exchange: the octets were already on the wire when the request
+    /// was sent.
+    /// cite(RFC 9110 § 7.1): "To perform an action on a "target resource", the client sends a request message containing enough components of its parsed target URI to enable recipients to identify that same resource."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -131,17 +137,6 @@ impl RuleMeta for RequestUriPercentEncodingValid {
 }
 
 impl Rule for RequestUriPercentEncodingValid {
-    /// The characters measured here were written by the client that resolved a
-    /// URI reference into a target URI and sent its components, so the rule has
-    /// to run on a capture whose upstream never answered as well as on a
-    /// complete exchange. `Server` means "skip when there is no response",
-    /// which would skip exactly the request-only lint -- and the octets were
-    /// already on the wire when the request was sent.
-    // cite(RFC 9110 § 7.1): "To perform an action on a "target resource", the client sends a request message containing enough components of its parsed target URI to enable recipients to identify that same resource."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -487,8 +482,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = RequestUriPercentEncodingValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 }

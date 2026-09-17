@@ -67,8 +67,8 @@ impl RuleMeta for RetryAfterDateOrDelay {
 }
 
 impl Rule for RetryAfterDateOrDelay {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -225,9 +225,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = RetryAfterDateOrDelay;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

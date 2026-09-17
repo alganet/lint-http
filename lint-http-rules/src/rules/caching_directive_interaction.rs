@@ -98,10 +98,6 @@ impl RuleMeta for CachingDirectiveInteraction {
 }
 
 impl Rule for CachingDirectiveInteraction {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

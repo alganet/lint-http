@@ -197,10 +197,6 @@ impl RuleMeta for DigestAuthNonceHandling {
 }
 
 impl Rule for DigestAuthNonceHandling {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

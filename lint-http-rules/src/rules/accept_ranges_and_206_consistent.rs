@@ -108,8 +108,8 @@ impl RuleMeta for AcceptRangesAnd206Consistent {
 }
 
 impl Rule for AcceptRangesAnd206Consistent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -557,10 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
-        assert_eq!(
-            AcceptRangesAnd206Consistent.scope(),
-            crate::rules::RuleScope::Server
-        );
+    fn needs_a_response() {
+        assert!(AcceptRangesAnd206Consistent.needs_response());
     }
 }

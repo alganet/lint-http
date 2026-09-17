@@ -138,8 +138,8 @@ impl Rule for Status426UpgradeValid {
     /// the scope that skips exactly those.
     ///
     /// cite(RFC 9110 § 15.5.22): "The server MUST send an Upgrade header field in a 426 response to indicate the required protocol(s) (Section 7.8)."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -551,8 +551,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
-        assert_eq!(RULE.scope(), crate::rules::RuleScope::Server);
+    fn needs_a_response() {
+        assert!(RULE.needs_response());
     }
 
     #[test]

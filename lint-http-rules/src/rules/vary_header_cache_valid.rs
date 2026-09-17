@@ -64,6 +64,7 @@ impl RuleMeta for VaryHeaderCacheValid {
         DECLARED
     }
 
+    /// rule inspects both request and response history
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -96,11 +97,6 @@ impl RuleMeta for VaryHeaderCacheValid {
 }
 
 impl Rule for VaryHeaderCacheValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // rule inspects both request and response history
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

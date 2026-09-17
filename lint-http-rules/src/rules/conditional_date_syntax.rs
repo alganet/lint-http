@@ -204,10 +204,6 @@ impl ConditionalDateSyntax {
 }
 
 impl Rule for ConditionalDateSyntax {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -399,6 +395,6 @@ mod tests {
     fn id_and_scope_are_expected() {
         let r = ConditionalDateSyntax;
         assert_eq!(r.id(), "conditional_date_syntax");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Both);
+        assert!(!r.needs_response());
     }
 }

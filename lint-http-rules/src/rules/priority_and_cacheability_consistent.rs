@@ -79,14 +79,14 @@ impl RuleMeta for PriorityAndCacheabilityConsistent {
 }
 
 impl Rule for PriorityAndCacheabilityConsistent {
-    fn scope(&self) -> crate::rules::RuleScope {
+    fn needs_response(&self) -> bool {
         // The expectation is scoped by its own opening clause, which is what
         // this rule reads to decide it inspects responses and nothing else: a
         // request carrying a `Priority` is asked for nothing here. The other
         // half of the sentence -- what such a server is expected to do -- is
         // the entry's, and sits on it beside its reference.
         // cite(RFC 9218 § 5): "When an origin server generates the Priority response header field based on properties of an HTTP request it receives"
-        crate::rules::RuleScope::Server
+        true
     }
 
     fn findings(
@@ -284,8 +284,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = PriorityAndCacheabilityConsistent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 }

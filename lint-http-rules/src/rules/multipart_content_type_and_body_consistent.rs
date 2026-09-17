@@ -68,6 +68,13 @@ impl RuleMeta for MultipartContentTypeAndBodyConsistent {
     /// the sender's defect, and either peer can send one.** The reader is run
     /// over the request's header-and-body pair and then the response's, so the
     /// party travels with the pair rather than with the field.
+    ///
+    /// Both directions carry a representation, and both carry multipart ones:
+    /// RFC 9110 §8.3.3 names `multipart/form-data` for requests and
+    /// `multipart/byteranges` for 206 responses in the same paragraph. (That
+    /// sentence cannot be quoted as one span — the media type name is broken
+    /// across a line at its slash — so the field's own definition stands here.)
+    /// cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -110,16 +117,6 @@ impl RuleMeta for MultipartContentTypeAndBodyConsistent {
 }
 
 impl Rule for MultipartContentTypeAndBodyConsistent {
-    // Both directions carry a representation, and both carry multipart ones:
-    // RFC 9110 §8.3.3 names `multipart/form-data` for requests and
-    // `multipart/byteranges` for 206 responses in the same paragraph. (That
-    // sentence cannot be quoted as one span — the media type name is broken
-    // across a line at its slash — so the field's own definition stands here.)
-    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

@@ -93,8 +93,8 @@ impl RuleMeta for PostCreatesResource {
 }
 
 impl Rule for PostCreatesResource {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -117,7 +117,7 @@ impl Rule for PostCreatesResource {
 
             // What a POST did is stated by the status code the origin server chose, so
             // there is nothing for this rule to read until a response has arrived — which
-            // is what `RuleScope::Server` declares.
+            // is what `needs_response` declares.
             // cite(RFC 9110 § 9.3.3): "An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable))."
             let resp = tx.response.as_ref()?;
 
@@ -219,7 +219,7 @@ mod tests {
     fn id_and_scope() {
         let r = PostCreatesResource;
         assert_eq!(r.id(), "post_creates_resource");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Server);
+        assert!(r.needs_response());
     }
 
     #[rstest::rstest]

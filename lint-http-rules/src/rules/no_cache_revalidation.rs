@@ -77,6 +77,8 @@ impl RuleMeta for NoCacheRevalidation {
         DECLARED
     }
 
+    /// examines both the request and prior responses for the same
+    /// client+resource (history is filtered by the engine accordingly).
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -104,12 +106,6 @@ impl RuleMeta for NoCacheRevalidation {
 }
 
 impl Rule for NoCacheRevalidation {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // examines both the request and prior responses for the same
-        // client+resource (history is filtered by the engine accordingly).
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

@@ -43,7 +43,7 @@ impl RuleMeta for CrossOriginResourcePolicyValid {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The comparison is **case-sensitive**, as the Fetch Standard's ABNF requires: a user agent that does not recognize the value sets the policy to null and serves the resource as though the header were never sent, so a miscased `SAME-ORIGIN` is not a weaker protection but no protection at all. Surrounding whitespace is still tolerated. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only; the rule applies to server responses (RuleScope::Server)."
+        "This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The comparison is **case-sensitive**, as the Fetch Standard's ABNF requires: a user agent that does not recognize the value sets the policy to null and serves the resource as though the header were never sent, so a miscased `SAME-ORIGIN` is not a weaker protection but no protection at all. Surrounding whitespace is still tolerated. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only; the rule applies to server responses."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -86,8 +86,8 @@ impl RuleMeta for CrossOriginResourcePolicyValid {
 }
 
 impl Rule for CrossOriginResourcePolicyValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -301,9 +301,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = CrossOriginResourcePolicyValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

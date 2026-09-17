@@ -373,8 +373,8 @@ impl Rule for AcceptPatchHeaderValid {
     /// request for this rule to measure.
     ///
     /// cite(RFC 5789 § 3.1): "This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -1055,11 +1055,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server_because_every_finding_is_about_a_response() {
-        assert_eq!(
-            AcceptPatchHeaderValid.scope(),
-            crate::rules::RuleScope::Server
-        );
+    fn needs_a_response_because_every_finding_is_about_one() {
+        assert!(AcceptPatchHeaderValid.needs_response());
     }
 
     /// Every published example is a case this rule actually decides the way the

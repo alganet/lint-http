@@ -47,7 +47,7 @@ impl RuleMeta for CrossOriginEmbedderPolicyValid {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses (RuleScope::Server)."
+        "This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -95,8 +95,8 @@ impl RuleMeta for CrossOriginEmbedderPolicyValid {
 }
 
 impl Rule for CrossOriginEmbedderPolicyValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -313,9 +313,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = CrossOriginEmbedderPolicyValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

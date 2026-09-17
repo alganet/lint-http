@@ -99,6 +99,9 @@ impl RuleMeta for AcceptRangesOnPartialContent {
         DECLARED
     }
 
+    /// What keeps this rule off a message it has nothing to say about is not a
+    /// declaration up here: it is the `Range` field the request must carry and
+    /// the previous response it reads, both below.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -133,14 +136,6 @@ impl RuleMeta for AcceptRangesOnPartialContent {
 }
 
 impl Rule for AcceptRangesOnPartialContent {
-    /// Documentation, not a filter: in this engine only `Server` decides
-    /// anything, and `Client` and `Both` dispatch identically. What keeps this
-    /// rule off a message it has nothing to say about is the `Range` field it
-    /// requires and the previous response it reads, both below.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -565,11 +560,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
-        assert_eq!(
-            AcceptRangesOnPartialContent.scope(),
-            crate::rules::RuleScope::Client
-        );
+    fn needs_no_response() {
+        assert!(!AcceptRangesOnPartialContent.needs_response());
     }
 
     #[test]

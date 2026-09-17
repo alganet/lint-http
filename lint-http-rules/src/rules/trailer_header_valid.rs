@@ -230,6 +230,11 @@ impl RuleMeta for TrailerHeaderValid {
     /// content**, and both halves may carry one — the reader runs over the
     /// request's field section and then the response's, and each finding belongs
     /// to the peer whose announcement it read.
+    ///
+    /// The field is message metadata, and the section that groups it says which
+    /// messages carry it.
+    ///
+    /// cite(RFC 9110 § 6.6): "Fields that describe the message itself, such as when and how the message has been generated, can appear in both requests and responses."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -269,14 +274,6 @@ impl RuleMeta for TrailerHeaderValid {
 }
 
 impl Rule for TrailerHeaderValid {
-    /// The field is message metadata, and the section that groups it says which
-    /// messages carry it.
-    ///
-    /// cite(RFC 9110 § 6.6): "Fields that describe the message itself, such as when and how the message has been generated, can appear in both requests and responses."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -663,6 +660,6 @@ mod tests {
     fn id_and_scope_are_expected() {
         let rule = TrailerHeaderValid;
         assert_eq!(rule.id(), "trailer_header_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 }

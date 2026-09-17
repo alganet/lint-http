@@ -73,6 +73,7 @@ impl RuleMeta for NoStoreEnforced {
         DECLARED
     }
 
+    /// examine both requests and previous responses for the resource
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -105,11 +106,6 @@ impl RuleMeta for NoStoreEnforced {
 }
 
 impl Rule for NoStoreEnforced {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // examine both requests and previous responses for the resource
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

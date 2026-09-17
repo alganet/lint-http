@@ -184,10 +184,6 @@ allowed = ["chunked", "compress", "gzip", "deflate"]
 }
 
 impl Rule for TransferCodingRegistered {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -1060,9 +1056,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = TransferCodingRegistered;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[test]

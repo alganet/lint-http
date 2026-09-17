@@ -164,8 +164,8 @@ impl RuleMeta for Status3xxVsRequestMethod {
 }
 
 impl Rule for Status3xxVsRequestMethod {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -178,7 +178,7 @@ impl Rule for Status3xxVsRequestMethod {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             // Both halves of the question are on the transaction: the status the server
-            // chose and the method the client sent. `RuleScope::Server` only means the
+            // chose and the method the client sent. Needing a response only means the
             // engine skips a transaction that has no response yet.
             let resp = tx.response.as_ref()?;
 
@@ -425,7 +425,7 @@ mod tests {
     fn id_and_scope() {
         let rule = Status3xxVsRequestMethod;
         assert_eq!(rule.id(), "status_3xx_vs_request_method");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     /// Every published snippet is run through the rule that publishes it. Each is a

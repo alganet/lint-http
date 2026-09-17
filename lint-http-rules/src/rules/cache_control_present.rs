@@ -70,10 +70,10 @@ impl RuleMeta for CacheControlPresent {
 }
 
 impl Rule for CacheControlPresent {
-    fn scope(&self) -> crate::rules::RuleScope {
+    fn needs_response(&self) -> bool {
         // Server: the heuristic-freshness concern is about what an origin's response
         // does or does not tell caches, so only responses are inspected.
-        crate::rules::RuleScope::Server
+        true
     }
 
     fn findings(
@@ -160,9 +160,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = CacheControlPresent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     /// Each example is a response, and the guard says so rather than assuming

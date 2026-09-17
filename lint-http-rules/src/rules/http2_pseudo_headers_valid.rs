@@ -370,10 +370,6 @@ impl RuleMeta for Http2PseudoHeadersValid {
 }
 
 impl Rule for Http2PseudoHeadersValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -1179,11 +1175,8 @@ mod tests {
     // --- Scope, id and config ---
 
     #[test]
-    fn scope_is_both() {
-        assert_eq!(
-            Http2PseudoHeadersValid.scope(),
-            crate::rules::RuleScope::Both
-        );
+    fn needs_no_response() {
+        assert!(!Http2PseudoHeadersValid.needs_response());
     }
 
     #[test]

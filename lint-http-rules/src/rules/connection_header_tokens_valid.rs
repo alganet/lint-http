@@ -194,6 +194,11 @@ impl RuleMeta for ConnectionHeaderTokensValid {
     /// at this end of it.** Both halves carry one, the same production reads
     /// each, and a malformed connection-option belongs to the section it was
     /// read from.
+    ///
+    /// The field is what a sender says about the connection it is speaking over,
+    /// and either party is a sender.
+    ///
+    /// cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -238,14 +243,6 @@ impl RuleMeta for ConnectionHeaderTokensValid {
 }
 
 impl Rule for ConnectionHeaderTokensValid {
-    /// The field is what a sender says about the connection it is speaking over,
-    /// and either party is a sender.
-    ///
-    /// cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -586,11 +583,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         use crate::rules::Rule as _;
-        assert_eq!(
-            ConnectionHeaderTokensValid.scope(),
-            crate::rules::RuleScope::Both
-        );
+        assert!(!ConnectionHeaderTokensValid.needs_response());
     }
 }

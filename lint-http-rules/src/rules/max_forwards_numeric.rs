@@ -70,6 +70,10 @@ impl RuleMeta for MaxForwardsNumeric {
         DECLARED
     }
 
+    /// The field is a request field: it limits how far a request travels, and the
+    /// two methods it works with are request methods.
+    ///
+    /// cite(RFC 9110 § 7.6.2): "The "Max-Forwards" header field provides a mechanism with the TRACE (Section 9.3.8) and OPTIONS (Section 9.3.7) request methods to limit the number of times that the request is forwarded by proxies."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -112,14 +116,6 @@ impl RuleMeta for MaxForwardsNumeric {
 }
 
 impl Rule for MaxForwardsNumeric {
-    /// The field is a request field: it limits how far a request travels, and the
-    /// two methods it works with are request methods.
-    ///
-    /// cite(RFC 9110 § 7.6.2): "The "Max-Forwards" header field provides a mechanism with the TRACE (Section 9.3.8) and OPTIONS (Section 9.3.7) request methods to limit the number of times that the request is forwarded by proxies."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -450,8 +446,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         use crate::rules::Rule as _;
-        assert_eq!(MaxForwardsNumeric.scope(), crate::rules::RuleScope::Client);
+        assert!(!MaxForwardsNumeric.needs_response());
     }
 }

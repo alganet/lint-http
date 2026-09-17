@@ -106,10 +106,10 @@ impl RuleMeta for CacheCoherence {
 }
 
 impl Rule for CacheCoherence {
-    fn scope(&self) -> crate::rules::RuleScope {
+    fn needs_response(&self) -> bool {
         // the rule only inspects server responses; request headers are used
         // to identify the resource but nothing else is required.
-        crate::rules::RuleScope::Server
+        true
     }
 
     fn findings(
