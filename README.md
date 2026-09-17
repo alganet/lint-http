@@ -61,7 +61,9 @@ lint-http run -- curl -sS https://example.com > body.html 2> report.txt
 ```
 
 `--show-child-stderr` hands the child's stderr back; `--fail-on <severity>` is
-what makes a finding fail the run.
+what makes a finding fail the run; `--only-host <HOST>` / `--all-hosts` decide
+which origins the report is about. All four work on `browse` too — they are the
+options a session takes, not options one command grew.
 
 - `lint-http run --print-env` — the variables a wrapped command receives, and
   which client reads each one.

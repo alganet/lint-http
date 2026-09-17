@@ -73,6 +73,23 @@ Example:
 lint-http proxy-start --config config.toml
 ```
 
+## Session options
+
+`run` and `browse` both stand a proxy up for a child process, and they take the
+same four options for it. They are declared once, so a flag means the same thing
+whichever command it is typed after.
+
+| Option | Meaning |
+|---|---|
+| `--fail-on <info\|warn\|error>` | Exit non-zero when a finding **in the report** reaches this severity. Findings `--min-severity` filtered out cannot trip it. Without it, the exit code is the child's. |
+| `--only-host <HOST>` | Report findings for this host and anything under it. Repeatable. |
+| `--all-hosts` | Report every host, including third parties the target pulls in. |
+| `--show-child-stderr` | Let the child's stderr through. Off by default, so the report has stderr to itself. |
+
+Without either scoping flag, the report covers the host of whatever the session
+was pointed at — the URL `browse` opened. `run --` is tool-blind and knows no
+target, so it reports every origin the child reached.
+
 ## Wrapping a command
 
 `lint-http run [OPTIONS] -- <COMMAND>...` binds a proxy on an ephemeral port,
@@ -108,6 +125,8 @@ lint-http run --fail-on error --captures run.jsonl -- pytest
   it ends.
 - `--print-env` lists the variables a wrapped command receives, and which client
   reads each one, without running anything.
+- `--only-host` scopes the report the same way it does for `browse`, which
+  matters as soon as the wrapped command reaches more than one origin.
 - **The report is what the proxy found, not a second pass over the capture.**
   The rules ran on each transaction as it crossed, with its body in hand, and
   the finding was written onto the record; the report reads it back. That is why
@@ -134,6 +153,8 @@ lint-http browse --all-hosts --format json https://example.com > findings.json
   that URL's host and anything under it; everything else is counted on the last
   line. This is not tidiness — with the whole catalogue enabled, an unscoped
   session on a real page buries its own findings under a third-party CDN's.
+- `--fail-on` gates a browsing session exactly as it gates a wrapped command,
+  which is what makes one usable in a script.
 - **Findings print as they happen**, because a browsing session lasts as long as
   someone keeps it open. `--format json` opts back into one report at the end.
 - **The browser's stderr is discarded**, as it is for `run`. A browser writes a
