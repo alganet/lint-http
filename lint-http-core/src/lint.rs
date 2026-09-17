@@ -142,6 +142,28 @@ pub struct Violation {
     /// an unattributed finding serializes exactly as it always has.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub party: Option<Party>,
+    /// True when this finding exists because the traffic was observed through
+    /// a proxy — the field a client sends only *because* one is configured, and
+    /// which a capture taken without one cannot contain.
+    ///
+    /// **A `bool` where `party` directly above is an `Option`, and the contrast
+    /// is the argument for both.** "Not induced" and "nothing said" are the same
+    /// fact about a finding; "neither peer" and "not yet read" are two different
+    /// ones. A field whose absence and whose `false` mean the same thing does
+    /// not need three states.
+    ///
+    /// Copied onto the finding rather than looked up from the catalogue when a
+    /// report is drawn, following `cite`: a capture has to stay readable by a
+    /// build whose catalogue has moved on.
+    #[serde(default, skip_serializing_if = "is_not_induced")]
+    pub proxy_induced: bool,
+}
+
+/// `skip_serializing_if` for [`Violation::proxy_induced`]. A free function
+/// because serde needs a path and `bool` has no inherent method that reads
+/// right at the call site.
+fn is_not_induced(induced: &bool) -> bool {
+    !*induced
 }
 
 impl Violation {
@@ -157,6 +179,7 @@ impl Violation {
             message: message.into(),
             cite: None,
             party: None,
+            proxy_induced: false,
         }
     }
 }
@@ -269,6 +292,32 @@ mod tests {
         let future = r#"{"rule":"host_header","severity":"warn","message":"m","party":"client","some_later_field":7}"#;
         let v: Violation = serde_json::from_str(future).expect("an unknown key is ignored");
         assert_eq!(v.party, Some(Party::Client));
+    }
+
+    /// A finding that exists because a proxy is in the path says so, and one
+    /// that does not serializes exactly as it always did — the same
+    /// both-ways default `party` and `cite` carry, and the reason the marker
+    /// could be added to a shipped capture format at all.
+    #[test]
+    fn only_an_induced_finding_carries_the_marker() {
+        let plain = Violation::new("host_header", Severity::Warn, "m");
+        assert!(!plain.proxy_induced);
+        assert_eq!(
+            serde_json::to_string(&plain).expect("serializes"),
+            r#"{"rule":"host_header","severity":"warn","message":"m"}"#,
+        );
+
+        let induced = Violation {
+            proxy_induced: true,
+            ..Violation::new("host_header", Severity::Warn, "m")
+        };
+        let json = serde_json::to_string(&induced).expect("serializes");
+        assert_eq!(
+            json,
+            r#"{"rule":"host_header","severity":"warn","message":"m","proxy_induced":true}"#,
+        );
+        let back: Violation = serde_json::from_str(&json).expect("parses");
+        assert!(back.proxy_induced);
     }
 
     /// A finding that names the defect it reports carries both names: the rule

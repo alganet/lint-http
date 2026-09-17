@@ -148,6 +148,40 @@ pub mod x_content_type_options;
 pub mod x_frame_options;
 pub mod x_xss_protection;
 
+/// Whether a defect exists because the traffic was observed through a proxy.
+///
+/// **Two variants rather than a `bool`**, because the marked state needs
+/// somewhere to carry its name and because a second instrument class was
+/// considered and rejected rather than merely not built — see
+/// [`ByTheProxy`](Induced::ByTheProxy).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Induced {
+    /// Traffic on the wire, whoever is watching. Every entry but the marked
+    /// ones, which is why it is the default and why the `defects!` key that
+    /// sets it is the one key an entry may leave out.
+    #[default]
+    No,
+    /// **This proxy's presence in the path is what produced what is being
+    /// reported.** `proxy_connection_obsolete` is the entry the distinction was
+    /// written for: the field exists to be sent *to a proxy*, so a capture
+    /// taken without one cannot contain it, and a session that runs through
+    /// this proxy provokes exactly what it then reports. The finding is still
+    /// true and still the client's — it says something real about that client —
+    /// but a reader deserves to know it is looking at a reflection.
+    ///
+    /// **What this deliberately does not mark is a defect the *probe* causes.**
+    /// `accept_encoding_missing` fires on nearly every session under `curl`,
+    /// because curl sends no `Accept-Encoding` unless asked. That is a fact
+    /// about curl, not about this crate: marking it would have the catalogue
+    /// assert which clients trip which defects, which is unbounded and wrong
+    /// the moment a client changes a default — and worse in the case that
+    /// matters, since an operator running a curl invocation through CI *is*
+    /// testing that invocation, and the finding is a true report about the
+    /// client under test. Quieting what a probe causes is a driver's business
+    /// and belongs in configuration, not here.
+    ByTheProxy,
+}
+
 /// One reportable defect.
 ///
 /// # These are `static`, never `const`
@@ -227,6 +261,11 @@ pub struct ViolationDef {
     /// to know belongs in
     /// [`specifications()`](crate::rules::RuleMeta::specifications).
     pub spec: &'static [SpecRef],
+    /// Whether the instrument produced what this reports. Defaults to
+    /// [`Induced::No`], which makes it the one key in this struct an entry may
+    /// omit: an entry that says nothing is describing traffic, which is what
+    /// all but one of them do.
+    pub induced: Induced,
 }
 
 /// Define a subject's defects, and register every one of them.
@@ -267,6 +306,17 @@ pub struct ViolationDef {
 /// one can use the same name for it: the linker collects the section entry, and
 /// nothing needs a second name derived from the first.
 macro_rules! defects {
+    // Internal arms, and they come first because the general arm below would
+    // otherwise try to read `@induced` as an entry. They exist so `induced:`
+    // can be left out of an entry entirely: `Default::default()` is not const,
+    // and a second whole arm for the marked case would have the five ordinary
+    // keys written twice.
+    (@induced) => {
+        $crate::violations::Induced::No
+    };
+    (@induced $value:expr) => {
+        $value
+    };
     ($(
         $(#[$attr:meta])*
         $name:ident = {
@@ -275,6 +325,7 @@ macro_rules! defects {
             message: $message:literal,
             default_severity: $severity:expr,
             spec: $spec:expr,
+            $(induced: $induced:expr,)?
         }
     )*) => {$(
         $(#[$attr])*
@@ -284,6 +335,7 @@ macro_rules! defects {
             message: $message,
             default_severity: $severity,
             spec: $spec,
+            induced: $crate::violations::defects!(@induced $($induced)?),
         };
 
         const _: () = {
@@ -417,6 +469,34 @@ mod tests {
     /// Textual, like `no_rule_constructs_a_violation_literal`, and for the same
     /// reason — what is being refused is a *shape of source*, which no type can
     /// express.
+    /// **A ceiling, not a floor**, and the only one in this file — every other
+    /// gate here ratchets a number upward.
+    ///
+    /// A catalogue that decides many of its own defects are artefacts of its own
+    /// presence is a catalogue that has stopped reporting traffic, and the
+    /// pressure runs the wrong way: marking a noisy finding as induced is an
+    /// easy way to quieten it, and the argument for doing so is always
+    /// available. So the count is capped and a second entry has to arrive in a
+    /// commit that argues for it, rather than sliding in behind a number nobody
+    /// reads.
+    ///
+    /// Read what the assertion prints. A second entry wants the argument
+    /// written on it, not this constant bumped.
+    #[test]
+    fn few_defects_blame_the_instrument() {
+        const CEILING: usize = 1;
+        let induced: Vec<&str> = VIOLATIONS
+            .iter()
+            .filter(|d| d.induced == Induced::ByTheProxy)
+            .map(|d| d.id)
+            .collect();
+        assert!(
+            induced.len() <= CEILING,
+            "{} defects are marked as induced by the proxy, above the ceiling of {CEILING}: {induced:?}",
+            induced.len(),
+        );
+    }
+
     #[test]
     fn every_defect_comes_from_the_macro() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/violations");

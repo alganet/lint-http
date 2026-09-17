@@ -10862,7 +10862,7 @@ sources:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 110
     - file: lint-http-rules/src/violations/proxy_connection.rs
-      line: 45
+      line: 54
   - label: proxy_connection_discouraged (2)
     section: § C.2.2
     snippet: One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above.

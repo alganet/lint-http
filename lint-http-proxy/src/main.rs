@@ -1176,7 +1176,6 @@ impl AboutScope {
 
 /// Which hosts a report is about.
 ///
-///
 /// **A browsing session is unusable without this.** One real page pulls in tens of
 /// origins nobody in the room controls, and with the whole catalogue enabled
 /// the result is a wall of findings about somebody else's CDN — true, and not
@@ -1594,9 +1593,23 @@ fn render_violation(v: &lint::Violation, opts: RenderOpts, out: &mut String) {
     let name = opts.styles.paint(opts.styles.name(), violation_name(v));
     let severity = render_severity(v.severity, opts);
     let cite = v.cite.as_ref().map(|c| render_cite(c, opts));
+    // Beside the name, because it qualifies *which finding this is* rather than
+    // what it says: the message is about a header the client wrote, and it is
+    // true, and it would not be on the wire if this proxy were not. A reader
+    // about to go hunting for the bug should be told before they read the
+    // sentence, not after.
+    let induced = if v.proxy_induced {
+        format!(
+            " {}",
+            opts.styles
+                .paint(opts.styles.dim(), "(induced by this proxy)")
+        )
+    } else {
+        String::new()
+    };
 
     if opts.wrap.is_none() && opts.detail != Detail::Full {
-        out.push_str(&format!("  {severity} {name}  {}", v.message));
+        out.push_str(&format!("  {severity} {name}{induced}  {}", v.message));
         if let Some(cite) = &cite {
             out.push_str("  ");
             out.push_str(cite);
@@ -1605,7 +1618,7 @@ fn render_violation(v: &lint::Violation, opts: RenderOpts, out: &mut String) {
         return;
     }
 
-    out.push_str(&format!("  {severity} {name}\n"));
+    out.push_str(&format!("  {severity} {name}{induced}\n"));
     push_wrapped(out, &v.message, 8, opts);
     if opts.detail == Detail::Full {
         // No citation line here: the `spec` sub-line below says the same thing

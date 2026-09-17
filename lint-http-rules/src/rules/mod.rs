@@ -367,6 +367,10 @@ impl<'a> RuleContext<'a> {
                 RuleParty::Presumed(party) => Some(party),
                 RuleParty::Unread | RuleParty::PerSite => None,
             }),
+            // Off the def and not off the context: whether a defect can exist
+            // at all without a proxy in the path is a property of the defect,
+            // and an entry that has it has it on every finding.
+            proxy_induced: matches!(def.induced, crate::violations::Induced::ByTheProxy),
         }
     }
 
@@ -1908,6 +1912,7 @@ enabled = "true"
             url: "https://example.com/",
             note: "",
         }],
+        induced: crate::violations::Induced::No,
     };
 
     /// A defect whose wording names what caused it, so the message is formatted
@@ -1918,6 +1923,7 @@ enabled = "true"
         message: "",
         default_severity: crate::lint::Severity::Error,
         spec: &[],
+        induced: crate::violations::Induced::No,
     };
 
     /// What a rule's `violations()` returns: a named `static`, because an
@@ -2204,6 +2210,7 @@ enabled = "true"
             message: "not this rule's to report",
             default_severity: crate::lint::Severity::Warn,
             spec: &[],
+            induced: crate::violations::Induced::No,
         };
         let resolved = unit_resolved();
         let severities = all_reporting(&[crate::lint::Severity::Warn, crate::lint::Severity::Warn]);
@@ -2349,6 +2356,7 @@ enabled = "true"
             message: "from somewhere else".into(),
             cite: None,
             party: None,
+            proxy_induced: false,
         };
         assert_eq!(ctx.reported(vec![stray]).len(), 1);
     }
