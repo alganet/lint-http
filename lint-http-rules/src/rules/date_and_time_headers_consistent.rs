@@ -122,7 +122,7 @@ impl DateAndTimeHeadersConsistent {
             Timestamp::Absent | Timestamp::At(..) => None,
             Timestamp::Unparseable => Some(ctx.report_with(
                 &HTTP_DATE_MALFORMED,
-                "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
+                "Date header is not a valid HTTP-date".into(),
             )),
         }
     }

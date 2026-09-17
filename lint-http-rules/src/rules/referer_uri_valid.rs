@@ -345,7 +345,7 @@ impl Rule for RefererUriValid {
                 return Some(ctx.report_with(
                     &URI_CHARACTER_FORBIDDEN,
                     format!(
-                    "Referer value '{}' holds {}, which no part of a URI is composed from (RFC 3986 §2): an octet outside that set is percent-encoded before the reference is formed, or the value is not a URI reference at all",
+                    "Referer value '{}' holds {}, which no part of a URI is composed from: an octet outside that set is percent-encoded before the reference is formed, or the value is not a URI reference at all",
                     shown_referer(value),
                     describe_char(c)
                     ),
@@ -524,7 +524,7 @@ impl Rule for RefererUriValid {
                 return Some(ctx.report_with(
                     &REFERER_FORBIDDEN,
                     format!(
-                        "Referer names '{}', an `https` resource, on a request whose own target URI is an `http` one ('{}'): a user agent MUST NOT send a Referer header field in an unsecured HTTP request if the referring resource was accessed with a secure protocol (RFC 9110 §10.1.3)",
+                        "Referer names '{}', an `https` resource, on a request whose own target URI is an `http` one ('{}'): a user agent MUST NOT send a Referer header field in an unsecured HTTP request if the referring resource was accessed with a secure protocol",
                         shown_referer(value),
                         shown_in_finding(&req.uri)
                     ),
@@ -695,7 +695,7 @@ mod tests {
     fn an_https_referrer_on_an_unsecured_request_is_reported() {
         assert_eq!(
             judge_target("http://example.com/p", &["https://secure.example/page"]).as_deref(),
-            Some("Referer names 'https://secure.example/page', an `https` resource, on a request whose own target URI is an `http` one ('http://example.com/p'): a user agent MUST NOT send a Referer header field in an unsecured HTTP request if the referring resource was accessed with a secure protocol (RFC 9110 §10.1.3)")
+            Some("Referer names 'https://secure.example/page', an `https` resource, on a request whose own target URI is an `http` one ('http://example.com/p'): a user agent MUST NOT send a Referer header field in an unsecured HTTP request if the referring resource was accessed with a secure protocol")
         );
         // The scheme is compared without regard to case, on both sides.
         assert!(judge_target("HTTP://example.com/p", &["HTTPS://secure.example/page"]).is_some());

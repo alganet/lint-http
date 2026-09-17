@@ -688,6 +688,44 @@ mod tests {
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
     }
 
+    /// **No message restates the citation the finding already carries.**
+    ///
+    /// A finding prints its message and then its specification reference, so a
+    /// message ending `(RFC 9114 §7.2.4)` puts the same six words on screen
+    /// twice — once in the sentence and once in the label beside it. Neither
+    /// place was wrong on its own; the duplication is only visible composed,
+    /// which is exactly the kind of thing nobody sees while writing one entry.
+    ///
+    /// Fixed messages only. A parameterised message is a format string at the
+    /// rule site and is not reachable from here, so this holds the half of the
+    /// catalogue it can reach and the sweep held the other half by hand. What
+    /// it does *not* forbid is a message naming some **other** document, or
+    /// naming its own inside the sentence's grammar — "RFC 9110 §13.1.2
+    /// requires a 304" is a sentence using its reference, not repeating it.
+    #[test]
+    fn no_message_restates_its_own_citation() {
+        let mut offenders = Vec::new();
+        for def in VIOLATIONS.iter() {
+            if def.message.is_empty() {
+                continue;
+            }
+            for spec in def.spec {
+                let Some(section) = spec.section else {
+                    continue;
+                };
+                let label = format!("{} \u{a7}{section}", spec.spec);
+                if def.message.contains(&label) {
+                    offenders.push(format!("{}: message repeats `{label}`", def.id));
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "the citation is printed beside the message; drop it from the message:\n{}",
+            offenders.join("\n")
+        );
+    }
+
     /// A rule id names a claim about the traffic and a violation id names the
     /// defect that breaks it, so an id ending in a claim — `..._valid`,
     /// `..._present` — is a def that copied the id of the rule reporting it.

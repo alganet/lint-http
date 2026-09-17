@@ -111,7 +111,7 @@ impl ProtocolRule for Http3MaxPushId {
                     &HTTP3_MAX_PUSH_ID_FORBIDDEN,
                     format!(
                         "HTTP/3 MAX_PUSH_ID (push_id {}) sent by a server; a server MUST NOT \
-                         send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)",
+                         send MAX_PUSH_ID (H3_FRAME_UNEXPECTED)",
                         current
                     ),
                 ));
@@ -129,8 +129,7 @@ impl ProtocolRule for Http3MaxPushId {
                         return Some(ctx.report_with(
                             &HTTP3_MAX_PUSH_ID_INVALID,
                             format!(
-                                "HTTP/3 MAX_PUSH_ID {} decreased from previous {} \
-                                 (RFC 9114 §7.2.7, H3_ID_ERROR)",
+                                "HTTP/3 MAX_PUSH_ID {} decreased from previous {} (H3_ID_ERROR)",
                                 current, prev_id
                             ),
                         ));
@@ -702,8 +701,14 @@ mod tests {
 
     // ── Message format reference checks ──────────────────────────────────
 
+    /// The message names the connection error code, and **not** the section.
+    ///
+    /// The error code is what a reader maps to a QUIC connection close and can
+    /// be found nowhere else; the section is on the finding already, in the
+    /// citation the def carries, and printing it in the sentence as well put
+    /// it on screen twice on the one line with no room for it.
     #[test]
-    fn violation_message_cites_section_and_error_code() {
+    fn violation_message_names_the_error_code_and_leaves_the_section_to_the_citation() {
         let rule = Http3MaxPushId;
         let conn = Uuid::new_v4();
         let prev = make_max_push_id(conn, 3);
@@ -711,11 +716,12 @@ mod tests {
         let evt = make_max_push_id(conn, 0);
         let v = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config())
             .expect("expected violation");
-        // The message should reference RFC 9114 §7.2.7 and the H3_ID_ERROR
-        // connection error code so operators can map it to the spec.
-        assert!(v.message.contains("RFC 9114"));
-        assert!(v.message.contains("§7.2.7"));
-        assert!(v.message.contains("H3_ID_ERROR"));
+        assert!(v.message.contains("H3_ID_ERROR"), "{}", v.message);
+        assert!(!v.message.contains("RFC 9114"), "{}", v.message);
+        // And the section is still reachable, because the finding carries it.
+        let cite = v.cite.as_ref().expect("a cited finding");
+        assert_eq!(cite.spec, "RFC 9114");
+        assert_eq!(cite.section.as_deref(), Some("7.2.7"));
     }
 
     // ── Config validation ────────────────────────────────────────────────

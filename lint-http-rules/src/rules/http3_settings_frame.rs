@@ -159,7 +159,7 @@ impl ProtocolRule for Http3SettingsFrame {
                         &HTTP3_SETTINGS_IDENTIFIER_FORBIDDEN,
                         format!(
                             "HTTP/3 SETTINGS contains reserved HTTP/2 setting identifier \
-                             0x{:02X} (RFC 9114 §7.2.4.1)",
+                             0x{:02X}",
                             id
                         ),
                     ));
@@ -176,7 +176,7 @@ impl ProtocolRule for Http3SettingsFrame {
                         &HTTP3_SETTINGS_IDENTIFIER_DUPLICATED,
                         format!(
                             "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \
-                             than once (RFC 9114 §7.2.4)",
+                             than once",
                             id
                         ),
                     ));

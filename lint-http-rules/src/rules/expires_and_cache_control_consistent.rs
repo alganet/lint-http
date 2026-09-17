@@ -149,7 +149,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             let Some(expires) = expires_dt else {
                 if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
                     return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
-                            "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory (RFC 9111 §5.3)",
+                            "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory",
                             expires_raw
                         )));
                 }

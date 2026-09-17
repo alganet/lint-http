@@ -271,7 +271,7 @@ impl Rule for AltSvcH3AdvertisementValid {
                     return Some(ctx.report_with(
                         &ALPN_PROTOCOL_NAME_OBSOLETE,
                         format!(
-                            "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead (RFC 9114 §3.1.1)",
+                            "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead",
                             shown_in_finding(protocol_id)
                         ),
                     ));
