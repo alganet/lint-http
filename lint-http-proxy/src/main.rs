@@ -11,43 +11,114 @@ mod temp_files;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
-use lint_http::{capture, config, engine, lint, protocol_event_store, proxy, rules, state};
+use lint_http::{
+    capture, client_env, config, engine, lint, protocol_event_store, proxied_run, proxy, rules,
+    state,
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "lint-http", version, about = "HTTP-linting forward proxy")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
-
-    /// Deprecated: use `lint-http run --config <PATH>`.
-    #[arg(long, value_name = "PATH", hide = true)]
-    config: Option<String>,
 }
 
+/// The command surface, named for how often each is reached for.
+///
+/// `run` is the short name because wrapping one command is the thing a person
+/// does dozens of times a day; `proxy-start` is the long one because standing a
+/// proxy up and configuring a client to use it is a session you begin once and
+/// leave running. The names were the other way round, which had the frequent
+/// case spelling out a config path and the rare case spelled `run`.
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Run the intercepting proxy (config-driven).
+    /// Run a command with its HTTP traffic proxied and linted.
     Run(RunArgs),
+    /// Start the intercepting proxy and leave it listening.
+    #[command(name = "proxy-start")]
+    ProxyStart(ProxyStartArgs),
     /// Lint a recorded capture file, replaying its transactions and WebSocket
     /// sessions through the rules.
-    Lint(LintArgs),
+    #[command(name = "lint-captures")]
+    LintCaptures(LintArgs),
     /// Inspect the rule catalogue.
     Rules(RulesArgs),
+    /// Work with the configuration itself.
+    Config(ConfigArgs),
 }
 
 #[derive(clap::Args, Debug)]
+struct ProxyStartArgs {
+    /// Config TOML path (rule toggles, listen address, captures path).
+    /// Defaults to the built-in configuration.
+    #[arg(long, value_name = "PATH")]
+    config: Option<String>,
+}
+
+/// `lint-http run [OPTIONS] -- <COMMAND>...`
+///
+/// The two severity flags compose rather than acting independently, and the
+/// order is: `--min-severity` decides what the report contains, then
+/// `--fail-on` reads *that report*. So `--min-severity error --fail-on info`
+/// exits 0 on a warning — the warning was filtered out before anything could
+/// fail on it. That is deliberate and it is `lint-captures`' rule too, whose
+/// exit code likewise follows the gated set: a run must not fail on a finding
+/// it declined to show, because the first thing anyone does with a failing gate
+/// is look for what tripped it.
+///
+/// Without `--fail-on`, the wrapped command's own exit code passes through
+/// untouched, which is what makes `lint-http run --` safe to leave in front of
+/// a command that is being run for its own sake.
+#[derive(clap::Args, Debug)]
 struct RunArgs {
-    /// Config TOML path (rules toggles, listen address, captures path).
+    /// Config TOML path. Defaults to the built-in configuration.
+    #[arg(long, value_name = "PATH")]
+    config: Option<String>,
+    /// Output format for the findings report.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    format: OutputFormat,
+    /// Only report findings at or above this severity.
+    #[arg(long, value_enum, default_value_t = SeverityArg::Info)]
+    min_severity: SeverityArg,
+    /// Exit non-zero when a finding *in the report* reaches this severity —
+    /// findings `--min-severity` filtered out cannot trip it. Without this, the
+    /// exit code is the wrapped command's.
+    #[arg(long, value_enum, value_name = "SEVERITY")]
+    fail_on: Option<SeverityArg>,
+    /// Keep the capture file at this path instead of discarding it.
+    #[arg(long, value_name = "PATH")]
+    captures: Option<String>,
+    /// Print the environment a wrapped command would receive, and exit.
     #[arg(long)]
-    config: String,
+    print_env: bool,
+    /// The command to run, and its arguments.
+    #[arg(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        value_name = "COMMAND"
+    )]
+    command: Vec<String>,
+}
+
+#[derive(clap::Args, Debug)]
+struct ConfigArgs {
+    #[command(subcommand)]
+    command: ConfigCommand,
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigCommand {
+    /// Print the built-in configuration, ready to edit and pass to `--config`.
+    Export,
 }
 
 #[derive(clap::Args, Debug)]
 struct LintArgs {
     /// Config TOML path (rule toggles + severities; also supplies the replay
-    /// state's `ttl_seconds` / `max_history`).
-    #[arg(long)]
-    config: String,
+    /// state's `ttl_seconds` / `max_history`). Defaults to the built-in
+    /// configuration.
+    #[arg(long, value_name = "PATH")]
+    config: Option<String>,
     /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     format: OutputFormat,
@@ -112,9 +183,9 @@ enum OutputFormat {
 /// initialize tracing (the proxy does that) so non-proxy commands like `lint`
 /// keep stdout clean.
 async fn load_validated_config(
-    config_path: &str,
+    config_path: Option<&str>,
 ) -> anyhow::Result<std::sync::Arc<config::Config>> {
-    let cfg = config::Config::load_from_path(config_path).await?;
+    let cfg = config::Config::load_or_builtin(config_path).await?;
     rules::validate_rules(&cfg)?;
     Ok(std::sync::Arc::new(cfg))
 }
@@ -125,7 +196,7 @@ async fn load_validated_config(
 /// config *path* rather than the parsed CLI struct, so the proxy entry points are
 /// decoupled from the command surface.
 async fn load_and_prepare(
-    config_path: &str,
+    config_path: Option<&str>,
 ) -> anyhow::Result<(
     SocketAddr,
     capture::CaptureWriter,
@@ -146,7 +217,7 @@ async fn load_and_prepare(
 }
 
 /// Run the proxy until Ctrl-C / shutdown.
-async fn run_app(config_path: &str) -> anyhow::Result<()> {
+async fn run_app(config_path: Option<&str>) -> anyhow::Result<()> {
     let (addr, capture_writer, cfg) = load_and_prepare(config_path).await?;
     // `run_proxy` wires Ctrl-C to a graceful shutdown.
     proxy::run_proxy(addr, capture_writer, cfg).await
@@ -155,7 +226,10 @@ async fn run_app(config_path: &str) -> anyhow::Result<()> {
 // Testable variant of run_app that allows tests to pass in an accept limit so the
 // proxy returns after a bounded number of connections.
 #[cfg(test)]
-async fn run_app_with_limit(config_path: &str, accept_limit: Option<usize>) -> anyhow::Result<()> {
+async fn run_app_with_limit(
+    config_path: Option<&str>,
+    accept_limit: Option<usize>,
+) -> anyhow::Result<()> {
     let (addr, capture_writer, cfg) = load_and_prepare(config_path).await?;
     crate::proxy::run_proxy_with_limit(addr, capture_writer, cfg, accept_limit).await
 }
@@ -167,6 +241,17 @@ async fn run_app_with_limit(config_path: &str, accept_limit: Option<usize>) -> a
 fn write_stdout(s: &str) -> anyhow::Result<()> {
     use std::io::Write;
     match std::io::stdout().write_all(s.as_bytes()) {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        other => Ok(other?),
+    }
+}
+
+/// The stderr twin of [`write_stdout`], for the one report that must not land
+/// on stdout: `run` gives stdout to the command it wraps, so a report printed
+/// there would interleave with — and corrupt — whatever the user is piping.
+fn write_stderr(s: &str) -> anyhow::Result<()> {
+    use std::io::Write;
+    match std::io::stderr().write_all(s.as_bytes()) {
         Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
         other => Ok(other?),
     }
@@ -271,23 +356,59 @@ fn rules_list(format: OutputFormat, cfg: Option<&config::Config>) -> anyhow::Res
 /// TTLs never evict here (the read paths apply no age filter and cleanup is
 /// never called), so the whole file is visible regardless of record age.
 async fn lint_app(
-    config_path: &str,
+    config_path: Option<&str>,
     captures_path: &str,
     format: OutputFormat,
     min_severity: lint::Severity,
 ) -> anyhow::Result<usize> {
     let cfg = load_validated_config(config_path).await?;
     // `load_capture_records` tolerates a missing file (it backs the proxy's
-    // optional cold-start seeding). For an explicit `lint <file>` a missing path
-    // is a user error — fail loudly rather than letting CI pass green on a
-    // typo'd path.
+    // optional cold-start seeding). For an explicit `lint-captures <file>` a
+    // missing path is a user error — fail loudly rather than letting CI pass
+    // green on a typo'd path.
     if !tokio::fs::try_exists(captures_path).await.unwrap_or(false) {
         anyhow::bail!("capture file not found: {captures_path}");
     }
     let records = capture::load_capture_records(captures_path).await?;
+    let report = lint_records(&cfg, records, min_severity)?;
+    let total = report.total();
+    write_stdout(&render_lint_report(
+        &report.findings,
+        report.transaction_count,
+        report.websocket_count,
+        format,
+    )?)?;
+    Ok(total)
+}
+
+/// The findings of one replay, with the counts the summary line needs.
+struct LintReport {
+    findings: Vec<FindingsBlock>,
+    transaction_count: usize,
+    websocket_count: usize,
+}
+
+impl LintReport {
+    fn total(&self) -> usize {
+        self.findings.iter().map(|f| f.violations().len()).sum()
+    }
+}
+
+/// Replay records through the rules — the shared core of `lint-captures` and
+/// `run`.
+///
+/// Split out so the two commands cannot drift: `run` is not a second linter, it
+/// is `lint-captures` pointed at a file the run just produced. Anything true of
+/// one report is true of the other because there is one function that builds
+/// them.
+fn lint_records(
+    cfg: &config::Config,
+    records: Vec<capture::CaptureRecord>,
+    min_severity: lint::Severity,
+) -> anyhow::Result<LintReport> {
     let state = state::StateStore::new(cfg.general.ttl_seconds, cfg.general.max_history);
     // Precompute the enabled rule set once, then reuse it across the replay.
-    let engine = engine::PreparedEngine::new(&cfg)?;
+    let engine = engine::PreparedEngine::new(cfg)?;
 
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
@@ -314,7 +435,7 @@ async fn lint_app(
             }
             capture::CaptureRecord::WebsocketSession(session) => {
                 ws_count += 1;
-                let mut violations = lint_websocket_session(&session, &cfg, &engine);
+                let mut violations = lint_websocket_session(&session, cfg, &engine);
                 violations.retain(|v| v.severity >= min_severity);
                 if violations.is_empty() {
                     continue;
@@ -329,9 +450,11 @@ async fn lint_app(
         }
     }
 
-    let total = findings.iter().map(|f| f.violations().len()).sum();
-    write_stdout(&render_lint_report(&findings, tx_count, ws_count, format)?)?;
-    Ok(total)
+    Ok(LintReport {
+        findings,
+        transaction_count: tx_count,
+        websocket_count: ws_count,
+    })
 }
 
 /// Replay one captured WebSocket session through the protocol rules, mirroring
@@ -488,21 +611,99 @@ fn render_lint_report(
     }
 }
 
+/// Wrap one command: stand a proxy up for it, run it, report what crossed.
+///
+/// The exit code is the child's unless `--fail-on` says otherwise, so putting
+/// `lint-http run --` in front of a command does not change what that command's
+/// success means. The report goes to stderr because stdout belongs to the child.
+async fn run_wrapped(args: RunArgs) -> anyhow::Result<u8> {
+    let cfg = load_validated_config(args.config.as_deref()).await?;
+
+    // `--print-env` answers "what would this do to my environment" without
+    // doing it, so it needs no child and reports against a placeholder address.
+    if args.print_env {
+        write_stdout(&render_env_preview())?;
+        return Ok(0);
+    }
+
+    let Some((program, rest)) = args.command.split_first() else {
+        anyhow::bail!("no command given; try `lint-http run -- curl https://example.com`");
+    };
+
+    let run = proxied_run::run_proxied(
+        (*cfg).clone(),
+        program,
+        rest,
+        args.captures.as_deref().map(std::path::Path::new),
+    )
+    .await?;
+
+    let min_severity: lint::Severity = args.min_severity.into();
+    let report = lint_records(&cfg, run.records, min_severity)?;
+    write_stderr(&render_lint_report(
+        &report.findings,
+        report.transaction_count,
+        report.websocket_count,
+        args.format,
+    )?)?;
+
+    // The child's code is the run's, and it is *not* overridden by a clean lint
+    // — a passing test suite that also happens to be tidy still exits 0, and a
+    // failing one still exits non-zero whatever the findings said.
+    let child_code = run.exit_code.unwrap_or(1);
+    let Some(fail_on) = args.fail_on else {
+        return Ok(u8::try_from(child_code).unwrap_or(1));
+    };
+    // With `--fail-on`, a finding at that severity fails the run — but a child
+    // that already failed keeps its own code, which is the more specific answer.
+    let fail_on: lint::Severity = fail_on.into();
+    let tripped = report
+        .findings
+        .iter()
+        .flat_map(|f| f.violations())
+        .any(|v| v.severity >= fail_on);
+    if child_code != 0 {
+        return Ok(u8::try_from(child_code).unwrap_or(1));
+    }
+    Ok(if tripped { 1 } else { 0 })
+}
+
+/// The environment `run` would add, rendered for a human.
+///
+/// The address and path are placeholders — every real run picks a fresh port
+/// and a fresh temporary CA — so this answers *which* variables are set and
+/// who reads them, which is the question someone debugging an unwrapped client
+/// is actually asking.
+fn render_env_preview() -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    out.push_str("# Set for the wrapped command. The port and CA path are per-run.\n");
+    for var in client_env::CLIENT_ENV {
+        let value = match var.value {
+            client_env::EnvValue::ProxyUrl => "http://127.0.0.1:<port>",
+            client_env::EnvValue::CaFile => "<tmp>/ca.crt",
+        };
+        let _ = writeln!(out, "{:<20} {:<24} # {}", var.name, value, var.reads);
+    }
+    out
+}
+
 /// Run the selected subcommand and return the process exit code (`0` success,
 /// `1` lint findings). Real errors propagate as `Err` (anyhow maps them to exit
 /// 1 with a message). Split from `main` so the dispatch is unit-testable without
 /// spawning the process.
 async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
     match cli.command {
-        Some(Command::Run(args)) => {
-            run_app(&args.config).await?;
+        Some(Command::Run(args)) => run_wrapped(args).await,
+        Some(Command::ProxyStart(args)) => {
+            run_app(args.config.as_deref()).await?;
             Ok(0)
         }
         // Non-zero exit when findings exist, so CI fails on a dirty capture;
         // real errors (bad config / missing file) still bubble up as `Err`.
-        Some(Command::Lint(args)) => {
+        Some(Command::LintCaptures(args)) => {
             let found = lint_app(
-                &args.config,
+                args.config.as_deref(),
                 &args.captures,
                 args.format,
                 args.min_severity.into(),
@@ -513,27 +714,24 @@ async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
         Some(Command::Rules(args)) => match args.command {
             RulesCommand::List(a) => {
                 let cfg = match &a.config {
-                    Some(path) => Some(load_validated_config(path).await?),
+                    Some(path) => Some(load_validated_config(Some(path)).await?),
                     None => None,
                 };
                 write_stdout(&rules_list(a.format, cfg.as_deref())?)?;
                 Ok(0)
             }
         },
-        // No subcommand: accept a bare `--config` as a deprecated alias for
-        // `run`, otherwise point the user at the new form.
-        None => {
-            let path = cli.config.ok_or_else(|| {
-                anyhow::anyhow!(
-                    "no command given; try `lint-http run --config <PATH>` (see `lint-http --help`)"
-                )
-            })?;
-            eprintln!(
-                "warning: bare `--config` is deprecated; use `lint-http run --config {path}`"
-            );
-            run_app(&path).await?;
-            Ok(0)
-        }
+        Some(Command::Config(args)) => match args.command {
+            // The bytes the binary runs with, not a rendering of them — so what
+            // the user edits is what was in force before they edited it.
+            ConfigCommand::Export => {
+                write_stdout(config::DEFAULT_CONFIG_TOML)?;
+                Ok(0)
+            }
+        },
+        None => anyhow::bail!(
+            "no command given; try `lint-http run -- curl https://example.com` (see `lint-http --help`)"
+        ),
     }
 }
 
@@ -550,38 +748,148 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
-    fn cli_run_subcommand_parses_config() {
-        let cli = Cli::parse_from(["lint-http", "run", "--config", "x.toml"]);
+    fn cli_proxy_start_parses_config() {
+        let cli = Cli::parse_from(["lint-http", "proxy-start", "--config", "x.toml"]);
         match cli.command {
-            Some(Command::Run(args)) => assert_eq!(args.config, "x.toml"),
-            other => panic!("expected Run, got {other:?}"),
+            Some(Command::ProxyStart(args)) => assert_eq!(args.config.as_deref(), Some("x.toml")),
+            other => panic!("expected ProxyStart, got {other:?}"),
         }
-        assert!(cli.config.is_none());
     }
 
+    /// Every command that takes one may omit it, which is what makes the
+    /// built-in configuration reachable without a file on disk.
     #[test]
-    fn cli_bare_config_is_legacy_alias() {
-        let cli = Cli::parse_from(["lint-http", "--config", "x.toml"]);
-        assert!(cli.command.is_none());
-        assert_eq!(cli.config.as_deref(), Some("x.toml"));
+    fn config_is_optional_everywhere_it_is_accepted() {
+        match Cli::parse_from(["lint-http", "proxy-start"]).command {
+            Some(Command::ProxyStart(args)) => assert!(args.config.is_none()),
+            other => panic!("expected ProxyStart, got {other:?}"),
+        }
+        match Cli::parse_from(["lint-http", "lint-captures", "caps.jsonl"]).command {
+            Some(Command::LintCaptures(args)) => assert!(args.config.is_none()),
+            other => panic!("expected LintCaptures, got {other:?}"),
+        }
+        match Cli::parse_from(["lint-http", "run", "--", "true"]).command {
+            Some(Command::Run(args)) => assert!(args.config.is_none()),
+            other => panic!("expected Run, got {other:?}"),
+        }
     }
 
     #[test]
     fn cli_no_args_has_no_command() {
         let cli = Cli::parse_from(["lint-http"]);
         assert!(cli.command.is_none());
-        assert!(cli.config.is_none());
     }
 
     #[test]
-    fn cli_lint_subcommand_parses_config_and_captures() {
-        let cli = Cli::parse_from(["lint-http", "lint", "--config", "c.toml", "caps.jsonl"]);
+    fn cli_lint_captures_parses_config_and_captures() {
+        let cli = Cli::parse_from([
+            "lint-http",
+            "lint-captures",
+            "--config",
+            "c.toml",
+            "caps.jsonl",
+        ]);
         match cli.command {
-            Some(Command::Lint(args)) => {
-                assert_eq!(args.config, "c.toml");
+            Some(Command::LintCaptures(args)) => {
+                assert_eq!(args.config.as_deref(), Some("c.toml"));
                 assert_eq!(args.captures, "caps.jsonl");
             }
-            other => panic!("expected Lint, got {other:?}"),
+            other => panic!("expected LintCaptures, got {other:?}"),
+        }
+    }
+
+    /// The wrapped command is collected whole, and its own flags are its own:
+    /// `--config` after the `--` belongs to curl, not to lint-http.
+    #[test]
+    fn cli_run_collects_the_child_command_and_its_flags() {
+        let cli = Cli::parse_from([
+            "lint-http",
+            "run",
+            "--min-severity",
+            "warn",
+            "--",
+            "curl",
+            "-sS",
+            "--config",
+            "curlrc",
+            "https://example.com",
+        ]);
+        match cli.command {
+            Some(Command::Run(args)) => {
+                assert!(args.config.is_none(), "--config after -- is the child's");
+                assert!(matches!(args.min_severity, SeverityArg::Warn));
+                assert_eq!(
+                    args.command,
+                    ["curl", "-sS", "--config", "curlrc", "https://example.com"]
+                );
+            }
+            other => panic!("expected Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cli_run_fail_on_is_absent_by_default() {
+        match Cli::parse_from(["lint-http", "run", "--", "true"]).command {
+            Some(Command::Run(args)) => assert!(args.fail_on.is_none()),
+            other => panic!("expected Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cli_config_export_parses() {
+        match Cli::parse_from(["lint-http", "config", "export"]).command {
+            Some(Command::Config(args)) => assert!(matches!(args.command, ConfigCommand::Export)),
+            other => panic!("expected Config, got {other:?}"),
+        }
+    }
+
+    /// The built-in configuration is a real configuration: it parses, it passes
+    /// the same per-rule validation a file does, and it enables the catalogue
+    /// rather than shipping an empty rule table that would lint nothing.
+    #[tokio::test]
+    async fn builtin_config_is_valid_and_enables_rules() -> anyhow::Result<()> {
+        let cfg = load_validated_config(None).await?;
+        let enabled = rules::RULES
+            .iter()
+            .filter(|r| cfg.is_enabled(r.id()))
+            .count();
+        assert!(
+            enabled > 100,
+            "built-in config enabled only {enabled} rules"
+        );
+        Ok(())
+    }
+
+    /// `config export` hands back exactly what the binary would have run, so a
+    /// user who exports, changes nothing, and passes it back gets the same
+    /// behaviour.
+    #[tokio::test]
+    async fn exported_config_round_trips() -> anyhow::Result<()> {
+        let exported = config::DEFAULT_CONFIG_TOML;
+        let parsed = config::Config::from_toml_str(exported)?;
+        rules::validate_rules(&parsed)?;
+        let builtin = load_validated_config(None).await?;
+        assert_eq!(parsed.general.listen, builtin.general.listen);
+        assert_eq!(
+            rules::RULES
+                .iter()
+                .filter(|r| parsed.is_enabled(r.id()))
+                .count(),
+            rules::RULES
+                .iter()
+                .filter(|r| builtin.is_enabled(r.id()))
+                .count()
+        );
+        Ok(())
+    }
+
+    /// Every variable the table names shows up in the preview, so `--print-env`
+    /// cannot drift from what a run actually sets.
+    #[test]
+    fn print_env_preview_lists_every_variable() {
+        let preview = render_env_preview();
+        for var in client_env::CLIENT_ENV {
+            assert!(preview.contains(var.name), "missing {}", var.name);
         }
     }
 
@@ -647,7 +955,7 @@ enabled = true
             write_capture_file(&[make_test_transaction_with_response(200, &[])], &mut temp).await?;
 
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Info,
@@ -676,7 +984,7 @@ enabled = true
         .await?;
 
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Info,
@@ -697,7 +1005,7 @@ enabled = true
         fs::write(&caps, "").await?;
 
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Info,
@@ -715,7 +1023,7 @@ enabled = true
         let mut temp = crate::temp_files::TempFiles::new();
         let cfg = write_cache_control_config(&mut temp).await?;
         let result = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             "/nonexistent/does-not-exist.jsonl",
             OutputFormat::Text,
             lint::Severity::Info,
@@ -777,7 +1085,7 @@ enabled = true
         let caps = write_ws_capture_file(session, &mut temp).await?;
 
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Info,
@@ -808,7 +1116,7 @@ enabled = true
         let caps = write_ws_capture_file(session, &mut temp).await?;
 
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Info,
@@ -840,7 +1148,7 @@ enabled = true
         let caps = write_ws_capture_file(session, &mut temp).await?;
 
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Info,
@@ -879,7 +1187,7 @@ enabled = true
         fs::write(&tmp, format!("{line}\n{line}\n")).await?;
 
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             tmp.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Info,
@@ -906,7 +1214,7 @@ enabled = true
             write_capture_file(&[make_test_transaction_with_response(200, &[])], &mut temp).await?;
 
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Warn,
@@ -916,7 +1224,7 @@ enabled = true
 
         // …while an `info` gate keeps it.
         let found = lint_app(
-            cfg.to_str().unwrap(),
+            Some(cfg.to_str().unwrap()),
             caps.to_str().unwrap(),
             OutputFormat::Text,
             lint::Severity::Info,
@@ -933,7 +1241,7 @@ enabled = true
     fn cli_lint_parses_format_and_min_severity() {
         let cli = Cli::parse_from([
             "lint-http",
-            "lint",
+            "lint-captures",
             "--config",
             "c.toml",
             "--format",
@@ -943,23 +1251,29 @@ enabled = true
             "caps.jsonl",
         ]);
         match cli.command {
-            Some(Command::Lint(args)) => {
+            Some(Command::LintCaptures(args)) => {
                 assert!(matches!(args.format, OutputFormat::Json));
                 assert!(matches!(args.min_severity, SeverityArg::Warn));
             }
-            other => panic!("expected Lint, got {other:?}"),
+            other => panic!("expected LintCaptures, got {other:?}"),
         }
     }
 
     #[test]
-    fn cli_lint_defaults_to_text_and_info() {
-        let cli = Cli::parse_from(["lint-http", "lint", "--config", "c.toml", "caps.jsonl"]);
+    fn cli_lint_captures_defaults_to_text_and_info() {
+        let cli = Cli::parse_from([
+            "lint-http",
+            "lint-captures",
+            "--config",
+            "c.toml",
+            "caps.jsonl",
+        ]);
         match cli.command {
-            Some(Command::Lint(args)) => {
+            Some(Command::LintCaptures(args)) => {
                 assert!(matches!(args.format, OutputFormat::Text));
                 assert!(matches!(args.min_severity, SeverityArg::Info));
             }
-            other => panic!("expected Lint, got {other:?}"),
+            other => panic!("expected LintCaptures, got {other:?}"),
         }
     }
 
@@ -1127,7 +1441,7 @@ enabled = true
             write_capture_file(&[make_test_transaction_with_response(200, &[])], &mut temp).await?;
         let cli = Cli::parse_from([
             "lint-http",
-            "lint",
+            "lint-captures",
             "--config",
             cfg.to_str().unwrap(),
             caps.to_str().unwrap(),
@@ -1153,7 +1467,7 @@ enabled = true
         .await?;
         let cli = Cli::parse_from([
             "lint-http",
-            "lint",
+            "lint-captures",
             "--config",
             cfg.to_str().unwrap(),
             caps.to_str().unwrap(),
@@ -1171,12 +1485,17 @@ enabled = true
     }
 
     #[tokio::test]
-    async fn dispatch_run_command_routes_to_run_app() -> anyhow::Result<()> {
+    async fn dispatch_proxy_start_routes_to_run_app() -> anyhow::Result<()> {
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
         let mut temp = crate::temp_files::TempFiles::new();
         let (cfg, caps) = write_port_taken_config(addr, &mut temp).await?;
-        let cli = Cli::parse_from(["lint-http", "run", "--config", cfg.to_str().unwrap()]);
+        let cli = Cli::parse_from([
+            "lint-http",
+            "proxy-start",
+            "--config",
+            cfg.to_str().unwrap(),
+        ]);
         // run_app binds the already-taken port and errors fast.
         assert!(dispatch(cli).await.is_err());
         let _ = fs::remove_file(&cfg).await;
@@ -1185,18 +1504,103 @@ enabled = true
         Ok(())
     }
 
+    /// The bare `--config` alias is gone rather than repointed. It used to mean
+    /// "start the proxy", and `run` now means "wrap a command" — an alias that
+    /// kept working would start a proxy for someone who asked for neither.
+    #[test]
+    fn bare_config_is_no_longer_accepted() {
+        assert!(Cli::try_parse_from(["lint-http", "--config", "x.toml"]).is_err());
+    }
+
+    /// A wrapped run reports what crossed the proxy and hands back the child's
+    /// exit code — the whole command, through `dispatch`, as a user runs it.
     #[tokio::test]
-    async fn dispatch_legacy_config_routes_to_run_app() -> anyhow::Result<()> {
+    async fn dispatch_run_wraps_a_command_and_keeps_its_exit_code() -> anyhow::Result<()> {
+        let cli = Cli::parse_from(["lint-http", "run", "--", "sh", "-c", "exit 5"]);
+        assert_eq!(dispatch(cli).await?, 5);
+        Ok(())
+    }
+
+    /// `--fail-on` is the only thing that lets a finding decide the exit code,
+    /// and with nothing found it changes nothing.
+    #[tokio::test]
+    async fn dispatch_run_fail_on_is_quiet_when_nothing_was_found() -> anyhow::Result<()> {
+        let cli = Cli::parse_from(["lint-http", "run", "--fail-on", "error", "--", "true"]);
+        assert_eq!(dispatch(cli).await?, 0);
+        Ok(())
+    }
+
+    /// A child that failed keeps its own code even under `--fail-on`: its
+    /// failure is the more specific answer, and flattening it to 1 would lose
+    /// the distinction every test runner encodes in its exit codes.
+    #[tokio::test]
+    async fn dispatch_run_child_failure_outranks_fail_on() -> anyhow::Result<()> {
+        let cli = Cli::parse_from([
+            "lint-http",
+            "run",
+            "--fail-on",
+            "info",
+            "--",
+            "sh",
+            "-c",
+            "exit 9",
+        ]);
+        assert_eq!(dispatch(cli).await?, 9);
+        Ok(())
+    }
+
+    /// The documented composition: a gate above the finding's severity filters
+    /// it out of the report, and `--fail-on` then has nothing to fail on. Pinned
+    /// because the alternative reading — fail on findings that were never shown
+    /// — is the one a reader expects until they hit it.
+    #[tokio::test]
+    async fn fail_on_reads_the_gated_report() -> anyhow::Result<()> {
+        use lint_http_core::test_helpers::make_test_transaction_with_response;
+
         let mut temp = crate::temp_files::TempFiles::new();
-        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
-        let addr = l.local_addr()?;
-        let (cfg, caps) = write_port_taken_config(addr, &mut temp).await?;
-        let cli = Cli::parse_from(["lint-http", "--config", cfg.to_str().unwrap()]);
-        // Legacy bare --config routes to run_app, which errors on the taken port.
+        let cfg = write_cache_control_config(&mut temp).await?;
+        // A 200 without Cache-Control: one finding, reported at `info`.
+        let caps =
+            write_capture_file(&[make_test_transaction_with_response(200, &[])], &mut temp).await?;
+
+        let cli = Cli::parse_from([
+            "lint-http",
+            "lint-captures",
+            "--config",
+            cfg.to_str().unwrap(),
+            "--min-severity",
+            "info",
+            caps.to_str().unwrap(),
+        ]);
+        assert_eq!(
+            dispatch(cli).await?,
+            1,
+            "an info finding should be reported"
+        );
+
+        let cli = Cli::parse_from([
+            "lint-http",
+            "lint-captures",
+            "--config",
+            cfg.to_str().unwrap(),
+            "--min-severity",
+            "error",
+            caps.to_str().unwrap(),
+        ]);
+        assert_eq!(dispatch(cli).await?, 0, "a gated-out finding must not fail");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dispatch_run_without_a_command_is_an_error() {
+        let cli = Cli::parse_from(["lint-http", "run"]);
         assert!(dispatch(cli).await.is_err());
-        let _ = fs::remove_file(&cfg).await;
-        let _ = fs::remove_file(&caps).await;
-        drop(l);
+    }
+
+    #[tokio::test]
+    async fn dispatch_config_export_emits_the_builtin() -> anyhow::Result<()> {
+        let cli = Cli::parse_from(["lint-http", "config", "export"]);
+        assert_eq!(dispatch(cli).await?, 0);
         Ok(())
     }
 
@@ -1283,7 +1687,7 @@ enabled = true
         // The fixture config enables exactly `cache_control_present`.
         let mut temp = crate::temp_files::TempFiles::new();
         let cfg_path = write_cache_control_config(&mut temp).await?;
-        let cfg = load_validated_config(cfg_path.to_str().unwrap()).await?;
+        let cfg = load_validated_config(Some(cfg_path.to_str().unwrap())).await?;
 
         let text = rules_list(OutputFormat::Text, Some(&cfg))?;
         let line = text
@@ -1375,7 +1779,7 @@ enabled = false
         let config_path = tmp.to_str().expect("valid utf8 path");
 
         // run_app must fail during rule validation, before binding any socket.
-        let result = run_app(config_path).await;
+        let result = run_app(Some(config_path)).await;
 
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
@@ -1416,7 +1820,8 @@ enabled = false
         let config_path = tmp.to_str().expect("valid utf8 path").to_string();
 
         // Spawn run_app_with_limit with accept_limit = 1
-        let task = tokio::spawn(async move { run_app_with_limit(&config_path, Some(1)).await });
+        let task =
+            tokio::spawn(async move { run_app_with_limit(Some(&config_path), Some(1)).await });
 
         // Connect to trigger accept
         let addr: SocketAddr = format!("127.0.0.1:{}", port).parse()?;
@@ -1468,7 +1873,7 @@ enabled = false
         let config_path = tmp.to_str().expect("valid utf8 path");
 
         // run_app should return an error because the port is already taken
-        let res = run_app(config_path).await;
+        let res = run_app(Some(config_path)).await;
         assert!(res.is_err());
 
         // Cleanup
