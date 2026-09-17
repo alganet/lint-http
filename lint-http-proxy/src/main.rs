@@ -17,7 +17,16 @@ use lint_http::{
 };
 
 #[derive(Parser, Debug)]
-#[command(name = "lint-http", version, about = "HTTP-linting forward proxy")]
+// `long_about = None` because a flattened struct's doc comment otherwise
+// becomes the binary's long description — and `GlobalArgs`'s explains *why*
+// those options are global, which is a note to whoever edits this file and not
+// something anyone typing `--help` asked for.
+#[command(
+    name = "lint-http",
+    version,
+    about = "HTTP-linting forward proxy",
+    long_about = None
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -39,6 +48,7 @@ struct Cli {
 /// says nothing to `config export`, which prints the built-in by definition.
 /// What matters is that where it *is* read, it is read the same way.
 #[derive(clap::Args, Debug, Clone)]
+#[command(next_help_heading = "Global options")]
 struct GlobalArgs {
     /// Config TOML path. Defaults to the built-in configuration.
     #[arg(long, value_name = "PATH", global = true)]
@@ -1180,7 +1190,7 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
+    use clap::{CommandFactory, Parser};
     use tokio::fs;
     use uuid::Uuid;
 
@@ -2208,6 +2218,31 @@ enabled = true
             "example.com",
         ])
         .is_err());
+    }
+
+    /// `--help` is user-facing text, and a flattened struct's doc comment lands
+    /// in it by default. `GlobalArgs`' explains *why* those options are global,
+    /// which belongs to whoever edits this file — pinned because the leak is
+    /// invisible from the source and only shows up when someone runs the binary.
+    #[test]
+    fn help_does_not_carry_the_notes_meant_for_this_file() {
+        let help = Cli::command().render_long_help().to_string();
+        assert!(
+            help.contains("HTTP-linting forward proxy"),
+            "the binary lost its description"
+        );
+        for leaked in [
+            "redeclared per command",
+            "global = true",
+            "drift in its default",
+        ] {
+            assert!(!help.contains(leaked), "help leaked {leaked:?}");
+        }
+        // The four are still there, and grouped.
+        assert!(help.contains("Global options"));
+        for flag in ["--config", "--format", "--min-severity", "--captures"] {
+            assert!(help.contains(flag), "help lost {flag}");
+        }
     }
 
     #[test]
