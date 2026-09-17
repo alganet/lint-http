@@ -1441,7 +1441,18 @@ enabled = "true"
         /// request-only. Match `tx\s*\.\s*response`, and check the rules
         /// already converted when the method that chose them turns out to have
         /// a blind spot.
-        const FLOOR: usize = 87;
+        ///
+        /// **107 of 190** with the twenty-one rules whose scope and evidence
+        /// disagreed — nineteen `Server`-scoped rules that read the request and
+        /// two `Client`-scoped ones that read the response. Reading the other
+        /// half is not reporting about it: `status_405_allow_valid` reads the
+        /// method to judge the server's `Allow`, and `content_type_present`
+        /// reads it only to excuse HEAD. Twenty of the twenty-one keep a single
+        /// presumption; `origin_matching_for_cors` is the first `PerSite`
+        /// conversion, because it validates the client's `Origin` and then the
+        /// server's `Access-Control-Allow-Origin`, and one answer would have
+        /// been wrong for one of them.
+        const FLOOR: usize = 107;
         let read = all_rules()
             .filter(|rule| rule.party() != RuleParty::Unread)
             .count();
