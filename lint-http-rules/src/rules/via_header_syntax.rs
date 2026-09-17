@@ -167,6 +167,14 @@ impl RuleMeta for ViaHeaderSyntax {
         DECLARED
     }
 
+    /// **`Via` is written by the intermediaries on one leg**, and this rule
+    /// reads the field as it arrived in each half — so a malformed
+    /// `received-by` in the request's `Via` came in with the request and one in
+    /// the response's came back with the response.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -230,16 +238,18 @@ impl Rule for ViaHeaderSyntax {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
-            let report = |defect: Defect| ctx.report_with(defect.def, defect.message);
+            let report = |party: crate::lint::Party, defect: Defect| {
+                ctx.by(party).report_with(defect.def, defect.message)
+            };
 
             if let Some(defect) = judge(&tx.request.headers, "Request") {
-                return Some(report(defect));
+                return Some(report(crate::lint::Party::Client, defect));
             }
 
             // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
             if let Some(resp) = &tx.response {
                 if let Some(defect) = judge(&resp.headers, "Response") {
-                    return Some(report(defect));
+                    return Some(report(crate::lint::Party::Server, defect));
                 }
             }
 

@@ -58,6 +58,16 @@ enum Section {
 }
 
 impl Section {
+    /// Who wrote the section. Sound here and not in general: one field section
+    /// has exactly one author, which is why the conversion is written on this
+    /// rule's own enum rather than as a `From` in core.
+    fn party(self) -> crate::lint::Party {
+        match self {
+            Section::Request => crate::lint::Party::Client,
+            Section::Response => crate::lint::Party::Server,
+        }
+    }
+
     fn name(self) -> &'static str {
         match self {
             Section::Request => "request",
@@ -104,7 +114,7 @@ impl PriorityHeaderSyntax {
             // The one finding this section can have: nothing below it parsed,
             // so there are no members to say anything else about.
             let Ok(v) = hv.to_str() else {
-                return vec![ctx.report_with(
+                return vec![ctx.by(section.party()).report_with(
                     &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
                     whole_field(section, "contains a byte outside ASCII"),
                 )];
@@ -118,10 +128,10 @@ impl PriorityHeaderSyntax {
             // A whole-field failure is one finding and the only one, which is
             // the return type rather than a comment: nothing parsed, so there
             // are no members left to describe.
-            Err(finding) => vec![ctx.report_with(finding.0, finding.1)],
+            Err(finding) => vec![ctx.by(section.party()).report_with(finding.0, finding.1)],
             Ok(findings) => findings
                 .into_iter()
-                .map(|(def, message)| ctx.report_with(def, message))
+                .map(|(def, message)| ctx.by(section.party()).report_with(def, message))
                 .collect(),
         }
     }
@@ -180,6 +190,15 @@ impl RuleMeta for PriorityHeaderSyntax {
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
         DECLARED
+    }
+
+    /// **The `Section` this rule already carries answers this too.** A request's
+    /// `Priority` states what the client asked for and a response's states what
+    /// the server signalled back — which is why `Section::instead` says
+    /// different things about the two — and a field that fails to parse was
+    /// written by the peer whose section it is.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

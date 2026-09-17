@@ -406,6 +406,15 @@ impl RuleMeta for LinkHeaderValid {
         DECLARED
     }
 
+    /// **`Link` is sent in both directions and the rule already knows which it
+    /// is reading** — `is_response` gates the preload checks, because the HTML
+    /// processing model those rest on is written for a response's `Link`
+    /// headers. The party is that same fork, carried on the judgement so the one
+    /// reporting site does not have to guess which call answered.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -533,13 +542,18 @@ impl Rule for LinkHeaderValid {
                 return None;
             }
 
-            let defect = judge(&tx.request.headers, "Request", false).or_else(|| {
-                tx.response
-                    .as_ref()
-                    .and_then(|resp| judge(&resp.headers, "Response", true))
-            })?;
+            // The half that produced the judgement travels with it: the one
+            // reporting site below cannot tell afterwards which call answered.
+            let (party, defect) = judge(&tx.request.headers, "Request", false)
+                .map(|defect| (crate::lint::Party::Client, defect))
+                .or_else(|| {
+                    tx.response.as_ref().and_then(|resp| {
+                        judge(&resp.headers, "Response", true)
+                            .map(|defect| (crate::lint::Party::Server, defect))
+                    })
+                })?;
 
-            Some(ctx.report_with(defect.def, defect.message))
+            Some(ctx.by(party).report_with(defect.def, defect.message))
         };
         Vec::from_iter(finding())
     }

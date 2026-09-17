@@ -195,6 +195,14 @@ enabled = true
         DECLARED
     }
 
+    /// **Two field lines of a singleton field are two lines one sender wrote**,
+    /// and the count is taken per message — the request's two sections together,
+    /// then the response's. The party travels with the judgement, since the one
+    /// reporting site cannot tell afterwards which call answered.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -236,14 +244,19 @@ impl Rule for SingletonFieldsNotRepeated {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            let message = judge(&tx.request.headers, tx.request.trailers.as_ref(), "Request")
-                .or_else(|| {
-                    tx.response
-                        .as_ref()
-                        .and_then(|resp| judge(&resp.headers, resp.trailers.as_ref(), "Response"))
-                })?;
+            // The half that produced the judgement travels with it: the one
+            // reporting site below cannot tell afterwards which call answered.
+            let (party, message) =
+                judge(&tx.request.headers, tx.request.trailers.as_ref(), "Request")
+                    .map(|message| (crate::lint::Party::Client, message))
+                    .or_else(|| {
+                        tx.response.as_ref().and_then(|resp| {
+                            judge(&resp.headers, resp.trailers.as_ref(), "Response")
+                                .map(|message| (crate::lint::Party::Server, message))
+                        })
+                    })?;
 
-            Some(ctx.report_with(&FIELD_LINE_DUPLICATED, message))
+            Some(ctx.by(party).report_with(&FIELD_LINE_DUPLICATED, message))
         };
         Vec::from_iter(finding())
     }

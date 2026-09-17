@@ -272,22 +272,31 @@ fn message_field_sections<'a>(
 /// SHOULD is about a request's header section, and reading its trailer section
 /// for one would count a field § 6.5.1 forbids as satisfying § 10.1.5.
 ///
+/// The direction is yielded twice over, as the label a finding prints and as
+/// the [`Party`](crate::lint::Party) answerable for what is in the section. They
+/// are not the same fact and are not derived from each other: the label is
+/// wording, and a caller that read the party back out of it would be parsing its
+/// own prose. Both are sound here for the same narrow reason — a field section
+/// has exactly one author — which is the sentence the walk itself rests on.
+///
 /// cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
 /// cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
 pub fn transaction_field_sections(
     tx: &crate::http_transaction::HttpTransaction,
-) -> impl Iterator<Item = (&'static str, &HeaderMap)> {
+) -> impl Iterator<Item = (&'static str, crate::lint::Party, &HeaderMap)> {
     message_field_sections(
         &tx.request.headers,
         tx.request.trailers.as_ref(),
         ("request header section", "request trailer section"),
     )
+    .map(|(label, fields)| (label, crate::lint::Party::Client, fields))
     .chain(tx.response.iter().flat_map(|resp| {
         message_field_sections(
             &resp.headers,
             resp.trailers.as_ref(),
             ("response header section", "response trailer section"),
         )
+        .map(|(label, fields)| (label, crate::lint::Party::Server, fields))
     }))
 }
 
@@ -520,7 +529,7 @@ mod tests {
     fn transaction_field_sections_walks_all_four_in_wire_order() {
         let labels = |tx: &crate::http_transaction::HttpTransaction| -> Vec<&'static str> {
             transaction_field_sections(tx)
-                .map(|(label, _)| label)
+                .map(|(label, _, _)| label)
                 .collect()
         };
 

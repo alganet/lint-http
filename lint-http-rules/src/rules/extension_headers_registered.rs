@@ -88,6 +88,14 @@ allowed = ["host", "user-agent", "accept", "content-type", "acme-request-id"]
         DECLARED
     }
 
+    /// **The walk over a transaction's four field sections hands each one its
+    /// author.** A field name no deployment listed is written by whoever wrote
+    /// the section it sits in — the request's two sections by the client, the
+    /// response's two by the origin.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9110_5_1,
@@ -153,8 +161,9 @@ impl Rule for ExtensionHeadersRegistered {
             // transaction the upstream never answered has no response half; and
             // which sections exist at all is the framing's answer, not this rule's.
             // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
-            for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-                if let Some(v) = check_section(section, headers, config, ctx) {
+            for (section, party, headers) in crate::helpers::headers::transaction_field_sections(tx)
+            {
+                if let Some(v) = check_section(section, party, headers, config, ctx) {
                     return Some(v);
                 }
             }
@@ -178,6 +187,7 @@ impl Rule for ExtensionHeadersRegistered {
 // cite(RFC 9110 § 16.3): "Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized"
 fn check_section(
     section: &str,
+    party: crate::lint::Party,
     fields: &hyper::HeaderMap,
     config: &crate::helpers::rule_config::AllowedList,
     ctx: &crate::rules::RuleContext<'_>,
@@ -197,7 +207,7 @@ fn check_section(
         {
             continue;
         }
-        return Some(ctx.report_with(
+        return Some(ctx.by(party).report_with(
             &FIELD_NAME_UNREGISTERED,
             format!(
                 "Field name '{}' in the {} is not in the 'allowed' list for '{}'. That list is the rule's only authority: add the name to it if this deployment expects the field",

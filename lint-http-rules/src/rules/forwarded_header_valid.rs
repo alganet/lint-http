@@ -200,7 +200,7 @@ impl ForwardedHeaderValid {
         //
         // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
         if let Some(c) = whitespace_outside_quotes(elem) {
-            return Some(ctx.report_with(
+            return Some(ctx.by_client().report_with(
                 &FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN,
                 format!(
                     "Forwarded element holds whitespace its grammar does not admit ({:?} in '{}')",
@@ -225,7 +225,7 @@ impl ForwardedHeaderValid {
             }
 
             let Some((name, raw_value)) = param.split_once('=') else {
-                return Some(ctx.report_with(
+                return Some(ctx.by_client().report_with(
                     &FORWARDED_PAIR_EQUALS_MISSING,
                     format!("Forwarded parameter '{}' has no '=' and no value", param),
                 ));
@@ -236,7 +236,7 @@ impl ForwardedHeaderValid {
             // The floor belongs to the production and not to this field, which
             // is the same reading that sends the character below to `token`.
             if name.is_empty() {
-                return Some(ctx.report_with(
+                return Some(ctx.by_client().report_with(
                     &TOKEN_EMPTY,
                     format!("Forwarded parameter '{}' has no name", param),
                 ));
@@ -246,7 +246,7 @@ impl ForwardedHeaderValid {
             // this field's — the same id a media type's parameter name, a
             // cache directive and seventy-six other sites report.
             if let Some(c) = find_invalid_token_char(name) {
-                return Some(ctx.report_with(
+                return Some(ctx.by_client().report_with(
                     token_character(c),
                     format!(
                         "Forwarded parameter name '{}' is not a token ({:?} is not a tchar)",
@@ -258,7 +258,7 @@ impl ForwardedHeaderValid {
             // cite(RFC 7239 § 4): "The parameter names are case-insensitive."
             let name_lc = name.to_ascii_lowercase();
             if seen.contains(&name_lc) {
-                return Some(ctx.report_with(
+                return Some(ctx.by_client().report_with(
                     &FORWARDED_PARAMETER_DUPLICATED,
                     format!(
                         "Forwarded element names the '{}' parameter more than once: '{}'",
@@ -286,7 +286,7 @@ impl ForwardedHeaderValid {
                     // The message still names the parameter, because that is what
                     // this rule knows and the catalogue does not.
                     Err(defect) => {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by_client().report_with(
                             quoted_string_defect(defect),
                             format!(
                                 "Forwarded '{}' is not a well-formed quoted-string: {}",
@@ -303,13 +303,13 @@ impl ForwardedHeaderValid {
                 // nothing. One entry, and the parameter named in the message is
                 // what tells the two apart.
                 if raw_value.is_empty() {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by_client().report_with(
                         &FORWARDED_PAIR_VALUE_EMPTY,
                         format!("Forwarded parameter '{}' has no value", param),
                     ));
                 }
                 if let Some(c) = find_invalid_token_char(raw_value) {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by_client().report_with(
                         token_character(c),
                         format!(
                             "Forwarded '{}' value '{}' is neither a token ({:?} is not a tchar) nor a quoted-string",
@@ -321,7 +321,7 @@ impl ForwardedHeaderValid {
             };
 
             if value.is_empty() {
-                return Some(ctx.report_with(
+                return Some(ctx.by_client().report_with(
                     &FORWARDED_PAIR_VALUE_EMPTY,
                     format!("Forwarded parameter '{}' has no value", param),
                 ));
@@ -345,7 +345,7 @@ impl ForwardedHeaderValid {
             // production the value was measured against, and the severity from
             // that def rather than from this rule.
             if let Some((def, message)) = finding {
-                return Some(ctx.report_with(def, message));
+                return Some(ctx.by_client().report_with(def, message));
             }
         }
 
@@ -401,13 +401,13 @@ impl ForwardedHeaderValid {
         }
 
         if !carried_an_element {
-            return Some(ctx.report_with(
+            return Some(ctx.by_client().report_with(
                 &LIST_MEMBER_MISSING,
                 "Forwarded field line carries no forwarded-element, and the field is a list of at least one".into(),
             ));
         }
         if saw_an_empty_element {
-            return Some(ctx.report_with(
+            return Some(ctx.by_client().report_with(
                 &LIST_MEMBER_EMPTY,
                 format!("Forwarded field line holds an empty element: '{}'", line),
             ));
@@ -474,6 +474,15 @@ impl RuleMeta for ForwardedHeaderValid {
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
         DECLARED
+    }
+
+    /// **Twelve findings about a request's `Forwarded` and one about a response
+    /// carrying the field at all.** The field is for requests, so every reading
+    /// of its members and parameters is about what reached the origin through
+    /// the client's side of the path; the thirteenth finding is that a response
+    /// carried one back, and only a server sends that.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -546,7 +555,7 @@ impl Rule for ForwardedHeaderValid {
                     .as_ref()
                     .is_some_and(|t| t.contains_key("forwarded"));
                 if resp.headers.contains_key("forwarded") || in_trailers {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by_server().report_with(
                         &FORWARDED_RESPONSE_FORBIDDEN,
                         format!(
                             "Response carries a Forwarded field in its {} section: the field is only for use in HTTP requests, and copying it into a response reveals the proxy chain to the client",

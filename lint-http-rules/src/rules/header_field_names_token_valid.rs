@@ -86,6 +86,14 @@ impl RuleMeta for HeaderFieldNamesTokenValid {
         DECLARED
     }
 
+    /// **The walk over a transaction's four field sections hands each one its
+    /// author.** A field name that is not a `token`, or one no deployment
+    /// listed, is written by whoever wrote the section it sits in — the request's
+    /// two sections by the client, the response's two by the origin.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -130,8 +138,9 @@ impl Rule for HeaderFieldNamesTokenValid {
             // upstream never answered has no response half; and which sections exist
             // at all is the framing's answer, not this rule's.
             // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
-            for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-                if let Some(v) = check_section(section, headers, ctx) {
+            for (section, party, headers) in crate::helpers::headers::transaction_field_sections(tx)
+            {
+                if let Some(v) = check_section(section, party, headers, ctx) {
                     return Some(v);
                 }
             }
@@ -145,6 +154,7 @@ impl Rule for HeaderFieldNamesTokenValid {
 /// Walk one field section, reporting the first field name that is not a `token`.
 fn check_section(
     section: &str,
+    party: crate::lint::Party,
     fields: &hyper::HeaderMap,
     ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
@@ -155,7 +165,7 @@ fn check_section(
         // HTTP/2 and HTTP/3 decoders reject an uppercase name outright, so `as_str()`
         // has already been made lowercase by the time any rule reads it.
         // cite(RFC 9114 § 4.2): "A request or response containing uppercase characters in field names MUST be treated as malformed"
-        if let Some(v) = check_header_name(section, k.as_str(), ctx) {
+        if let Some(v) = check_header_name(section, party, k.as_str(), ctx) {
             return Some(v);
         }
     }
@@ -172,6 +182,7 @@ fn check_section(
 // cite(RFC 9114 § 4.2): "Properties of HTTP field names and values are discussed in more detail in Section 5.1 of [HTTP]"
 fn check_header_name(
     section: &str,
+    party: crate::lint::Party,
     name: &str,
     ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
@@ -184,7 +195,7 @@ fn check_header_name(
         // Which of the two the octet is is `token`'s question and not this
         // rule's: an octet nobody typed and one a sender chose are the same
         // failure of `1*tchar` and two different things to go and fix.
-        return Some(ctx.report_with(
+        return Some(ctx.by(party).report_with(
             token_character(c),
             format!(
                 "Field name '{}' in the {} contains invalid character: '{}'",
@@ -317,7 +328,12 @@ mod tests {
         let severities = crate::rules::violations_for(&HeaderFieldNamesTokenValid, &cfg);
         let ctx = crate::rules::RuleContext::new(&resolved)
             .with_violations(&HeaderFieldNamesTokenValid, &severities);
-        let res = super::check_header_name("request header section", name, &ctx);
+        let res = super::check_header_name(
+            "request header section",
+            crate::lint::Party::Client,
+            name,
+            &ctx,
+        );
 
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", name);

@@ -58,23 +58,16 @@ impl std::fmt::Debug for ResolvedRule {
 /// finding stopped asking for it.
 /// What a rule says about the peer answerable for its findings.
 ///
-/// **Three states, because two of them produce the same finding and are not the
-/// same fact** — the argument `NegotiatedExtensions` makes about a WebSocket
-/// handshake, arriving here for the same reason. A rule nobody has read for the
-/// question and a rule that was read and reports for both peers both leave a
-/// finding unattributed; only one of them is work still owed, and a ratchet
-/// that cannot tell them apart cannot be finished.
+/// **Two states, and it had three.** `Unread` said nobody had read the rule for
+/// the question — a fact about the catalogue rather than about the traffic, and
+/// distinct from `PerSite` for exactly as long as the distinction was work:
+/// both leave a finding unattributed, and only one of them was owed. It went
+/// when the last rule converted, the way [`RuleMeta::violations`] lost its `&[]`
+/// default when the last site did, and its ratchet went with it. What replaces
+/// the gate is the trait: [`RuleMeta::party`] has no default, so a new rule
+/// cannot fail to answer and the compiler says so at the rule.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum RuleParty {
-    /// Nobody has read this rule for the question yet. The default, the true
-    /// statement about a catalogue mid-migration, and the only value
-    /// `party_coverage_does_not_regress` counts against.
-    ///
-    /// It goes when the last rule converts, exactly as
-    /// [`RuleMeta::violations`] lost its `&[]` default when the last site did:
-    /// a rule that says nothing can then say nothing, and the compiler says so
-    /// at the rule rather than a gate saying it at the catalogue.
-    Unread,
     /// The peer every finding of this rule is about, unless a site rebuts it.
     /// A presumption rather than a decree, which is what lets one line answer
     /// for every reporting site in the file.
@@ -146,7 +139,12 @@ impl<'a> RuleContext<'a> {
     pub fn new(resolved: &'a ResolvedRule) -> Self {
         Self {
             state: &*resolved.state,
-            party: RuleParty::Unread,
+            // Presumes nothing, which is what a context declaring no defects
+            // can honestly say: reporting through one is the wiring error the
+            // empty `declared` list is here to catch, and this makes the party
+            // assertion catch it too. Dispatch always overwrites this in
+            // `with_violations`.
+            party: RuleParty::PerSite,
             site_party: None,
             rule_id: "",
             declared: &[],
@@ -389,12 +387,14 @@ impl<'a> RuleContext<'a> {
                 [only] => Some(only.citation()),
                 _ => None,
             },
-            // The site rebuts the rule's presumption. An unread rule and an
-            // unrebutted `PerSite` both land on `None` — the one thing a report
-            // may not confuse with `Party::Neither`.
+            // The site rebuts the rule's presumption. An unrebutted `PerSite`
+            // lands on `None` — the one thing a report may not confuse with
+            // `Party::Neither` — and the two assertions above are what keep a
+            // shipped rule from producing one. What reaches a report as `None`
+            // now is a capture written before this field existed.
             party: self.site_party.or(match self.party {
                 RuleParty::Presumed(party) => Some(party),
-                RuleParty::Unread | RuleParty::PerSite => None,
+                RuleParty::PerSite => None,
             }),
             // Off the def and not off the context: whether a defect can exist
             // at all without a proxy in the path is a property of the defect,
@@ -656,13 +656,17 @@ pub trait RuleMeta: Send + Sync {
     /// halves cannot, and leaves this alone — its sites say it one at a time
     /// through [`RuleContext::by_client`] and its siblings.
     ///
-    /// **[`RuleParty::Unread`] is the absence of an answer, not one of them.**
-    /// It says this rule has not been read for the question, which is a fact
-    /// about the catalogue rather than about the traffic. A rule that has been
-    /// read and genuinely has no single answer declares
-    /// [`RuleParty::PerSite`], and its sites each say who — including
+    /// A rule that has no single answer declares [`RuleParty::PerSite`], and
+    /// its sites each say who — including
     /// [`Party::Neither`](crate::lint::Party::Neither), where the defect is in
     /// the exchange rather than in a message.
+    ///
+    /// **There is no default, and that is the gate.** While the catalogue was
+    /// being migrated there was a third state and a ratchet counting it down;
+    /// both went when the last rule converted. A required method is a stronger
+    /// guarantee than the ratchet ever was, and it is enforced at the rule a
+    /// contributor is writing rather than at a catalogue-wide count they have
+    /// to go and read.
     ///
     /// # Why this sits on `RuleMeta` where `needs_response` does not
     ///
@@ -675,14 +679,12 @@ pub trait RuleMeta: Send + Sync {
     /// would make each of them special-case protocol rules again — the exact
     /// doubling `all_rules` exists to retire.
     ///
-    /// Protocol rules nonetheless leave it `None` on purpose. An event has no
-    /// request and no response, but it does carry a
+    /// Protocol rules nonetheless answer [`RuleParty::PerSite`] almost without
+    /// exception. An event has no request and no response, but it does carry a
     /// [`MessageDirection`](crate::protocol_event::MessageDirection) saying
     /// which leg it was observed on, so those rules attribute at the site from
     /// the event in hand rather than declaring one answer for the file.
-    fn party(&self) -> RuleParty {
-        RuleParty::Unread
-    }
+    fn party(&self) -> RuleParty;
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).
     /// Defaults to `None`, which makes the generator derive the title from the
@@ -1406,121 +1408,6 @@ enabled = "true"
         Ok(())
     }
 
-    /// An upward ratchet on the rules that have been read for the party
-    /// question, mirroring `every_violation_declares_a_spec`: a finding can now
-    /// name the peer answerable for it, and the point of the migration is that
-    /// it does.
-    ///
-    /// **It counts rules where the citation ratchet counts defs, and the
-    /// difference is not arbitrary.** A citation is a property of the *site* —
-    /// two sites of one rule enforce different sentences — so that gate has to
-    /// look at sites. A party is a property of the *rule* first:
-    /// [`RuleParty::Presumed`] answers for every finding in the file without a
-    /// site writing anything, which is the whole mechanism that keeps 582 call
-    /// sites unedited. A source scan would read every one of those sites as
-    /// unmigrated forever.
-    ///
-    /// [`RuleParty::PerSite`] counts as read, because it is an answer. What
-    /// stops it being a hiding place is
-    /// `a_per_site_rule_names_a_party_at_every_finding` below: declaring it
-    /// costs exactly what attributing the rule costs.
-    ///
-    /// **Never map scope onto party mechanically.** `Server` scope says the
-    /// rule needs a response, not that its findings are the origin's — 19
-    /// `Server`-scoped rules read `tx.request` and 2 `Client`-scoped ones read
-    /// `tx.response`. A commit that raised this by 111 in one edit would have
-    /// raised it wrongly.
-    #[test]
-    fn party_coverage_does_not_regress() {
-        /// Raised by the commit that reads rules; never lowered.
-        ///
-        /// **Read the number the failing assertion prints.** Never the previous
-        /// number plus the rules a commit touched, and never address this
-        /// constant by line — a sibling ratchet in this workspace sat stale
-        /// through four commits that claimed to have raised it, because they
-        /// edited it by line in a file whose numbering they had just changed,
-        /// and a floor is a one-way assertion: nothing fails when it is left
-        /// too low.
-        ///
-        /// 1 of 190 with `proxy_connection_discouraged`, whose own prose
-        /// already argued the answer before there was anywhere to record it —
-        /// which is why it is the one rule this commit reads rather than
-        /// none: a floor of zero is a gate that cannot fail, and clippy says
-        /// so.
-        ///
-        /// **81 of 190** with the rules that read exactly one half of a
-        /// transaction and consult no history: whichever peer wrote that half
-        /// is the one their findings are about, every time. The batch was
-        /// bounded by what those rules *read* and then checked by what their
-        /// defects *say* — every declared title was scanned for one naming the
-        /// other peer, and the four that did turned out to confirm the
-        /// assignment rather than upset it. `digest_auth_valid` is the one
-        /// worth remembering: its "response" is the Digest response-parameter,
-        /// not an HTTP response.
-        ///
-        /// **87 of 190** with the six rules whose scope said `Both` and whose
-        /// bodies read one half — five about conditional requests and the two
-        /// pseudo-header families, one about a response's own `Expires`. Their
-        /// scope was over-broad rather than their party ambiguous, and each
-        /// description says which direction it is about in its first sentence.
-        ///
-        /// **The trap that batch set**, worth more than the six: a body-reading
-        /// heuristic missed `tx\n    .response` split across lines, and
-        /// `allow_header_method_tokens_valid` reads both sections while looking
-        /// request-only. Match `tx\s*\.\s*response`, and check the rules
-        /// already converted when the method that chose them turns out to have
-        /// a blind spot.
-        ///
-        /// **107 of 190** with the twenty-one rules whose scope and evidence
-        /// disagreed — nineteen `Server`-scoped rules that read the request and
-        /// two `Client`-scoped ones that read the response. Reading the other
-        /// half is not reporting about it: `status_405_allow_valid` reads the
-        /// method to judge the server's `Allow`, and `content_type_present`
-        /// reads it only to excuse HEAD. Twenty of the twenty-one keep a single
-        /// presumption; `origin_matching_for_cors` is the first `PerSite`
-        /// conversion, because it validates the client's `Origin` and then the
-        /// server's `Access-Control-Allow-Origin`, and one answer would have
-        /// been wrong for one of them.
-        ///
-        /// **114 of 190** with every protocol rule. An event has no request
-        /// half and no response half — the reason `needs_response` is not on
-        /// their trait — but it does record the leg it was observed on, so six
-        /// of the seven answer from the frame in hand through
-        /// [`RuleContext::by_direction`]. The seventh reads parameters this
-        /// proxy advertises itself, which neither peer wrote.
-        ///
-        /// **One site in that batch had to be read rather than rewritten**, and
-        /// it is the shape to watch for: `http3_goaway_semantics` holds a
-        /// `direction` belonging to the *server's* GOAWAY while reporting a
-        /// client that opened a stream after it. A mechanical
-        /// `by_direction(direction)` there blames the peer that behaved
-        /// correctly. Having a direction in scope is not the same as it being
-        /// the answer.
-        ///
-        /// **128 of 190** with the rules whose subject is a field only one end
-        /// sends — `Accept*` and `Expect` and the cookie rules for the client,
-        /// the negotiation and handshake rules for the origin — plus two more
-        /// `PerSite` conversions.
-        ///
-        /// **The defect-title scan is what makes a batch like that safe, and it
-        /// earned its keep three times here.** `te_header_valid` looks like a
-        /// pure request rule and declares *a request context field is written
-        /// in a response*; `cache_control_and_pragma_consistent` reports a
-        /// deprecated `Pragma` the origin sent; `options_method_capabilities`
-        /// carries one requirement per direction. Each was about to be given a
-        /// single presumption. Scan the titles before presuming, every time.
-        const FLOOR: usize = 175;
-        let read = all_rules()
-            .filter(|rule| rule.party() != RuleParty::Unread)
-            .count();
-        assert!(
-            read >= FLOOR,
-            "{read} of {} rules name the party answerable for their findings, \
-             below the floor of {FLOOR}",
-            all_rules().count(),
-        );
-    }
-
     /// A rule that presumes no party names one at every finding site.
     ///
     /// Textual, and not only the `debug_assert` in [`RuleContext::finding`],
@@ -1536,6 +1423,13 @@ enabled = "true"
     /// also why [`RuleContext::by`] exists: a reader run over both halves is
     /// handed the *party* and not an already-attributed context, because the
     /// second shape would have hidden its sites from this line.
+    ///
+    /// **This is the gate the migration's ratchet handed its job to.** While
+    /// rules were being read, `party_coverage_does_not_regress` counted the ones
+    /// that had been; the count reached 190 of 190 and the ratchet went, along
+    /// with the `Unread` state it counted. What is left is a required
+    /// [`RuleMeta::party`] — a new rule cannot fail to answer — and this line,
+    /// which is what stops the answer being `PerSite` and then nothing.
     #[test]
     fn a_per_site_rule_names_a_party_at_every_finding() -> anyhow::Result<()> {
         let per_site: std::collections::BTreeSet<&str> = all_rules()
@@ -1925,7 +1819,15 @@ enabled = "true"
             fn violations(&self) -> &'static [&'static ViolationDef] {
                 &[]
             }
+
+            // Likewise required, and a rule reporting nothing answers for
+            // nothing: a party is said at a finding site, and this one has
+            // none.
+            fn party(&self) -> RuleParty {
+                RuleParty::PerSite
+            }
         }
+
         impl Rule for DummyRule {
             fn findings(
                 &self,
@@ -2047,6 +1949,12 @@ enabled = "true"
         fn violations(&self) -> &'static [&'static ViolationDef] {
             DECLARED
         }
+
+        /// The client, so that a test overriding a site with `by_server` is
+        /// changing something. Which peer it is decides nothing else here.
+        fn party(&self) -> RuleParty {
+            RuleParty::Presumed(crate::lint::Party::Client)
+        }
     }
 
     /// Build the context a dispatch would hand `ReportingRule`, with the
@@ -2119,12 +2027,12 @@ enabled = "true"
         RuleContext::new(resolved).with_violations(&PerSiteRule, violations)
     }
 
-    /// `PerSite` is an answer and `Unread` is not, and the two must not be
-    /// told apart by what a finding carries — both leave it unattributed. What
-    /// tells them apart is the rule, which is what the ratchet counts and what
-    /// the docs index groups by.
+    /// A `PerSite` rule's finding carries the party its *site* named, and
+    /// nothing else does the naming — there is no rule-level answer behind it
+    /// to fall back on. That is the whole difference between the two variants,
+    /// and it is why the textual gate below has to exist.
     #[test]
-    fn a_per_site_rule_and_an_unread_one_differ_at_the_rule_not_the_finding() {
+    fn a_per_site_rules_finding_carries_what_its_site_named() {
         let resolved = unit_resolved();
         let table = all_reporting(&[crate::lint::Severity::Warn, crate::lint::Severity::Error]);
         assert_eq!(
@@ -2135,7 +2043,6 @@ enabled = "true"
             Some(crate::lint::Party::Client),
         );
         assert_ne!(PerSiteRule.party(), ReportingRule.party());
-        assert_eq!(ReportingRule.party(), RuleParty::Unread);
     }
 
     /// The wrapper composes with the helpers rules already have: twelve rule
@@ -2155,19 +2062,6 @@ enabled = "true"
             helper(&ctx.by_server()).party,
             Some(crate::lint::Party::Server),
         );
-    }
-
-    /// A rule that has not been read for the question reports findings that say
-    /// so — and `None` has to survive as `None`, because the whole point of the
-    /// filter downstream is that it can tell "nobody decided" from "nobody is
-    /// answerable".
-    #[test]
-    fn a_rule_that_names_no_party_makes_findings_that_name_none() {
-        let resolved = unit_resolved();
-        let table = all_reporting(&[crate::lint::Severity::Warn, crate::lint::Severity::Error]);
-        let ctx = reporting_context(&resolved, &table);
-        assert_eq!(ctx.report(&FIXED).party, None);
-        assert_eq!(ctx.report_with(&PARAMETERISED, "x".into()).party, None);
     }
 
     /// The rule's own answer reaches every site in it, which is what makes the
@@ -2223,7 +2117,7 @@ enabled = "true"
         let table = all_reporting(&[crate::lint::Severity::Info, crate::lint::Severity::Error]);
         let ctx = reporting_context(&resolved, &table);
         let plain = ctx.report(&FIXED);
-        let attributed = ctx.by_client().report(&FIXED);
+        let attributed = ctx.by_server().report(&FIXED);
         assert_eq!(plain.rule, attributed.rule);
         assert_eq!(plain.violation, attributed.violation);
         assert_eq!(plain.severity, attributed.severity);
@@ -2318,11 +2212,14 @@ enabled = "true"
 
     /// A context built without a catalogue declares nothing, which is what
     /// makes the same wiring error out of reporting through one.
+    ///
+    /// Attributed at the site, because such a context presumes nothing and the
+    /// party assertion would otherwise fire first and hide the one under test.
     #[test]
     #[should_panic(expected = "may only report a violation the rule declares")]
     fn a_context_without_violations_declares_none() {
         let resolved = unit_resolved();
-        let _ = RuleContext::new(&resolved).report(&FIXED);
+        let _ = RuleContext::new(&resolved).by_client().report(&FIXED);
     }
 
     /// Emitting a parameterised def through `report` would emit its empty

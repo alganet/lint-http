@@ -140,6 +140,15 @@ enabled = true
         DECLARED
     }
 
+    /// **Each of the two findings is about one half by construction.** A
+    /// *request* carrying a response context field is the client's, and a
+    /// *response* carrying a request context field is the origin's — the two
+    /// tables the rule walks are what makes those different findings at all, and
+    /// the party rides with the one that answered.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -180,14 +189,21 @@ impl Rule for ContextFieldsDirection {
             // in a response. Each table is probed against the *other* direction
             // only — in its own direction the field is what its section says it
             // is, and its value is its own rule's question.
-            let (def, message) = misdirected(
+            // The half that produced the message travels with it: the one
+            // reporting site below cannot tell afterwards which table answered.
+            let (party, (def, message)) = misdirected(
                 &tx.request.headers,
                 RESPONSE_CONTEXT_FIELDS,
                 "Request",
                 "response context field",
                 "a request",
             )
-            .map(|message| (&FIELD_RESPONSE_CONTEXT_MISDIRECTED, message))
+            .map(|message| {
+                (
+                    crate::lint::Party::Client,
+                    (&FIELD_RESPONSE_CONTEXT_MISDIRECTED, message),
+                )
+            })
             .or_else(|| {
                 tx.response.as_ref().and_then(|resp| {
                     misdirected(
@@ -197,11 +213,16 @@ impl Rule for ContextFieldsDirection {
                         "request context field",
                         "a response",
                     )
-                    .map(|message| (&FIELD_REQUEST_CONTEXT_MISDIRECTED, message))
+                    .map(|message| {
+                        (
+                            crate::lint::Party::Server,
+                            (&FIELD_REQUEST_CONTEXT_MISDIRECTED, message),
+                        )
+                    })
                 })
             })?;
 
-            Some(ctx.report_with(def, message))
+            Some(ctx.by(party).report_with(def, message))
         };
         Vec::from_iter(finding())
     }

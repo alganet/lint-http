@@ -116,11 +116,12 @@ impl DateAndTimeHeadersConsistent {
     fn date_is_readable(
         &self,
         headers: &hyper::HeaderMap,
+        party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         match timestamp(headers, "date") {
             Timestamp::Absent | Timestamp::At(..) => None,
-            Timestamp::Unparseable => Some(ctx.report_with(
+            Timestamp::Unparseable => Some(ctx.by(party).report_with(
                 &HTTP_DATE_MALFORMED,
                 "Date header is not a valid HTTP-date".into(),
             )),
@@ -143,7 +144,7 @@ impl DateAndTimeHeadersConsistent {
         match timestamp(headers, "last-modified") {
             Timestamp::Absent | Timestamp::Unparseable => None,
             Timestamp::At(last_modified, text) if last_modified > date + skew => {
-                Some(ctx.report_with(&LAST_MODIFIED_CONFLICTING, format!(
+                Some(ctx.by_server().report_with(&LAST_MODIFIED_CONFLICTING, format!(
                     "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
                     text, date_text
                 )))
@@ -173,12 +174,12 @@ impl DateAndTimeHeadersConsistent {
             .get_all("sunset")
             .iter()
             .find_map(|line| match Timestamp::of(line) {
-                Timestamp::Unparseable => Some(ctx.report_with(
+                Timestamp::Unparseable => Some(ctx.by_server().report_with(
                     &HTTP_DATE_MALFORMED,
                     "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                 )),
                 Timestamp::At(sunset, text) if sunset <= date - skew => {
-                    Some(ctx.report_with(&SUNSET_INVALID, format!(
+                    Some(ctx.by_server().report_with(&SUNSET_INVALID, format!(
                         "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
                         text, date_text
                     )))
@@ -207,7 +208,7 @@ impl DateAndTimeHeadersConsistent {
             return None;
         };
         if since.0 > date + skew {
-            return Some(ctx.report_with(&CONDITIONAL_DATE_CONFLICTING, format!(
+            return Some(ctx.by_client().report_with(&CONDITIONAL_DATE_CONFLICTING, format!(
                 "If-Modified-Since '{}' is later than Date '{}'; conditional requests should not use a future date",
                 since.1, date_text
             )));
@@ -247,6 +248,16 @@ impl RuleMeta for DateAndTimeHeadersConsistent {
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
         DECLARED
+    }
+
+    /// **`Date` is read out of both halves and the three comparisons that
+    /// follow it are not.** An unreadable `Date` belongs to the message that
+    /// carried it; `Last-Modified` and `Sunset` are measured against the
+    /// *response's* own `Date`, and `If-Modified-Since` against the request's —
+    /// the other half is never the yardstick here, so every finding stays inside
+    /// one message.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -291,12 +302,16 @@ impl Rule for DateAndTimeHeadersConsistent {
             // the audit ledger, not cited).
             const ALLOWED_SKEW_SECS: i64 = 60;
             let skew = chrono::Duration::seconds(ALLOWED_SKEW_SECS);
-            if let Some(v) = self.date_is_readable(&tx.request.headers, ctx) {
+            if let Some(v) =
+                self.date_is_readable(&tx.request.headers, crate::lint::Party::Client, ctx)
+            {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = self.date_is_readable(&resp.headers, ctx) {
+                if let Some(v) =
+                    self.date_is_readable(&resp.headers, crate::lint::Party::Server, ctx)
+                {
                     return Some(v);
                 }
                 // The two comparisons below are against Date, so they are asked
