@@ -16,6 +16,56 @@ use std::sync::{Arc, RwLock};
 use tokio::fs;
 use tracing::info;
 
+/// Write a CA private key readable only by the user that owns it.
+///
+/// This key signs certificates the proxy asks a client to trust, so anyone who
+/// can read it can mint one that the same client accepts. `fs::write` leaves it
+/// at whatever the process umask allows — commonly `0644` or `0664`, which is
+/// world-readable — and the file often lands somewhere shared: the working
+/// directory of a checkout, or, for a wrapped run, a directory under `/tmp`.
+///
+/// The mode is set at creation *and* after the write. The creation mode does
+/// nothing when the file already exists, which is exactly the case where a key
+/// written by an earlier version is sitting there with the old permissions.
+///
+/// Non-Unix platforms fall back to a plain write: the permission model is not
+/// the same one, and pretending otherwise with a no-op would read as a
+/// guarantee this function cannot make there.
+async fn write_private_key(path: &Path, pem: &str) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        use tokio::io::AsyncWriteExt;
+
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .await
+            .context("failed to create CA key file")?;
+        file.write_all(pem.as_bytes())
+            .await
+            .context("failed to write CA key")?;
+        file.flush().await.context("failed to flush CA key")?;
+        drop(file);
+
+        fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+            .await
+            .context("failed to restrict CA key permissions")?;
+        Ok(())
+    }
+
+    #[cfg(not(unix))]
+    {
+        fs::write(path, pem)
+            .await
+            .context("failed to write CA key")?;
+        Ok(())
+    }
+}
+
 /// Manages the Certificate Authority (CA) and generates leaf certificates for intercepted domains.
 pub struct CertificateAuthority {
     ca_cert_pem: String,
@@ -77,7 +127,7 @@ impl CertificateAuthority {
         }
 
         fs::write(cert_path, &cert_pem).await?;
-        fs::write(key_path, &key_pem).await?;
+        write_private_key(key_path, &key_pem).await?;
 
         Ok(Arc::new(Self {
             ca_cert_pem: cert_pem,
@@ -158,6 +208,27 @@ impl CertificateAuthority {
 
 #[cfg(test)]
 mod tests {
+    /// The key this writes signs certificates clients are told to trust, so it
+    /// must not be readable by other users on the machine — the working
+    /// directory of a checkout and a directory under `/tmp` are both shared.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn generated_ca_key_is_private_to_its_owner() -> anyhow::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = std::env::temp_dir().join(format!("lint-http-ca-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir)?;
+        let cert = dir.join("ca.crt");
+        let key = dir.join("ca.key");
+
+        CertificateAuthority::load_or_generate(&cert, &key).await?;
+
+        let mode = std::fs::metadata(&key)?.permissions().mode() & 0o777;
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(mode, 0o600, "CA key mode was {mode:o}");
+        Ok(())
+    }
+
     use super::*;
     use anyhow::Result;
 
