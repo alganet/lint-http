@@ -17,6 +17,33 @@ A named config **replaces** the built-in rather than layering over it. Rules are
 off unless a config names them, so a file listing three rules enables three
 rules; export and edit if you want the catalogue minus a few.
 
+## Global options
+
+Four options mean the same thing wherever they appear, and may be given before
+or after the subcommand — `lint-http --config c.toml run -- curl` and
+`lint-http run --config c.toml -- curl` are the same command line.
+
+| Option | Meaning |
+|---|---|
+| `--config <PATH>` | Config TOML. Omitted, the built-in configuration is used. |
+| `--format <text\|json>` | Report format. Default `text`. |
+| `--min-severity <info\|warn\|error>` | Only report findings at or above this. Default `info`. |
+| `--captures <PATH>` | The JSONL capture file this command reads or writes. |
+
+`--captures` is one file under one name across the surface: `run`, `browse` and
+`proxy-start` **write** it, `lint-captures` **reads** it. So what a run keeps is
+what a later lint replays:
+
+```bash
+lint-http run --captures run.jsonl -- pytest
+lint-http lint-captures --captures run.jsonl      # same file, same flag
+lint-http lint-captures run.jsonl                 # or as the positional
+```
+
+For `run` and `browse`, `--captures` is also what makes the capture survive at
+all — without it they discard theirs. For `proxy-start` it overrides the
+`general.captures` path in the config.
+
 ## Command-Line Options
 
 `lint-http` uses subcommands:
@@ -58,6 +85,18 @@ lint-http run --min-severity warn -- npm install
 lint-http run --fail-on error --captures run.jsonl -- pytest
 ```
 
+- **The report goes to stderr, and the wrapped command's stderr is discarded.**
+  Two streams were competing for it and only one of them is what you ran the
+  command to read. Stdout is untouched — it is the wrapped command's real
+  output — so the two separate with a plain redirect:
+
+  ```bash
+  lint-http run -- curl -sS https://example.com > body.html 2> report.txt
+  ```
+
+  `--show-child-stderr` hands the child's stderr back when the wrapped command
+  is itself what is being debugged. Note this does hide progress output from
+  tools that write it to stderr (`npm`, `pytest`); that flag is the way back.
 - `--min-severity` decides what the report contains; `--fail-on` decides what the
   exit code means. Without `--fail-on`, the exit code is the wrapped command's,
   untouched. With it, a clean child that produced findings at or above that
@@ -92,6 +131,9 @@ lint-http browse --all-hosts --format json https://example.com > findings.json
   session on a real page buries its own findings under a third-party CDN's.
 - **Findings print as they happen**, because a browsing session lasts as long as
   someone keeps it open. `--format json` opts back into one report at the end.
+- **The browser's stderr is discarded**, as it is for `run`. A browser writes a
+  great deal of it and none of it is about the site being linted;
+  `--show-child-stderr` brings it back.
 - **Nothing is installed.** The CA is trusted through
   `--ignore-certificate-errors-spki-list`, which pins one public key for one
   launch. It is not `--ignore-certificate-errors`: verification stays on, so the
