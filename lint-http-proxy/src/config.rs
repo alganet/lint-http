@@ -19,9 +19,11 @@ pub use lint_http_core::config::Config as LintConfig;
 #[derive(Debug, Clone, Deserialize)]
 pub struct GeneralConfig {
     /// Listen address, e.g. 127.0.0.1:3000
+    #[serde(default = "default_listen")]
     pub listen: String,
 
     /// Path to append captures JSONL
+    #[serde(default = "default_captures")]
     pub captures: String,
 
     /// TTL for state entries in seconds (default: 300 = 5 minutes)
@@ -247,6 +249,24 @@ const fn default_live_stream_enabled() -> bool {
     false
 }
 
+/// TLS for a config that omits `[tls]` entirely.
+///
+/// On, because the built-in configuration is on and a minimal file should
+/// behave like the default rather than silently stop intercepting HTTPS — which
+/// is the failure mode where the tool reports a clean nothing. Distinct from
+/// `TlsConfig::default()`, which stays off for programmatic construction in
+/// tests that want a plaintext proxy.
+fn default_tls() -> TlsConfig {
+    TlsConfig {
+        enabled: true,
+        ..TlsConfig::default()
+    }
+}
+
+fn default_tls_enabled() -> bool {
+    true
+}
+
 impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
@@ -281,6 +301,7 @@ impl Default for GeneralConfig {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct TlsConfig {
+    #[serde(default = "default_tls_enabled")]
     pub enabled: bool,
     pub ca_cert_path: Option<String>,
     pub ca_key_path: Option<String>,
@@ -290,10 +311,21 @@ pub struct TlsConfig {
     pub suppress_headers: Vec<String>,
 }
 
+/// The whole configuration.
+///
+/// `[general]` and `[tls]` are optional sections, not required ones. The
+/// documented model is that a named config *replaces* the built-in rather than
+/// layering over it — "a file listing three rules enables three rules" — and
+/// that was not true while both sections were mandatory: such a file failed to
+/// parse with `missing field 'general'`, naming a section the model never
+/// mentions. Every field in both has a default, so the sections carry no
+/// information a minimal file is obliged to repeat.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
+    #[serde(default)]
     pub general: GeneralConfig,
 
+    #[serde(default = "default_tls")]
     pub tls: TlsConfig,
 
     #[serde(flatten)]

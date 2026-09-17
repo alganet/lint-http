@@ -58,7 +58,7 @@ impl WebSocketMessageInfo {
     /// Build the [`ProtocolEvent`](crate::protocol_event::ProtocolEvent) this
     /// message contributes to WebSocket linting. The single source of the
     /// message→frame-event field mapping: the live relay stamps each frame with
-    /// its arrival time, offline replay (the `lint` subcommand) with the
+    /// its arrival time, offline replay (the `lint-captures` subcommand) with the
     /// session timestamp — everything else must stay identical or replay
     /// results drift from live ones.
     /// `extensions` is the session's, not the message's: what the `101`
@@ -143,7 +143,7 @@ mod tests {
     use super::*;
 
     /// A session record written before the field existed reads back as
-    /// `Unrecorded`, and that is what keeps `lint` over an old capture file
+    /// `Unrecorded`, and that is what keeps `lint-captures` over an old capture file
     /// from turning noisy: every frame it replays carries "the handshake is
     /// not in evidence" rather than "the server accepted nothing".
     #[test]

@@ -257,10 +257,43 @@ enum OutputFormat {
     Json,
 }
 
+/// Send `warn!` and friends to stderr, once per process.
+///
+/// Every command that stands a proxy up needs this, and for a long time only
+/// one of them called it: the initializer lived in `load_and_prepare`, which is
+/// the `proxy-start` path, back when `run` *was* `proxy-start`. After the
+/// rename `run` and `browse` ran a proxy through a different function and
+/// silently discarded every diagnostic it produced.
+///
+/// **That combination is the one that makes this tool lie.** `run` and `browse`
+/// also discard the child's stderr by default, so a session where interception
+/// never worked — TLS disabled in the config, a CA that could not be written, a
+/// proxy task that failed before it accepted a connection — printed
+/// `0 violation(s) in 0 transaction(s)` and nothing else. A clean report and a
+/// broken run were indistinguishable.
+///
+/// `try_init` rather than `init`: it is called from every dispatch arm and from
+/// tests that may already have a subscriber, and a second initialization is a
+/// no-op rather than a panic. `RUST_LOG` still selects the level.
+fn init_diagnostics() {
+    use std::io::IsTerminal;
+    // **To stderr, explicitly.** `fmt`'s default writer is *stdout*, which for
+    // `run` and `browse` belongs to the wrapped command — so the default would
+    // interleave log lines with a response body and break the one contract
+    // these commands document: `run -- curl url > body.html 2> report.txt`
+    // writes only the body. The report already goes to stderr; diagnostics
+    // about the same run belong on the same stream.
+    //
+    // ANSI only when stderr is a terminal, or the escapes end up in whatever
+    // file a redirect pointed at.
+    let _ = tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_ansi(std::io::stderr().is_terminal())
+        .try_init();
+}
+
 /// Load the config and validate every enabled rule's section, failing fast on a
-/// malformed config. Shared by every subcommand; deliberately does **not**
-/// initialize tracing (the proxy does that) so non-proxy commands like `lint`
-/// keep stdout clean.
+/// malformed config. Shared by every subcommand.
 async fn load_validated_config(
     config_path: Option<&str>,
 ) -> anyhow::Result<std::sync::Arc<config::Config>> {
@@ -271,9 +304,9 @@ async fn load_validated_config(
 
 /// Load + validate the config and build the proxy's runtime inputs.
 ///
-/// Proxy-specific: it initializes tracing and builds a `CaptureWriter`. Takes the
-/// config *path* rather than the parsed CLI struct, so the proxy entry points are
-/// decoupled from the command surface.
+/// Proxy-specific: it builds a `CaptureWriter`. Takes the config *path* rather
+/// than the parsed CLI struct, so the proxy entry points are decoupled from the
+/// command surface.
 async fn load_and_prepare(
     config_path: Option<&str>,
     captures_override: Option<&str>,
@@ -282,8 +315,6 @@ async fn load_and_prepare(
     capture::CaptureWriter,
     std::sync::Arc<config::Config>,
 )> {
-    let _ = tracing_subscriber::fmt::try_init();
-
     let mut cfg = load_validated_config(config_path).await?;
 
     // `--captures` names the file this command writes, which for the proxy is
@@ -654,6 +685,26 @@ impl HostScope {
     /// name, and a default that reported only the exact host typed would drop
     /// the API calls the page makes, which are usually the interesting half.
     /// The dot is what keeps it from also covering `notexample.com`.
+    /// Build a scope, normalizing what the user typed.
+    ///
+    /// A port is stripped, because `uri_host` strips it from the target too:
+    /// `--only-host localhost:3000` compared whole against `localhost` matches
+    /// nothing, which scopes away the entire session and reports a clean
+    /// nothing — the exact failure `--proxy-bypass-list=<-loopback>` exists to
+    /// prevent, arriving one flag later. Lowercased once here rather than per
+    /// comparison, since the list is fixed for the session.
+    fn new(hosts: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            hosts: hosts
+                .into_iter()
+                .map(|host| {
+                    let host = host.to_ascii_lowercase();
+                    uri_host(&host).map_or(host.clone(), str::to_string)
+                })
+                .collect(),
+        }
+    }
+
     fn includes(&self, uri: &str) -> bool {
         if self.is_all() {
             return true;
@@ -664,14 +715,20 @@ impl HostScope {
             // finding for a reason the user cannot see.
             return true;
         };
-        // Lowercased and compared whole rather than sliced at an offset taken
-        // from the scope's length: that offset is a byte index into a string
-        // this does not control, and an internationalized host would land it
-        // mid-character and panic.
-        let host = host.to_ascii_lowercase();
+        // `strip_suffix` rather than a byte offset computed from the scope's
+        // length: that offset indexes a string this does not control, and an
+        // internationalized host would land it mid-character and panic. The
+        // remainder is empty for an exact match and ends in a dot for a
+        // subdomain, which is the whole predicate — and it allocates nothing,
+        // which matters because this runs three times per record.
         self.hosts.iter().any(|scope| {
-            let scope = scope.to_ascii_lowercase();
-            host == scope || host.ends_with(&format!(".{scope}"))
+            host.len() == scope.len() && host.eq_ignore_ascii_case(scope)
+                || host
+                    .get(..host.len().saturating_sub(scope.len()))
+                    .zip(host.get(host.len().saturating_sub(scope.len())..))
+                    .is_some_and(|(prefix, tail)| {
+                        prefix.ends_with('.') && tail.eq_ignore_ascii_case(scope)
+                    })
         })
     }
 
@@ -713,7 +770,19 @@ impl HostScope {
 /// it. Handles the two shapes a capture holds, an absolute URI and an
 /// authority-form target, and the bracketed IPv6 literal in either.
 fn uri_host(uri: &str) -> Option<&str> {
-    let after_scheme = uri.split_once("://").map_or(uri, |(_, rest)| rest);
+    // The `://` has to come before the path, or a target that merely *carries*
+    // a URL — `/oauth/callback?redirect_uri=https://cdn.other.net/x` — is read
+    // as being addressed to that host. Under a scope that would silently drop a
+    // first-party finding because of a third party named in its query string.
+    let scheme_end = uri.find("://").filter(|end| {
+        uri[..*end]
+            .find(['/', '?', '#'])
+            .is_none_or(|delim| delim > *end)
+    });
+    let after_scheme = match scheme_end {
+        Some(end) => &uri[end + 3..],
+        None => uri,
+    };
     let authority = after_scheme.split(['/', '?', '#']).next()?;
     let authority = authority.rsplit_once('@').map_or(authority, |(_, a)| a);
     if let Some(rest) = authority.strip_prefix('[') {
@@ -778,7 +847,7 @@ fn render_findings_block(block: &FindingsBlock) -> anyhow::Result<String> {
     Ok(out)
 }
 
-/// Render the `lint` report: the text form ends with a human summary line
+/// Render the `lint-captures` report: the text form ends with a human summary line
 /// (whose violation count is derived from `findings`, so it can't disagree
 /// with the blocks above it); the JSON form is a bare array of
 /// [`FindingsBlock`]s so it stays machine-parseable. The summary mentions
@@ -830,6 +899,17 @@ async fn run_wrapped(args: RunArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
     let Some((program, rest)) = args.command.split_first() else {
         anyhow::bail!("no command given; try `lint-http run -- curl https://example.com`");
     };
+    // `trailing_var_arg` + `allow_hyphen_values` is what lets the wrapped
+    // command keep its own flags, and it means clap cannot reject a mistyped
+    // one of ours: `--fail-onn error` parses as a *program* named `--fail-onn`.
+    // Caught here rather than by the OS, which would report it as a missing
+    // file — after a proxy and a CA had already been stood up for it.
+    if program.starts_with('-') {
+        anyhow::bail!(
+            "`{program}` is not a command. Options for lint-http go before `--`; \
+             everything after it is the command to run — `lint-http run [OPTIONS] -- {program} ...`"
+        );
+    }
 
     let run = proxied_run::run_proxied(
         (*cfg).clone(),
@@ -878,14 +958,34 @@ async fn run_wrapped(args: RunArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
 /// is actually asking.
 fn render_env_preview() -> String {
     use std::fmt::Write;
+
+    // Built by the same function a real run calls, against placeholder inputs,
+    // so the preview cannot describe an environment the run does not set. It
+    // used to render the values itself and named `ca.crt` where a run passes
+    // the *trust bundle* — which is not a cosmetic difference: the bare CA
+    // replaces a client's trust instead of extending it, so anyone reproducing
+    // a run by hand from this output broke every connection the proxy was not
+    // intercepting.
+    let addr: SocketAddr = "127.0.0.1:0".parse().expect("a literal address parses");
+    let placeholder = std::path::PathBuf::from("<tmp>/trust-bundle.crt");
+    let env = client_env::client_env(addr, Some(&placeholder));
+    let reads: std::collections::HashMap<&str, &str> = client_env::CLIENT_ENV
+        .iter()
+        .map(|var| (var.name, var.reads))
+        .collect();
+
     let mut out = String::new();
     out.push_str("# Set for the wrapped command. The port and CA path are per-run.\n");
-    for var in client_env::CLIENT_ENV {
-        let value = match var.value {
-            client_env::EnvValue::ProxyUrl => "http://127.0.0.1:<port>",
-            client_env::EnvValue::CaFile => "<tmp>/ca.crt",
-        };
-        let _ = writeln!(out, "{:<20} {:<24} # {}", var.name, value, var.reads);
+    for (name, value) in env {
+        // The address is a placeholder; show the port as one too.
+        let value = value.replace("127.0.0.1:0", "127.0.0.1:<port>");
+        let _ = writeln!(
+            out,
+            "{:<20} {:<28} # {}",
+            name,
+            value,
+            reads.get(name).copied().unwrap_or_default()
+        );
     }
     out
 }
@@ -905,16 +1005,12 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
     let scope = if args.all_hosts {
         HostScope::all()
     } else if !args.only_host.is_empty() {
-        HostScope {
-            hosts: args.only_host.clone(),
-        }
+        HostScope::new(args.only_host.clone())
     } else {
         // The first party is the host being opened. With no URL there is none
         // to infer, and narrowing to nothing would report nothing.
         match args.url.as_deref().and_then(uri_host) {
-            Some(host) => HostScope {
-                hosts: vec![host.to_string()],
-            },
+            Some(host) => HostScope::new([host.to_string()]),
             None => HostScope::all(),
         }
     };
@@ -923,23 +1019,29 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
 
     let pin = session.spki_pin().await?;
     if pin.is_none() {
-        eprintln!(
-            "warning: no interception CA; HTTPS will be tunnelled unlinted and only plaintext is reported"
-        );
+        // Precise about what actually happens: interception is the proxy's
+        // decision and it is still on, so HTTPS is *intercepted* — the browser
+        // simply has no reason to trust the result. Saying "tunnelled unlinted"
+        // here described a different failure and sent the reader looking for
+        // the wrong thing.
+        write_stderr(
+            "warning: no certificate pin for this session; HTTPS pages will fail to verify \
+             (run with --show-child-stderr, or check that the CA could be written)\n",
+        )?;
     }
 
     let profile = session.scratch("browser-profile");
     std::fs::create_dir_all(&profile)?;
 
-    eprintln!(
-        "{} through 127.0.0.1:{}{}",
+    write_stderr(&format!(
+        "{} through 127.0.0.1:{}{}\n",
         browser.name,
         session.addr.port(),
         match &scope.hosts[..] {
             [] => " — reporting every host".to_string(),
             hosts => format!(" — reporting {}", hosts.join(", ")),
         }
-    );
+    ))?;
 
     // Text mode narrates; JSON mode stays silent so its one document is the
     // only thing on the stream a machine is reading.
@@ -1006,6 +1108,16 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
                 report.websocket_count,
                 OutputFormat::Json,
             )?)?;
+            // The document on stdout is scoped, and nothing inside it says so —
+            // it is an array, and giving it a wrapper would fork the shape
+            // `lint-captures --format json` produces. The note goes to stderr,
+            // which JSON mode leaves free, so a reader can tell a clean session
+            // from one whose findings were filtered.
+            if elsewhere > 0 {
+                write_stderr(&format!(
+                    "note: {elsewhere} violation(s) on other hosts are not in this document (--all-hosts)\n"
+                ))?;
+            }
         }
         OutputFormat::Text => {
             // The blocks were printed live; only the tally is new.
@@ -1034,7 +1146,10 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         }
     }
 
-    Ok(u8::try_from(exit).unwrap_or(0))
+    // `unwrap_or(1)`, matching `run`: a code that does not fit in a `u8` is an
+    // abnormal exit (a Windows crash code, say), and rounding that to *success*
+    // would report green on a browser that died before loading anything.
+    Ok(u8::try_from(exit).unwrap_or(1))
 }
 
 /// Run the browser, mapping a failure to launch onto a message that names it.
@@ -1047,6 +1162,10 @@ async fn spawn_browser(
         .get_program()
         .to_string_lossy()
         .into_owned();
+    // Same reason as `spawn_child`: the session deletes this browser's profile
+    // when it ends, so a detached browser would be writing into a directory
+    // that is going away.
+    command.kill_on_drop(true);
     if !show_stderr {
         command.stderr(std::process::Stdio::null());
     }
@@ -1135,6 +1254,15 @@ async fn live_reporter(
 /// spawning the process.
 async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
     let global = cli.global;
+    // The three commands that stand a proxy up, and therefore the three that
+    // have diagnostics worth hearing. The catalogue and config printers are
+    // left alone so their stdout stays exactly what a pipe expects.
+    if matches!(
+        cli.command,
+        Some(Command::Run(_) | Command::Browse(_) | Command::ProxyStart)
+    ) {
+        init_diagnostics();
+    }
     match cli.command {
         Some(Command::Run(args)) => run_wrapped(args, &global).await,
         Some(Command::Browse(args)) => browse(args, &global).await,
@@ -1385,6 +1513,27 @@ mod tests {
 
     /// Every variable the table names shows up in the preview, so `--print-env`
     /// cannot drift from what a run actually sets.
+    /// `--print-env` previews the values a run really sets, not a second
+    /// rendering of them: it named the bare CA where a run passes the trust
+    /// bundle, and pointing a client at the bare CA replaces its trust instead
+    /// of extending it.
+    #[test]
+    fn print_env_preview_names_the_file_a_run_actually_passes() {
+        let preview = render_env_preview();
+        assert!(
+            preview.contains("trust-bundle.crt"),
+            "preview did not name the bundle:\n{preview}"
+        );
+        assert!(
+            !preview.contains("<tmp>/ca.crt"),
+            "preview still names the bare CA:\n{preview}"
+        );
+        assert!(
+            preview.contains("<port>"),
+            "preview lost its port placeholder"
+        );
+    }
+
     #[test]
     fn print_env_preview_lists_every_variable() {
         let preview = render_env_preview();
@@ -1435,6 +1584,7 @@ enabled = true
         for tx in txs {
             let envelope = capture::CaptureEnvelope {
                 schema_version: capture::CAPTURE_SCHEMA_VERSION,
+                session: None,
                 record: capture::CaptureRecord::HttpTransaction(Box::new(tx.clone())),
             };
             body.push_str(&serde_json::to_string(&envelope)?);
@@ -2094,6 +2244,19 @@ enabled = true
         Ok(())
     }
 
+    /// A mistyped lint-http option lands in the child's argv, because that is
+    /// the price of letting the child keep its own flags. It must be named as
+    /// such rather than surfacing as a missing program — and before a proxy is
+    /// stood up for it.
+    #[tokio::test]
+    async fn dispatch_run_rejects_a_flag_where_a_command_belongs() {
+        let cli = Cli::parse_from(["lint-http", "run", "--", "--fail-onn", "error"]);
+        let err = dispatch(cli).await.expect_err("a flag is not a command");
+        let msg = err.to_string();
+        assert!(msg.contains("--fail-onn"), "message was {msg:?}");
+        assert!(msg.contains("before `--`"), "message was {msg:?}");
+    }
+
     #[tokio::test]
     async fn dispatch_run_without_a_command_is_an_error() {
         let cli = Cli::parse_from(["lint-http", "run"]);
@@ -2121,6 +2284,37 @@ enabled = true
         assert_eq!(uri_host("https://[::1]:8080/x"), Some("::1"));
         // Nothing to read: an origin-form target.
         assert_eq!(uri_host("/just/a/path"), None);
+    }
+
+    /// A URL in a query string is not the target's host. Scoping on it drops a
+    /// first-party finding for naming a third party.
+    #[test]
+    fn uri_host_ignores_a_scheme_after_the_path_begins() {
+        assert_eq!(
+            uri_host("/oauth/callback?redirect_uri=https://cdn.other.net/x"),
+            None
+        );
+        assert_eq!(uri_host("/a/b#https://x.example/"), None);
+        // The real thing still parses.
+        assert_eq!(uri_host("https://example.com/a"), Some("example.com"));
+    }
+
+    /// `--only-host localhost:3000` has to match a target whose host is
+    /// `localhost` — the port is stripped from one side, so it must be stripped
+    /// from the other, or the scope matches nothing and reports a clean nothing.
+    #[test]
+    fn a_scope_entry_may_carry_a_port() {
+        let scope = HostScope::new(["localhost:3000".to_string()]);
+        assert!(scope.includes("http://localhost:3000/app"));
+        assert!(scope.includes("http://localhost/app"));
+        assert!(!scope.includes("http://example.com/"));
+    }
+
+    #[test]
+    fn a_scope_entry_is_matched_case_insensitively_however_it_was_typed() {
+        let scope = HostScope::new(["EXAMPLE.com".to_string()]);
+        assert!(scope.includes("https://example.com/"));
+        assert!(scope.includes("https://API.Example.COM/"));
     }
 
     #[test]
