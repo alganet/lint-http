@@ -512,13 +512,111 @@ impl LintReport {
     }
 }
 
-/// Replay records through the rules — the shared core of `lint-captures` and
-/// `run`.
+/// One record's recorded findings, gated by severity — `None` when nothing
+/// survives the gate.
 ///
-/// Split out so the two commands cannot drift: `run` is not a second linter, it
-/// is `lint-captures` pointed at a file the run just produced. Anything true of
-/// one report is true of the other because there is one function that builds
-/// them.
+/// **The single place a capture record becomes a report block.** `browse`
+/// printed its live lines from one copy of this logic and counted its summary
+/// from a replay, and the two disagreed: blocks scrolled past that the number
+/// at the bottom did not include. Two callers, one function, and the tally can
+/// no longer describe a different set of findings than the reader saw.
+fn gated_block(
+    record: &capture::CaptureRecord,
+    min_severity: lint::Severity,
+) -> Option<FindingsBlock> {
+    let gate = |violations: &[lint::Violation]| -> Vec<lint::Violation> {
+        violations
+            .iter()
+            .filter(|v| v.severity >= min_severity)
+            .cloned()
+            .collect()
+    };
+    match record {
+        capture::CaptureRecord::HttpTransaction(tx) => {
+            let violations = gate(&tx.violations);
+            if violations.is_empty() {
+                return None;
+            }
+            Some(FindingsBlock::HttpTransaction(TransactionFindings {
+                method: tx.request.method.clone(),
+                uri: tx.request.uri.clone(),
+                status: tx.response.as_ref().map(|r| r.status),
+                violations,
+            }))
+        }
+        capture::CaptureRecord::WebsocketSession(session) => {
+            let violations = gate(&session.violations);
+            if violations.is_empty() {
+                return None;
+            }
+            Some(FindingsBlock::WebsocketSession(WebsocketFindings {
+                session_id: session.id,
+                transaction_id: session.transaction_id,
+                close_code: session.close_code,
+                violations,
+            }))
+        }
+    }
+}
+
+/// The findings a driven session's own proxy already made.
+///
+/// `run` and `browse` do not re-lint what they just watched. The proxy ran the
+/// enabled rules over each transaction as it committed, with the bodies in
+/// hand, and wrote the result into the record; this reads it back.
+///
+/// **Replaying instead is how this tool reported a malformed body as clean.**
+/// `HttpTransaction::request_body` and `response_body` are `#[serde(skip)]`, so
+/// no body survives the capture file — and the seven rules that read one could
+/// therefore never fire in a `run` report, however loudly the live pass had
+/// found them. `lint-http run --fail-on error -- curl https://api/thing`
+/// returned a green gate for an `application/problem+json` document the proxy
+/// had already rejected.
+///
+/// Nothing is given up by trusting the record. `Violation` serializes whole —
+/// severity, defect id and specification citation included — so what comes back
+/// is the finding exactly as the live pass made it, under the configuration
+/// that pass ran with. And that configuration is by construction the one this
+/// command was handed: the session started the proxy with it moments ago. It is
+/// also cheaper, since nothing is parsed or linted twice.
+///
+/// [`lint_records`] stays for `lint-captures`, whose config genuinely can
+/// differ from the one that wrote the file.
+fn recorded_findings(
+    records: &[capture::CaptureRecord],
+    min_severity: lint::Severity,
+) -> LintReport {
+    let mut findings = Vec::new();
+    let mut tx_count = 0usize;
+    let mut ws_count = 0usize;
+    for record in records {
+        match record {
+            capture::CaptureRecord::HttpTransaction(_) => tx_count += 1,
+            capture::CaptureRecord::WebsocketSession(_) => ws_count += 1,
+        }
+        findings.extend(gated_block(record, min_severity));
+    }
+    LintReport {
+        findings,
+        transaction_count: tx_count,
+        websocket_count: ws_count,
+    }
+}
+
+/// Replay records through the rules — what `lint-captures` does.
+///
+/// **This is no longer how `run` and `browse` report,** and the sentence that
+/// stood here said it was: that they were `lint-captures` pointed at a file the
+/// run had just produced, so no report could drift. True, and it was the
+/// defect — a replay re-asks the rules from a record, a record carries no body,
+/// and the answer came back clean. Those commands read the finding off the
+/// record now, in [`recorded_findings`], and this is left to the one caller
+/// whose configuration can genuinely differ from the one that wrote the file.
+///
+/// Where a replay and a live pass disagree, **the live pass is canonical**. It
+/// saw the bodies, it saw whatever `general.captures_seed` had seeded the state
+/// with, and it saw the transactions in the order they actually arrived; this
+/// rebuilds a history from the file alone and can match none of the three.
 fn lint_records(
     cfg: &config::Config,
     records: Vec<capture::CaptureRecord>,
@@ -732,6 +830,21 @@ impl HostScope {
         })
     }
 
+    /// Does this scope keep the given block?
+    ///
+    /// One predicate for the lines `browse` prints as they happen and for the
+    /// split it makes at the end, so a finding cannot be shown by one and
+    /// counted as somebody else's by the other.
+    ///
+    /// A WebSocket session is always kept: it exists because an upgrade was made
+    /// deliberately, and its record carries no target to compare anyway.
+    fn keeps(&self, block: &FindingsBlock) -> bool {
+        match block {
+            FindingsBlock::HttpTransaction(f) => self.includes(&f.uri),
+            FindingsBlock::WebsocketSession(_) => true,
+        }
+    }
+
     /// Split a report in two: what this scope includes, and how many findings
     /// it left out.
     ///
@@ -745,14 +858,7 @@ impl HostScope {
         let mut kept = Vec::new();
         let mut elsewhere = 0;
         for block in findings {
-            let included = match &block {
-                FindingsBlock::HttpTransaction(f) => self.includes(&f.uri),
-                // A WebSocket session is always kept: it exists because an
-                // upgrade was made deliberately, and its record carries no
-                // target to compare anyway.
-                FindingsBlock::WebsocketSession(_) => true,
-            };
-            if included {
+            if self.keeps(&block) {
                 kept.push(block);
             } else {
                 elsewhere += block.violations().len();
@@ -921,7 +1027,7 @@ async fn run_wrapped(args: RunArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
     .await?;
 
     let min_severity = global.min_severity();
-    let report = lint_records(&cfg, run.records, min_severity)?;
+    let report = recorded_findings(&run.records, min_severity);
     write_stderr(&render_lint_report(
         &report.findings,
         report.transaction_count,
@@ -1084,10 +1190,9 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         proxied_run::ChildOutcome::Interrupted => 0,
     };
 
-    // Counted before the replay consumes the records, because the summary has
-    // to divide like with like: a scoped violation count over an unscoped
-    // transaction count reads as "3 violation(s) in 480 transaction(s)" when
-    // 472 of those were never in the report's scope at all.
+    // The summary has to divide like with like: a scoped violation count over
+    // an unscoped transaction count reads as "3 violation(s) in 480
+    // transaction(s)" when 472 of those were never in the report's scope at all.
     let in_scope_transactions = records
         .iter()
         .filter(|record| match record {
@@ -1096,7 +1201,7 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         })
         .count();
 
-    let report = lint_records(&cfg, records, global.min_severity())?;
+    let report = recorded_findings(&records, global.min_severity());
     let (findings, elsewhere) = scope.apply(report.findings);
     let total: usize = findings.iter().map(|f| f.violations().len()).sum();
 
@@ -1177,11 +1282,14 @@ async fn spawn_browser(
 
 /// Print findings as their transactions commit.
 ///
-/// Reads the live capture feed rather than replaying: the proxy has already run
-/// the rules over each transaction by the time it writes one, so the findings
-/// are there to be printed and re-linting them would be work done twice to
-/// reach the same answer. The end-of-session report replays anyway, which is
-/// what makes the summary authoritative.
+/// Reads the live capture feed: the proxy has already run the rules over each
+/// transaction by the time it writes one, so the findings are there to be
+/// printed and re-linting them would be work done twice for the same answer.
+/// The end-of-session summary reads those same recorded findings through the
+/// same [`gated_block`], so the tally and the lines above it are counting one
+/// set of findings. They were not: the summary used to replay, and a replay
+/// cannot see a body, so blocks scrolled past that the number at the bottom
+/// left out.
 async fn live_reporter(
     mut events: tokio::sync::broadcast::Receiver<std::sync::Arc<capture::CaptureEnvelope>>,
     scope: HostScope,
@@ -1199,49 +1307,16 @@ async fn live_reporter(
             Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
         };
 
-        let gate = |violations: &[lint::Violation]| -> Vec<lint::Violation> {
-            violations
-                .iter()
-                .filter(|v| v.severity >= min_severity)
-                .cloned()
-                .collect()
-        };
-
         // Both record kinds, because both reach the summary. A WebSocket
         // session that was only counted and never printed would show up as a
         // number with nothing behind it — it commits once, when the session
         // ends, which is exactly when there is something to say about it.
-        let block = match &envelope.record {
-            capture::CaptureRecord::HttpTransaction(tx) => {
-                if !scope.includes(&tx.request.uri) {
-                    continue;
-                }
-                let violations = gate(&tx.violations);
-                if violations.is_empty() {
-                    continue;
-                }
-                FindingsBlock::HttpTransaction(TransactionFindings {
-                    method: tx.request.method.clone(),
-                    uri: tx.request.uri.clone(),
-                    status: tx.response.as_ref().map(|r| r.status),
-                    violations,
-                })
-            }
-            capture::CaptureRecord::WebsocketSession(session) => {
-                // Never scoped away: the record carries no target to compare,
-                // and `HostScope::apply` keeps it for the same reason.
-                let violations = gate(&session.violations);
-                if violations.is_empty() {
-                    continue;
-                }
-                FindingsBlock::WebsocketSession(WebsocketFindings {
-                    session_id: session.id,
-                    transaction_id: session.transaction_id,
-                    close_code: session.close_code,
-                    violations,
-                })
-            }
+        let Some(block) = gated_block(&envelope.record, min_severity) else {
+            continue;
         };
+        if !scope.keeps(&block) {
+            continue;
+        }
         if let Ok(text) = render_findings_block(&block) {
             let _ = write_stderr(&text);
         }
@@ -1917,6 +1992,117 @@ enabled = true
         assert!(matches!(cli.command, Some(Command::LintCaptures(_))));
         assert!(matches!(cli.global.format(), OutputFormat::Text));
         assert_eq!(cli.global.min_severity(), lint::Severity::Info);
+    }
+
+    /// A driven session reports what its own proxy found, and a body rule is
+    /// the proof.
+    ///
+    /// `problem_details_structure_valid` reads `response_body`, which is
+    /// `#[serde(skip)]` — it never comes back out of a capture file. Replaying
+    /// that record under the very config the run used, with the rule enabled,
+    /// therefore finds nothing; and for as long as `run` reported by replaying,
+    /// a malformed problem document walked through a `--fail-on error` gate the
+    /// proxy had already tripped.
+    #[tokio::test]
+    async fn a_body_rule_reaches_the_report_a_replay_cannot_reproduce() -> anyhow::Result<()> {
+        use lint_http_core::test_helpers::make_test_transaction_with_response;
+
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg_path = write_config_enabling("problem_details_structure_valid", &mut temp).await?;
+        let cfg = load_validated_config(cfg_path.to_str()).await?;
+
+        // The transaction as the live pass held it: a body in hand, and the
+        // finding that body produced already on the record.
+        let mut tx = make_test_transaction_with_response(
+            400,
+            &[("content-type", "application/problem+json")],
+        );
+        tx.response_body = Some(bytes::Bytes::from_static(b"this is not a JSON object"));
+        tx.violations = vec![lint::Violation::new(
+            "problem_details_structure_valid",
+            lint::Severity::Error,
+            "problem detail body is not a JSON object",
+        )];
+
+        // Through the file, which is where the body is lost and the finding is not.
+        let captures = write_capture_file(&[tx], &mut temp).await?;
+        let records = capture::load_capture_records(captures.to_str().unwrap()).await?;
+
+        let reported = recorded_findings(&records, lint::Severity::Info);
+        assert_eq!(reported.total(), 1, "the recorded finding must be reported");
+
+        let replayed = lint_records(&cfg, records, lint::Severity::Info)?;
+        assert_eq!(
+            replayed.total(),
+            0,
+            "the replay is expected to miss it — that is the defect this reports around"
+        );
+        Ok(())
+    }
+
+    /// One gate, applied once, so the tally counts exactly the blocks a reader
+    /// saw scroll past — which is what `browse` could not say while its live
+    /// lines came off the record and its summary came off a replay.
+    #[test]
+    fn the_summary_counts_exactly_the_blocks_it_prints() {
+        use lint_http_core::test_helpers::make_test_transaction_with_response;
+
+        let mut loud = make_test_transaction_with_response(200, &[]);
+        loud.violations = vec![lint::Violation::new(
+            "cache_control_present",
+            lint::Severity::Warn,
+            "missing Cache-Control",
+        )];
+        let mut quiet = make_test_transaction_with_response(200, &[]);
+        quiet.violations = vec![lint::Violation::new(
+            "user_agent_present",
+            lint::Severity::Info,
+            "no User-Agent",
+        )];
+        let clean = make_test_transaction_with_response(200, &[]);
+
+        let records: Vec<capture::CaptureRecord> = [loud, quiet, clean]
+            .into_iter()
+            .map(|tx| capture::CaptureRecord::HttpTransaction(Box::new(tx)))
+            .collect();
+
+        let report = recorded_findings(&records, lint::Severity::Warn);
+        assert_eq!(
+            report.findings.len(),
+            1,
+            "only the warning survives the gate"
+        );
+        assert_eq!(report.total(), 1);
+        // Every transaction is still counted, gated or not: the summary divides
+        // findings by the traffic they were found in.
+        assert_eq!(report.transaction_count, 3);
+
+        // And the live path builds the same blocks from the same records,
+        // because it builds them with the same function.
+        let live: Vec<_> = records
+            .iter()
+            .filter_map(|record| gated_block(record, lint::Severity::Warn))
+            .collect();
+        assert_eq!(live.len(), report.findings.len());
+    }
+
+    /// A WebSocket session's findings are the relay's, for the same reason a
+    /// transaction's are: the live pass watched the frames go by.
+    #[test]
+    fn a_websocket_session_reports_the_findings_the_relay_recorded() {
+        use lint_http::websocket_session::WebSocketSession;
+
+        let mut session = WebSocketSession::new(Uuid::new_v4());
+        session.violations = vec![lint::Violation::new(
+            "websocket_frame_opcode_sequence",
+            lint::Severity::Error,
+            "reserved opcode",
+        )];
+        let records = vec![capture::CaptureRecord::WebsocketSession(Box::new(session))];
+
+        let report = recorded_findings(&records, lint::Severity::Info);
+        assert_eq!(report.websocket_count, 1);
+        assert_eq!(report.total(), 1);
     }
 
     fn sample_violation() -> lint::Violation {

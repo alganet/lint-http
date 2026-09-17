@@ -108,6 +108,11 @@ lint-http run --fail-on error --captures run.jsonl -- pytest
   it ends.
 - `--print-env` lists the variables a wrapped command receives, and which client
   reads each one, without running anything.
+- **The report is what the proxy found, not a second pass over the capture.**
+  The rules ran on each transaction as it crossed, with its body in hand, and
+  the finding was written onto the record; the report reads it back. That is why
+  the rules that read a body appear here and not in `lint-captures`, which
+  replays from a file no body survives into.
 
 The variables and the clients that read them are a table in
 `lint-http-proxy/src/client_env.rs`, where each row quotes the documentation that
@@ -161,7 +166,11 @@ history of prior transactions, exactly as it would be live, so stateful rules
 work. WebSocket session records are replayed per-message through the protocol
 rules (the frame events the live relay emits are rebuilt from the captured
 message metadata); the session's live-recorded `violations` field is ignored —
-replay re-lints under the current config. It prints one block per offending
+replay re-lints under the current config. **A replay is not a live pass and does
+not claim to be**: request and response bodies are not written to a capture, so
+the rules that read one cannot fire here, and where the two disagree the live
+pass is the canonical one. `run` and `browse` report their own live findings for
+exactly this reason. It prints one block per offending
 record and a summary line. The exit code is the signal for CI:
 
 - **0** — no violations found.
