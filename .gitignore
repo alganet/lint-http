@@ -9,9 +9,15 @@
 cobertura.xml
 /coverage
 
-# Temporary cert files
+# Temporary cert files. `ca.crt`/`ca.key` are the `[tls]` defaults in
+# config_example.toml; `lint-http-ca.crt` is the exact name the README
+# quickstart writes when it downloads the CA from a running proxy. All three
+# are generated, and an unignored generated file is counted by `reuse lint` —
+# so following the quickstart would otherwise break the supply-chain gate on an
+# otherwise clean tree. Same mechanism as the `/*.md` rule at the bottom.
 ca.crt
 ca.key
+lint-http-ca.crt
 
 # Rust
 target/
