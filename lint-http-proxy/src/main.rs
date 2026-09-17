@@ -582,23 +582,32 @@ fn write_stderr(s: &str) -> anyhow::Result<()> {
     }
 }
 
-fn scope_label(scope: rules::RuleScope) -> &'static str {
-    match scope {
-        rules::RuleScope::Client => "client",
-        rules::RuleScope::Server => "server",
-        rules::RuleScope::Both => "both",
+/// The peer a rule's findings hold answerable, as the tag `rules list` prints
+/// and the value its JSON carries.
+///
+/// **This replaced a `scope` label, and the JSON key changed with it.** Scope
+/// says which half of a transaction must be present for the rule to run, which
+/// reads as a claim about whose rule it is and is not one — 19 `Server`-scoped
+/// rules read the request. Anyone selecting `.scope` out of
+/// `rules list --format json` is selecting `.party` now, and a rule that used to
+/// print `[both]` prints the answer it has.
+fn party_label(party: rules::RuleParty) -> &'static str {
+    match party {
+        rules::RuleParty::Presumed(lint::Party::Client) => "client",
+        rules::RuleParty::Presumed(lint::Party::Server) => "server",
+        rules::RuleParty::Presumed(lint::Party::Neither) => "neither",
+        rules::RuleParty::PerSite => "per-finding",
     }
 }
 
-/// One rule's metadata, flattened for `rules list --format json`. Protocol rules
-/// have no scope, so they are labelled `"protocol"`. `enabled` is populated only
-/// when the caller supplied a `--config` to consult (and omitted from the JSON
-/// otherwise, so the config-less output is unchanged).
+/// One rule's metadata, flattened for `rules list --format json`. `enabled` is
+/// populated only when the caller supplied a `--config` to consult (and omitted
+/// from the JSON otherwise, so the config-less output is unchanged).
 #[derive(serde::Serialize)]
 struct RuleInfo {
     id: &'static str,
     kind: &'static str,
-    scope: &'static str,
+    party: &'static str,
     title: Option<&'static str>,
     description: &'static str,
     specifications: &'static [rules::SpecRef],
@@ -610,28 +619,24 @@ struct RuleInfo {
 /// Collect every transaction rule then every protocol rule, each already
 /// id-sorted by its `LazyLock` view. `cfg` (from `--config`) fills `enabled`.
 ///
-/// Only `kind` and `scope` distinguish the two halves; everything else is
-/// [`rules::RuleMeta`], which both traits carry, so each iterator pairs a rule
-/// with the two labels its trait decides and the `RuleInfo` literal is written
-/// once. Protocol rules are labelled `"protocol"` for both, having no scope to
-/// report.
+/// Only `kind` distinguishes the two halves now. Everything else is
+/// [`rules::RuleMeta`], which both traits carry — the party included, which is
+/// why protocol rules no longer print `"protocol"` twice: they have a real
+/// answer to the party question, and six of the seven answer it one finding at
+/// a time.
 fn collect_rule_info(cfg: Option<&config::Config>) -> Vec<RuleInfo> {
-    let transaction = rules::RULES.iter().map(|r| {
-        (
-            *r as &dyn rules::RuleMeta,
-            "transaction",
-            scope_label(r.scope()),
-        )
-    });
+    let transaction = rules::RULES
+        .iter()
+        .map(|r| (*r as &dyn rules::RuleMeta, "transaction"));
     let protocol = rules::PROTOCOL_RULES
         .iter()
-        .map(|r| (*r as &dyn rules::RuleMeta, "protocol", "protocol"));
+        .map(|r| (*r as &dyn rules::RuleMeta, "protocol"));
     transaction
         .chain(protocol)
-        .map(|(rule, kind, scope)| RuleInfo {
+        .map(|(rule, kind)| RuleInfo {
             id: rule.id(),
             kind,
-            scope,
+            party: party_label(rule.party()),
             title: rule.title(),
             description: rule.description(),
             specifications: rule.specifications(),
@@ -678,10 +683,10 @@ fn rules_list(
                 }
                 // Most rules have no title override; omit the field entirely so
                 // those lines don't carry a trailing space.
-                let scope = styles.paint(styles.dim(), &format!("[{}]", info.scope));
+                let party = styles.paint(styles.dim(), &format!("[{}]", info.party));
                 match info.title {
-                    Some(title) => writeln!(out, " {scope} {title}")?,
-                    None => writeln!(out, " {scope}")?,
+                    Some(title) => writeln!(out, " {party} {title}")?,
+                    None => writeln!(out, " {party}")?,
                 }
             }
             Ok(out)
@@ -4931,20 +4936,30 @@ enabled = true
     }
 
     #[test]
-    fn scope_label_covers_all_variants() {
-        assert_eq!(scope_label(rules::RuleScope::Client), "client");
-        assert_eq!(scope_label(rules::RuleScope::Server), "server");
-        assert_eq!(scope_label(rules::RuleScope::Both), "both");
+    fn party_label_covers_all_variants() {
+        assert_eq!(
+            party_label(rules::RuleParty::Presumed(lint::Party::Client)),
+            "client"
+        );
+        assert_eq!(
+            party_label(rules::RuleParty::Presumed(lint::Party::Server)),
+            "server"
+        );
+        assert_eq!(
+            party_label(rules::RuleParty::Presumed(lint::Party::Neither)),
+            "neither"
+        );
+        assert_eq!(party_label(rules::RuleParty::PerSite), "per-finding");
     }
 
     #[test]
     fn rules_list_text_includes_a_known_rule() -> anyhow::Result<()> {
         let out = rules_list(OutputFormat::Text, None, style::Styles::default())?;
-        // The catalogue lists transaction and protocol rules with a scope label.
+        // The catalogue lists every rule with the party it holds answerable.
         assert!(out.contains("cache_control_present"));
         assert!(out.contains("[server]"));
-        // Protocol rules are labelled `protocol`.
-        assert!(out.contains("[protocol]"));
+        // A rule that reads both halves says so where it used to say `[both]`.
+        assert!(out.contains("[per-finding]"));
         // Without a config there is no enabled/disabled column.
         assert!(!out.contains("enabled"));
         Ok(())
@@ -4959,7 +4974,7 @@ enabled = true
             .iter()
             .find(|v| v["id"] == "cache_control_present")
             .expect("known rule present in JSON output");
-        assert_eq!(cc["scope"], "server");
+        assert_eq!(cc["party"], "server");
         assert_eq!(cc["kind"], "transaction");
         assert!(!cc["description"].as_str().unwrap_or("").is_empty());
         // Examples are always present (possibly empty); `enabled` only with --config.

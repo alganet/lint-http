@@ -31,8 +31,9 @@
 //! (`docs_match_generated` test) can diff regenerated output against the
 //! checked-in docs.
 
+use lint_http_rules::lint::Party;
 use lint_http_rules::rules::{
-    all_rules, Compliance, Example, ProtocolRule, Rule, RuleMeta, RuleScope, SpecRef,
+    all_rules, Compliance, Example, ProtocolRule, Rule, RuleMeta, RuleParty, SpecRef,
     PROTOCOL_RULES, RULES,
 };
 use lint_http_rules::violations::{ViolationDef, VIOLATIONS};
@@ -53,26 +54,37 @@ const SPDX_HEADER: &str = "<!--\nSPDX-FileCopyrightText: 2026 Alexandre Gomes Ga
 // REUSE-IgnoreEnd
 
 /// The transaction-rule sections of the index, in render order. Protocol rules
-/// have no scope and get their own trailing section.
+/// are a different kind of rule rather than a fourth party, and keep their own
+/// trailing section.
 ///
 /// Selection used to be `id().starts_with("client_")` and friends, which made
 /// the id string load-bearing for one generated file and was the last reason the
-/// category prefixes existed. Scope is metadata the rule already declares and
-/// the engine already partitions by, so the index now groups rules the way they
-/// are dispatched. Titles come from [`section_title`], whose match the compiler
-/// checks; that a scope is not merely titled but actually *listed* here is what
+/// category prefixes existed. It then grouped by [`Rule::scope`], which reads
+/// as a claim about *whose* rule this is and is not one: scope says which half
+/// must be present for the rule to run, and 19 `Server`-scoped rules read the
+/// request. What a reader looking for "the rules about my server" wants is the
+/// party, so that is what the index now groups by.
+///
+/// Titles come from [`section_title`], whose match the compiler checks; that a
+/// party is not merely titled but actually *listed* here is what
 /// `render_index_mentions_every_rule` checks, since omitting one would silently
 /// drop its rules from the index.
-const TX_SECTION_ORDER: &[RuleScope] = &[RuleScope::Client, RuleScope::Server, RuleScope::Both];
+const TX_SECTION_ORDER: &[RuleParty] = &[
+    RuleParty::Presumed(Party::Client),
+    RuleParty::Presumed(Party::Server),
+    RuleParty::PerSite,
+    RuleParty::Presumed(Party::Neither),
+];
 
-/// Heading for a transaction-rule section. Exhaustive over [`RuleScope`], so a
+/// Heading for a transaction-rule section. Exhaustive over [`RuleParty`], so a
 /// new variant fails to compile until it is given a heading here and a place in
 /// [`TX_SECTION_ORDER`].
-fn section_title(scope: RuleScope) -> &'static str {
-    match scope {
-        RuleScope::Client => "Client Rules",
-        RuleScope::Server => "Server Rules",
-        RuleScope::Both => "Client and Server Rules",
+fn section_title(party: RuleParty) -> &'static str {
+    match party {
+        RuleParty::Presumed(Party::Client) => "Client Rules",
+        RuleParty::Presumed(Party::Server) => "Server Rules",
+        RuleParty::Presumed(Party::Neither) => "Rules Neither Peer Answers For",
+        RuleParty::PerSite => "Rules Whose Findings Name Their Own Peer",
     }
 }
 
@@ -219,26 +231,31 @@ fn render_examples(out: &mut String, examples: &[Example]) {
 }
 
 /// Render the `docs/rules.md` index: transaction rules grouped into
-/// fixed-order sections by [`Rule::scope`], then a Protocol Rules section. Rules
-/// keep the catalogue's (id-sorted) order within each section.
+/// fixed-order sections by the party they hold answerable, then a Protocol
+/// Rules section. Rules keep the catalogue's (id-sorted) order within each
+/// section.
 pub fn render_index(rules: &[&dyn Rule], protocol_rules: &[&dyn ProtocolRule]) -> String {
     let mut out = String::new();
     out.push_str(SPDX_HEADER);
     out.push_str(
         "\n# Lint Rules\n\nGenerated index of every rule in the catalogue. Each entry links to \
 the per-rule documentation under `rules/`. Rules are disabled by default and \
-enabled via configuration.\n",
+enabled via configuration.\n\nThe sections group rules by **who is answerable for what they \
+report** — the peer that wrote the message the evidence was found in — and not by which half \
+of a transaction the rule reads. A rule that reports defects in both halves answers one \
+finding at a time and is listed under *Rules Whose Findings Name Their Own Peer*; `lint-http \
+--about client|server|any` narrows a report the same way.\n",
     );
 
-    for scope in TX_SECTION_ORDER {
+    for party in TX_SECTION_ORDER {
         let mut section = String::new();
         for rule in rules.iter() {
-            if rule.scope() == *scope {
+            if rule.party() == *party {
                 section.push_str(&index_entry(rule.id(), rule.description()));
             }
         }
         if !section.is_empty() {
-            out.push_str(&format!("\n## {}\n\n", section_title(*scope)));
+            out.push_str(&format!("\n## {}\n\n", section_title(*party)));
             out.push_str(&section);
         }
     }
