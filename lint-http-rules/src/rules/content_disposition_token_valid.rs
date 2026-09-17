@@ -111,6 +111,15 @@ impl RuleMeta for ContentDispositionTokenValid {
         DECLARED
     }
 
+    /// **The `kind` already threaded for the duplication basis is the same
+    /// fork the answer takes.** RFC 6266 defines this field for a response and
+    /// multipart form data puts it in a request, so both halves may carry one
+    /// and the writer of the field section is the writer of the
+    /// `disposition-type`.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -177,70 +186,72 @@ impl Rule for ContentDispositionTokenValid {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             // Helper to validate a single Content-Disposition header value
-            let check_value = |hdr_name: &str, val: &str| -> Option<Violation> {
-                // Trim whitespace and split off parameters
-                // The disposition-type is mandatory and the parameters are not, so an
-                // empty field value satisfies no part of the production.
-                // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
-                // `trim_ows` and not `str::trim`: the value arrives one `char`
-                // per octet, so U+00A0 in it is the octet %xA0 — `obs-text`,
-                // which is whitespace in no document and which the Unicode-aware
-                // trim would remove before any check saw it.
-                let s = trim_ows(val);
-                if s.is_empty() {
-                    return Some(ctx.report_with(
-                        &TOKEN_EMPTY,
-                        format!("{} header value must not be empty", hdr_name),
-                    ));
-                }
+            let check_value =
+                |hdr_name: &str, val: &str, party: crate::lint::Party| -> Option<Violation> {
+                    // Trim whitespace and split off parameters
+                    // The disposition-type is mandatory and the parameters are not, so an
+                    // empty field value satisfies no part of the production.
+                    // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
+                    // `trim_ows` and not `str::trim`: the value arrives one `char`
+                    // per octet, so U+00A0 in it is the octet %xA0 — `obs-text`,
+                    // which is whitespace in no document and which the Unicode-aware
+                    // trim would remove before any check saw it.
+                    let s = trim_ows(val);
+                    if s.is_empty() {
+                        return Some(ctx.by(party).report_with(
+                            &TOKEN_EMPTY,
+                            format!("{} header value must not be empty", hdr_name),
+                        ));
+                    }
 
-                // Everything before the first ";" is the disposition-type. Trimming
-                // is not tidiness: the grammar's whitespace is implied rather than
-                // written, so `attachment ; filename=…` is a conforming spelling.
-                // cite(RFC 6266 § 4.1): "Note that due to the rules for implied linear whitespace (Section 2.1 of [RFC2616]), OPTIONAL whitespace can appear between words (token or quoted-string) and separator characters."
-                let dispo = trim_ows(s.split(';').next().unwrap());
-                // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
-                // The same id as the branch above, said differently: a value
-                // that is nothing and a value opening on its first `;` are two
-                // spellings of one missing `disposition-type`, and `token` is
-                // `1*tchar` for both.
-                if dispo.is_empty() {
-                    return Some(ctx.report_with(
-                        &TOKEN_EMPTY,
-                        format!("{} header disposition-type must not be empty", hdr_name),
-                    ));
-                }
+                    // Everything before the first ";" is the disposition-type. Trimming
+                    // is not tidiness: the grammar's whitespace is implied rather than
+                    // written, so `attachment ; filename=…` is a conforming spelling.
+                    // cite(RFC 6266 § 4.1): "Note that due to the rules for implied linear whitespace (Section 2.1 of [RFC2616]), OPTIONAL whitespace can appear between words (token or quoted-string) and separator characters."
+                    let dispo = trim_ows(s.split(';').next().unwrap());
+                    // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
+                    // The same id as the branch above, said differently: a value
+                    // that is nothing and a value opening on its first `;` are two
+                    // spellings of one missing `disposition-type`, and `token` is
+                    // `1*tchar` for both.
+                    if dispo.is_empty() {
+                        return Some(ctx.by(party).report_with(
+                            &TOKEN_EMPTY,
+                            format!("{} header disposition-type must not be empty", hdr_name),
+                        ));
+                    }
 
-                // The rule's whole purpose, and it had been uncited. Only the third
-                // alternative constrains characters, and it is what a value other
-                // than "inline"/"attachment" must satisfy; `token` itself is the
-                // shared helper's to define. Nothing checks the value against a list
-                // of known types, because there is no such list to check against —
-                // an unrecognized type is conforming and has defined handling.
-                // cite(RFC 6266 § 4.1): "disp-ext-type       = token"
-                // cite(RFC 6266 § 4.2): "Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8)."
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(dispo) {
-                    // Named as the octet rather than printed as a character: an
-                    // `obs-text` octet written through would be mojibake in the
-                    // finding, and a control octet would be nothing at all.
-                    return Some(ctx.report_with(
-                        token_character(c),
-                        format!(
-                            "{} disposition-type contains {}, which is not a tchar",
-                            hdr_name,
-                            describe_char(c)
-                        ),
-                    ));
-                }
+                    // The rule's whole purpose, and it had been uncited. Only the third
+                    // alternative constrains characters, and it is what a value other
+                    // than "inline"/"attachment" must satisfy; `token` itself is the
+                    // shared helper's to define. Nothing checks the value against a list
+                    // of known types, because there is no such list to check against —
+                    // an unrecognized type is conforming and has defined handling.
+                    // cite(RFC 6266 § 4.1): "disp-ext-type       = token"
+                    // cite(RFC 6266 § 4.2): "Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8)."
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(dispo) {
+                        // Named as the octet rather than printed as a character: an
+                        // `obs-text` octet written through would be mojibake in the
+                        // finding, and a control octet would be nothing at all.
+                        return Some(ctx.by(party).report_with(
+                            token_character(c),
+                            format!(
+                                "{} disposition-type contains {}, which is not a tchar",
+                                hdr_name,
+                                describe_char(c)
+                            ),
+                        ));
+                    }
 
-                None
-            };
+                    None
+                };
 
             // One message's worth of Content-Disposition field lines. The §5.3
             // prohibition is scoped to a message and spans both of its field
             // sections, so the header and trailer sections are counted together: one
             // line in each is the same defect as two in either.
             let check_message = |kind: &str,
+                                 party: crate::lint::Party,
                                  headers: &hyper::HeaderMap,
                                  trailers: Option<&hyper::HeaderMap>|
              -> Option<Violation> {
@@ -285,7 +296,7 @@ impl Rule for ContentDispositionTokenValid {
                     } else {
                         "no definition of this field gives it a comma-separated-list form, so at most one field line may be sent (RFC 9110 §5.3)"
                     };
-                    return Some(ctx.report_with(
+                    return Some(ctx.by(party).report_with(
                         &FIELD_LINE_DUPLICATED,
                         format!(
                             "Multiple Content-Disposition header fields in the {}; {}",
@@ -305,7 +316,8 @@ impl Rule for ContentDispositionTokenValid {
                     // this rule owns.
                     //
                     // cite(RFC 6266 § 4.3): "The parameters "filename" and "filename*" differ only in that "filename*" uses the encoding defined in [RFC5987], allowing the use of characters not present in the ISO-8859-1 character set ([ISO-8859-1])."
-                    if let Some(v) = check_value("Content-Disposition", &field_line_as_written(hv))
+                    if let Some(v) =
+                        check_value("Content-Disposition", &field_line_as_written(hv), party)
                     {
                         return Some(v);
                     }
@@ -315,14 +327,22 @@ impl Rule for ContentDispositionTokenValid {
             };
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_message("response", &resp.headers, resp.trailers.as_ref()) {
+                if let Some(v) = check_message(
+                    "response",
+                    crate::lint::Party::Server,
+                    &resp.headers,
+                    resp.trailers.as_ref(),
+                ) {
                     return Some(v);
                 }
             }
 
-            if let Some(v) =
-                check_message("request", &tx.request.headers, tx.request.trailers.as_ref())
-            {
+            if let Some(v) = check_message(
+                "request",
+                crate::lint::Party::Client,
+                &tx.request.headers,
+                tx.request.trailers.as_ref(),
+            ) {
                 return Some(v);
             }
 

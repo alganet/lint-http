@@ -105,6 +105,15 @@ impl RuleMeta for ContentTypeValid {
         DECLARED
     }
 
+    /// **The same nine defects, read twice, and each reading blames the peer
+    /// whose field section it was read from.** Both directions carry a
+    /// `Content-Type` — the rule's `scope` comment says so and cites the
+    /// sentence — so the party is the half, and the half is what the reader is
+    /// handed.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         // One media type per example. These used to be two blocks of stacked
@@ -184,6 +193,7 @@ impl Rule for ContentTypeValid {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             let check_message = |which: &str,
+                                 party: crate::lint::Party,
                                  headers: &hyper::HeaderMap,
                                  trailers: Option<&hyper::HeaderMap>|
              -> Option<Violation> {
@@ -219,7 +229,7 @@ impl Rule for ContentTypeValid {
                 // one would imply the recipient reads it, which is the thing §8.3
                 // says cannot be assumed.
                 if vals.len() > 1 {
-                    return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
+                    return Some(ctx.by(party).report_with(&FIELD_LINE_DUPLICATED, format!(
                             "Multiple Content-Type field lines in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
                             which
                         )));
@@ -234,7 +244,7 @@ impl Rule for ContentTypeValid {
                     // reject it, so the decode decides nothing on its own.
                     // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                     let s = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(v) = check_content_type(which, &s, ctx) {
+                    if let Some(v) = check_content_type(which, &s, party, ctx) {
                         return Some(v);
                     }
                 }
@@ -242,14 +252,22 @@ impl Rule for ContentTypeValid {
                 None
             };
 
-            if let Some(v) =
-                check_message("request", &tx.request.headers, tx.request.trailers.as_ref())
-            {
+            if let Some(v) = check_message(
+                "request",
+                crate::lint::Party::Client,
+                &tx.request.headers,
+                tx.request.trailers.as_ref(),
+            ) {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_message("response", &resp.headers, resp.trailers.as_ref()) {
+                if let Some(v) = check_message(
+                    "response",
+                    crate::lint::Party::Server,
+                    &resp.headers,
+                    resp.trailers.as_ref(),
+                ) {
                     return Some(v);
                 }
             }
@@ -272,6 +290,7 @@ impl Rule for ContentTypeValid {
 fn check_content_type(
     _which: &str,
     val: &str,
+    party: crate::lint::Party,
     ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     use crate::helpers::media_type::parse_media_type;
@@ -297,7 +316,7 @@ fn check_content_type(
                     format!("Invalid Content-Type '{}': empty type or subtype", val)
                 }
             };
-            return Some(ctx.report_with(media_type_error(defect), message));
+            return Some(ctx.by(party).report_with(media_type_error(defect), message));
         }
     };
 
@@ -308,7 +327,7 @@ fn check_content_type(
     // ranges belong to the `media-range` production Accept uses. A wildcard
     // here identifies nothing, so the field says nothing.
     if parsed.type_ == "*" || parsed.subtype == "*" {
-        return Some(ctx.report_with(
+        return Some(ctx.by(party).report_with(
             &MEDIA_TYPE_WILDCARD_FORBIDDEN,
             format!(
                 "Content-Type '{}' uses a wildcard, which names a set of media types rather than one; a representation's Content-Type is expected to identify a single media type (wildcards belong to Accept's media-range)",
@@ -332,7 +351,7 @@ fn check_content_type(
     // `=` a parameter is joined by. The wording did not move: the `format!` is
     // still here, with the clause the reader rendered inside it.
     if let Some(defect) = crate::helpers::media_type::media_type_parts_defect(&parsed) {
-        return Some(ctx.report_with(
+        return Some(ctx.by(party).report_with(
             crate::violations::token::media_type_defect(defect),
             format!("Invalid Content-Type '{}': {}", val, defect.message()),
         ));
@@ -365,7 +384,7 @@ mod tests {
         let severities = crate::rules::violations_for(&ContentTypeValid, &cfg);
         let ctx = crate::rules::RuleContext::new(&resolved)
             .with_violations(&ContentTypeValid, &severities);
-        super::check_content_type("test", val, &ctx)
+        super::check_content_type("test", val, crate::lint::Party::Client, &ctx)
     }
 
     #[rstest]

@@ -98,6 +98,15 @@ impl RuleMeta for MultipartBoundarySyntax {
         DECLARED
     }
 
+    /// **A `multipart` body is sent in both directions**, and the `boundary`
+    /// that delimits its parts is written by whichever peer sent it. The reader
+    /// runs over the request's `Content-Type` and then the response's, and is
+    /// handed the answer along with the `which` it already words its findings
+    /// with.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -178,7 +187,10 @@ impl Rule for MultipartBoundarySyntax {
             //
             // That there is more than one line is `content_type_valid`'s
             // finding; this rule says only what it owns.
-            let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            let check_all = |which: &str,
+                             headers: &hyper::HeaderMap,
+                             party: crate::lint::Party|
+             -> Option<Violation> {
                 for hv in headers.get_all("content-type").iter() {
                     // Decoded from the raw octets rather than through `to_str`, which
                     // refuses anything outside visible US-ASCII and so refuses
@@ -189,19 +201,19 @@ impl Rule for MultipartBoundarySyntax {
                     // below rejects it, as `bcharsnospace` is US-ASCII throughout.
                     // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                     let s = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(v) = check_multipart_boundary(which, &s, ctx) {
+                    if let Some(v) = check_multipart_boundary(which, &s, party, ctx) {
                         return Some(v);
                     }
                 }
                 None
             };
 
-            if let Some(v) = check_all("request", &tx.request.headers) {
+            if let Some(v) = check_all("request", &tx.request.headers, crate::lint::Party::Client) {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_all("response", &resp.headers) {
+                if let Some(v) = check_all("response", &resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }
@@ -222,6 +234,7 @@ impl Rule for MultipartBoundarySyntax {
 fn check_multipart_boundary(
     which: &str,
     val: &str,
+    party: crate::lint::Party,
     ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     // A value that is not a media-type at all has no type to compare and no
@@ -281,7 +294,7 @@ fn check_multipart_boundary(
                     // parameter's defect rather than the boundary's, and the
                     // sentence saying so is on the def three other rules read.
                     if value.is_empty() {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &PARAMETER_VALUE_EMPTY,
                             format!(
                                 "Invalid multipart Content-Type in {}: empty 'boundary' parameter",
@@ -309,7 +322,7 @@ fn check_multipart_boundary(
                         match crate::helpers::quoted_string::unescape_quoted_string(value) {
                             Ok(u) => u,
                             Err(defect) => {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     quoted_string_defect(defect),
                                     format!(
                                         "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
@@ -330,7 +343,7 @@ fn check_multipart_boundary(
                         // are rejected either way and only the wording of the
                         // finding differs.
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
-                            return Some(ctx.report_with(
+                            return Some(ctx.by(party).report_with(
                                 token_character(c),
                                 format!(
                                     "Invalid multipart Content-Type in {}: boundary contains invalid token character '{}'",
@@ -375,7 +388,7 @@ fn check_multipart_boundary(
                         {
                             continue;
                         }
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &BOUNDARY_CHARACTER_FORBIDDEN,
                             format!(
                                 "Invalid multipart Content-Type in {}: boundary contains invalid character '{}'",
@@ -392,7 +405,7 @@ fn check_multipart_boundary(
                     // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
                     let len = boundary_unquoted.chars().count();
                     if len == 0 || len > 70 {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &BOUNDARY_LENGTH_INVALID,
                             format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
@@ -411,7 +424,7 @@ fn check_multipart_boundary(
                     // recipient cannot tell it from the delimiter's own.
                     // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
                     if boundary_unquoted.ends_with(' ') {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &BOUNDARY_TRAILING_SPACE_FORBIDDEN,
                             format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
@@ -435,7 +448,7 @@ fn check_multipart_boundary(
         // what the broken quoting makes unknowable. An unreadable parameter
         // list is `content_type_valid`'s finding.
         if !found && !unreadable {
-            return Some(ctx.report_with(
+            return Some(ctx.by(party).report_with(
                 &BOUNDARY_MISSING,
                 format!(
                     "Invalid multipart Content-Type in {}: missing required 'boundary' parameter",

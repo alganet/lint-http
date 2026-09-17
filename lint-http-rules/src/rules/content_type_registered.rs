@@ -107,6 +107,14 @@ allowed = [
         DECLARED
     }
 
+    /// **One allowlist, asked of both halves.** The request's `Content-Type`
+    /// describes what the client enclosed and the response's what the origin
+    /// selected, so the unrecognised media type is the writer's either way and
+    /// the reader is told which writer it is reading.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -141,7 +149,8 @@ impl Rule for ContentTypeRegistered {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             let check_media_type = |hdr_name: &str,
                                     val: &str,
-                                    allowed: &Vec<String>|
+                                    allowed: &Vec<String>,
+                                    party: crate::lint::Party|
              -> Option<Violation> {
                 // Parse media-type; if it fails, let other rules (well-formed) report it.
                 let parsed = match crate::helpers::media_type::parse_media_type(val) {
@@ -201,7 +210,7 @@ impl Rule for ContentTypeRegistered {
                     }
                 }
 
-                Some(ctx.report_with(
+                Some(ctx.by(party).report_with(
                     &MEDIA_TYPE_UNREGISTERED,
                     format!("Unrecognized media type '{}' in {} header", full, hdr_name),
                 ))
@@ -211,7 +220,12 @@ impl Rule for ContentTypeRegistered {
             if let Some(val) =
                 crate::helpers::headers::get_header_str(&tx.request.headers, "content-type")
             {
-                if let Some(v) = check_media_type("Content-Type", val, &config.allowed) {
+                if let Some(v) = check_media_type(
+                    "Content-Type",
+                    val,
+                    &config.allowed,
+                    crate::lint::Party::Client,
+                ) {
                     return Some(v);
                 }
             }
@@ -221,7 +235,12 @@ impl Rule for ContentTypeRegistered {
                 if let Some(val) =
                     crate::helpers::headers::get_header_str(&resp.headers, "content-type")
                 {
-                    if let Some(v) = check_media_type("Content-Type", val, &config.allowed) {
+                    if let Some(v) = check_media_type(
+                        "Content-Type",
+                        val,
+                        &config.allowed,
+                        crate::lint::Party::Server,
+                    ) {
                         return Some(v);
                     }
                 }

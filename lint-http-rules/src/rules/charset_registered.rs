@@ -111,6 +111,14 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
         DECLARED
     }
 
+    /// **The `which` this reader already threads for its wording is the same
+    /// fork the answer takes.** A `charset` parameter is read out of the
+    /// request's `Content-Type` and then out of the response's, and the peer
+    /// that wrote the field section is the one that wrote the parameter.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -159,7 +167,10 @@ impl Rule for CharsetRegistered {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             use crate::helpers::media_type::parse_media_type;
 
-            let check_header = |which: &str, val: &str| -> Option<Violation> {
+            let check_header = |which: &str,
+                                val: &str,
+                                party: crate::lint::Party|
+             -> Option<Violation> {
                 // A value that is not a media-type at all has no parameters to read,
                 // and saying so is `content_type_valid`'s finding, not
                 // this one's. The `media-type` grammar is the helper's.
@@ -196,7 +207,7 @@ impl Rule for CharsetRegistered {
                             // is on the def, where the three other rules reporting
                             // it read the same one.
                             if value.is_empty() {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     &PARAMETER_VALUE_EMPTY,
                                     format!(
                                         "Invalid Content-Type in {}: empty 'charset' parameter",
@@ -216,7 +227,7 @@ impl Rule for CharsetRegistered {
                                 match crate::helpers::quoted_string::unescape_quoted_string(value) {
                                     Ok(u) => value_owned = Some(u),
                                     Err(defect) => {
-                                        return Some(ctx.report_with(
+                                        return Some(ctx.by(party).report_with(
                                             quoted_string_defect(defect),
                                             format!(
                                                 "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
@@ -246,7 +257,7 @@ impl Rule for CharsetRegistered {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(value)
                                 {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         token_character(c),
                                         format!(
                                             "Invalid Content-Type in {}: charset contains invalid character '{}'",
@@ -265,7 +276,7 @@ impl Rule for CharsetRegistered {
                             // waits for a `charset` subject — the two look like
                             // one finding and are two.
                             if value.is_empty() {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     &CHARSET_EMPTY,
                                     format!(
                                         "Invalid Content-Type in {}: empty 'charset' parameter",
@@ -285,7 +296,7 @@ impl Rule for CharsetRegistered {
                             // the defect is.
                             // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
                             if !config.allowed.contains(&value.to_ascii_lowercase()) {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     &CHARSET_UNREGISTERED,
                                     format!("Unrecognized charset '{}' in {} header", value, which),
                                 ));
@@ -306,7 +317,10 @@ impl Rule for CharsetRegistered {
             // That there is more than one line is `content_type_valid`'s
             // finding to report; this rule adds nothing by repeating it, and says
             // only what it owns: whether a charset it can see is recognized.
-            let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            let check_all = |which: &str,
+                             headers: &hyper::HeaderMap,
+                             party: crate::lint::Party|
+             -> Option<Violation> {
                 for hv in headers.get_all("content-type").iter() {
                     // Decoded from the raw octets, not through `to_str`, which
                     // refuses `obs-text` — legal in a `quoted-string`, so
@@ -318,18 +332,18 @@ impl Rule for CharsetRegistered {
                     // unquoted `token`, the check below already rejects it.
                     // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                     let s = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(v) = check_header(which, &s) {
+                    if let Some(v) = check_header(which, &s, party) {
                         return Some(v);
                     }
                 }
                 None
             };
 
-            if let Some(v) = check_all("request", &tx.request.headers) {
+            if let Some(v) = check_all("request", &tx.request.headers, crate::lint::Party::Client) {
                 return Some(v);
             }
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_all("response", &resp.headers) {
+                if let Some(v) = check_all("response", &resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }

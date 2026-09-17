@@ -59,6 +59,14 @@ impl RuleMeta for ContentTransferEncodingValid {
         DECLARED
     }
 
+    /// **A MIME field HTTP does not use, and either peer can leave one
+    /// behind.** The single defect is reported once for a response carrying it
+    /// and once for a request, and the sender named in the message is the
+    /// sender answerable for it.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -165,11 +173,14 @@ impl Rule for ContentTransferEncodingValid {
             // worth reporting even when the value is a perfectly good MIME mechanism.
             // cite(RFC 9112 § B.5): "HTTP does not use the Content-Transfer-Encoding field of MIME."
             // cite(RFC 9112 § B.5): "Proxies and gateways from MIME-compliant protocols to HTTP need to remove any Content-Transfer-Encoding prior to delivering the response message to an HTTP client."
-            let report = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            let report = |which: &str,
+                          headers: &hyper::HeaderMap,
+                          party: crate::lint::Party|
+             -> Option<Violation> {
                 let hv = headers.get_all("content-transfer-encoding").iter().next()?;
                 let shown = hv.to_str().unwrap_or("<non-UTF-8>");
                 let detail = describe_value(shown).map(|d| format!("; {}", d));
-                Some(ctx.report_with(&CONTENT_TRANSFER_ENCODING_FORBIDDEN, format!(
+                Some(ctx.by(party).report_with(&CONTENT_TRANSFER_ENCODING_FORBIDDEN, format!(
                         "Content-Transfer-Encoding: {} present in {}; HTTP does not use this field and a gateway is required to remove it{}",
                         shown.trim(),
                         which,
@@ -178,11 +189,11 @@ impl Rule for ContentTransferEncodingValid {
             };
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = report("response", &resp.headers) {
+                if let Some(v) = report("response", &resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }
-            report("request", &tx.request.headers)
+            report("request", &tx.request.headers, crate::lint::Party::Client)
         };
         Vec::from_iter(finding())
     }

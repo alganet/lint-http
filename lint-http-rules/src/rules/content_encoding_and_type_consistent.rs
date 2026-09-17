@@ -89,6 +89,15 @@ impl RuleMeta for ContentEncodingAndTypeConsistent {
         DECLARED
     }
 
+    /// **Both halves may state a coding, and the two no-body verdicts are the
+    /// origin's alone.** The `Content-Encoding` walk runs over the request's
+    /// field section and then the response's, blaming whichever wrote the
+    /// member it stopped on; the `304`/no-content findings above it are read
+    /// off a status line, which only a server writes.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -130,7 +139,8 @@ impl Rule for ContentEncodingAndTypeConsistent {
             // across multiple header fields can be detected when `seen` is shared between calls.
             let check_encoding_header = |hdr_name: &str,
                                          val: &str,
-                                         seen: &mut std::collections::HashSet<String>|
+                                         seen: &mut std::collections::HashSet<String>,
+                                         party: crate::lint::Party|
              -> Option<Violation> {
                 // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
                 for part in crate::helpers::list::list_members(val) {
@@ -145,13 +155,13 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // own defect: the mirror rule on `Transfer-Encoding` reached
                     // the same id from the same member shape.
                     if token.is_empty() {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &TOKEN_EMPTY,
                             format!("{} header contains empty member", hdr_name),
                         ));
                     }
                     if token == "*" && hdr_name.eq_ignore_ascii_case("Content-Encoding") {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &CONTENT_CODING_WILDCARD_FORBIDDEN,
                             format!("Wildcard '*' is not valid in {} header", hdr_name),
                         ));
@@ -162,7 +172,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                         // `obs-text` byte a recipient is told to treat as
                         // opaque -- and `0xE9` is what that byte is, where `é`
                         // is a reading of it.
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             token_character(c),
                             format!(
                                 "Invalid token {} in {} header",
@@ -180,7 +190,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // coding listed a second time is what the entry quotes.
                     let key = token.to_ascii_lowercase();
                     if !seen.insert(key.clone()) {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &CONTENT_CODING_REDUNDANT,
                             format!("Duplicate content-coding '{}' in {} header", key, hdr_name),
                         ));
@@ -201,7 +211,12 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     &tx.request.headers,
                     "content-encoding",
                 ) {
-                    if let Some(v) = check_encoding_header("Content-Encoding", &val, &mut seen) {
+                    if let Some(v) = check_encoding_header(
+                        "Content-Encoding",
+                        &val,
+                        &mut seen,
+                        crate::lint::Party::Client,
+                    ) {
                         return Some(v);
                     }
                 }
@@ -238,7 +253,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     (100..200).contains(&status) || status == 204 || status == 304;
                 if is_no_body_status && resp.headers.contains_key("content-encoding") {
                     return Some(if status == 304 {
-                        ctx.report_with(
+                        ctx.by_server().report_with(
                             &STATUS_304_METADATA_FORBIDDEN,
                             "304 Not Modified sends Content-Encoding, which is representation \
                              metadata and not one of the fields the status code is required to \
@@ -246,7 +261,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                                 .into(),
                         )
                     } else {
-                        ctx.report_with(
+                        ctx.by_server().report_with(
                             &STATUS_METADATA_REDUNDANT,
                             format!(
                                 "Response {status} is terminated by the end of its header section \
@@ -262,7 +277,12 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     &resp.headers,
                     "content-encoding",
                 ) {
-                    if let Some(v) = check_encoding_header("Content-Encoding", &val, &mut seen) {
+                    if let Some(v) = check_encoding_header(
+                        "Content-Encoding",
+                        &val,
+                        &mut seen,
+                        crate::lint::Party::Server,
+                    ) {
                         return Some(v);
                     }
                 }

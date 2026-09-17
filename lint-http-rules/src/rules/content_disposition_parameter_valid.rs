@@ -105,6 +105,15 @@ impl RuleMeta for ContentDispositionParameterValid {
         DECLARED
     }
 
+    /// **The same parameter grammar, read out of whichever half carried the
+    /// field.** RFC 6266 defines `Content-Disposition` for a response and
+    /// multipart form data puts it in a request, so a malformed `filename*` or
+    /// a duplicated parameter belongs to the peer whose field section it was
+    /// read from.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -144,7 +153,10 @@ impl Rule for ContentDispositionParameterValid {
             // published NonCompliant example. Both shapes simply leave nothing to
             // check here, so this rule now returns quietly and lets the owner speak.
             // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
-            let check_value = |hdr_name: &str, val: &str| -> Option<Violation> {
+            let check_value = |hdr_name: &str,
+                               val: &str,
+                               party: crate::lint::Party|
+             -> Option<Violation> {
                 let s = val.trim();
 
                 let mut parts = s.splitn(2, ';');
@@ -165,7 +177,7 @@ impl Rule for ContentDispositionParameterValid {
                     }
                     let eq = p.find('=');
                     if eq.is_none() {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &PARAMETER_EQUALS_MISSING,
                             format!("{} has malformed parameter '{}': missing '='", hdr_name, p),
                         ));
@@ -185,13 +197,13 @@ impl Rule for ContentDispositionParameterValid {
                         name
                     };
                     if bare_name.is_empty() {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &TOKEN_EMPTY,
                             format!("{} contains empty parameter name", hdr_name),
                         ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(bare_name) {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             token_character(c),
                             format!(
                                 "{} parameter name contains invalid token character: '{}'",
@@ -202,7 +214,7 @@ impl Rule for ContentDispositionParameterValid {
 
                     // check duplicates (case-insensitive, include '*')
                     if seen.contains(&name_lc) {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &CONTENT_DISPOSITION_PARAMETER_DUPLICATED,
                             format!("{} contains duplicate parameter: '{}'", hdr_name, name),
                         ));
@@ -211,7 +223,7 @@ impl Rule for ContentDispositionParameterValid {
 
                     let val = value[1..].trim(); // skip '='
                     if val.is_empty() {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &PARAMETER_VALUE_EMPTY,
                             format!("{} parameter '{}' has empty value", hdr_name, name),
                         ));
@@ -229,7 +241,7 @@ impl Rule for ContentDispositionParameterValid {
                             if let Err(defect) =
                                 crate::helpers::quoted_string::check_quoted_string(val)
                             {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     quoted_string_defect(defect),
                                     format!(
                                         "{} filename parameter invalid quoted-string: {}",
@@ -240,7 +252,7 @@ impl Rule for ContentDispositionParameterValid {
                             }
                         } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val)
                         {
-                            return Some(ctx.report_with(
+                            return Some(ctx.by(party).report_with(
                                 token_character(c),
                                 format!(
                                     "{} filename parameter contains invalid token character: '{}'",
@@ -253,7 +265,7 @@ impl Rule for ContentDispositionParameterValid {
                         // here said RFC 5987; RFC 8187 obsoletes it and moved it to
                         // Historic, though the production itself is byte-for-byte the same.
                         if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
-                            return Some(ctx.report_with(
+                            return Some(ctx.by(party).report_with(
                                 &EXT_VALUE_MALFORMED,
                                 format!("{} filename* extended value invalid: {}", hdr_name, e),
                             ));
@@ -264,7 +276,7 @@ impl Rule for ContentDispositionParameterValid {
                             match crate::helpers::quoted_string::unescape_quoted_string(val) {
                                 Ok(u) => u.trim().to_string(),
                                 Err(defect) => {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         quoted_string_defect(defect),
                                         format!(
                                             "{} size parameter invalid quoted-string: {}",
@@ -279,7 +291,7 @@ impl Rule for ContentDispositionParameterValid {
                         };
 
                         if !raw_val.chars().all(|c| c.is_ascii_digit()) {
-                            return Some(ctx.report_with(
+                            return Some(ctx.by(party).report_with(
                                 &CONTENT_DISPOSITION_SIZE_INVALID,
                                 format!(
                                     "{} size parameter must be numeric: '{}'",
@@ -292,7 +304,7 @@ impl Rule for ContentDispositionParameterValid {
                         if is_ext {
                             // extended parameter value must be ext-value
                             if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     &EXT_VALUE_MALFORMED,
                                     format!(
                                         "{} extended parameter '{}' invalid: {}",
@@ -304,7 +316,7 @@ impl Rule for ContentDispositionParameterValid {
                             if let Err(defect) =
                                 crate::helpers::quoted_string::check_quoted_string(val)
                             {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     quoted_string_defect(defect),
                                     format!(
                                         "{} parameter '{}' invalid quoted-string: {}",
@@ -316,7 +328,7 @@ impl Rule for ContentDispositionParameterValid {
                             }
                         } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val)
                         {
-                            return Some(ctx.report_with(
+                            return Some(ctx.by(party).report_with(
                                 token_character(c),
                                 format!(
                                     "{} parameter '{}' contains invalid token character: '{}'",
@@ -337,23 +349,24 @@ impl Rule for ContentDispositionParameterValid {
             // every octet at or above %x80 as `obs-text`. Reading this field's
             // parameters as written is a conversion this rule has not made; the
             // silence is a conforming value, not a neighbour speaking.
-            let check_section = |headers: &hyper::HeaderMap| -> Option<Violation> {
-                for hv in headers.get_all("content-disposition").iter() {
-                    let Ok(s) = hv.to_str() else { continue };
-                    if let Some(v) = check_value("Content-Disposition", s) {
-                        return Some(v);
+            let check_section =
+                |headers: &hyper::HeaderMap, party: crate::lint::Party| -> Option<Violation> {
+                    for hv in headers.get_all("content-disposition").iter() {
+                        let Ok(s) = hv.to_str() else { continue };
+                        if let Some(v) = check_value("Content-Disposition", s, party) {
+                            return Some(v);
+                        }
                     }
-                }
-                None
-            };
+                    None
+                };
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_section(&resp.headers) {
+                if let Some(v) = check_section(&resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }
 
-            if let Some(v) = check_section(&tx.request.headers) {
+            if let Some(v) = check_section(&tx.request.headers, crate::lint::Party::Client) {
                 return Some(v);
             }
 

@@ -88,6 +88,14 @@ impl RuleMeta for LanguageTagSyntax {
         DECLARED
     }
 
+    /// **The tag is the writer's, and both peers write these fields.**
+    /// `Content-Language` states the language of the representation each half
+    /// carries and `Accept-Language` states what its sender will take, so the
+    /// four readings below split two and two by the field section they run over.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -164,16 +172,17 @@ impl Rule for LanguageTagSyntax {
             // conforming Accept-Language values, which is worse.
             // cite(RFC 9110 § 8.5.1): "HTTP uses language tags within the Accept-Language and Content-Language header fields.  Accept-Language uses the broader language-range production defined in Section 12.5.4, whereas Content-Language uses the language-tag production defined below."
             // cite(RFC 4647 § 2.1): "A basic language range differs from the language tags defined in [RFC4646] only in that there is no requirement that it be "well-formed" or be validated against the IANA Language Subtag Registry."
-            let check_tag = |hdr: &str, tag: &str| -> Option<Violation> {
-                // cite(RFC 9110 § 8.5.1): "A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings."
-                if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
-                    return Some(ctx.report_with(
-                        tag_defect(e),
-                        format!("Invalid language tag '{}' in {}: {}", tag, hdr, e.message()),
-                    ));
-                }
-                None
-            };
+            let check_tag =
+                |hdr: &str, tag: &str, party: crate::lint::Party| -> Option<Violation> {
+                    // cite(RFC 9110 § 8.5.1): "A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings."
+                    if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
+                        return Some(ctx.by(party).report_with(
+                            tag_defect(e),
+                            format!("Invalid language tag '{}' in {}: {}", tag, hdr, e.message()),
+                        ));
+                    }
+                    None
+                };
 
             // Both fields are lists, so a sender may spread their members over
             // several field lines and a recipient recombines them. Reading only the
@@ -210,19 +219,22 @@ impl Rule for LanguageTagSyntax {
             // validator and is reported as the invalid characters they are in this
             // field — which is the right verdict for the right reason.
             // cite(RFC 9110 § 8.5): "Content-Language = #language-tag"
-            let content_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
-                for hv in headers.get_all("content-language").iter() {
-                    let val = decode(hv);
-                    for token in crate::helpers::list::list_members(&val) {
-                        if let Some(v) = check_tag("Content-Language", token) {
-                            return Some(v);
+            let content_language =
+                |headers: &hyper::HeaderMap, party: crate::lint::Party| -> Option<Violation> {
+                    for hv in headers.get_all("content-language").iter() {
+                        let val = decode(hv);
+                        for token in crate::helpers::list::list_members(&val) {
+                            if let Some(v) = check_tag("Content-Language", token, party) {
+                                return Some(v);
+                            }
                         }
                     }
-                }
-                None
-            };
+                    None
+                };
 
-            let accept_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            let accept_language = |headers: &hyper::HeaderMap,
+                                   party: crate::lint::Party|
+             -> Option<Violation> {
                 for hv in headers.get_all("accept-language").iter() {
                     let val = decode(hv);
                     for member in crate::helpers::list::list_members(&val) {
@@ -247,7 +259,7 @@ impl Rule for LanguageTagSyntax {
                         if lang == "*" {
                             continue;
                         }
-                        if let Some(v) = check_tag("Accept-Language", lang) {
+                        if let Some(v) = check_tag("Accept-Language", lang, party) {
                             return Some(v);
                         }
                     }
@@ -256,18 +268,18 @@ impl Rule for LanguageTagSyntax {
             };
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = content_language(&resp.headers) {
+                if let Some(v) = content_language(&resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }
-            if let Some(v) = content_language(&tx.request.headers) {
+            if let Some(v) = content_language(&tx.request.headers, crate::lint::Party::Client) {
                 return Some(v);
             }
-            if let Some(v) = accept_language(&tx.request.headers) {
+            if let Some(v) = accept_language(&tx.request.headers, crate::lint::Party::Client) {
                 return Some(v);
             }
             if let Some(resp) = &tx.response {
-                if let Some(v) = accept_language(&resp.headers) {
+                if let Some(v) = accept_language(&resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }

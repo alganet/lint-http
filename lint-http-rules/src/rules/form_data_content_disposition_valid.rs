@@ -86,6 +86,13 @@ impl RuleMeta for FormDataContentDispositionValid {
         DECLARED
     }
 
+    /// **`form-data` is a request's disposition and a response may still carry
+    /// one**, so the reader runs over both field sections and the missing or
+    /// empty `name` belongs to whichever peer wrote the header it was read from.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -128,7 +135,10 @@ impl Rule for FormDataContentDispositionValid {
             // checking would need a body parser; until then this is a best-effort
             // approximation and not the §4.2 check itself.
             // Helper that checks a single header value
-            let check_value = |_hdr: &str, val: &str| -> Option<Violation> {
+            let check_value = |_hdr: &str,
+                               val: &str,
+                               party: crate::lint::Party|
+             -> Option<Violation> {
                 let s = val.trim();
                 if s.is_empty() {
                     return None; // other rules handle empty disposition
@@ -154,7 +164,7 @@ impl Rule for FormDataContentDispositionValid {
                 // reached without walking anything: the required pair is not in
                 // the set, and the set is empty.
                 if params_part.is_empty() {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by(party).report_with(
                         &CONTENT_DISPOSITION_NAME_MISSING,
                         "Content-Disposition: 'form-data' missing 'name' parameter".into(),
                     ));
@@ -189,7 +199,7 @@ impl Rule for FormDataContentDispositionValid {
                                 // the unquoted spelling below — where there is
                                 // no value at all — is the parameter's.
                                 Ok(true) => {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         &CONTENT_DISPOSITION_NAME_EMPTY,
                                         "Content-Disposition 'form-data' has empty 'name' parameter"
                                             .into(),
@@ -204,7 +214,7 @@ impl Rule for FormDataContentDispositionValid {
                                 // it breaks is the same one whichever field
                                 // carried the value.
                                 Err(defect) => {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         quoted_string_defect(defect),
                                         format!(
                                             "Content-Disposition 'form-data' has invalid quoted 'name' parameter: {}",
@@ -216,7 +226,7 @@ impl Rule for FormDataContentDispositionValid {
                         } else {
                             // token/unquoted value
                             if raw.is_empty() {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     &PARAMETER_VALUE_EMPTY,
                                     "Content-Disposition 'form-data' has empty 'name' parameter"
                                         .into(),
@@ -236,7 +246,7 @@ impl Rule for FormDataContentDispositionValid {
                 // claim about absence. A name the scan did find is judged above and
                 // needs no such gate.
                 if !name_found && crate::helpers::list::quoting_is_balanced(params_part) {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by(party).report_with(
                         &CONTENT_DISPOSITION_NAME_MISSING,
                         "Content-Disposition: 'form-data' missing 'name' parameter".into(),
                     ));
@@ -255,7 +265,9 @@ impl Rule for FormDataContentDispositionValid {
             if let Some(resp) = &tx.response {
                 for hv in resp.headers.get_all("content-disposition").iter() {
                     let Ok(s) = hv.to_str() else { continue };
-                    if let Some(v) = check_value("Content-Disposition", s) {
+                    if let Some(v) =
+                        check_value("Content-Disposition", s, crate::lint::Party::Server)
+                    {
                         return Some(v);
                     }
                 }
@@ -264,7 +276,7 @@ impl Rule for FormDataContentDispositionValid {
             // Check request headers (multipart/form-data parts may present Content-Disposition in requests)
             for hv in tx.request.headers.get_all("content-disposition").iter() {
                 let Ok(s) = hv.to_str() else { continue };
-                if let Some(v) = check_value("Content-Disposition", s) {
+                if let Some(v) = check_value("Content-Disposition", s, crate::lint::Party::Client) {
                     return Some(v);
                 }
             }

@@ -96,6 +96,14 @@ allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
         DECLARED
     }
 
+    /// **Three readings, two writers.** The request's `Content-Type` and its
+    /// `Accept` members are the client's media types; the response's
+    /// `Content-Type` is the origin's. A suffix defect belongs to whoever spelled
+    /// the subtype it hangs off.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -157,7 +165,10 @@ impl Rule for MediaTypeSuffixValid {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-            let check_media = |hdr_name: &str, val: &str| -> Option<Violation> {
+            let check_media = |hdr_name: &str,
+                               val: &str,
+                               party: crate::lint::Party|
+             -> Option<Violation> {
                 // A value that is not a media-type has no subtype to inspect, and
                 // saying so is `content_type_valid`'s finding. The
                 // `media-type` grammar is the helper's.
@@ -204,7 +215,7 @@ impl Rule for MediaTypeSuffixValid {
                     // the bare-trailing-"+" check below, on the same reasoning.
                     // cite(RFC 6838 § 4.2): "restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT"
                     if subtype.starts_with('+') {
-                        return Some(ctx.report_with(&MEDIA_TYPE_NAME_EMPTY, format!(
+                        return Some(ctx.by(party).report_with(&MEDIA_TYPE_NAME_EMPTY, format!(
                                 "Media type '{}/{}' in {} is a structured suffix with no base subtype name",
                                 parsed.type_, parsed.subtype, hdr_name
                             )));
@@ -218,7 +229,7 @@ impl Rule for MediaTypeSuffixValid {
                     // first character, so the grammar permits this shape; the
                     // reading is the construct's purpose, as above.
                     if suffix.is_empty() {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &MEDIA_TYPE_SUFFIX_EMPTY,
                             format!(
                                 "Media type '{}/{}' in {} has empty structured suffix",
@@ -241,7 +252,7 @@ impl Rule for MediaTypeSuffixValid {
                     // cite(RFC 6838 § 4.2.8): ""+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions."
                     // cite(RFC 6838 § 4.2.8): "By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ."
                     if !config.allowed.contains(&suffix) {
-                        return Some(ctx.report_with(&MEDIA_TYPE_SUFFIX_UNREGISTERED, format!(
+                        return Some(ctx.by(party).report_with(&MEDIA_TYPE_SUFFIX_UNREGISTERED, format!(
                                         "Unrecognized structured syntax suffix '+{}' in media type '{}/{}' (header '{}')",
                                         suffix, parsed.type_, parsed.subtype, hdr_name
                                     )));
@@ -270,7 +281,7 @@ impl Rule for MediaTypeSuffixValid {
             };
 
             for val in values(&tx.request.headers, "content-type") {
-                if let Some(v) = check_media("Content-Type", &val) {
+                if let Some(v) = check_media("Content-Type", &val, crate::lint::Party::Client) {
                     return Some(v);
                 }
             }
@@ -296,7 +307,7 @@ impl Rule for MediaTypeSuffixValid {
                     if p.is_empty() {
                         continue;
                     }
-                    if let Some(v) = check_media("Accept", p) {
+                    if let Some(v) = check_media("Accept", p, crate::lint::Party::Client) {
                         return Some(v);
                     }
                 }
@@ -304,7 +315,7 @@ impl Rule for MediaTypeSuffixValid {
 
             if let Some(resp) = &tx.response {
                 for val in values(&resp.headers, "content-type") {
-                    if let Some(v) = check_media("Content-Type", &val) {
+                    if let Some(v) = check_media("Content-Type", &val, crate::lint::Party::Server) {
                         return Some(v);
                     }
                 }
