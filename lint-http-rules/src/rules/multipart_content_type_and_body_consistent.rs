@@ -64,6 +64,14 @@ impl RuleMeta for MultipartContentTypeAndBodyConsistent {
         DECLARED
     }
 
+    /// **A body that does not match the boundary its own header declared is
+    /// the sender's defect, and either peer can send one.** The reader is run
+    /// over the request's header-and-body pair and then the response's, so the
+    /// party travels with the pair rather than with the field.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -132,6 +140,7 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
             // cite(RFC 9110 § 8.3.3): "HTTP message framing does not use the multipart boundary as an indicator of message body length, though it might be used by implementations that generate or process the content."
             // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
             let check_message = |which: &str,
+                                 party: crate::lint::Party,
                                  headers: &hyper::HeaderMap,
                                  body: Option<&bytes::Bytes>|
              -> Option<Violation> {
@@ -165,7 +174,8 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
                     if let Some(boundary) =
                         crate::helpers::media_type::extract_multipart_boundary(&s)
                     {
-                        if let Some(v) = check_body_delimiters(which, &boundary, body.as_ref(), ctx)
+                        if let Some(v) =
+                            check_body_delimiters(which, &boundary, body.as_ref(), party, ctx)
                         {
                             return Some(v);
                         }
@@ -176,6 +186,7 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
 
             if let Some(v) = check_message(
                 "request",
+                crate::lint::Party::Client,
                 &tx.request.headers,
                 tx.request_body
                     .as_ref()
@@ -187,6 +198,7 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
             if let Some(resp) = &tx.response {
                 if let Some(v) = check_message(
                     "response",
+                    crate::lint::Party::Server,
                     &resp.headers,
                     tx.response_body
                         .as_ref()
@@ -306,6 +318,7 @@ fn check_body_delimiters(
     which: &str,
     boundary: &str,
     body: &[u8],
+    party: crate::lint::Party,
     ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     // The boundary is text for the three findings below and octets for the scan,
@@ -331,7 +344,7 @@ fn check_body_delimiters(
         } else {
             format!("body does not contain boundary marker '--{}'", shown)
         };
-        return Some(ctx.report_with(
+        return Some(ctx.by(party).report_with(
             &MULTIPART_BODY_DELIMITER_MISSING,
             format!("Invalid multipart Content-Type in {}: {}", which, detail),
         ));
@@ -342,7 +355,7 @@ fn check_body_delimiters(
     // follow. §5.1.1 calls a single body part the useful minimum, not zero.
     // cite(RFC 2046 § 5.1.1): "The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow."
     if !scan.opens_a_part {
-        return Some(ctx.report_with(
+        return Some(ctx.by(party).report_with(
             &MULTIPART_BODY_PART_MISSING,
             format!(
                 "Invalid multipart Content-Type in {}: the only boundary delimiter line is the terminating '--{}--', so the body encapsulates no part",
@@ -355,7 +368,7 @@ fn check_body_delimiters(
     // which is the whole function §5.1.1 gives it.
     // cite(RFC 2046 § 5.1.1): "Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value."
     if !scan.closes {
-        return Some(ctx.report_with(
+        return Some(ctx.by(party).report_with(
             &MULTIPART_BODY_TERMINATOR_MISSING,
             format!(
                 "Invalid multipart Content-Type in {}: body missing terminating boundary '--{}--'",

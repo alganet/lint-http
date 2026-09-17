@@ -229,7 +229,24 @@ impl<'a> RuleContext<'a> {
         self.by(direction.into())
     }
 
-    fn by(self, party: crate::lint::Party) -> Self {
+    /// This context, with a party the site **computed** named answerable.
+    ///
+    /// The three named siblings above are what a site writes when it knows the
+    /// answer as it stands there. This is for the shape that recurs across the
+    /// field-grammar rules instead: one reader, run once over the request's
+    /// field section and once over the response's, which cannot name a peer in
+    /// its own body because it does not know which half it was handed.
+    ///
+    /// Those readers thread the answer as a value rather than taking an
+    /// already-attributed context, and the reason is the gate. A helper whose
+    /// parameter is named `ctx` reports through `ctx.report_with(`, which is
+    /// the exact text `a_per_site_rule_names_a_party_at_every_finding` reads a
+    /// file for — so composing that way would have made every such rule opt out
+    /// of the check that keeps it honest. Threading the party keeps
+    /// `ctx.by(party).report_with(` at the site, where both the gate and a
+    /// reader can see it.
+    #[must_use]
+    pub fn by(self, party: crate::lint::Party) -> Self {
         Self {
             site_party: Some(party),
             ..self
@@ -1492,7 +1509,7 @@ enabled = "true"
         /// deprecated `Pragma` the origin sent; `options_method_capabilities`
         /// carries one requirement per direction. Each was about to be given a
         /// single presumption. Scan the titles before presuming, every time.
-        const FLOOR: usize = 143;
+        const FLOOR: usize = 156;
         let read = all_rules()
             .filter(|rule| rule.party() != RuleParty::Unread)
             .count();
@@ -1511,6 +1528,14 @@ enabled = "true"
     /// no test reaches is exactly the site that keeps its `None`, and a runtime
     /// check never runs there. `ctx.by_server().report_with(` does not contain
     /// `ctx.report_with(`, so the token is the whole test.
+    ///
+    /// It reads the whole file rather than the `findings` body, which is what
+    /// makes it reach the private readers a rule splits its work into — they
+    /// name their context parameter `ctx` like every other site, so a finding
+    /// built inside one is checked exactly as one built in the body. That is
+    /// also why [`RuleContext::by`] exists: a reader run over both halves is
+    /// handed the *party* and not an already-attributed context, because the
+    /// second shape would have hidden its sites from this line.
     #[test]
     fn a_per_site_rule_names_a_party_at_every_finding() -> anyhow::Result<()> {
         let per_site: std::collections::BTreeSet<&str> = all_rules()

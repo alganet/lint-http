@@ -92,6 +92,15 @@ allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip"
         DECLARED
     }
 
+    /// **Two fields, one vocabulary, two writers.** The `Content-Encoding` this
+    /// reads is the response's and states what the origin applied; the
+    /// `Accept-Encoding` beside it is the request's and states what the client
+    /// will take. The `is_accept` flag that already tells the two grammars apart
+    /// is the same fork the party follows.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -134,7 +143,8 @@ impl Rule for ContentEncodingRegistered {
             let check_value = |hdr_name: &str,
                                val: &str,
                                allowed: &Vec<String>,
-                               is_accept: bool|
+                               is_accept: bool,
+                               party: crate::lint::Party|
              -> Option<Violation> {
                 for part in crate::helpers::list::list_members(val) {
                     // Split off any parameters (e.g., gzip;q=0.8)
@@ -147,7 +157,7 @@ impl Rule for ContentEncodingRegistered {
                         if is_accept {
                             continue;
                         }
-                        return Some(ctx.report_with(&CONTENT_CODING_WILDCARD_FORBIDDEN, format!(
+                        return Some(ctx.by(party).report_with(&CONTENT_CODING_WILDCARD_FORBIDDEN, format!(
                                     "'*' is not a content-coding and is only meaningful in Accept-Encoding, not in {}",
                                     hdr_name
                                 )));
@@ -156,7 +166,7 @@ impl Rule for ContentEncodingRegistered {
                     // "no encoding". Naming it in Content-Encoding claims a transformation
                     // that by definition does nothing, so the spec reserves it away.
                     if !is_accept && token.eq_ignore_ascii_case("identity") {
-                        return Some(ctx.report_with(&CONTENT_CODING_IDENTITY_FORBIDDEN, format!(
+                        return Some(ctx.by(party).report_with(&CONTENT_CODING_IDENTITY_FORBIDDEN, format!(
                                     "'identity' is reserved for Accept-Encoding and SHOULD NOT be sent in {}",
                                     hdr_name
                                 )));
@@ -168,7 +178,7 @@ impl Rule for ContentEncodingRegistered {
                         // `token`'s question and not this field's. Rendered for
                         // the reason its neighbour renders it: the value is read
                         // as octets and an `obs-text` byte is named, not shown.
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             token_character(c),
                             format!(
                                 "Invalid token {} in {} header",
@@ -182,7 +192,7 @@ impl Rule for ContentEncodingRegistered {
                     // operator's list": nothing consults the registry the rule is named
                     // after, and the sentence below is an "ought to" in any case.
                     if !allowed.contains(&token.to_ascii_lowercase()) {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &CONTENT_CODING_UNREGISTERED,
                             format!(
                                 "Unrecognized content-coding '{}' in {} header",
@@ -206,7 +216,13 @@ impl Rule for ContentEncodingRegistered {
                     &resp.headers,
                     "content-encoding",
                 ) {
-                    if let Some(v) = check_value("Content-Encoding", &val, &config.allowed, false) {
+                    if let Some(v) = check_value(
+                        "Content-Encoding",
+                        &val,
+                        &config.allowed,
+                        false,
+                        crate::lint::Party::Server,
+                    ) {
                         return Some(v);
                     }
                 }
@@ -217,7 +233,13 @@ impl Rule for ContentEncodingRegistered {
                 &tx.request.headers,
                 "accept-encoding",
             ) {
-                if let Some(v) = check_value("Accept-Encoding", &val, &config.allowed, true) {
+                if let Some(v) = check_value(
+                    "Accept-Encoding",
+                    &val,
+                    &config.allowed,
+                    true,
+                    crate::lint::Party::Client,
+                ) {
                     return Some(v);
                 }
             }
