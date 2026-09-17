@@ -45,15 +45,21 @@ async fn write_private_key(path: &Path, pem: &str) -> Result<()> {
             .open(path)
             .await
             .context("failed to create CA key file")?;
+        // Narrowed on the open handle, *before* the key bytes exist, and
+        // through the descriptor rather than the path. Both matter: setting the
+        // mode after the write leaves the key readable at whatever an existing
+        // file's permissions were for as long as the write takes, and a
+        // path-based `set_permissions` resolves the name a second time — so a
+        // symlink swapped in after the open would have its target chmodded
+        // instead. `.mode()` on the open above covers a file this creates; this
+        // covers one that was already there.
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))
+            .await
+            .context("failed to restrict CA key permissions")?;
         file.write_all(pem.as_bytes())
             .await
             .context("failed to write CA key")?;
         file.flush().await.context("failed to flush CA key")?;
-        drop(file);
-
-        fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-            .await
-            .context("failed to restrict CA key permissions")?;
         Ok(())
     }
 
