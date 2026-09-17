@@ -89,9 +89,11 @@ defects! {
     /// alternative by name, and it works because a `*` makes the response
     /// unreusable rather than because it names the field.
     ///
-    /// `warn`. Every message involved is well formed and the exchange that
-    /// produced the finding was answered correctly; what is wrong is that a
-    /// later request can be answered from this response when it should not be.
+    /// `error`: § 2 says a `Vary` listing `Prefer` MUST be included, whether or
+    /// not the client used the field. Every message involved is well formed and
+    /// the exchange that produced the finding was answered correctly; what is
+    /// wrong is that a later request can be answered from this response when it
+    /// should not be.
     ///
     // cite(RFC 7240 § 2): "If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request."
     VARY_PREFER_MISSING = {

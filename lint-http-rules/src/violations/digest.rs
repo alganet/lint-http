@@ -201,7 +201,9 @@ defects! {
     /// against the type its own field defines. **The same spelling is two
     /// defects because two grammars read it two ways.**
     ///
-    /// `warn`, with the subject.
+    /// `error`, with the subject: `instance-digest` prints the `=` between the
+    /// algorithm and its output, and a member without one derives from
+    /// nothing.
     ///
     // cite(RFC 3230 § 4.2): "instance-digest = digest-algorithm "=" <encoded digest output>"
     DIGEST_EQUALS_MISSING = {

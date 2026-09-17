@@ -225,7 +225,8 @@ defects! {
     /// value, one width, and the document writes it down once on the far side
     /// of the exchange.
     ///
-    /// `warn`: a server that cannot read the count cannot use it to detect the
+    /// `error`: § 3.5 says the `nc` value MUST be exactly eight hexadecimal
+    /// digits. A server that cannot read the count cannot use it to detect the
     /// replays the parameter exists for, and the credential's response value is
     /// computed over the count as written.
     ///

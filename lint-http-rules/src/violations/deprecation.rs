@@ -64,8 +64,9 @@ defects! {
     /// `@<seconds>`, and a timestamp in the format every other date-valued
     /// field uses is not one.
     ///
-    /// `warn`. A recipient that cannot read the value learns nothing about the
-    /// deprecation, and the resource answers exactly as it did.
+    /// `error`: § 2.1 says the value MUST be a Date. A recipient that cannot
+    /// read it learns nothing about the deprecation, and the resource answers
+    /// exactly as it did.
     ///
     // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
     DEPRECATION_MALFORMED = {
@@ -116,8 +117,10 @@ defects! {
     /// together is that a resource stopped answering before it stopped being
     /// recommended, which is an announcement no client can act on.
     ///
-    /// `warn`. Nothing is unreadable and the resource behaves however it
-    /// behaves; what is wrong is the schedule the response published.
+    /// `error`: § 4 says the `Sunset` timestamp MUST NOT be earlier than the
+    /// `Deprecation` one. Nothing is unreadable and the resource behaves
+    /// however it behaves; what is wrong is the schedule the response
+    /// published.
     ///
     // cite(RFC 9745 § 4): "The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field."
     SUNSET_CONFLICTING = {

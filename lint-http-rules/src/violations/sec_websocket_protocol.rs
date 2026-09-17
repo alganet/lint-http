@@ -57,9 +57,11 @@ defects! {
     /// preference, and a name preferred twice states nothing a server can act
     /// on that the first mention did not.
     ///
-    /// `warn`. The handshake completes: a server picks one name it is willing
-    /// to speak, and a repeat leaves that choice exactly where it was. What is
-    /// wrong is the value rather than the outcome.
+    /// `error`: § 4.1 says the elements MUST all be unique strings, which is a
+    /// sentence about what the client writes. The handshake completes anyway —
+    /// a server picks one name it is willing to speak and a repeat leaves that
+    /// choice exactly where it was — so what is wrong is the value rather than
+    /// the outcome.
     ///
     /// The comparison is of the octets as written. This document folds case
     /// where it means to — `Connection`'s token and `Upgrade`'s keyword are

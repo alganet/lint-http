@@ -142,9 +142,11 @@ defects! {
     /// explains how a sender got here is not a second defect**, which is the
     /// line drawn for the comma in a `Sec-WebSocket-Protocol`.
     ///
-    /// `warn`, with the rest of the field's grammar: one alternative is lost
-    /// and the exchange is unaffected, because a client that finds no
-    /// alternative it can use goes to the origin.
+    /// `error`, from the production: `alternative` prints the `=` between the
+    /// protocol-id and the alt-authority, so a member without one derives from
+    /// nothing. What it costs is smaller than that and is not what ranks it —
+    /// one alternative is lost and the exchange is unaffected, because a client
+    /// that finds no alternative it can use goes to the origin.
     ///
     // cite(RFC 7838 § 3): "alternative   = protocol-id "=" alt-authority"
     ALT_SVC_ALTERNATIVE_EQUALS_MISSING = {
@@ -172,8 +174,10 @@ defects! {
     /// `=` names no service at all; a `parameter` with no `=` names a service
     /// perfectly well and loses one thing said about it.
     ///
-    /// `warn`. A recipient that cannot read a parameter drops the alternative
-    /// carrying it, since a member is read as a whole.
+    /// `error`, from the production, which writes the `=` between a parameter's
+    /// two halves and has no form without it. A recipient that cannot read a
+    /// parameter drops the alternative carrying it, since a member is read as a
+    /// whole — the cost, rather than the rank.
     ///
     // cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
     ALT_SVC_PARAMETER_EQUALS_MISSING = {
@@ -203,8 +207,11 @@ defects! {
     /// delimiter, so a sender that wrote one knew a parameter was due and wrote
     /// none of it.
     ///
-    /// `warn`, with the rest of the field's grammar — the alternative carrying
-    /// it is what a recipient drops.
+    /// `error`, level with the rest of the field's grammar, which is where this
+    /// subject puts it: `alt-value` writes a `parameter` after every `;` it
+    /// prints, and the alternative carrying the empty one is what a recipient
+    /// drops. The entry beside it reports the same loss from the other side of
+    /// the `=`.
     ///
     // cite(RFC 7838 § 3): "Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value."
     ALT_SVC_PARAMETER_EMPTY = {
@@ -230,10 +237,11 @@ defects! {
     /// a parameter and said nothing with it, which is this document's sentence
     /// about its own production rather than § 5.6.6's about another one.
     ///
-    /// `warn`, and beside [`ALT_SVC_PARAMETER_EQUALS_MISSING`] rather than
-    /// folded into it: `docs/development.md` keeps `_missing` and `_empty`
-    /// apart wherever a delimiter can tell them apart, and a sender that wrote
-    /// the `=` knew a value was due.
+    /// Beside [`ALT_SVC_PARAMETER_EQUALS_MISSING`] rather than folded into it:
+    /// `docs/development.md` keeps `_missing` and `_empty` apart wherever a
+    /// delimiter can tell them apart, and a sender that wrote the `=` knew a
+    /// value was due. Both are `error`, because `( token / quoted-string )`
+    /// generates neither of them.
     ///
     // cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
     ALT_SVC_PARAMETER_VALUE_EMPTY = {
@@ -264,11 +272,15 @@ defects! {
     ///
     /// Which is also why this is not
     /// [`parameter_equals_whitespace_forbidden`](crate::violations::parameter).
-    /// That entry is `info` because § 5.6.6's readers trim the whitespace and
-    /// the specification publishes the leniency. Nothing publishes a leniency
-    /// here, so the defect ranks with the field's other grammar defects at
-    /// `warn` — a recipient reading `h2 ` against `token` finds no `tchar` for
-    /// the space and drops the alternative.
+    /// That entry answers for RFC 9110's production and this one for RFC
+    /// 7838's, and the two ids exist because the two documents do.
+    ///
+    /// **They used to rank apart as well**, on the argument that § 5.6.6's
+    /// readers trim the whitespace and the specification publishes the
+    /// leniency while nothing publishes one here. Both productions print the
+    /// `=` bare, so neither value derives, so both are `error` — and a
+    /// recipient reading `h2 ` against `token` finds no `tchar` for the space
+    /// and drops the alternative, which is what this one costs.
     ///
     // cite(RFC 7838 § 3): "alt-value     = alternative *( OWS ";" OWS parameter )"
     ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN = {
@@ -298,7 +310,11 @@ defects! {
     /// which is the second reason the host's entry cannot carry it: the octet
     /// may sit where a port would, and there is no host to have failed.
     ///
-    /// `warn`, with everything else the alternative can be unreachable for.
+    /// `error`: § 8 tells a sender in as many words to express an
+    /// internationalized domain name in A-labels, and an octet outside them is
+    /// that sentence broken. The alternative being unreachable is the
+    /// consequence, and it is the consequence everything else in this subject
+    /// has too.
     ///
     // cite(RFC 7838 § 8): "An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1)."
     ALT_SVC_AUTHORITY_CHARACTER_FORBIDDEN = {

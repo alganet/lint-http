@@ -77,8 +77,9 @@ defects! {
     /// `obs-text` octet is not whitespace of any kind, and trimming it would
     /// call a value that holds one empty.
     ///
-    /// `warn`, with the rest of the subject: the field states no time, and a
-    /// recipient's answer is to act as though it were not there.
+    /// `error`, with the rest of the subject: `HTTP-date` generates neither
+    /// alternative from nothing. The field states no time and a recipient's
+    /// answer is to act as though it were not there, which is the cost.
     ///
     // cite(RFC 9110 § 5.6.7): "HTTP-date = IMF-fixdate / obs-date"
     HTTP_DATE_EMPTY = {
@@ -91,9 +92,13 @@ defects! {
     }
 
     /// A timestamp written in RFC 850's or asctime's format. Both parse, both
-    /// name the instant they mean, and a recipient is required to read them —
-    /// so this is the sender's requirement alone, and `info` says that the
-    /// message works and the spelling is retired.
+    /// name the instant they mean, and a recipient is required to read them.
+    ///
+    /// **So this is the sender's requirement alone, and `error` is what that
+    /// means** — § 5.6.7 tells a sender which format to generate, in as many
+    /// words. It used to be `info`, on the argument that the message works and
+    /// only the spelling is retired; the message working is what a reader
+    /// deserves to know and not what ranks the finding.
     ///
     /// The `_obsolete` ending's second use, and the first under a MUST NOT
     /// rather than under a superseded recommendation: `cookie_domain_leading_

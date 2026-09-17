@@ -102,10 +102,13 @@ defects! {
     ///
     /// Nor is it
     /// [`PARAMETER_EQUALS_WHITESPACE_FORBIDDEN`](crate::violations::parameter::PARAMETER_EQUALS_WHITESPACE_FORBIDDEN),
-    /// which is `info` because § 5.6.6's Note acknowledges the habit and six
-    /// rules in this tree trim it on the record. No sentence acknowledges this
-    /// one, and no reader here trims it, so it ranks with the malformed number
-    /// above it: in both cases the member arrives and its weight does not.
+    /// which answers for a different production in a different position. § 5.6.6's
+    /// Note acknowledges the habit there and six rules in this tree trim it on
+    /// the record; no sentence acknowledges this one and no reader here trims
+    /// it. Both are `error` all the same, because neither production prints the
+    /// whitespace — and this one ranks with the malformed number above it for
+    /// the reason that matters to a reader: in both cases the member arrives
+    /// and its weight does not.
     ///
     // cite(RFC 9110 § 12.4.2, label: the weight production): "weight = OWS ";" OWS "q=" qvalue"
     WEIGHT_EQUALS_WHITESPACE_FORBIDDEN = {

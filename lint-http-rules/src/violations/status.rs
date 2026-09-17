@@ -465,14 +465,19 @@ defects! {
     /// response in as many words, which is the test the two `_unsolicited`
     /// entries above are on the other side of.
     ///
-    /// `warn`, and unlike [`STATUS_101_PROTOCOL_FORBIDDEN`] the hand-off is not
-    /// what is wrong here — the client asked for WebSocket and got WebSocket,
-    /// and both endpoints can speak it. **What is missing is a guard rather than
-    /// a statement**, the line
+    /// `error`: § 4.2.1 tells the server to stop processing this handshake and
+    /// answer with an error status, and a `101` is that server having done the
+    /// opposite.
+    ///
+    /// **It used to be `warn`**, and unlike [`STATUS_101_PROTOCOL_FORBIDDEN`]
+    /// the hand-off is still not what is wrong here — the client asked for
+    /// WebSocket and got WebSocket, and both endpoints can speak it. **What is
+    /// missing is a guard rather than a statement**, the line
     /// [`te_connection_option_missing`](crate::violations::te) drew: the nonce
-    /// is how a server tells a client that meant to open this handshake from one
-    /// that was aimed at it, and a server that skips the check is exposed rather
-    /// than confused.
+    /// is how a server tells a client that meant to open this handshake from
+    /// one that was aimed at it, and a server that skips the check is exposed
+    /// rather than confused. Exposed is still what it is; the sentence is what
+    /// ranks it.
     ///
     // cite(RFC 6455 § 4.2.1): "the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)"
     STATUS_101_FORBIDDEN = {
@@ -631,9 +636,11 @@ defects! {
     /// is exactly the kind of requirement this subject holds: a status code
     /// whose meaning depends on a field, read against the field it depends on.
     ///
-    /// `warn`. Nothing about the response is unreadable and a client may still
-    /// have credentials to retry with; what is lost is the one branch of the
-    /// exchange the status exists to open.
+    /// `error`: § 15.5.2 says the server generating a `401` MUST send a
+    /// `WWW-Authenticate` carrying at least one applicable challenge. Nothing
+    /// about the response is unreadable and a client may still have credentials
+    /// to retry with; what is lost is the one branch of the exchange the status
+    /// exists to open.
     ///
     // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
     STATUS_401_CHALLENGE_MISSING = {

@@ -55,8 +55,11 @@ defects! {
     /// frame and never this defect. What is reported is one endpoint writing
     /// the frame twice.
     ///
-    /// `warn`: § 7.2.4 states no answer a recipient owes this, unlike the
-    /// reserved identifier below.
+    /// `error`: § 7.2.4 says the frame MUST NOT be sent after the first one on
+    /// a control stream. **This used to rank below the reserved identifier
+    /// below it**, because that section states a connection error the recipient
+    /// answers with and this sentence states none. A `MUST NOT` with no stated
+    /// answer is still a `MUST NOT`.
     ///
     // cite(RFC 9114 § 7.2.4): "A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently"
     HTTP3_SETTINGS_DUPLICATED = {
@@ -96,8 +99,9 @@ defects! {
     /// frame a second time, this one is a single frame stating a parameter
     /// twice and leaving a recipient no sentence saying which value wins.
     ///
-    /// `warn` for the same reason: the MUST NOT is on the sender and the
-    /// document leaves the receiver a choice rather than an obligation.
+    /// `error` for the same reason: the `MUST NOT` is on the sender, and the
+    /// document leaving the receiver a choice rather than an obligation is a
+    /// fact about the receiver.
     ///
     // cite(RFC 9114 § 7.2.4): "The same setting identifier MUST NOT occur more than once in the SETTINGS frame"
     HTTP3_SETTINGS_IDENTIFIER_DUPLICATED = {

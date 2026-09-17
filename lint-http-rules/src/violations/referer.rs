@@ -82,9 +82,12 @@ defects! {
     /// appears in no other one, so finding one is finding a fragment. A
     /// percent-encoded `%23` is data and is not this.
     ///
-    /// `warn`, below the userinfo above it: what a fragment discloses is which
-    /// part of the referring page the user was on, which is information the
-    /// target site was not meant to have and is not a credential.
+    /// `error`, level with the userinfo above it, because § 10.1.3 writes one
+    /// sentence over both: a user agent MUST NOT include the fragment *and*
+    /// userinfo components. **The two used to rank apart** on what each
+    /// discloses — a fragment says which part of the referring page the user
+    /// was on, which the target site was not meant to have and which is not a
+    /// credential — and that is still the difference between the two ids.
     ///
     // cite(RFC 9110 § 10.1.3): "A user agent MUST NOT include the fragment and userinfo components of the URI reference [URI], if any, when generating the Referer field value."
     REFERER_FRAGMENT_FORBIDDEN = {

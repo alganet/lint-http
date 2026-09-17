@@ -62,9 +62,10 @@ defects! {
     /// ended, and the value is a well-formed `token` or `quoted-string` that
     /// ended. What is wrong is what came next. The site's message says where.
     ///
-    /// `warn`, with the rest of the grammar entries a member can reach: a
-    /// recipient that cannot read an expectation answers `417` at worst, and the
-    /// request itself is intact.
+    /// `error`, with the rest of the grammar entries a member can reach: the
+    /// value derives from no `expectation`. A recipient that cannot read one
+    /// answers `417` at worst and the request itself is intact, which is the
+    /// cost rather than the rank.
     ///
     // cite(RFC 9110 § 10.1.1, label: expectation production): "expectation = token [ "=" ( token / quoted-string ) parameters ]"
     EXPECT_MEMBER_MALFORMED = {
@@ -112,9 +113,10 @@ defects! {
     /// produce this finding. That limit belongs to the capture and is the rule's
     /// to describe.
     ///
-    /// `warn`. The exchange survives: the server answers or it does not, and a
-    /// client that sends nothing after a `100` has an idle round trip rather
-    /// than a broken request.
+    /// `error`: § 10.1.1 says a client MUST NOT generate the expectation in a
+    /// request that carries no content. The exchange survives — the server
+    /// answers or it does not, and a client that sends nothing after a `100`
+    /// has an idle round trip rather than a broken request.
     ///
     // cite(RFC 9110 § 10.1.1): "A client MUST NOT generate a 100-continue expectation in a request that does not include content."
     EXPECT_100_CONTINUE_FORBIDDEN = {

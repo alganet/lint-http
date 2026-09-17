@@ -75,9 +75,10 @@ defects! {
     /// leading `+` or `-` lands here rather than being read as a number the
     /// field then refuses.
     ///
-    /// `warn`. A recipient that cannot read the value waits by whatever policy
-    /// it would have used without the field, so what is lost is the server's
-    /// advice about when to come back.
+    /// `error`, from `Retry-After`, which generates an HTTP-date or a
+    /// delay-seconds and nothing else. A recipient that cannot read the value
+    /// waits by whatever policy it would have used without the field, so what
+    /// is lost is the server's advice about when to come back.
     ///
     // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
     RETRY_AFTER_MALFORMED = {

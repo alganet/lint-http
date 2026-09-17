@@ -51,10 +51,11 @@ defects! {
     /// reporting what it can decide — never saying that listing anything else
     /// is allowed.
     ///
-    /// `warn`. A MUST NOT, and what it costs is real — a cache directive
-    /// removed at the first intermediary is a directive the origin wrote and
-    /// nobody downstream sees — but nothing is unreadable and the hop itself
-    /// works exactly as declared.
+    /// `error`. A `MUST NOT` addressed to the sender, and what it costs is real
+    /// without being what ranks it: a cache directive removed at the first
+    /// intermediary is a directive the origin wrote and nobody downstream sees,
+    /// while nothing is unreadable and the hop itself works exactly as
+    /// declared.
     ///
     // cite(RFC 9110 § 7.6.1): "A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING])."
     CONNECTION_OPTION_FORBIDDEN = {

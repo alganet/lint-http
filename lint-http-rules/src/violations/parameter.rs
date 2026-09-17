@@ -105,13 +105,17 @@ defects! {
     /// and § 5.6.6 says so a second time in prose, naming the character and
     /// refusing even the "bad" whitespace HTTP tolerates elsewhere.
     ///
-    /// **`info`, alone among this catalogue's `_forbidden` entries, and the
-    /// tree is the reason.** Six rules reading a media type trim this
+    /// **`error`, and this entry used to be the one `_forbidden` in the
+    /// catalogue that was not.** Six rules reading a media type trim this
     /// whitespace and publish the leniency in their `description()`; one rule
     /// reports it. Nothing about the value is ambiguous once it is trimmed —
-    /// the name is the name and the value is the value — so what is wrong is
-    /// the spelling and not what a recipient will do with it. An operator who
-    /// wants the Note enforced raises this one entry.
+    /// the name is the name and the value is the value.
+    ///
+    /// All of that is about what this crate does with the octet. The production
+    /// prints no `OWS` anywhere inside itself and § 5.6.6 says so again in
+    /// prose, so the value derives from nothing, and that is what the level
+    /// reports. An operator who wants the leniency keeps it by turning this one
+    /// entry down.
     ///
     /// Not the `<subject>_whitespace_or_control_forbidden` half of the pair
     /// `docs/development.md` mandates, and deliberately not spelled like it:

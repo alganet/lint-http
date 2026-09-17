@@ -116,15 +116,18 @@ defects! {
     /// value decodes, and to exactly the octets it meant; what is wrong is that
     /// the same octets have a canonical spelling and this is not it.
     ///
-    /// **`info`, and the ranking is the `http_date` subject's read through the
-    /// recipient again.**
-    /// The other three entries name values a decoder is instructed to reject;
-    /// § 3.5 leaves a decoder a choice in the same breath it states the
-    /// requirement — *"MAY chose to reject an encoding if the pad bits have not
-    /// been set to zero"* — and the document defining the field this is first
-    /// reported for prints such a value in its own NOTE. So the message
-    /// arrives, the octets are the right octets, and the finding is addressed
-    /// to whoever wrote the encoder.
+    /// **`error`, and this entry used to be the subject's one exception.** The
+    /// other three name values a decoder is instructed to reject; § 3.5 leaves
+    /// a decoder a choice in the same breath it states the requirement —
+    /// *"MAY chose to reject an encoding if the pad bits have not been set to
+    /// zero"* — and the document defining the field this is first reported for
+    /// prints such a value in its own NOTE. So the message arrives, and the
+    /// octets are the right octets.
+    ///
+    /// **None of that is addressed to the sender.** What is addressed to the
+    /// sender is that conforming encoders MUST set the bits to zero, and this
+    /// finding is addressed to whoever wrote the encoder. The decoder's licence
+    /// is still the reason an operator might turn this one entry down.
     ///
     /// `_invalid` rather than `_malformed` for the same reason: the value
     /// derives from the production, and what refuses it is a sentence past the

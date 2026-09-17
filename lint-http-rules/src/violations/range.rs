@@ -76,9 +76,10 @@ defects! {
     /// `ranges-specifier` and not only by the part it happened to sit in. *Two
     /// ids for one repair would be two names for one thing.*
     ///
-    /// `warn`, with the rest of the subject's grammar. A recipient that cannot
+    /// `error`, with the rest of the subject's grammar. A recipient that cannot
     /// read a `range-spec` ignores the field and sends the whole
-    /// representation, which is a larger response rather than a wrong one.
+    /// representation, which is a larger response rather than a wrong one — the
+    /// cost, not the rank.
     ///
     // cite(RFC 9110 § 14.1.1, label: other-range octets): "other-range   = 1*( %x21-2B / %x2D-7E )"
     RANGE_SPEC_CHARACTER_FORBIDDEN = {
@@ -170,8 +171,9 @@ defects! {
     /// with [`crate::violations::token`]'s ids — the same ids a media type's
     /// parameter name and a cache directive report with.
     ///
-    /// `warn`, with the rest of the subject's grammar: a recipient that cannot
-    /// read the specifier sends the whole representation.
+    /// `error`, with the rest of the subject's grammar: `ranges-specifier`
+    /// prints the `=`, and a recipient that cannot read the specifier sends the
+    /// whole representation.
     ///
     // cite(RFC 9110 § 14.1.1, label: ranges-specifier grammar): "ranges-specifier = range-unit "=" range-set"
     RANGE_EQUALS_MISSING = {

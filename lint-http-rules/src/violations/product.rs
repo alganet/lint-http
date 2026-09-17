@@ -64,9 +64,10 @@ defects! {
     /// never written. The distinction pays for itself at the second shape,
     /// where the value is not empty at all.
     ///
-    /// `warn`, with the separator below. A recipient learns nothing about the
-    /// software, which is the whole of what these fields carry — and nothing
-    /// else in the message changes.
+    /// `error`, with the separator below, from the production both fields are
+    /// written against. A recipient learns nothing about the software, which is
+    /// the whole of what these fields carry, and nothing else in the message
+    /// changes.
     ///
     // cite(RFC 9110 § A): "Server = product *( RWS ( product / comment ) )"
     // cite(RFC 9110 § A): "User-Agent = product *( RWS ( product / comment ) )"
@@ -95,9 +96,10 @@ defects! {
     /// at its `)`. The reader used to file it as a character *inside* the
     /// comment, which sent an operator looking in the wrong construct.
     ///
-    /// `warn`, level with the absence above. Neither is ranked by any sentence,
-    /// and both leave a recipient reading a product identifier the sender did
-    /// not write.
+    /// `error`, level with the absence above, and now for a sentence rather
+    /// than for the lack of one: `RWS` is what the assembly prints between two
+    /// products, so a value without it derives from nothing. Both leave a
+    /// recipient reading a product identifier the sender did not write.
     ///
     // cite(RFC 9110 § 5.6.3): "The RWS rule is used when at least one linear whitespace octet is required to separate field tokens."
     // cite(RFC 9110 § 5.6.3): "RWS = 1*( SP / HTAB )"

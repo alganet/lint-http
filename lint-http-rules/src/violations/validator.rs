@@ -50,10 +50,13 @@ defects! {
     /// determine either is conforming, and produces the same response as one
     /// that never tried.
     ///
-    /// `info`, for the same reason [`user_agent_missing`](crate::violations::user_agent)
-    /// is: the conforming case and the defect are indistinguishable from here,
-    /// and what the finding buys is that every later request for this resource
-    /// has to be answered in full.
+    /// `warn`, and the reason [`user_agent_missing`](crate::violations::user_agent)
+    /// is `info` is the reason this one is not: both have a conforming case
+    /// indistinguishable from the defect, and only this one has a sentence
+    /// telling the sender to do it. § 8.8.2.1 and § 8.8.3.1 each say an origin
+    /// server SHOULD send the field for any representation where the answer can
+    /// reasonably be determined. What the finding buys is that every later
+    /// request for this resource has to be answered in full.
     ///
     /// Both sentences are quoted here, where neither is claimed as the one:
     ///

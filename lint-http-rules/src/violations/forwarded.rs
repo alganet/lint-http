@@ -58,13 +58,17 @@ defects! {
     /// none; the message names the character and prints the element it was
     /// found in.
     ///
-    /// **`warn`, where
-    /// [`crate::violations::parameter::PARAMETER_EQUALS_WHITESPACE_FORBIDDEN`]
-    /// is `info`, and the third position is the whole of the difference.** That
-    /// entry is confined to the two sides of a `=`, where trimming leaves the
-    /// name the name and the value the value, so what is wrong is the spelling
-    /// alone. This one also reports the space in `for=192.0.2.1 x`, where
-    /// trimming does not recover the value the sender wrote — it invents one.
+    /// **Its own id rather than
+    /// [`crate::violations::parameter::PARAMETER_EQUALS_WHITESPACE_FORBIDDEN`],
+    /// and the third position is the whole of the difference.** That entry is
+    /// confined to the two sides of a `=`, where trimming leaves the name the
+    /// name and the value the value, so what is wrong is the spelling alone.
+    /// This one also reports the space in `for=192.0.2.1 x`, where trimming
+    /// does not recover the value the sender wrote — it invents one.
+    ///
+    /// The two rank together at `error` now, because neither production prints
+    /// the whitespace and neither value derives. The third position is still
+    /// why there are two ids.
     ///
     /// Not the `<subject>_whitespace_or_control_forbidden` half of the pair
     /// `docs/development.md` mandates, and deliberately not spelled like it.
@@ -97,7 +101,8 @@ defects! {
     /// rules about what may be left out. An operator silencing one has said
     /// nothing about the other.
     ///
-    /// `warn`, level with the value that is not there.
+    /// `error`, level with the value that is not there: `forwarded-pair`
+    /// prints the `=` and generates neither shape without it.
     ///
     // cite(RFC 7239 § 4, label: forwarded-pair grammar): "forwarded-pair = token "=" value value          = token / quoted-string"
     FORWARDED_PAIR_EQUALS_MISSING = {
@@ -128,8 +133,9 @@ defects! {
     /// to a production measured *after* unescaping, and no `node`, `Host` value
     /// or scheme name is the empty string.
     ///
-    /// `warn`. The pair says nothing about the hop it was written to describe,
-    /// and a recipient reading the chain is one element short of the answer.
+    /// `error`, from the production, which writes a `value` after the `=`. The
+    /// pair says nothing about the hop it was written to describe, and a
+    /// recipient reading the chain is one element short of the answer.
     ///
     // cite(RFC 7239 § 4, label: forwarded-pair grammar): "forwarded-pair = token "=" value value          = token / quoted-string"
     FORWARDED_PAIR_VALUE_EMPTY = {
@@ -154,9 +160,10 @@ defects! {
     /// case-insensitive: `for=...;FOR=...` is one parameter written twice and
     /// not two extension parameters.
     ///
-    /// `warn`. Both values are well formed and a recipient will take one of
-    /// them; nothing in the document says which, so what the finding reports is
-    /// one hop that two readers may describe differently.
+    /// `error`: § 4 says each parameter MUST NOT occur more than once per
+    /// field-value. Both values are well formed and a recipient will take one
+    /// of them; nothing in the document says which, so what the finding reports
+    /// is one hop that two readers may describe differently.
     ///
     // cite(RFC 7239 § 4): "Each parameter MUST NOT occur more than once per field-value."
     FORWARDED_PARAMETER_DUPLICATED = {
@@ -182,9 +189,10 @@ defects! {
     /// lands.** §8.2 refuses the copying and not a placement, so which section
     /// carried it is the message's business rather than a second entry's.
     ///
-    /// `warn`. Nothing is unreadable, and no requirement about the *request* —
-    /// the message this field was written for — was missed. What leaked is the
-    /// topology, to a recipient with no use for it.
+    /// `error`, level with the rest of the subject, which is flat by its own
+    /// argument. Nothing is unreadable, and no requirement about the *request*
+    /// — the message this field was written for — was missed. What leaked is
+    /// the topology, to a recipient with no use for it.
     ///
     // cite(RFC 7239 § 4): ""Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses."
     // cite(RFC 7239 § 8.2): "This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client."

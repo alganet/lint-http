@@ -231,13 +231,14 @@ defects! {
     /// A successful `OPTIONS` response advertising none of the fields a client
     /// asked about.
     ///
-    /// **`info`, and the sentence's own shape is the argument.** The SHOULD
-    /// names *any header that might indicate optional features*, ending
-    /// "including potential extensions not defined by this specification" — a
-    /// class, not a list — so a server may be advertising something this rule
-    /// does not know to look for. What the finding reports is that none of the
-    /// fields it does know about was there, which is weaker than the sentence
-    /// and says so.
+    /// **`warn`, and the sentence's own shape is still the argument for
+    /// keeping it below the subject's other entries.** The SHOULD names *any
+    /// header that might indicate optional features*, ending "including
+    /// potential extensions not defined by this specification" — a class, not a
+    /// list — so a server may be advertising something this rule does not know
+    /// to look for. What the finding reports is that none of the fields it does
+    /// know about was there, which is weaker than the sentence and says so.
+    /// It is a `SHOULD` addressed to the server, which is what `warn` is.
     ///
     // cite(RFC 9110 § 9.3.7): "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification."
     METHOD_OPTIONS_CAPABILITIES_MISSING = {
