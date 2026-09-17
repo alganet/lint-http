@@ -68,7 +68,9 @@ what makes a finding fail the run.
 - `--captures <PATH>` keeps the capture file; by default the run leaves nothing
   on disk, including the CA, which is generated fresh per run and deleted with it.
   It is the same flag `lint-captures` reads, so `run --captures x.jsonl` then
-  `lint-captures x.jsonl` replays exactly what happened.
+  `lint-captures x.jsonl` replays the same file. Not the same report, though: a
+  capture carries no bodies, so the rules that read one are in the run's report
+  and not in the replay's.
 
 `--config`, `--format`, `--min-severity` and `--captures` are global: they work
 before or after the subcommand, and mean the same thing on each. See

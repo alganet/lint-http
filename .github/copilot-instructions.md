@@ -44,7 +44,10 @@ give stderr to the report and discard the child's unless `--show-child-stderr`. 
 the proxy. `run` and `browse` share `proxied_run.rs`'s `ProxySession` (ephemeral port, per-session CA in a
 temp dir) and differ only in how the child is told where the proxy is: `run` uses the
 `client_env.rs` environment table, `browse` uses `browser.rs`'s command line and an SPKI pin.
-Both re-use `lint_records` — the same replay `lint-captures` runs, so no report can drift. Traffic enters `proxy/` — `http.rs`, `http3.rs`, `connect.rs`,
+Both report the findings the proxy already recorded as it linted, which is what makes the
+seven body-reading rules reachable in a report: bodies do not survive the capture file, so a
+replay cannot see them. `lint_records` — the replay — belongs to `lint-captures` alone, the one
+caller whose config can differ from the one that wrote the file. Traffic enters `proxy/` — `http.rs`, `http3.rs`, `connect.rs`,
 `websocket/` by protocol — a transaction is assembled, `engine::lint_transaction` runs the
 enabled rules over it, and `capture.rs` appends JSONL. TLS interception and CA management are in
 `ca.rs`; the CA certificate is served at `/_lint_http/cert`.
