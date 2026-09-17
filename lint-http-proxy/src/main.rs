@@ -21,6 +21,59 @@ use lint_http::{
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
+    #[command(flatten)]
+    global: GlobalArgs,
+}
+
+/// The options that mean the same thing wherever they appear.
+///
+/// Four of them, and they are global because they were being redeclared per
+/// command — five copies of `--config`, four of `--format` — which is four
+/// chances for one of them to drift in its default or its help text, and a
+/// surface where `--config` sits before the subcommand on one command and after
+/// it on another. `global = true` means either position parses, so
+/// `lint-http --config c.toml run -- curl` and
+/// `lint-http run --config c.toml -- curl` are the same command line.
+///
+/// A global option is not meaningful everywhere, and that is fine: `--config`
+/// says nothing to `config export`, which prints the built-in by definition.
+/// What matters is that where it *is* read, it is read the same way.
+#[derive(clap::Args, Debug, Clone)]
+struct GlobalArgs {
+    /// Config TOML path. Defaults to the built-in configuration.
+    #[arg(long, value_name = "PATH", global = true)]
+    config: Option<String>,
+    /// Output format for reports.
+    #[arg(long, value_enum, global = true)]
+    format: Option<OutputFormat>,
+    /// Only report findings at or above this severity.
+    #[arg(long, value_enum, global = true)]
+    min_severity: Option<SeverityArg>,
+    /// The JSONL capture file this command reads or writes: where `run`,
+    /// `browse` and `proxy-start` write captures, and what `lint-captures`
+    /// reads. Without it, `run` and `browse` discard theirs.
+    #[arg(long, value_name = "PATH", global = true)]
+    captures: Option<String>,
+}
+
+impl GlobalArgs {
+    /// The report format, defaulted here rather than by clap.
+    ///
+    /// `Option` with the default applied at the point of use, because a
+    /// `default_value_t` on a global is indistinguishable from the user typing
+    /// it — and `rules list` needs to tell those apart nowhere, but `--config`
+    /// next door does, so both are shaped the same way for one rule to read.
+    fn format(&self) -> OutputFormat {
+        self.format.unwrap_or(OutputFormat::Text)
+    }
+
+    fn min_severity(&self) -> lint::Severity {
+        self.min_severity.unwrap_or(SeverityArg::Info).into()
+    }
+
+    fn captures_path(&self) -> Option<&std::path::Path> {
+        self.captures.as_deref().map(std::path::Path::new)
+    }
 }
 
 /// The command surface, named for how often each is reached for.
@@ -38,7 +91,7 @@ enum Command {
     Browse(BrowseArgs),
     /// Start the intercepting proxy and leave it listening.
     #[command(name = "proxy-start")]
-    ProxyStart(ProxyStartArgs),
+    ProxyStart,
     /// Lint a recorded capture file, replaying its transactions and WebSocket
     /// sessions through the rules.
     #[command(name = "lint-captures")]
@@ -47,14 +100,6 @@ enum Command {
     Rules(RulesArgs),
     /// Work with the configuration itself.
     Config(ConfigArgs),
-}
-
-#[derive(clap::Args, Debug)]
-struct ProxyStartArgs {
-    /// Config TOML path (rule toggles, listen address, captures path).
-    /// Defaults to the built-in configuration.
-    #[arg(long, value_name = "PATH")]
-    config: Option<String>,
 }
 
 /// `lint-http run [OPTIONS] -- <COMMAND>...`
@@ -73,23 +118,15 @@ struct ProxyStartArgs {
 /// a command that is being run for its own sake.
 #[derive(clap::Args, Debug)]
 struct RunArgs {
-    /// Config TOML path. Defaults to the built-in configuration.
-    #[arg(long, value_name = "PATH")]
-    config: Option<String>,
-    /// Output format for the findings report.
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    format: OutputFormat,
-    /// Only report findings at or above this severity.
-    #[arg(long, value_enum, default_value_t = SeverityArg::Info)]
-    min_severity: SeverityArg,
     /// Exit non-zero when a finding *in the report* reaches this severity —
     /// findings `--min-severity` filtered out cannot trip it. Without this, the
     /// exit code is the wrapped command's.
     #[arg(long, value_enum, value_name = "SEVERITY")]
     fail_on: Option<SeverityArg>,
-    /// Keep the capture file at this path instead of discarding it.
-    #[arg(long, value_name = "PATH")]
-    captures: Option<String>,
+    /// Let the wrapped command's stderr through. Off by default, so the report
+    /// has stderr to itself.
+    #[arg(long)]
+    show_child_stderr: bool,
     /// Print the environment a wrapped command would receive, and exit.
     #[arg(long)]
     print_env: bool,
@@ -109,9 +146,6 @@ struct RunArgs {
 /// printed as they happen. Nothing is installed and nothing is left behind.
 #[derive(clap::Args, Debug)]
 struct BrowseArgs {
-    /// Config TOML path. Defaults to the built-in configuration.
-    #[arg(long, value_name = "PATH")]
-    config: Option<String>,
     /// Browser executable to use. Defaults to the first Chromium-family
     /// browser found.
     #[arg(long, value_name = "PATH")]
@@ -123,16 +157,10 @@ struct BrowseArgs {
     /// Report every host, including third parties the page pulls in.
     #[arg(long, conflicts_with = "only_host")]
     all_hosts: bool,
-    /// Output format. `json` prints one report at the end instead of findings
-    /// as they happen.
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    format: OutputFormat,
-    /// Only report findings at or above this severity.
-    #[arg(long, value_enum, default_value_t = SeverityArg::Info)]
-    min_severity: SeverityArg,
-    /// Keep the capture file at this path instead of discarding it.
-    #[arg(long, value_name = "PATH")]
-    captures: Option<String>,
+    /// Let the browser's stderr through. Off by default — a browser writes a
+    /// great deal of it, and none of it is about the site being linted.
+    #[arg(long)]
+    show_child_stderr: bool,
     /// Where to open. Omitted, the browser opens its own start page and
     /// whatever it fetches is still linted.
     #[arg(value_name = "URL")]
@@ -151,23 +179,35 @@ enum ConfigCommand {
     Export,
 }
 
+/// `lint-http lint-captures [CAPTURES]`
+///
+/// The file may be named as the positional or as the global `--captures`, which
+/// is the same file under the same name it takes everywhere else — what `run`
+/// and `browse` write is what this reads. Naming it twice is an error rather
+/// than a precedence rule nobody would remember.
 #[derive(clap::Args, Debug)]
 struct LintArgs {
-    /// Config TOML path (rule toggles + severities; also supplies the replay
-    /// state's `ttl_seconds` / `max_history`). Defaults to the built-in
-    /// configuration.
-    #[arg(long, value_name = "PATH")]
-    config: Option<String>,
-    /// Output format.
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    format: OutputFormat,
-    /// Only report findings at or above this severity; the exit code follows
-    /// the gated set (0 when everything below the gate is filtered out).
-    #[arg(long, value_enum, default_value_t = SeverityArg::Info)]
-    min_severity: SeverityArg,
-    /// JSONL capture file to lint.
+    /// JSONL capture file to lint. May also be given as `--captures`.
     #[arg(value_name = "CAPTURES")]
-    captures: String,
+    capture_file: Option<String>,
+}
+
+impl LintArgs {
+    /// The capture file to read, from whichever spelling was used.
+    fn path(&self, global: &GlobalArgs) -> anyhow::Result<String> {
+        match (self.capture_file.as_deref(), global.captures.as_deref()) {
+            (Some(positional), None) => Ok(positional.to_string()),
+            (None, Some(flag)) => Ok(flag.to_string()),
+            (Some(_), Some(_)) => {
+                anyhow::bail!(
+                    "the capture file was given twice; drop one of the positional or --captures"
+                )
+            }
+            (None, None) => {
+                anyhow::bail!("no capture file given; try `lint-http lint-captures captures.jsonl`")
+            }
+        }
+    }
 }
 
 /// CLI mirror of [`lint::Severity`] (which lives in core and doesn't know clap).
@@ -196,19 +236,9 @@ struct RulesArgs {
 
 #[derive(Subcommand, Debug)]
 enum RulesCommand {
-    /// List every rule and its metadata.
-    List(RulesListArgs),
-}
-
-#[derive(clap::Args, Debug)]
-struct RulesListArgs {
-    /// Output format.
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    format: OutputFormat,
-    /// Config TOML path; when given, each rule is annotated with whether that
-    /// config enables it (a text column / JSON `enabled` field).
-    #[arg(long, value_name = "PATH")]
-    config: Option<String>,
+    /// List every rule and its metadata. With `--config`, each rule is
+    /// annotated with whether that config enables it.
+    List,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -236,6 +266,7 @@ async fn load_validated_config(
 /// decoupled from the command surface.
 async fn load_and_prepare(
     config_path: Option<&str>,
+    captures_override: Option<&str>,
 ) -> anyhow::Result<(
     SocketAddr,
     capture::CaptureWriter,
@@ -243,7 +274,14 @@ async fn load_and_prepare(
 )> {
     let _ = tracing_subscriber::fmt::try_init();
 
-    let cfg = load_validated_config(config_path).await?;
+    let mut cfg = load_validated_config(config_path).await?;
+
+    // `--captures` names the file this command writes, which for the proxy is
+    // the one the config already names — so the flag overrides it rather than
+    // being inert here.
+    if let Some(path) = captures_override {
+        std::sync::Arc::make_mut(&mut cfg).general.captures = path.to_string();
+    }
 
     let addr: SocketAddr = cfg.general.listen.parse()?;
     let capture_writer = capture::CaptureWriter::new(
@@ -256,8 +294,8 @@ async fn load_and_prepare(
 }
 
 /// Run the proxy until Ctrl-C / shutdown.
-async fn run_app(config_path: Option<&str>) -> anyhow::Result<()> {
-    let (addr, capture_writer, cfg) = load_and_prepare(config_path).await?;
+async fn run_app(config_path: Option<&str>, captures: Option<&str>) -> anyhow::Result<()> {
+    let (addr, capture_writer, cfg) = load_and_prepare(config_path, captures).await?;
     // `run_proxy` wires Ctrl-C to a graceful shutdown.
     proxy::run_proxy(addr, capture_writer, cfg).await
 }
@@ -269,7 +307,7 @@ async fn run_app_with_limit(
     config_path: Option<&str>,
     accept_limit: Option<usize>,
 ) -> anyhow::Result<()> {
-    let (addr, capture_writer, cfg) = load_and_prepare(config_path).await?;
+    let (addr, capture_writer, cfg) = load_and_prepare(config_path, None).await?;
     crate::proxy::run_proxy_with_limit(addr, capture_writer, cfg, accept_limit).await
 }
 
@@ -769,8 +807,8 @@ fn render_lint_report(
 /// The exit code is the child's unless `--fail-on` says otherwise, so putting
 /// `lint-http run --` in front of a command does not change what that command's
 /// success means. The report goes to stderr because stdout belongs to the child.
-async fn run_wrapped(args: RunArgs) -> anyhow::Result<u8> {
-    let cfg = load_validated_config(args.config.as_deref()).await?;
+async fn run_wrapped(args: RunArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
+    let cfg = load_validated_config(global.config.as_deref()).await?;
 
     // `--print-env` answers "what would this do to my environment" without
     // doing it, so it needs no child and reports against a placeholder address.
@@ -787,17 +825,18 @@ async fn run_wrapped(args: RunArgs) -> anyhow::Result<u8> {
         (*cfg).clone(),
         program,
         rest,
-        args.captures.as_deref().map(std::path::Path::new),
+        global.captures_path(),
+        args.show_child_stderr,
     )
     .await?;
 
-    let min_severity: lint::Severity = args.min_severity.into();
+    let min_severity = global.min_severity();
     let report = lint_records(&cfg, run.records, min_severity)?;
     write_stderr(&render_lint_report(
         &report.findings,
         report.transaction_count,
         report.websocket_count,
-        args.format,
+        global.format(),
     )?)?;
 
     // The child's code is the run's, and it is *not* overridden by a clean lint
@@ -848,8 +887,8 @@ fn render_env_preview() -> String {
 /// everything until the window closes would deliver the report after the thing
 /// it describes is gone. `--format json` opts back into one report at the end,
 /// because a machine reading this wants one document rather than a stream.
-async fn browse(args: BrowseArgs) -> anyhow::Result<u8> {
-    let cfg = load_validated_config(args.config.as_deref()).await?;
+async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
+    let cfg = load_validated_config(global.config.as_deref()).await?;
     let browser = browser::discover(args.browser.as_deref())?;
 
     // The scope, decided before anything opens so it can be reported.
@@ -870,11 +909,7 @@ async fn browse(args: BrowseArgs) -> anyhow::Result<u8> {
         }
     };
 
-    let session = proxied_run::ProxySession::start(
-        (*cfg).clone(),
-        args.captures.as_deref().map(std::path::Path::new),
-    )
-    .await?;
+    let session = proxied_run::ProxySession::start((*cfg).clone(), global.captures_path()).await?;
 
     let pin = session.spki_pin().await?;
     if pin.is_none() {
@@ -898,11 +933,11 @@ async fn browse(args: BrowseArgs) -> anyhow::Result<u8> {
 
     // Text mode narrates; JSON mode stays silent so its one document is the
     // only thing on the stream a machine is reading.
-    let live = matches!(args.format, OutputFormat::Text).then(|| {
+    let live = matches!(global.format(), OutputFormat::Text).then(|| {
         tokio::spawn(live_reporter(
             session.subscribe(),
             scope.clone(),
-            args.min_severity.into(),
+            global.min_severity(),
         ))
     });
 
@@ -916,7 +951,7 @@ async fn browse(args: BrowseArgs) -> anyhow::Result<u8> {
     // A failure to launch is still an error and propagates; an interrupt is not,
     // because closing a browser with Ctrl-C is how a browsing session ordinarily
     // ends. Distinguishing them is why `await_child` returns a `ChildOutcome`.
-    let outcome = proxied_run::await_child(spawn_browser(command)).await?;
+    let outcome = proxied_run::await_child(spawn_browser(command, args.show_child_stderr)).await?;
 
     // Drained *before* the live reporter is stopped, so the last transactions —
     // the ones committed while the window was closing — are printed rather than
@@ -949,11 +984,11 @@ async fn browse(args: BrowseArgs) -> anyhow::Result<u8> {
         })
         .count();
 
-    let report = lint_records(&cfg, records, args.min_severity.into())?;
+    let report = lint_records(&cfg, records, global.min_severity())?;
     let (findings, elsewhere) = scope.apply(report.findings);
     let total: usize = findings.iter().map(|f| f.violations().len()).sum();
 
-    match args.format {
+    match global.format() {
         OutputFormat::Json => {
             write_stdout(&render_lint_report(
                 &findings,
@@ -995,12 +1030,16 @@ async fn browse(args: BrowseArgs) -> anyhow::Result<u8> {
 /// Run the browser, mapping a failure to launch onto a message that names it.
 async fn spawn_browser(
     mut command: tokio::process::Command,
+    show_stderr: bool,
 ) -> anyhow::Result<std::process::ExitStatus> {
     let program = command
         .as_std()
         .get_program()
         .to_string_lossy()
         .into_owned();
+    if !show_stderr {
+        command.stderr(std::process::Stdio::null());
+    }
     command
         .status()
         .await
@@ -1085,32 +1124,37 @@ async fn live_reporter(
 /// 1 with a message). Split from `main` so the dispatch is unit-testable without
 /// spawning the process.
 async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
+    let global = cli.global;
     match cli.command {
-        Some(Command::Run(args)) => run_wrapped(args).await,
-        Some(Command::Browse(args)) => browse(args).await,
-        Some(Command::ProxyStart(args)) => {
-            run_app(args.config.as_deref()).await?;
+        Some(Command::Run(args)) => run_wrapped(args, &global).await,
+        Some(Command::Browse(args)) => browse(args, &global).await,
+        Some(Command::ProxyStart) => {
+            run_app(global.config.as_deref(), global.captures.as_deref()).await?;
             Ok(0)
         }
         // Non-zero exit when findings exist, so CI fails on a dirty capture;
         // real errors (bad config / missing file) still bubble up as `Err`.
         Some(Command::LintCaptures(args)) => {
             let found = lint_app(
-                args.config.as_deref(),
-                &args.captures,
-                args.format,
-                args.min_severity.into(),
+                global.config.as_deref(),
+                &args.path(&global)?,
+                global.format(),
+                global.min_severity(),
             )
             .await?;
             Ok(if found > 0 { 1 } else { 0 })
         }
         Some(Command::Rules(args)) => match args.command {
-            RulesCommand::List(a) => {
-                let cfg = match &a.config {
+            RulesCommand::List => {
+                // `--config` unset means "do not annotate", not "annotate
+                // against the built-in": this listing is the static catalogue,
+                // and adding a column by default would change what every
+                // existing reader of it parses.
+                let cfg = match &global.config {
                     Some(path) => Some(load_validated_config(Some(path)).await?),
                     None => None,
                 };
-                write_stdout(&rules_list(a.format, cfg.as_deref())?)?;
+                write_stdout(&rules_list(global.format(), cfg.as_deref())?)?;
                 Ok(0)
             }
         },
@@ -1140,12 +1184,17 @@ mod tests {
     use tokio::fs;
     use uuid::Uuid;
 
+    /// A global option parses on either side of the subcommand, and means the
+    /// same thing in both places.
     #[test]
-    fn cli_proxy_start_parses_config() {
-        let cli = Cli::parse_from(["lint-http", "proxy-start", "--config", "x.toml"]);
-        match cli.command {
-            Some(Command::ProxyStart(args)) => assert_eq!(args.config.as_deref(), Some("x.toml")),
-            other => panic!("expected ProxyStart, got {other:?}"),
+    fn a_global_option_parses_before_or_after_the_subcommand() {
+        for argv in [
+            ["lint-http", "proxy-start", "--config", "x.toml"],
+            ["lint-http", "--config", "x.toml", "proxy-start"],
+        ] {
+            let cli = Cli::parse_from(argv);
+            assert!(matches!(cli.command, Some(Command::ProxyStart)));
+            assert_eq!(cli.global.config.as_deref(), Some("x.toml"), "{argv:?}");
         }
     }
 
@@ -1153,18 +1202,25 @@ mod tests {
     /// built-in configuration reachable without a file on disk.
     #[test]
     fn config_is_optional_everywhere_it_is_accepted() {
-        match Cli::parse_from(["lint-http", "proxy-start"]).command {
-            Some(Command::ProxyStart(args)) => assert!(args.config.is_none()),
-            other => panic!("expected ProxyStart, got {other:?}"),
+        for argv in [
+            vec!["lint-http", "proxy-start"],
+            vec!["lint-http", "lint-captures", "caps.jsonl"],
+            vec!["lint-http", "run", "--", "true"],
+            vec!["lint-http", "browse"],
+        ] {
+            let cli = Cli::parse_from(&argv);
+            assert!(cli.global.config.is_none(), "{argv:?}");
         }
-        match Cli::parse_from(["lint-http", "lint-captures", "caps.jsonl"]).command {
-            Some(Command::LintCaptures(args)) => assert!(args.config.is_none()),
-            other => panic!("expected LintCaptures, got {other:?}"),
-        }
-        match Cli::parse_from(["lint-http", "run", "--", "true"]).command {
-            Some(Command::Run(args)) => assert!(args.config.is_none()),
-            other => panic!("expected Run, got {other:?}"),
-        }
+    }
+
+    /// The defaults live on `GlobalArgs`, not on four copies of each flag, so
+    /// every command that reads one reads the same value.
+    #[test]
+    fn global_defaults_are_defined_once() {
+        let global = Cli::parse_from(["lint-http", "run", "--", "true"]).global;
+        assert!(matches!(global.format(), OutputFormat::Text));
+        assert_eq!(global.min_severity(), lint::Severity::Info);
+        assert!(global.captures_path().is_none());
     }
 
     #[test]
@@ -1182,12 +1238,48 @@ mod tests {
             "c.toml",
             "caps.jsonl",
         ]);
+        assert_eq!(cli.global.config.as_deref(), Some("c.toml"));
         match cli.command {
             Some(Command::LintCaptures(args)) => {
-                assert_eq!(args.config.as_deref(), Some("c.toml"));
-                assert_eq!(args.captures, "caps.jsonl");
+                assert_eq!(args.path(&cli.global).unwrap(), "caps.jsonl");
             }
             other => panic!("expected LintCaptures, got {other:?}"),
+        }
+    }
+
+    /// The capture file has one name across the whole surface: what `run`
+    /// writes with `--captures` is what `lint-captures` reads, spelled either
+    /// way. Naming it twice is refused rather than silently resolved.
+    #[test]
+    fn lint_captures_takes_the_file_from_either_spelling() {
+        let flag = Cli::parse_from(["lint-http", "lint-captures", "--captures", "c.jsonl"]);
+        match flag.command {
+            Some(Command::LintCaptures(ref args)) => {
+                assert_eq!(args.path(&flag.global).unwrap(), "c.jsonl");
+            }
+            ref other => panic!("expected LintCaptures, got {other:?}"),
+        }
+
+        let both = Cli::parse_from([
+            "lint-http",
+            "lint-captures",
+            "--captures",
+            "a.jsonl",
+            "b.jsonl",
+        ]);
+        match both.command {
+            Some(Command::LintCaptures(ref args)) => {
+                assert!(args.path(&both.global).is_err(), "two spellings accepted");
+            }
+            ref other => panic!("expected LintCaptures, got {other:?}"),
+        }
+
+        let neither = Cli::parse_from(["lint-http", "lint-captures"]);
+        match neither.command {
+            Some(Command::LintCaptures(ref args)) => {
+                assert!(args.path(&neither.global).is_err(), "no file accepted");
+            }
+            ref other => panic!("expected LintCaptures, got {other:?}"),
         }
     }
 
@@ -1207,10 +1299,15 @@ mod tests {
             "curlrc",
             "https://example.com",
         ]);
+        // The global was given *before* the `--`, so it is lint-http's; the one
+        // after belongs to curl and must survive untouched in the child's argv.
+        assert!(
+            cli.global.config.is_none(),
+            "--config after -- is the child's"
+        );
+        assert_eq!(cli.global.min_severity(), lint::Severity::Warn);
         match cli.command {
             Some(Command::Run(args)) => {
-                assert!(args.config.is_none(), "--config after -- is the child's");
-                assert!(matches!(args.min_severity, SeverityArg::Warn));
                 assert_eq!(
                     args.command,
                     ["curl", "-sS", "--config", "curlrc", "https://example.com"]
@@ -1643,13 +1740,9 @@ enabled = true
             "warn",
             "caps.jsonl",
         ]);
-        match cli.command {
-            Some(Command::LintCaptures(args)) => {
-                assert!(matches!(args.format, OutputFormat::Json));
-                assert!(matches!(args.min_severity, SeverityArg::Warn));
-            }
-            other => panic!("expected LintCaptures, got {other:?}"),
-        }
+        assert!(matches!(cli.command, Some(Command::LintCaptures(_))));
+        assert!(matches!(cli.global.format(), OutputFormat::Json));
+        assert_eq!(cli.global.min_severity(), lint::Severity::Warn);
     }
 
     #[test]
@@ -1661,13 +1754,9 @@ enabled = true
             "c.toml",
             "caps.jsonl",
         ]);
-        match cli.command {
-            Some(Command::LintCaptures(args)) => {
-                assert!(matches!(args.format, OutputFormat::Text));
-                assert!(matches!(args.min_severity, SeverityArg::Info));
-            }
-            other => panic!("expected LintCaptures, got {other:?}"),
-        }
+        assert!(matches!(cli.command, Some(Command::LintCaptures(_))));
+        assert!(matches!(cli.global.format(), OutputFormat::Text));
+        assert_eq!(cli.global.min_severity(), lint::Severity::Info);
     }
 
     fn sample_violation() -> lint::Violation {
@@ -1900,9 +1989,20 @@ enabled = true
     /// The bare `--config` alias is gone rather than repointed. It used to mean
     /// "start the proxy", and `run` now means "wrap a command" — an alias that
     /// kept working would start a proxy for someone who asked for neither.
-    #[test]
-    fn bare_config_is_no_longer_accepted() {
-        assert!(Cli::try_parse_from(["lint-http", "--config", "x.toml"]).is_err());
+    ///
+    /// Now that `--config` is global it *parses* at the top level, as it must
+    /// to be accepted before a subcommand. What it no longer does is stand in
+    /// for one: with nothing to run, dispatch says so instead of starting
+    /// anything.
+    #[tokio::test]
+    async fn bare_config_starts_nothing() {
+        let cli = Cli::parse_from(["lint-http", "--config", "x.toml"]);
+        assert!(cli.command.is_none());
+        assert_eq!(cli.global.config.as_deref(), Some("x.toml"));
+        assert!(
+            dispatch(cli).await.is_err(),
+            "a bare --config ran something"
+        );
     }
 
     /// A wrapped run reports what crossed the proxy and hands back the child's
@@ -2113,23 +2213,15 @@ enabled = true
     #[test]
     fn cli_rules_list_parses_format() {
         let cli = Cli::parse_from(["lint-http", "rules", "list", "--format", "json"]);
-        match cli.command {
-            Some(Command::Rules(args)) => match args.command {
-                RulesCommand::List(a) => assert!(matches!(a.format, OutputFormat::Json)),
-            },
-            other => panic!("expected Rules(List), got {other:?}"),
-        }
+        assert!(matches!(cli.command, Some(Command::Rules(_))));
+        assert!(matches!(cli.global.format(), OutputFormat::Json));
     }
 
     #[test]
     fn cli_rules_list_defaults_to_text() {
         let cli = Cli::parse_from(["lint-http", "rules", "list"]);
-        match cli.command {
-            Some(Command::Rules(args)) => match args.command {
-                RulesCommand::List(a) => assert!(matches!(a.format, OutputFormat::Text)),
-            },
-            other => panic!("expected Rules(List), got {other:?}"),
-        }
+        assert!(matches!(cli.command, Some(Command::Rules(_))));
+        assert!(matches!(cli.global.format(), OutputFormat::Text));
     }
 
     #[test]
@@ -2219,12 +2311,8 @@ enabled = true
     #[test]
     fn cli_rules_list_parses_optional_config() {
         let cli = Cli::parse_from(["lint-http", "rules", "list", "--config", "c.toml"]);
-        match cli.command {
-            Some(Command::Rules(args)) => match args.command {
-                RulesCommand::List(a) => assert_eq!(a.config.as_deref(), Some("c.toml")),
-            },
-            other => panic!("expected Rules(List), got {other:?}"),
-        }
+        assert!(matches!(cli.command, Some(Command::Rules(_))));
+        assert_eq!(cli.global.config.as_deref(), Some("c.toml"));
     }
 
     #[tokio::test]
@@ -2285,7 +2373,7 @@ enabled = false
         let config_path = tmp.to_str().expect("valid utf8 path");
 
         // run_app must fail during rule validation, before binding any socket.
-        let result = run_app(Some(config_path)).await;
+        let result = run_app(Some(config_path), None).await;
 
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
@@ -2379,7 +2467,7 @@ enabled = false
         let config_path = tmp.to_str().expect("valid utf8 path");
 
         // run_app should return an error because the port is already taken
-        let res = run_app(Some(config_path)).await;
+        let res = run_app(Some(config_path), None).await;
         assert!(res.is_err());
 
         // Cleanup
