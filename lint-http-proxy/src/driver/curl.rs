@@ -39,7 +39,7 @@
 //! means, the session says so before it starts. Detect and say; never promise.
 
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::{Driver, Invocation, Launch, Objection, Target, Tool};
 
@@ -443,8 +443,14 @@ fn objection(name: &str, value: Option<&str>) -> Option<Objection> {
 ///
 /// cite(curl): "When curl is invoked, it (unless --disable is used) checks for a default config file and uses it if found, even when --config is used."
 fn config_file_objection() -> Option<Objection> {
-    let path = config_file_path()?;
-    let contents = std::fs::read_to_string(&path).ok()?;
+    objection_for_config(&config_file_path()?)
+}
+
+/// The same question about a named file, so it can be asked of one that was put
+/// there on purpose. Finding the file and reading it are separate problems and
+/// only the first depends on where a user's home is.
+fn objection_for_config(path: &Path) -> Option<Objection> {
+    let contents = std::fs::read_to_string(path).ok()?;
     let named: Vec<&str> = ["insecure", "proxy", "http3", "cacert"]
         .into_iter()
         .filter(|word| {
@@ -718,6 +724,79 @@ mod tests {
             .objections
             .iter()
             .any(|o| o.message().contains("fail to verify")));
+    }
+
+    /// A transfer is not a sitting, and stdout is the transfer's.
+    #[test]
+    fn a_transfer_streams_nothing_and_keeps_its_stdout() {
+        assert!(!Curl.interactive());
+        assert!(
+            !Curl.json_to_stdout(),
+            "stdout is where the response body goes"
+        );
+    }
+
+    /// A path is the executable; a name is looked up; neither invents one.
+    #[test]
+    fn the_executable_is_the_one_named() -> Result<()> {
+        let dir = std::env::temp_dir().join(format!("lint-http-curl-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir)?;
+        let path = dir.join("curl");
+        std::fs::write(&path, b"#!/bin/sh\n")?;
+
+        let tool = Curl.locate(Some(&path.to_string_lossy()))?;
+        assert_eq!(tool.path, path);
+        assert_eq!(tool.name, "curl");
+
+        let missing = dir.join("not-here").display().to_string();
+        let Err(err) = Curl.locate(Some(&missing)) else {
+            panic!("a path that is not there is not an executable");
+        };
+        assert!(err.to_string().contains("not-here"), "{err}");
+
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    /// The two that do not stop a session but change what part of it means.
+    #[test]
+    fn the_options_that_bend_a_session_are_warned_about() {
+        assert!(matches!(
+            inspect(&["--preproxy", "socks5://localhost:1080", "https://x/"]).objections[..],
+            [Objection::Warn(_)]
+        ));
+        assert!(matches!(
+            inspect(&["--cacert", "/etc/other.pem", "https://x/"]).objections[..],
+            [Objection::Warn(_)]
+        ));
+    }
+
+    /// **The trap this driver can only look at.** A config file naming one of
+    /// the settings that change what a finding means is worth a sentence, and
+    /// the sentence names the file so it can be read.
+    #[test]
+    fn a_config_file_that_names_a_setting_is_reported() -> Result<()> {
+        let dir = std::env::temp_dir().join(format!("lint-http-curlrc-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir)?;
+
+        let loud = dir.join("loud");
+        std::fs::write(&loud, "silent\ninsecure\nconnect-timeout = 5\n")?;
+        let objection = objection_for_config(&loud).expect("insecure is worth saying");
+        assert!(objection.message().contains("insecure"), "{objection:?}");
+        assert!(
+            objection.message().contains(&loud.display().to_string()),
+            "the file has to be named: {objection:?}"
+        );
+
+        // A file with nothing this session cares about is not worth a line, and
+        // neither is a file that is not there.
+        let quiet = dir.join("quiet");
+        std::fs::write(&quiet, "silent\nconnect-timeout = 5\n")?;
+        assert!(objection_for_config(&quiet).is_none());
+        assert!(objection_for_config(&dir.join("absent")).is_none());
+
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
     }
 
     #[test]

@@ -300,6 +300,55 @@ mod tests {
         assert!(message.contains("chromium"), "{message}");
     }
 
+    /// What counts as an executable, and what a name that is not one costs.
+    ///
+    /// Each of the three answers is a different kind of no: nothing at that
+    /// path, something that is not a file, and a file nobody may run. Only the
+    /// first two are reachable by accident, and all three have to be a `None`
+    /// rather than an error — a driver that could not search would be a driver
+    /// that only worked when the tool was spelled as a path.
+    #[test]
+    fn an_executable_is_a_file_someone_may_run() -> Result<()> {
+        let dir = std::env::temp_dir().join(format!("lint-http-which-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir)?;
+
+        assert!(!is_executable(&dir), "a directory is not an executable");
+        assert!(!is_executable(&dir.join("absent")), "nor is nothing at all");
+
+        let plain = dir.join("plain");
+        std::fs::write(&plain, b"not a program")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert!(!is_executable(&plain), "nor a file with no execute bit");
+            std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o755))?;
+        }
+        assert!(is_executable(&plain));
+
+        // And nothing is found on `PATH` under a name nothing is called.
+        assert!(which("lint-http-no-such-executable-4f2a").is_none());
+
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    /// A path resolves to its driver *and* to itself: the stem picks who
+    /// configures the tool, and the path is the tool.
+    #[test]
+    fn a_path_resolves_to_a_driver_and_that_executable() -> Result<()> {
+        let dir = std::env::temp_dir().join(format!("lint-http-resolve-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir)?;
+        let path = dir.join("curl");
+        std::fs::write(&path, b"#!/bin/sh\n")?;
+
+        let (driver, tool) = resolve(&path.to_string_lossy())?;
+        assert_eq!(driver.names()[0], "curl");
+        assert_eq!(tool.path, path, "the executable is the one named");
+
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
     #[test]
     fn every_name_is_listed_once_and_sorted() {
         let names = known_names();

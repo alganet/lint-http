@@ -996,7 +996,7 @@ sources:
     snippet: 1) "$CURL_HOME/.curlrc" 2) "$XDG_CONFIG_HOME/curlrc" (Added in 7.73.0) 3) "$HOME/.curlrc"
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 473
+      line: 479
   - label: lint-http-proxy/src/driver/curl.rs (5)
     snippet: Comma-separated list of hosts for which not to use a proxy, if one is specified. The only wildcard is a single "*" character, which matches all hosts, and effectively disables the proxy.
     cited_by:
@@ -1026,7 +1026,7 @@ sources:
     snippet: 'The default config file is checked for in the following places in this order:'
     cited_by:
     - file: lint-http-proxy/src/driver/curl.rs
-      line: 472
+      line: 478
   - label: lint-http-proxy/src/driver/curl.rs (11)
     snippet: This option overrides the environment variables that disable the proxy ("no_proxy" and "NO_PROXY"). If there is an environment variable disabling a proxy, you can set the no proxy list to "" to override it.
     cited_by:

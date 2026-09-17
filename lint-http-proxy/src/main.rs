@@ -2957,6 +2957,163 @@ enabled = true
         .is_err());
     }
 
+    /// A scoped report divides like with like, and says what it left out.
+    ///
+    /// **The number this pins is the transaction count.** A scoped violation
+    /// count over an unscoped transaction count reads as "1 violation(s) in 2
+    /// transaction(s)" when one of those two was never in the report's scope at
+    /// all — the reader is then told the session was quieter than it was.
+    #[test]
+    fn a_scoped_report_counts_only_what_it_is_about() -> anyhow::Result<()> {
+        use lint_http_core::test_helpers::make_test_transaction_with_response;
+
+        let mut mine = make_test_transaction_with_response(200, &[]);
+        mine.request.uri = "https://example.com/a".to_string();
+        mine.violations = vec![sample_violation()];
+        let mut theirs = make_test_transaction_with_response(200, &[]);
+        theirs.request.uri = "https://cdn.other.net/b".to_string();
+        theirs.violations = vec![sample_violation(), sample_violation()];
+
+        let records: Vec<capture::CaptureRecord> = [mine, theirs]
+            .into_iter()
+            .map(|tx| capture::CaptureRecord::HttpTransaction(Box::new(tx)))
+            .collect();
+
+        let global = Cli::parse_from(["lint-http", "run", "--", "true"]).global;
+        let scope = HostScope::new(["example.com".to_string()]);
+        let findings = report_session(
+            &records,
+            &scope,
+            &global,
+            ReportStyle {
+                live: false,
+                json_to_stdout: false,
+            },
+        )?;
+        assert_eq!(findings.len(), 1, "one block, and it is the first party's");
+        assert_eq!(findings[0].violations().len(), 1);
+
+        // Unscoped, the same records are all one report.
+        let every = report_session(
+            &records,
+            &HostScope::all(),
+            &global,
+            ReportStyle {
+                live: false,
+                json_to_stdout: false,
+            },
+        )?;
+        assert_eq!(every.len(), 2);
+        assert_eq!(every.iter().map(|f| f.violations().len()).sum::<usize>(), 3);
+        Ok(())
+    }
+
+    /// A live session has printed its blocks already, and a JSON one is a
+    /// document — neither changes which findings the gate then reads.
+    #[test]
+    fn how_a_report_is_delivered_does_not_change_what_it_contains() -> anyhow::Result<()> {
+        use lint_http_core::test_helpers::make_test_transaction_with_response;
+
+        let mut tx = make_test_transaction_with_response(200, &[]);
+        tx.violations = vec![sample_violation()];
+        let records = vec![capture::CaptureRecord::HttpTransaction(Box::new(tx))];
+
+        let text = Cli::parse_from(["lint-http", "run", "--", "true"]).global;
+        let json = Cli::parse_from(["lint-http", "--format", "json", "run", "--", "true"]).global;
+        let styles = [
+            (
+                &text,
+                ReportStyle {
+                    live: true,
+                    json_to_stdout: false,
+                },
+            ),
+            (
+                &text,
+                ReportStyle {
+                    live: false,
+                    json_to_stdout: false,
+                },
+            ),
+            (
+                &json,
+                ReportStyle {
+                    live: false,
+                    json_to_stdout: true,
+                },
+            ),
+            (
+                &json,
+                ReportStyle {
+                    live: false,
+                    json_to_stdout: false,
+                },
+            ),
+        ];
+        for (global, style) in styles {
+            let findings = report_session(&records, &HostScope::all(), global, style)?;
+            assert_eq!(findings.len(), 1, "{style:?}");
+        }
+        Ok(())
+    }
+
+    /// `use` needs a tool, and a mistyped option is not one.
+    ///
+    /// `trailing_var_arg` means clap cannot reject one of ours: `--fail-onn`
+    /// parses as a *tool* by that name. Caught before the driver table, which
+    /// would otherwise report it as an unknown tool and send the reader looking
+    /// for a driver that was never the problem.
+    #[tokio::test]
+    async fn dispatch_use_needs_a_tool_and_says_which_it_knows() {
+        let err = dispatch(Cli::parse_from(["lint-http", "use"]))
+            .await
+            .expect_err("a tool is required");
+        assert!(err.to_string().contains("curl"), "{err}");
+
+        let err = dispatch(Cli::parse_from([
+            "lint-http",
+            "use",
+            "--fail-onn",
+            "error",
+            "curl",
+        ]))
+        .await
+        .expect_err("a flag is not a tool");
+        assert!(err.to_string().contains("is not a tool"), "{err}");
+    }
+
+    /// A whole driven session, with a tool that is a shell script.
+    ///
+    /// The point is the path from a name to an exit code: resolve the driver,
+    /// stand a proxy up, let the driver write the session onto the command
+    /// line, run it, drain the captures, report, and exit with the child's
+    /// code. The script is named `curl` so the driver table picks the curl
+    /// driver off its stem — which also proves the stem is what selects, not
+    /// the executable's contents.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dispatch_use_drives_a_tool_and_keeps_its_exit_code() -> anyhow::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = std::env::temp_dir().join(format!("lint-http-use-{}", Uuid::new_v4()));
+        fs::create_dir_all(&dir).await?;
+        let script = dir.join("curl");
+        // It ignores every option the driver hands it, which is the one thing a
+        // stand-in for curl has to do.
+        fs::write(&script, "#!/bin/sh\nexit 7\n").await?;
+        fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).await?;
+
+        let cli = Cli::parse_from(["lint-http", "use", &script.to_string_lossy()]);
+        assert_eq!(
+            dispatch(cli).await?,
+            7,
+            "the tool's exit code is the session's"
+        );
+
+        fs::remove_dir_all(&dir).await?;
+        Ok(())
+    }
+
     /// A warning lets the session run and a refusal does not, which is the
     /// whole difference between the two.
     #[test]
