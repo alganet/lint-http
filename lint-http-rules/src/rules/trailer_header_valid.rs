@@ -60,6 +60,7 @@ impl TrailerHeaderValid {
     fn check_field_section(
         &self,
         hdrs: &hyper::HeaderMap,
+        party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let value = combined_field_value_as_written(hdrs, "trailer")?;
@@ -99,7 +100,7 @@ impl TrailerHeaderValid {
             //
             // cite(RFC 9110 § A, label: field-name grammar): "field-name = token field-value = *field-content"
             if let Some(ch) = crate::helpers::token::find_invalid_token_char(member) {
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     token_character(ch),
                     format!(
                         "Trailer header contains invalid character '{}' in member '{}'; a member is a field-name, which is a token",
@@ -119,7 +120,7 @@ impl TrailerHeaderValid {
             //
             // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
             if member.eq_ignore_ascii_case("trailer") {
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     &TRAILER_MEMBER_INVALID,
                     "Trailer header nominates 'Trailer'; a Trailer field cannot announce the trailer section it is already inside (RFC 9110 §6.5.1)".to_string(),
                 ));
@@ -139,7 +140,7 @@ impl TrailerHeaderValid {
                 member,
                 connection_val.as_deref(),
             ) {
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     &TRAILER_MEMBER_INVALID,
                     format!(
                         "Trailer header nominates connection-specific field '{}'; it does not survive the hop, so it cannot arrive as a trailer (RFC 9110 §7.6.1)",
@@ -150,7 +151,7 @@ impl TrailerHeaderValid {
         }
 
         if saw_an_empty_element {
-            return Some(ctx.report_with(
+            return Some(ctx.by(party).report_with(
                 &LIST_MEMBER_EMPTY,
                 format!("Trailer header holds an empty member: '{}'", value),
             ));
@@ -225,6 +226,14 @@ impl RuleMeta for TrailerHeaderValid {
         DECLARED
     }
 
+    /// **A `Trailer` field announces what its own sender will put after the
+    /// content**, and both halves may carry one — the reader runs over the
+    /// request's field section and then the response's, and each finding belongs
+    /// to the peer whose announcement it read.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -277,12 +286,16 @@ impl Rule for TrailerHeaderValid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            if let Some(v) = self.check_field_section(&tx.request.headers, ctx) {
+            if let Some(v) =
+                self.check_field_section(&tx.request.headers, crate::lint::Party::Client, ctx)
+            {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_field_section(&resp.headers, ctx) {
+                if let Some(v) =
+                    self.check_field_section(&resp.headers, crate::lint::Party::Server, ctx)
+                {
                     return Some(v);
                 }
             }

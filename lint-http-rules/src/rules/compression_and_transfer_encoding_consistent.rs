@@ -77,6 +77,14 @@ impl RuleMeta for CompressionAndTransferEncodingConsistent {
         DECLARED
     }
 
+    /// **The `side` this reader already words its finding with is the answer.**
+    /// Applying one compression coding twice — once to the representation and
+    /// again in transit — is done by the peer that wrote both fields, and the
+    /// reader is run over each half's pair in turn.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -139,7 +147,10 @@ impl Rule for CompressionAndTransferEncodingConsistent {
         // the line instead hid every *other* name on it.
         let decode = crate::helpers::headers::field_line_as_written;
 
-        let check = |headers: &hyper::HeaderMap, side: &str| -> Option<Violation> {
+        let check = |headers: &hyper::HeaderMap,
+                     side: &str,
+                     party: crate::lint::Party|
+         -> Option<Violation> {
             // `content-coding` is a bare `token` with no parameters, so every comma
             // is a separator and there is no quoting to respect.
             // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
@@ -247,7 +258,7 @@ impl Rule for CompressionAndTransferEncodingConsistent {
             overlap.sort();
 
             if !overlap.is_empty() {
-                return Some(ctx.report_with(&TRANSFER_ENCODING_CODING_REDUNDANT, format!(
+                return Some(ctx.by(party).report_with(&TRANSFER_ENCODING_CODING_REDUNDANT, format!(
                         "Compression coding(s) '{}' appear in both Content-Encoding and Transfer-Encoding of the {}; the representation is coded once and then coded again in transit, which is decodable but almost never intended",
                         overlap.join(", "),
                         side
@@ -265,9 +276,13 @@ impl Rule for CompressionAndTransferEncodingConsistent {
         // two representations, and the finding already names which. Stopping
         // at the request's overlap hid the response's.
         let mut out = Vec::new();
-        out.extend(check(&tx.request.headers, "request"));
+        out.extend(check(
+            &tx.request.headers,
+            "request",
+            crate::lint::Party::Client,
+        ));
         if let Some(resp) = &tx.response {
-            out.extend(check(&resp.headers, "response"));
+            out.extend(check(&resp.headers, "response", crate::lint::Party::Server));
         }
 
         out

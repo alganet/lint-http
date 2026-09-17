@@ -50,6 +50,7 @@ impl ConnectionHeaderTokensValid {
     fn check_field_section(
         &self,
         headers: &hyper::HeaderMap,
+        party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let value = combined_field_value_as_written(headers, "connection")?;
@@ -102,7 +103,7 @@ impl ConnectionHeaderTokensValid {
                 // character that stopped the parse is by definition one the grammar
                 // did not admit — often a control octet, which written through would
                 // corrupt the finding rather than describe it.
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     token_character(ch),
                     format!(
                         "Connection header holds invalid character '{}' in member '{}'; a member is a connection-option, which is a token",
@@ -124,7 +125,7 @@ impl ConnectionHeaderTokensValid {
             // cite(RFC 9110 § 7.6.1): "Connection options are case-insensitive."
             // cite(RFC 9110 § 7.6.1): "A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING])."
             if member.eq_ignore_ascii_case("cache-control") {
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     &CONNECTION_OPTION_FORBIDDEN,
                     "Connection header lists 'Cache-Control' as a connection option; the field is intended for all recipients of the content, and RFC 9110 §7.6.1 names it as one a sender MUST NOT list".to_string(),
                 ));
@@ -132,7 +133,7 @@ impl ConnectionHeaderTokensValid {
         }
 
         if saw_an_empty_element {
-            return Some(ctx.report_with(
+            return Some(ctx.by(party).report_with(
                 &LIST_MEMBER_EMPTY,
                 format!(
                     "Connection header holds an empty member: '{}'",
@@ -187,6 +188,14 @@ impl RuleMeta for ConnectionHeaderTokensValid {
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
         DECLARED
+    }
+
+    /// **`Connection` is control information for one hop, written by the peer
+    /// at this end of it.** Both halves carry one, the same production reads
+    /// each, and a malformed connection-option belongs to the section it was
+    /// read from.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -246,12 +255,16 @@ impl Rule for ConnectionHeaderTokensValid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            if let Some(v) = self.check_field_section(&tx.request.headers, ctx) {
+            if let Some(v) =
+                self.check_field_section(&tx.request.headers, crate::lint::Party::Client, ctx)
+            {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_field_section(&resp.headers, ctx) {
+                if let Some(v) =
+                    self.check_field_section(&resp.headers, crate::lint::Party::Server, ctx)
+                {
                     return Some(v);
                 }
             }

@@ -119,6 +119,17 @@ impl Direction {
             Self::Response => "response",
         }
     }
+
+    /// Who wrote the section this direction names. Sound here and not in
+    /// general: one field section has exactly one author, which is why the
+    /// conversion is written on this rule's own enum rather than as a `From` in
+    /// core.
+    fn party(self) -> crate::lint::Party {
+        match self {
+            Self::Request => crate::lint::Party::Client,
+            Self::Response => crate::lint::Party::Server,
+        }
+    }
 }
 
 pub struct NoConnectionSpecificFields;
@@ -158,7 +169,7 @@ impl NoConnectionSpecificFields {
         // are quoted on the entry, which names both sections.
         for &name in CONNECTION_SPECIFIC_FIELDS {
             if headers.contains_key(name) {
-                return Some(ctx.report_with(
+                return Some(ctx.by(direction.party()).report_with(
                     &FIELD_CONNECTION_SPECIFIC_FORBIDDEN,
                     format!(
                         "{} {} carries the connection-specific header field '{}'; \
@@ -202,7 +213,7 @@ impl NoConnectionSpecificFields {
         // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
         if direction == Direction::Response {
             if headers.contains_key("te") {
-                return Some(ctx.report_with(
+                return Some(ctx.by(direction.party()).report_with(
                     &FIELD_CONNECTION_SPECIFIC_FORBIDDEN,
                     format!(
                         "{} response carries a TE header field; the exception {} makes is \
@@ -255,7 +266,7 @@ impl NoConnectionSpecificFields {
             .filter(|member| !member.is_empty())
             .find(|member| !member.eq_ignore_ascii_case("trailers"))?;
 
-        Some(ctx.report_with(
+        Some(ctx.by(direction.party()).report_with(
             &TE_MEMBER_FORBIDDEN,
             format!(
                 "{} request's TE header field holds '{}'; the only value {} permits it \
@@ -323,6 +334,15 @@ impl RuleMeta for NoConnectionSpecificFields {
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
         DECLARED
+    }
+
+    /// **The `Direction` this rule already carries for its wording answers
+    /// this too.** A message is malformed by carrying a connection-specific
+    /// field, and the peer that put it there is the peer that wrote the field
+    /// section — which is what the gate being per section rather than per
+    /// transaction already says.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

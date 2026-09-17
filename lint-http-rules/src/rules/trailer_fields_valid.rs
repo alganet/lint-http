@@ -98,6 +98,13 @@ impl RuleMeta for TrailerFieldsValid {
         DECLARED
     }
 
+    /// **A trailer section is written by the peer that wrote the content it
+    /// follows**, so the same three checks run over the request's trailers and
+    /// then the response's, and each answers for the half it was handed.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -156,14 +163,21 @@ impl Rule for TrailerFieldsValid {
             // its `Connection` names options for that message, so neither says anything
             // about what the response may put after its content.
             if let Some(ref trailers) = tx.request.trailers {
-                if let Some(v) = check_trailers(ctx, trailers, &tx.request.headers) {
+                if let Some(v) = check_trailers(
+                    ctx,
+                    crate::lint::Party::Client,
+                    trailers,
+                    &tx.request.headers,
+                ) {
                     return Some(v);
                 }
             }
 
             if let Some(ref resp) = tx.response {
                 if let Some(ref trailers) = resp.trailers {
-                    if let Some(v) = check_trailers(ctx, trailers, &resp.headers) {
+                    if let Some(v) =
+                        check_trailers(ctx, crate::lint::Party::Server, trailers, &resp.headers)
+                    {
                         return Some(v);
                     }
                 }
@@ -206,6 +220,7 @@ fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Option<Vec<String>> 
 /// Validate one message's trailer section against its own header section.
 fn check_trailers(
     ctx: &crate::rules::RuleContext<'_>,
+    party: crate::lint::Party,
     trailers: &hyper::HeaderMap,
     headers: &hyper::HeaderMap,
 ) -> Option<Violation> {
@@ -235,7 +250,7 @@ fn check_trailers(
             // category §6.5.1 sorts it under, because the category is not what
             // decides: `Authentication-Info` is an authentication field and its
             // definition permits the usage.
-            return Some(ctx.report_with(
+            return Some(ctx.by(party).report_with(
                 &TRAILER_FIELD_FORBIDDEN,
                 format!(
                     "Trailer section contains '{}', whose definition does not permit \
@@ -260,7 +275,7 @@ fn check_trailers(
             name,
             connection_val.as_deref(),
         ) {
-            return Some(ctx.report_with(
+            return Some(ctx.by(party).report_with(
                 &TRAILER_CONNECTION_OPTION_FORBIDDEN,
                 format!(
                     "Trailer field '{}' is named as a connection-option in this \
@@ -281,7 +296,7 @@ fn check_trailers(
         // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
         if let Some(ref declared) = declared {
             if !declared.iter().any(|d| d == name) {
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     &TRAILER_MEMBER_MISSING,
                     format!(
                         "Trailer field '{}' was not declared in the Trailer header; \
