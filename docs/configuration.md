@@ -232,8 +232,10 @@ enabled = false
 `severity` and `enabled` are the only keys, and a table that is written must set
 at least one of them — a section that sets nothing is a section that does
 nothing, and both are rejected at startup. Every violation id and its default is
-listed in `config_example.toml`; a table naming an id that does not exist is
-rejected there too, the same way an unknown rule id is.
+listed in `config_example.toml` and indexed in `docs/violations.md`, where each
+one links to a page naming the sentences it enforces and the rules that report
+it; a table naming an id that does not exist is rejected here too, the same way
+an unknown rule id is.
 
 `enabled = false` drops that defect's findings and leaves the rule's other
 defects reporting. **One thing it does not do**: on a transaction where the
@@ -246,9 +248,11 @@ which is what you asked to lose.
 **Turning a whole rule down means writing one table per defect it reports**,
 where a single `[rules.<id>] severity` used to do it. That is the cost of the
 split and it is a real one: `docs/rules/<id>.md` lists the defects a rule
-reports, and `config_example.toml` lists every id with its default. To quiet a
-rule wholesale without listing them, `[rules.<id>] enabled = false` still
-switches it off, and `--min-severity` still filters the report.
+reports, each linking to its own page under `docs/violations/`, and
+`config_example.toml` lists every id with its default. To quiet a rule wholesale
+without listing them, `[rules.<id>] enabled = false` still switches it off, and
+`--min-severity` still filters the report.
 
-A finding carries both names: `rule` and `violation`. Older captures carry
-`rule` alone.
+A finding carries both names: `rule` and `violation`, printed as `rule/defect`.
+Older captures carry `rule` alone. Both names have a page: the rule's says what
+analysis ran, the defect's says what it found and what else reports it.

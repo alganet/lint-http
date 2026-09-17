@@ -26,7 +26,7 @@ We maintain high standards for code quality and testing.
 - **Linting**: `just lint` — clippy warnings are treated as errors (the `cargo lint` alias is in `.cargo/config.toml`).
 - **Formatting**: `just fmt` to format, `just fmt-check` to verify. Use these rather than `cargo fmt`, which cannot reach the rule modules; see [Running QA](#running-qa) below.
 - **Citations**: `just citations` (offline: the citations file is current and the ratchet holds) and `just quotes` (every quote still says what the code claims). Neither has a `cargo` spelling.
-- **Headers & Docs**: New source, test, and documentation files must include the SPDX header; new rules must carry their prose as metadata (regenerate with `cargo xtask gendocs`) and their example configuration as `config_example()` (regenerate with `cargo xtask genconfig`). Neither `docs/rules/` nor `config_example.toml` is hand-written — and the docs generator deletes any page no rule claims.
+- **Headers & Docs**: New source, test, and documentation files must include the SPDX header; new rules must carry their prose as metadata (regenerate with `cargo xtask gendocs`) and their example configuration as `config_example()` (regenerate with `cargo xtask genconfig`). Neither `docs/rules/`, `docs/violations/` nor `config_example.toml` is hand-written — and the docs generator deletes any page nothing in the catalogues claims.
 - **Minimum Rust version**: `rust-version` in the workspace `Cargo.toml` — currently **1.94**, about three releases behind stable. It is a support window we choose, not the oldest toolchain that happens to compile. The `msrv` CI job builds on exactly that version; raising it is a deliberate edit to the manifest, not something a new API call does silently.
 - **Dependencies**: A manifest declares only what its code reads, and a crate used only from tests belongs in `[dev-dependencies]`. `cargo machete` gates this.
 
@@ -395,9 +395,23 @@ Then regenerate:
 cargo xtask gendocs
 ```
 
-The `docs_match_generated` test diffs the checked-in tree against freshly
-rendered output, so a rule whose metadata changed without a regeneration fails
-CI. The index places the rule by its `scope()`, so there is no link to add.
+`docs/violations/<violation_id>.md` and the `docs/violations.md` index are
+generated the same way, from the `defects!` entry itself — its `title`, its
+`message` where the message is fixed, its `default_severity` and its `spec`.
+There is no page to write for a new defect either, and no prose field on a def
+to write it in: the argument for the rule's page holds here too, and what a
+defect's page adds beyond its entry is the list of rules that report it, which
+is inverted from their declarations rather than stored.
+
+The rule's page lists the defects it declares, each linking to that defect's
+page. That list is what `validate_rules` points an operator at when it refuses
+a `[rules.*] severity` key, and `every_rule_page_lists_the_defects_it_declares`
+is what keeps the two agreeing.
+
+The `docs_match_generated` test diffs both checked-in trees against freshly
+rendered output, so a rule or a def whose metadata changed without a
+regeneration fails CI. The index places a rule by its `scope()` and a defect by
+its id, so there is no link to add in either.
 
 That test lives in `xtask` alongside the generator, so `cargo test -p
 lint-http-rules` will not run it: a targeted run can come back green on a rule
