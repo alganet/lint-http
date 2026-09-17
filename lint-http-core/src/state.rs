@@ -152,12 +152,25 @@ impl StateStore {
             resource: resource.to_string(),
         };
 
-        self.inner
+        let mut entries: Vec<SharedTransaction> = self
+            .inner
             .read()
             .store
             .get(&key)
             .map(|dq| dq.iter().cloned().collect())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        // Insertion order is *completion* order, and that is not timestamp
+        // order. A transaction is recorded when it finishes, so two requests
+        // for the same resource that overlap are recorded in the order they
+        // came back rather than the order they went out — which a browser does
+        // constantly and a sequential client never does. The deque's
+        // `push_front` therefore yields newest-*recorded* first, and
+        // `TransactionHistory` requires newest-*stamped* first: without this
+        // sort a rule asking for the previous response to a resource can be
+        // handed one that came after it. Its two siblings below and in
+        // `by_connection` already sort for the same reason; this one did not.
+        entries.sort_by_key(|tx| std::cmp::Reverse(tx.timestamp));
+        entries
     }
     /// Retrieve the full bounded history across **all clients** for the given
     /// resource string.  The returned vector is sorted newest-first by
@@ -436,6 +449,44 @@ mod tests {
             Some("\"etag2\"")
         );
         Ok(())
+    }
+
+    /// Concurrent requests for one resource are recorded in the order they
+    /// *finished*, which is not the order they started. The history rules read
+    /// must still be newest-first by timestamp, or a rule comparing a response
+    /// against "the previous one" compares it against a later one.
+    #[test]
+    fn get_history_is_newest_first_even_when_recorded_out_of_order() {
+        use crate::test_helpers::make_test_transaction_with_response;
+
+        let store = StateStore::new(300, 10);
+        let client = make_client();
+        let resource = "http://example.com/res";
+
+        let now = chrono::Utc::now();
+        // Started first, finished last: recorded second.
+        let mut earlier = make_test_transaction_with_response(200, &[("etag", "\"early\"")]);
+        earlier.client = client.clone();
+        earlier.request.uri = resource.to_string();
+        earlier.timestamp = now;
+
+        let mut later = make_test_transaction_with_response(200, &[("etag", "\"late\"")]);
+        later.client = client.clone();
+        later.request.uri = resource.to_string();
+        later.timestamp = now + chrono::Duration::seconds(1);
+
+        // Completion order: the later-stamped one came back first.
+        store.record_transaction(&later);
+        store.record_transaction(&earlier);
+
+        let history = store.get_history(&client, resource);
+        assert_eq!(history.len(), 2);
+        assert!(
+            history[0].timestamp >= history[1].timestamp,
+            "history was not newest-first: {:?} then {:?}",
+            history[0].timestamp,
+            history[1].timestamp
+        );
     }
 
     #[test]
