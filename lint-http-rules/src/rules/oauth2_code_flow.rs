@@ -119,7 +119,7 @@ impl Rule for Oauth2CodeFlow {
             let query = req_uri.split_once('?').map(|x| x.1).unwrap_or("");
             let query = query.split('#').next().unwrap_or(query);
 
-            let params = crate::helpers::uri::parse_query_string(query);
+            let params = parse_query_string(query);
 
             // helper to lookup a parameter by name (first occurrence)
             fn get_param<'a>(pairs: &'a [(String, String)], key: &str) -> Option<&'a String> {
@@ -170,7 +170,7 @@ impl Rule for Oauth2CodeFlow {
                             let prev_q =
                                 prev.request.uri.split_once('?').map(|x| x.1).unwrap_or("");
                             let prev_q = prev_q.split('#').next().unwrap_or(prev_q);
-                            let prev_params = crate::helpers::uri::parse_query_string(prev_q);
+                            let prev_params = parse_query_string(prev_q);
                             if let Some(rt2) = get_param(&prev_params, "response_type") {
                                 if rt2 == "code" {
                                     if let Some(ps) = get_param(&prev_params, "state") {
@@ -199,6 +199,37 @@ impl Rule for Oauth2CodeFlow {
         };
         Vec::from_iter(finding())
     }
+}
+
+/// The `name=value` pairs a query string carries, in the order they were
+/// written, with percent-encoding left as the sender wrote it.
+///
+/// **This transcribes no production, which is why it lives beside its one
+/// caller and not in a module named for one.** `query = *( pchar / "/" / "?" )`
+/// generates the `&` and the `=` as ordinary data and says nothing about what
+/// they separate; the `key=value` shape is something § 3.4 says query
+/// components are *often used* to carry, which is a remark about practice and
+/// not a grammar a reader may assume. The parameters this rule's sentences name
+/// are written that way, so the reading is this rule's. The day a second rule
+/// asks the same question, the two of them decide where the answer lives.
+///
+/// Empty names are kept, because a malformed query is exactly what this rule
+/// reads; a pair with no `=` is a name with an empty value; and an empty element
+/// between two `&` is skipped.
+// cite(RFC 3986 § 3.4): "query       = *( pchar / "/" / "?" )"
+// cite(RFC 3986 § 3.4): "as query components are often used to carry identifying information in the form of "key=value" pairs"
+fn parse_query_string(s: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for pair in s.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+        let mut kv = pair.splitn(2, '=');
+        let name = kv.next().unwrap_or("").to_string();
+        let value = kv.next().unwrap_or("").to_string();
+        out.push((name, value));
+    }
+    out
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -404,5 +435,29 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "oauth2_code_flow");
         crate::rules::validate_rules(&cfg).unwrap();
+    }
+    #[test]
+    fn parse_query_string_basic() {
+        let v = parse_query_string("");
+        assert!(v.is_empty());
+        let v = parse_query_string("a=1&b=2");
+        assert_eq!(
+            v,
+            vec![
+                ("a".to_string(), "1".to_string()),
+                ("b".to_string(), "2".to_string())
+            ]
+        );
+        let v = parse_query_string("foo");
+        assert_eq!(v, vec![("foo".to_string(), "".to_string())]);
+        let v = parse_query_string("x=&=y&z=3");
+        assert_eq!(
+            v,
+            vec![
+                ("x".to_string(), "".to_string()),
+                ("".to_string(), "y".to_string()),
+                ("z".to_string(), "3".to_string()),
+            ]
+        );
     }
 }

@@ -1729,6 +1729,20 @@ sources:
       line: 268
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 322
+  - label: oauth2_code_flow
+    section: § 3.4
+    snippet: as query components are often used to carry identifying information in the form of "key=value" pairs
+    cited_by:
+    - file: lint-http-rules/src/rules/oauth2_code_flow.rs
+      line: 220
+  - label: query
+    section: § 3.4
+    snippet: query       = *( pchar / "/" / "?" )
+    cited_by:
+    - file: lint-http-rules/src/rules/oauth2_code_flow.rs
+      line: 219
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 218
   - label: referer_uri_valid
     section: § 3.2.1
     snippet: Use of the format "user:password" in the userinfo field is deprecated.
@@ -1793,12 +1807,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 177
-  - label: query
-    section: § 3.4
-    snippet: query       = *( pchar / "/" / "?" )
-    cited_by:
-    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
-      line: 218
   - label: well_known_uri_syntax
     section: § 3.3
     snippet: The path is terminated by the first question mark ("?") or number sign ("#") character, or by the end of the URI.
