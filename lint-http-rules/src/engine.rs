@@ -194,7 +194,7 @@ impl PreparedEngine {
 
 /// Lint an entire `HttpTransaction`. Convenience one-shot: builds a
 /// [`PreparedEngine`] for `cfg` and dispatches once. Hot paths (the proxy
-/// pipeline, the offline `lint` subcommand) build a `PreparedEngine` once and
+/// pipeline, the offline `lint-captures` subcommand) build a `PreparedEngine` once and
 /// reuse it; this wrapper is for tests and one-off callers.
 ///
 /// # Panics

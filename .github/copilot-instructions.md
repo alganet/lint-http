@@ -32,9 +32,13 @@ type lives in that crate.
 
 ## Runtime flow
 
-Startup is `lint-http-proxy/src/main.rs`: clap subcommands (`run` carries `--config`; a bare
-`--config` is a deprecated alias), then `Config::load_from_path`, then rule validation, then the
-capture writer, then the proxy. Traffic enters `proxy/` — `http.rs`, `http3.rs`, `connect.rs`,
+Startup is `lint-http-proxy/src/main.rs`: clap subcommands — `run` wraps a child command,
+`proxy-start` runs the proxy, `lint-captures` replays a capture file, `rules`/`config` inspect.
+`--config` is optional everywhere it appears; omitting it loads `config::DEFAULT_CONFIG_TOML`,
+which is `config_example.toml` compiled in. Then rule validation, then the capture writer, then
+the proxy. `run` itself is `proxied_run.rs` (ephemeral port, per-run CA in a temp dir, child
+spawned with the `client_env.rs` table in its environment) and it re-uses `lint_records` — the
+same replay `lint-captures` runs, so the two reports cannot drift. Traffic enters `proxy/` — `http.rs`, `http3.rs`, `connect.rs`,
 `websocket/` by protocol — a transaction is assembled, `engine::lint_transaction` runs the
 enabled rules over it, and `capture.rs` appends JSONL. TLS interception and CA management are in
 `ca.rs`; the CA certificate is served at `/_lint_http/cert`.

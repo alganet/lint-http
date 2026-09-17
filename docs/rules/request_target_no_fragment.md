@@ -18,7 +18,7 @@ The rule is therefore **not version-gated**: only the last sentence of the findi
 
 **A percent-encoded number sign is data and is not reported.** `%23` is what RFC 3986 §2.2 asks for when data would conflict with a reserved character's purpose as a delimiter, so `/a%23b` is a path segment containing a number sign and is clean. An empty fragment (`/a#`) is reported: the component is present, and the number sign is what says so.
 
-**What this rule cannot see: anything this proxy captured itself.** Both transports build the recorded target from a parsed URI, and that parse truncates the value at the first number sign before a transaction exists — the fragment is gone before any rule runs, and it does not reach the upstream either. The finding is reachable when a capture recorded elsewhere is read back through the `lint` subcommand's JSONL file.
+**What this rule cannot see: anything this proxy captured itself.** Both transports build the recorded target from a parsed URI, and that parse truncates the value at the first number sign before a transaction exists — the fragment is gone before any rule runs, and it does not reach the upstream either. The finding is reachable when a capture recorded elsewhere is read back through the `lint-captures` subcommand's JSONL file.
 
 **What this rule does not decide.** Which of the four forms a request-target derives from, and whether the method may use that form, is `request_target_form_valid`; whether a percent-encoded triplet is well formed is `request_uri_percent_encoding_valid`. Whether a *field* carrying a URI reference may hold a fragment is that field's own question and not this one's — `Location = URI-reference` admits one (RFC 9110 §10.2.2), and `Referer` forbids one (§10.1.3).
 

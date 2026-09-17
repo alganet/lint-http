@@ -14,7 +14,7 @@ A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single reques
 
 **RFC 8297 states no requirement on a server.** Its three BCP 14 requirements — two MUST NOTs and a SHOULD NOT — are addressed to the client and concern what it does with the fields, which no captured message states. Its two server sentences are MAYs: a `103` may carry only some of the fields expected in the final response, and a server may emit several of them. Comparing a `103`'s fields against a final response's is declined at the source, since §2 calls the repetition typical and then names cases where omitting it is right.
 
-**Where a `103` in a capture comes from.** On the HTTP/1.x and HTTP/2 upstream legs this proxy discards interim responses before recording anything — hyper's HTTP/1.x client skips `100` and `102..=199` outright, and its HTTP/2 client reads `h2`'s main response, which steps over interim headers. The HTTP/3 leg does not: `h3`'s `recv_response` returns the first HEADERS frame whatever its status, so a `103` from an HTTP/3 origin becomes the recorded response. That leg and `lint` over capture files written elsewhere are where this rule's findings live.
+**Where a `103` in a capture comes from.** On the HTTP/1.x and HTTP/2 upstream legs this proxy discards interim responses before recording anything — hyper's HTTP/1.x client skips `100` and `102..=199` outright, and its HTTP/2 client reads `h2`'s main response, which steps over interim headers. The HTTP/3 leg does not: `h3`'s `recv_response` returns the first HEADERS frame whatever its status, so a `103` from an HTTP/3 origin becomes the recorded response. That leg and `lint-captures` over capture files written elsewhere are where this rule's findings live.
 
 ## Violations
 

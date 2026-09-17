@@ -22,52 +22,91 @@ lint-http inspects HTTP(S) traffic, runs protocol best-practice checks (rules), 
 - Configurable, stateful lint rules (enable/disable via TOML)
 - Easy to use with curl, browsers, and other HTTP clients
 
-## Quick start — run locally
+## Quick start — lint a command
 
-1) Build and run (recommended for development):
+`run` wraps any command, sends its HTTP traffic through a proxy that exists only
+for that run, and reports what the rules found. Nothing to configure, nothing to
+install, nothing left behind:
 
 ```bash
-cargo run -- run --config config_example.toml
+lint-http run -- curl https://example.com
 ```
 
-2) Basic HTTP usage:
+```
+<!doctype html>...
+
+GET https://example.com/ -> 200
+  info  cache_control_present/cache_control_missing  Response 200 without Cache-Control header  [RFC 9111 §4.2.2 ...]
+  info  charset_present/content_type_charset_missing  Text-based Content-Type header missing charset parameter.  [RFC 9110 §8.3.2 ...]
+
+2 violation(s) in 1 transaction(s)
+```
+
+It is not curl-specific — the proxy lints whatever crosses it, so `run` works on
+anything that reads the usual proxy and CA environment variables:
 
 ```bash
-# use the proxy (example listens on 127.0.0.1:3000)
+lint-http run -- npm install
+lint-http run -- pytest tests/integration
+lint-http run --fail-on error -- ./my-test-suite
+```
+
+The wrapped command keeps stdout and keeps its exit code, so `run` can sit in
+front of a command without changing what that command's success means. The
+report goes to stderr; `--fail-on <severity>` is what makes a finding fail the
+run instead.
+
+- `lint-http run --print-env` — the variables a wrapped command receives, and
+  which client reads each one.
+- `--captures <PATH>` keeps the capture file; by default the run leaves nothing
+  on disk, including the CA, which is generated fresh per run and deleted with it.
+
+Some clients cannot be reached this way — Go on macOS and Windows, Java, and any
+binary with its trust anchors compiled in. The list, with reasons, is in the
+module header of `lint-http-proxy/src/client_env.rs`.
+
+## Quick start — a proxy you point things at
+
+For a session rather than a command, `proxy-start` runs the proxy and leaves it
+listening:
+
+```bash
+lint-http proxy-start                          # built-in configuration
+lint-http proxy-start --config config.toml     # or your own
+```
+
+```bash
+# use the proxy (default configuration listens on 127.0.0.1:3000)
 curl -x http://localhost:3000 http://example.com
-```
 
-3) HTTPS interception (trust the generated CA locally):
-
-```bash
-# Download the CA cert exposed by the running proxy
+# for HTTPS, trust the CA it generated
 curl http://localhost:3000/_lint_http/cert > lint-http-ca.crt
-# Tell your client to trust `lint-http-ca.crt` and use the proxy for HTTPS
 curl -x http://localhost:3000 --cacert lint-http-ca.crt https://example.com
 ```
 
-4) Watch traffic live (set `general.live_stream_enabled = true` in the config):
+Watch traffic live (set `general.live_stream_enabled = true` in the config):
 
 ```bash
 # Server-Sent Events feed of each transaction as it commits
 curl -N http://localhost:3000/_lint_http/stream
 ```
 
-Notes:
-- The proxy uses rustls; no system OpenSSL dependency is required for basic operation.
-- See `config_example.toml` for an example configuration.
+Note: the proxy uses rustls; no system OpenSSL dependency is required for basic
+operation.
 
 ## Configuration
 
-The proxy is configured via a TOML file passed to the `run` subcommand with
-`--config`.
+Every command runs with a built-in configuration when you give it no `--config`
+— the one in `config_example.toml`, compiled into the binary, with the whole rule
+catalogue enabled. To change something, export it and edit:
 
 ```bash
-lint-http run --config config.toml
+lint-http config export > config.toml
+lint-http proxy-start --config config.toml
 ```
 
-(A bare `lint-http --config config.toml` still works as a deprecated alias for
-`run` and prints a warning; prefer the `run` form.)
+`config export` emits exactly the bytes the binary would otherwise have run, so
+an exported file you have not edited changes nothing.
 
 Refer to `docs/configuration.md` for full options, including TLS settings and rule configuration.
 
@@ -92,7 +131,8 @@ recorded transactions through the rules and exits non-zero when any violations
 are found, so it drops straight into CI:
 
 ```bash
-lint-http lint --config config.toml captures.jsonl
+lint-http lint-captures captures.jsonl
+lint-http lint-captures --config config.toml captures.jsonl
 ```
 
 Example snippet:

@@ -6,17 +6,29 @@ SPDX-License-Identifier: ISC
 
 # Configuration
 
-`lint-http` is configured using a TOML file. You provide this file to the `run`
-subcommand using the `--config` CLI argument.
+`lint-http` is configured using a TOML file, and every command that accepts one
+may also be given none: `--config` is optional throughout, and omitting it runs
+the configuration compiled into the binary. That built-in is `config_example.toml`
+itself — the whole rule catalogue enabled, with `[general]` and `[tls]` set to
+values that work unattended — so nothing has to be written before the tool does
+anything. `lint-http config export` prints it for editing.
+
+A named config **replaces** the built-in rather than layering over it. Rules are
+off unless a config names them, so a file listing three rules enables three
+rules; export and edit if you want the catalogue minus a few.
 
 ## Command-Line Options
 
 `lint-http` uses subcommands:
 
-- `run --config <PATH>`: Start the intercepting proxy. `<PATH>` is the TOML
-  configuration file (mandatory).
-- `lint --config <PATH> [--format text|json] [--min-severity info|warn|error]
-  <CAPTURES>`: Lint a recorded capture file offline (see below).
+- `run [OPTIONS] -- <COMMAND>...`: Run a command with its HTTP traffic proxied
+  and linted (see below). The most common entry point; nothing needs configuring.
+- `proxy-start [--config <PATH>]`: Start the intercepting proxy and leave it
+  listening.
+- `lint-captures [--config <PATH>] [--format text|json]
+  [--min-severity info|warn|error] <CAPTURES>`: Lint a recorded capture file
+  offline (see below).
+- `config export`: Print the built-in configuration to stdout.
 - `rules list [--format text|json] [--config <PATH>]`: List every rule and its
   metadata (id, scope, title, and — in JSON — description, spec references, and
   documentation examples). No config or proxy needed; it prints the static
@@ -29,21 +41,46 @@ subcommand using the `--config` CLI argument.
 Example:
 
 ```bash
-lint-http run --config config.toml
+lint-http proxy-start --config config.toml
 ```
 
-For backwards compatibility, a bare `lint-http --config config.toml` is still
-accepted as a deprecated alias for `run` (it prints a warning); prefer the
-`run` form.
+## Wrapping a command
+
+`lint-http run [OPTIONS] -- <COMMAND>...` binds a proxy on an ephemeral port,
+generates a CA into a temporary directory, puts both into the child's
+environment, runs it, and reports what crossed.
+
+```bash
+lint-http run -- curl https://example.com
+lint-http run --min-severity warn -- npm install
+lint-http run --fail-on error --captures run.jsonl -- pytest
+```
+
+- `--min-severity` decides what the report contains; `--fail-on` decides what the
+  exit code means. Without `--fail-on`, the exit code is the wrapped command's,
+  untouched. With it, a clean child that produced findings at or above that
+  severity exits 1 — but a child that failed keeps its own code.
+- The report goes to **stderr**. Stdout belongs to the wrapped command, so
+  `lint-http run -- curl -sS https://example.com > body.json` writes only the body.
+- `--captures <PATH>` keeps the capture file. Without it, the run leaves nothing
+  behind: the temporary directory, and the per-run CA inside it, are removed when
+  it ends.
+- `--print-env` lists the variables a wrapped command receives, and which client
+  reads each one, without running anything.
+
+The variables and the clients that read them are a table in
+`lint-http-proxy/src/client_env.rs`, where each row quotes the documentation that
+defines it — so `just quotes` fails when a client's documentation drifts. The
+same module header lists the clients no environment variable can reach.
 
 ## Linting recorded captures
 
-`lint-http lint --config <PATH> <CAPTURES>` replays a JSONL capture file (the
+`lint-http lint-captures [--config <PATH>] <CAPTURES>` replays a JSONL capture file (the
 `captures` file the proxy writes) through the rule engine without running a
 proxy — the CI story: lint recorded HTTP fixtures offline.
 
 ```bash
-lint-http lint --config config.toml captures.jsonl
+lint-http lint-captures --config config.toml captures.jsonl
 ```
 
 It replays the records in file order. Each transaction is linted against the
@@ -73,11 +110,11 @@ Two flags shape the report:
   `--min-severity error`, warn-level findings no longer fail CI. Stateful rules
   still see every transaction; only the reporting is gated.
 
-The `--config` file is the same TOML used by `run`; `lint` reads only the
+The `--config` file is the same TOML used by `proxy-start`; `lint-captures` reads only the
 `[rules]` toggles/severities, the `[violations]` overrides beside them, and the
 `[general]` `ttl_seconds` / `max_history`
 (used to size the replay's history window). The `listen`, `captures`, and
-`[tls]` fields are ignored by `lint`.
+`[tls]` fields are ignored by `lint-captures`.
 
 ## Configuration File Structure
 
