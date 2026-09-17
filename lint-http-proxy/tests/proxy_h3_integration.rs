@@ -183,12 +183,17 @@ async fn start_proxy_with_h3(
 /// Read the capture file once at least `want` record(s) have reached it,
 /// polling to a deadline rather than sleeping a guessed interval.
 ///
-/// The two callers below used `sleep(200ms)`, which is two failures in one: it
-/// costs 200ms on a fast machine that was ready immediately, and it races on a
-/// loaded CI runner that was not. The writer flushes on its own schedule, so
-/// the only honest wait is for the record itself. Both sibling suites —
+/// Its callers used `sleep(200ms)`, which is two failures in one: it costs
+/// 200ms on a fast machine that was ready immediately, and it races on a loaded
+/// one that was not. The writer flushes on its own schedule, so the only honest
+/// wait is for the record itself. Both sibling suites —
 /// `proxy_websocket_relay` and `proxy_upstream_h3_integration` — already do
 /// this; this file was the one left guessing.
+///
+/// It was introduced for two of the seven sites and the rest kept sleeping, so
+/// `h3_multiple_requests_on_same_connection_increment_sequence` — the one that
+/// waits for *two* records, and therefore had the least slack — failed roughly
+/// two runs in five on this machine.
 async fn read_captures_when_ready(
     path: impl AsRef<std::path::Path>,
     want: usize,
@@ -550,17 +555,7 @@ async fn h3_multiple_requests_on_same_connection_increment_sequence() -> anyhow:
     drop(send_request);
     let _ = driver_handle.await;
 
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    let content = tokio::fs::read_to_string(&captures_path).await?;
-    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert!(lines.len() >= 2, "should have at least 2 capture records");
-
-    // Parse all capture records
-    let mut records: Vec<serde_json::Value> = lines
-        .iter()
-        .map(|l| serde_json::from_str(l).unwrap())
-        .collect();
+    let mut records = read_captures_when_ready(&captures_path, 2).await?;
     // Sort by sequence_number for deterministic ordering
     records.sort_by_key(|v| v["sequence_number"].as_u64().unwrap_or(0));
 
@@ -619,15 +614,10 @@ async fn h3_large_request_body_streams_and_truncates_capture() -> anyhow::Result
     assert_eq!(reqs.len(), 1);
     assert_eq!(reqs[0].body.len(), 64);
 
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
     // The capture holds only the bounded prefix, marked truncated, while
     // request body_length records the real streamed total.
-    let content = tokio::fs::read_to_string(&captures_path).await?;
-    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert!(!lines.is_empty(), "transaction should be captured");
-
-    let v: serde_json::Value = serde_json::from_str(lines[0])?;
+    let entries = read_captures_when_ready(&captures_path, 1).await?;
+    let v = entries[0].clone();
     assert_eq!(v["response"]["status"].as_u64(), Some(200));
     assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3.0"));
     assert_eq!(v["request_body_over_limit"].as_bool(), Some(true));
@@ -675,18 +665,10 @@ async fn h3_response_over_limit_streams_full_and_truncates_capture() -> anyhow::
     assert_eq!(status, 200);
     assert_eq!(body.len(), 64);
 
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
     // The capture holds only the bounded prefix, marked truncated, while
     // body_length records the real streamed total.
-    let content = tokio::fs::read_to_string(&captures_path).await?;
-    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert!(
-        !lines.is_empty(),
-        "over-limit transaction should be captured"
-    );
-
-    let v: serde_json::Value = serde_json::from_str(lines[0])?;
+    let entries = read_captures_when_ready(&captures_path, 1).await?;
+    let v = entries[0].clone();
     assert_eq!(v["response"]["status"].as_u64(), Some(200));
     assert_eq!(v["response_body_over_limit"].as_bool(), Some(true));
     assert_eq!(v["response"]["body_length"].as_u64(), Some(64));
@@ -733,14 +715,10 @@ async fn h3_request_with_host_header_fallback() -> anyhow::Result<()> {
         h3_get(&endpoint, h3_addr, "/fallback", &[("host", "127.0.0.1:1")]).await?;
     assert_eq!(status, 502);
 
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    let content = tokio::fs::read_to_string(&captures_path).await?;
-    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert!(!lines.is_empty(), "should capture the error transaction");
+    let entries = read_captures_when_ready(&captures_path, 1).await?;
 
     // The captured URI should contain the host from the Host header
-    let v: serde_json::Value = serde_json::from_str(lines.last().unwrap())?;
+    let v = entries.last().unwrap().clone();
     assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3.0"));
     // The host header value was used to build the upstream URI
     let captured_uri = v["request"]["uri"].as_str().unwrap_or("");
