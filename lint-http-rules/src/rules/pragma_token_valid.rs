@@ -88,6 +88,15 @@ impl RuleMeta for PragmaTokenValid {
         DECLARED
     }
 
+    /// **`Pragma` was defined for a request and is seen in both halves**, so
+    /// the field's own grammar is read out of each and the malformed directive
+    /// belongs to the peer that wrote it. Whether a *response* should carry the
+    /// field at all is `cache_control_and_pragma_consistent`'s question, asked
+    /// there and answered the same way.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -140,7 +149,7 @@ impl Rule for PragmaTokenValid {
                 let v = v.trim();
                 if !v.is_empty() {
                     if let Some((def, msg)) = check_pragma_value(v) {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by_client().report_with(
                             def,
                             format!("Invalid Pragma header in request: {}", msg),
                         ));
@@ -160,7 +169,7 @@ impl Rule for PragmaTokenValid {
                     let v = v.trim();
                     if !v.is_empty() {
                         if let Some((def, msg)) = check_pragma_value(v) {
-                            return Some(ctx.report_with(
+                            return Some(ctx.by_server().report_with(
                                 def,
                                 format!("Invalid Pragma header in response: {}", msg),
                             ));

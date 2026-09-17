@@ -72,6 +72,14 @@ impl RuleMeta for CachingDirectiveInteraction {
         DECLARED
     }
 
+    /// **The conflicts this reads are between directives inside one field
+    /// section**, never across the two, so the answer is the section: a request
+    /// carrying contradictory `Cache-Control` directives is the client's defect
+    /// and a response carrying them is the origin's.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -104,7 +112,9 @@ impl Rule for CachingDirectiveInteraction {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             // Helper to check a single HeaderMap for contradictions
-            let check_headers = |hdrs: &hyper::HeaderMap| -> Option<Violation> {
+            let check_headers = |hdrs: &hyper::HeaderMap,
+                                 party: crate::lint::Party|
+             -> Option<Violation> {
                 // The value is read as the octets the sender wrote, so there is
                 // no line for a reader to skip and nothing for this rule to say
                 // about the field's encoding. An octet no `tchar` admits is a
@@ -119,7 +129,7 @@ impl Rule for CachingDirectiveInteraction {
                 // what the raw reader is for.
                 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                 if crate::helpers::cache_control::members(&lines).any(str::is_empty) {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by(party).report_with(
                         &LIST_MEMBER_EMPTY,
                         "Cache-Control header contains empty member".into(),
                     ));
@@ -152,7 +162,7 @@ impl Rule for CachingDirectiveInteraction {
                     .get("private")
                     .is_some_and(|vs| vs.iter().any(|v| v.is_none()));
                 if seen.contains_key("public") && private_unqualified {
-                    return Some(ctx.report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'public' (RFC 9111 \u{a7}5.2.2.9) and an unqualified 'private' (\u{a7}5.2.2.7): a shared cache MAY store the response and MUST NOT store it".into()));
+                    return Some(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'public' (RFC 9111 \u{a7}5.2.2.9) and an unqualified 'private' (\u{a7}5.2.2.7): a shared cache MAY store the response and MUST NOT store it".into()));
                 }
 
                 // no-store with public/private
@@ -163,7 +173,7 @@ impl Rule for CachingDirectiveInteraction {
                     // only job is to say *which* caches may store is a contradiction: one of
                     // the two is dead text, and the server does not know which it meant.
                     // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                    return Some(ctx.report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains 'no-store' (RFC 9111 \u{a7}5.2.2.5) together with 'public' or 'private', whose only job is to say which caches may store what no-store forbids storing at all".into()));
+                    return Some(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains 'no-store' (RFC 9111 \u{a7}5.2.2.5) together with 'public' or 'private', whose only job is to say which caches may store what no-store forbids storing at all".into()));
                 }
 
                 // Note: combinations like 'no-cache' with 'max-age=0' are allowed per RFC 9111 §3
@@ -192,7 +202,7 @@ impl Rule for CachingDirectiveInteraction {
                             // if at least two are different, flag
                             let first = &nums[0];
                             if nums.iter().any(|x| x != first) {
-                                return Some(ctx.report_with(&CACHE_CONTROL_FRESHNESS_CONFLICTING, format!("Cache-Control contains multiple '{}' directives with differing values, and RFC 9111 \u{a7}4.2.1 leaves a cache free to use the first or to treat the response as stale", key)));
+                                return Some(ctx.by(party).report_with(&CACHE_CONTROL_FRESHNESS_CONFLICTING, format!("Cache-Control contains multiple '{}' directives with differing values, and RFC 9111 \u{a7}4.2.1 leaves a cache free to use the first or to treat the response as stale", key)));
                             }
                         }
                     }
@@ -202,11 +212,11 @@ impl Rule for CachingDirectiveInteraction {
             };
 
             // Check request and response headers
-            if let Some(v) = check_headers(&tx.request.headers) {
+            if let Some(v) = check_headers(&tx.request.headers, crate::lint::Party::Client) {
                 return Some(v);
             }
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_headers(&resp.headers) {
+                if let Some(v) = check_headers(&resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }
