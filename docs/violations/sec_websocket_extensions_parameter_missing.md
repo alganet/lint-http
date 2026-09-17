@@ -1,0 +1,29 @@
+<!--
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+SPDX-License-Identifier: ISC
+-->
+
+# sec_websocket_extensions_parameter_missing
+
+Sec-WebSocket-Extensions writes a ';' with no parameter after it
+
+## Message
+
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
+
+## Specifications
+
+- [RFC 6455 §9.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1): Negotiating Extensions — the grammar, the MUST that makes a non-conforming value a failure of the connection, the note that the notation is RFC 2616's, and the requirement on a quoted-string value after unescaping
+
+## Configuration
+
+```toml
+[violations.sec_websocket_extensions_parameter_missing]
+# Sec-WebSocket-Extensions writes a ';' with no parameter after it
+severity = "error"
+```
+
+## Reported By
+
+- [sec_websocket_extensions_syntax](../rules/sec_websocket_extensions_syntax.md)

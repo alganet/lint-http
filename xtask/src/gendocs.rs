@@ -2,13 +2,23 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! Documentation generator: renders `docs/rules/<id>.md` and the
-//! `docs/rules.md` index from rule metadata
+//! Documentation generator: renders two trees of generated markdown and an
+//! index over each.
+//!
+//! `docs/rules/<id>.md` and the `docs/rules.md` index come from rule metadata
 //! ([`description`](lint_http_rules::rules::RuleMeta::description),
 //! [`specifications`](lint_http_rules::rules::RuleMeta::specifications),
 //! [`examples`](lint_http_rules::rules::RuleMeta::examples),
 //! [`title`](lint_http_rules::rules::RuleMeta::title),
 //! [`config_example`](lint_http_rules::rules::RuleMeta::config_example)).
+//!
+//! `docs/violations/<id>.md` and the `docs/violations.md` index come from the
+//! defect catalogue ([`ViolationDef`]). A rule is the unit of analysis and a
+//! violation the unit of report, and they are two trees for the same reason
+//! they are two configuration tables: one defect may be reported by several
+//! rules, so its page cannot live inside any one of them. The rule pages link
+//! down into the defect pages and the defect pages link back — which is the
+//! only place in this file that assumes the two directories are siblings.
 //!
 //! The Configuration block used to be scraped back out of `config_example.toml`,
 //! which was the source of truth for it. That file is now generated from the
@@ -25,7 +35,8 @@ use lint_http_rules::rules::{
     all_rules, Compliance, Example, ProtocolRule, Rule, RuleMeta, RuleScope, SpecRef,
     PROTOCOL_RULES, RULES,
 };
-use std::collections::HashSet;
+use lint_http_rules::violations::{ViolationDef, VIOLATIONS};
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// Fixed license header prepended to every generated markdown file. Held
@@ -213,28 +224,174 @@ pub fn config_section(rule: &dyn RuleMeta) -> String {
     format!("[rules.{}]\n{}", rule.id(), rule.config_example())
 }
 
-/// Pages under `rules_dir` that no rule in the catalogue claims, sorted so a
-/// failure message reads the same twice.
+/// Stand-in for the `## Message` section of a defect whose message is written
+/// where it is reported.
+///
+/// 503 of the 537 entries carry an empty `message`, and that is a design
+/// statement rather than a gap: a message naming the value that caused it can
+/// only be assembled where the value is, so the format string stays at the
+/// site. The line says that in words a reader will not mistake for a TODO.
+const PARAMETERISED_MESSAGE: &str = "_Written where it is reported: this defect's message names \
+the value that caused it, so it is not fixed text._";
+
+/// Render one defect's markdown page from its catalogue entry.
+///
+/// Takes the `&ViolationDef` whole where [`render_doc`] takes six loose
+/// parameters, because a def is plain data with public fields rather than a
+/// `&dyn` behind which every field is a method call —
+/// [`crate::genconfig::violation_section`] already reads one this way.
+///
+/// The Configuration block is derived here rather than passed in. A parameter
+/// would let a caller hand this function a block that configures some *other*
+/// defect, which is the failure [`config_section`]'s own doc comment exists to
+/// prevent; calling `violation_section` means the block on this page and the
+/// block in `config_example.toml` are the same bytes by construction.
+///
+/// `reported_by` is the one thing a def does not know about itself. A defect
+/// names no rule on purpose — 103 of them are reported by more than one, and
+/// `token_character_forbidden` by 42 — so the back-link exists only as the
+/// inverse of the catalogue's forward lists, which is what [`declarers`]
+/// builds.
+///
+/// The heading is the **id**, not the title. A rule page heads with a title
+/// because [`title_from_id`] makes that title the id in prose, so the identity
+/// the reader clicked survives it; a defect's title is a sentence with no
+/// derivable relation to its id, and heading the page with it would lose the
+/// name in the finding, the name in `[violations.<id>]` and the name in the
+/// link. The title becomes the lead paragraph, verbatim and unpunctuated — a
+/// generator that adds a full stop is one that can disagree with the field.
+pub fn render_violation_doc(def: &ViolationDef, reported_by: &[&str]) -> String {
+    let mut out = String::new();
+    out.push_str(SPDX_HEADER);
+    out.push_str(&format!("\n# {}\n\n", def.id));
+    out.push_str(def.title);
+    out.push('\n');
+
+    // Message renders on every page, following `## Description`'s precedent in
+    // `render_doc`; Specifications is omitted when empty, following its own.
+    // The asymmetry is deliberate: each section keeps the behaviour its
+    // counterpart on a rule page already has. A placeholder under
+    // Specifications would restate `every_violation_declares_a_spec`'s four
+    // permitted reasons in 33 copies, which is drift waiting to happen — the
+    // index preamble says it once instead.
+    out.push_str("\n## Message\n\n");
+    if def.message.is_empty() {
+        out.push_str(PARAMETERISED_MESSAGE);
+    } else {
+        out.push_str(def.message.trim_end());
+    }
+    out.push('\n');
+
+    if !def.spec.is_empty() {
+        out.push_str("\n## Specifications\n\n");
+        for spec in def.spec {
+            out.push_str(&format!("- {}\n", spec));
+        }
+    }
+
+    out.push_str(&format!(
+        "\n## Configuration\n\n```toml\n{}\n```\n",
+        crate::genconfig::violation_section(def).trim_end_matches('\n')
+    ));
+
+    out.push_str("\n## Reported By\n\n");
+    if reported_by.is_empty() {
+        out.push_str("_No rule reports this defect._\n");
+    } else {
+        for rule in reported_by {
+            out.push_str(&format!("- [{0}](../rules/{0}.md)\n", rule));
+        }
+    }
+
+    out
+}
+
+/// Render the `docs/violations.md` index: one bullet per defect, in catalogue
+/// order, flat.
+///
+/// No sections, unlike [`render_index`]. A defect has no scope to group by; its
+/// `default_severity` is a preference an operator overrides and would scatter
+/// related entries across three lists; and the subject it belongs to is source
+/// layout (`src/violations/<subject>.rs`), not metadata this can read. What is
+/// left is the id order [`VIOLATIONS`] is already sorted into — and because
+/// every id opens with its subject, that order *is* the subject grouping.
+pub fn render_violation_index(defs: &[&'static ViolationDef]) -> String {
+    let mut out = String::new();
+    out.push_str(SPDX_HEADER);
+    out.push_str(
+        "\n# Violations\n\nGenerated index of every defect the rules report. Each entry links \
+to the per-defect documentation under `violations/`. A rule is the unit of analysis; a violation \
+is the unit of report — the name a finding carries, the name `[violations.<id>]` tunes, and the \
+name `enabled = false` switches off. One defect may be reported by several rules, and its page \
+names them all.\n\nEntries are in id order, which groups them by subject: an id reads \
+`<subject>[_<part>]_<defect>`. A page names the specification sentences its defect enforces where \
+there are any — some defects have none, because the value is refused by this implementation \
+rather than by a document, or the bound was configured by a deployment, and an absent sentence is \
+carried rather than guessed.\n\n",
+    );
+
+    for def in defs {
+        out.push_str(&format!(
+            "- [{0}](violations/{0}.md) — {1}\n",
+            def.id, def.title
+        ));
+    }
+
+    out
+}
+
+/// Which rules report each defect: the catalogue's `violations()` lists,
+/// inverted.
+///
+/// It lives here and not in `lint-http-rules` because nothing on the lint path
+/// asks this question. `RuleContext::report` resolves a def against *one*
+/// rule's declared list by `ptr::eq`, which is the forward direction; the
+/// inverse is a documentation shape with one consumer. `rules/mod.rs` builds
+/// the same map inside `no_violation_is_emitted_by_two_rules`, and two six-line
+/// inversions across a crate boundary are cheaper than a public API with its
+/// own doc comment and its own gate. Promote it if a third caller appears —
+/// `rules list` emitting a `reported_by` field would be the one.
+///
+/// `BTreeMap` keys hold the whole map in the id order [`VIOLATIONS`] is in; the
+/// values keep [`all_rules`] order — transaction rules by id, then protocol
+/// rules by id — which is the order `genconfig` renders sections in.
+fn declarers() -> BTreeMap<&'static str, Vec<&'static str>> {
+    let mut map: BTreeMap<&'static str, Vec<&'static str>> = BTreeMap::new();
+    for rule in all_rules() {
+        for def in rule.violations() {
+            map.entry(def.id).or_default().push(rule.id());
+        }
+    }
+    map
+}
+
+/// Pages under `dir` that no catalogue entry claims, sorted so a failure
+/// message reads the same twice.
 ///
 /// The drift gate iterates the catalogue, so it can only ever look at files that
 /// *should* exist: a page whose rule was renamed or deleted stays on disk and
 /// keeps passing, because nothing looks the other way. This is that other look —
 /// the directory listing minus the catalogue.
 ///
+/// `claimed` is the set of file names the generator writes into `dir`. Which
+/// catalogue supplies that set is the only difference between the two page
+/// directories, so it is a parameter rather than a second copy of this
+/// function; [`page_dirs`] is where the pairing is written down.
+///
 /// Only `.md` is considered. The generator writes nothing else, so anything else
-/// under `rules/` was put there by someone and is not this tool's to delete.
-pub fn orphan_docs(rules_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
-    let generated: HashSet<String> = all_rules().map(|r| format!("{}.md", r.id())).collect();
+/// under a page directory was put there by someone and is not this tool's to
+/// delete.
+pub fn orphan_docs(dir: &Path, claimed: &HashSet<String>) -> anyhow::Result<Vec<PathBuf>> {
     let mut orphans = Vec::new();
-    for entry in std::fs::read_dir(rules_dir)? {
+    for entry in std::fs::read_dir(dir)? {
         let path = entry?.path();
-        let claimed = match path.file_name().and_then(std::ffi::OsStr::to_str) {
-            Some(name) => !name.ends_with(".md") || generated.contains(name),
-            // A name that is not UTF-8 cannot be a rule id, and the ids are what
-            // this tool wrote — leave it alone rather than guess.
+        let kept = match path.file_name().and_then(std::ffi::OsStr::to_str) {
+            Some(name) => !name.ends_with(".md") || claimed.contains(name),
+            // A name that is not UTF-8 cannot be a catalogue id, and the ids are
+            // what this tool wrote — leave it alone rather than guess.
             None => true,
         };
-        if !claimed {
+        if !kept {
             orphans.push(path);
         }
     }
@@ -242,14 +399,33 @@ pub fn orphan_docs(rules_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     Ok(orphans)
 }
 
-/// Render every rule to disk under `out_dir`: `<out_dir>/rules/<id>.md` per
-/// rule plus `<out_dir>/rules.md`. Creates directories as needed.
+/// Every directory this generator writes pages into, paired with the file names
+/// its catalogue claims there.
 ///
-/// Then deletes the orphans and returns what it deleted, so the tree is the
-/// catalogue rather than the catalogue plus whatever it used to be. Reporting is
-/// the caller's: a generator that prints is one that cannot be called twice in a
-/// test without noise.
-pub fn write_all(out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+/// One list, read by the writer, by the pruner, and by the gate that says the
+/// tree has no orphans. A third generated directory is covered by all three the
+/// moment it is added here, rather than by three places remembering — which is
+/// what the second directory nearly cost, since the drift gate can only ever
+/// look at files that should exist.
+///
+/// A fixed-size array rather than a `Vec`: how many page directories there are
+/// is a fact the compiler can hold.
+fn page_dirs(out_dir: &Path) -> [(PathBuf, HashSet<String>); 2] {
+    [
+        (
+            out_dir.join("rules"),
+            all_rules().map(|r| format!("{}.md", r.id())).collect(),
+        ),
+        (
+            out_dir.join("violations"),
+            VIOLATIONS.iter().map(|d| format!("{}.md", d.id)).collect(),
+        ),
+    ]
+}
+
+/// Write `<out_dir>/rules/<id>.md` per rule plus the `<out_dir>/rules.md`
+/// index. Creates the directory as needed.
+fn write_rule_pages(out_dir: &Path) -> anyhow::Result<()> {
     let rules_dir = out_dir.join("rules");
     std::fs::create_dir_all(&rules_dir)?;
 
@@ -265,10 +441,54 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
         std::fs::write(rules_dir.join(format!("{}.md", rule.id())), doc)?;
     }
 
-    let index = render_index(&RULES, &PROTOCOL_RULES);
-    std::fs::write(out_dir.join("rules.md"), index)?;
+    std::fs::write(
+        out_dir.join("rules.md"),
+        render_index(&RULES, &PROTOCOL_RULES),
+    )?;
+    Ok(())
+}
 
-    let orphans = orphan_docs(&rules_dir)?;
+/// Write `<out_dir>/violations/<id>.md` per defect plus the
+/// `<out_dir>/violations.md` index. Creates the directory as needed.
+///
+/// [`declarers`] is built once and read 537 times, rather than per page: it is
+/// a walk of every rule's declared list, and doing it inside the loop would
+/// make writing the catalogue quadratic in it.
+fn write_violation_pages(out_dir: &Path) -> anyhow::Result<()> {
+    let violations_dir = out_dir.join("violations");
+    std::fs::create_dir_all(&violations_dir)?;
+
+    let declarers = declarers();
+    for def in VIOLATIONS.iter() {
+        let reported_by = declarers.get(def.id).map_or(&[][..], Vec::as_slice);
+        let doc = render_violation_doc(def, reported_by);
+        std::fs::write(violations_dir.join(format!("{}.md", def.id)), doc)?;
+    }
+
+    std::fs::write(
+        out_dir.join("violations.md"),
+        render_violation_index(&VIOLATIONS),
+    )?;
+    Ok(())
+}
+
+/// Render both page trees to disk under `out_dir`, then delete the orphans and
+/// return what was deleted, so the tree is the catalogue rather than the
+/// catalogue plus whatever it used to be.
+///
+/// Reporting is the caller's: a generator that prints is one that cannot be
+/// called twice in a test without noise.
+///
+/// The pruning pass reads [`page_dirs`] rather than naming the two directories
+/// again, so it cannot fall behind the writing passes above it.
+pub fn write_all(out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+    write_rule_pages(out_dir)?;
+    write_violation_pages(out_dir)?;
+
+    let mut orphans = Vec::new();
+    for (dir, claimed) in page_dirs(out_dir) {
+        orphans.extend(orphan_docs(&dir, &claimed)?);
+    }
     for path in &orphans {
         std::fs::remove_file(path)?;
     }
@@ -279,7 +499,9 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
 mod tests {
     use super::*;
     use crate::repo_root;
+    use lint_http_rules::lint::Severity;
     use lint_http_rules::rules::REGISTERED_RULES;
+    use lint_http_rules::violations::REGISTERED_VIOLATIONS;
 
     #[test]
     fn title_from_id_capitalizes_each_word() {
@@ -433,35 +655,68 @@ mod tests {
             .join(format!("{}.md", first.id()))
             .is_file());
 
+        assert!(dir.join("violations.md").is_file());
+        let defect = VIOLATIONS.first().expect("catalogue is non-empty");
+        assert!(dir
+            .join("violations")
+            .join(format!("{}.md", defect.id))
+            .is_file());
+
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// A second run deletes the page no rule claims, and only that page. The
-    /// `.txt` is the guard on the extension filter: pruning is scoped to what
-    /// this tool writes, so an unrelated file in the tree survives regeneration.
+    /// A second run deletes the page no catalogue entry claims, and only that
+    /// page — in **both** trees. The `.txt` in each is the guard on the
+    /// extension filter: pruning is scoped to what this tool writes, so an
+    /// unrelated file survives regeneration.
+    ///
+    /// One test over both directories rather than two tests over one each,
+    /// because there is one property here and `orphan_docs` was generalized
+    /// precisely so there would not be two of it.
     #[test]
-    fn write_all_prunes_pages_no_rule_claims() {
+    fn write_all_prunes_pages_no_catalogue_entry_claims() {
         let dir = std::env::temp_dir().join(format!("gendocs_prune_{}", uuid::Uuid::new_v4()));
         write_all(&dir).expect("write_all should succeed");
 
         let rules_dir = dir.join("rules");
-        let orphan = rules_dir.join("rule_that_was_renamed.md");
-        let bystander = rules_dir.join("notes.txt");
-        std::fs::write(&orphan, "stale").expect("write orphan");
-        std::fs::write(&bystander, "mine").expect("write bystander");
-        assert_eq!(
-            orphan_docs(&rules_dir).expect("scan"),
-            vec![orphan.clone()],
-            "only the unclaimed .md is an orphan"
-        );
+        let violations_dir = dir.join("violations");
+        let stale_rule = rules_dir.join("rule_that_was_renamed.md");
+        let stale_defect = violations_dir.join("defect_that_was_merged_away.md");
+        let rule_bystander = rules_dir.join("notes.txt");
+        let defect_bystander = violations_dir.join("notes.txt");
+        for (path, body) in [
+            (&stale_rule, "stale"),
+            (&stale_defect, "stale"),
+            (&rule_bystander, "mine"),
+            (&defect_bystander, "mine"),
+        ] {
+            std::fs::write(path, body).expect("write fixture");
+        }
+
+        for (dir, expected) in page_dirs(&dir).iter().zip([&stale_rule, &stale_defect]) {
+            assert_eq!(
+                orphan_docs(&dir.0, &dir.1).expect("scan"),
+                vec![expected.clone()],
+                "only the unclaimed .md is an orphan"
+            );
+        }
 
         let pruned = write_all(&dir).expect("write_all should succeed");
-        assert_eq!(pruned, vec![orphan.clone()]);
-        assert!(!orphan.exists(), "the orphan should be gone");
-        assert!(bystander.is_file(), "a non-generated file should survive");
+        assert_eq!(pruned, vec![stale_rule.clone(), stale_defect.clone()]);
+        assert!(!stale_rule.exists(), "the orphan rule page should be gone");
+        assert!(
+            !stale_defect.exists(),
+            "the orphan defect page should be gone"
+        );
+        assert!(
+            rule_bystander.is_file() && defect_bystander.is_file(),
+            "a non-generated file should survive in either tree"
+        );
 
         let first = RULES.first().expect("catalogue is non-empty");
         assert!(rules_dir.join(format!("{}.md", first.id())).is_file());
+        let defect = VIOLATIONS.first().expect("catalogue is non-empty");
+        assert!(violations_dir.join(format!("{}.md", defect.id)).is_file());
 
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -473,15 +728,18 @@ mod tests {
     #[test]
     fn docs_have_no_orphans() {
         assert!(
-            !RULES.is_empty(),
-            "catalogue did not collect in the xtask link config — every page would read as an orphan",
+            !RULES.is_empty() && !VIOLATIONS.is_empty(),
+            "a catalogue did not collect in the xtask link config — every page in its tree would read as an orphan",
         );
-        let orphans = orphan_docs(&repo_root().join("docs/rules")).expect("read docs/rules");
-        assert!(
-            orphans.is_empty(),
-            "no rule claims these pages — run `cargo xtask gendocs`: {:?}",
-            orphans
-        );
+        for (dir, claimed) in page_dirs(&repo_root().join("docs")) {
+            let orphans = orphan_docs(&dir, &claimed)
+                .unwrap_or_else(|e| panic!("read {}: {}", dir.display(), e));
+            assert!(
+                orphans.is_empty(),
+                "nothing in the catalogue claims these pages — run `cargo xtask gendocs`: {:?}",
+                orphans
+            );
+        }
     }
 
     /// Every `SpecRef` must name a document `specs/sources.yaml` knows, at the
@@ -580,6 +838,14 @@ mod tests {
         for rule in all_rules() {
             check(rule.id(), rule.specifications());
         }
+        // A def's own references reach `docs/violations/<id>.md` directly, so
+        // this reads them directly. They were covered only transitively before,
+        // by `every_violation_spec_is_declared_by_its_rule` in another crate —
+        // and a gate that holds because some other gate holds is one nobody
+        // will think to re-check when that one changes.
+        for def in VIOLATIONS.iter() {
+            check(def.id, def.spec);
+        }
     }
 
     /// No reference points at a rendition nobody reads.
@@ -605,41 +871,54 @@ mod tests {
         for rule in all_rules() {
             check(rule.id(), rule.specifications());
         }
+        // A def's own references reach `docs/violations/<id>.md` directly, so
+        // this reads them directly. They were covered only transitively before,
+        // by `every_violation_spec_is_declared_by_its_rule` in another crate —
+        // and a gate that holds because some other gate holds is one nobody
+        // will think to re-check when that one changes.
+        for def in VIOLATIONS.iter() {
+            check(def.id, def.spec);
+        }
     }
 
-    /// #11d drift gate: the committed `docs/rules/` files must equal what
-    /// `gendocs` regenerates from rule metadata. This makes the docs a verified
-    /// generated artifact — editing a rule (or `config_example.toml`) without
-    /// regenerating fails CI. Run `cargo xtask gendocs` to fix drift.
+    /// #11d drift gate: the committed `docs/rules/` and `docs/violations/` files
+    /// must equal what `gendocs` regenerates from the two catalogues. This makes
+    /// the docs a verified generated artifact — editing a rule or a defect
+    /// without regenerating fails CI. Run `cargo xtask gendocs` to fix drift.
     ///
-    /// The gate is a loop over the catalogue, so an empty one would satisfy it
-    /// over nothing at all — and the catalogue reaches this crate across an rlib
-    /// boundary, which is exactly where linkme can come up empty. The floor
-    /// assertion is what keeps a link failure from reading as 194 files in
-    /// agreement; `catalogue_collected_in_xtask_link_config` in `main.rs` says
-    /// the same thing where a reader will look for it.
+    /// One test over both trees rather than one each: there is a single
+    /// artifact, a single fixer command, and a single message worth printing.
+    ///
+    /// The gate is a loop over each catalogue, so an empty one would satisfy it
+    /// over nothing at all — and both reach this crate across an rlib boundary,
+    /// which is exactly where linkme can come up empty. The floor assertions are
+    /// what keep a link failure from reading as 730 files in agreement;
+    /// `catalogue_collected_in_xtask_link_config` in `main.rs` says the same
+    /// thing where a reader will look for it.
     #[test]
     fn docs_match_generated() {
         assert_eq!(RULES.len(), REGISTERED_RULES.len());
+        assert_eq!(VIOLATIONS.len(), REGISTERED_VIOLATIONS.len());
         assert!(
-            !RULES.is_empty(),
-            "catalogue did not collect in the xtask link config — this gate would pass vacuously",
+            !RULES.is_empty() && !VIOLATIONS.is_empty(),
+            "a catalogue did not collect in the xtask link config — this gate would pass vacuously",
         );
 
         let root = repo_root();
-        let check = |id: &str, expected: String| {
-            let path = root.join(format!("docs/rules/{}.md", id));
+        let check = |relative: String, expected: String| {
+            let path = root.join(&relative);
             let on_disk = std::fs::read_to_string(&path)
                 .unwrap_or_else(|e| panic!("cannot read {}: {}", path.display(), e));
             assert!(
                 on_disk == expected,
-                "docs/rules/{}.md is out of date — run `cargo xtask gendocs`",
-                id
+                "{} is out of date — run `cargo xtask gendocs`",
+                relative
             );
         };
+
         for rule in all_rules() {
             check(
-                rule.id(),
+                format!("docs/rules/{}.md", rule.id()),
                 render_doc(
                     rule.id(),
                     rule.title(),
@@ -650,11 +929,176 @@ mod tests {
                 ),
             );
         }
-        let index = render_index(&RULES, &PROTOCOL_RULES);
-        let on_disk = std::fs::read_to_string(root.join("docs/rules.md")).expect("docs/rules.md");
-        assert!(
-            on_disk == index,
-            "docs/rules.md is out of date — run `cargo xtask gendocs`"
+        check(
+            "docs/rules.md".to_string(),
+            render_index(&RULES, &PROTOCOL_RULES),
         );
+
+        let declarers = declarers();
+        for def in VIOLATIONS.iter() {
+            let reported_by = declarers.get(def.id).map_or(&[][..], Vec::as_slice);
+            check(
+                format!("docs/violations/{}.md", def.id),
+                render_violation_doc(def, reported_by),
+            );
+        }
+        check(
+            "docs/violations.md".to_string(),
+            render_violation_index(&VIOLATIONS),
+        );
+    }
+
+    /// Every defect's page names exactly the rules that report it.
+    ///
+    /// The converse of the forward declaration each rule makes, and the half no
+    /// gate could state before: a def names no rule, so the back-link exists
+    /// only as an inversion, and an inversion with a bug reads exactly like a
+    /// defect nobody reports.
+    #[test]
+    fn every_violation_page_names_the_rules_that_report_it() {
+        let declarers = declarers();
+        for def in VIOLATIONS.iter() {
+            let page =
+                render_violation_doc(def, declarers.get(def.id).map_or(&[][..], Vec::as_slice));
+            let listed: Vec<&str> = page
+                .split("\n## Reported By\n\n")
+                .nth(1)
+                .expect("every page has a Reported By section")
+                .lines()
+                .take_while(|line| line.starts_with("- ["))
+                .map(|line| {
+                    line.trim_start_matches("- [")
+                        .split(']')
+                        .next()
+                        .expect("a bullet names a rule")
+                })
+                .collect();
+            let expected: Vec<&str> = declarers.get(def.id).cloned().unwrap_or_default();
+            assert_eq!(
+                listed, expected,
+                "docs/violations/{}.md does not name the rules that report it",
+                def.id
+            );
+        }
+    }
+
+    /// The violation index links every defect, exactly once.
+    ///
+    /// Counting rather than `contains`: a doubled entry is the failure a
+    /// presence check cannot see, and the index is generated from a sorted
+    /// catalogue precisely so it can be read as a complete list.
+    #[test]
+    fn the_violation_index_links_every_defect_once() {
+        let index = render_violation_index(&VIOLATIONS);
+        for def in VIOLATIONS.iter() {
+            let link = format!("[{0}](violations/{0}.md)", def.id);
+            assert_eq!(
+                index.matches(&link).count(),
+                1,
+                "{} is not linked exactly once from docs/violations.md",
+                def.id
+            );
+        }
+    }
+
+    /// Smoke test over the real catalogue: every defect renders a page with the
+    /// sections a reader is entitled to, headed by the id they clicked.
+    #[test]
+    fn render_violation_doc_for_whole_catalogue_is_nonempty_and_well_formed() {
+        assert!(!VIOLATIONS.is_empty(), "catalogue did not collect");
+        let declarers = declarers();
+        for def in VIOLATIONS.iter() {
+            let page =
+                render_violation_doc(def, declarers.get(def.id).map_or(&[][..], Vec::as_slice));
+            assert!(page.starts_with(SPDX_HEADER), "{} lost its header", def.id);
+            assert!(page.contains(&format!("\n# {}\n", def.id)));
+            assert!(page.contains("\n## Message\n"), "{}", def.id);
+            assert!(page.contains("\n## Configuration\n"), "{}", def.id);
+            assert!(
+                page.contains(&format!("```toml\n[violations.{}]\n", def.id)),
+                "{} does not show the table that configures it",
+                def.id
+            );
+            assert!(page.contains("\n## Reported By\n"), "{}", def.id);
+        }
+    }
+
+    /// A def constructed here rather than taken from the catalogue, so the page
+    /// shape is pinned against text this test can read whole.
+    #[test]
+    fn a_violation_page_carries_its_id_title_message_specs_config_and_declarers() {
+        let def = ViolationDef {
+            id: "widget_count_malformed",
+            title: "Widget-Count is written with something other than digits on it",
+            message: "Widget-Count is not a number",
+            default_severity: Severity::Warn,
+            spec: &[SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+                note: "Tokens",
+            }],
+        };
+        let page = render_violation_doc(&def, &["widget_count_valid", "widget_headers_consistent"]);
+
+        assert!(page.contains("\n# widget_count_malformed\n"));
+        assert!(page.contains("\nWidget-Count is written with something other than digits on it\n"));
+        assert!(page.contains("\n## Message\n\nWidget-Count is not a number\n"));
+        assert!(page.contains("- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens\n"));
+        assert!(page.contains("```toml\n[violations.widget_count_malformed]\n"));
+        assert!(page.contains("severity = \"warn\"\n```\n"));
+        assert!(page.contains("- [widget_count_valid](../rules/widget_count_valid.md)\n"));
+        assert!(
+            page.contains("- [widget_headers_consistent](../rules/widget_headers_consistent.md)\n")
+        );
+    }
+
+    /// An empty `message` is the 503-entry majority and is not a gap: the page
+    /// says where the text is written instead of leaving a reader to wonder.
+    #[test]
+    fn a_violation_page_says_a_parameterised_message_is_written_where_it_is_reported() {
+        let def = ViolationDef {
+            id: "widget_count_malformed",
+            title: "Widget-Count is written with something other than digits on it",
+            message: "",
+            default_severity: Severity::Warn,
+            spec: &[],
+        };
+        let page = render_violation_doc(&def, &["widget_count_valid"]);
+        assert!(page.contains(PARAMETERISED_MESSAGE));
+        assert!(!page.contains("TODO"));
+    }
+
+    /// The 33 defects no sentence states get no Specifications section at all,
+    /// rather than a generated line restating why — the index preamble says it
+    /// once, and 33 copies of a rationale is drift waiting to happen.
+    #[test]
+    fn a_violation_page_omits_specifications_when_the_defect_cites_none() {
+        let def = ViolationDef {
+            id: "widget_count_malformed",
+            title: "Widget-Count is written with something other than digits on it",
+            message: "",
+            default_severity: Severity::Info,
+            spec: &[],
+        };
+        let page = render_violation_doc(&def, &["widget_count_valid"]);
+        assert!(!page.contains("## Specifications"));
+        assert!(page.contains("## Message"));
+    }
+
+    /// Unreachable from the catalogue — `every_defect_is_reported_by_some_rule`
+    /// says so — and rendered anyway, because a page that silently loses its
+    /// last declarer should say that rather than end on a blank heading.
+    #[test]
+    fn a_violation_page_says_when_no_rule_reports_the_defect() {
+        let def = ViolationDef {
+            id: "widget_count_malformed",
+            title: "Widget-Count is written with something other than digits on it",
+            message: "",
+            default_severity: Severity::Error,
+            spec: &[],
+        };
+        let page = render_violation_doc(&def, &[]);
+        assert!(page.contains("_No rule reports this defect._"));
     }
 }

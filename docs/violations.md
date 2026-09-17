@@ -1,0 +1,549 @@
+<!--
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+SPDX-License-Identifier: ISC
+-->
+
+# Violations
+
+Generated index of every defect the rules report. Each entry links to the per-defect documentation under `violations/`. A rule is the unit of analysis; a violation is the unit of report — the name a finding carries, the name `[violations.<id>]` tunes, and the name `enabled = false` switches off. One defect may be reported by several rules, and its page names them all.
+
+Entries are in id order, which groups them by subject: an id reads `<subject>[_<part>]_<defect>`. A page names the specification sentences its defect enforces where there are any — some defects have none, because the value is refused by this implementation rather than by a document, or the bound was configured by a deployment, and an absent sentence is carried rather than guessed.
+
+- [accept_encoding_empty](violations/accept_encoding_empty.md) — Request declines every content coding
+- [accept_encoding_missing](violations/accept_encoding_missing.md) — Request expresses no content-coding preference
+- [accept_ignored](violations/accept_ignored.md) — Response sends a media type the request did not accept
+- [accept_patch_ignored](violations/accept_patch_ignored.md) — A PATCH sends a format the resource never advertised
+- [accept_patch_missing](violations/accept_patch_missing.md) — A response that should name the patch formats names none
+- [accept_ranges_ignored](violations/accept_ranges_ignored.md) — A range is requested outside what the resource advertised
+- [accept_ranges_missing](violations/accept_ranges_missing.md) — A partial response advertises no range units
+- [accept_ranges_none_conflicting](violations/accept_ranges_none_conflicting.md) — Accept-Ranges says 'none' where range requests demonstrably work
+- [accept_ranges_unit_missing](violations/accept_ranges_unit_missing.md) — A range unit in use is absent from what the response advertises
+- [access_control_allow_credentials_conflicting](violations/access_control_allow_credentials_conflicting.md) — Access-Control-Allow-Credentials claims `true` beside a wildcard origin
+- [access_control_allow_credentials_invalid](violations/access_control_allow_credentials_invalid.md) — Access-Control-Allow-Credentials states a value that is not `true`
+- [access_control_allow_origin_conflicting](violations/access_control_allow_origin_conflicting.md) — Access-Control-Allow-Origin echoes an origin that did not ask
+- [access_control_allow_origin_credentials_conflicting](violations/access_control_allow_origin_credentials_conflicting.md) — The wildcard origin sits on a response that also allows credentials
+- [access_control_allow_origin_empty](violations/access_control_allow_origin_empty.md) — Access-Control-Allow-Origin is written with no value on it
+- [access_control_allow_origin_malformed](violations/access_control_allow_origin_malformed.md) — Access-Control-Allow-Origin states a value that is none of `*`, `null` and a serialized origin
+- [alpn_protocol_name_length_invalid](violations/alpn_protocol_name_length_invalid.md) — ALPN protocol name is longer than the vector that carries it
+- [alpn_protocol_name_obsolete](violations/alpn_protocol_name_obsolete.md) — ALPN protocol name identifies a draft of a shipped protocol
+- [alpn_protocol_name_unregistered](violations/alpn_protocol_name_unregistered.md) — ALPN protocol name is not one this deployment serves
+- [alt_svc_alternative_equals_missing](violations/alt_svc_alternative_equals_missing.md) — Alt-Svc alternative has no '=' between its protocol-id and its alt-authority
+- [alt_svc_authority_character_forbidden](violations/alt_svc_authority_character_forbidden.md) — Alt-Svc alt-authority holds an octet no production of it admits
+- [alt_svc_clear_conflicting](violations/alt_svc_clear_conflicting.md) — Alt-Svc carries the clear keyword beside an alternative service
+- [alt_svc_equals_whitespace_forbidden](violations/alt_svc_equals_whitespace_forbidden.md) — Alt-Svc writes whitespace beside an '=' its grammar prints bare
+- [alt_svc_ma_invalid](violations/alt_svc_ma_invalid.md) — Alt-Svc states a freshness lifetime that cannot be what was meant
+- [alt_svc_parameter_empty](violations/alt_svc_parameter_empty.md) — Alt-Svc writes a semicolon with no parameter behind it
+- [alt_svc_parameter_equals_missing](violations/alt_svc_parameter_equals_missing.md) — Alt-Svc parameter has no '=' and no value
+- [alt_svc_parameter_value_empty](violations/alt_svc_parameter_value_empty.md) — Alt-Svc parameter is written with no value after its '='
+- [alt_svc_persist_invalid](violations/alt_svc_persist_invalid.md) — Alt-Svc sets persist to a value the parameter does not define
+- [alt_svc_port_empty](violations/alt_svc_port_empty.md) — Alt-Svc alt-authority ends at the colon with no port
+- [alt_svc_port_invalid](violations/alt_svc_port_invalid.md) — Alt-Svc alt-authority names a port no transport has
+- [alt_svc_port_missing](violations/alt_svc_port_missing.md) — Alt-Svc alt-authority names no port
+- [alt_svc_protocol_id_invalid](violations/alt_svc_protocol_id_invalid.md) — Alt-Svc protocol-id is not the one spelling this field allows for its ALPN name
+- [auth_param_equals_missing](violations/auth_param_equals_missing.md) — An authentication parameter is written without its '='
+- [auth_scheme_character_forbidden](violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
+- [auth_scheme_unregistered](violations/auth_scheme_unregistered.md) — Authentication scheme is not one the deployment recognises
+- [authority_conflicting](violations/authority_conflicting.md) — A request's :authority and Host name different authorities
+- [authority_empty](violations/authority_empty.md) — A request's authority field is present and empty
+- [authority_missing](violations/authority_missing.md) — A request that owes an authority names none
+- [authority_tunnel_host_empty](violations/authority_tunnel_host_empty.md) — A CONNECT's destination names a port and no host
+- [authority_tunnel_missing](violations/authority_tunnel_missing.md) — A CONNECT names no host and port to open a tunnel to
+- [authority_tunnel_port_empty](violations/authority_tunnel_port_empty.md) — A CONNECT's destination ends at the colon with no port
+- [authority_tunnel_port_invalid](violations/authority_tunnel_port_invalid.md) — A CONNECT's destination names a port no transport has
+- [authority_tunnel_port_missing](violations/authority_tunnel_port_missing.md) — A CONNECT's destination names no port
+- [authority_tunnel_userinfo_forbidden](violations/authority_tunnel_userinfo_forbidden.md) — A CONNECT's :authority carries a userinfo subcomponent
+- [authority_userinfo_forbidden](violations/authority_userinfo_forbidden.md) — An :authority carries the deprecated userinfo subcomponent
+- [authority_value_conflicting](violations/authority_value_conflicting.md) — An :authority and Host are one authority in two spellings
+- [base64_character_forbidden](violations/base64_character_forbidden.md) — Value holds an octet outside the base64 alphabet
+- [base64_malformed](violations/base64_malformed.md) — Value is not a base64 encoding
+- [base64_pad_bits_invalid](violations/base64_pad_bits_invalid.md) — Final base64 symbol carries bits a conforming encoder zeroes
+- [base64_quantum_malformed](violations/base64_quantum_malformed.md) — Value is not a whole number of base64 groups
+- [basic_credentials_control_character_forbidden](violations/basic_credentials_control_character_forbidden.md) — Basic credentials hold a control character
+- [basic_credentials_separator_missing](violations/basic_credentials_separator_missing.md) — Basic credentials hold no ':' separator
+- [boundary_character_forbidden](violations/boundary_character_forbidden.md) — Boundary holds a character outside the delimiter set
+- [boundary_length_invalid](violations/boundary_length_invalid.md) — Boundary is empty or longer than seventy characters
+- [boundary_missing](violations/boundary_missing.md) — A multipart media type carries no boundary parameter
+- [boundary_trailing_space_forbidden](violations/boundary_trailing_space_forbidden.md) — Boundary ends with a space
+- [bws_forbidden](violations/bws_forbidden.md) — Whitespace written where the grammar admits BWS
+- [cache_control_freshness_conflicting](violations/cache_control_freshness_conflicting.md) — A Cache-Control freshness directive is given more than one value
+- [cache_control_freshness_missing](violations/cache_control_freshness_missing.md) — A status no cache stores by default states no freshness
+- [cache_control_immutable_ignored](violations/cache_control_immutable_ignored.md) — A still-fresh immutable response is revalidated anyway
+- [cache_control_immutable_redundant](violations/cache_control_immutable_redundant.md) — immutable sits on a response with no freshness lifetime
+- [cache_control_missing](violations/cache_control_missing.md) — A 200 leaves its freshness lifetime to be guessed
+- [cache_control_must_revalidate_ignored](violations/cache_control_must_revalidate_ignored.md) — A stale must-revalidate response is reused without validation
+- [cache_control_no_cache_argument_empty](violations/cache_control_no_cache_argument_empty.md) — Cache-Control no-cache is qualified by no field name
+- [cache_control_no_cache_ignored](violations/cache_control_no_cache_ignored.md) — A no-cache response is reused without being revalidated
+- [cache_control_no_store_ignored](violations/cache_control_no_store_ignored.md) — A validator from a no-store response comes back on a later request
+- [cache_control_private_argument_empty](violations/cache_control_private_argument_empty.md) — Cache-Control private is qualified by no field name
+- [cache_control_private_ignored](violations/cache_control_private_ignored.md) — A validator from a private response reaches a second client
+- [cache_control_redundant](violations/cache_control_redundant.md) — A reuse directive sits on a response no cache may select
+- [cache_control_s_maxage_ignored](violations/cache_control_s_maxage_ignored.md) — A cache s-maxage does not address used it for freshness
+- [cache_control_storage_conflicting](violations/cache_control_storage_conflicting.md) — Two Cache-Control directives disagree about storing the response
+- [cache_response_conflicting](violations/cache_response_conflicting.md) — Two responses for one URI disagree about which version is current
+- [challenge_empty](violations/challenge_empty.md) — Authentication challenge is empty
+- [challenge_member_empty](violations/challenge_member_empty.md) — Authentication challenge list has an empty member
+- [challenge_parameter_empty](violations/challenge_parameter_empty.md) — Authentication challenge has an empty parameter
+- [challenge_parameter_name_character_forbidden](violations/challenge_parameter_name_character_forbidden.md) — Authentication parameter name holds a character outside token
+- [challenge_parameter_name_empty](violations/challenge_parameter_name_empty.md) — Authentication parameter has an empty name
+- [challenge_parameter_value_character_forbidden](violations/challenge_parameter_value_character_forbidden.md) — Authentication parameter value holds a character outside token
+- [challenge_parameter_value_missing](violations/challenge_parameter_value_missing.md) — Authentication parameter has no value
+- [challenge_realm_ambiguous](violations/challenge_realm_ambiguous.md) — One realm is advertised by two authentication schemes
+- [challenge_scheme_missing](violations/challenge_scheme_missing.md) — Authentication parameter arrives before any scheme
+- [challenge_token68_invalid](violations/challenge_token68_invalid.md) — Authentication token68 is indistinguishable from a parameter
+- [charset_empty](violations/charset_empty.md) — Charset parameter carries no name
+- [charset_unregistered](violations/charset_unregistered.md) — Charset name is not one the deployment recognises
+- [clear_site_data_missing](violations/clear_site_data_missing.md) — A sign-out response does not ask the client to clear its storage
+- [comment_character_forbidden](violations/comment_character_forbidden.md) — Comment holds a character ctext does not admit
+- [comment_delimiter_missing](violations/comment_delimiter_missing.md) — Comment is never closed
+- [conditional_date_conflicting](violations/conditional_date_conflicting.md) — A date precondition names a time after the request's own Date
+- [conditional_date_ignored](violations/conditional_date_ignored.md) — A date conditional is sent where the recipient must discard it
+- [conditional_date_redundant](violations/conditional_date_redundant.md) — A date conditional is sent beside the entity-tag conditional that supersedes it
+- [conditional_empty](violations/conditional_empty.md) — A precondition is written with no validator in it
+- [conditional_entity_tag_missing](violations/conditional_entity_tag_missing.md) — A revalidating request omits the entity tags it holds
+- [conditional_missing](violations/conditional_missing.md) — A repeat request declines a validator the server provided
+- [conditional_redundant](violations/conditional_redundant.md) — A still-fresh stored response is revalidated anyway
+- [conditional_validator_conflicting](violations/conditional_validator_conflicting.md) — A precondition names a validator older than the last one seen
+- [conditional_validator_missing](violations/conditional_validator_missing.md) — A precondition names a validator this exchange never provided
+- [connection_option_forbidden](violations/connection_option_forbidden.md) — A connection-option names a field the whole chain must read
+- [content_coding_identity_forbidden](violations/content_coding_identity_forbidden.md) — The identity coding is named where a coding belongs
+- [content_coding_redundant](violations/content_coding_redundant.md) — One coding is named twice in one field
+- [content_coding_unregistered](violations/content_coding_unregistered.md) — Content coding is not one the deployment recognises
+- [content_coding_wildcard_forbidden](violations/content_coding_wildcard_forbidden.md) — The Accept-Encoding wildcard is written where a coding belongs
+- [content_disposition_name_empty](violations/content_disposition_name_empty.md) — A form-data Content-Disposition names an empty form field
+- [content_disposition_name_missing](violations/content_disposition_name_missing.md) — A form-data Content-Disposition names no form field
+- [content_disposition_parameter_duplicated](violations/content_disposition_parameter_duplicated.md) — Content-Disposition names one parameter twice
+- [content_disposition_size_invalid](violations/content_disposition_size_invalid.md) — A Content-Disposition size parameter is not a number
+- [content_length_character_forbidden](violations/content_length_character_forbidden.md) — Content-Length value holds an octet DIGIT does not admit
+- [content_length_conflicting](violations/content_length_conflicting.md) — Content-Length disagrees with the octets received
+- [content_length_empty](violations/content_length_empty.md) — Content-Length declares no length
+- [content_length_forbidden](violations/content_length_forbidden.md) — Content-Length is sent in a message that is transfer-coded
+- [content_length_members_conflicting](violations/content_length_members_conflicting.md) — Content-Length is declared twice with different numbers
+- [content_length_numeral_invalid](violations/content_length_numeral_invalid.md) — Content-Length numeral is too large to represent
+- [content_location_ambiguous](violations/content_location_ambiguous.md) — Content-Location names a resource other than the request target
+- [content_location_empty](violations/content_location_empty.md) — Content-Location is written with nothing in it
+- [content_location_fragment_forbidden](violations/content_location_fragment_forbidden.md) — Content-Location carries a fragment component
+- [content_md5_obsolete](violations/content_md5_obsolete.md) — Content-MD5 is a field HTTP removed
+- [content_md5_redundant](violations/content_md5_redundant.md) — A message carries two integrity values over one content
+- [content_range_complete_length_conflicting](violations/content_range_complete_length_conflicting.md) — Content-Range complete-length does not exceed its last-pos
+- [content_range_empty](violations/content_range_empty.md) — Content-Range is empty
+- [content_range_forbidden](violations/content_range_forbidden.md) — Content-Range is written in the header section of a multipart 206
+- [content_range_form_invalid](violations/content_range_form_invalid.md) — Content-Range uses the form belonging to the other status code
+- [content_range_incl_range_malformed](violations/content_range_incl_range_malformed.md) — Content-Range range is not first-pos '-' last-pos
+- [content_range_length_conflicting](violations/content_range_length_conflicting.md) — Content-Range describes a range that is not the declared Content-Length
+- [content_range_missing](violations/content_range_missing.md) — Content-Range is absent from a response whose range it would describe
+- [content_range_numeral_invalid](violations/content_range_numeral_invalid.md) — Content-Range numeral is too large to represent
+- [content_range_numeral_malformed](violations/content_range_numeral_malformed.md) — Content-Range numeral is not 1*DIGIT
+- [content_range_positions_conflicting](violations/content_range_positions_conflicting.md) — Content-Range first-pos is greater than its last-pos
+- [content_range_slash_missing](violations/content_range_slash_missing.md) — Content-Range has no '/'
+- [content_range_spec_missing](violations/content_range_spec_missing.md) — Content-Range has no range after its unit
+- [content_range_spec_whitespace_forbidden](violations/content_range_spec_whitespace_forbidden.md) — Content-Range holds whitespace after its single space
+- [content_range_unit_malformed](violations/content_range_unit_malformed.md) — Content-Range unit is not a token
+- [content_range_unsatisfied_range_malformed](violations/content_range_unsatisfied_range_malformed.md) — Content-Range writes something other than '*' before its '/'
+- [content_security_policy_base64_value_empty](violations/content_security_policy_base64_value_empty.md) — A nonce or hash source names no value
+- [content_security_policy_base64_value_malformed](violations/content_security_policy_base64_value_malformed.md) — A nonce value holds a character base64-value does not admit
+- [content_security_policy_directive_empty](violations/content_security_policy_directive_empty.md) — A policy opens with a semicolon and names no first directive
+- [content_security_policy_directive_name_character_forbidden](violations/content_security_policy_directive_name_character_forbidden.md) — A CSP directive name holds a character the production does not admit
+- [content_security_policy_empty](violations/content_security_policy_empty.md) — Content-Security-Policy is written with no policy in it
+- [content_security_policy_frame_ancestors_conflicting](violations/content_security_policy_frame_ancestors_conflicting.md) — frame-ancestors and X-Frame-Options state different framing policies
+- [content_security_policy_source_delimiter_missing](violations/content_security_policy_source_delimiter_missing.md) — A nonce or hash source is written without its single quotes
+- [content_security_policy_source_empty](violations/content_security_policy_source_empty.md) — A quoted source expression is written with nothing in it
+- [content_transfer_encoding_forbidden](violations/content_transfer_encoding_forbidden.md) — A MIME field HTTP does not use survived into an HTTP message
+- [content_type_charset_missing](violations/content_type_charset_missing.md) — A text media type does not say which character encoding it used
+- [content_type_missing](violations/content_type_missing.md) — A message carries content and does not say what it is
+- [cookie_domain_empty](violations/cookie_domain_empty.md) — Set-Cookie Domain attribute is empty
+- [cookie_domain_ipv4_address_forbidden](violations/cookie_domain_ipv4_address_forbidden.md) — Set-Cookie Domain attribute is an IPv4 address
+- [cookie_domain_ipv6_literal_forbidden](violations/cookie_domain_ipv6_literal_forbidden.md) — Set-Cookie Domain attribute is an IPv6 literal
+- [cookie_domain_leading_dot_obsolete](violations/cookie_domain_leading_dot_obsolete.md) — Set-Cookie Domain attribute keeps the obsolete leading dot
+- [cookie_domain_missing](violations/cookie_domain_missing.md) — Set-Cookie Domain attribute carries no value
+- [cookie_expires_missing](violations/cookie_expires_missing.md) — Set-Cookie Expires attribute carries no value
+- [cookie_flag_value_forbidden](violations/cookie_flag_value_forbidden.md) — Set-Cookie writes a value on a flag attribute
+- [cookie_max_age_malformed](violations/cookie_max_age_malformed.md) — Set-Cookie Max-Age is not a number a user agent will read
+- [cookie_max_age_missing](violations/cookie_max_age_missing.md) — Set-Cookie Max-Age attribute carries no value
+- [cookie_pair_missing](violations/cookie_pair_missing.md) — Set-Cookie carries no cookie-pair
+- [cookie_path_control_character_forbidden](violations/cookie_path_control_character_forbidden.md) — Set-Cookie Path attribute holds a control character
+- [cookie_path_empty](violations/cookie_path_empty.md) — Set-Cookie Path attribute is empty
+- [cookie_path_leading_slash_missing](violations/cookie_path_leading_slash_missing.md) — Set-Cookie Path attribute is not rooted at `/`
+- [cookie_path_missing](violations/cookie_path_missing.md) — Set-Cookie Path attribute carries no value
+- [cookie_path_non_ascii_character_forbidden](violations/cookie_path_non_ascii_character_forbidden.md) — Set-Cookie Path attribute holds a raw non-ASCII character
+- [cookie_path_whitespace_invalid](violations/cookie_path_whitespace_invalid.md) — Set-Cookie Path attribute holds unencoded whitespace
+- [cookie_same_site_ignored](violations/cookie_same_site_ignored.md) — A cookie is sent in a context its SameSite excludes
+- [cookie_same_site_invalid](violations/cookie_same_site_invalid.md) — Set-Cookie SameSite names no policy the grammar defines
+- [cookie_same_site_missing](violations/cookie_same_site_missing.md) — Set-Cookie SameSite attribute carries no value
+- [cookie_scope_ignored](violations/cookie_scope_ignored.md) — A cookie is sent where the store's own rules exclude it
+- [cookie_secure_ignored](violations/cookie_secure_ignored.md) — A Secure cookie is sent over a scheme that is not secure
+- [cookie_secure_missing](violations/cookie_secure_missing.md) — A SameSite=None cookie is not Secure
+- [cookie_value_conflicting](violations/cookie_value_conflicting.md) — A cookie carries a value the observed exchange did not set
+- [credentials_control_character_forbidden](violations/credentials_control_character_forbidden.md) — Credentials hold a control character
+- [credentials_empty](violations/credentials_empty.md) — Credentials are empty
+- [credentials_missing](violations/credentials_missing.md) — Credentials are absent after the scheme
+- [cross_origin_embedder_policy_invalid](violations/cross_origin_embedder_policy_invalid.md) — Cross-Origin-Embedder-Policy names no embedder policy
+- [cross_origin_embedder_policy_isolation_missing](violations/cross_origin_embedder_policy_isolation_missing.md) — A Cross-Origin-Embedder-Policy is set to the value that does not isolate
+- [cross_origin_opener_policy_invalid](violations/cross_origin_opener_policy_invalid.md) — Cross-Origin-Opener-Policy names no opener policy
+- [cross_origin_resource_policy_invalid](violations/cross_origin_resource_policy_invalid.md) — Cross-Origin-Resource-Policy names no resource policy
+- [delta_seconds_character_forbidden](violations/delta_seconds_character_forbidden.md) — A time in seconds holds an octet DIGIT does not admit
+- [delta_seconds_empty](violations/delta_seconds_empty.md) — A time in seconds is stated with no digits
+- [deprecation_malformed](violations/deprecation_malformed.md) — A Deprecation is not a Structured Field Date
+- [digest_credentials_challenge_missing](violations/digest_credentials_challenge_missing.md) — Digest credentials name a nonce no observed challenge offered
+- [digest_credentials_nc_invalid](violations/digest_credentials_nc_invalid.md) — A Digest nonce-count is not the number the exchange calls for
+- [digest_credentials_nc_malformed](violations/digest_credentials_nc_malformed.md) — A Digest nonce-count is not eight hexadecimal digits
+- [digest_credentials_opaque_conflicting](violations/digest_credentials_opaque_conflicting.md) — Digest credentials do not return the opaque the challenge supplied
+- [digest_credentials_parameter_empty](violations/digest_credentials_parameter_empty.md) — A required Digest parameter is written with nothing in it
+- [digest_credentials_parameter_missing](violations/digest_credentials_parameter_missing.md) — Digest credentials omit a parameter the response computation needs
+- [digest_credentials_quoting_invalid](violations/digest_credentials_quoting_invalid.md) — A Digest parameter is written in the syntax its definition refuses
+- [digest_equals_missing](violations/digest_equals_missing.md) — Digest member is written without its '='
+- [digest_field_obsolete](violations/digest_field_obsolete.md) — Digest or Want-Digest is a field RFC 9530 retired
+- [digest_member_empty](violations/digest_member_empty.md) — Digest field writes a comma with no member beside it
+- [digest_preference_invalid](violations/digest_preference_invalid.md) — Want-Digest preference is outside the range 0 to 10
+- [digest_preference_malformed](violations/digest_preference_malformed.md) — Want-Digest preference is not an Integer
+- [digest_value_empty](violations/digest_value_empty.md) — Digest field member carries no digest
+- [digest_value_malformed](violations/digest_value_malformed.md) — Digest field member's value is not a Byte Sequence
+- [domain_label_character_forbidden](violations/domain_label_character_forbidden.md) — Domain label holds a character outside letters, digits and hyphen
+- [domain_label_edge_hyphen_forbidden](violations/domain_label_edge_hyphen_forbidden.md) — Domain label starts or ends with a hyphen
+- [domain_label_empty](violations/domain_label_empty.md) — Domain name has an empty label
+- [domain_label_length_invalid](violations/domain_label_length_invalid.md) — Domain label is longer than 63 characters
+- [domain_name_length_invalid](violations/domain_name_length_invalid.md) — Domain name is longer than 255 octets
+- [domain_name_whitespace_or_control_forbidden](violations/domain_name_whitespace_or_control_forbidden.md) — Domain name holds whitespace or a control character
+- [early_data_duplicated](violations/early_data_duplicated.md) — A request carries more than one Early-Data field line
+- [early_data_forbidden](violations/early_data_forbidden.md) — Early-Data appears where the section forbids it
+- [early_data_invalid](violations/early_data_invalid.md) — Early-Data carries a value other than 1
+- [early_data_method_forbidden](violations/early_data_method_forbidden.md) — A request in early data uses a method whose safety is not known
+- [etag_character_forbidden](violations/etag_character_forbidden.md) — Entity-tag holds a character etagc does not admit
+- [etag_delimiter_missing](violations/etag_delimiter_missing.md) — Entity-tag is not quoted
+- [etag_weak_indicator_invalid](violations/etag_weak_indicator_invalid.md) — Weakness indicator is not written W/
+- [etag_wildcard_forbidden](violations/etag_wildcard_forbidden.md) — An ETag carries the wildcard the conditional fields take
+- [expect_100_continue_forbidden](violations/expect_100_continue_forbidden.md) — A 100-continue expectation is sent in a request with no content
+- [expect_100_continue_invalid](violations/expect_100_continue_invalid.md) — The 100-continue expectation is written with an argument
+- [expect_member_malformed](violations/expect_member_malformed.md) — Expect member holds octets the expectation production does not admit
+- [expect_value_empty](violations/expect_value_empty.md) — Expect writes an expectation '=' with no value after it
+- [expires_conflicting](violations/expires_conflicting.md) — Expires and the Cache-Control freshness directives disagree
+- [ext_value_malformed](violations/ext_value_malformed.md) — An extended parameter value is no ext-value
+- [field_connection_specific_forbidden](violations/field_connection_specific_forbidden.md) — A connection-specific field is written on a version that has none
+- [field_line_duplicated](violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [field_name_unregistered](violations/field_name_unregistered.md) — Field name is not one the deployment expects
+- [field_request_context_misdirected](violations/field_request_context_misdirected.md) — A request context field is written in a response
+- [field_response_context_misdirected](violations/field_response_context_misdirected.md) — A response context field is written in a request
+- [forwarded_element_whitespace_forbidden](violations/forwarded_element_whitespace_forbidden.md) — Forwarded element holds whitespace its grammar does not admit
+- [forwarded_pair_equals_missing](violations/forwarded_pair_equals_missing.md) — Forwarded pair is written without its '='
+- [forwarded_pair_value_empty](violations/forwarded_pair_value_empty.md) — Forwarded pair is written with no value after its '='
+- [forwarded_parameter_duplicated](violations/forwarded_parameter_duplicated.md) — Forwarded element names one parameter more than once
+- [forwarded_response_forbidden](violations/forwarded_response_forbidden.md) — Response carries a Forwarded field
+- [host_missing](violations/host_missing.md) — A request names its authority in neither Host nor :authority
+- [host_userinfo_forbidden](violations/host_userinfo_forbidden.md) — A Host field value carries the userinfo subcomponent
+- [http3_goaway_identifier_invalid](violations/http3_goaway_identifier_invalid.md) — A GOAWAY identifier is larger than one already sent
+- [http3_goaway_ignored](violations/http3_goaway_ignored.md) — A request stream opens past the limit a server's GOAWAY set
+- [http3_max_push_id_forbidden](violations/http3_max_push_id_forbidden.md) — A server sent a MAX_PUSH_ID frame
+- [http3_max_push_id_invalid](violations/http3_max_push_id_invalid.md) — A MAX_PUSH_ID reduces a maximum already set on the connection
+- [http3_settings_duplicated](violations/http3_settings_duplicated.md) — A peer sent a second SETTINGS frame on one connection
+- [http3_settings_identifier_duplicated](violations/http3_settings_identifier_duplicated.md) — One SETTINGS frame states the same identifier twice
+- [http3_settings_identifier_forbidden](violations/http3_settings_identifier_forbidden.md) — SETTINGS carries an identifier HTTP/3 reserves
+- [http_date_empty](violations/http_date_empty.md) — A date field is written with no timestamp on it
+- [http_date_malformed](violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
+- [http_date_obsolete](violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
+- [http_date_whitespace_forbidden](violations/http_date_whitespace_forbidden.md) — Timestamp is padded with whitespace the grammar does not print
+- [http_version_invalid](violations/http_version_invalid.md) — A protocol version is below the floor the exchange requires
+- [http_version_malformed](violations/http_version_malformed.md) — A protocol version derives from no reading of HTTP-version
+- [if_range_empty](violations/if_range_empty.md) — If-Range is written with no validator in it
+- [if_range_forbidden](violations/if_range_forbidden.md) — If-Range is sent in a request with no Range
+- [if_range_validator_date_forbidden](violations/if_range_validator_date_forbidden.md) — If-Range carries a date for a representation with an entity tag
+- [if_range_validator_weak_forbidden](violations/if_range_validator_weak_forbidden.md) — If-Range carries a weak entity-tag
+- [keep_alive_connection_option_missing](violations/keep_alive_connection_option_missing.md) — Keep-Alive is sent with no keep-alive connection-option in Connection
+- [keep_alive_parameter_equals_missing](violations/keep_alive_parameter_equals_missing.md) — Keep-Alive writes a parameter with no '=' and no value
+- [keep_alive_parameter_name_missing](violations/keep_alive_parameter_name_missing.md) — Keep-Alive writes a parameter that names nothing before its '='
+- [keep_alive_parameter_value_empty](violations/keep_alive_parameter_value_empty.md) — Keep-Alive writes a parameter '=' with no value after it
+- [keep_alive_timeout_invalid](violations/keep_alive_timeout_invalid.md) — Keep-Alive asks for a timeout above the configured maximum
+- [language_tag_character_forbidden](violations/language_tag_character_forbidden.md) — Language tag holds a character outside letters, digits and hyphen
+- [language_tag_edge_hyphen_forbidden](violations/language_tag_edge_hyphen_forbidden.md) — Language tag starts or ends with a hyphen
+- [language_tag_empty](violations/language_tag_empty.md) — Language tag is empty
+- [language_tag_leading_letter_missing](violations/language_tag_leading_letter_missing.md) — Language tag does not begin with a letter
+- [language_tag_subtag_empty](violations/language_tag_subtag_empty.md) — Language tag has an empty subtag
+- [language_tag_subtag_length_invalid](violations/language_tag_subtag_length_invalid.md) — Language subtag is longer than eight characters
+- [language_tag_whitespace_or_control_forbidden](violations/language_tag_whitespace_or_control_forbidden.md) — Language tag holds whitespace or a control character
+- [last_modified_conflicting](violations/last_modified_conflicting.md) — A Last-Modified is later than the Date beside it
+- [link_attribute_duplicated](violations/link_attribute_duplicated.md) — Link member writes one of the bounded attributes more than once
+- [link_member_malformed](violations/link_member_malformed.md) — Link member carries content the production does not continue with
+- [link_param_empty](violations/link_param_empty.md) — Link member writes a semicolon with no link-param behind it
+- [link_param_value_empty](violations/link_param_value_empty.md) — Link parameter writes an '=' with no value after it
+- [link_preload_as_invalid](violations/link_preload_as_invalid.md) — A response's preload link names no preload destination in its as
+- [link_preload_as_missing](violations/link_preload_as_missing.md) — A response's preload link carries no as parameter
+- [link_rel_duplicated](violations/link_rel_duplicated.md) — Link member writes rel more than once
+- [link_rel_empty](violations/link_rel_empty.md) — Link member writes a rel with no relation type in it
+- [link_rel_malformed](violations/link_rel_malformed.md) — Link rel value opens or closes on a space
+- [link_rel_missing](violations/link_rel_missing.md) — Link member carries no rel parameter
+- [link_relation_type_malformed](violations/link_relation_type_malformed.md) — Link names a relation type that is neither registered-shaped nor a URI
+- [link_target_delimiter_missing](violations/link_target_delimiter_missing.md) — Link member's target is not inside angle brackets
+- [link_type_malformed](violations/link_type_malformed.md) — Link type attribute does not derive from type-name "/" subtype-name
+- [list_member_empty](violations/list_member_empty.md) — List holds an empty element
+- [list_member_missing](violations/list_member_missing.md) — List with a one-element floor holds no element
+- [location_empty](violations/location_empty.md) — Location is written with nothing in it
+- [location_missing](violations/location_missing.md) — A status that asks for Location carries none
+- [location_redirect_redundant](violations/location_redirect_redundant.md) — A redirect names the target URI of the request it answers
+- [location_redundant](violations/location_redundant.md) — Location is sent on a status that gives it no referent
+- [mailbox_angle_addr_missing](violations/mailbox_angle_addr_missing.md) — Mailbox has no angle-addr where the name-addr wants one
+- [mailbox_angle_addr_terminator_missing](violations/mailbox_angle_addr_terminator_missing.md) — Mailbox angle-addr is never closed
+- [mailbox_at_sign_missing](violations/mailbox_at_sign_missing.md) — Mailbox has no at-sign
+- [mailbox_atom_character_forbidden](violations/mailbox_atom_character_forbidden.md) — Mailbox atom holds a character outside atext
+- [mailbox_atom_empty](violations/mailbox_atom_empty.md) — Mailbox atom is empty beside a dot
+- [mailbox_comment_character_forbidden](violations/mailbox_comment_character_forbidden.md) — Mailbox comment holds a character outside ctext
+- [mailbox_comment_terminator_missing](violations/mailbox_comment_terminator_missing.md) — Mailbox comment is never closed
+- [mailbox_display_name_word_missing](violations/mailbox_display_name_word_missing.md) — Mailbox display-name holds no word
+- [mailbox_domain_literal_character_forbidden](violations/mailbox_domain_literal_character_forbidden.md) — Mailbox domain-literal holds a character outside dtext
+- [mailbox_domain_literal_terminator_missing](violations/mailbox_domain_literal_terminator_missing.md) — Mailbox domain-literal is never closed
+- [mailbox_domain_missing](violations/mailbox_domain_missing.md) — Mailbox has no domain
+- [mailbox_empty](violations/mailbox_empty.md) — Mailbox field is present with an empty value
+- [mailbox_list_separator_forbidden](violations/mailbox_list_separator_forbidden.md) — Mailbox holds a comma where one address goes
+- [mailbox_local_part_missing](violations/mailbox_local_part_missing.md) — Mailbox has no local-part
+- [mailbox_quoted_pair_malformed](violations/mailbox_quoted_pair_malformed.md) — Mailbox escape is not a quoted-pair
+- [mailbox_quoted_string_character_forbidden](violations/mailbox_quoted_string_character_forbidden.md) — Mailbox quoted-string holds a character outside qtext
+- [mailbox_quoted_string_terminator_missing](violations/mailbox_quoted_string_terminator_missing.md) — Mailbox quoted-string is never closed
+- [mailbox_trailing_character_forbidden](violations/mailbox_trailing_character_forbidden.md) — Mailbox is followed by something else
+- [max_forwards_empty](violations/max_forwards_empty.md) — Max-Forwards is written with no digits on it
+- [max_forwards_malformed](violations/max_forwards_malformed.md) — Max-Forwards holds something that is not a digit
+- [media_range_parameter_forbidden](violations/media_range_parameter_forbidden.md) — Accept member writes a parameter after the weight
+- [media_range_wildcard_invalid](violations/media_range_wildcard_invalid.md) — A wildcard type is written beside a concrete subtype
+- [media_type_empty](violations/media_type_empty.md) — Media type is written with nothing in it
+- [media_type_malformed](violations/media_type_malformed.md) — Media type is not a type/subtype pair
+- [media_type_name_empty](violations/media_type_name_empty.md) — A media type subtype is a suffix with no base name
+- [media_type_suffix_empty](violations/media_type_suffix_empty.md) — A media type subtype ends in a bare plus
+- [media_type_suffix_unregistered](violations/media_type_suffix_unregistered.md) — A structured syntax suffix is not one the deployment recognises
+- [media_type_unregistered](violations/media_type_unregistered.md) — Media type is not one the deployment recognises
+- [media_type_wildcard_forbidden](violations/media_type_wildcard_forbidden.md) — A media range is written where one media type belongs
+- [method_case_invalid](violations/method_case_invalid.md) — A method is a standardized name written in another case
+- [method_connect_content_forbidden](violations/method_connect_content_forbidden.md) — A CONNECT request declares content its definition has no room for
+- [method_content_forbidden](violations/method_content_forbidden.md) — A GET, HEAD or DELETE request carries content
+- [method_head_conflicting](violations/method_head_conflicting.md) — A HEAD response disagrees with the GET it stands in for
+- [method_head_content_forbidden](violations/method_head_content_forbidden.md) — A response to HEAD carries content octets
+- [method_options_capabilities_missing](violations/method_options_capabilities_missing.md) — A successful OPTIONS answers with none of the capabilities it was asked for
+- [method_options_content_type_missing](violations/method_options_content_type_missing.md) — An OPTIONS request carries content without saying what it is
+- [method_patch_content_type_missing](violations/method_patch_content_type_missing.md) — A PATCH request does not name its patch document format
+- [method_post_location_missing](violations/method_post_location_missing.md) — A 201 answering a POST does not say what it created
+- [method_trace_content_forbidden](violations/method_trace_content_forbidden.md) — A TRACE request carries content
+- [method_trace_disclosure_forbidden](violations/method_trace_disclosure_forbidden.md) — A TRACE request carries a field that echoes back a secret
+- [multipart_body_delimiter_missing](violations/multipart_body_delimiter_missing.md) — The body carries no delimiter line for its boundary
+- [multipart_body_part_missing](violations/multipart_body_part_missing.md) — The only delimiter line is the terminating one
+- [multipart_body_terminator_missing](violations/multipart_body_terminator_missing.md) — The body never closes its last part
+- [node_ipv4_address_malformed](violations/node_ipv4_address_malformed.md) — Node identifier is digits and dots that are not an IPv4 address
+- [node_ipv6_address_malformed](violations/node_ipv6_address_malformed.md) — Node identifier brackets something that is not an IPv6 address
+- [node_ipv6_brackets_missing](violations/node_ipv6_brackets_missing.md) — Node identifier holds an IPv6 address without its square brackets
+- [node_ipv6_closing_bracket_missing](violations/node_ipv6_closing_bracket_missing.md) — Node identifier opens an IPv6 literal and never closes it
+- [node_ipv6_representation_invalid](violations/node_ipv6_representation_invalid.md) — Node identifier writes an IPv6 address outside the recommended representation
+- [node_malformed](violations/node_malformed.md) — Node identifier derives from no alternative of the production
+- [node_port_malformed](violations/node_port_malformed.md) — Node identifier holds something that is not a node-port
+- [oauth2_callback_state_missing](violations/oauth2_callback_state_missing.md) — An authorization callback carries a code and no state
+- [oauth2_request_state_missing](violations/oauth2_request_state_missing.md) — An authorization request carries no state to bind against
+- [oauth2_state_conflicting](violations/oauth2_state_conflicting.md) — A callback's state matches no request that was seen
+- [origin_agent_cluster_empty](violations/origin_agent_cluster_empty.md) — Origin-Agent-Cluster is written with no boolean on it
+- [origin_agent_cluster_invalid](violations/origin_agent_cluster_invalid.md) — Origin-Agent-Cluster states a value that is not `?1`
+- [origin_agent_cluster_malformed](violations/origin_agent_cluster_malformed.md) — Origin-Agent-Cluster carries a list where a boolean is due
+- [origin_malformed](violations/origin_malformed.md) — An Origin derives from neither null nor a serialized origin
+- [origin_missing](violations/origin_missing.md) — A request that must say where it came from carries no Origin
+- [origin_path_forbidden](violations/origin_path_forbidden.md) — An Origin names a path the production has no component for
+- [parameter_equals_missing](violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_equals_whitespace_forbidden](violations/parameter_equals_whitespace_forbidden.md) — Parameter writes whitespace beside its '='
+- [parameter_value_empty](violations/parameter_value_empty.md) — Parameter is written with no value after its '='
+- [percent_encoding_digits_missing](violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
+- [permissions_policy_allowlist_invalid](violations/permissions_policy_allowlist_invalid.md) — A directive's allowlist is none of the permitted forms
+- [permissions_policy_report_to_malformed](violations/permissions_policy_report_to_malformed.md) — A directive's report-to parameter is not a String
+- [pragma_conflicting](violations/pragma_conflicting.md) — A request asks for no-cache in the field its Cache-Control overrides
+- [pragma_obsolete](violations/pragma_obsolete.md) — A response carries a field this specification deprecates
+- [prefer_preference_duplicated](violations/prefer_preference_duplicated.md) — A Prefer names one preference more than once
+- [prefer_preference_invalid](violations/prefer_preference_invalid.md) — A defined preference carries a value its production does not admit
+- [prefer_value_empty](violations/prefer_value_empty.md) — A Prefer member writes an = with no word after it
+- [preference_applied_conflicting](violations/preference_applied_conflicting.md) — A Preference-Applied reports a value the request did not ask for
+- [preference_applied_parameter_forbidden](violations/preference_applied_parameter_forbidden.md) — A Preference-Applied member carries a parameter its grammar has none of
+- [preference_applied_unsolicited](violations/preference_applied_unsolicited.md) — A Preference-Applied names a preference nobody asked for
+- [preference_applied_value_empty](violations/preference_applied_value_empty.md) — A Preference-Applied member writes an = with no word after it
+- [priority_cacheability_missing](violations/priority_cacheability_missing.md) — A Priority response says nothing about caching
+- [priority_incremental_malformed](violations/priority_incremental_malformed.md) — Priority incremental is not a Boolean
+- [priority_urgency_invalid](violations/priority_urgency_invalid.md) — Priority urgency is outside 0 to 7
+- [priority_urgency_malformed](violations/priority_urgency_malformed.md) — Priority urgency is not an Integer
+- [problem_details_empty](violations/problem_details_empty.md) — A response labelled as problem details carries no content
+- [problem_details_invalid](violations/problem_details_invalid.md) — Content labelled as problem details is a JSON value other than an object
+- [problem_details_malformed](violations/problem_details_malformed.md) — Content labelled as problem details is not a JSON document
+- [problem_details_missing](violations/problem_details_missing.md) — An error response carries a generic media type and no error format
+- [product_missing](violations/product_missing.md) — A product list opens with something that is not a product
+- [product_separator_missing](violations/product_separator_missing.md) — A product list writes no whitespace between two elements
+- [proxy_authenticate_redundant](violations/proxy_authenticate_redundant.md) — Proxy-Authenticate arrives on a status that gives it nothing to do
+- [proxy_connection_obsolete](violations/proxy_connection_obsolete.md) — A request carries a field the specification asks clients not to send
+- [quic_connection_flow_control_invalid](violations/quic_connection_flow_control_invalid.md) — QUIC parameters advertise no connection-level flow control
+- [quic_control_stream_limit_invalid](violations/quic_control_stream_limit_invalid.md) — QUIC parameters leave no room for HTTP/3's control streams
+- [quic_idle_timeout_invalid](violations/quic_idle_timeout_invalid.md) — QUIC idle timeout reclaims nothing
+- [quic_request_stream_limit_invalid](violations/quic_request_stream_limit_invalid.md) — QUIC parameters leave no room for an HTTP/3 request stream
+- [quoted_pair_malformed](violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
+- [quoted_string_control_character_forbidden](violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
+- [quoted_string_delimiter_missing](violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
+- [quoted_string_quote_escape_missing](violations/quoted_string_quote_escape_missing.md) — Quoted-string holds an unescaped DQUOTE
+- [qvalue_malformed](violations/qvalue_malformed.md) — Weight is not a qvalue
+- [range_equals_missing](violations/range_equals_missing.md) — Range value is written without its '='
+- [range_position_malformed](violations/range_position_malformed.md) — Range position is not 1*DIGIT
+- [range_positions_conflicting](violations/range_positions_conflicting.md) — Range asks for a last-pos below its first-pos
+- [range_spec_character_forbidden](violations/range_spec_character_forbidden.md) — Range specifier holds an octet no range-spec admits
+- [range_spec_malformed](violations/range_spec_malformed.md) — A bytes range specifier derives from neither of the unit's two forms
+- [referer_empty](violations/referer_empty.md) — A Referer is written with nothing in it
+- [referer_forbidden](violations/referer_forbidden.md) — A Referer names a secure resource on an unsecured request
+- [referer_fragment_forbidden](violations/referer_fragment_forbidden.md) — A Referer carries a fragment component
+- [referer_userinfo_forbidden](violations/referer_userinfo_forbidden.md) — A Referer carries the deprecated userinfo subcomponent
+- [refresh_url_empty](violations/refresh_url_empty.md) — A Refresh value writes URL= with no URL
+- [refresh_url_malformed](violations/refresh_url_malformed.md) — A Refresh URL is not a valid URL string
+- [refresh_value_malformed](violations/refresh_value_malformed.md) — A Refresh value is neither of the two forms
+- [request_target_asterisk_forbidden](violations/request_target_asterisk_forbidden.md) — The asterisk target is sent with a method other than OPTIONS
+- [request_target_authority_form_forbidden](violations/request_target_authority_form_forbidden.md) — The host-and-port target is sent with a method other than CONNECT
+- [request_target_connect_form_invalid](violations/request_target_connect_form_invalid.md) — A CONNECT's request-target is not a host and port
+- [request_target_empty](violations/request_target_empty.md) — A request-line carries no request-target
+- [request_target_form_ambiguous](violations/request_target_form_ambiguous.md) — A request-target derives from two of the four forms at once
+- [request_target_fragment_forbidden](violations/request_target_fragment_forbidden.md) — A request target carries a fragment identifier
+- [request_target_malformed](violations/request_target_malformed.md) — A request-target derives from none of the four forms
+- [request_target_path_missing](violations/request_target_path_missing.md) — A request that owes a path names none
+- [request_target_whitespace_forbidden](violations/request_target_whitespace_forbidden.md) — A request-target carries whitespace
+- [retry_after_malformed](violations/retry_after_malformed.md) — A Retry-After is neither a date nor a delay
+- [retry_after_redundant](violations/retry_after_redundant.md) — Retry-After is sent on a status no document pairs it with
+- [sec_fetch_dest_value_invalid](violations/sec_fetch_dest_value_invalid.md) — Sec-Fetch-Dest names no request destination Fetch defines
+- [sec_fetch_mode_value_invalid](violations/sec_fetch_mode_value_invalid.md) — Sec-Fetch-Mode names no request mode the document defines
+- [sec_fetch_site_value_invalid](violations/sec_fetch_site_value_invalid.md) — Sec-Fetch-Site names no relationship the document defines
+- [sec_fetch_user_value_invalid](violations/sec_fetch_user_value_invalid.md) — Sec-Fetch-User carries something other than the boolean true
+- [sec_fetch_value_empty](violations/sec_fetch_value_empty.md) — A Sec-Fetch-* field is written with no value on it
+- [sec_fetch_value_malformed](violations/sec_fetch_value_malformed.md) — A Sec-Fetch-* value holds a character no token admits
+- [sec_websocket_accept_conflicting](violations/sec_websocket_accept_conflicting.md) — Sec-WebSocket-Accept is not the value the request's key derives
+- [sec_websocket_accept_missing](violations/sec_websocket_accept_missing.md) — A WebSocket handshake response carries no Sec-WebSocket-Accept
+- [sec_websocket_extensions_empty](violations/sec_websocket_extensions_empty.md) — Sec-WebSocket-Extensions names no extension
+- [sec_websocket_extensions_parameter_missing](violations/sec_websocket_extensions_parameter_missing.md) — Sec-WebSocket-Extensions writes a ';' with no parameter after it
+- [sec_websocket_extensions_parameter_value_empty](violations/sec_websocket_extensions_parameter_value_empty.md) — Sec-WebSocket-Extensions writes a parameter '=' with no value after it
+- [sec_websocket_extensions_unsolicited](violations/sec_websocket_extensions_unsolicited.md) — Sec-WebSocket-Extensions names an extension the request did not offer
+- [sec_websocket_key_length_invalid](violations/sec_websocket_key_length_invalid.md) — Sec-WebSocket-Key is not a sixteen-byte nonce
+- [sec_websocket_key_missing](violations/sec_websocket_key_missing.md) — WebSocket handshake carries no Sec-WebSocket-Key
+- [sec_websocket_protocol_duplicated](violations/sec_websocket_protocol_duplicated.md) — Sec-WebSocket-Protocol names one subprotocol twice
+- [sec_websocket_protocol_empty](violations/sec_websocket_protocol_empty.md) — Sec-WebSocket-Protocol is written with no subprotocol in it
+- [sec_websocket_protocol_unsolicited](violations/sec_websocket_protocol_unsolicited.md) — Sec-WebSocket-Protocol names a subprotocol the request did not offer
+- [sec_websocket_version_conflicting](violations/sec_websocket_version_conflicting.md) — Sec-WebSocket-Version advertises the version the request asked for
+- [sec_websocket_version_empty](violations/sec_websocket_version_empty.md) — Sec-WebSocket-Version is written with no value
+- [sec_websocket_version_invalid](violations/sec_websocket_version_invalid.md) — WebSocket handshake asks for a version other than 13
+- [sec_websocket_version_list_empty](violations/sec_websocket_version_list_empty.md) — Sec-WebSocket-Version advertises no version
+- [sec_websocket_version_malformed](violations/sec_websocket_version_malformed.md) — Sec-WebSocket-Version derives from no version production
+- [sec_websocket_version_missing](violations/sec_websocket_version_missing.md) — WebSocket handshake carries no Sec-WebSocket-Version
+- [server_timing_dur_invalid](violations/server_timing_dur_invalid.md) — Server-Timing writes a dur that is not a valid floating-point number
+- [server_timing_param_duplicated](violations/server_timing_param_duplicated.md) — Server-Timing metric names one parameter more than once
+- [server_timing_param_empty](violations/server_timing_param_empty.md) — Server-Timing writes a semicolon with no parameter behind it
+- [server_timing_param_equals_missing](violations/server_timing_param_equals_missing.md) — Server-Timing parameter has no '=' and no value
+- [server_timing_param_name_invalid](violations/server_timing_param_name_invalid.md) — Server-Timing names an established parameter in a case no getter matches
+- [server_timing_param_value_empty](violations/server_timing_param_value_empty.md) — Server-Timing parameter is written with no value after its '='
+- [server_timing_param_value_malformed](violations/server_timing_param_value_malformed.md) — Server-Timing parameter value carries content past the alternative it derives from
+- [status_101_forbidden](violations/status_101_forbidden.md) — A 101 completes a WebSocket handshake the server had to refuse
+- [status_101_ignored](violations/status_101_ignored.md) — HTTP continues on a connection a 101 handed off
+- [status_101_protocol_forbidden](violations/status_101_protocol_forbidden.md) — A 101 switches to a protocol the client did not indicate
+- [status_101_unsolicited](violations/status_101_unsolicited.md) — 101 Switching Protocols is sent on a version with no upgrade mechanism
+- [status_103_ambiguous](violations/status_103_ambiguous.md) — A 103 stands where the one final response should be
+- [status_1xx_forbidden](violations/status_1xx_forbidden.md) — An interim response answers a client whose version has none
+- [status_200_ambiguous](violations/status_200_ambiguous.md) — A 200 carries no content, where a 204 would say so on purpose
+- [status_206_multipart_forbidden](violations/status_206_multipart_forbidden.md) — A multipart 206 answers a request that asked for a single range
+- [status_206_unsolicited](violations/status_206_unsolicited.md) — 206 Partial Content answers a request that asked for no range
+- [status_301_ambiguous](violations/status_301_ambiguous.md) — A 301 answers a POST, leaving the redirected method undetermined
+- [status_302_ambiguous](violations/status_302_ambiguous.md) — A 302 answers a POST, leaving the redirected method undetermined
+- [status_304_metadata_forbidden](violations/status_304_metadata_forbidden.md) — A 304 sends representation metadata beyond the fields it owes
+- [status_304_missing](violations/status_304_missing.md) — A false precondition is answered with 200 rather than 304
+- [status_401_challenge_missing](violations/status_401_challenge_missing.md) — A 401 presents no challenge to authenticate against
+- [status_401_ignored](violations/status_401_ignored.md) — A client replays credentials a 401 keeps refusing
+- [status_405_allow_conflicting](violations/status_405_allow_conflicting.md) — A 405 advertises the method it refuses
+- [status_405_allow_missing](violations/status_405_allow_missing.md) — A 405 answers without the Allow field it must generate
+- [status_407_challenge_missing](violations/status_407_challenge_missing.md) — A 407 presents no challenge to authenticate against
+- [status_416_unsolicited](violations/status_416_unsolicited.md) — 416 Range Not Satisfiable answers a request that named no range
+- [status_417_ignored](violations/status_417_ignored.md) — A request repeats an expectation a 417 already refused
+- [status_content_forbidden](violations/status_content_forbidden.md) — A status that cannot carry content carries some
+- [status_content_length_forbidden](violations/status_content_length_forbidden.md) — A 1xx or 204 carries a Content-Length field
+- [status_invalid](violations/status_invalid.md) — The status code is outside the range 100..599
+- [status_metadata_redundant](violations/status_metadata_redundant.md) — A response that cannot carry content sends representation metadata
+- [status_trailers_forbidden](violations/status_trailers_forbidden.md) — A status that ends at its header section carries a trailer section
+- [status_transfer_encoding_forbidden](violations/status_transfer_encoding_forbidden.md) — A 1xx or 204 carries a Transfer-Encoding field
+- [strict_transport_security_directive_duplicated](violations/strict_transport_security_directive_duplicated.md) — A directive is written more than once in one policy
+- [strict_transport_security_directive_empty](violations/strict_transport_security_directive_empty.md) — The policy holds a separator with no directive
+- [strict_transport_security_directive_value_forbidden](violations/strict_transport_security_directive_value_forbidden.md) — A valueless directive is written with a value
+- [strict_transport_security_directive_value_missing](violations/strict_transport_security_directive_value_missing.md) — A directive that requires a value carries none
+- [strict_transport_security_empty](violations/strict_transport_security_empty.md) — The policy is written with nothing in it
+- [strict_transport_security_max_age_missing](violations/strict_transport_security_max_age_missing.md) — The policy states no max-age
+- [structured_field_character_forbidden](violations/structured_field_character_forbidden.md) — Structured field holds an octet outside US-ASCII
+- [structured_field_empty](violations/structured_field_empty.md) — Structured field is written with nothing on it
+- [structured_field_inner_list_malformed](violations/structured_field_inner_list_malformed.md) — Structured field Inner List has no closing parenthesis
+- [structured_field_key_duplicated](violations/structured_field_key_duplicated.md) — Structured field gives one Dictionary key more than once
+- [structured_field_key_malformed](violations/structured_field_key_malformed.md) — Structured field key is not a key production
+- [structured_field_malformed](violations/structured_field_malformed.md) — Structured field value derives from no structured type
+- [structured_field_member_empty](violations/structured_field_member_empty.md) — Structured field writes a comma with no member beside it
+- [structured_field_value_empty](violations/structured_field_value_empty.md) — Structured field writes a value slot with nothing in it
+- [structured_field_value_malformed](violations/structured_field_value_malformed.md) — Structured field value is none of the bare item types
+- [sunset_conflicting](violations/sunset_conflicting.md) — A Sunset names a time before the Deprecation beside it
+- [sunset_invalid](violations/sunset_invalid.md) — A Sunset names a time that has already passed
+- [te_chunked_forbidden](violations/te_chunked_forbidden.md) — TE names the chunked coding, which cannot be declined
+- [te_connection_option_missing](violations/te_connection_option_missing.md) — TE is sent without a TE connection option beside it
+- [te_member_forbidden](violations/te_member_forbidden.md) — A request's TE holds a member other than trailers
+- [te_trailers_parameter_forbidden](violations/te_trailers_parameter_forbidden.md) — TE hangs a parameter or a weight off the trailers keyword
+- [token68_body_empty](violations/token68_body_empty.md) — token68 is padding with no body
+- [token68_character_forbidden](violations/token68_character_forbidden.md) — token68 holds a character outside its alphabet
+- [token68_padding_malformed](violations/token68_padding_malformed.md) — token68 padding holds something other than '='
+- [token68_whitespace_or_control_forbidden](violations/token68_whitespace_or_control_forbidden.md) — token68 holds whitespace or a control character
+- [token_character_forbidden](violations/token_character_forbidden.md) — Token holds a character outside tchar
+- [token_empty](violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [trailer_connection_option_forbidden](violations/trailer_connection_option_forbidden.md) — A trailer field is named as a connection-option in this message
+- [trailer_field_forbidden](violations/trailer_field_forbidden.md) — A trailer field's definition does not permit the usage
+- [trailer_member_invalid](violations/trailer_member_invalid.md) — A Trailer declaration names a field that cannot arrive
+- [trailer_member_missing](violations/trailer_member_missing.md) — A trailer field was not named in the Trailer declaration
+- [transfer_coding_parameter_forbidden](violations/transfer_coding_parameter_forbidden.md) — A coding that defines no parameters carries one
+- [transfer_coding_parameter_missing](violations/transfer_coding_parameter_missing.md) — A coding writes a ';' with no parameter after it
+- [transfer_coding_unregistered](violations/transfer_coding_unregistered.md) — Transfer coding is not one the deployment recognises
+- [transfer_encoding_chunked_duplicated](violations/transfer_encoding_chunked_duplicated.md) — The chunked transfer coding is applied more than once
+- [transfer_encoding_chunked_missing](violations/transfer_encoding_chunked_missing.md) — A coding is applied and chunked never is
+- [transfer_encoding_chunked_position_invalid](violations/transfer_encoding_chunked_position_invalid.md) — The chunked transfer coding is not the final one
+- [transfer_encoding_coding_redundant](violations/transfer_encoding_coding_redundant.md) — A coding is applied in transit that the representation already carries
+- [upgrade_101_empty](violations/upgrade_101_empty.md) — A 101 response names no protocol on its Upgrade field
+- [upgrade_101_invalid](violations/upgrade_101_invalid.md) — A 101 response names a protocol its handshake does not permit
+- [upgrade_101_missing](violations/upgrade_101_missing.md) — A 101 response carries no Upgrade field
+- [upgrade_426_empty](violations/upgrade_426_empty.md) — A 426 response names no protocol on its Upgrade field
+- [upgrade_426_missing](violations/upgrade_426_missing.md) — A 426 response carries no Upgrade field
+- [upgrade_connection_option_missing](violations/upgrade_connection_option_missing.md) — Upgrade is sent with no upgrade connection-option in Connection
+- [uri_character_forbidden](violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_host_bracket_forbidden](violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_empty](violations/uri_host_empty.md) — An http or https reference names no host
+- [uri_host_ip_literal_delimiter_missing](violations/uri_host_ip_literal_delimiter_missing.md) — An IPv6 address is written without the brackets that mark it
+- [uri_host_ip_literal_malformed](violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
+- [uri_scheme_character_forbidden](violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
+- [uri_scheme_empty](violations/uri_scheme_empty.md) — URI scheme is empty
+- [uri_scheme_leading_letter_missing](violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
+- [user_agent_missing](violations/user_agent_missing.md) — A request does not say what sent it
+- [validator_missing](violations/validator_missing.md) — A response gives a later request nothing to validate against
+- [vary_ignored](violations/vary_ignored.md) — A response is reused across a dimension its Vary nominated
+- [vary_prefer_missing](violations/vary_prefer_missing.md) — A response applied a preference its Vary does not nominate
+- [via_comment_duplicated](violations/via_comment_duplicated.md) — Via member carries more than one comment
+- [via_member_malformed](violations/via_member_malformed.md) — Via member does not end where the production ends it
+- [via_received_by_missing](violations/via_received_by_missing.md) — Via member names no received-by
+- [via_received_by_obsolete](violations/via_received_by_obsolete.md) — Via received-by is spelled as a uri-host
+- [warning_agent_missing](violations/warning_agent_missing.md) — Warning member names no warn-agent
+- [warning_code_malformed](violations/warning_code_malformed.md) — Warning member's warn-code is not three digits
+- [warning_member_malformed](violations/warning_member_malformed.md) — Warning member does not derive where the production continues it
+- [warning_text_missing](violations/warning_text_missing.md) — Warning member carries no warn-text
+- [websocket_frame_close_body_malformed](violations/websocket_frame_close_body_malformed.md) — A Close body is too short to hold the status code it opens with
+- [websocket_frame_continuation_unsolicited](violations/websocket_frame_continuation_unsolicited.md) — A continuation frame has no fragmented message to continue
+- [websocket_frame_control_fragmentation_forbidden](violations/websocket_frame_control_fragmentation_forbidden.md) — A control frame is fragmented
+- [websocket_frame_control_payload_invalid](violations/websocket_frame_control_payload_invalid.md) — A control frame carries more payload than its class allows
+- [websocket_frame_data_after_close_forbidden](violations/websocket_frame_data_after_close_forbidden.md) — A data frame follows the same endpoint's Close frame
+- [websocket_frame_mask_forbidden](violations/websocket_frame_mask_forbidden.md) — A server frame is masked
+- [websocket_frame_mask_missing](violations/websocket_frame_mask_missing.md) — A client frame is not masked
+- [websocket_frame_message_interleaving_forbidden](violations/websocket_frame_message_interleaving_forbidden.md) — A second message opens while a fragmented one is unterminated
+- [websocket_frame_opcode_malformed](violations/websocket_frame_opcode_malformed.md) — The recorded opcode does not fit the four bits the header holds
+- [websocket_frame_opcode_unregistered](violations/websocket_frame_opcode_unregistered.md) — The opcode is in a reserved range and denotes no frame type
+- [websocket_frame_rsv_forbidden](violations/websocket_frame_rsv_forbidden.md) — A reserved bit is set and no extension was negotiated to give it a meaning
+- [websocket_frame_rsv_malformed](violations/websocket_frame_rsv_malformed.md) — The recorded reserved bits do not fit the three the header holds
+- [weight_duplicated](violations/weight_duplicated.md) — Member carries more than one weight
+- [weight_equals_whitespace_forbidden](violations/weight_equals_whitespace_forbidden.md) — Whitespace is written beside the weight's '='
+- [weight_malformed](violations/weight_malformed.md) — Something other than a weight follows the member's ';'
+- [weight_missing](violations/weight_missing.md) — Member writes the weight's ';' and no weight after it
+- [well_known_name_empty](violations/well_known_name_empty.md) — The reserved prefix carries no name after it
+- [well_known_name_malformed](violations/well_known_name_malformed.md) — A well-known name holds a character outside pchar
+- [well_known_path_invalid](violations/well_known_path_invalid.md) — A .well-known segment sits below the top of the path
+- [well_known_prefix_malformed](violations/well_known_prefix_malformed.md) — A path stops one character short of the reserved prefix
+- [x_content_type_options_invalid](violations/x_content_type_options_invalid.md) — X-Content-Type-Options carries a value that is not nosniff
+- [x_content_type_options_missing](violations/x_content_type_options_missing.md) — A response does not ask for its content type to be respected
+- [x_frame_options_allow_from_obsolete](violations/x_frame_options_allow_from_obsolete.md) — X-Frame-Options carries the retired ALLOW-FROM variant
+- [x_frame_options_invalid](violations/x_frame_options_invalid.md) — X-Frame-Options carries neither DENY nor SAMEORIGIN
+- [x_xss_protection_invalid](violations/x_xss_protection_invalid.md) — X-XSS-Protection asks for something other than the filter off

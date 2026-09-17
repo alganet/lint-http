@@ -1,0 +1,29 @@
+<!--
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+SPDX-License-Identifier: ISC
+-->
+
+# multipart_body_delimiter_missing
+
+The body carries no delimiter line for its boundary
+
+## Message
+
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
+
+## Specifications
+
+- [RFC 2046 §5.1.1](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1): Multipart common syntax: `dash-boundary`, `delimiter` and `close-delimiter`, the requirement that a delimiter begin a line, the instruction to compare against the beginning of a candidate line rather than the whole of it, and the ignoring of preamble and epilogue
+
+## Configuration
+
+```toml
+[violations.multipart_body_delimiter_missing]
+# The body carries no delimiter line for its boundary
+severity = "warn"
+```
+
+## Reported By
+
+- [multipart_content_type_and_body_consistent](../rules/multipart_content_type_and_body_consistent.md)
