@@ -106,8 +106,12 @@ pub struct Invocation {
     /// silently drop the second. That is the failure this whole seam is against:
     /// a report that is clean because it was not looking.
     pub targets: Vec<String>,
-    /// This invocation sends a request body, so the session should capture
-    /// bodies — which is what makes the rules that read one worth having.
+    /// This invocation sends a request body, so a capture the user asked to
+    /// keep should hold it.
+    ///
+    /// Not a lever on the report: the live pass buffers bodies regardless, and
+    /// the report is the live pass, so the rules that read a body fire whether
+    /// or not any body is written down. This is about what the file records.
     pub sends_body: bool,
     /// What is wrong with it.
     pub objections: Vec<Objection>,

@@ -30,7 +30,7 @@ or after the subcommand — `lint-http --config c.toml run -- curl` and
 | `--min-severity <info\|warn\|error>` | Only report findings at or above this. Default `info`. |
 | `--captures <PATH>` | The JSONL capture file this command reads or writes. |
 
-`--captures` is one file under one name across the surface: `run`, `browse` and
+`--captures` is one file under one name across the surface: `run`, `use` and
 `proxy-start` **write** it, `lint-captures` **reads** it. So what a run keeps is
 what a later lint replays:
 
@@ -40,9 +40,15 @@ lint-http lint-captures --captures run.jsonl      # same file, same flag
 lint-http lint-captures run.jsonl                 # or as the positional
 ```
 
-For `run` and `browse`, `--captures` is also what makes the capture survive at
+For `run` and `use`, `--captures` is also what makes the capture survive at
 all — without it they discard theirs. For `proxy-start` it overrides the
 `general.captures` path in the config.
+
+`use` also turns on `general.captures_include_body` when the tool was asked to
+send one (`curl -d`, `-F`, `-T`, `--json`) *and* `--captures` named a file to
+keep. That changes what the file records, not what the report says: the report
+is the proxy's own live findings, and the live pass has every body it buffered
+whether or not any of them are written down.
 
 ## Command-Line Options
 
@@ -50,8 +56,9 @@ all — without it they discard theirs. For `proxy-start` it overrides the
 
 - `run [OPTIONS] -- <COMMAND>...`: Run a command with its HTTP traffic proxied
   and linted (see below). The most common entry point; nothing needs configuring.
-- `browse [OPTIONS] [URL]`: Open a Chromium-family browser through a proxy of
-  its own and report as it loads (see below).
+- `use [OPTIONS] <TOOL> [ARGS]...`: Drive a tool this knows how to configure —
+  `curl`, or a Chromium-family browser — reading its own arguments and
+  configuring it the way that tool documents (see below).
 - `proxy-start [--config <PATH>]`: Start the intercepting proxy and leave it
   listening.
 - `lint-captures [--config <PATH>] [--format text|json]
@@ -75,7 +82,7 @@ lint-http proxy-start --config config.toml
 
 ## Session options
 
-`run` and `browse` both stand a proxy up for a child process, and they take the
+`run` and `use` both stand a proxy up for a child process, and they take the
 same four options for it. They are declared once, so a flag means the same thing
 whichever command it is typed after.
 
@@ -86,9 +93,10 @@ whichever command it is typed after.
 | `--all-hosts` | Report every host, including third parties the target pulls in. |
 | `--show-child-stderr` | Let the child's stderr through. Off by default, so the report has stderr to itself. |
 
-Without either scoping flag, the report covers the host of whatever the session
-was pointed at — the URL `browse` opened. `run --` is tool-blind and knows no
-target, so it reports every origin the child reached.
+Without either scoping flag, the report covers the hosts of whatever the session
+was pointed at — every URL the driver could read off the tool's own command
+line. `run --` is tool-blind and knows no target, so it reports every origin the
+child reached.
 
 ## Wrapping a command
 
@@ -125,8 +133,8 @@ lint-http run --fail-on error --captures run.jsonl -- pytest
   it ends.
 - `--print-env` lists the variables a wrapped command receives, and which client
   reads each one, without running anything.
-- `--only-host` scopes the report the same way it does for `browse`, which
-  matters as soon as the wrapped command reaches more than one origin.
+- `--only-host` scopes the report the same way it does for `use`, which matters
+  as soon as the wrapped command reaches more than one origin.
 - **The report is what the proxy found, not a second pass over the capture.**
   The rules ran on each transaction as it crossed, with its body in hand, and
   the finding was written onto the record; the report reads it back. That is why
@@ -138,39 +146,99 @@ The variables and the clients that read them are a table in
 defines it — so `just quotes` fails when a client's documentation drifts. The
 same module header lists the clients no environment variable can reach.
 
-## Browsing a site
+## Driving a tool
 
-`lint-http browse [URL]` launches a browser with a throwaway profile, pointed at
-an ephemeral proxy, trusting the session CA by public-key pin.
+`lint-http use [OPTIONS] <TOOL> [ARGS]...` is the sibling of `run`, and the
+difference is one word. `run --` is tool-blind: it exports the proxy and CA
+environment variables and hopes the child reads them. `use` reads the tool's own
+arguments and configures it the way that tool's manual says to.
 
 ```bash
-lint-http browse https://example.com
-lint-http browse --only-host example.com --only-host api.example.com https://example.com
-lint-http browse --all-hosts --format json https://example.com > findings.json
+lint-http use curl https://api.example.com/orders
+lint-http use curl -d @order.json -H 'Content-Type: application/json' https://api/orders
+lint-http use browser https://example.com
+lint-http use --only-host example.com --only-host api.example.com browser https://example.com
+lint-http use --all-hosts --format json browser https://example.com > findings.json
 ```
 
+**lint-http's own options go before the tool.** Everything after the tool name
+belongs to the tool, which is what makes an unrecognized flag safe to type: it
+is passed through byte-identical rather than rejected.
+
+A driver answers five things about one tool, and reading them is what the
+command buys over `run`:
+
+- **Which executable.** A name that is on `PATH` or a path is taken as given;
+  otherwise the driver searches — `use browser` finds whichever Chromium-family
+  browser is installed.
+- **What the invocation asked for.** A request body (`curl -d`, `-F`, `-T`,
+  `--json`) makes a kept capture record it.
+- **Where it is aimed.** Every URL on the command line becomes the default host
+  scope, so the report is about the site under test rather than about every
+  origin it reached. All of them, not the first: `curl https://a/ https://b/` is
+  one invocation of two hosts.
+- **What would make the report a lie**, said *before* a proxy is stood up. This
+  is the point of parsing at all — the wrapper's characteristic failure is a
+  clean report rather than an error. A warning lets the session run and says
+  which part of its report will not mean what it says; a refusal stops it.
+- **How to say it.** `curl --proxy` and `--cacert`; a browser's
+  `--proxy-server` and `--ignore-certificate-errors-spki-list`.
+
+### curl
+
+| Detected | What it does |
+|---|---|
+| `-k`, `--insecure` | Warns: verification is off, so nothing the session says about TLS means anything. |
+| `-x`, `--proxy` | Refuses: curl would go somewhere else and there would be nothing to report. |
+| `--noproxy <list>` | Warns: the hosts it names are reached without a proxy and are not in the report. |
+| `--preproxy` | Warns: a SOCKS hop in front of the session; a failure through it looks like a quiet session. |
+| `--http3` | Warns: the session binds no QUIC listener, so the transfer falls back and the report is about the version it fell back to. |
+| `--http3-only` | Refuses: no fallback, and nothing here to speak it to. |
+| `--cacert` | Warns: replaces the session's trust bundle, so HTTPS through the proxy will not verify. |
+| a default `~/.curlrc` naming any of the above | Warns, and names the file. |
+
+The session passes `--noproxy ""` unless the invocation named its own list.
+**That is the single largest thing this command buys.** An exported `NO_PROXY`
+otherwise keeps curl away from the proxy, the session records nothing, and the
+report says zero findings — indistinguishable from a clean transfer, and
+arriving from a shell configured months ago. curl documents the empty list as
+the override for exactly that variable.
+
+**It does not neutralize `~/.curlrc`.** curl reads a default config file
+whatever is on the command line, and its manual states no precedence between the
+two — so nothing here may claim to undo a setting in it. What `use` does is
+look, and say what it found. `curl -q` as the first argument is the way to
+ignore that file, and it is passed through where it was written.
+
+### Browsers
+
+`lint-http use browser [URL]` — or `chromium`, `chrome`, `brave`, `edge`, or a
+path — launches a browser with a throwaway profile, pointed at an ephemeral
+proxy, trusting the session CA by public-key pin. It was the `browse` command
+until it became a driver.
+
+- **Findings print as they happen**, because a browsing session lasts as long as
+  someone keeps it open. `--format json` opts back into one report at the end,
+  on stdout, which a browser has no use for.
 - **Findings are scoped.** With a URL and no other instruction the report covers
   that URL's host and anything under it; everything else is counted on the last
   line. This is not tidiness — with the whole catalogue enabled, an unscoped
   session on a real page buries its own findings under a third-party CDN's.
-- `--fail-on` gates a browsing session exactly as it gates a wrapped command,
-  which is what makes one usable in a script.
-- **Findings print as they happen**, because a browsing session lasts as long as
-  someone keeps it open. `--format json` opts back into one report at the end.
 - **The browser's stderr is discarded**, as it is for `run`. A browser writes a
   great deal of it and none of it is about the site being linted;
   `--show-child-stderr` brings it back.
 - **Nothing is installed.** The CA is trusted through
   `--ignore-certificate-errors-spki-list`, which pins one public key for one
   launch. It is not `--ignore-certificate-errors`: verification stays on, so the
-  session can still be trusted to judge TLS.
+  session can still be trusted to judge TLS. Passing that switch yourself is
+  warned about; `--proxy-server` is refused.
 - **Loopback is not bypassed.** Chromium skips the proxy for `localhost` by
-  default, which would make `browse http://localhost:3000` load perfectly and
-  report nothing.
+  default, which would make a session on `http://localhost:3000` load perfectly
+  and report nothing.
 - Chromium-family only. Firefox verifies through its own NSS database and has no
   per-launch pin, so trusting a CA there means `certutil` against a profile or an
-  enterprise policy file next to the installation — a separate piece of work
-  rather than a flag.
+  enterprise policy next to the installation — neither of which is per-run. See
+  the header of `lint-http-proxy/src/browser.rs`.
 
 ## Linting recorded captures
 
@@ -190,7 +258,7 @@ message metadata); the session's live-recorded `violations` field is ignored —
 replay re-lints under the current config. **A replay is not a live pass and does
 not claim to be**: request and response bodies are not written to a capture, so
 the rules that read one cannot fire here, and where the two disagree the live
-pass is the canonical one. `run` and `browse` report their own live findings for
+pass is the canonical one. `run` and `use` report their own live findings for
 exactly this reason. It prints one block per offending
 record and a summary line. The exit code is the signal for CI:
 

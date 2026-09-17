@@ -22,8 +22,11 @@
 //! **The report knows what the command was aimed at**, so it is about the
 //! target's hosts rather than about every origin the transfer touched.
 //!
-//! **A body that was asked for is a body that gets captured**, which is what
-//! makes the rules that read one worth having in a wrapped run.
+//! **A body that was asked for is a body a kept capture records.** This one is
+//! smaller than it sounds and is written down so nobody claims otherwise: the
+//! report already covers bodies, because it is the proxy's own live findings
+//! and the live pass buffered them. What `-d @order.json` changes is the
+//! JSONL, when `--captures` asked for one.
 //!
 //! ## What it deliberately does not buy
 //!
@@ -560,8 +563,7 @@ mod tests {
         assert!(inspect(&["example.com"]).targets.is_empty());
     }
 
-    /// Asking for a body is what turns body capture on, which is what the rules
-    /// that read one need.
+    /// Asking for a body is what puts one in a kept capture.
     #[test]
     fn an_invocation_that_sends_a_body_says_so() {
         for typed in [

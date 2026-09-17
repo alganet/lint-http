@@ -60,8 +60,8 @@ struct GlobalArgs {
     #[arg(long, value_enum, global = true)]
     min_severity: Option<SeverityArg>,
     /// The JSONL capture file this command reads or writes: where `run`,
-    /// `browse` and `proxy-start` write captures, and what `lint-captures`
-    /// reads. Without it, `run` and `browse` discard theirs.
+    /// `use` and `proxy-start` write captures, and what `lint-captures`
+    /// reads. Without it, `run` and `use` discard theirs.
     #[arg(long, value_name = "PATH", global = true)]
     captures: Option<String>,
 }
@@ -93,12 +93,17 @@ impl GlobalArgs {
 /// proxy up and configuring a client to use it is a session you begin once and
 /// leave running. The names were the other way round, which had the frequent
 /// case spelling out a config path and the rare case spelled `run`.
+///
+/// `run` and `use` are siblings and neither replaces the other: `run --` is
+/// tool-blind and works on anything, `use` knows the tool and configures it the
+/// way the tool documents. `browse` used to be a third, and was `use browser`
+/// all along.
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Run a command with its HTTP traffic proxied and linted.
     Run(RunArgs),
-    /// Open a browser whose traffic is proxied and linted.
-    Browse(BrowseArgs),
+    /// Drive a tool this knows how to configure, and lint its traffic.
+    Use(UseArgs),
     /// Start the intercepting proxy and leave it listening.
     #[command(name = "proxy-start")]
     ProxyStart,
@@ -145,21 +150,39 @@ struct RunArgs {
     session: SessionArgs,
 }
 
-/// `lint-http browse [URL]`
+/// `lint-http use <TOOL> [ARGS]...`
 ///
-/// A browsing session against a proxy that exists only for it: a throwaway
-/// profile, a CA trusted for this launch by public-key pin, and findings
-/// printed as they happen. Nothing is installed and nothing is left behind.
+/// The sibling of `run`, and the difference is one word: `run --` hands a
+/// command an environment and hopes it reads it; `use` reads the tool's own
+/// arguments and configures it the way that tool documents. `run` stays, and is
+/// what to reach for when nothing here drives the tool.
+///
+/// `browse` was this command before it was general — a browsing session against
+/// a proxy that exists only for it, with a throwaway profile and a CA trusted
+/// for one launch by public-key pin. It is `use browser` now, and everything it
+/// could do that `run` could not — scoping a report to the site under test,
+/// printing findings as they happen, refusing the switch that would make every
+/// TLS finding meaningless — is a driver's answer rather than one command's
+/// private feature.
+///
+/// **lint-http's own options go before the tool.** Everything after it belongs
+/// to the tool, which is what makes an unknown flag safe to type: it is passed
+/// through rather than rejected. Same rule as `run`'s `--`, one word earlier.
 #[derive(clap::Args, Debug)]
-struct BrowseArgs {
-    /// Browser executable to use. Defaults to the first Chromium-family
-    /// browser found.
-    #[arg(long, value_name = "PATH")]
-    browser: Option<String>,
-    /// Where to open. Omitted, the browser opens its own start page and
-    /// whatever it fetches is still linted.
-    #[arg(value_name = "URL")]
-    url: Option<String>,
+struct UseArgs {
+    /// The tool to drive — a name it answers to (`curl`, `browser`, `chrome`)
+    /// or a path to the executable — then the tool's own arguments, which are
+    /// passed through.
+    // One list rather than a name and a list, because that is what makes the
+    // passthrough hold: `trailing_var_arg` starts at the *first* value, so a
+    // separate positional for the name would leave `use curl --fail-on error`
+    // parsing `--fail-on` as lint-http's.
+    #[arg(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        value_name = "TOOL"
+    )]
+    command: Vec<String>,
     // Last, for the same reason as `RunArgs`.
     #[command(flatten)]
     session: SessionArgs,
@@ -246,7 +269,7 @@ enum ConfigCommand {
 ///
 /// The file may be named as the positional or as the global `--captures`, which
 /// is the same file under the same name it takes everywhere else — what `run`
-/// and `browse` write is what this reads. Naming it twice is an error rather
+/// and `use` write is what this reads. Naming it twice is an error rather
 /// than a precedence rule nobody would remember.
 #[derive(clap::Args, Debug)]
 struct LintArgs {
@@ -315,10 +338,10 @@ enum OutputFormat {
 /// Every command that stands a proxy up needs this, and for a long time only
 /// one of them called it: the initializer lived in `load_and_prepare`, which is
 /// the `proxy-start` path, back when `run` *was* `proxy-start`. After the
-/// rename `run` and `browse` ran a proxy through a different function and
-/// silently discarded every diagnostic it produced.
+/// rename `run` and the browsing session ran a proxy through a different
+/// function and silently discarded every diagnostic it produced.
 ///
-/// **That combination is the one that makes this tool lie.** `run` and `browse`
+/// **That combination is the one that makes this tool lie.** They
 /// also discard the child's stderr by default, so a session where interception
 /// never worked — TLS disabled in the config, a CA that could not be written, a
 /// proxy task that failed before it accepted a connection — printed
@@ -331,7 +354,7 @@ enum OutputFormat {
 fn init_diagnostics() {
     use std::io::IsTerminal;
     // **To stderr, explicitly.** `fmt`'s default writer is *stdout*, which for
-    // `run` and `browse` belongs to the wrapped command — so the default would
+    // `run` and `use` belongs to the wrapped command — so the default would
     // interleave log lines with a response body and break the one contract
     // these commands document: `run -- curl url > body.html 2> report.txt`
     // writes only the body. The report already goes to stderr; diagnostics
@@ -807,7 +830,7 @@ struct WebsocketFindings {
 
 /// Which hosts a report is about.
 ///
-/// **`browse` is unusable without this.** One real page pulls in tens of
+/// **A browsing session is unusable without this.** One real page pulls in tens of
 /// origins nobody in the room controls, and with the whole catalogue enabled
 /// the result is a wall of findings about somebody else's CDN — true, and not
 /// actionable, and enough of it to bury the findings that are. So a session
@@ -954,7 +977,7 @@ fn uri_host(uri: &str) -> Option<&str> {
 
 /// One record's findings, as the text report prints them.
 ///
-/// Extracted from [`render_lint_report`] so `browse` can print a block the
+/// Extracted from [`render_lint_report`] so a session can print a block the
 /// moment its transaction commits. A browsing session runs for minutes and
 /// makes hundreds of requests; saving every finding for the end would be the
 /// same output delivered when it is no longer about anything on screen. Same
@@ -1037,8 +1060,8 @@ fn render_lint_report(
 /// Its own function because a session that printed its findings as they
 /// happened has nothing left to print *but* this, and a second copy of the
 /// sentence is a second thing to keep in step with the first. It was two
-/// copies, and the one `browse` used had already grown a websocket clause the
-/// other spelled differently.
+/// copies, and the one the browsing session used had already grown a websocket
+/// clause the other spelled differently.
 fn render_summary(total: usize, transaction_count: usize, websocket_count: usize) -> String {
     use std::fmt::Write;
     let mut out = format!("\n{total} violation(s) in {transaction_count} transaction(s)");
@@ -1067,18 +1090,18 @@ struct ReportStyle {
     /// `run` says no, and must: stdout belongs to the wrapped command, so a
     /// report written there would corrupt the body someone is redirecting. A
     /// browsing session says yes — a browser has no stdout worth protecting,
-    /// and `browse --format json > findings.json` is what the documentation has
-    /// promised since the command existed. The *text* report is on stderr
-    /// either way, and so is every diagnostic.
+    /// and `--format json > findings.json` is what the documentation has
+    /// promised since it existed. The *text* report is on stderr either way,
+    /// and so is every diagnostic. Which one a session is comes off its driver.
     json_to_stdout: bool,
 }
 
 /// Print one session's report, and hand back the findings a gate would read.
 ///
 /// The whole tail of a session: gate by severity, divide by scope, print in the
-/// requested format, and say what the scope left out. `run` and `browse` each
-/// had their own copy, which is why only one of them counted transactions the
-/// way its own summary line claimed to.
+/// requested format, and say what the scope left out. `run` and the browsing
+/// session each had their own copy, which is why only one of them counted
+/// transactions the way its own summary line claimed to.
 fn report_session(
     records: &[capture::CaptureRecord],
     scope: &HostScope,
@@ -1283,21 +1306,34 @@ fn render_env_preview() -> String {
     out
 }
 
-/// Open a browser against a session proxy and report what it fetches.
+/// Drive one named tool through a session of its own.
 ///
-/// Everything below the first three lines is [`drive`], because a browsing
-/// session is one tool driven through a session of its own and there is nothing
-/// about it that only a browser does.
-async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
-    let BrowseArgs {
-        browser,
-        url,
-        session,
-    } = args;
-    let chromium: &'static dyn driver::Driver = &driver::chromium::Chromium;
-    let tool = chromium.locate(browser.as_deref())?;
-    let invocation = chromium.inspect(&url.into_iter().collect::<Vec<_>>());
-    drive(chromium, tool, invocation, &session, global).await
+/// Three lines, because everything a session does is [`drive`] and everything
+/// this tool needs done differently is its driver's. `browse` was these three
+/// lines with `chromium` written into them.
+async fn use_tool(args: UseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
+    let UseArgs { command, session } = args;
+    let Some((named, rest)) = command.split_first() else {
+        anyhow::bail!(
+            "no tool given; try `lint-http use curl https://example.com` \
+             (drivers: {})",
+            driver::known_names().join(", ")
+        );
+    };
+    // `trailing_var_arg` + `allow_hyphen_values` is what lets the tool keep its
+    // own flags, and it means clap cannot reject a mistyped one of ours:
+    // `--fail-onn error` parses as a *tool* named `--fail-onn`. Caught here
+    // rather than by the driver table, which would report it as an unknown
+    // tool and send the reader looking for a driver.
+    if named.starts_with('-') {
+        anyhow::bail!(
+            "`{named}` is not a tool. Options for lint-http go before the tool name; \
+             everything after it belongs to the tool — `lint-http use [OPTIONS] <TOOL> {named} ...`"
+        );
+    }
+    let (driver, tool) = driver::resolve(named)?;
+    let invocation = driver.inspect(rest);
+    drive(driver, tool, invocation, &session, global).await
 }
 
 /// Run one tool through a session of its own, configured the way that tool
@@ -1324,10 +1360,17 @@ async fn drive(
     // is said while there is still a decision to make, not afterwards.
     raise(&invocation.objections)?;
 
-    // An invocation that sends a body is the reason to capture one: the rules
-    // that read a body are the ones a `-d @order.json` was about, and they see
-    // nothing unless the proxy kept the octets.
-    if invocation.sends_body {
+    // An invocation that sends a body writes that body into a capture the user
+    // asked to keep.
+    //
+    // **This does not decide what the report contains.** The live pass holds
+    // every body it buffered whether or not any of them are written down, and
+    // the report is the live pass — so the rules that read a body fire either
+    // way. What this changes is the file: a kept capture of a `-d @order.json`
+    // run records what was sent rather than only that something was. Applied
+    // only when there is a file, because a session that keeps nothing would be
+    // paying for octets it is about to delete.
+    if invocation.sends_body && global.captures_path().is_some() {
         std::sync::Arc::make_mut(&mut cfg)
             .general
             .captures_include_body = true;
@@ -1512,13 +1555,13 @@ async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
     // left alone so their stdout stays exactly what a pipe expects.
     if matches!(
         cli.command,
-        Some(Command::Run(_) | Command::Browse(_) | Command::ProxyStart)
+        Some(Command::Run(_) | Command::Use(_) | Command::ProxyStart)
     ) {
         init_diagnostics();
     }
     match cli.command {
         Some(Command::Run(args)) => run_wrapped(args, &global).await,
-        Some(Command::Browse(args)) => browse(args, &global).await,
+        Some(Command::Use(args)) => use_tool(args, &global).await,
         Some(Command::ProxyStart) => {
             run_app(global.config.as_deref(), global.captures.as_deref()).await?;
             Ok(0)
@@ -1597,7 +1640,7 @@ mod tests {
             vec!["lint-http", "proxy-start"],
             vec!["lint-http", "lint-captures", "caps.jsonl"],
             vec!["lint-http", "run", "--", "true"],
-            vec!["lint-http", "browse"],
+            vec!["lint-http", "use", "browser"],
         ] {
             let cli = Cli::parse_from(&argv);
             assert!(cli.global.config.is_none(), "{argv:?}");
@@ -2778,18 +2821,19 @@ enabled = true
             other => panic!("expected Run, got {other:?}"),
         }
 
-        let browse = Cli::parse_from([
+        let driven = Cli::parse_from([
             "lint-http",
-            "browse",
+            "use",
             "--fail-on",
             "warn",
+            "browser",
             "https://example.com/",
         ]);
-        match browse.command {
-            Some(Command::Browse(args)) => {
+        match driven.command {
+            Some(Command::Use(args)) => {
                 assert!(matches!(args.session.fail_on, Some(SeverityArg::Warn)));
             }
-            other => panic!("expected Browse, got {other:?}"),
+            other => panic!("expected Use, got {other:?}"),
         }
     }
 
@@ -2856,26 +2900,59 @@ enabled = true
         assert_eq!(session_exit(-1, None, &[]), 1);
     }
 
+    /// The tool is named, and everything after it is the tool's.
     #[test]
-    fn cli_browse_defaults_scope_to_the_url_host() {
-        match Cli::parse_from(["lint-http", "browse", "https://example.com/app"]).command {
-            Some(Command::Browse(args)) => {
+    fn cli_use_takes_a_tool_and_leaves_the_rest_to_it() {
+        match Cli::parse_from(["lint-http", "use", "browser", "https://example.com/app"]).command {
+            Some(Command::Use(args)) => {
                 assert!(args.session.only_host.is_empty());
                 assert!(!args.session.all_hosts);
-                assert_eq!(args.url.as_deref(), Some("https://example.com/app"));
+                assert_eq!(args.command, ["browser", "https://example.com/app"]);
             }
-            other => panic!("expected Browse, got {other:?}"),
+            other => panic!("expected Use, got {other:?}"),
+        }
+    }
+
+    /// **The passthrough promise, at the CLI.** An option that would be a
+    /// lint-http option if it came earlier is the tool's once the tool is
+    /// named, and reaches it unchanged — which is what makes `use` safe to
+    /// type in front of a command nobody has read the flags of.
+    #[test]
+    fn an_option_after_the_tool_belongs_to_the_tool() {
+        match Cli::parse_from([
+            "lint-http",
+            "use",
+            "curl",
+            "--fail-on",
+            "error",
+            "-sS",
+            "https://example.com/",
+        ])
+        .command
+        {
+            Some(Command::Use(args)) => {
+                assert!(
+                    args.session.fail_on.is_none(),
+                    "--fail-on after the tool is curl's"
+                );
+                assert_eq!(
+                    args.command,
+                    ["curl", "--fail-on", "error", "-sS", "https://example.com/"]
+                );
+            }
+            other => panic!("expected Use, got {other:?}"),
         }
     }
 
     #[test]
-    fn cli_browse_rejects_scoping_two_ways_at_once() {
+    fn cli_use_rejects_scoping_two_ways_at_once() {
         assert!(Cli::try_parse_from([
             "lint-http",
-            "browse",
+            "use",
             "--all-hosts",
             "--only-host",
             "example.com",
+            "browser",
         ])
         .is_err());
     }
@@ -2937,7 +3014,18 @@ enabled = true
     /// invisible from the source and only shows up when someone runs the binary.
     #[test]
     fn help_does_not_carry_the_notes_meant_for_this_file() {
-        let help = Cli::command().render_long_help().to_string();
+        // Every subcommand's long help as well as the binary's: a note leaks
+        // into whichever one carries the argument it was written next to, and
+        // the top-level rendering does not show a subcommand's arguments.
+        let mut command = Cli::command();
+        let help = std::iter::once(command.render_long_help().to_string())
+            .chain(
+                command
+                    .get_subcommands_mut()
+                    .map(|sub| sub.render_long_help().to_string()),
+            )
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(
             help.contains("HTTP-linting forward proxy"),
             "the binary lost its description"
@@ -2948,6 +3036,8 @@ enabled = true
             "drift in its default",
             // `SessionArgs`' own note, which is for whoever edits this file.
             "diverged, in both directions",
+            // And `use`'s, on why its tool and arguments are one list.
+            "starts at the *first* value",
         ] {
             assert!(!help.contains(leaked), "help leaked {leaked:?}");
         }
