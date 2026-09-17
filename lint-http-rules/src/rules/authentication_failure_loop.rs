@@ -41,6 +41,22 @@ impl RuleMeta for AuthenticationFailureLoop {
         DECLARED
     }
 
+    /// **Neither peer, and the rule's own description says so before this
+    /// field existed to record it**: a run of 401s "could imply a broken
+    /// client, misconfigured credentials, or a flawed authentication
+    /// handshake", and the rule declines to choose between the three.
+    ///
+    /// The evidence is not in a message at all. Four transactions read
+    /// together are what a loop is, and no single one of them is the defect —
+    /// the client re-presenting credentials is doing what §15.5.2 invites, and
+    /// each 401 answering them is correct on its own terms. `Neither` is the
+    /// value that says a reader narrowing to one end still wants this, because
+    /// it is about the exchange they are in rather than about the half they
+    /// wrote.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Neither)
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[

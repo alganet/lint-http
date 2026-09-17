@@ -112,6 +112,10 @@ impl RuleMeta for RangeRequestAndCaching {
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+    }
+
     /// Each snippet is a two-message sequence in the order it happened: the
     /// earlier response this client was given, then the later request the rule
     /// judges. A single message could not illustrate a stateful rule at all.
