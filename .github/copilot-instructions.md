@@ -23,7 +23,7 @@ Send the reader there rather than copying it here.
 |---|---|---|
 | `lint-http-core` | The data types, and nothing that knows about rules or transport: `HttpTransaction`, `TransactionHistory`, `ProtocolEvent` + its store, the bounded `StateStore`, `Config`, `Violation`/`Severity` | nothing in-workspace |
 | `lint-http-rules` | The rule catalogue (`src/rules/`), the defect catalogue (`src/violations/`), the helper library (`src/helpers/`), the state-query layer (`src/queries/`), and dispatch (`engine`, `lint_protocol`) | core |
-| `lint-http-proxy` | Transport, TLS/CA, capture, WebSocket — and the `lint-http` binary | core + rules |
+| `lint-http-proxy` | Transport, TLS/CA, capture, WebSocket, the tool drivers (`src/driver/`) — and the `lint-http` binary | core + rules |
 | `xtask` | The docs and config generators, unpublished so the shipped binary carries neither | rules |
 
 Both downstream crates re-export core's modules under their original names, so a path like
@@ -42,8 +42,13 @@ still tell "no --config given" from "the built-in". Omitting `--config` loads
 `config::DEFAULT_CONFIG_TOML`, which is `config_example.toml` compiled in. `run` and `browse`
 give stderr to the report and discard the child's unless `--show-child-stderr`. Then rule validation, then the capture writer, then
 the proxy. `run` and `browse` share `proxied_run.rs`'s `ProxySession` (ephemeral port, per-session CA in a
-temp dir) and differ only in how the child is told where the proxy is: `run` uses the
-`client_env.rs` environment table, `browse` uses `browser.rs`'s command line and an SPKI pin.
+temp dir) and differ only in how the child is told where the proxy is. `run --` is tool-blind and
+exports the `client_env.rs` environment table; everything else goes through `driver/`, whose
+`Driver` trait answers five questions about one tool — which executable, what its own arguments
+asked for, where it is aimed, what would make the report a lie, and how to write the session onto
+its command line. `browse` is `driver::chromium` plus three lines. A driver reads only the flags
+that change lint-http's behaviour and passes the rest through byte-identical; it must **detect and
+warn, never promise**, because a tool's config file (`~/.curlrc`) can set the same flags invisibly.
 Both report the findings the proxy already recorded as it linted, which is what makes the
 seven body-reading rules reachable in a report: bodies do not survive the capture file, so a
 replay cannot see them. `lint_records` — the replay — belongs to `lint-captures` alone, the one

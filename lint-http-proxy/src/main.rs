@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
 use lint_http::{
-    browser, capture, client_env, config, engine, lint, protocol_event_store, proxied_run, proxy,
+    capture, client_env, config, driver, engine, lint, protocol_event_store, proxied_run, proxy,
     rules, state,
 };
 
@@ -1276,40 +1276,79 @@ fn render_env_preview() -> String {
 
 /// Open a browser against a session proxy and report what it fetches.
 ///
-/// Unlike `run`, findings are printed as they commit. A browsing session lasts
-/// as long as someone keeps it open and makes hundreds of requests; holding
-/// everything until the window closes would deliver the report after the thing
-/// it describes is gone. `--format json` opts back into one report at the end,
-/// because a machine reading this wants one document rather than a stream.
+/// Everything below the first three lines is [`drive`], because a browsing
+/// session is one tool driven through a session of its own and there is nothing
+/// about it that only a browser does.
 async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
-    let cfg = load_validated_config(global.config.as_deref()).await?;
-    let browser = browser::discover(args.browser.as_deref())?;
+    let BrowseArgs {
+        browser,
+        url,
+        session,
+    } = args;
+    let chromium: &'static dyn driver::Driver = &driver::chromium::Chromium;
+    let tool = chromium.locate(browser.as_deref())?;
+    let invocation = chromium.inspect(&url.into_iter().collect::<Vec<_>>());
+    drive(chromium, tool, invocation, &session, global).await
+}
 
-    // The scope, decided before anything opens so it can be reported. The first
-    // party is the host being opened; with no URL there is none to infer.
-    let scope = args.session.scope(args.url.as_deref());
+/// Run one tool through a session of its own, configured the way that tool
+/// documents.
+///
+/// Every step here is the same whatever the tool is, and the handful that are
+/// not are the driver's four answers: where its executable is, what its
+/// arguments asked for, how to write the session onto its command line, and
+/// whether anyone is sitting in front of it. Adding a tool is a
+/// [`driver::Driver`] and an entry in [`driver::DRIVERS`], not another command
+/// shaped like this one.
+async fn drive(
+    driver: &'static dyn driver::Driver,
+    tool: driver::Tool,
+    invocation: driver::Invocation,
+    session_args: &SessionArgs,
+    global: &GlobalArgs,
+) -> anyhow::Result<u8> {
+    let mut cfg = load_validated_config(global.config.as_deref()).await?;
 
-    let session = proxied_run::ProxySession::start((*cfg).clone(), global.captures_path()).await?;
+    // **Before a proxy is stood up.** The failure this whole seam exists to
+    // catch is a clean report rather than an error, and an invocation that has
+    // already disabled certificate verification produces exactly that — so it
+    // is said while there is still a decision to make, not afterwards.
+    raise(&invocation.objections)?;
 
-    let pin = session.spki_pin().await?;
-    if pin.is_none() {
-        // Precise about what actually happens: interception is the proxy's
-        // decision and it is still on, so HTTPS is *intercepted* — the browser
-        // simply has no reason to trust the result. Saying "tunnelled unlinted"
-        // here described a different failure and sent the reader looking for
-        // the wrong thing.
-        write_stderr(
-            "warning: no certificate pin for this session; HTTPS pages will fail to verify \
-             (run with --show-child-stderr, or check that the CA could be written)\n",
-        )?;
+    // An invocation that sends a body is the reason to capture one: the rules
+    // that read a body are the ones a `-d @order.json` was about, and they see
+    // nothing unless the proxy kept the octets.
+    if invocation.sends_body {
+        std::sync::Arc::make_mut(&mut cfg)
+            .general
+            .captures_include_body = true;
     }
 
-    let profile = session.scratch("browser-profile");
-    std::fs::create_dir_all(&profile)?;
+    // The scope, decided before anything opens so it can be reported. The first
+    // party is whatever the invocation was aimed at; with no target there is
+    // none to infer.
+    let scope = session_args.scope(invocation.target.as_deref());
+
+    let session = proxied_run::ProxySession::start((*cfg).clone(), global.captures_path()).await?;
+    let pin = session.spki_pin().await?;
+    let scratch = session.scratch("driver");
+    std::fs::create_dir_all(&scratch)?;
+
+    let launch = driver.command(
+        &tool,
+        &invocation,
+        &driver::Target {
+            addr: session.addr,
+            trust_bundle: session.trust_bundle.as_deref(),
+            spki_pin: pin.as_deref(),
+            scratch: &scratch,
+        },
+    )?;
+    raise(&launch.objections)?;
 
     write_stderr(&format!(
         "{} through 127.0.0.1:{}{}\n",
-        browser.name,
+        tool.name,
         session.addr.port(),
         match &scope.hosts[..] {
             [] => " — reporting every host".to_string(),
@@ -1317,9 +1356,10 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         }
     ))?;
 
-    // Text mode narrates; JSON mode stays silent so its one document is the
-    // only thing on the stream a machine is reading.
-    let live = matches!(global.format(), OutputFormat::Text).then(|| {
+    // A session someone sits in front of narrates; JSON mode stays silent so
+    // its one document is the only thing on the stream a machine is reading.
+    let streaming = driver.interactive() && matches!(global.format(), OutputFormat::Text);
+    let live = streaming.then(|| {
         tokio::spawn(live_reporter(
             session.subscribe(),
             scope.clone(),
@@ -1327,18 +1367,12 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         ))
     });
 
-    let command = browser::command(
-        &browser,
-        &profile,
-        session.addr,
-        pin.as_deref(),
-        args.url.as_deref(),
-    );
     // A failure to launch is still an error and propagates; an interrupt is not,
-    // because closing a browser with Ctrl-C is how a browsing session ordinarily
+    // because ending a session with Ctrl-C is how an interactive one ordinarily
     // ends. Distinguishing them is why `await_child` returns a `ChildOutcome`.
     let outcome =
-        proxied_run::await_child(spawn_browser(command, args.session.show_child_stderr)).await?;
+        proxied_run::await_child(spawn_driven(launch.command, session_args.show_child_stderr))
+            .await?;
 
     // Drained *before* the live reporter is stopped, so the last transactions —
     // the ones committed while the window was closing — are printed rather than
@@ -1364,16 +1398,36 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         &scope,
         global,
         ReportStyle {
-            // Text mode already printed the blocks as they committed.
-            live: matches!(global.format(), OutputFormat::Text),
-            json_to_stdout: true,
+            // A streaming session already printed the blocks as they committed.
+            live: streaming,
+            json_to_stdout: driver.json_to_stdout(),
         },
     )?;
-    Ok(session_exit(exit, args.session.fail_on, &findings))
+    Ok(session_exit(exit, session_args.fail_on, &findings))
 }
 
-/// Run the browser, mapping a failure to launch onto a message that names it.
-async fn spawn_browser(
+/// Say what a driver objected to, and stop if it refused.
+///
+/// Warnings first and all of them, then the refusal — a user who has typed two
+/// things that spoil a session should be told about both rather than about
+/// whichever one this happened to check first.
+fn raise(objections: &[driver::Objection]) -> anyhow::Result<()> {
+    for objection in objections {
+        if let driver::Objection::Warn(message) = objection {
+            write_stderr(&format!("warning: {message}\n"))?;
+        }
+    }
+    if let Some(refusal) = objections
+        .iter()
+        .find(|o| matches!(o, driver::Objection::Refuse(_)))
+    {
+        anyhow::bail!("{}", refusal.message());
+    }
+    Ok(())
+}
+
+/// Run a driven tool, mapping a failure to launch onto a message that names it.
+async fn spawn_driven(
     mut command: tokio::process::Command,
     show_stderr: bool,
 ) -> anyhow::Result<std::process::ExitStatus> {
@@ -1382,9 +1436,9 @@ async fn spawn_browser(
         .get_program()
         .to_string_lossy()
         .into_owned();
-    // Same reason as `spawn_child`: the session deletes this browser's profile
-    // when it ends, so a detached browser would be writing into a directory
-    // that is going away.
+    // Same reason as `spawn_child`: the session deletes what it lent this tool
+    // — a browser profile, a trust bundle — when it ends, so a detached child
+    // would be reading and writing a directory that is going away.
     command.kill_on_drop(true);
     if !show_stderr {
         command.stderr(std::process::Stdio::null());
@@ -2805,6 +2859,23 @@ enabled = true
             "example.com",
         ])
         .is_err());
+    }
+
+    /// A warning lets the session run and a refusal does not, which is the
+    /// whole difference between the two.
+    #[test]
+    fn a_refusal_stops_a_session_and_a_warning_does_not() {
+        assert!(raise(&[driver::Objection::Warn("odd but survivable".into())]).is_ok());
+        let Err(err) = raise(&[
+            driver::Objection::Warn("odd but survivable".into()),
+            driver::Objection::Refuse("there would be nothing to report".into()),
+        ]) else {
+            panic!("a refusal must stop the session");
+        };
+        assert!(
+            err.to_string().contains("nothing to report"),
+            "the refusal must say why: {err}"
+        );
     }
 
     /// The session options are grouped, and the group ends where they do.
