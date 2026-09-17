@@ -80,9 +80,10 @@ lint-http rules list                 # human-readable: id, scope, title
 lint-http rules list --format json   # full metadata (description, spec refs) for tooling
 ```
 
-The per-rule pages under `docs/rules/` are generated from that same metadata.
-Regenerating them is a repository task rather than something the binary does —
-see `docs/development.md`.
+The per-rule pages under `docs/rules/` are generated from that same metadata, and
+the per-defect pages under `docs/violations/` from the catalogue of defects those
+rules report. Regenerating them is a repository task rather than something the
+binary does — see `docs/development.md`.
 
 ## Lint recorded captures (CI)
 
@@ -109,6 +110,8 @@ enabled = true
 ## Lint rules
 
 Rules cover common client and server best practices (e.g., `User-Agent` presence, `Cache-Control`, `ETag`, connection reuse). Rules are documented in `docs/rules/` and listed in `docs/rules.md`.
+
+A rule is the unit of analysis; a **violation** is the unit of report — one named defect a rule may find, and the name a finding carries after the rule's own (`rule/defect`). Each has a page under `docs/violations/`, listed in `docs/violations.md`, naming the sentences it enforces, the `[violations.<id>]` table that tunes it, and every rule that reports it.
 
 ## Capture format
 
@@ -155,7 +158,7 @@ The CI gates are mirrored locally with [`just`](https://just.systems). Run bare
 ```bash
 just check          # everything CI rejects a PR for: fmt, citations, lint, test, quotes
 just fmt            # format the whole tree, including the rule modules cargo fmt can't reach
-just gendocs        # regenerate docs/rules/ and docs/rules.md from rule metadata
+just gendocs        # regenerate docs/rules/ and docs/violations/ with their indexes
 just install-hooks  # enable the pre-commit guard (fmt + citations, once per clone)
 ```
 

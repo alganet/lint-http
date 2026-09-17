@@ -105,11 +105,13 @@ quotes:
     apy=.venv/bin/apycite; [ -x "$apy" ] || apy=apycite
     "$apy" verify
 
-# Regenerate docs/rules/ and docs/rules.md from rule metadata — the fixer for the
-# `docs_match_generated` and `docs_have_no_orphans` gates. Not part of `check`:
-# it writes into the tree, and deletes the pages no rule claims any more.
+# Regenerate both documentation trees — docs/rules/ with docs/rules.md from rule
+# metadata, and docs/violations/ with docs/violations.md from the defect
+# catalogue. The fixer for the `docs_match_generated` and `docs_have_no_orphans`
+# gates. Not part of `check`: it writes into the tree, and deletes the pages
+# nothing in either catalogue claims any more.
 #
-# Writes the tree: regenerate docs/rules/ and docs/rules.md.
+# Writes the tree: regenerate docs/rules/ and docs/violations/ with their indexes.
 gendocs:
     cargo xtask gendocs
 
