@@ -138,11 +138,16 @@ impl StateStore {
             resource: resource.to_string(),
         };
 
+        // Newest by *timestamp*, which is not the deque's front — see
+        // `get_history` below for why insertion order is completion order. This
+        // is the accessor literally named for the question that comment poses,
+        // so it answering it differently from its sibling was a trap waiting
+        // for the next rule to reach for the obvious name.
         self.inner
             .read()
             .store
             .get(&key)
-            .and_then(|dq| dq.front().cloned())
+            .and_then(|dq| dq.iter().max_by_key(|tx| tx.timestamp).cloned())
     }
 
     /// Retrieve the full bounded history for this client+resource (newest first).
@@ -449,6 +454,40 @@ mod tests {
             Some("\"etag2\"")
         );
         Ok(())
+    }
+
+    /// The same question `get_history` answers, asked of the accessor named for
+    /// it — and answered the same way.
+    #[test]
+    fn get_previous_is_the_newest_stamped_not_the_last_recorded() {
+        use crate::test_helpers::make_test_transaction_with_response;
+
+        let store = StateStore::new(300, 10);
+        let client = make_client();
+        let resource = "http://example.com/res";
+        let now = chrono::Utc::now();
+
+        let mut earlier = make_test_transaction_with_response(200, &[("etag", "\"early\"")]);
+        earlier.client = client.clone();
+        earlier.request.uri = resource.to_string();
+        earlier.timestamp = now;
+
+        let mut later = make_test_transaction_with_response(200, &[("etag", "\"late\"")]);
+        later.client = client.clone();
+        later.request.uri = resource.to_string();
+        later.timestamp = now + chrono::Duration::seconds(1);
+
+        // Completion order: the later-stamped one came back first.
+        store.record_transaction(&later);
+        store.record_transaction(&earlier);
+
+        let previous = store.get_previous(&client, resource).expect("a history");
+        assert_eq!(previous.timestamp, later.timestamp);
+        // And it agrees with the sibling.
+        assert_eq!(
+            previous.timestamp,
+            store.get_history(&client, resource)[0].timestamp
+        );
     }
 
     /// Concurrent requests for one resource are recorded in the order they

@@ -153,7 +153,19 @@ where
     let is_ws_upgrade = is_websocket_upgrade(&req);
 
     let method = req.method().clone();
-    let uri_str = req.uri().to_string();
+    // The *reconstructed* target, not `req.uri()`. Over HTTP/1.1 a request
+    // inside a CONNECT tunnel arrives in origin-form — `GET / HTTP/1.1` with the
+    // authority in `Host` — so recording `req.uri()` writes `"/"` into the
+    // capture and loses which host was asked. HTTP/2 and HTTP/3 carry
+    // `:authority` and already record an absolute URI, so this is also what
+    // makes one logical request look the same whichever version carried it.
+    //
+    // What that cost: two different hosts both print as `GET / -> 200`, and
+    // every by-resource rule keys on `"/"`, so histories for unrelated origins
+    // collide and a validator from one host is reported against another. The
+    // absolute form is already built above for forwarding; it was simply not
+    // the one written down.
+    let uri_str = uri.to_string();
     let req_headers = req.headers().clone();
 
     let client_ip = conn_metadata.remote_addr.ip();
@@ -1109,7 +1121,7 @@ mod tests {
     /// transaction whose response is the `200` — the `Link` field the `103`
     /// carried is not in the capture at all. That rule's finding is therefore
     /// reachable only over HTTP/3 (where `h3::client`'s `recv_response` returns
-    /// the first HEADERS frame whatever its status) or through `lint` over a
+    /// the first HEADERS frame whatever its status) or through `lint-captures` over a
     /// capture written elsewhere; if a hyper upgrade ever surfaces informational
     /// responses here, this test is what says so.
     #[tokio::test]
