@@ -63,6 +63,11 @@ struct GlobalArgs {
     /// Only report findings at or above this severity.
     #[arg(long, value_enum, global = true)]
     min_severity: Option<SeverityArg>,
+    /// Only report findings the named peer is answerable for. `any` reports
+    /// every finding and is the default. A finding no rule has attributed yet
+    /// is kept whichever peer is named, and counted on its own line.
+    #[arg(long, value_enum, value_name = "PARTY", global = true)]
+    about: Option<AboutArg>,
     /// The JSONL capture file this command reads or writes: where `run`,
     /// `use` and `proxy-start` write captures, and what `lint-captures`
     /// reads. Without it, `run` and `use` discard theirs.
@@ -122,6 +127,21 @@ impl GlobalArgs {
 
     fn min_severity(&self) -> lint::Severity {
         self.min_severity.unwrap_or(SeverityArg::Info).into()
+    }
+
+    /// Which peer the report is about. Unnarrowed when nobody said, on the same
+    /// argument [`format`](GlobalArgs::format) makes about applying a default
+    /// at the point of use.
+    fn about(&self) -> AboutScope {
+        match self.about {
+            Some(AboutArg::Client) => AboutScope {
+                party: Some(lint::Party::Client),
+            },
+            Some(AboutArg::Server) => AboutScope {
+                party: Some(lint::Party::Server),
+            },
+            Some(AboutArg::Any) | None => AboutScope::all(),
+        }
     }
 
     fn captures_path(&self) -> Option<&std::path::Path> {
@@ -410,6 +430,21 @@ impl From<SeverityArg> for lint::Severity {
     }
 }
 
+/// The CLI's mirror of [`lint::Party`], plus the `any` that is the absence of a
+/// filter — the shape [`SeverityArg`] has, for the same reason: `lint` does not
+/// know clap, and `any` is not a party.
+///
+/// `Neither` is deliberately not spellable. It is an answer a *rule* gives about
+/// a defect that lives in the exchange, and a reader asking to see what their
+/// client is answerable for wants those too; a flag value for it would offer to
+/// narrow a report to findings nobody can act on alone.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum AboutArg {
+    Client,
+    Server,
+    Any,
+}
+
 #[derive(clap::Args, Debug)]
 struct RulesArgs {
     #[command(subcommand)]
@@ -686,11 +721,14 @@ async fn lint_app(
         anyhow::bail!("capture file not found: {captures_path}");
     }
     let records = capture::load_capture_records(captures_path).await?;
-    let report = lint_records(&cfg, records, min_severity)?;
+    let report = lint_records(&cfg, records, min_severity, global.about())?;
     let total = report.total();
     let summary = Summary {
         hidden_severity: report.suppressed,
         min_severity,
+        hidden_party: report.hidden_party,
+        about: global.about(),
+        unattributed: report.unattributed,
         ..Summary::counted(
             &report.findings,
             report.transaction_count,
@@ -717,6 +755,13 @@ struct LintReport {
     /// clean one are indistinguishable otherwise — and the flag that would
     /// show them is the one thing the reader needs to be told.
     suppressed: usize,
+    /// Findings `--about` removed because the other peer is answerable for
+    /// them. A second cause needs a second number for the same reason the
+    /// first one did.
+    hidden_party: usize,
+    /// Findings `--about` kept for want of an answer. Not a hidden count and
+    /// not rendered as one: the report is showing them.
+    unattributed: usize,
 }
 
 impl LintReport {
@@ -733,14 +778,75 @@ impl LintReport {
 /// from a replay, and the two disagreed: blocks scrolled past that the number
 /// at the bottom did not include. Two callers, one function, and the tally can
 /// no longer describe a different set of findings than the reader saw.
-fn gated_block(record: &capture::CaptureRecord, min_severity: lint::Severity) -> Gated {
-    let gate = |violations: &[lint::Violation]| -> (Vec<lint::Violation>, usize) {
-        let kept: Vec<lint::Violation> = violations
-            .iter()
-            .filter(|v| v.severity >= min_severity)
-            .cloned()
-            .collect();
-        let suppressed = violations.len() - kept.len();
+/// What the report-wide filters removed from one record's findings, and what
+/// they let through without being able to measure it.
+///
+/// Returned rather than accumulated in place because the two callers own their
+/// findings differently — one clones out of a borrowed record, the other moves
+/// out of an owned one — and the arithmetic is the half they must agree on.
+#[derive(Debug, Default, Clone, Copy)]
+struct Removed {
+    suppressed: usize,
+    hidden_party: usize,
+    unattributed: usize,
+}
+
+impl Removed {
+    fn add(&mut self, other: Self) {
+        self.suppressed += other.suppressed;
+        self.hidden_party += other.hidden_party;
+        self.unattributed += other.unattributed;
+    }
+}
+
+/// Drop from `violations` everything the report-wide filters exclude, and say
+/// what went and why.
+///
+/// **One function, because there are two paths and they must not disagree.**
+/// `gated_block` reads findings off a record the live pass already made;
+/// `lint_records` re-lints a capture and used to spell the severity retain out
+/// a second time, inline. A second filter arriving in one of them and not the
+/// other is the drift [`gated_block`] was extracted to prevent, one level down.
+///
+/// **Severity first, then peer**, and the order is what keeps the numbers
+/// meaning what they say: a finding below the gate was never in the report for
+/// `--about` to have an opinion about, so it is counted once and not twice.
+fn retain_reportable(
+    violations: &mut Vec<lint::Violation>,
+    min_severity: lint::Severity,
+    about: AboutScope,
+) -> Removed {
+    let mut removed = Removed::default();
+    violations.retain(|v| {
+        if v.severity < min_severity {
+            removed.suppressed += 1;
+            return false;
+        }
+        if !about.includes(v) {
+            removed.hidden_party += 1;
+            return false;
+        }
+        // Kept, and counted: this one survived a narrowing it could not be
+        // measured against, which is the catalogue's incompleteness rather than
+        // the traffic's. Only worth counting when something was narrowing.
+        if !about.is_all() && v.party.is_none() {
+            removed.unattributed += 1;
+        }
+        true
+    });
+    removed
+}
+
+fn gated_block(
+    record: &capture::CaptureRecord,
+    min_severity: lint::Severity,
+    about: AboutScope,
+) -> Gated {
+    let mut removed = Removed::default();
+    let mut gate = |violations: &[lint::Violation]| -> (Vec<lint::Violation>, usize) {
+        let mut kept = violations.to_vec();
+        removed.add(retain_reportable(&mut kept, min_severity, about));
+        let suppressed = removed.suppressed;
         (kept, suppressed)
     };
     match record {
@@ -756,6 +862,8 @@ fn gated_block(record: &capture::CaptureRecord, min_severity: lint::Severity) ->
                     })
                 }),
                 suppressed,
+                hidden_party: removed.hidden_party,
+                unattributed: removed.unattributed,
             }
         }
         capture::CaptureRecord::WebsocketSession(session) => {
@@ -770,6 +878,8 @@ fn gated_block(record: &capture::CaptureRecord, min_severity: lint::Severity) ->
                     },
                 )),
                 suppressed,
+                hidden_party: removed.hidden_party,
+                unattributed: removed.unattributed,
             }
         }
     }
@@ -784,6 +894,12 @@ fn gated_block(record: &capture::CaptureRecord, min_severity: lint::Severity) ->
 struct Gated {
     block: Option<FindingsBlock>,
     suppressed: usize,
+    /// Findings the other peer is answerable for, dropped by `--about`.
+    hidden_party: usize,
+    /// Findings kept *despite* `--about`, because nothing says whose they are.
+    /// Zero when the report was not narrowed, since a number nobody could act
+    /// on is not worth a line.
+    unattributed: usize,
 }
 
 /// The findings a driven session's own proxy already made.
@@ -812,18 +928,23 @@ struct Gated {
 fn recorded_findings(
     records: &[capture::CaptureRecord],
     min_severity: lint::Severity,
+    about: AboutScope,
 ) -> LintReport {
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
     let mut ws_count = 0usize;
     let mut suppressed = 0usize;
+    let mut hidden_party = 0usize;
+    let mut unattributed = 0usize;
     for record in records {
         match record {
             capture::CaptureRecord::HttpTransaction(_) => tx_count += 1,
             capture::CaptureRecord::WebsocketSession(_) => ws_count += 1,
         }
-        let gated = gated_block(record, min_severity);
+        let gated = gated_block(record, min_severity, about);
         suppressed += gated.suppressed;
+        hidden_party += gated.hidden_party;
+        unattributed += gated.unattributed;
         findings.extend(gated.block);
     }
     LintReport {
@@ -831,6 +952,8 @@ fn recorded_findings(
         transaction_count: tx_count,
         websocket_count: ws_count,
         suppressed,
+        hidden_party,
+        unattributed,
     }
 }
 
@@ -852,6 +975,7 @@ fn lint_records(
     cfg: &config::Config,
     records: Vec<capture::CaptureRecord>,
     min_severity: lint::Severity,
+    about: AboutScope,
 ) -> anyhow::Result<LintReport> {
     let state = state::StateStore::new(cfg.general.ttl_seconds, cfg.general.max_history);
     // Precompute the enabled rule set once, then reuse it across the replay.
@@ -860,7 +984,7 @@ fn lint_records(
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
     let mut ws_count = 0usize;
-    let mut suppressed = 0usize;
+    let mut removed = Removed::default();
     for record in records {
         match record {
             capture::CaptureRecord::HttpTransaction(tx) => {
@@ -869,9 +993,7 @@ fn lint_records(
                 // Record *before* gating: stateful rules must see every
                 // transaction in the file regardless of what the report includes.
                 state.record_transaction(&tx);
-                let found = violations.len();
-                violations.retain(|v| v.severity >= min_severity);
-                suppressed += found - violations.len();
+                removed.add(retain_reportable(&mut violations, min_severity, about));
                 if violations.is_empty() {
                     continue;
                 }
@@ -886,9 +1008,7 @@ fn lint_records(
             capture::CaptureRecord::WebsocketSession(session) => {
                 ws_count += 1;
                 let mut violations = lint_websocket_session(&session, cfg, &engine);
-                let found = violations.len();
-                violations.retain(|v| v.severity >= min_severity);
-                suppressed += found - violations.len();
+                removed.add(retain_reportable(&mut violations, min_severity, about));
                 if violations.is_empty() {
                     continue;
                 }
@@ -906,7 +1026,9 @@ fn lint_records(
         findings,
         transaction_count: tx_count,
         websocket_count: ws_count,
-        suppressed,
+        suppressed: removed.suppressed,
+        hidden_party: removed.hidden_party,
+        unattributed: removed.unattributed,
     })
 }
 
@@ -998,7 +1120,62 @@ struct WebsocketFindings {
     violations: Vec<lint::Violation>,
 }
 
+/// Which peer a report is about.
+///
+/// **The other half of what makes a session's report readable.** [`HostScope`]
+/// answers *whose traffic*, and a report scoped to one host is still every
+/// finding about both ends of it — a client author reading a wall of
+/// `Cache-Control` advice about somebody else's origin, a server author reading
+/// their own `User-Agent`. This answers *which end*, and the two compose: host
+/// first, then peer.
+///
+/// `None` means every peer, which is what `--about any` selects and what a
+/// report nobody narrowed falls back to.
+#[derive(Debug, Clone, Copy, Default)]
+struct AboutScope {
+    party: Option<lint::Party>,
+}
+
+impl AboutScope {
+    fn all() -> Self {
+        Self::default()
+    }
+
+    fn is_all(&self) -> bool {
+        self.party.is_none()
+    }
+
+    /// Does this report include the given finding?
+    ///
+    /// **A finding nobody has attributed is kept, whichever peer is named**, and
+    /// that is the same decision [`HostScope::includes`] makes about a target it
+    /// cannot parse, in the same words: the alternative is dropping a finding
+    /// for a reason the user cannot see. Here the reason would be worse than
+    /// invisible — it would be the catalogue's own incompleteness, reported as
+    /// if it were a fact about the traffic.
+    ///
+    /// It also matters that `--fail-on` reads the filtered report. Hiding what
+    /// is not yet attributed would turn an unread rule into a green build, and
+    /// a false negative through a gate is the one failure this tool cannot
+    /// have. Keeping produces a false positive instead, which is visible,
+    /// actionable, and shrinks to nothing as the catalogue is read.
+    ///
+    /// [`Party::Neither`](lint::Party::Neither) is kept for both peers too, and
+    /// for a different reason: it is a decided answer that the defect is in the
+    /// exchange, so it is a finding *either* reader may have to act on.
+    fn includes(&self, violation: &lint::Violation) -> bool {
+        let Some(party) = self.party else {
+            return true;
+        };
+        match violation.party {
+            None | Some(lint::Party::Neither) => true,
+            Some(named) => named == party,
+        }
+    }
+}
+
 /// Which hosts a report is about.
+///
 ///
 /// **A browsing session is unusable without this.** One real page pulls in tens of
 /// origins nobody in the room controls, and with the whole catalogue enabled
@@ -1679,6 +1856,15 @@ struct Summary {
     /// Findings `--min-severity` filtered out before the report existed.
     hidden_severity: usize,
     min_severity: lint::Severity,
+    /// Findings `--about` filtered out because the other peer is answerable.
+    hidden_party: usize,
+    /// The peer the report was narrowed to, for the clause that names the flag.
+    about: AboutScope,
+    /// Findings the report is *showing* although `--about` narrowed it, because
+    /// no rule has said whose they are. Not a hidden count and given a line of
+    /// its own so it cannot read as one — what it measures is this tool's own
+    /// incompleteness, and it disappears when the catalogue is fully read.
+    unattributed: usize,
     /// The gate this report will be read by, when one was asked for.
     fail_on: Option<lint::Severity>,
 }
@@ -1701,6 +1887,9 @@ impl Default for Summary {
             hidden_host_transactions: 0,
             hidden_severity: 0,
             min_severity: lint::Severity::Info,
+            hidden_party: 0,
+            about: AboutScope::all(),
+            unattributed: 0,
             fail_on: None,
         }
     }
@@ -1861,11 +2050,43 @@ fn render_summary(summary: &Summary, opts: RenderOpts) -> String {
             summary.min_severity.name()
         ));
     }
+    if summary.hidden_party > 0 {
+        // Named by the peer that *is* answerable, not by the one asked for: a
+        // reader who typed `--about client` knows what they asked for and wants
+        // to know what that cost them.
+        let other = match summary.about.party {
+            Some(lint::Party::Client) => "the server",
+            _ => "the client",
+        };
+        hidden.push(format!(
+            "{} {other} is answerable for (--about any)",
+            summary.hidden_party,
+        ));
+    }
     if !hidden.is_empty() {
         let _ = writeln!(
             out,
             "{}",
             styles.paint(styles.dim(), &format!("hidden: {}", hidden.join("; ")))
+        );
+    }
+
+    // What the report is showing but could not measure — its own line, and not
+    // a clause of `hidden:`, because these findings are on the screen. The
+    // number is a fact about how much of the catalogue has been read for the
+    // question, so it names no flag to reveal them: there is nothing hidden to
+    // reveal. It stops rendering when every rule has been read.
+    if summary.unattributed > 0 {
+        let _ = writeln!(
+            out,
+            "{}",
+            styles.paint(
+                styles.dim(),
+                &format!(
+                    "unattributed: {} kept, because no rule says whose they are",
+                    summary.unattributed
+                )
+            )
         );
     }
 
@@ -1927,7 +2148,7 @@ fn report_session(
     global: &GlobalArgs,
     style: ReportStyle,
 ) -> anyhow::Result<Vec<FindingsBlock>> {
-    let report = recorded_findings(records, global.min_severity());
+    let report = recorded_findings(records, global.min_severity(), global.about());
     // The report goes to stderr on a session whatever the format, except the
     // JSON document a browsing session puts on stdout — so that is the stream
     // to ask about colour, and the one clause below that changes it.
@@ -1953,6 +2174,9 @@ fn report_session(
         .saturating_sub(in_scope_transactions);
     summary.hidden_severity = report.suppressed;
     summary.min_severity = global.min_severity();
+    summary.hidden_party = report.hidden_party;
+    summary.about = global.about();
+    summary.unattributed = report.unattributed;
     summary.fail_on = style.fail_on;
 
     match global.format() {
@@ -1971,6 +2195,16 @@ fn report_session(
             if elsewhere > 0 {
                 write_stderr(&format!(
                     "note: {elsewhere} violation(s) on other hosts are not in this document (--all-hosts)\n"
+                ))?;
+            }
+            // The same note for the same reason, one flag over. There is no
+            // second note for what was kept unattributed: every finding in the
+            // document carries `party`, so its absence *is* the marker, and a
+            // machine reading the document can count them itself.
+            if report.hidden_party > 0 {
+                write_stderr(&format!(
+                    "note: {} violation(s) the other peer is answerable for are not in this document (--about any)\n",
+                    report.hidden_party
                 ))?;
             }
         }
@@ -2228,6 +2462,7 @@ async fn drive(
             session.subscribe(),
             scope.clone(),
             global.min_severity(),
+            global.about(),
             global.render_opts(is_terminal(Stream::Stderr)),
         ))
     });
@@ -2329,6 +2564,7 @@ async fn live_reporter(
     mut events: tokio::sync::broadcast::Receiver<std::sync::Arc<capture::CaptureEnvelope>>,
     scope: HostScope,
     min_severity: lint::Severity,
+    about: AboutScope,
     opts: RenderOpts,
 ) {
     // What a collapsed report has already said once. A session that repeats
@@ -2355,7 +2591,11 @@ async fn live_reporter(
         // session that was only counted and never printed would show up as a
         // number with nothing behind it — it commits once, when the session
         // ends, which is exactly when there is something to say about it.
-        let Some(mut block) = gated_block(&envelope.record, min_severity).block else {
+        // The same narrowing the replayed report applies, applied here too.
+        // A filter that ran only at the end would print blocks the closing
+        // count did not include — the drift this function's own comment
+        // records, arriving one flag later.
+        let Some(mut block) = gated_block(&envelope.record, min_severity, about).block else {
             continue;
         };
         if !scope.keeps(&block) {
@@ -3088,10 +3328,10 @@ enabled = true
         let captures = write_capture_file(&[tx], &mut temp).await?;
         let records = capture::load_capture_records(captures.to_str().unwrap()).await?;
 
-        let reported = recorded_findings(&records, lint::Severity::Info);
+        let reported = recorded_findings(&records, lint::Severity::Info, AboutScope::all());
         assert_eq!(reported.total(), 1, "the recorded finding must be reported");
 
-        let replayed = lint_records(&cfg, records, lint::Severity::Info)?;
+        let replayed = lint_records(&cfg, records, lint::Severity::Info, AboutScope::all())?;
         assert_eq!(
             replayed.total(),
             0,
@@ -3126,7 +3366,7 @@ enabled = true
             .map(|tx| capture::CaptureRecord::HttpTransaction(Box::new(tx)))
             .collect();
 
-        let report = recorded_findings(&records, lint::Severity::Warn);
+        let report = recorded_findings(&records, lint::Severity::Warn, AboutScope::all());
         assert_eq!(
             report.findings.len(),
             1,
@@ -3141,7 +3381,7 @@ enabled = true
         // because it builds them with the same function.
         let live: Vec<_> = records
             .iter()
-            .filter_map(|record| gated_block(record, lint::Severity::Warn).block)
+            .filter_map(|record| gated_block(record, lint::Severity::Warn, AboutScope::all()).block)
             .collect();
         assert_eq!(live.len(), report.findings.len());
     }
@@ -3160,7 +3400,7 @@ enabled = true
         )];
         let records = vec![capture::CaptureRecord::WebsocketSession(Box::new(session))];
 
-        let report = recorded_findings(&records, lint::Severity::Info);
+        let report = recorded_findings(&records, lint::Severity::Info, AboutScope::all());
         assert_eq!(report.websocket_count, 1);
         assert_eq!(report.total(), 1);
     }
@@ -3484,6 +3724,145 @@ enabled = true
             ),
             "{out}"
         );
+    }
+
+    /// A finding attributed to `party`, for the tests about `--about`.
+    fn violation_by(party: Option<lint::Party>) -> lint::Violation {
+        lint::Violation {
+            party,
+            ..sample_violation()
+        }
+    }
+
+    /// One transaction carrying findings of both peers, one decided as
+    /// neither's, and one nobody has read — the shape every `--about` test
+    /// needs, because a transaction routinely carries all of them at once.
+    fn mixed_violations() -> Vec<lint::Violation> {
+        vec![
+            violation_by(Some(lint::Party::Client)),
+            violation_by(Some(lint::Party::Server)),
+            violation_by(Some(lint::Party::Neither)),
+            violation_by(None),
+        ]
+    }
+
+    fn mixed_record() -> capture::CaptureRecord {
+        let mut tx = lint_http_core::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.violations = mixed_violations();
+        capture::CaptureRecord::HttpTransaction(Box::new(tx))
+    }
+
+    /// **`--about any` is the identity.** The whole migration rests on it: a
+    /// report nobody narrowed must be byte-for-byte what it was before the flag
+    /// existed, or every existing reader's output moved for a feature they did
+    /// not ask for.
+    #[test]
+    fn an_unnarrowed_report_keeps_every_finding() {
+        let gated = gated_block(&mixed_record(), lint::Severity::Info, AboutScope::all());
+        assert_eq!(gated.block.expect("a block").violations().len(), 4);
+        assert_eq!(gated.hidden_party, 0);
+        assert_eq!(
+            gated.unattributed, 0,
+            "a report nobody narrowed has no incompleteness to report",
+        );
+    }
+
+    /// Narrowing to one peer keeps that peer's findings, the ones decided as
+    /// neither's, and the ones nobody has read — and drops only the other
+    /// peer's.
+    #[test]
+    fn narrowing_to_a_peer_keeps_what_it_cannot_measure() {
+        for (party, hidden) in [(lint::Party::Client, 1), (lint::Party::Server, 1)] {
+            let about = AboutScope { party: Some(party) };
+            let gated = gated_block(&mixed_record(), lint::Severity::Info, about);
+            let kept = gated.block.expect("a block");
+            assert_eq!(
+                kept.violations().len(),
+                3,
+                "the named peer's, neither's, and the unread one",
+            );
+            assert_eq!(gated.hidden_party, hidden);
+            assert_eq!(gated.unattributed, 1);
+            // The one dropped is the other peer's, and nothing else.
+            assert!(kept
+                .violations()
+                .iter()
+                .all(|v| v.party != Some(other_party(party))));
+        }
+    }
+
+    fn other_party(party: lint::Party) -> lint::Party {
+        match party {
+            lint::Party::Client => lint::Party::Server,
+            _ => lint::Party::Client,
+        }
+    }
+
+    /// **A finding below the severity gate is counted once.** It was never in
+    /// the report for `--about` to have an opinion about, so counting it in
+    /// both clauses would tell a reader the same finding was hidden twice.
+    #[test]
+    fn a_finding_below_the_gate_is_not_also_counted_as_the_other_peers() {
+        let mut tx = lint_http_core::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.violations = vec![lint::Violation {
+            party: Some(lint::Party::Server),
+            severity: lint::Severity::Info,
+            ..sample_violation()
+        }];
+        let gated = gated_block(
+            &capture::CaptureRecord::HttpTransaction(Box::new(tx)),
+            lint::Severity::Warn,
+            AboutScope {
+                party: Some(lint::Party::Client),
+            },
+        );
+        assert!(gated.block.is_none());
+        assert_eq!(gated.suppressed, 1);
+        assert_eq!(gated.hidden_party, 0, "counted by severity, and only once");
+    }
+
+    /// The two new clauses join the line that was already there, and the
+    /// unattributed count gets a line of its own — it is not hidden, so it may
+    /// not read as if it were.
+    #[test]
+    fn a_narrowed_report_says_what_it_dropped_and_what_it_could_not_measure() {
+        let findings = sample_findings();
+        let summary = Summary {
+            hidden_hosts: 26,
+            hidden_host_transactions: 7,
+            hidden_severity: 4,
+            min_severity: lint::Severity::Warn,
+            hidden_party: 12,
+            about: AboutScope {
+                party: Some(lint::Party::Client),
+            },
+            unattributed: 31,
+            ..Summary::counted(&findings, 6, 0)
+        };
+        let out = render_summary(&summary, RenderOpts::plain());
+        assert!(
+            out.contains(
+                "hidden: 26 on other hosts in 7 transactions (--all-hosts); \
+                 4 below warn (--min-severity); \
+                 12 the server is answerable for (--about any)\n"
+            ),
+            "{out}"
+        );
+        assert!(
+            out.contains("unattributed: 31 kept, because no rule says whose they are\n"),
+            "{out}"
+        );
+    }
+
+    /// A report nobody narrowed says nothing about either — the clauses are
+    /// added by a filter, not by the feature existing.
+    #[test]
+    fn an_unnarrowed_report_mentions_neither_clause() {
+        let findings = sample_findings();
+        let summary = Summary::counted(&findings, 1, 0);
+        let out = render_summary(&summary, RenderOpts::plain());
+        assert!(!out.contains("--about"), "{out}");
+        assert!(!out.contains("unattributed"), "{out}");
     }
 
     /// A gate that fails says what tripped it, before the exit code does.
