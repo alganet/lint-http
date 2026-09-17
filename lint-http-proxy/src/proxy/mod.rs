@@ -94,6 +94,17 @@ pub(super) struct Shared {
     /// Graceful-shutdown signal. Handed to the detached WebSocket relay so it
     /// closes promptly on shutdown rather than only at the drain timeout.
     pub(super) shutdown: CancellationToken,
+    /// The detached tasks that assemble and write a transaction once both body
+    /// halves have finished streaming.
+    ///
+    /// They outlive the handler that spawned them and hold no connection
+    /// permit, so the semaphore drain does not wait for them — which left the
+    /// capture writer free to shut down while a commit was still linting, and
+    /// the transaction was lost with a "capture writer task is gone" warning.
+    /// That was survivable when shutdown meant a human pressing Ctrl-C long
+    /// after the traffic; `run` and `browse` cancel the instant the child
+    /// exits, which is exactly when the last response is still committing.
+    pub(super) commits: tokio_util::task::TaskTracker,
 }
 
 /// Where the accept loop's socket comes from.
@@ -265,6 +276,7 @@ async fn run_proxy_inner(
     let shared = Arc::new(Shared {
         upstream,
         captures,
+        commits: tokio_util::task::TaskTracker::new(),
         cfg,
         state,
         protocol_event_store,
@@ -307,6 +319,17 @@ async fn run_proxy_inner(
     let _ = cleanup_handle.await;
     for handle in [h3_handle, pool_sweep_handle].into_iter().flatten() {
         let _ = handle.await;
+    }
+
+    // Then the commits. They are the last writers to the capture file and the
+    // only ones the semaphore drain above cannot see, so joining them here is
+    // what makes the writer shutdown below actually final.
+    shared.commits.close();
+    tokio::select! {
+        () = shared.commits.wait() => {}
+        () = tokio::time::sleep(shutdown_timeout) => {
+            warn!("timed out waiting for in-flight transactions to commit");
+        }
     }
 
     // Flush, fsync, and join the capture writer last, after all handlers that

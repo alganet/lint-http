@@ -286,7 +286,10 @@ fn spawn_commit(
     body_done: oneshot::Receiver<CapturedBody>,
     done_rx: oneshot::Receiver<CapturedBody>,
 ) {
-    tokio::spawn(async move {
+    // Tracked, not detached: the capture writer waits for these before it
+    // shuts down. See `Shared::commits`.
+    let commits = shared.commits.clone();
+    commits.spawn(async move {
         let (req_cap, resp_cap) = tokio::join!(body_done, done_rx);
         let (Ok(req_cap), Ok(resp_cap)) = (req_cap, resp_cap) else {
             // A tee was dropped without finalizing (should not happen — Drop

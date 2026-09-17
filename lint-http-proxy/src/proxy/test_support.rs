@@ -45,6 +45,7 @@ pub(super) async fn make_shared_with_cfg(
     ));
     let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg)?);
     let shared = StdArc::new(Shared {
+        commits: tokio_util::task::TaskTracker::new(),
         upstream,
         captures: cw.clone(),
         cfg,
