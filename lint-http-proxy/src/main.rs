@@ -128,15 +128,6 @@ enum Command {
 /// a command that is being run for its own sake.
 #[derive(clap::Args, Debug)]
 struct RunArgs {
-    /// Exit non-zero when a finding *in the report* reaches this severity —
-    /// findings `--min-severity` filtered out cannot trip it. Without this, the
-    /// exit code is the wrapped command's.
-    #[arg(long, value_enum, value_name = "SEVERITY")]
-    fail_on: Option<SeverityArg>,
-    /// Let the wrapped command's stderr through. Off by default, so the report
-    /// has stderr to itself.
-    #[arg(long)]
-    show_child_stderr: bool,
     /// Print the environment a wrapped command would receive, and exit.
     #[arg(long)]
     print_env: bool,
@@ -147,6 +138,11 @@ struct RunArgs {
         value_name = "COMMAND"
     )]
     command: Vec<String>,
+    // Last, because `next_help_heading` runs from where a flattened struct is
+    // declared to the end of the list — flattened first, `--print-env` and the
+    // command itself would be filed under "Session options", which they are not.
+    #[command(flatten)]
+    session: SessionArgs,
 }
 
 /// `lint-http browse [URL]`
@@ -160,21 +156,69 @@ struct BrowseArgs {
     /// browser found.
     #[arg(long, value_name = "PATH")]
     browser: Option<String>,
-    /// Report findings for this host and anything under it. Repeatable.
-    /// Defaults to the host of URL.
-    #[arg(long, value_name = "HOST")]
-    only_host: Vec<String>,
-    /// Report every host, including third parties the page pulls in.
-    #[arg(long, conflicts_with = "only_host")]
-    all_hosts: bool,
-    /// Let the browser's stderr through. Off by default — a browser writes a
-    /// great deal of it, and none of it is about the site being linted.
-    #[arg(long)]
-    show_child_stderr: bool,
     /// Where to open. Omitted, the browser opens its own start page and
     /// whatever it fetches is still linted.
     #[arg(value_name = "URL")]
     url: Option<String>,
+    // Last, for the same reason as `RunArgs`.
+    #[command(flatten)]
+    session: SessionArgs,
+}
+
+/// The options every session takes, whatever child it starts.
+///
+/// These were declared twice and diverged, in both directions: `run` could gate
+/// a build on a finding and had no way to say which hosts it cared about, while
+/// `browse` could scope a report to the site under test and had no way to fail
+/// on anything in it. Neither gap was a decision — each flag simply got built
+/// where it was first needed. Declared once, they are the same four options on
+/// every command that stands a proxy up for a child, and the next one inherits
+/// them rather than picking a subset.
+#[derive(clap::Args, Debug, Clone, Default)]
+#[command(next_help_heading = "Session options")]
+struct SessionArgs {
+    /// Exit non-zero when a finding *in the report* reaches this severity —
+    /// findings `--min-severity` filtered out cannot trip it. Without this, the
+    /// exit code is the child's.
+    #[arg(long, value_enum, value_name = "SEVERITY")]
+    fail_on: Option<SeverityArg>,
+    /// Report findings for this host and anything under it. Repeatable.
+    /// Defaults to the host of the target, when the command knows one.
+    #[arg(long, value_name = "HOST")]
+    only_host: Vec<String>,
+    /// Report every host, including third parties the target pulls in.
+    #[arg(long, conflicts_with = "only_host")]
+    all_hosts: bool,
+    /// Let the child's stderr through. Off by default, so the report has stderr
+    /// to itself — and because a browser writes a great deal of it, none of it
+    /// about the site being linted.
+    #[arg(long)]
+    show_child_stderr: bool,
+}
+
+impl SessionArgs {
+    /// Which hosts this session's report is about.
+    ///
+    /// `target` is what the session was pointed at, when the command knows —
+    /// the URL a browser was opened on, or the one a driver read out of the
+    /// tool's own arguments. It is the default first party, because a report
+    /// about a page is about that page and not about the eleven CDNs it
+    /// reaches. `run --` knows no target, so it reports everything, which is
+    /// what it always did.
+    fn scope(&self, target: Option<&str>) -> HostScope {
+        if self.all_hosts {
+            return HostScope::all();
+        }
+        if !self.only_host.is_empty() {
+            return HostScope::new(self.only_host.clone());
+        }
+        // Narrowing to nothing would report nothing, so a target this cannot
+        // read widens rather than narrows.
+        match target.and_then(uri_host) {
+            Some(host) => HostScope::new([host.to_string()]),
+            None => HostScope::all(),
+        }
+    }
 }
 
 #[derive(clap::Args, Debug)]
@@ -968,23 +1012,167 @@ fn render_lint_report(
     match format {
         OutputFormat::Json => Ok(format!("{}\n", serde_json::to_string_pretty(findings)?)),
         OutputFormat::Text => {
-            use std::fmt::Write;
             let mut out = String::new();
             for block in findings {
                 out.push_str(&render_findings_block(block)?);
             }
             let total: usize = findings.iter().map(|f| f.violations().len()).sum();
-            write!(
-                out,
-                "\n{total} violation(s) in {transaction_count} transaction(s)"
-            )?;
-            if websocket_count > 0 {
-                write!(out, " and {websocket_count} websocket session(s)")?;
-            }
-            out.push('\n');
+            out.push_str(&render_summary(total, transaction_count, websocket_count));
             Ok(out)
         }
     }
+}
+
+/// The line a text report ends with.
+///
+/// Its own function because a session that printed its findings as they
+/// happened has nothing left to print *but* this, and a second copy of the
+/// sentence is a second thing to keep in step with the first. It was two
+/// copies, and the one `browse` used had already grown a websocket clause the
+/// other spelled differently.
+fn render_summary(total: usize, transaction_count: usize, websocket_count: usize) -> String {
+    use std::fmt::Write;
+    let mut out = format!("\n{total} violation(s) in {transaction_count} transaction(s)");
+    if websocket_count > 0 {
+        let _ = write!(out, " and {websocket_count} websocket session(s)");
+    }
+    out.push('\n');
+    out
+}
+
+/// How a session hands its report over — the one thing a wrapped command and a
+/// browsing session do not agree about.
+#[derive(Debug, Clone, Copy)]
+struct ReportStyle {
+    /// Print each finding as its transaction commits, leaving the end of the
+    /// session with only the tally to print.
+    ///
+    /// A session someone sits in front of for minutes needs this: holding
+    /// everything until the window closes delivers the report after the thing
+    /// it describes is gone. A wrapped command that finishes in a second does
+    /// not, and streaming would only interleave findings with the tool's own
+    /// output. Text only — `--format json` is one document by definition.
+    live: bool,
+    /// Whether a `--format json` document goes to stdout.
+    ///
+    /// `run` says no, and must: stdout belongs to the wrapped command, so a
+    /// report written there would corrupt the body someone is redirecting. A
+    /// browsing session says yes — a browser has no stdout worth protecting,
+    /// and `browse --format json > findings.json` is what the documentation has
+    /// promised since the command existed. The *text* report is on stderr
+    /// either way, and so is every diagnostic.
+    json_to_stdout: bool,
+}
+
+/// Print one session's report, and hand back the findings a gate would read.
+///
+/// The whole tail of a session: gate by severity, divide by scope, print in the
+/// requested format, and say what the scope left out. `run` and `browse` each
+/// had their own copy, which is why only one of them counted transactions the
+/// way its own summary line claimed to.
+fn report_session(
+    records: &[capture::CaptureRecord],
+    scope: &HostScope,
+    global: &GlobalArgs,
+    style: ReportStyle,
+) -> anyhow::Result<Vec<FindingsBlock>> {
+    let report = recorded_findings(records, global.min_severity());
+
+    // The summary has to divide like with like: a scoped violation count over
+    // an unscoped transaction count reads as "3 violation(s) in 480
+    // transaction(s)" when 472 of those were never in the report's scope at all.
+    let in_scope_transactions = records
+        .iter()
+        .filter(|record| match record {
+            capture::CaptureRecord::HttpTransaction(tx) => scope.includes(&tx.request.uri),
+            capture::CaptureRecord::WebsocketSession(_) => false,
+        })
+        .count();
+
+    let (findings, elsewhere) = scope.apply(report.findings);
+    let total: usize = findings.iter().map(|f| f.violations().len()).sum();
+
+    match global.format() {
+        OutputFormat::Json => {
+            let document = render_lint_report(
+                &findings,
+                in_scope_transactions,
+                report.websocket_count,
+                OutputFormat::Json,
+            )?;
+            if style.json_to_stdout {
+                write_stdout(&document)?;
+            } else {
+                write_stderr(&document)?;
+            }
+            // The document is scoped and nothing inside it says so — it is an
+            // array, and giving it a wrapper would fork the shape
+            // `lint-captures --format json` produces. The note goes to stderr,
+            // which JSON mode leaves free, so a reader can tell a clean session
+            // from one whose findings were filtered.
+            if elsewhere > 0 {
+                write_stderr(&format!(
+                    "note: {elsewhere} violation(s) on other hosts are not in this document (--all-hosts)\n"
+                ))?;
+            }
+        }
+        OutputFormat::Text => {
+            let mut out = String::new();
+            // A live session already printed the blocks; only the tally is new.
+            if !style.live {
+                for block in &findings {
+                    out.push_str(&render_findings_block(block)?);
+                }
+            }
+            out.push_str(&render_summary(
+                total,
+                in_scope_transactions,
+                report.websocket_count,
+            ));
+            if elsewhere > 0 {
+                // Said rather than silently dropped: a reader has to be able to
+                // tell "clean" from "scoped away from the mess". The other
+                // transaction count goes with it, so both halves of the session
+                // are accounted for.
+                let others = report
+                    .transaction_count
+                    .saturating_sub(in_scope_transactions);
+                out.push_str(&format!(
+                    "{elsewhere} more violation(s) in {others} transaction(s) on other hosts, not shown (--all-hosts)\n"
+                ));
+            }
+            write_stderr(&out)?;
+        }
+    }
+    Ok(findings)
+}
+
+/// The code a session exits with.
+///
+/// The child's, unless `--fail-on` says otherwise — so putting `lint-http` in
+/// front of a command does not change what that command's success means. A
+/// child that already failed keeps its own code even when findings would also
+/// have tripped the gate, because its code is the more specific answer. And a
+/// clean lint never overrides a failure: a passing test suite that happens to
+/// be tidy still exits 0, a failing one still exits non-zero whatever the
+/// findings said.
+///
+/// `unwrap_or(1)` on the conversion: a code that does not fit in a `u8` is an
+/// abnormal exit — a Windows crash code, say — and rounding that to *success*
+/// would report green on a child that died before doing anything.
+fn session_exit(child_code: i32, fail_on: Option<SeverityArg>, findings: &[FindingsBlock]) -> u8 {
+    if child_code != 0 {
+        return u8::try_from(child_code).unwrap_or(1);
+    }
+    let Some(fail_on) = fail_on else {
+        return 0;
+    };
+    let fail_on: lint::Severity = fail_on.into();
+    let tripped = findings
+        .iter()
+        .flat_map(FindingsBlock::violations)
+        .any(|v| v.severity >= fail_on);
+    u8::from(tripped)
 }
 
 /// Wrap one command: stand a proxy up for it, run it, report what crossed.
@@ -1022,38 +1210,28 @@ async fn run_wrapped(args: RunArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         program,
         rest,
         global.captures_path(),
-        args.show_child_stderr,
+        args.session.show_child_stderr,
     )
     .await?;
 
-    let min_severity = global.min_severity();
-    let report = recorded_findings(&run.records, min_severity);
-    write_stderr(&render_lint_report(
-        &report.findings,
-        report.transaction_count,
-        report.websocket_count,
-        global.format(),
-    )?)?;
-
-    // The child's code is the run's, and it is *not* overridden by a clean lint
-    // — a passing test suite that also happens to be tidy still exits 0, and a
-    // failing one still exits non-zero whatever the findings said.
-    let child_code = run.exit_code.unwrap_or(1);
-    let Some(fail_on) = args.fail_on else {
-        return Ok(u8::try_from(child_code).unwrap_or(1));
-    };
-    // With `--fail-on`, a finding at that severity fails the run — but a child
-    // that already failed keeps its own code, which is the more specific answer.
-    let fail_on: lint::Severity = fail_on.into();
-    let tripped = report
-        .findings
-        .iter()
-        .flat_map(|f| f.violations())
-        .any(|v| v.severity >= fail_on);
-    if child_code != 0 {
-        return Ok(u8::try_from(child_code).unwrap_or(1));
-    }
-    Ok(if tripped { 1 } else { 0 })
+    // No target: `run --` is tool-blind by design and cannot know what the
+    // command it wrapped was aimed at, so without `--only-host` it reports
+    // every origin the child reached.
+    let scope = args.session.scope(None);
+    let findings = report_session(
+        &run.records,
+        &scope,
+        global,
+        ReportStyle {
+            live: false,
+            json_to_stdout: false,
+        },
+    )?;
+    Ok(session_exit(
+        run.exit_code.unwrap_or(1),
+        args.session.fail_on,
+        &findings,
+    ))
 }
 
 /// The environment `run` would add, rendered for a human.
@@ -1107,19 +1285,9 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
     let cfg = load_validated_config(global.config.as_deref()).await?;
     let browser = browser::discover(args.browser.as_deref())?;
 
-    // The scope, decided before anything opens so it can be reported.
-    let scope = if args.all_hosts {
-        HostScope::all()
-    } else if !args.only_host.is_empty() {
-        HostScope::new(args.only_host.clone())
-    } else {
-        // The first party is the host being opened. With no URL there is none
-        // to infer, and narrowing to nothing would report nothing.
-        match args.url.as_deref().and_then(uri_host) {
-            Some(host) => HostScope::new([host.to_string()]),
-            None => HostScope::all(),
-        }
-    };
+    // The scope, decided before anything opens so it can be reported. The first
+    // party is the host being opened; with no URL there is none to infer.
+    let scope = args.session.scope(args.url.as_deref());
 
     let session = proxied_run::ProxySession::start((*cfg).clone(), global.captures_path()).await?;
 
@@ -1169,7 +1337,8 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
     // A failure to launch is still an error and propagates; an interrupt is not,
     // because closing a browser with Ctrl-C is how a browsing session ordinarily
     // ends. Distinguishing them is why `await_child` returns a `ChildOutcome`.
-    let outcome = proxied_run::await_child(spawn_browser(command, args.show_child_stderr)).await?;
+    let outcome =
+        proxied_run::await_child(spawn_browser(command, args.session.show_child_stderr)).await?;
 
     // Drained *before* the live reporter is stopped, so the last transactions —
     // the ones committed while the window was closing — are printed rather than
@@ -1190,71 +1359,17 @@ async fn browse(args: BrowseArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
         proxied_run::ChildOutcome::Interrupted => 0,
     };
 
-    // The summary has to divide like with like: a scoped violation count over
-    // an unscoped transaction count reads as "3 violation(s) in 480
-    // transaction(s)" when 472 of those were never in the report's scope at all.
-    let in_scope_transactions = records
-        .iter()
-        .filter(|record| match record {
-            capture::CaptureRecord::HttpTransaction(tx) => scope.includes(&tx.request.uri),
-            capture::CaptureRecord::WebsocketSession(_) => false,
-        })
-        .count();
-
-    let report = recorded_findings(&records, global.min_severity());
-    let (findings, elsewhere) = scope.apply(report.findings);
-    let total: usize = findings.iter().map(|f| f.violations().len()).sum();
-
-    match global.format() {
-        OutputFormat::Json => {
-            write_stdout(&render_lint_report(
-                &findings,
-                report.transaction_count,
-                report.websocket_count,
-                OutputFormat::Json,
-            )?)?;
-            // The document on stdout is scoped, and nothing inside it says so —
-            // it is an array, and giving it a wrapper would fork the shape
-            // `lint-captures --format json` produces. The note goes to stderr,
-            // which JSON mode leaves free, so a reader can tell a clean session
-            // from one whose findings were filtered.
-            if elsewhere > 0 {
-                write_stderr(&format!(
-                    "note: {elsewhere} violation(s) on other hosts are not in this document (--all-hosts)\n"
-                ))?;
-            }
-        }
-        OutputFormat::Text => {
-            // The blocks were printed live; only the tally is new.
-            let mut summary =
-                format!("\n{total} violation(s) in {in_scope_transactions} transaction(s)");
-            if report.websocket_count > 0 {
-                summary.push_str(&format!(
-                    " and {} websocket session(s)",
-                    report.websocket_count
-                ));
-            }
-            if elsewhere > 0 {
-                // Said rather than silently dropped: a reader has to be able to
-                // tell "clean" from "scoped away from the mess". The other
-                // transaction count goes with it, so both halves of the session
-                // are accounted for.
-                let others = report
-                    .transaction_count
-                    .saturating_sub(in_scope_transactions);
-                summary.push_str(&format!(
-                    "\n{elsewhere} more violation(s) in {others} transaction(s) on other hosts, not shown (--all-hosts)"
-                ));
-            }
-            summary.push('\n');
-            write_stderr(&summary)?;
-        }
-    }
-
-    // `unwrap_or(1)`, matching `run`: a code that does not fit in a `u8` is an
-    // abnormal exit (a Windows crash code, say), and rounding that to *success*
-    // would report green on a browser that died before loading anything.
-    Ok(u8::try_from(exit).unwrap_or(1))
+    let findings = report_session(
+        &records,
+        &scope,
+        global,
+        ReportStyle {
+            // Text mode already printed the blocks as they committed.
+            live: matches!(global.format(), OutputFormat::Text),
+            json_to_stdout: true,
+        },
+    )?;
+    Ok(session_exit(exit, args.session.fail_on, &findings))
 }
 
 /// Run the browser, mapping a failure to launch onto a message that names it.
@@ -1533,7 +1648,7 @@ mod tests {
     #[test]
     fn cli_run_fail_on_is_absent_by_default() {
         match Cli::parse_from(["lint-http", "run", "--", "true"]).command {
-            Some(Command::Run(args)) => assert!(args.fail_on.is_none()),
+            Some(Command::Run(args)) => assert!(args.session.fail_on.is_none()),
             other => panic!("expected Run, got {other:?}"),
         }
     }
@@ -2576,12 +2691,104 @@ enabled = true
         assert_eq!(elsewhere, 0);
     }
 
+    /// The four session options are the same four on every command that starts
+    /// a child, which they were not: `run` had no way to say which hosts it
+    /// cared about and `browse` had no way to fail on anything it found.
+    #[test]
+    fn a_session_option_means_the_same_thing_on_every_session_command() {
+        let run = Cli::parse_from([
+            "lint-http",
+            "run",
+            "--fail-on",
+            "error",
+            "--only-host",
+            "api.example.com",
+            "--",
+            "curl",
+            "https://api.example.com/",
+        ]);
+        match run.command {
+            Some(Command::Run(args)) => {
+                assert!(matches!(args.session.fail_on, Some(SeverityArg::Error)));
+                assert_eq!(args.session.only_host, ["api.example.com"]);
+            }
+            other => panic!("expected Run, got {other:?}"),
+        }
+
+        let browse = Cli::parse_from([
+            "lint-http",
+            "browse",
+            "--fail-on",
+            "warn",
+            "https://example.com/",
+        ]);
+        match browse.command {
+            Some(Command::Browse(args)) => {
+                assert!(matches!(args.session.fail_on, Some(SeverityArg::Warn)));
+            }
+            other => panic!("expected Browse, got {other:?}"),
+        }
+    }
+
+    /// The scope a session reports, in the order the three inputs win.
+    #[test]
+    fn a_session_scopes_to_its_target_unless_told_otherwise() {
+        let target = Some("https://example.com/app");
+
+        // Nothing said, and a target to infer from: that target's host.
+        let inferred = SessionArgs::default().scope(target);
+        assert!(inferred.includes("https://api.example.com/v1"));
+        assert!(!inferred.includes("https://cdn.other.net/x"));
+
+        // Nothing said and no target — `run --`, which cannot know one.
+        assert!(SessionArgs::default().scope(None).is_all());
+
+        // `--only-host` replaces the inferred first party rather than adding to it.
+        let named = SessionArgs {
+            only_host: vec!["cdn.other.net".to_string()],
+            ..SessionArgs::default()
+        };
+        let named = named.scope(target);
+        assert!(named.includes("https://cdn.other.net/x"));
+        assert!(!named.includes("https://example.com/app"));
+
+        // `--all-hosts` outranks both.
+        let all = SessionArgs {
+            all_hosts: true,
+            only_host: vec!["cdn.other.net".to_string()],
+            ..SessionArgs::default()
+        };
+        assert!(all.scope(target).is_all());
+    }
+
+    /// A finding never overrides a child that failed, and a clean lint never
+    /// overrides anything at all.
+    #[test]
+    fn a_session_exit_prefers_the_child_and_then_the_gate() {
+        let dirty = sample_findings(); // one warning
+        assert_eq!(session_exit(0, None, &dirty), 0, "no gate, no failure");
+        assert_eq!(session_exit(0, Some(SeverityArg::Warn), &dirty), 1);
+        assert_eq!(
+            session_exit(0, Some(SeverityArg::Error), &dirty),
+            0,
+            "the gate reads the severity it was given"
+        );
+        assert_eq!(
+            session_exit(3, Some(SeverityArg::Warn), &dirty),
+            3,
+            "the child's own code is the more specific answer"
+        );
+        assert_eq!(session_exit(0, Some(SeverityArg::Info), &[]), 0);
+        // An exit code that does not fit a u8 is an abnormal end, not a success.
+        assert_eq!(session_exit(-1, None, &[]), 1);
+    }
+
     #[test]
     fn cli_browse_defaults_scope_to_the_url_host() {
         match Cli::parse_from(["lint-http", "browse", "https://example.com/app"]).command {
             Some(Command::Browse(args)) => {
-                assert!(args.only_host.is_empty());
-                assert!(!args.all_hosts);
+                assert!(args.session.only_host.is_empty());
+                assert!(!args.session.all_hosts);
                 assert_eq!(args.url.as_deref(), Some("https://example.com/app"));
             }
             other => panic!("expected Browse, got {other:?}"),
@@ -2600,6 +2807,40 @@ enabled = true
         .is_err());
     }
 
+    /// The session options are grouped, and the group ends where they do.
+    ///
+    /// `next_help_heading` runs from where a flattened struct is declared to
+    /// the end of the argument list, so flattening `SessionArgs` first files
+    /// `--print-env` and the wrapped command under "Session options" — where
+    /// neither belongs, and where nobody reading the source would look for
+    /// them.
+    #[test]
+    fn the_session_group_holds_the_session_options_and_no_others() {
+        let run = Cli::command()
+            .get_subcommands()
+            .find(|c| c.get_name() == "run")
+            .expect("run is a subcommand")
+            .clone()
+            .render_long_help()
+            .to_string();
+        let session = run
+            .split("Session options:")
+            .nth(1)
+            .expect("the group is rendered");
+        for flag in [
+            "--fail-on",
+            "--only-host",
+            "--all-hosts",
+            "--show-child-stderr",
+        ] {
+            assert!(session.contains(flag), "the group lost {flag}");
+        }
+        assert!(
+            !session.contains("--print-env"),
+            "--print-env is not a session option"
+        );
+    }
+
     /// `--help` is user-facing text, and a flattened struct's doc comment lands
     /// in it by default. `GlobalArgs`' explains *why* those options are global,
     /// which belongs to whoever edits this file — pinned because the leak is
@@ -2615,6 +2856,8 @@ enabled = true
             "redeclared per command",
             "global = true",
             "drift in its default",
+            // `SessionArgs`' own note, which is for whoever edits this file.
+            "diverged, in both directions",
         ] {
             assert!(!help.contains(leaked), "help leaked {leaked:?}");
         }
