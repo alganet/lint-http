@@ -56,7 +56,7 @@ impl RuleMeta for RequestOriginHeaderPresentForCors {
     }
 
     fn description(&self) -> &'static str {
-        "This rule enforces that requests which indicate cross-origin intent include an `Origin` header. In particular:\n\n- CORS preflight requests (an `OPTIONS` request with `Access-Control-Request-Method` or `Access-Control-Request-Headers`) MUST include an `Origin` header.\n- If a client uses an absolute-form request-target whose origin differs from the `Host` header, the request is treated as cross-origin and SHOULD include an `Origin` header.\n\nThe rule validates that `Origin` is present where required and that its value is syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests (RuleScope::Client)."
+        "This rule enforces that requests which indicate cross-origin intent include an `Origin` header. In particular:\n\n- CORS preflight requests (an `OPTIONS` request with `Access-Control-Request-Method` or `Access-Control-Request-Headers`) MUST include an `Origin` header.\n- If a client uses an absolute-form request-target whose origin differs from the `Host` header, the request is treated as cross-origin and SHOULD include an `Origin` header.\n\nThe rule validates that `Origin` is present where required and that its value is syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -105,10 +105,6 @@ impl RuleMeta for RequestOriginHeaderPresentForCors {
 }
 
 impl Rule for RequestOriginHeaderPresentForCors {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -359,9 +355,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = RequestOriginHeaderPresentForCors;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     #[test]

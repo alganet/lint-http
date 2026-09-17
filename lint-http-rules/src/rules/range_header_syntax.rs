@@ -124,6 +124,10 @@ impl RuleMeta for RangeHeaderSyntax {
         DECLARED
     }
 
+    /// `Range` is defined on a request and nothing defines it on a response, so
+    /// this rule reads `tx.request.headers` and nothing else.
+    ///
+    /// cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -151,16 +155,6 @@ impl RuleMeta for RangeHeaderSyntax {
 }
 
 impl Rule for RangeHeaderSyntax {
-    /// `Range` is defined on a request and nothing defines it on a response, so
-    /// the enum records what the field is rather than filtering anything: in this
-    /// engine only `Server` narrows a dispatch, and this rule reads
-    /// `tx.request.headers` in any case.
-    ///
-    // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -726,8 +720,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = RangeHeaderSyntax;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 }

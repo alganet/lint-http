@@ -481,6 +481,12 @@ impl RuleMeta for TeHeaderValid {
     /// its `Connection` nomination is the client's; the misdirected-field
     /// finding above them is read out of a response, and only a server writes
     /// one.
+    ///
+    /// The field is a request field, and the response half of the rule exists only to
+    /// say that a response carrying it is carrying something undefined — which still
+    /// needs the response.
+    ///
+    /// cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -536,15 +542,6 @@ impl RuleMeta for TeHeaderValid {
 }
 
 impl Rule for TeHeaderValid {
-    /// The field is a request field, and the response half of the rule exists only to
-    /// say that a response carrying it is carrying something undefined — which still
-    /// needs the response.
-    ///
-    /// cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -1167,8 +1164,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = TeHeaderValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 }

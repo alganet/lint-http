@@ -420,10 +420,6 @@ impl RuleMeta for SecWebsocketHeadersConsistent {
 }
 
 impl Rule for SecWebsocketHeadersConsistent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -621,10 +617,7 @@ mod tests {
     fn id_and_scope_are_correct() {
         let rule = SecWebsocketHeadersConsistent;
         assert_eq!(rule.id(), "sec_websocket_headers_consistent");
-        assert_eq!(
-            crate::rules::Rule::scope(&rule),
-            crate::rules::RuleScope::Client
-        );
+        assert!(!crate::rules::Rule::needs_response(&rule));
     }
 
     /// A field carrying an octet no production admits is present, and saying it is

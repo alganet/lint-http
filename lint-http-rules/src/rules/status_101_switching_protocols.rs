@@ -107,10 +107,6 @@ impl RuleMeta for Status101SwitchingProtocols {
 }
 
 impl Rule for Status101SwitchingProtocols {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

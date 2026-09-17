@@ -341,6 +341,11 @@ impl RuleMeta for NoConnectionSpecificFields {
     /// field, and the peer that put it there is the peer that wrote the field
     /// section — which is what the gate being per section rather than per
     /// transaction already says.
+    ///
+    /// Both documents address the endpoint that *generates* the message, and
+    /// either party generates one.
+    ///
+    /// cite(RFC 9113 § 8.2.2): "An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -388,14 +393,6 @@ impl RuleMeta for NoConnectionSpecificFields {
 }
 
 impl Rule for NoConnectionSpecificFields {
-    /// Both documents address the endpoint that *generates* the message, and
-    /// either party generates one.
-    ///
-    /// cite(RFC 9113 § 8.2.2): "An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -806,8 +803,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
-        assert_eq!(RULE.scope(), crate::rules::RuleScope::Both);
+    fn needs_no_response() {
+        assert!(!RULE.needs_response());
     }
 
     #[test]

@@ -54,6 +54,14 @@ impl RuleMeta for UserAgentPresent {
         DECLARED
     }
 
+    /// The field describes the originator of a request, so a response has no
+    /// occasion to carry one. The sentence that asks for it asks a *user
+    /// agent*, and in this specification that is any client program at all --
+    /// a command-line tool and a firmware update script are inside the
+    /// requirement exactly as a browser is, which is the first thing an
+    /// operator asks when an API client is reported.
+    /// cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
+    /// cite(RFC 9110 § 3.5): "The term "user agent" refers to any of the various client programs that initiate a request."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -81,18 +89,6 @@ impl RuleMeta for UserAgentPresent {
 }
 
 impl Rule for UserAgentPresent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // The field describes the originator of a request, so a response has no
-        // occasion to carry one. The sentence that asks for it asks a *user
-        // agent*, and in this specification that is any client program at all --
-        // a command-line tool and a firmware update script are inside the
-        // requirement exactly as a browser is, which is the first thing an
-        // operator asks when an API client is reported.
-        // cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
-        // cite(RFC 9110 § 3.5): "The term "user agent" refers to any of the various client programs that initiate a request."
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -176,9 +172,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = UserAgentPresent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     /// The decline recorded at the check: an empty field line is present, so it

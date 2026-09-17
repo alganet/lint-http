@@ -481,6 +481,9 @@ impl RuleMeta for ForwardedHeaderValid {
     /// of its members and parameters is about what reached the origin through
     /// the client's side of the path; the thirteenth finding is that a response
     /// carried one back, and only a server sends that.
+    ///
+    /// The response half is not a second place to look for the field: it is
+    /// where finding the field at all is the finding.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -503,15 +506,6 @@ impl RuleMeta for ForwardedHeaderValid {
 }
 
 impl Rule for ForwardedHeaderValid {
-    /// Both, and the response half is not a second place to look for the field:
-    /// it is where finding the field at all is the finding. `Client` and `Both`
-    /// dispatch identically in this engine — only `Server` filters, by skipping
-    /// a transaction with no response — so the enum documents the two directions
-    /// this rule has something to say about.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

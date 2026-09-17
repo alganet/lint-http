@@ -140,8 +140,8 @@ impl Rule for ProblemDetailsStructureValid {
     // silence, not a requirement, and it is recorded here rather than cited.
     // Note the status code is not part of this: §1 permits problem details on
     // any status, and the rule reports on all of them.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -553,11 +553,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
-        assert_eq!(
-            ProblemDetailsStructureValid.scope(),
-            crate::rules::RuleScope::Server
-        );
+    fn needs_a_response() {
+        assert!(ProblemDetailsStructureValid.needs_response());
     }
 
     /// Each published snippet, judged by this rule, must reach the verdict its

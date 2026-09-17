@@ -97,6 +97,11 @@ impl RuleMeta for RequestTargetNoFragment {
         DECLARED
     }
 
+    /// The sentence read here is addressed to the client that resolved a
+    /// reference into a target URI and sent its components, so the rule has to
+    /// run on a capture whose upstream never answered as well as on a complete
+    /// exchange: the fragment was already on the wire when the request was sent.
+    /// cite(RFC 9110 § 7.1): "To perform an action on a "target resource", the client sends a request message containing enough components of its parsed target URI to enable recipients to identify that same resource."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -129,17 +134,6 @@ impl RuleMeta for RequestTargetNoFragment {
 }
 
 impl Rule for RequestTargetNoFragment {
-    /// The sentence read here is addressed to the client that resolved a
-    /// reference into a target URI and sent its components, so the rule has to
-    /// run on a capture whose upstream never answered as well as on a complete
-    /// exchange. `Server` means "skip when there is no response", which would
-    /// skip exactly the request-only lint -- and the fragment was already on
-    /// the wire when the request was sent.
-    // cite(RFC 9110 § 7.1): "To perform an action on a "target resource", the client sends a request message containing enough components of its parsed target URI to enable recipients to identify that same resource."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -344,9 +338,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = RequestTargetNoFragment;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     /// The boundary `description()` publishes: a capture this proxy recorded

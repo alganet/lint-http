@@ -68,6 +68,14 @@ impl RuleMeta for ProxyConnectionDiscouraged {
     /// this proxy provokes what it then reports. That is a separate fact from
     /// who is answerable, and it wants a separate marker rather than a
     /// different party.
+    ///
+    /// Not *every* sentence in the section is about a client: two are about what
+    /// HTTP/1.0 connections and HTTP/1.0 proxy servers do, and one names
+    /// *"clients and servers"* together. They are the section's narrative rather
+    /// than its advice, and none of them asks anything of a responder — which is
+    /// what makes the one answer above safe.
+    ///
+    /// cite(RFC 9112 § C.2.2): "As a result, clients are encouraged not to send the Proxy-Connection header field in any requests."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -95,23 +103,6 @@ impl RuleMeta for ProxyConnectionDiscouraged {
 }
 
 impl Rule for ProxyConnectionDiscouraged {
-    /// **The sentence this rule rests on** takes a client as its subject and
-    /// names the direction itself — *"in any requests"* — so the evidence is a
-    /// field in a request and the party blamed is the one that sent it. A proxy
-    /// forwarding a request is a client of its next hop, so the finding reaches
-    /// whoever wrote the field whether or not that party is the user agent.
-    ///
-    /// Not *every* sentence in the section is about a client: two are about what
-    /// HTTP/1.0 connections and HTTP/1.0 proxy servers do, and one names
-    /// *"clients and servers"* together. They are the section's narrative rather
-    /// than its advice, and none of them asks anything of a responder — which is
-    /// why the scope is `Client` and not `Both`.
-    ///
-    /// cite(RFC 9112 § C.2.2): "As a result, clients are encouraged not to send the Proxy-Connection header field in any requests."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -306,8 +297,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
-        assert_eq!(RULE.scope(), crate::rules::RuleScope::Client);
+    fn needs_no_response() {
+        assert!(!RULE.needs_response());
     }
 
     #[test]

@@ -85,10 +85,6 @@ impl RuleMeta for SecFetchSiteValueValid {
 }
 
 impl Rule for SecFetchSiteValueValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -384,7 +380,7 @@ mod tests {
     fn message_and_id() {
         let rule = SecFetchSiteValueValid;
         assert_eq!(rule.id(), "sec_fetch_site_value_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     #[test]

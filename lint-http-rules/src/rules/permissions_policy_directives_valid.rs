@@ -120,8 +120,8 @@ impl RuleMeta for PermissionsPolicyDirectivesValid {
 }
 
 impl Rule for PermissionsPolicyDirectivesValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -760,7 +760,7 @@ mod tests {
     fn message_and_id() {
         let rule = PermissionsPolicyDirectivesValid;
         assert_eq!(rule.id(), "permissions_policy_directives_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

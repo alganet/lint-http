@@ -170,6 +170,9 @@ impl RuleMeta for PatchMethodContentTypeMatch {
         DECLARED
     }
 
+    /// The finding is about the request this transaction carries; the response
+    /// it is measured against belongs to an *earlier* transaction. So the rule
+    /// needs no response of its own, and runs on a capture that has none.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -194,14 +197,6 @@ impl RuleMeta for PatchMethodContentTypeMatch {
 }
 
 impl Rule for PatchMethodContentTypeMatch {
-    /// The finding is about the request this transaction carries; the response
-    /// it is measured against belongs to an *earlier* transaction. So the rule
-    /// needs no response of its own, and `Client` keeps it running on a capture
-    /// that has none.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -642,8 +637,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = PatchMethodContentTypeMatch;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 }

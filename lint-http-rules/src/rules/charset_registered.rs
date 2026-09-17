@@ -115,6 +115,11 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
     /// fork the answer takes.** A `charset` parameter is read out of the
     /// request's `Content-Type` and then out of the response's, and the peer
     /// that wrote the field section is the one that wrote the parameter.
+    ///
+    /// The parameter this rule reads lives in `Content-Type`, and it is that
+    /// field's definition — not the charset section — that puts both directions
+    /// in reach: a request and a response each carry a representation.
+    /// cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -147,14 +152,6 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
 }
 
 impl Rule for CharsetRegistered {
-    // The parameter this rule reads lives in Content-Type, and it is that field's
-    // definition — not the charset section — that puts both directions in scope:
-    // a request and a response each carry a representation.
-    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -992,6 +989,6 @@ mod tests {
     fn id_and_scope_are_expected() {
         let rule = CharsetRegistered;
         assert_eq!(rule.id(), "charset_registered");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 }

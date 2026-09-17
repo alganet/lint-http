@@ -116,7 +116,18 @@ impl RuleMeta for ContentDispositionTokenValid {
     /// multipart form data puts it in a request, so both halves may carry one
     /// and the writer of the field section is the writer of the
     /// `disposition-type`.
+    ///
+    /// RFC 6266 defines a *response* header field, so the request half of this
+    /// rule is outside the document it cites. Kept, because a request
+    /// Content-Disposition does occur (upload APIs put one on the message) and a
+    /// malformed disposition-type is worth reporting wherever it appears — but no
+    /// sentence licenses looking there, and the previous rationale ("multipart/
+    /// form-data parts") was wrong twice over: those are *part* headers inside the
+    /// body, which this linter does not parse, and their grammar is RFC 7578's —
+    /// and RFC 6266 says so itself rather than merely implying it.
     fn party(&self) -> crate::rules::RuleParty {
+        // cite(RFC 6266 § 4): "The Content-Disposition response header field is used to convey additional information about how to process the response payload, and also can be used to attach additional metadata, such as the filename to use when saving the response payload locally."
+        // cite(RFC 6266 § 1): "This document does not apply to Content-Disposition header fields appearing in payload bodies transmitted over HTTP, such as when using the media type "multipart/form-data" ([RFC2388])."
         crate::rules::RuleParty::PerSite
     }
 
@@ -162,20 +173,6 @@ impl RuleMeta for ContentDispositionTokenValid {
 }
 
 impl Rule for ContentDispositionTokenValid {
-    // RFC 6266 defines a *response* header field, so the request half of this
-    // rule is outside the document it cites. Kept, because a request
-    // Content-Disposition does occur (upload APIs put one on the message) and a
-    // malformed disposition-type is worth reporting wherever it appears — but no
-    // sentence licenses looking there, and the previous rationale ("multipart/
-    // form-data parts") was wrong twice over: those are *part* headers inside the
-    // body, which this linter does not parse, and their grammar is RFC 7578's —
-    // and RFC 6266 says so itself rather than merely implying it.
-    // cite(RFC 6266 § 4): "The Content-Disposition response header field is used to convey additional information about how to process the response payload, and also can be used to attach additional metadata, such as the filename to use when saving the response payload locally."
-    // cite(RFC 6266 § 1): "This document does not apply to Content-Disposition header fields appearing in payload bodies transmitted over HTTP, such as when using the media type "multipart/form-data" ([RFC2388])."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -793,8 +790,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = ContentDispositionTokenValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 }

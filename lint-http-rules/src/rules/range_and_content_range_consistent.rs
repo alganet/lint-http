@@ -232,8 +232,8 @@ impl Rule for RangeAndContentRangeConsistent {
     /// the engine reads, and costs nothing: it only skips transactions with no
     /// response, which the first line of the check already returned `None` for.
     // cite(RFC 9110 § 14.4): "The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -951,9 +951,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server_because_every_finding_is_about_a_response() {
+    fn needs_a_response_because_every_finding_is_about_one() {
         let rule = RangeAndContentRangeConsistent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

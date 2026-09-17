@@ -59,11 +59,11 @@ const SPDX_HEADER: &str = "<!--\nSPDX-FileCopyrightText: 2026 Alexandre Gomes Ga
 ///
 /// Selection used to be `id().starts_with("client_")` and friends, which made
 /// the id string load-bearing for one generated file and was the last reason the
-/// category prefixes existed. It then grouped by [`Rule::scope`], which reads
-/// as a claim about *whose* rule this is and is not one: scope says which half
+/// category prefixes existed. It then grouped by the rule's scope, which read
+/// as a claim about *whose* rule this is and was not one: scope said which half
 /// must be present for the rule to run, and 19 `Server`-scoped rules read the
 /// request. What a reader looking for "the rules about my server" wants is the
-/// party, so that is what the index now groups by.
+/// party, so that is what the index groups by.
 ///
 /// Titles come from [`section_title`], whose match the compiler checks; that a
 /// party is not merely titled but actually *listed* here is what

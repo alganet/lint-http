@@ -215,6 +215,11 @@ impl RuleMeta for PreferHeaderValid {
         DECLARED
     }
 
+    /// A request header field, and every sentence below measures the client
+    /// that wrote it — which is why the rule needs no response to speak on a
+    /// capture whose upstream never answered.
+    ///
+    /// cite(RFC 7240 § 2): "The Prefer request header field is used to indicate that particular server behaviors are preferred by the client but are not required for successful completion of the request."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -277,15 +282,6 @@ impl RuleMeta for PreferHeaderValid {
 }
 
 impl Rule for PreferHeaderValid {
-    /// A request header field, and every sentence below measures the client
-    /// that wrote it. `Client` is what lets the rule speak on a capture whose
-    /// upstream never answered, which is exactly a request-only lint.
-    ///
-    /// cite(RFC 7240 § 2): "The Prefer request header field is used to indicate that particular server behaviors are preferred by the client but are not required for successful completion of the request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -623,9 +619,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = PreferHeaderValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     /// `qdtext` admits `obs-text`, so this member is conforming and cannot be

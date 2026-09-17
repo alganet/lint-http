@@ -87,8 +87,8 @@ impl Rule for ProblemDetailsContentType {
     // status gate below: the question the rule asks is about a status code, and
     // only a response has one. The cite lives there, at its narrowest site,
     // rather than being repeated here.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -319,9 +319,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = ProblemDetailsContentType;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     /// Each published snippet, judged by this rule, must reach the verdict its

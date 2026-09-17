@@ -135,8 +135,8 @@ impl RuleMeta for Status103EarlyHintsBeforeFinal {
 }
 
 impl Rule for Status103EarlyHintsBeforeFinal {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -255,7 +255,7 @@ mod tests {
     fn id_and_scope() {
         let r = Status103EarlyHintsBeforeFinal;
         assert_eq!(r.id(), "status_103_early_hints_before_final");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Server);
+        assert!(r.needs_response());
     }
 
     #[test]

@@ -177,6 +177,8 @@ impl RuleMeta for CookieLifecycle {
         DECLARED
     }
 
+    /// Observes client request headers only; does not examine server
+    /// behavior directly (other rules cover syntax).
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -218,12 +220,6 @@ impl RuleMeta for CookieLifecycle {
 }
 
 impl Rule for CookieLifecycle {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // Observes client request headers only; does not examine server
-        // behavior directly (other rules cover syntax).
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

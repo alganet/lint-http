@@ -609,10 +609,6 @@ impl RuleMeta for WebsocketHandshakeValid {
 }
 
 impl Rule for WebsocketHandshakeValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

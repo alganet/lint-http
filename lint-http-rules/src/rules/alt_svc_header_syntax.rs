@@ -719,8 +719,8 @@ impl Rule for AltSvcHeaderSyntax {
     /// same sentence.
     // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
     // cite(RFC 9110 § 3.7): "All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -1136,7 +1136,7 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
-        assert_eq!(AltSvcHeaderSyntax.scope(), crate::rules::RuleScope::Server);
+    fn needs_a_response() {
+        assert!(AltSvcHeaderSyntax.needs_response());
     }
 }

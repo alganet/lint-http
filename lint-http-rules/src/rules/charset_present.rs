@@ -72,8 +72,8 @@ impl RuleMeta for CharsetPresent {
 }
 
 impl Rule for CharsetPresent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(

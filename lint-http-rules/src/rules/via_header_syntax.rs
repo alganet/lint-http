@@ -171,6 +171,11 @@ impl RuleMeta for ViaHeaderSyntax {
     /// reads the field as it arrived in each half — so a malformed
     /// `received-by` in the request's `Via` came in with the request and one in
     /// the response's came back with the response.
+    ///
+    /// A `Via` travels in both directions, and the field's first sentence is
+    /// what says so: the chain it records runs toward the server on a request
+    /// and back toward the client on a response.
+    /// cite(RFC 9110 § 7.6.3): "The "Via" header field indicates the presence of intermediate protocols and recipients between the user agent and the server (on requests) or between the origin server and the client (on responses)"
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -220,14 +225,6 @@ impl RuleMeta for ViaHeaderSyntax {
 }
 
 impl Rule for ViaHeaderSyntax {
-    /// A `Via` travels in both directions, and the field's first sentence is
-    /// what says so: the chain it records runs toward the server on a request
-    /// and back toward the client on a response.
-    // cite(RFC 9110 § 7.6.3): "The "Via" header field indicates the presence of intermediate protocols and recipients between the user agent and the server (on requests) or between the origin server and the client (on responses)"
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -773,9 +770,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = ViaHeaderSyntax;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[test]

@@ -200,10 +200,6 @@ impl RuleMeta for Http3PseudoHeadersValid {
 }
 
 impl Rule for Http3PseudoHeadersValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -1238,9 +1234,9 @@ mod tests {
     // --- Scope and config validation ---
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = Http3PseudoHeadersValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[test]

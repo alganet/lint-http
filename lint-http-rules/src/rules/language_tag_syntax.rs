@@ -92,6 +92,13 @@ impl RuleMeta for LanguageTagSyntax {
     /// `Content-Language` states the language of the representation each half
     /// carries and `Accept-Language` states what its sender will take, so the
     /// four readings below split two and two by the field section they run over.
+    ///
+    /// Content-Language describes a representation and travels in either
+    /// direction; Accept-Language is a request field this rule also reads in a
+    /// response, where §12.5.4 gives it no meaning (see
+    /// `accept_language_weight_valid`, which records the same
+    /// asymmetry). Either way both halves of a transaction are read.
+    /// cite(RFC 9110 § 8.5): "The "Content-Language" header field describes the natural language(s) of the intended audience for the representation."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -134,16 +141,6 @@ impl RuleMeta for LanguageTagSyntax {
 }
 
 impl Rule for LanguageTagSyntax {
-    // Content-Language describes a representation and travels in either
-    // direction; Accept-Language is a request field this rule also reads in a
-    // response, where §12.5.4 gives it no meaning (see
-    // `accept_language_weight_valid`, which records the same
-    // asymmetry). Either way both halves of a transaction are in scope.
-    // cite(RFC 9110 § 8.5): "The "Content-Language" header field describes the natural language(s) of the intended audience for the representation."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -370,7 +367,7 @@ mod tests {
     fn message_and_id() {
         let rule = LanguageTagSyntax;
         assert_eq!(rule.id(), "language_tag_syntax");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     /// One message shape, seven names — and the one an operator cannot have

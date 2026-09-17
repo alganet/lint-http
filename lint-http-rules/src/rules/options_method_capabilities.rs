@@ -142,6 +142,13 @@ impl RuleMeta for OptionsMethodCapabilities {
     /// saying what it is, which is the client's, and a successful OPTIONS
     /// response that advertises none of the capabilities it was asked for,
     /// which is the origin's.
+    ///
+    /// § 9.3.7 addresses both ends: the content requirement is on the client
+    /// and the advertisement is on the server. The rule needs no response to
+    /// run, because otherwise the request-only lint — and every exchange whose
+    /// upstream failed — would never measure the MUST the request had already
+    /// broken when it was sent.
+    /// cite(RFC 9110 § 9.3.7): "A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -184,16 +191,6 @@ impl RuleMeta for OptionsMethodCapabilities {
 }
 
 impl Rule for OptionsMethodCapabilities {
-    /// § 9.3.7 addresses both ends: the content requirement is on the client and
-    /// the advertisement is on the server. `Server` would mean "skip when there
-    /// is no response", so the request-only lint — and every exchange whose
-    /// upstream failed — would never measure the MUST the request had already
-    /// broken when it was sent.
-    // cite(RFC 9110 § 9.3.7): "A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -556,7 +553,7 @@ mod tests {
     }
 
     /// The content requirement is the client's, so it is measured on a capture
-    /// that never drew a response — which `RuleScope::Server` used to skip.
+    /// that never drew a response — which a rule needing one used to skip.
     #[test]
     fn content_finding_survives_a_missing_response() {
         let tx = make_tx(
@@ -604,7 +601,7 @@ mod tests {
     fn id_and_scope() {
         let rule = OptionsMethodCapabilities;
         assert_eq!(rule.id(), "options_method_capabilities");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     /// Nothing else runs a rule's published examples through it. Each snippet

@@ -58,6 +58,7 @@ impl RuleMeta for SMaxAgeEnforced {
         DECLARED
     }
 
+    /// we inspect past responses as well as the current request
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -75,11 +76,6 @@ impl RuleMeta for SMaxAgeEnforced {
 }
 
 impl Rule for SMaxAgeEnforced {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // we inspect past responses as well as the current request
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

@@ -471,15 +471,6 @@ fn resolve_violation(cfg: &crate::config::Config, def: &ViolationDef) -> Resolve
     }
 }
 
-/// Scope of a rule: whether it applies to client-only traffic (requests),
-/// server-only traffic (responses), or both (full transactions).
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum RuleScope {
-    Client,
-    Server,
-    Both,
-}
-
 /// Whether an [`Example`] illustrates traffic the rule accepts or rejects.
 /// Maps to the ✅ Good / ❌ Bad sections of the generated `docs/rules/<id>.md`.
 /// Serializes as `"compliant"` / `"non_compliant"` for
@@ -719,18 +710,30 @@ pub trait RuleMeta: Send + Sync {
 /// itself comes from [`RuleMeta`]; what it adds is the subject it examines and
 /// the half of the transaction it needs to see.
 pub trait Rule: RuleMeta {
-    /// The scope where the rule should be executed. Default is `Both`;
-    /// rules may override for better precision.
+    /// Whether this rule has anything to say about a transaction whose
+    /// upstream never answered. `false` — the default — means it does.
     ///
-    /// The engine partitions rules by scope and dispatches accordingly:
-    /// - `Client` and `Both` rules run on every transaction.
-    /// - `Server` rules run only when `tx.response.is_some()`.
+    /// The engine partitions on this and nothing else: a rule that returns
+    /// `true` is not dispatched when `tx.response.is_none()`, and may therefore
+    /// assume the response is present. Some implementations still check
+    /// defensively; tightening those is follow-up cleanup.
     ///
-    /// A rule that returns `Server` may therefore assume the response is
-    /// present, but existing implementations still defensively check —
-    /// tightening those is left as follow-up cleanup.
-    fn scope(&self) -> RuleScope {
-        RuleScope::Both
+    /// # It was `RuleScope`, and the name was the problem
+    ///
+    /// The enum had three variants and one effect: `Server` skipped a
+    /// response-less transaction, and `Client` and `Both` dispatched
+    /// identically. So two thirds of what it said was documentation, and a
+    /// dozen rules carried a comment saying exactly that — while a reader,
+    /// `docs/rules.md` and `rules list` all took it for a claim about *whose*
+    /// rule this is. It is not one, and never was: nineteen `Server`-scoped
+    /// rules read the request. That question is [`RuleMeta::party`]'s, it is
+    /// answered per rule and sometimes per finding, and it is what the index
+    /// and the report filter read now.
+    ///
+    /// What is left is the one thing the enum did, said as what it is: a
+    /// precondition on dispatch, with no second reading available.
+    fn needs_response(&self) -> bool {
+        false
     }
 
     /// Every finding this rule has about the transaction; empty means clean.
@@ -1151,25 +1154,25 @@ pub fn query_type_for(rule_id: &str) -> Option<QueryType> {
     STATEFUL_QUERY_TYPES.get(rule_id).copied()
 }
 
-/// `RULES` filtered to those whose scope allows execution on a request-only
-/// transaction (`Client` and `Both`). Built once on first access and preserves
-/// the (id-sorted) order of `RULES`, so dispatch order is stable across the
-/// has-response / no-response cases.
+/// `RULES` filtered to those that run on a transaction with no response.
+/// Built once on first access and preserves the (id-sorted) order of `RULES`,
+/// so dispatch order is stable across the has-response / no-response cases.
 ///
-/// Implementation detail of [`rules_for_scope`]; not part of the public API.
+/// Implementation detail of [`rules_for_transaction`]; not part of the public
+/// API.
 pub(crate) static REQUEST_ONLY_RULES: LazyLock<Vec<&'static dyn Rule>> = LazyLock::new(|| {
     RULES
         .iter()
         .copied()
-        .filter(|r| !matches!(r.scope(), RuleScope::Server))
+        .filter(|r| !r.needs_response())
         .collect()
 });
 
 /// Returns the rule slice the engine should iterate for a transaction with
-/// the given response presence. `Server` rules are excluded when there is no
-/// response; `Client` and `Both` rules run on every transaction. The returned
-/// slice preserves the (id-sorted) order of `RULES`.
-pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn Rule] {
+/// the given response presence. A rule that [needs one](Rule::needs_response)
+/// is excluded when there is none; every other rule runs on every transaction.
+/// The returned slice preserves the (id-sorted) order of `RULES`.
+pub fn rules_for_transaction(has_response: bool) -> &'static [&'static dyn Rule] {
     if has_response {
         RULES.as_slice()
     } else {
@@ -1509,33 +1512,29 @@ enabled = "true"
     }
 
     #[test]
-    fn request_only_rules_excludes_server_scope_and_preserves_order() {
-        let server_count = RULES
-            .iter()
-            .filter(|r| matches!(r.scope(), RuleScope::Server))
-            .count();
+    fn request_only_rules_excludes_the_rules_that_need_a_response_and_preserves_order() {
+        let needing = RULES.iter().filter(|r| r.needs_response()).count();
         assert_eq!(
             REQUEST_ONLY_RULES.len(),
-            RULES.len() - server_count,
-            "request-only slice should equal RULES minus the {} server-scoped rules",
-            server_count,
+            RULES.len() - needing,
+            "request-only slice should equal RULES minus the {} rules that need a response",
+            needing,
         );
 
-        // Every rule in REQUEST_ONLY_RULES is non-Server.
+        // No rule in REQUEST_ONLY_RULES asked for a response.
         for rule in REQUEST_ONLY_RULES.iter() {
-            assert_ne!(
-                rule.scope(),
-                RuleScope::Server,
-                "server-scoped rule {} leaked into request-only slice",
+            assert!(
+                !rule.needs_response(),
+                "rule {} needs a response and leaked into the request-only slice",
                 rule.id(),
             );
         }
 
-        // Order preservation: walking RULES and skipping Server entries must
-        // match REQUEST_ONLY_RULES element-for-element.
+        // Order preservation: walking RULES and skipping the rules that need a
+        // response must match REQUEST_ONLY_RULES element-for-element.
         let expected: Vec<&'static str> = RULES
             .iter()
-            .filter(|r| !matches!(r.scope(), RuleScope::Server))
+            .filter(|r| !r.needs_response())
             .map(|r| r.id())
             .collect();
         let actual: Vec<&'static str> = REQUEST_ONLY_RULES.iter().map(|r| r.id()).collect();
@@ -1546,29 +1545,28 @@ enabled = "true"
     }
 
     #[test]
-    fn rules_for_scope_returns_full_rules_when_response_present() {
+    fn full_dispatch_returns_every_rule_when_a_response_is_present() {
         // The has-response path must yield the same id sequence as `RULES` —
         // dispatch order on the production proxy path is unchanged from
         // pre-partitioning iteration.
         let with_response: Vec<&'static str> =
-            rules_for_scope(true).iter().map(|r| r.id()).collect();
+            rules_for_transaction(true).iter().map(|r| r.id()).collect();
         let expected: Vec<&'static str> = RULES.iter().map(|r| r.id()).collect();
         assert_eq!(with_response, expected);
     }
 
     #[test]
-    fn rules_for_scope_skips_server_when_no_response() {
-        let without_response = rules_for_scope(false);
+    fn request_only_dispatch_skips_the_rules_that_need_a_response() {
+        let without_response = rules_for_transaction(false);
         for rule in RULES.iter() {
             let present = without_response.iter().any(|r| r.id() == rule.id());
-            let is_server = matches!(rule.scope(), RuleScope::Server);
             assert_eq!(
                 present,
-                !is_server,
-                "rule {} (scope {:?}): expected presence in request-only dispatch = {}",
+                !rule.needs_response(),
+                "rule {} (needs_response {}): expected presence in request-only dispatch = {}",
                 rule.id(),
-                rule.scope(),
-                !is_server,
+                rule.needs_response(),
+                !rule.needs_response(),
             );
         }
     }
@@ -1802,7 +1800,7 @@ enabled = "true"
     }
 
     #[test]
-    fn default_rule_scope_is_both() {
+    fn a_rule_needs_no_response_unless_it_says_so() {
         struct DummyRule;
         impl RuleMeta for DummyRule {
             fn id(&self) -> &'static str {
@@ -1840,11 +1838,11 @@ enabled = "true"
         }
 
         let r = DummyRule;
-        assert_eq!(crate::rules::Rule::scope(&r), RuleScope::Both);
+        assert!(!crate::rules::Rule::needs_response(&r));
 
         // Also verify through a trait object (now object-safe).
         let v: &dyn Rule = &r;
-        assert_eq!(v.scope(), RuleScope::Both);
+        assert!(!v.needs_response());
     }
 
     /// Every registered rule prepares successfully under the shipped example

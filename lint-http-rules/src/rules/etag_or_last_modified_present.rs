@@ -68,8 +68,8 @@ impl RuleMeta for EtagOrLastModifiedPresent {
 }
 
 impl Rule for EtagOrLastModifiedPresent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(

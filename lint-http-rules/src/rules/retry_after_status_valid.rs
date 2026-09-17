@@ -150,8 +150,8 @@ impl RuleMeta for RetryAfterStatusValid {
 }
 
 impl Rule for RetryAfterStatusValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -302,7 +302,7 @@ mod tests {
     fn id_and_scope() {
         let rule = RetryAfterStatusValid;
         assert_eq!(rule.id(), "retry_after_status_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

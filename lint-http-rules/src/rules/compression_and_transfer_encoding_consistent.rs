@@ -81,6 +81,13 @@ impl RuleMeta for CompressionAndTransferEncodingConsistent {
     /// Applying one compression coding twice — once to the representation and
     /// again in transit — is done by the peer that wrote both fields, and the
     /// reader is run over each half's pair in turn.
+    ///
+    /// Both fields are defined for both directions, and the observation this
+    /// rule makes is about two *layers* rather than two roles. It once declined
+    /// to run without a response, and a request carrying the same coding in
+    /// both fields was never examined at all.
+    /// cite(RFC 9110 § 8.4): "An origin server MAY respond with a status code of 415 (Unsupported Media Type) if a representation in the request message has a content coding that is not acceptable."
+    /// cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -118,17 +125,6 @@ impl RuleMeta for CompressionAndTransferEncodingConsistent {
 }
 
 impl Rule for CompressionAndTransferEncodingConsistent {
-    /// `Both`, because both fields are defined for both directions and the
-    /// observation this rule makes is about two *layers*, not two roles. It was
-    /// `Server`, which in this engine means "skip when there is no response" --
-    /// so a request carrying the same coding in both fields was never examined
-    /// at all.
-    /// cite(RFC 9110 § 8.4): "An origin server MAY respond with a status code of 415 (Unsupported Media Type) if a representation in the request message has a content coding that is not acceptable."
-    /// cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -638,9 +634,9 @@ mod tests {
     /// `Server`, which in this engine means the rule never ran without a
     /// response.
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = CompressionAndTransferEncodingConsistent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     /// A request can apply a content coding to the body it sends and a transfer

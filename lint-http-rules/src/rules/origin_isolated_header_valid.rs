@@ -90,8 +90,8 @@ impl RuleMeta for OriginIsolatedHeaderValid {
 }
 
 impl Rule for OriginIsolatedHeaderValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -366,9 +366,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let r = OriginIsolatedHeaderValid;
-        assert_eq!(r.scope(), crate::rules::RuleScope::Server);
+        assert!(r.needs_response());
     }
 
     #[test]

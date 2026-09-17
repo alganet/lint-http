@@ -144,12 +144,12 @@ impl RuleMeta for ServerHeaderProductValid {
 }
 
 impl Rule for ServerHeaderProductValid {
-    fn scope(&self) -> crate::rules::RuleScope {
+    fn needs_response(&self) -> bool {
         // `Server` is defined for responses only, so a request carrying one is
         // not this rule's subject -- there is no sentence giving the field a
         // meaning in that direction to measure the value against.
         // cite(RFC 9110 § 10.2.4): "An origin server MAY generate a Server header field in its responses."
-        crate::rules::RuleScope::Server
+        true
     }
 
     fn findings(

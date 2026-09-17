@@ -297,9 +297,9 @@ impl RuleMeta for RefreshHeaderSyntax {
 }
 
 impl Rule for RefreshHeaderSyntax {
-    fn scope(&self) -> crate::rules::RuleScope {
+    fn needs_response(&self) -> bool {
         // cite(HTML Speculative Loading § 7.8): "The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state."
-        crate::rules::RuleScope::Server
+        true
     }
 
     fn findings(
@@ -552,9 +552,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = RefreshHeaderSyntax;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

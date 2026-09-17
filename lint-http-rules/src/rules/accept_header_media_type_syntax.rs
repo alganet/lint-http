@@ -119,6 +119,11 @@ impl RuleMeta for AcceptHeaderMediaTypeSyntax {
         DECLARED
     }
 
+    /// The rule reads a response's `Accept` as well as a request's, and
+    /// §12.5.1 gives that one a meaning of its own rather than treating it as a
+    /// stray request field.
+    /// cite(RFC 9110 § 12.5.1): "The "Accept" header field can be used by user agents to specify their preferences regarding response media types."
+    /// cite(RFC 9110 § 12.5.1): "When sent by a server in a response, Accept provides information about which content types are preferred in the content of a subsequent request to the same resource."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -181,17 +186,6 @@ impl RuleMeta for AcceptHeaderMediaTypeSyntax {
 }
 
 impl Rule for AcceptHeaderMediaTypeSyntax {
-    // `Both`, because the rule reads a response's Accept as well as a
-    // request's, and §12.5.1 gives that one a meaning of its own rather than
-    // treating it as a stray request field. The label said `Client` while the
-    // code checked both directions; dispatch is unaffected (only `Server` is
-    // filtered), so this corrects what the rule *says* it looks at.
-    // cite(RFC 9110 § 12.5.1): "The "Accept" header field can be used by user agents to specify their preferences regarding response media types."
-    // cite(RFC 9110 § 12.5.1): "When sent by a server in a response, Accept provides information about which content types are preferred in the content of a subsequent request to the same resource."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -857,7 +851,7 @@ mod tests {
         assert_eq!(rule.id(), "accept_header_media_type_syntax");
         // `Both`: the rule reads a response's Accept as well as a request's,
         // and §12.5.1 gives that one a meaning of its own.
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     /// The empty-value branch, pinned rather than merely asserted to exist. A

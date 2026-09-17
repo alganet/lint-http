@@ -87,6 +87,15 @@ impl RuleMeta for AcceptLanguageWeightValid {
         DECLARED
     }
 
+    /// Both halves are read, and that is a fact about this code rather than a
+    /// second meaning the spec gives the field — the asymmetry is worth
+    /// noticing. §12.5.1 and
+    /// §12.5.3 each say what Accept and Accept-Encoding mean *when sent by a
+    /// server in a response*, and §12.5.4 says no such thing about
+    /// Accept-Language — it defines a request field and stops. A response
+    /// carrying one is outside what RFC 9110 describes, so the response arm
+    /// here reports syntax and claims nothing about meaning.
+    /// cite(RFC 9110 § 12.5.4): "The "Accept-Language" header field can be used by user agents to indicate the set of natural languages that are preferred in the response."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -140,18 +149,6 @@ impl RuleMeta for AcceptLanguageWeightValid {
 }
 
 impl Rule for AcceptLanguageWeightValid {
-    // `Both` describes what the code reads, not a second meaning the spec
-    // gives the field. This is the asymmetry worth noticing: §12.5.1 and
-    // §12.5.3 each say what Accept and Accept-Encoding mean *when sent by a
-    // server in a response*, and §12.5.4 says no such thing about
-    // Accept-Language — it defines a request field and stops. A response
-    // carrying one is outside what RFC 9110 describes, so the response arm
-    // here reports syntax and claims nothing about meaning.
-    // cite(RFC 9110 § 12.5.4): "The "Accept-Language" header field can be used by user agents to indicate the set of natural languages that are preferred in the response."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -865,9 +862,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = AcceptLanguageWeightValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[test]

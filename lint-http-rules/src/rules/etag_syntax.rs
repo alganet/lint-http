@@ -99,8 +99,8 @@ impl RuleMeta for EtagSyntax {
 }
 
 impl Rule for EtagSyntax {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -330,6 +330,6 @@ mod tests {
     fn id_and_scope_are_expected() {
         let r = EtagSyntax;
         assert_eq!(r.id(), "etag_syntax");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Server);
+        assert!(r.needs_response());
     }
 }

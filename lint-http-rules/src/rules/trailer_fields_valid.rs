@@ -101,6 +101,12 @@ impl RuleMeta for TrailerFieldsValid {
     /// **A trailer section is written by the peer that wrote the content it
     /// follows**, so the same three checks run over the request's trailers and
     /// then the response's, and each answers for the half it was handed.
+    ///
+    /// A trailer section is a sender's, and either party is a sender. The
+    /// requirement names no direction, and a request's trailer section is reachable
+    /// here — HTTP/1.1 chunked framing runs both ways.
+    ///
+    /// cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -140,15 +146,6 @@ impl RuleMeta for TrailerFieldsValid {
 }
 
 impl Rule for TrailerFieldsValid {
-    /// A trailer section is a sender's, and either party is a sender. The
-    /// requirement names no direction, and a request's trailer section is reachable
-    /// here — HTTP/1.1 chunked framing runs both ways.
-    ///
-    /// cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -1040,7 +1037,7 @@ mod tests {
     fn id_and_scope_are_expected() {
         let rule = TrailerFieldsValid;
         assert_eq!(rule.id(), "trailer_fields_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[test]

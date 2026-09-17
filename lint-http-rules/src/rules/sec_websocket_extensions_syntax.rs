@@ -412,7 +412,13 @@ impl RuleMeta for SecWebsocketExtensionsSyntax {
     /// selection in a response**, and the same production reads both. The party
     /// travels with the judgement, since the one reporting site cannot tell
     /// afterwards which call answered.
+    ///
+    /// Both directions carry the field and both are measured against the same
+    /// production: § 9.1 gives the client's offer and the server's answer one
+    /// grammar, and its malformed-value MUST names *"either the client or the
+    /// server"*.
     fn party(&self) -> crate::rules::RuleParty {
+        // cite(RFC 6455 § 9.1): "A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616]."
         crate::rules::RuleParty::PerSite
     }
 
@@ -454,16 +460,6 @@ impl RuleMeta for SecWebsocketExtensionsSyntax {
 }
 
 impl Rule for SecWebsocketExtensionsSyntax {
-    /// Both directions carry the field and both are measured against the same
-    /// production: § 9.1 gives the client's offer and the server's answer one
-    /// grammar, and its malformed-value MUST names *"either the client or the
-    /// server"*.
-    ///
-    // cite(RFC 6455 § 9.1): "A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616]."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -705,12 +701,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         use crate::rules::Rule as _;
-        assert_eq!(
-            SecWebsocketExtensionsSyntax.scope(),
-            crate::rules::RuleScope::Both
-        );
+        assert!(!SecWebsocketExtensionsSyntax.needs_response());
     }
 
     #[test]

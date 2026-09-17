@@ -131,8 +131,8 @@ content_types = ["text/html", "application/javascript", "application/json"]
 }
 
 impl Rule for XContentTypeOptionsPresent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -455,6 +455,6 @@ mod tests {
     fn id_and_scope_are_expected() {
         let rule = XContentTypeOptionsPresent;
         assert_eq!(rule.id(), "x_content_type_options_present");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 }

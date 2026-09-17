@@ -319,36 +319,49 @@ complete; a *wrongly* cited one is worse than none, and
 `every_violation_declares_a_spec` ratchets the count upward so the direction only
 moves one way.
 
-#### Scoping
+#### Two questions a rule answers about the halves of a transaction
 
-Rules must declare their intended scope by overriding `scope()` when appropriate. This makes it explicit whether a rule is intended for **requests**, **responses**, or both.
+They look like one question and they are not, which is why they were one method
+for a long time and are two now.
 
-- Use `crate::rules::RuleScope::Client` for request-only checks.
-- Use `crate::rules::RuleScope::Server` for response-only checks.
-- Use `crate::rules::RuleScope::Both` if the rule must evaluate both the request and the response.
-
-Example:
+**Does this rule need a response?** `Rule::needs_response()` is a dispatch
+precondition. `false` — the default, and what most rules take — means the rule
+runs even when the upstream never answered, which is exactly what a
+request-only lint or a failed exchange gives it. Return `true` only when every
+finding the rule can make is read out of a response; the engine then skips the
+rule on a response-less transaction, and the body may assume `tx.response` is
+`Some`.
 
 ```rust
-impl RuleMeta for HostHeader {
-    fn id(&self) -> &'static str { "host_header" }
-}
+impl Rule for AgeHeaderNumeric {
+    fn needs_response(&self) -> bool { true }
 
-impl Rule for HostHeader {
-    fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Client }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Check tx
-    }
+    fn findings(/* … */) -> Vec<Violation> { /* … */ }
 }
 ```
 
-Being explicit prevents accidental evaluation on the wrong side and improves readability during code review.
+**Who is answerable for its findings?** `RuleMeta::party()` has no default and
+every rule declares it. It is the peer that wrote the message the evidence was
+found in, which is what a report names and what `--about client|server|any`
+filters on.
+
+- `RuleParty::Presumed(Party::Client)` / `Presumed(Party::Server)` — one answer
+  for every finding in the file, and no reporting site writes anything.
+- `RuleParty::Presumed(Party::Neither)` — the defect is in the exchange rather
+  than in a message. `authentication_failure_loop` is the shape: a run of 401s,
+  no one of which is remarkable alone.
+- `RuleParty::PerSite` — the rule reports defects in both halves and names a
+  peer at each finding, through `ctx.by_client()`, `by_server()`,
+  `by_neither()`, or `ctx.by(party)` where a reader was run over both halves and
+  was handed the answer. A textual gate refuses a bare `ctx.report` in such a
+  file, so declaring this costs exactly what attributing the rule costs.
+
+**Do not derive one from the other.** Scope, the enum these replaced, conflated
+them and was read as a claim about whose rule this is for as long as it existed:
+nineteen `Server`-scoped rules read the request, and two `Client`-scoped ones
+read the response. A rule often reaches for the other half as a *yardstick* —
+`status_405_allow_valid` reads the request method to judge the server's
+`Allow` — and the yardstick is never the evidence.
 
 
 ### 3. Registration

@@ -84,10 +84,10 @@ impl RuleMeta for AgeHeaderNumeric {
 }
 
 impl Rule for AgeHeaderNumeric {
-    fn scope(&self) -> crate::rules::RuleScope {
+    fn needs_response(&self) -> bool {
         // Age is defined as a response header field, so only responses are inspected.
         // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
-        crate::rules::RuleScope::Server
+        true
     }
 
     fn findings(
@@ -316,9 +316,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = AgeHeaderNumeric;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

@@ -87,10 +87,6 @@ impl RuleMeta for BasicAuthBase64Valid {
 }
 
 impl Rule for BasicAuthBase64Valid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

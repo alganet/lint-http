@@ -142,7 +142,7 @@ impl PreparedEngine {
 
         // Enabled rules only — disabled rules were filtered out at construction.
         // `Server` rules are excluded when the response isn't collected yet
-        // (mirrors `crate::rules::rules_for_scope`, see `Rule::scope`).
+        // (mirrors `crate::rules::rules_for_transaction`, see `Rule::needs_response`).
         let scoped = if tx.response.is_some() {
             &self.enabled_full
         } else {
@@ -236,13 +236,13 @@ mod tests {
             .enabled_full
             .iter()
             .all(|p| cfg.is_enabled(p.rule.id())));
-        // Only the non-Server rule survives into the request-only set; the
-        // assertion is non-vacuous because that set is non-empty here.
+        // Only the rule that needs no response survives into the request-only
+        // set; the assertion is non-vacuous because that set is non-empty here.
         assert_eq!(engine.enabled_request_only.len(), 1);
         assert!(engine
             .enabled_request_only
             .iter()
-            .all(|p| !matches!(p.rule.scope(), crate::rules::RuleScope::Server)));
+            .all(|p| !p.rule.needs_response()));
 
         // An empty config enables nothing.
         let empty = PreparedEngine::new(&Config::default()).unwrap();
@@ -565,7 +565,7 @@ mod tests {
         // request-only transaction and that Server-scoped rules don't appear
         // in the violation list. The actual dispatch-routing invariant
         // (Server rules excluded from the iterated slice) is asserted by
-        // `rules::tests::rules_for_scope_skips_server_when_no_response` —
+        // `rules::tests::request_only_dispatch_skips_the_rules_that_need_a_response` —
         // this test would also pass by accident if a Server rule self-guarded
         // on `tx.response.is_none()`, so it carries no load alone.
         let state = crate::state::StateStore::new(300, 10);

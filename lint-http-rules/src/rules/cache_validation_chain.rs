@@ -80,6 +80,9 @@ impl RuleMeta for CacheValidationChain {
         DECLARED
     }
 
+    /// The client's conditional request is compared against validators carried
+    /// by prior origin responses for the same resource, so both halves are read
+    /// — but only one of them is the evidence.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -112,12 +115,6 @@ impl RuleMeta for CacheValidationChain {
 }
 
 impl Rule for CacheValidationChain {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // Both: a client's conditional request is compared against validators
-        // carried by prior origin responses for the same resource.
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

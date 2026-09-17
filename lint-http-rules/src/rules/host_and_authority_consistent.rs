@@ -231,6 +231,11 @@ impl RuleMeta for HostAndAuthorityConsistent {
         DECLARED
     }
 
+    /// A request-only check: both sentences are about what a request carries,
+    /// and the HTTP/2 one names the party. The rule measures a request whether
+    /// or not a response was ever captured.
+    ///
+    /// cite(RFC 9113 § 8.3.1): "Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -289,15 +294,6 @@ impl RuleMeta for HostAndAuthorityConsistent {
 }
 
 impl Rule for HostAndAuthorityConsistent {
-    /// A request-only check: both sentences are about what a request carries,
-    /// and the HTTP/2 one names the party. `Client` is the scope that measures a
-    /// request whether or not a response was ever captured.
-    ///
-    /// cite(RFC 9113 § 8.3.1): "Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -768,11 +764,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client_because_the_requirement_is_on_a_request() {
-        assert_eq!(
-            HostAndAuthorityConsistent.scope(),
-            crate::rules::RuleScope::Client
-        );
+    fn needs_no_response_because_the_requirement_is_on_a_request() {
+        assert!(!HostAndAuthorityConsistent.needs_response());
     }
 
     /// Every published example is a case this rule decides the way its label

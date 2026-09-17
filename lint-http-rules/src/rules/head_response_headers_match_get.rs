@@ -237,8 +237,8 @@ headers = ["etag", "content-type", "content-length"]
 }
 
 impl Rule for HeadResponseHeadersMatchGet {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -425,7 +425,7 @@ mod tests {
     fn id_and_scope() {
         let r = HeadResponseHeadersMatchGet;
         assert_eq!(r.id(), "head_response_headers_match_get");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Server);
+        assert!(r.needs_response());
     }
 
     fn make_prev_with_headers(pairs: &[(&str, &str)]) -> crate::http_transaction::HttpTransaction {

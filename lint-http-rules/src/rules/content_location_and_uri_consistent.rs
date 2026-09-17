@@ -193,8 +193,8 @@ impl Rule for ContentLocationAndUriConsistent {
     // information as transitory request context", "MUST NOT use such context
     // information to alter the request semantics"), which no observer of the wire
     // can check, and the syntax half is the same in both directions.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -984,8 +984,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = ContentLocationAndUriConsistent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 }

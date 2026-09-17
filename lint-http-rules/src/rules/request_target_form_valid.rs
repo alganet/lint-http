@@ -237,6 +237,10 @@ impl RuleMeta for RequestTargetFormValid {
         DECLARED
     }
 
+    /// Every sentence read here is addressed to the client that generated the
+    /// request-line, so the rule has to run on a capture whose upstream never
+    /// answered as well as on a complete exchange: the request-line was already
+    /// wrong when it was sent.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -259,14 +263,6 @@ impl RuleMeta for RequestTargetFormValid {
 }
 
 impl Rule for RequestTargetFormValid {
-    /// Every sentence read here is addressed to the client that generated the
-    /// request-line, so the rule has to run on a capture whose upstream never
-    /// answered as well as on a complete exchange. `Server` would skip exactly
-    /// those, and the request-line was already wrong when it was sent.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -825,9 +821,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let rule = RequestTargetFormValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     #[test]

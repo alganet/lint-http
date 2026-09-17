@@ -105,8 +105,8 @@ impl RuleMeta for CookieDomainValid {
 }
 
 impl Rule for CookieDomainValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(

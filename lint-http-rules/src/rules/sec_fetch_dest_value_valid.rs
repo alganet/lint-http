@@ -93,10 +93,6 @@ impl RuleMeta for SecFetchDestValueValid {
 }
 
 impl Rule for SecFetchDestValueValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -427,7 +423,7 @@ mod tests {
     fn message_and_id() {
         let rule = SecFetchDestValueValid;
         assert_eq!(rule.id(), "sec_fetch_dest_value_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     #[test]

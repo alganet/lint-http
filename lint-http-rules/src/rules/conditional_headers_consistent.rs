@@ -162,10 +162,6 @@ impl RuleMeta for ConditionalHeadersConsistent {
 }
 
 impl Rule for ConditionalHeadersConsistent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -698,9 +694,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let r = ConditionalHeadersConsistent;
-        assert_eq!(r.scope(), crate::rules::RuleScope::Both);
+        assert!(!r.needs_response());
     }
 
     #[test]

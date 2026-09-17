@@ -182,6 +182,16 @@ impl RuleMeta for WellKnownUriSyntax {
         DECLARED
     }
 
+    /// Every finding here is about the path a client put in the request target,
+    /// which is what makes this a client-scoped rule — but not because RFC 8615
+    /// asks a client for anything. **The document holds five BCP 14 modals and
+    /// every one of them is addressed to an application minting or registering a
+    /// name**: register them, conform to `segment-nz`, be precise, specify an
+    /// alternative port, and the MAY for additional path components. None is a
+    /// requirement on a request target, so no finding below is worded as a
+    /// violation — see `description()`.
+    ///
+    /// cite(RFC 8615 § 3): "Applications that wish to mint new well-known URIs MUST register them, following the procedures in Section 5.1, subject to the following requirements."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -236,20 +246,6 @@ impl RuleMeta for WellKnownUriSyntax {
 }
 
 impl Rule for WellKnownUriSyntax {
-    /// Every finding here is about the path a client put in the request target,
-    /// which is what makes this a client-scoped rule — but not because RFC 8615
-    /// asks a client for anything. **The document holds five BCP 14 modals and
-    /// every one of them is addressed to an application minting or registering a
-    /// name**: register them, conform to `segment-nz`, be precise, specify an
-    /// alternative port, and the MAY for additional path components. None is a
-    /// requirement on a request target, so no finding below is worded as a
-    /// violation — see `description()`.
-    ///
-    /// cite(RFC 8615 § 3): "Applications that wish to mint new well-known URIs MUST register them, following the procedures in Section 5.1, subject to the following requirements."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -643,7 +639,7 @@ mod tests {
     fn message_and_id() {
         let rule = WellKnownUriSyntax;
         assert_eq!(rule.id(), "well_known_uri_syntax");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     #[test]

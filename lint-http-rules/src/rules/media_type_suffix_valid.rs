@@ -100,6 +100,11 @@ allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
     /// `Accept` members are the client's media types; the response's
     /// `Content-Type` is the origin's. A suffix defect belongs to whoever spelled
     /// the subtype it hangs off.
+    ///
+    /// Suffixes are read from Content-Type, which describes the representation a
+    /// message carries, and from Accept, which is request-only — so the request
+    /// side sees strictly more than the response side.
+    /// cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -147,14 +152,6 @@ allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
 }
 
 impl Rule for MediaTypeSuffixValid {
-    // Suffixes are read from Content-Type, which describes the representation a
-    // message carries, and from Accept, which is request-only — so the request
-    // side sees strictly more than the response side.
-    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -774,9 +771,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = MediaTypeSuffixValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 
     #[test]

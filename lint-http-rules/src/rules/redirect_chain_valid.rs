@@ -210,8 +210,8 @@ impl Rule for RedirectChainValid {
     /// request half to read.
     ///
     /// cite(RFC 9110 § 10.2): "The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -419,11 +419,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
-        assert_eq!(
-            crate::rules::Rule::scope(&RedirectChainValid),
-            crate::rules::RuleScope::Server
-        );
+    fn needs_a_response() {
+        assert!(crate::rules::Rule::needs_response(&RedirectChainValid));
     }
 
     /// The one entry, and the ending that condemns nothing carrying `warn`

@@ -366,8 +366,8 @@ impl Rule for ServerTimingHeaderSyntax {
     /// measured by the same sentences.
     // cite(Server Timing § 2): "The Server-Timing header field is used to communicate one or more metrics and descriptions for the given request-response cycle."
     // cite(RFC 9110 § 3.7): "All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(

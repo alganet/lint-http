@@ -170,6 +170,13 @@ impl RuleMeta for RefererUriValid {
         DECLARED
     }
 
+    /// `Referer` is defined in § 10.1, *Request Context Fields*, and every modal
+    /// in § 10.1.3 but one is addressed to the user agent. The exception is the
+    /// intermediary SHOULD NOT at the end of the section, which is about a field
+    /// this rule reads rather than about one it could measure — see
+    /// `description()`.
+    ///
+    /// cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -232,17 +239,6 @@ impl RuleMeta for RefererUriValid {
 }
 
 impl Rule for RefererUriValid {
-    /// `Referer` is defined in § 10.1, *Request Context Fields*, and every modal
-    /// in § 10.1.3 but one is addressed to the user agent. The exception is the
-    /// intermediary SHOULD NOT at the end of the section, which is about a field
-    /// this rule reads rather than about one it could measure — see
-    /// `description()`.
-    ///
-    /// cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -881,8 +877,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
-        assert_eq!(RefererUriValid.scope(), crate::rules::RuleScope::Client);
+    fn needs_no_response() {
+        assert!(!RefererUriValid.needs_response());
     }
 
     #[test]

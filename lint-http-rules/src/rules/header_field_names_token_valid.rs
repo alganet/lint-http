@@ -90,6 +90,10 @@ impl RuleMeta for HeaderFieldNamesTokenValid {
     /// author.** A field name that is not a `token`, or one no deployment
     /// listed, is written by whoever wrote the section it sits in — the request's
     /// two sections by the client, the response's two by the origin.
+    ///
+    /// The grammar is stated for fields, with no clause naming a direction or a
+    /// section, so every field the transaction carries is read.
+    /// cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -117,13 +121,6 @@ impl RuleMeta for HeaderFieldNamesTokenValid {
 }
 
 impl Rule for HeaderFieldNamesTokenValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // The grammar is stated for fields, with no clause naming a direction or a
-        // section, so every field the transaction carries is in scope.
-        // cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -475,8 +472,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = HeaderFieldNamesTokenValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 }

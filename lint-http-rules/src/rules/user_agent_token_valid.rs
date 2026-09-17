@@ -85,6 +85,14 @@ impl RuleMeta for UserAgentTokenValid {
         DECLARED
     }
 
+    /// `User-Agent` is defined for requests only -- it lives under §10.1,
+    /// "Request Context Fields", and the field's own first sentence says
+    /// whose request it describes. A response carrying one is not this
+    /// rule's subject: there is no sentence giving the field a meaning in
+    /// that direction, so there is nothing for a grammar finding to mean.
+    /// This is the mirror of the argument `server_header_product_valid`
+    /// carries next door, where the same production is response-only.
+    /// cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -137,18 +145,6 @@ impl RuleMeta for UserAgentTokenValid {
 }
 
 impl Rule for UserAgentTokenValid {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // `User-Agent` is defined for requests only -- it lives under §10.1,
-        // "Request Context Fields", and the field's own first sentence says
-        // whose request it describes. A response carrying one is not this
-        // rule's subject: there is no sentence giving the field a meaning in
-        // that direction, so there is nothing for a grammar finding to mean.
-        // This is the mirror of the argument `Server` carries next door, where
-        // the same production is response-only.
-        // cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -555,7 +551,7 @@ mod tests {
     fn message_and_id() {
         let rule = UserAgentTokenValid;
         assert_eq!(rule.id(), "user_agent_token_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert!(!rule.needs_response());
     }
 
     #[test]

@@ -90,10 +90,6 @@ impl RuleMeta for CookieSameSiteEnforced {
 }
 
 impl Rule for CookieSameSiteEnforced {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

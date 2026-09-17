@@ -77,8 +77,8 @@ impl RuleMeta for VaryAndCacheConsistent {
 }
 
 impl Rule for VaryAndCacheConsistent {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -289,7 +289,7 @@ mod tests {
     fn id_and_scope_are_expected() {
         let rule = VaryAndCacheConsistent;
         assert_eq!(rule.id(), "vary_and_cache_consistent");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

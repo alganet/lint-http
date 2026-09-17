@@ -151,10 +151,6 @@ impl RuleMeta for HostHeader {
 }
 
 impl Rule for HostHeader {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -550,12 +546,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let r = HostHeader;
-        assert_eq!(
-            crate::rules::Rule::scope(&r),
-            crate::rules::RuleScope::Client
-        );
+        assert!(!crate::rules::Rule::needs_response(&r));
     }
 
     /// The field lines of an example, with its start line dropped — and checked,

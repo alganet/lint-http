@@ -215,8 +215,8 @@ impl Rule for SecWebsocketVersionAdvertised {
     /// nothing to measure.
     ///
     /// cite(RFC 6455 § 4.3): "ABNF rules with the "-Client" suffix in the name are only used in requests sent by the client to the server; ABNF rules with the "-Server" suffix in the name are only used in responses sent by the server to the client."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -448,12 +448,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         use crate::rules::Rule as _;
-        assert_eq!(
-            SecWebsocketVersionAdvertised.scope(),
-            crate::rules::RuleScope::Server
-        );
+        assert!(SecWebsocketVersionAdvertised.needs_response());
     }
 
     #[test]

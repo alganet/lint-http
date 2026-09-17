@@ -74,7 +74,7 @@ impl RuleMeta for OriginMatchingForCors {
     }
 
     fn description(&self) -> &'static str {
-        "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the request's `Origin` value or use the wildcard `*`.\nFurthermore, the wildcard may **not** be used in conjunction with credentials\n(`Access-Control-Allow-Credentials: true`).\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and enforces the credential restriction on `*`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\nThis check applies to server responses (RuleScope::Server)."
+        "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the request's `Origin` value or use the wildcard `*`.\nFurthermore, the wildcard may **not** be used in conjunction with credentials\n(`Access-Control-Allow-Credentials: true`).\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and enforces the credential restriction on `*`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\nThis check applies to server responses."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -141,8 +141,8 @@ impl RuleMeta for OriginMatchingForCors {
 }
 
 impl Rule for OriginMatchingForCors {
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+    fn needs_response(&self) -> bool {
+        true
     }
 
     fn findings(
@@ -610,9 +610,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = OriginMatchingForCors;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 
     #[test]

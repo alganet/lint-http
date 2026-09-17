@@ -162,6 +162,12 @@ impl RuleMeta for ExpectHeaderValid {
         DECLARED
     }
 
+    /// Every requirement this rule enforces opens "A client", and the field is
+    /// one of the request context fields — which is also why it wants no
+    /// response to run: a request-only lint still measures a header section the
+    /// client has already written.
+    ///
+    /// cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -188,16 +194,6 @@ impl RuleMeta for ExpectHeaderValid {
 }
 
 impl Rule for ExpectHeaderValid {
-    /// Every requirement this rule enforces opens "A client", and the field is
-    /// one of the request context fields. `Client` is what lets the rule run on
-    /// a capture with no response — a request-only lint still measures a header
-    /// section the client has already written.
-    ///
-    /// cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -841,8 +837,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
-        assert_eq!(ExpectHeaderValid.scope(), crate::rules::RuleScope::Client);
+    fn needs_no_response() {
+        assert!(!ExpectHeaderValid.needs_response());
     }
 
     #[test]

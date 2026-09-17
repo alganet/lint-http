@@ -50,6 +50,8 @@ impl RuleMeta for CachedValidatorsReused {
         DECLARED
     }
 
+    /// The SHOULD is on the client's request; the prior response is read only
+    /// to learn whether a validator was offered.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -94,12 +96,6 @@ impl RuleMeta for CachedValidatorsReused {
 }
 
 impl Rule for CachedValidatorsReused {
-    fn scope(&self) -> crate::rules::RuleScope {
-        // Client: the SHOULD is on the client's request; the prior response is read
-        // only to learn whether a validator was offered.
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -312,11 +308,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_client() {
+    fn needs_no_response() {
         let r = CachedValidatorsReused;
-        assert_eq!(
-            crate::rules::Rule::scope(&r),
-            crate::rules::RuleScope::Client
-        );
+        assert!(!crate::rules::Rule::needs_response(&r));
     }
 }

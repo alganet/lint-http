@@ -107,9 +107,13 @@ impl RuleMeta for ContentTypeValid {
 
     /// **The same nine defects, read twice, and each reading blames the peer
     /// whose field section it was read from.** Both directions carry a
-    /// `Content-Type` — the rule's `scope` comment says so and cites the
-    /// sentence — so the party is the half, and the half is what the reader is
-    /// handed.
+    /// `Content-Type`, so the party is the half, and the half is what the
+    /// reader is handed.
+    ///
+    /// The field describes the representation a message carries, and both
+    /// directions carry one, so both are in scope. Nothing narrows this to
+    /// responses the way RFC 6266 narrows Content-Disposition.
+    /// cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -175,14 +179,6 @@ impl RuleMeta for ContentTypeValid {
 }
 
 impl Rule for ContentTypeValid {
-    // The field describes the representation a message carries, and both
-    // directions carry one, so both are in scope. Nothing narrows this to
-    // responses the way RFC 6266 narrows Content-Disposition.
-    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -723,8 +719,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
+    fn needs_no_response() {
         let rule = ContentTypeValid;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert!(!rule.needs_response());
     }
 }

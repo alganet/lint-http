@@ -105,6 +105,8 @@ impl RuleMeta for RequestVersionMethodValid {
         DECLARED
     }
 
+    /// Every sentence this rule enforces addresses the client.
+    /// cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
@@ -138,12 +140,6 @@ impl RuleMeta for RequestVersionMethodValid {
 }
 
 impl Rule for RequestVersionMethodValid {
-    /// Every sentence this rule enforces addresses the client.
-    // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,

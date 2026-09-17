@@ -106,9 +106,9 @@ impl RuleMeta for SunsetAndDeprecationConsistent {
 }
 
 impl Rule for SunsetAndDeprecationConsistent {
-    fn scope(&self) -> crate::rules::RuleScope {
+    fn needs_response(&self) -> bool {
         // This rule inspects response headers only
-        crate::rules::RuleScope::Server
+        true
     }
 
     fn findings(
@@ -550,8 +550,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_server() {
+    fn needs_a_response() {
         let rule = SunsetAndDeprecationConsistent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert!(rule.needs_response());
     }
 }

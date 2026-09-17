@@ -197,6 +197,10 @@ impl RuleMeta for PriorityHeaderSyntax {
     /// the server signalled back — which is why `Section::instead` says
     /// different things about the two — and a field that fails to parse was
     /// written by the peer whose section it is.
+    ///
+    /// Both directions, because the field is defined for both.
+    ///
+    /// cite(RFC 9218 § 5): "The Priority HTTP header field is a Dictionary that carries priority parameters (see Section 4)."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -244,13 +248,6 @@ impl RuleMeta for PriorityHeaderSyntax {
 }
 
 impl Rule for PriorityHeaderSyntax {
-    /// Both directions, because the field is defined for both.
-    ///
-    // cite(RFC 9218 § 5): "The Priority HTTP header field is a Dictionary that carries priority parameters (see Section 4)."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -839,8 +836,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
-        assert_eq!(PriorityHeaderSyntax.scope(), crate::rules::RuleScope::Both);
+    fn needs_no_response() {
+        assert!(!PriorityHeaderSyntax.needs_response());
     }
 
     #[test]

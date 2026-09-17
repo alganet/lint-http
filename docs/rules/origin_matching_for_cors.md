@@ -19,7 +19,7 @@ validates that the header set is semantically consistent with the request
 origin and enforces the credential restriction on `*`.  If the request's
 `Origin` value is syntactically invalid the rule also raises a violation.
 
-This check applies to server responses (RuleScope::Server).
+This check applies to server responses.
 
 ## Violations
 

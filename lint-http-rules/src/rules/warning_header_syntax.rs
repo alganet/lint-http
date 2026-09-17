@@ -256,6 +256,11 @@ impl RuleMeta for WarningHeaderSyntax {
     /// information to a message**, and this rule judges the request's field and
     /// then the response's. The party travels with the judgement, since the one
     /// reporting site cannot tell afterwards which call answered.
+    ///
+    /// The field is not a response field, and the sentence that says so says it
+    /// while naming the exception: the *codes*, not the field, are what some
+    /// caches-only requirements are about.
+    /// cite(RFC 7234 § 5.5): "Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages."
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -318,14 +323,6 @@ impl RuleMeta for WarningHeaderSyntax {
 }
 
 impl Rule for WarningHeaderSyntax {
-    /// The field is not a response field, and the sentence that says so says it
-    /// while naming the exception: the *codes*, not the field, are what some
-    /// caches-only requirements are about.
-    // cite(RFC 7234 § 5.5): "Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -1097,8 +1094,8 @@ mod tests {
     }
 
     #[test]
-    fn scope_is_both() {
-        assert_eq!(WarningHeaderSyntax.scope(), crate::rules::RuleScope::Both);
+    fn needs_no_response() {
+        assert!(!WarningHeaderSyntax.needs_response());
     }
 
     /// Nothing runs a rule's own `examples()` through the engine, so a
