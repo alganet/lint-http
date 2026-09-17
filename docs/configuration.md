@@ -240,7 +240,7 @@ suppress_headers = []             # Headers to suppress from server responses
 - **ca_cert_path**: Path to the Certificate Authority (CA) certificate. If it doesn't exist, it will be generated.
 - **ca_key_path**: Path to the CA private key. **Keep this secure.**
 - **passthrough_domains**: A list of domains (e.g., `["bank.com"]`) that should not be intercepted. Traffic to these domains will be tunneled opaque.
-- **suppress_headers**: A list of response headers to remove before sending to the client (e.g., `["Strict-Transport-Security"]` to prevent HSTS issues during testing).
+- **suppress_headers**: A list of **request** headers to remove before forwarding upstream (e.g., `["Authorization"]` to keep a credential off the wire while testing). The rules still see the header the client sent — suppression applies only to the copy the origin receives, so what this changes is the response, not the linting of the request.
 
 ### HTTP/3 Upstream (Optional)
 
