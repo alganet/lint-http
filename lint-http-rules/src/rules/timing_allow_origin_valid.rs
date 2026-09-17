@@ -232,7 +232,7 @@ impl Rule for TimingAllowOriginValid {
                     // reader is what says which way it is not one — the same
                     // reader `origin_matching_for_cors` calls, so a path after
                     // the authority draws the same id here as it does there.
-                    if let Err(defect) = crate::helpers::uri::validate_origin_value(m) {
+                    if let Err(defect) = crate::helpers::origin::validate_origin_value(m) {
                         return Some(ctx.report_with(
                             origin_defect(defect),
                             format!(

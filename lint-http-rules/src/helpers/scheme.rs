@@ -80,7 +80,7 @@ pub fn scheme_if_present(s: &str) -> Option<SchemeNameDefect<'_>> {
 ///
 /// Public because a caller that wants the *question* — is this value in
 /// absolute form — and not the origin cannot ask
-/// [`super::uri::extract_origin_if_absolute`]: that function answers `None` both for a
+/// [`super::origin::extract_origin_if_absolute`]: that function answers `None` both for a
 /// value with no scheme and for an absolute-form value whose scheme or
 /// authority is the finding, and the two need opposite treatment. Reaching for
 /// `contains("://")` instead is what the paragraph above is about, and it was

@@ -135,7 +135,7 @@ impl Rule for RequestOriginHeaderPresentForCors {
                     .next()
                 {
                     Some(origin_val) => {
-                        if let Err(defect) = crate::helpers::uri::validate_origin_value(
+                        if let Err(defect) = crate::helpers::origin::validate_origin_value(
                             crate::helpers::headers::trim_ows(&origin_val),
                         ) {
                             let message = format!("Origin header invalid: {}", defect.message());
@@ -153,7 +153,9 @@ impl Rule for RequestOriginHeaderPresentForCors {
 
             // If request-target is absolute-form and its origin differs from Host header,
             // consider it cross-origin and require Origin header to be present.
-            if let Some(target_origin) = crate::helpers::uri::extract_origin_if_absolute(&req.uri) {
+            if let Some(target_origin) =
+                crate::helpers::origin::extract_origin_if_absolute(&req.uri)
+            {
                 if let Some(host_hdr) = crate::helpers::headers::get_header_str(headers, "host") {
                     // host header may include port; compare authority portion
                     let host_authority = host_hdr.trim();

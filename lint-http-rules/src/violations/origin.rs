@@ -25,7 +25,7 @@
 //
 // cite(RFC 6454 § 7.1): "origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list"
 
-use crate::helpers::uri::OriginDefect;
+use crate::helpers::origin::OriginDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};

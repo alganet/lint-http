@@ -138,7 +138,7 @@ impl PreparedEngine {
         let empty_history = crate::transaction_history::TransactionHistory::empty();
 
         // Cache origin extraction since it's used by any rule requiring ByOrigin
-        let origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
+        let origin = crate::helpers::origin::extract_origin_if_absolute(&tx.request.uri);
 
         // Enabled rules only — disabled rules were filtered out at construction.
         // `Server` rules are excluded when the response isn't collected yet
