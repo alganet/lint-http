@@ -219,7 +219,7 @@ mod tests {
         // `from_str_radix` would read this as %x0A; no `pct-encoded` writes a
         // sign, so the two characters are measured against `HEXDIG` first.
         assert_eq!(decode_unreserved("%+A"), "%+A");
-        // A captured target read back through `lint` is an arbitrary string:
+        // A captured target read back through `lint-captures` is an arbitrary string:
         // the two positions after a `%` can be inside a multi-byte code point,
         // and slicing them would panic.
         assert_eq!(decode_unreserved("%é4"), "%é4");

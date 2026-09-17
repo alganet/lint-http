@@ -54,7 +54,7 @@ fn location_has_a_referent(status: u16) -> bool {
     // class, so it is reported, and the sentence below says a recipient treats it as a
     // 5xx — which gives the field no referent either. The status's own invalidity is
     // `status_code_valid_range`'s finding, not this one's. `resp.status` can
-    // hold such a value because the `lint` subcommand deserializes it from a capture
+    // hold such a value because the `lint-captures` subcommand deserializes it from a capture
     // file rather than reading it off a connection.
     // cite(RFC 9110 § 15): "A client that receives a response with an invalid status code SHOULD process the response as if it had a 5xx (Server Error) status code."
     (300..=399).contains(&status)

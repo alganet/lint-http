@@ -221,7 +221,7 @@ impl Rule for NoBodyFor1xx204304 {
             // carries any fields -- what is forbidden is the section, not its members.
             // `None` here means no trailer section was observed; `Some` means one was,
             // in both producers (the proxy fills it from the frame that carried it, and
-            // the `lint` subcommand deserializes it from a capture file).
+            // the `lint-captures` subcommand deserializes it from a capture file).
             //
             // `trailer_fields_valid` judges *which* fields a trailer section
             // may hold. Whether the response was allowed a trailer section at all is

@@ -360,7 +360,7 @@ mod tests {
     }
 
     /// Where nothing was captured, the sender's own declaration is what is
-    /// left. This is the `lint` subcommand's shape: `request_body` is
+    /// left. This is the `lint-captures` subcommand's shape: `request_body` is
     /// `#[serde(skip)]`, so a capture file carries neither the octets nor,
     /// where the proxy rejected an over-limit body, a length.
     #[test]
