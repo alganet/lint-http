@@ -36,6 +36,7 @@ pub use lint_http_rules::{engine, helpers, lint_protocol, queries, rules};
 #[path = "../tests/common/temp_files.rs"]
 pub(crate) mod temp_files;
 
+pub mod browser;
 pub mod ca;
 pub mod capture;
 pub mod client_env;

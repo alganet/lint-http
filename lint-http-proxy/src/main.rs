@@ -12,8 +12,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
 use lint_http::{
-    capture, client_env, config, engine, lint, protocol_event_store, proxied_run, proxy, rules,
-    state,
+    browser, capture, client_env, config, engine, lint, protocol_event_store, proxied_run, proxy,
+    rules, state,
 };
 
 #[derive(Parser, Debug)]
@@ -34,6 +34,8 @@ struct Cli {
 enum Command {
     /// Run a command with its HTTP traffic proxied and linted.
     Run(RunArgs),
+    /// Open a browser whose traffic is proxied and linted.
+    Browse(BrowseArgs),
     /// Start the intercepting proxy and leave it listening.
     #[command(name = "proxy-start")]
     ProxyStart(ProxyStartArgs),
@@ -98,6 +100,43 @@ struct RunArgs {
         value_name = "COMMAND"
     )]
     command: Vec<String>,
+}
+
+/// `lint-http browse [URL]`
+///
+/// A browsing session against a proxy that exists only for it: a throwaway
+/// profile, a CA trusted for this launch by public-key pin, and findings
+/// printed as they happen. Nothing is installed and nothing is left behind.
+#[derive(clap::Args, Debug)]
+struct BrowseArgs {
+    /// Config TOML path. Defaults to the built-in configuration.
+    #[arg(long, value_name = "PATH")]
+    config: Option<String>,
+    /// Browser executable to use. Defaults to the first Chromium-family
+    /// browser found.
+    #[arg(long, value_name = "PATH")]
+    browser: Option<String>,
+    /// Report findings for this host and anything under it. Repeatable.
+    /// Defaults to the host of URL.
+    #[arg(long, value_name = "HOST")]
+    only_host: Vec<String>,
+    /// Report every host, including third parties the page pulls in.
+    #[arg(long, conflicts_with = "only_host")]
+    all_hosts: bool,
+    /// Output format. `json` prints one report at the end instead of findings
+    /// as they happen.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    format: OutputFormat,
+    /// Only report findings at or above this severity.
+    #[arg(long, value_enum, default_value_t = SeverityArg::Info)]
+    min_severity: SeverityArg,
+    /// Keep the capture file at this path instead of discarding it.
+    #[arg(long, value_name = "PATH")]
+    captures: Option<String>,
+    /// Where to open. Omitted, the browser opens its own start page and
+    /// whatever it fetches is still linted.
+    #[arg(value_name = "URL")]
+    url: Option<String>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -536,6 +575,161 @@ struct WebsocketFindings {
     violations: Vec<lint::Violation>,
 }
 
+/// Which hosts a report is about.
+///
+/// **`browse` is unusable without this.** One real page pulls in tens of
+/// origins nobody in the room controls, and with the whole catalogue enabled
+/// the result is a wall of findings about somebody else's CDN — true, and not
+/// actionable, and enough of it to bury the findings that are. So a session
+/// opened on a URL reports that URL's host by default and counts the rest.
+///
+/// Empty means every host, which is what `--all-hosts` selects and what a
+/// session opened on no URL falls back to, there being no first party to infer.
+#[derive(Debug, Clone, Default)]
+struct HostScope {
+    hosts: Vec<String>,
+}
+
+impl HostScope {
+    fn all() -> Self {
+        Self::default()
+    }
+
+    fn is_all(&self) -> bool {
+        self.hosts.is_empty()
+    }
+
+    /// Does this report include the given request target?
+    ///
+    /// A scope matches its own host and anything under it, so `example.com`
+    /// covers `www.example.com` and `api.example.com` — a site is rarely one
+    /// name, and a default that reported only the exact host typed would drop
+    /// the API calls the page makes, which are usually the interesting half.
+    /// The dot is what keeps it from also covering `notexample.com`.
+    fn includes(&self, uri: &str) -> bool {
+        if self.is_all() {
+            return true;
+        }
+        let Some(host) = uri_host(uri) else {
+            // A target with no host to compare — an origin-form request the
+            // capture recorded as a path. Kept: the alternative is dropping a
+            // finding for a reason the user cannot see.
+            return true;
+        };
+        // Lowercased and compared whole rather than sliced at an offset taken
+        // from the scope's length: that offset is a byte index into a string
+        // this does not control, and an internationalized host would land it
+        // mid-character and panic.
+        let host = host.to_ascii_lowercase();
+        self.hosts.iter().any(|scope| {
+            let scope = scope.to_ascii_lowercase();
+            host == scope || host.ends_with(&format!(".{scope}"))
+        })
+    }
+
+    /// Split a report in two: what this scope includes, and how many findings
+    /// it left out.
+    ///
+    /// The count is of *findings*, not transactions, because that is the number
+    /// the summary compares against — "12 shown, 340 elsewhere" answers "is the
+    /// default hiding something I want" and a transaction count does not.
+    fn apply(&self, findings: Vec<FindingsBlock>) -> (Vec<FindingsBlock>, usize) {
+        if self.is_all() {
+            return (findings, 0);
+        }
+        let mut kept = Vec::new();
+        let mut elsewhere = 0;
+        for block in findings {
+            let included = match &block {
+                FindingsBlock::HttpTransaction(f) => self.includes(&f.uri),
+                // A WebSocket session is always kept: it exists because an
+                // upgrade was made deliberately, and its record carries no
+                // target to compare anyway.
+                FindingsBlock::WebsocketSession(_) => true,
+            };
+            if included {
+                kept.push(block);
+            } else {
+                elsewhere += block.violations().len();
+            }
+        }
+        (kept, elsewhere)
+    }
+}
+
+/// The host out of a request target, for scope comparison only.
+///
+/// Deliberately lax where the rule helpers are strict: those transcribe a
+/// grammar and refuse what does not match it, which is right for a rule and
+/// wrong here — a target this cannot read should widen the report, not narrow
+/// it. Handles the two shapes a capture holds, an absolute URI and an
+/// authority-form target, and the bracketed IPv6 literal in either.
+fn uri_host(uri: &str) -> Option<&str> {
+    let after_scheme = uri.split_once("://").map_or(uri, |(_, rest)| rest);
+    let authority = after_scheme.split(['/', '?', '#']).next()?;
+    let authority = authority.rsplit_once('@').map_or(authority, |(_, a)| a);
+    if let Some(rest) = authority.strip_prefix('[') {
+        // `[::1]:8080` — the colons inside the brackets are the address.
+        return rest.split_once(']').map(|(host, _)| host);
+    }
+    let host = authority.split(':').next()?;
+    (!host.is_empty()).then_some(host)
+}
+
+/// One record's findings, as the text report prints them.
+///
+/// Extracted from [`render_lint_report`] so `browse` can print a block the
+/// moment its transaction commits. A browsing session runs for minutes and
+/// makes hundreds of requests; saving every finding for the end would be the
+/// same output delivered when it is no longer about anything on screen. Same
+/// function, so the live lines and a replayed report cannot disagree on shape.
+fn render_findings_block(block: &FindingsBlock) -> anyhow::Result<String> {
+    use std::fmt::Write;
+    let mut out = String::new();
+    match block {
+        FindingsBlock::HttpTransaction(f) => {
+            let status = f
+                .status
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "-".to_string());
+            writeln!(out, "{} {} -> {}", f.method, f.uri, status)?;
+        }
+        FindingsBlock::WebsocketSession(f) => {
+            let close = f
+                .close_code
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "-".to_string());
+            writeln!(
+                out,
+                "websocket session {} (upgrade {}) -> close {}",
+                f.session_id, f.transaction_id, close
+            )?;
+        }
+    }
+    for v in block.violations() {
+        // Both names, when the finding carries both: the rule is what ran, the
+        // defect is what it found, and they are tuned by two different sections
+        // of the configuration. `rule/defect` rather than either alone —
+        // dropping the rule would hide which analysis to switch off, and
+        // dropping the defect would hide the name `[violations.*]` takes. A
+        // finding from a rule that names no defect prints exactly as it always
+        // has.
+        let name = if v.violation.is_empty() {
+            v.rule.clone()
+        } else {
+            format!("{}/{}", v.rule, v.violation)
+        };
+        write!(out, "  {:<5} {}  {}", v.severity.name(), name, v.message)?;
+        // The specification text the finding enforces, when the rule attached
+        // one at the violation site.
+        if let Some(cite) = &v.cite {
+            write!(out, "  [{cite}]")?;
+        }
+        writeln!(out)?;
+    }
+    Ok(out)
+}
+
 /// Render the `lint` report: the text form ends with a human summary line
 /// (whose violation count is derived from `findings`, so it can't disagree
 /// with the blocks above it); the JSON form is a bare array of
@@ -554,48 +748,7 @@ fn render_lint_report(
             use std::fmt::Write;
             let mut out = String::new();
             for block in findings {
-                match block {
-                    FindingsBlock::HttpTransaction(f) => {
-                        let status = f
-                            .status
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| "-".to_string());
-                        writeln!(out, "{} {} -> {}", f.method, f.uri, status)?;
-                    }
-                    FindingsBlock::WebsocketSession(f) => {
-                        let close = f
-                            .close_code
-                            .map(|c| c.to_string())
-                            .unwrap_or_else(|| "-".to_string());
-                        writeln!(
-                            out,
-                            "websocket session {} (upgrade {}) -> close {}",
-                            f.session_id, f.transaction_id, close
-                        )?;
-                    }
-                }
-                for v in block.violations() {
-                    // Both names, when the finding carries both: the rule is
-                    // what ran, the defect is what it found, and they are
-                    // tuned by two different sections of the configuration.
-                    // `rule/defect` rather than either alone — dropping the
-                    // rule would hide which analysis to switch off, and
-                    // dropping the defect would hide the name `[violations.*]`
-                    // takes. A finding from a rule that names no defect prints
-                    // exactly as it always has.
-                    let name = if v.violation.is_empty() {
-                        v.rule.clone()
-                    } else {
-                        format!("{}/{}", v.rule, v.violation)
-                    };
-                    write!(out, "  {:<5} {}  {}", v.severity.name(), name, v.message)?;
-                    // The specification text the finding enforces, when the
-                    // rule attached one at the violation site.
-                    if let Some(cite) = &v.cite {
-                        write!(out, "  [{cite}]")?;
-                    }
-                    writeln!(out)?;
-                }
+                out.push_str(&render_findings_block(block)?);
             }
             let total: usize = findings.iter().map(|f| f.violations().len()).sum();
             write!(
@@ -688,6 +841,245 @@ fn render_env_preview() -> String {
     out
 }
 
+/// Open a browser against a session proxy and report what it fetches.
+///
+/// Unlike `run`, findings are printed as they commit. A browsing session lasts
+/// as long as someone keeps it open and makes hundreds of requests; holding
+/// everything until the window closes would deliver the report after the thing
+/// it describes is gone. `--format json` opts back into one report at the end,
+/// because a machine reading this wants one document rather than a stream.
+async fn browse(args: BrowseArgs) -> anyhow::Result<u8> {
+    let cfg = load_validated_config(args.config.as_deref()).await?;
+    let browser = browser::discover(args.browser.as_deref())?;
+
+    // The scope, decided before anything opens so it can be reported.
+    let scope = if args.all_hosts {
+        HostScope::all()
+    } else if !args.only_host.is_empty() {
+        HostScope {
+            hosts: args.only_host.clone(),
+        }
+    } else {
+        // The first party is the host being opened. With no URL there is none
+        // to infer, and narrowing to nothing would report nothing.
+        match args.url.as_deref().and_then(uri_host) {
+            Some(host) => HostScope {
+                hosts: vec![host.to_string()],
+            },
+            None => HostScope::all(),
+        }
+    };
+
+    let session = proxied_run::ProxySession::start(
+        (*cfg).clone(),
+        args.captures.as_deref().map(std::path::Path::new),
+    )
+    .await?;
+
+    let pin = session.spki_pin().await?;
+    if pin.is_none() {
+        eprintln!(
+            "warning: no interception CA; HTTPS will be tunnelled unlinted and only plaintext is reported"
+        );
+    }
+
+    let profile = session.scratch("browser-profile");
+    std::fs::create_dir_all(&profile)?;
+
+    eprintln!(
+        "{} through 127.0.0.1:{}{}",
+        browser.name,
+        session.addr.port(),
+        match &scope.hosts[..] {
+            [] => " — reporting every host".to_string(),
+            hosts => format!(" — reporting {}", hosts.join(", ")),
+        }
+    );
+
+    // Text mode narrates; JSON mode stays silent so its one document is the
+    // only thing on the stream a machine is reading.
+    let live = matches!(args.format, OutputFormat::Text).then(|| {
+        tokio::spawn(live_reporter(
+            session.subscribe(),
+            scope.clone(),
+            args.min_severity.into(),
+        ))
+    });
+
+    let command = browser::command(
+        &browser,
+        &profile,
+        session.addr,
+        pin.as_deref(),
+        args.url.as_deref(),
+    );
+    // A failure to launch is still an error and propagates; an interrupt is not,
+    // because closing a browser with Ctrl-C is how a browsing session ordinarily
+    // ends. Distinguishing them is why `await_child` returns a `ChildOutcome`.
+    let outcome = proxied_run::await_child(spawn_browser(command)).await?;
+
+    // Drained *before* the live reporter is stopped, so the last transactions —
+    // the ones committed while the window was closing — are printed rather than
+    // only counted. Stopping it first would leave a summary that names findings
+    // the reader never saw scroll past.
+    let records = session.finish().await?;
+    if let Some(live) = live {
+        // Finishing the session drops the capture writer, which closes the feed
+        // the reporter is reading — so it drains what is buffered and returns on
+        // its own. Awaiting that is what actually gets the last lines out;
+        // aborting here would race the very transactions the summary counts.
+        // Bounded so a reporter that somehow cannot finish does not hold the
+        // command open.
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), live).await;
+    }
+    let exit = match outcome {
+        proxied_run::ChildOutcome::Exited(status) => status.code().unwrap_or(0),
+        proxied_run::ChildOutcome::Interrupted => 0,
+    };
+
+    // Counted before the replay consumes the records, because the summary has
+    // to divide like with like: a scoped violation count over an unscoped
+    // transaction count reads as "3 violation(s) in 480 transaction(s)" when
+    // 472 of those were never in the report's scope at all.
+    let in_scope_transactions = records
+        .iter()
+        .filter(|record| match record {
+            capture::CaptureRecord::HttpTransaction(tx) => scope.includes(&tx.request.uri),
+            capture::CaptureRecord::WebsocketSession(_) => false,
+        })
+        .count();
+
+    let report = lint_records(&cfg, records, args.min_severity.into())?;
+    let (findings, elsewhere) = scope.apply(report.findings);
+    let total: usize = findings.iter().map(|f| f.violations().len()).sum();
+
+    match args.format {
+        OutputFormat::Json => {
+            write_stdout(&render_lint_report(
+                &findings,
+                report.transaction_count,
+                report.websocket_count,
+                OutputFormat::Json,
+            )?)?;
+        }
+        OutputFormat::Text => {
+            // The blocks were printed live; only the tally is new.
+            let mut summary =
+                format!("\n{total} violation(s) in {in_scope_transactions} transaction(s)");
+            if report.websocket_count > 0 {
+                summary.push_str(&format!(
+                    " and {} websocket session(s)",
+                    report.websocket_count
+                ));
+            }
+            if elsewhere > 0 {
+                // Said rather than silently dropped: a reader has to be able to
+                // tell "clean" from "scoped away from the mess". The other
+                // transaction count goes with it, so both halves of the session
+                // are accounted for.
+                let others = report
+                    .transaction_count
+                    .saturating_sub(in_scope_transactions);
+                summary.push_str(&format!(
+                    "\n{elsewhere} more violation(s) in {others} transaction(s) on other hosts, not shown (--all-hosts)"
+                ));
+            }
+            summary.push('\n');
+            write_stderr(&summary)?;
+        }
+    }
+
+    Ok(u8::try_from(exit).unwrap_or(0))
+}
+
+/// Run the browser, mapping a failure to launch onto a message that names it.
+async fn spawn_browser(
+    mut command: tokio::process::Command,
+) -> anyhow::Result<std::process::ExitStatus> {
+    let program = command
+        .as_std()
+        .get_program()
+        .to_string_lossy()
+        .into_owned();
+    command
+        .status()
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to run `{program}`: {e}"))
+}
+
+/// Print findings as their transactions commit.
+///
+/// Reads the live capture feed rather than replaying: the proxy has already run
+/// the rules over each transaction by the time it writes one, so the findings
+/// are there to be printed and re-linting them would be work done twice to
+/// reach the same answer. The end-of-session report replays anyway, which is
+/// what makes the summary authoritative.
+async fn live_reporter(
+    mut events: tokio::sync::broadcast::Receiver<std::sync::Arc<capture::CaptureEnvelope>>,
+    scope: HostScope,
+    min_severity: lint::Severity,
+) {
+    loop {
+        let envelope = match events.recv().await {
+            Ok(envelope) => envelope,
+            // A session that outruns the channel loses lines here, never
+            // findings: the summary is replayed from the file at the end.
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                let _ = write_stderr(&format!("  ... {n} record(s) not shown live\n"));
+                continue;
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+        };
+
+        let gate = |violations: &[lint::Violation]| -> Vec<lint::Violation> {
+            violations
+                .iter()
+                .filter(|v| v.severity >= min_severity)
+                .cloned()
+                .collect()
+        };
+
+        // Both record kinds, because both reach the summary. A WebSocket
+        // session that was only counted and never printed would show up as a
+        // number with nothing behind it — it commits once, when the session
+        // ends, which is exactly when there is something to say about it.
+        let block = match &envelope.record {
+            capture::CaptureRecord::HttpTransaction(tx) => {
+                if !scope.includes(&tx.request.uri) {
+                    continue;
+                }
+                let violations = gate(&tx.violations);
+                if violations.is_empty() {
+                    continue;
+                }
+                FindingsBlock::HttpTransaction(TransactionFindings {
+                    method: tx.request.method.clone(),
+                    uri: tx.request.uri.clone(),
+                    status: tx.response.as_ref().map(|r| r.status),
+                    violations,
+                })
+            }
+            capture::CaptureRecord::WebsocketSession(session) => {
+                // Never scoped away: the record carries no target to compare,
+                // and `HostScope::apply` keeps it for the same reason.
+                let violations = gate(&session.violations);
+                if violations.is_empty() {
+                    continue;
+                }
+                FindingsBlock::WebsocketSession(WebsocketFindings {
+                    session_id: session.id,
+                    transaction_id: session.transaction_id,
+                    close_code: session.close_code,
+                    violations,
+                })
+            }
+        };
+        if let Ok(text) = render_findings_block(&block) {
+            let _ = write_stderr(&text);
+        }
+    }
+}
+
 /// Run the selected subcommand and return the process exit code (`0` success,
 /// `1` lint findings). Real errors propagate as `Err` (anyhow maps them to exit
 /// 1 with a message). Split from `main` so the dispatch is unit-testable without
@@ -695,6 +1087,7 @@ fn render_env_preview() -> String {
 async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
     match cli.command {
         Some(Command::Run(args)) => run_wrapped(args).await,
+        Some(Command::Browse(args)) => browse(args).await,
         Some(Command::ProxyStart(args)) => {
             run_app(args.config.as_deref()).await?;
             Ok(0)
@@ -1602,6 +1995,119 @@ enabled = true
         let cli = Cli::parse_from(["lint-http", "config", "export"]);
         assert_eq!(dispatch(cli).await?, 0);
         Ok(())
+    }
+
+    #[test]
+    fn uri_host_reads_the_shapes_a_capture_holds() {
+        assert_eq!(uri_host("https://example.com/a/b?c=1"), Some("example.com"));
+        assert_eq!(uri_host("http://example.com:8080/"), Some("example.com"));
+        // Authority-form, as a CONNECT target is recorded.
+        assert_eq!(uri_host("example.com:443"), Some("example.com"));
+        assert_eq!(
+            uri_host("https://user:pw@example.com/x"),
+            Some("example.com")
+        );
+        // The colons inside the brackets are the address, not a port.
+        assert_eq!(uri_host("https://[::1]:8080/x"), Some("::1"));
+        // Nothing to read: an origin-form target.
+        assert_eq!(uri_host("/just/a/path"), None);
+    }
+
+    #[test]
+    fn a_scope_covers_its_host_and_what_is_under_it() {
+        let scope = HostScope {
+            hosts: vec!["example.com".to_string()],
+        };
+        assert!(scope.includes("https://example.com/"));
+        assert!(scope.includes("https://www.example.com/"));
+        assert!(scope.includes("https://api.example.com/v1"));
+        assert!(scope.includes("https://EXAMPLE.COM/"));
+        // The dot is what stops it swallowing a different registration.
+        assert!(!scope.includes("https://notexample.com/"));
+        assert!(!scope.includes("https://cdn.other.net/"));
+    }
+
+    /// A target with no host widens the report rather than narrowing it: a
+    /// finding dropped for a reason the reader cannot see is worse than one
+    /// shown that they did not ask for.
+    #[test]
+    fn a_target_with_no_host_is_kept() {
+        let scope = HostScope {
+            hosts: vec!["example.com".to_string()],
+        };
+        assert!(scope.includes("/just/a/path"));
+    }
+
+    #[test]
+    fn an_empty_scope_is_every_host() {
+        assert!(HostScope::all().includes("https://anything.example/"));
+        assert!(HostScope::all().is_all());
+    }
+
+    /// The count is of findings, not transactions — it exists to answer "is the
+    /// default hiding something I want to see".
+    #[test]
+    fn apply_counts_the_findings_it_left_out() {
+        let mine = FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".into(),
+            uri: "https://example.com/".into(),
+            status: Some(200),
+            violations: vec![sample_violation()],
+        });
+        let theirs = FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".into(),
+            uri: "https://cdn.other.net/x.js".into(),
+            status: Some(200),
+            violations: vec![sample_violation(), sample_violation()],
+        });
+        let scope = HostScope {
+            hosts: vec!["example.com".to_string()],
+        };
+        let (kept, elsewhere) = scope.apply(vec![mine, theirs]);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(elsewhere, 2);
+    }
+
+    /// A WebSocket session is kept whatever the scope: it exists because an
+    /// upgrade was made deliberately, and its record carries no target anyway.
+    #[test]
+    fn a_websocket_session_survives_scoping() {
+        let ws = FindingsBlock::WebsocketSession(WebsocketFindings {
+            session_id: Uuid::new_v4(),
+            transaction_id: Uuid::new_v4(),
+            close_code: Some(1000),
+            violations: vec![sample_violation()],
+        });
+        let scope = HostScope {
+            hosts: vec!["example.com".to_string()],
+        };
+        let (kept, elsewhere) = scope.apply(vec![ws]);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(elsewhere, 0);
+    }
+
+    #[test]
+    fn cli_browse_defaults_scope_to_the_url_host() {
+        match Cli::parse_from(["lint-http", "browse", "https://example.com/app"]).command {
+            Some(Command::Browse(args)) => {
+                assert!(args.only_host.is_empty());
+                assert!(!args.all_hosts);
+                assert_eq!(args.url.as_deref(), Some("https://example.com/app"));
+            }
+            other => panic!("expected Browse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cli_browse_rejects_scoping_two_ways_at_once() {
+        assert!(Cli::try_parse_from([
+            "lint-http",
+            "browse",
+            "--all-hosts",
+            "--only-host",
+            "example.com",
+        ])
+        .is_err());
     }
 
     #[test]
