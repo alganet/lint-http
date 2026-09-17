@@ -177,6 +177,10 @@ impl RuleMeta for CookieLifecycle {
         DECLARED
     }
 
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_6265_5_3, RFC_6265_5_4, RFC_6265_5_1_3, RFC_6265_5_1_4]
     }

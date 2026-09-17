@@ -101,19 +101,19 @@ impl ConditionalRequestHandling {
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let Some(prev) = history.previous() else {
-            return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_MISSING, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()));
+            return Some(ctx.by_client().report_with(&CONDITIONAL_VALIDATOR_MISSING, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()));
         };
         let Some(resp) = &prev.response else {
-            return Some(ctx.report_with(
+            return Some(ctx.by_client().report_with(
                 &CONDITIONAL_VALIDATOR_MISSING,
                 "Conditional request sent but previous transaction has no response recorded".into(),
             ));
         };
         if sent.entity_tag() && !resp.headers.contains_key("etag") {
-            return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_MISSING, "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into()));
+            return Some(ctx.by_client().report_with(&CONDITIONAL_VALIDATOR_MISSING, "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into()));
         }
         if sent.date() && !resp.headers.contains_key("last-modified") {
-            return Some(ctx.report_with(&CONDITIONAL_VALIDATOR_MISSING, "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into()));
+            return Some(ctx.by_client().report_with(&CONDITIONAL_VALIDATOR_MISSING, "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into()));
         }
         None
     }
@@ -144,7 +144,7 @@ impl ConditionalRequestHandling {
                 .flat_map(crate::helpers::list::list_members)
                 .any(|member| member == etag || member == "*");
 
-        condition_was_false.then(|| ctx.report_with(&STATUS_304_MISSING, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 \u{a7}13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()))
+        condition_was_false.then(|| ctx.by_server().report_with(&STATUS_304_MISSING, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 \u{a7}13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()))
     }
 
     /// A GET or HEAD whose `If-Modified-Since` condition is false should be
@@ -171,7 +171,7 @@ impl ConditionalRequestHandling {
         let since = crate::http_date::header_timestamp(&tx.request.headers, "if-modified-since")?;
         let last_modified = crate::http_date::header_timestamp(&resp.headers, "last-modified")?;
 
-        (last_modified <= since).then(|| ctx.report_with(&STATUS_304_MISSING, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; RFC 9110 \u{a7}13.1.3 says such a response SHOULD be a 304 (Not Modified)".into()))
+        (last_modified <= since).then(|| ctx.by_server().report_with(&STATUS_304_MISSING, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; RFC 9110 \u{a7}13.1.3 says such a response SHOULD be a 304 (Not Modified)".into()))
     }
 }
 
@@ -202,6 +202,17 @@ impl RuleMeta for ConditionalRequestHandling {
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
         DECLARED
+    }
+
+    /// **Two questions of two peers, which is why no presumption fits.**
+    /// `validator_was_observed` reports a request built from a validator this
+    /// exchange never handed out — the client's precondition, and the
+    /// client's defect. The two `if_*_was_evaluated` checks report a `200`
+    /// where the precondition the client sent evaluated false, which §13.1.2
+    /// addresses to the origin server: there the request is the yardstick and
+    /// the status line is the evidence.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {

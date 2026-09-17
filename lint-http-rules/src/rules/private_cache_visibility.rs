@@ -52,6 +52,18 @@ impl RuleMeta for PrivateCacheVisibility {
         DECLARED
     }
 
+    /// **The forbidden storage is a cache's, and the peer that sent the
+    /// request is the one holding it.** §5.2.2.7 addresses a shared cache, and
+    /// a shared cache is not one of the three values here — but it does not
+    /// have to be. What this rule sees is a request presenting a validator
+    /// only another user was to hold, and the peer that wrote that request is
+    /// the client, whether it is a browser or the cache in front of one. The
+    /// `private` directive it disregarded is the yardstick, and the yardstick
+    /// is the server's.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
