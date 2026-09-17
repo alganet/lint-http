@@ -128,6 +128,18 @@ enum Side {
     Response,
 }
 
+impl Side {
+    /// Who wrote the section this side names. Sound here and not in general:
+    /// one field section has exactly one author, which is why the conversion is
+    /// written on this rule's own enum rather than as a `From` in core.
+    fn party(self) -> crate::lint::Party {
+        match self {
+            Side::Request => crate::lint::Party::Client,
+            Side::Response => crate::lint::Party::Server,
+        }
+    }
+}
+
 impl std::fmt::Display for Side {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
@@ -648,6 +660,14 @@ impl RuleMeta for DigestHeaderSyntax {
         DECLARED
     }
 
+    /// **Each entry in `FIELDS` already names the side its field belongs to**,
+    /// and a content or representation digest is written by the peer that
+    /// enclosed the content it covers — so the `Side` that selects the field
+    /// section is the same fork the answer takes.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -716,7 +736,10 @@ impl Rule for DigestHeaderSyntax {
                                 field.display, field.side, message, field.reference
                             )
                         });
-                        return Some(ctx.report_with(defect.def, defect.message));
+                        return Some(
+                            ctx.by(field.side.party())
+                                .report_with(defect.def, defect.message),
+                        );
                     }
 
                     // A well-formed obsolete field is still a finding: the field
@@ -724,7 +747,10 @@ impl Rule for DigestHeaderSyntax {
                     // is the field's, because the two were retired by two
                     // documents for two reasons.
                     if let Some(obsolete) = field.obsolete {
-                        return Some(ctx.report_with(obsolete.def, obsolete.message.into()));
+                        return Some(
+                            ctx.by(field.side.party())
+                                .report_with(obsolete.def, obsolete.message.into()),
+                        );
                     }
                 }
             }

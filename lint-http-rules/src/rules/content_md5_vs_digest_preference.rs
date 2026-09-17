@@ -61,6 +61,13 @@ impl RuleMeta for ContentMd5VsDigestPreference {
         DECLARED
     }
 
+    /// **Two integrity values on one message is the framing sender's doing**,
+    /// and either peer can enclose content — so the `which` this reader words
+    /// its finding with is the answer.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -97,7 +104,10 @@ impl Rule for ContentMd5VsDigestPreference {
             // what this sentence licenses — Content-Digest is defined for both
             // directions, so neither side is out of scope.
             // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
-            let check_map = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            let check_map = |which: &str,
+                             headers: &hyper::HeaderMap,
+                             party: crate::lint::Party|
+             -> Option<Violation> {
                 let has_new = headers.get_all("content-digest").iter().next().is_some();
                 let has_md5 = headers.get_all("content-md5").iter().next().is_some();
 
@@ -115,7 +125,7 @@ impl Rule for ContentMd5VsDigestPreference {
                 // than repeating the sibling's obsolescence report.
                 // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
                 if has_new && has_md5 {
-                    return Some(ctx.report_with(&CONTENT_MD5_REDUNDANT, format!(
+                    return Some(ctx.by(party).report_with(&CONTENT_MD5_REDUNDANT, format!(
                             "Both Content-Digest and Content-MD5 present in {}; they are independent integrity values that can disagree, and nothing specifies which a recipient validates. Content-MD5 was removed from HTTP by RFC 7231 — send only Content-Digest",
                             which
                         )));
@@ -124,13 +134,13 @@ impl Rule for ContentMd5VsDigestPreference {
             };
 
             // Check request
-            if let Some(v) = check_map("request", &tx.request.headers) {
+            if let Some(v) = check_map("request", &tx.request.headers, crate::lint::Party::Client) {
                 return Some(v);
             }
 
             // Check response
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_map("response", &resp.headers) {
+                if let Some(v) = check_map("response", &resp.headers, crate::lint::Party::Server) {
                     return Some(v);
                 }
             }

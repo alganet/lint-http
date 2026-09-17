@@ -37,6 +37,7 @@ impl StructuredHeadersValid {
         headers: &hyper::HeaderMap,
         hdr: &str,
         section: &str,
+        party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let mut lines: Vec<&str> = Vec::new();
@@ -52,6 +53,7 @@ impl StructuredHeadersValid {
                     &STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
                     hdr,
                     section,
+                    party,
                     "contains an octet outside US-ASCII",
                 ));
             };
@@ -61,7 +63,7 @@ impl StructuredHeadersValid {
             return None;
         }
         let msg = validate_structured_field(&lines.join(", "))?;
-        Some(self.parse_failure(ctx, &STRUCTURED_FIELD_MALFORMED, hdr, section, &msg))
+        Some(self.parse_failure(ctx, &STRUCTURED_FIELD_MALFORMED, hdr, section, party, &msg))
     }
 
     /// The finding, framed as what a recipient does about it.
@@ -82,9 +84,10 @@ impl StructuredHeadersValid {
         def: &'static ViolationDef,
         hdr: &str,
         section: &str,
+        party: crate::lint::Party,
         msg: &str,
     ) -> Violation {
-        ctx.report_with(
+        ctx.by(party).report_with(
             def,
             format!(
                 "The {} header '{}' fails Structured Fields parsing, so a recipient discards \
@@ -161,6 +164,13 @@ headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
         DECLARED
     }
 
+    /// **A configured field is parsed out of whichever half carried it**, and a
+    /// value that fails Structured Fields parsing was written by the peer that
+    /// wrote the section — the same `section` the reader words its findings with.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -225,9 +235,21 @@ impl Rule for StructuredHeadersValid {
             // sentence cited on `check_section` gathers the lines "in the same
             // section", so a request's field and a response's field of the same
             // name are two field values, not one.
-            out.extend(self.check_section(&tx.request.headers, hdr, "request", ctx));
+            out.extend(self.check_section(
+                &tx.request.headers,
+                hdr,
+                "request",
+                crate::lint::Party::Client,
+                ctx,
+            ));
             if let Some(resp) = &tx.response {
-                out.extend(self.check_section(&resp.headers, hdr, "response", ctx));
+                out.extend(self.check_section(
+                    &resp.headers,
+                    hdr,
+                    "response",
+                    crate::lint::Party::Server,
+                    ctx,
+                ));
             }
         }
         out

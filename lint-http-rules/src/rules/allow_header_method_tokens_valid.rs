@@ -57,6 +57,7 @@ impl AllowHeaderMethodTokensValid {
         &self,
         value: &str,
         section: &str,
+        party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The field's own production, in the form the collected grammar gives a
@@ -144,7 +145,7 @@ impl AllowHeaderMethodTokensValid {
                     (ch as u32) <= 0xFF,
                     "the value is one `char` per octet; a wider `char` would truncate into a different octet"
                 );
-                return Some(ctx.report_with(
+                return Some(ctx.by(party).report_with(
                     token_character(ch),
                     format!(
                         "Allow in the {} header section: member '{}' contains {}, which is not a `tchar`, so it derives from no `token` and therefore from no `method`",
@@ -162,7 +163,7 @@ impl AllowHeaderMethodTokensValid {
             // string the sender wrote: an `Allow:` line beside an `Allow: GET` line
             // combines to `GET,`, whose comma is the join's. An operator grepping a
             // capture for the quoted text would otherwise find nothing.
-            return Some(ctx.report_with(
+            return Some(ctx.by(party).report_with(
                 &LIST_MEMBER_EMPTY,
                 format!(
                     "Allow in the {} header section holds an empty list element; the section's field lines combine to '{}'. A resource that allows no methods says so with an empty field value; a comma with nothing beside it says nothing",
@@ -235,6 +236,15 @@ impl RuleMeta for AllowHeaderMethodTokensValid {
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
         DECLARED
+    }
+
+    /// **`Allow` names the methods a resource supports and is a response
+    /// field, but this rule reads it wherever it appears.** A request carrying
+    /// one is the client's malformed field and a response carrying one is the
+    /// origin's, which is the `section` the reader already words its findings
+    /// with.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -344,13 +354,17 @@ impl Rule for AllowHeaderMethodTokensValid {
             }
 
             if let Some(value) = &request {
-                if let Some(v) = self.check_field_section(value, "request", ctx) {
+                if let Some(v) =
+                    self.check_field_section(value, "request", crate::lint::Party::Client, ctx)
+                {
                     return Some(v);
                 }
             }
 
             if let Some(value) = &response {
-                if let Some(v) = self.check_field_section(value, "response", ctx) {
+                if let Some(v) =
+                    self.check_field_section(value, "response", crate::lint::Party::Server, ctx)
+                {
                     return Some(v);
                 }
             }

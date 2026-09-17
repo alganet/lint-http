@@ -96,6 +96,14 @@ allowed = ["Basic", "Bearer", "Digest"]
         DECLARED
     }
 
+    /// **One vocabulary, two fields, two writers.** The `auth-scheme` this
+    /// reads out of `WWW-Authenticate` is the challenge the origin issued, and
+    /// the one it reads out of `Authorization` is the credentials the client
+    /// presented.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -152,17 +160,18 @@ impl Rule for AuthSchemeRegistered {
             // An auth-scheme is a token; the tchar set is helper-owned.
             // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
             // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
-            let check_registered = |hdr_name: &str, scheme: &str| -> Option<Violation> {
-                if crate::helpers::token::find_invalid_token_char(scheme).is_some()
-                    || config.allowed.contains(&scheme.to_ascii_lowercase())
-                {
-                    return None;
-                }
-                Some(ctx.report_with(
-                    &AUTH_SCHEME_UNREGISTERED,
-                    format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
-                ))
-            };
+            let check_registered =
+                |hdr_name: &str, scheme: &str, party: crate::lint::Party| -> Option<Violation> {
+                    if crate::helpers::token::find_invalid_token_char(scheme).is_some()
+                        || config.allowed.contains(&scheme.to_ascii_lowercase())
+                    {
+                        return None;
+                    }
+                    Some(ctx.by(party).report_with(
+                        &AUTH_SCHEME_UNREGISTERED,
+                        format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
+                    ))
+                };
 
             // The challenges a response advertises. Read as octets and over the
             // section: `WWW-Authenticate = #challenge` makes the field lines one
@@ -179,7 +188,11 @@ impl Rule for AuthSchemeRegistered {
                         for challenge in challenges {
                             let scheme =
                                 challenge.split(char::is_whitespace).next().unwrap().trim();
-                            if let Some(v) = check_registered("WWW-Authenticate", scheme) {
+                            if let Some(v) = check_registered(
+                                "WWW-Authenticate",
+                                scheme,
+                                crate::lint::Party::Server,
+                            ) {
                                 return Some(v);
                             }
                         }
@@ -199,7 +212,9 @@ impl Rule for AuthSchemeRegistered {
                 if scheme.is_empty() {
                     continue;
                 }
-                if let Some(vv) = check_registered("Authorization", scheme) {
+                if let Some(vv) =
+                    check_registered("Authorization", scheme, crate::lint::Party::Client)
+                {
                     return Some(vv);
                 }
             }

@@ -408,6 +408,14 @@ impl RuleMeta for SecWebsocketExtensionsSyntax {
         DECLARED
     }
 
+    /// **The field is the client's offer in a request and the server's
+    /// selection in a response**, and the same production reads both. The party
+    /// travels with the judgement, since the one reporting site cannot tell
+    /// afterwards which call answered.
+    fn party(&self) -> crate::rules::RuleParty {
+        crate::rules::RuleParty::PerSite
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -465,12 +473,17 @@ impl Rule for SecWebsocketExtensionsSyntax {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            let defect = Self::defect(&tx.request.headers, "Request").or_else(|| {
-                let resp = tx.response.as_ref()?;
-                Self::defect(&resp.headers, "Response")
-            })?;
+            // The half that produced the judgement travels with it: the one
+            // reporting site below cannot tell afterwards which call answered.
+            let (party, defect) = Self::defect(&tx.request.headers, "Request")
+                .map(|defect| (crate::lint::Party::Client, defect))
+                .or_else(|| {
+                    let resp = tx.response.as_ref()?;
+                    Self::defect(&resp.headers, "Response")
+                        .map(|defect| (crate::lint::Party::Server, defect))
+                })?;
 
-            Some(ctx.report_with(defect.def, defect.message))
+            Some(ctx.by(party).report_with(defect.def, defect.message))
         };
         Vec::from_iter(finding())
     }
