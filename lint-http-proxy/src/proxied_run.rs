@@ -85,133 +85,264 @@ pub struct WrappedRun {
     pub captures_path: Option<PathBuf>,
 }
 
-/// Run `program` with `args` against a private proxy, and return what crossed
-/// it.
+/// A proxy that exists for the length of one child process.
 ///
-/// `cfg` supplies the rule table and transport policy; the listen address, the
-/// captures path and the CA paths in it are overridden, because all three are
-/// this function's to choose. `keep_captures` names a file to write them to
-/// instead of the temporary one — the only thing a run can leave behind, and
-/// only when asked.
-pub async fn run_proxied(
-    mut cfg: Config,
-    program: &str,
-    args: &[String],
-    keep_captures: Option<&Path>,
-) -> anyhow::Result<WrappedRun> {
-    let dir = RunDir::new()?;
+/// Split out of [`run_proxied`] because `browse` needs the same three things —
+/// an ephemeral port, a throwaway CA, and captures scoped to this session — and
+/// differs only in how it starts the child and how it tells that child where
+/// the proxy is. A command is told through the environment; a browser is told
+/// through its command line. Everything before and after that is here.
+pub struct ProxySession {
+    /// Removed when the session drops, with the CA inside it.
+    dir: RunDir,
+    /// Where the proxy is listening.
+    pub addr: SocketAddr,
+    /// The CA certificate the proxy signs with, once it has written one.
+    /// `None` when TLS interception is off.
+    pub ca_cert: Option<PathBuf>,
+    /// The CA and the platform roots together, for a child that trusts through
+    /// a file. `None` for the same reason as `ca_cert`.
+    pub trust_bundle: Option<PathBuf>,
+    captures_path: PathBuf,
+    carried_over: usize,
+    shutdown: CancellationToken,
+    proxy_task: tokio::task::JoinHandle<anyhow::Result<()>>,
+    events: tokio::sync::broadcast::Sender<Arc<crate::capture::CaptureEnvelope>>,
+    /// The CA's private key, kept so the pin can be read without re-deriving
+    /// the path — and without the chance of naming a file that is not there.
+    ca_key: Option<PathBuf>,
+}
 
-    // Port zero, and the address is read back rather than assumed: the whole
-    // point is not to collide with whatever else the developer is running, and
-    // a fixed port would be a fixed way to fail on a busy machine.
-    let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
-    let addr: SocketAddr = listener.local_addr()?;
+impl ProxySession {
+    /// Bind a proxy, generate a CA, and wait until both are ready to be used.
+    ///
+    /// `cfg` supplies the rule table and transport policy; the listen address,
+    /// the captures path and the CA paths in it are overridden, because all
+    /// three are this session's to choose. `keep_captures` names a file to
+    /// write to instead of the temporary one — the only thing a session can
+    /// leave behind, and only when asked.
+    pub async fn start(mut cfg: Config, keep_captures: Option<&Path>) -> anyhow::Result<Self> {
+        let dir = RunDir::new()?;
 
-    let captures_path = match keep_captures {
-        Some(path) => path.to_path_buf(),
-        None => dir.join("captures.jsonl"),
-    };
+        // Port zero, and the address is read back rather than assumed: the
+        // whole point is not to collide with whatever else the developer is
+        // running, and a fixed port would be a fixed way to fail on a busy
+        // machine.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let addr: SocketAddr = listener.local_addr()?;
 
-    cfg.general.listen = addr.to_string();
-    cfg.general.captures = captures_path.display().to_string();
-    // A per-run CA in the temp directory. Overridden even when the config names
-    // paths: a config's `ca.crt` is the long-lived CA a `proxy-start` session
-    // wants, and reusing it here would persist exactly what this command exists
-    // not to persist.
-    let ca_cert = dir.join("ca.crt");
-    let ca_key = dir.join("ca.key");
-    // What the child is pointed at is not the CA but a bundle containing it —
-    // see `write_trust_bundle`.
-    let trust_bundle = dir.join("trust-bundle.crt");
-    cfg.tls.ca_cert_path = Some(ca_cert.display().to_string());
-    cfg.tls.ca_key_path = Some(ca_key.display().to_string());
+        let captures_path = match keep_captures {
+            Some(path) => path.to_path_buf(),
+            None => dir.join("captures.jsonl"),
+        };
 
-    // HTTP/3 listening is a long-running proxy's feature and needs a second
-    // bound socket; a wrapped run has one child and one moment, so it is off
-    // regardless of what the config says. Upstream H3 is untouched — that is
-    // the origin-facing leg and costs the child nothing.
-    cfg.general.h3_listen = None;
+        cfg.general.listen = addr.to_string();
+        cfg.general.captures = captures_path.display().to_string();
+        // A per-session CA in the temp directory. Overridden even when the
+        // config names paths: a config's `ca.crt` is the long-lived CA a
+        // `proxy-start` session wants, and reusing it here would persist
+        // exactly what these commands exist not to persist.
+        let ca_cert = dir.join("ca.crt");
+        let ca_key = dir.join("ca.key");
+        // What a file-trusting child is pointed at is not the CA but a bundle
+        // containing it — see `write_trust_bundle`.
+        let bundle = dir.join("trust-bundle.crt");
+        cfg.tls.ca_cert_path = Some(ca_cert.display().to_string());
+        cfg.tls.ca_key_path = Some(ca_key.display().to_string());
 
-    let tls_enabled = cfg.tls.enabled;
-    if !tls_enabled {
-        warn!(
-            "TLS interception is disabled in this configuration: HTTPS will be tunnelled unlinted"
-        );
+        // HTTP/3 listening is a long-running proxy's feature and needs a second
+        // bound socket; a session has one child and one moment, so it is off
+        // regardless of what the config says. Upstream H3 is untouched — that
+        // is the origin-facing leg and costs the child nothing.
+        cfg.general.h3_listen = None;
+
+        let tls_enabled = cfg.tls.enabled;
+        if !tls_enabled {
+            warn!("TLS interception is disabled in this configuration: HTTPS will be tunnelled unlinted");
+        }
+
+        // The capture file is opened for append, so a `--captures` path reused
+        // across sessions already holds earlier ones' records. Count them now
+        // and skip exactly that many afterwards, or every session reports the
+        // whole history and a `--fail-on` gate trips on traffic that already
+        // passed.
+        let carried_over = capture::load_capture_records(&captures_path)
+            .await
+            .map(|existing| existing.len())
+            .unwrap_or(0);
+
+        let cfg = Arc::new(cfg);
+        let writer = CaptureWriter::new(
+            cfg.general.captures.clone(),
+            cfg.general.captures_include_body,
+        )
+        .await?;
+        // Taken before the writer is handed to the proxy, which is the only
+        // moment it can be: after this it belongs to the accept loop. A sender
+        // rather than a receiver, so a session nobody subscribes to does not
+        // switch the tee on or hold the backlog — see `CaptureWriter::events`.
+        let events = writer.events();
+
+        let shutdown = CancellationToken::new();
+        let proxy_task = tokio::spawn({
+            let cfg = Arc::clone(&cfg);
+            let shutdown = shutdown.clone();
+            async move { proxy::run_proxy_with_shutdown(listener, writer, cfg, shutdown).await }
+        });
+
+        // The CA has to be complete before a child is told to trust it. It is
+        // written during proxy startup, so the child cannot start until it
+        // appears — a child that reads its trust at startup and finds nothing
+        // there verifies nothing at all, which reads as a broken proxy rather
+        // than a race.
+        let (ca_cert, ca_key, trust_bundle) = if tls_enabled {
+            match wait_for_trust_bundle(&ca_cert, &ca_key, &bundle).await {
+                Some(bundle) => (Some(ca_cert), Some(ca_key), Some(bundle)),
+                None => (None, None, None),
+            }
+        } else {
+            (None, None, None)
+        };
+
+        Ok(Self {
+            dir,
+            addr,
+            ca_cert,
+            trust_bundle,
+            captures_path,
+            carried_over,
+            shutdown,
+            proxy_task,
+            events,
+            ca_key,
+        })
     }
 
-    // The capture file is opened for append, so a `--captures` path reused
-    // across runs already holds earlier runs' records. Count them now and skip
-    // exactly that many afterwards, or every run reports the whole history and
-    // a `--fail-on` gate trips on traffic from a run that already passed.
-    let carried_over = capture::load_capture_records(&captures_path)
-        .await
-        .map(|existing| existing.len())
-        .unwrap_or(0);
+    /// A directory private to this session, for a child that needs scratch
+    /// space of its own — a browser profile, say.
+    pub fn scratch(&self, name: &str) -> PathBuf {
+        self.dir.join(name)
+    }
 
-    let cfg = Arc::new(cfg);
-    let writer = CaptureWriter::new(
-        cfg.general.captures.clone(),
-        cfg.general.captures_include_body,
-    )
-    .await?;
+    /// A fresh reader of capture records as they commit, for a session long
+    /// enough that waiting for the end to say anything would be unhelpful.
+    pub fn subscribe(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<Arc<crate::capture::CaptureEnvelope>> {
+        self.events.subscribe()
+    }
 
-    let shutdown = CancellationToken::new();
-    let proxy_task = tokio::spawn({
-        let cfg = Arc::clone(&cfg);
-        let shutdown = shutdown.clone();
-        async move { proxy::run_proxy_with_shutdown(listener, writer, cfg, shutdown).await }
-    });
+    /// The CA's Chromium public-key pin, when there is a CA.
+    ///
+    /// Loads the CA back from the files the proxy wrote rather than reaching
+    /// into the running proxy for it — with `load`, which fails on a missing
+    /// file, and never `load_or_generate`, which would answer one by minting a
+    /// second authority *over* the one the proxy is already signing with. The
+    /// pin would then match nothing the browser is shown and every page would
+    /// fail with an authority error.
+    ///
+    /// Both paths come from the session, which only holds them once the CA was
+    /// observed complete.
+    pub async fn spki_pin(&self) -> anyhow::Result<Option<String>> {
+        let (Some(cert), Some(key)) = (self.ca_cert.as_deref(), self.ca_key.as_deref()) else {
+            return Ok(None);
+        };
+        let ca = crate::ca::CertificateAuthority::load(cert, key).await?;
+        Ok(Some(ca.spki_pin()?))
+    }
 
-    // The CA file has to exist before the child is told to trust it. It is
-    // written during proxy startup, so the child cannot be spawned until it
-    // appears — a child that reads `SSL_CERT_FILE` at startup and finds nothing
-    // there fails to verify anything, which reads as a broken proxy rather than
-    // a race.
-    let ca_for_child = if tls_enabled {
-        wait_for_trust_bundle(&ca_cert, &trust_bundle).await
-    } else {
-        None
-    };
+    /// Stop the proxy, drain it, and return what crossed during this session.
+    ///
+    /// Awaiting the proxy is what makes the captures complete rather than
+    /// nearly complete: the shutdown sequence stops accepting, drains handlers
+    /// and flushes the writer, and the records are read from that file.
+    pub async fn finish(self) -> anyhow::Result<Vec<CaptureRecord>> {
+        self.shutdown.cancel();
+        match self.proxy_task.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => warn!(error = %e, "proxy ended with an error"),
+            Err(e) => warn!(error = %e, "proxy task did not join cleanly"),
+        }
 
-    // Ctrl-C reaches the child through the terminal's process group, and it
-    // reaches this process too — where, without this, it would end the run by
-    // killing it, and `RunDir`'s cleanup would never run. That would leave
-    // `ca.key` behind permanently, which is the one thing this command promises
-    // not to do. Racing the signal against the child lets the ordinary path
-    // finish: cancel the proxy, drop the directory, report what there was.
-    let status = tokio::select! {
-        status = spawn_child(program, args, addr, ca_for_child.as_deref()) => status,
+        let mut records = capture::load_capture_records(&self.captures_path).await?;
+        // Only what this session produced. `drain` rather than a slice so the
+        // records stay owned, and `min` because a file that shrank under us (a
+        // truncation between the two reads) must not panic.
+        let skip = self.carried_over.min(records.len());
+        records.drain(..skip);
+        Ok(records)
+    }
+}
+
+/// How a child's run ended.
+///
+/// A type rather than an `Err` carrying the word "interrupted", because the two
+/// callers disagree about what an interrupt means and string-matching an error
+/// message to tell them apart is not a decision anyone should have to re-derive.
+/// For `run` an interrupt means the wrapped command did not get to finish; for
+/// `browse` it is how a browsing session ordinarily ends.
+#[derive(Debug)]
+pub enum ChildOutcome {
+    /// The child exited on its own.
+    Exited(std::process::ExitStatus),
+    /// Ctrl-C ended the wait.
+    Interrupted,
+}
+
+/// Await a child, letting Ctrl-C end the wait rather than the process.
+///
+/// Ctrl-C reaches the child through the terminal's process group, and it
+/// reaches this process too — where, without this, it would end the session by
+/// killing it, and the session directory's cleanup would never run. That would
+/// leave `ca.key` behind permanently, which is the one thing these commands promise
+/// not to do. Racing the signal against the child lets the ordinary path
+/// finish: stop the proxy, drop the directory, report what there was.
+pub async fn await_child(
+    child: impl std::future::Future<Output = anyhow::Result<std::process::ExitStatus>>,
+) -> anyhow::Result<ChildOutcome> {
+    tokio::select! {
+        // A child that could not be started is still an error: the caller asked
+        // for something to run and nothing did.
+        status = child => status.map(ChildOutcome::Exited),
         _ = tokio::signal::ctrl_c() => {
             // The child received the same signal from the terminal; give it a
             // moment to end on its own before tearing the proxy down under it.
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            Err(anyhow::anyhow!("interrupted"))
+            Ok(ChildOutcome::Interrupted)
         }
-    };
-
-    // The child is gone; stop accepting and let the shutdown sequence drain
-    // handlers and flush the captures. The report is read from that file, so
-    // awaiting this is what makes it complete rather than nearly complete.
-    shutdown.cancel();
-    match proxy_task.await {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => warn!(error = %e, "proxy ended with an error"),
-        Err(e) => warn!(error = %e, "proxy task did not join cleanly"),
     }
+}
 
+/// Run `program` with `args` against a private proxy, and return what crossed
+/// it.
+pub async fn run_proxied(
+    cfg: Config,
+    program: &str,
+    args: &[String],
+    keep_captures: Option<&Path>,
+) -> anyhow::Result<WrappedRun> {
+    let session = ProxySession::start(cfg, keep_captures).await?;
+    let status = await_child(spawn_child(
+        program,
+        args,
+        session.addr,
+        session.trust_bundle.clone(),
+    ))
+    .await;
+
+    let records = session.finish().await?;
     // The child's own failure is reported after the proxy is down, so a command
     // that could not start still leaves a tidy machine behind.
-    let status = status?;
-
-    let mut records = capture::load_capture_records(&captures_path).await?;
-    // Only what this run produced. `drain` rather than a slice so the records
-    // stay owned, and `min` because a file that shrank under us (a truncation
-    // between the two reads) must not panic the run.
-    let skip = carried_over.min(records.len());
-    records.drain(..skip);
+    let exit_code = match status? {
+        ChildOutcome::Exited(status) => status.code(),
+        // `run` puts a wrapper in front of a command someone meant to complete,
+        // so an interrupt is a run that did not happen rather than one that
+        // finished quietly.
+        ChildOutcome::Interrupted => anyhow::bail!("interrupted"),
+    };
 
     Ok(WrappedRun {
-        exit_code: status.code(),
+        exit_code,
         records,
         captures_path: keep_captures.map(|p| p.to_path_buf()),
     })
@@ -226,11 +357,11 @@ async fn spawn_child(
     program: &str,
     args: &[String],
     addr: SocketAddr,
-    ca_path: Option<&Path>,
+    ca_path: Option<PathBuf>,
 ) -> anyhow::Result<std::process::ExitStatus> {
     let mut command = tokio::process::Command::new(program);
     command.args(args);
-    for (name, value) in client_env::client_env(addr, ca_path) {
+    for (name, value) in client_env::client_env(addr, ca_path.as_deref()) {
         command.env(name, value);
     }
     let status = command.status().await.map_err(|e| {
@@ -250,8 +381,12 @@ async fn spawn_child(
 /// Generating a P-256 CA takes microseconds; the bound is for the case where
 /// startup failed altogether, and in that case the run is about to report
 /// nothing anyway.
-async fn wait_for_trust_bundle(ca_path: &Path, bundle_path: &Path) -> Option<PathBuf> {
-    let ca_pem = wait_for_ca_pem(ca_path).await?;
+async fn wait_for_trust_bundle(
+    ca_path: &Path,
+    key_path: &Path,
+    bundle_path: &Path,
+) -> Option<PathBuf> {
+    let ca_pem = wait_for_ca_pem(ca_path, key_path).await?;
     match write_trust_bundle(bundle_path, &ca_pem) {
         Ok(()) => Some(bundle_path.to_path_buf()),
         Err(e) => {
@@ -268,11 +403,15 @@ async fn wait_for_trust_bundle(ca_path: &Path, bundle_path: &Path) -> Option<Pat
 /// or half a PEM block. The end marker is the cheap proof that the whole thing
 /// landed — a child handed a truncated bundle fails to verify anything, which
 /// reads as a broken proxy rather than as a race.
-async fn wait_for_ca_pem(path: &Path) -> Option<String> {
+async fn wait_for_ca_pem(path: &Path, key_path: &Path) -> Option<String> {
     const END: &str = "-----END CERTIFICATE-----";
     for _ in 0..100 {
         if let Ok(pem) = tokio::fs::read_to_string(path).await {
-            if pem.contains(END) {
+            // The key is written *after* the certificate, so a poll that sees
+            // only the certificate has caught the CA half-created. Waiting for
+            // both is what makes "the session has a CA" mean the whole of one.
+            let key_there = tokio::fs::try_exists(key_path).await.unwrap_or(false);
+            if pem.contains(END) && key_there {
                 return Some(pem);
             }
         }
@@ -468,6 +607,46 @@ mod tests {
             count > 1,
             "the child's bundle held {count} certificate(s) — the platform roots are missing"
         );
+        Ok(())
+    }
+
+    /// Reading the pin must not disturb the CA the proxy is signing with.
+    ///
+    /// `load_or_generate` answers a missing file by minting a new authority, so
+    /// reading the pin through it could replace the key mid-session and hand a
+    /// browser a pin matching nothing it is shown. The certificate on disk is
+    /// the witness: same bytes before and after, and the same pin twice.
+    #[tokio::test]
+    async fn reading_the_pin_leaves_the_ca_alone() -> anyhow::Result<()> {
+        let session = ProxySession::start(builtin(), None).await?;
+        let cert = session.ca_cert.clone().expect("session has a CA");
+
+        let before = std::fs::read(&cert)?;
+        let first = session.spki_pin().await?.expect("a CA means a pin");
+        let second = session.spki_pin().await?.expect("a CA means a pin");
+        let after = std::fs::read(&cert)?;
+
+        assert_eq!(first, second, "the pin changed between reads");
+        assert_eq!(before, after, "reading the pin rewrote the CA");
+        session.finish().await?;
+        Ok(())
+    }
+
+    /// A session nobody subscribes to must not behave like one that does: the
+    /// writer skips its tee when `receiver_count()` is zero, and a stored
+    /// receiver would switch it on for every `run` and pin the backlog.
+    #[tokio::test]
+    async fn a_session_is_not_a_subscriber_until_someone_subscribes() -> anyhow::Result<()> {
+        let session = ProxySession::start(builtin(), None).await?;
+        assert_eq!(
+            session.events.receiver_count(),
+            0,
+            "the session subscribed itself"
+        );
+        let rx = session.subscribe();
+        assert_eq!(session.events.receiver_count(), 1);
+        drop(rx);
+        session.finish().await?;
         Ok(())
     }
 
