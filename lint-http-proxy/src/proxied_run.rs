@@ -104,7 +104,11 @@ pub struct ProxySession {
     /// a file. `None` for the same reason as `ca_cert`.
     pub trust_bundle: Option<PathBuf>,
     captures_path: PathBuf,
-    carried_over: usize,
+    /// Byte length of the capture file when this session started — the cheap
+    /// half of "which records are mine".
+    carried_over: u64,
+    /// The exact half: stamped onto every record this session writes.
+    session_id: uuid::Uuid,
     shutdown: CancellationToken,
     proxy_task: tokio::task::JoinHandle<anyhow::Result<()>>,
     events: tokio::sync::broadcast::Sender<Arc<crate::capture::CaptureEnvelope>>,
@@ -162,19 +166,32 @@ impl ProxySession {
         }
 
         // The capture file is opened for append, so a `--captures` path reused
-        // across sessions already holds earlier ones' records. Count them now
-        // and skip exactly that many afterwards, or every session reports the
-        // whole history and a `--fail-on` gate trips on traffic that already
-        // passed.
-        let carried_over = capture::load_capture_records(&captures_path)
+        // across sessions already holds earlier ones' records — and this session
+        // must report only its own, or a `--fail-on` gate trips on traffic that
+        // already passed its own gate.
+        //
+        // A byte offset rather than a record count. A count is only correct if
+        // nothing else appends while this session runs, and two sessions sharing
+        // one path is not exotic — parallel CI jobs, or a Makefile that wraps a
+        // command which wraps another. Both would count the file before either
+        // wrote, then each read the whole file at the end and claim the other's
+        // transactions. An offset taken here is this session's own starting
+        // point whatever anyone else does, and records written past it by
+        // another session are the only residue, rather than every record either
+        // wrote. It is also O(1) where the count parsed the entire history.
+        let carried_over = tokio::fs::metadata(&captures_path)
             .await
-            .map(|existing| existing.len())
+            .map(|meta| meta.len())
             .unwrap_or(0);
 
         let cfg = Arc::new(cfg);
-        let writer = CaptureWriter::new(
+        // Every record this session writes carries this, so a `--captures` path
+        // shared with a concurrent session still yields a report about this one.
+        let session_id = uuid::Uuid::new_v4();
+        let writer = CaptureWriter::for_session(
             cfg.general.captures.clone(),
             cfg.general.captures_include_body,
+            Some(session_id),
         )
         .await?;
         // Taken before the writer is handed to the proxy, which is the only
@@ -195,9 +212,24 @@ impl ProxySession {
         // appears — a child that reads its trust at startup and finds nothing
         // there verifies nothing at all, which reads as a broken proxy rather
         // than a race.
+        // The CA and the bundle are two answers, not one. `browse` needs only
+        // the CA (it trusts by pin); `run` needs only the bundle. Collapsing a
+        // bundle failure into "there is no CA" turned a `run`-only problem into
+        // a `browse`-only one: the pin vanished, Chromium launched without it,
+        // and every page failed to verify while the warning said traffic was
+        // being tunnelled unlinted — the opposite of what was happening.
         let (ca_cert, ca_key, trust_bundle) = if tls_enabled {
-            match wait_for_trust_bundle(&ca_cert, &ca_key, &bundle).await {
-                Some(bundle) => (Some(ca_cert), Some(ca_key), Some(bundle)),
+            match wait_for_ca(&ca_cert, &ca_key).await {
+                Some(ca_pem) => {
+                    let trust_bundle = match write_trust_bundle(&bundle, &ca_pem) {
+                        Ok(()) => Some(bundle),
+                        Err(e) => {
+                            warn!(error = %e, "could not build the trust bundle; a wrapped command will not trust intercepted TLS");
+                            None
+                        }
+                    };
+                    (Some(ca_cert), Some(ca_key), trust_bundle)
+                }
                 None => (None, None, None),
             }
         } else {
@@ -215,6 +247,7 @@ impl ProxySession {
             proxy_task,
             events,
             ca_key,
+            session_id,
         })
     }
 
@@ -264,13 +297,14 @@ impl ProxySession {
             Err(e) => warn!(error = %e, "proxy task did not join cleanly"),
         }
 
-        let mut records = capture::load_capture_records(&self.captures_path).await?;
-        // Only what this session produced. `drain` rather than a slice so the
-        // records stay owned, and `min` because a file that shrank under us (a
-        // truncation between the two reads) must not panic.
-        let skip = self.carried_over.min(records.len());
-        records.drain(..skip);
-        Ok(records)
+        // Only what this session wrote: past the offset it started at, and
+        // stamped with its own id.
+        capture::load_session_records(
+            &self.captures_path,
+            self.carried_over,
+            Some(self.session_id),
+        )
+        .await
     }
 }
 
@@ -371,6 +405,10 @@ async fn spawn_child(
 ) -> anyhow::Result<std::process::ExitStatus> {
     let mut command = tokio::process::Command::new(program);
     command.args(args);
+    // Dropping a `status()` future detaches the child by default. This session
+    // owns the files that child is reading, so a detached one outlives its own
+    // trust bundle — see `await_child`.
+    command.kill_on_drop(true);
     if !show_stderr {
         command.stderr(std::process::Stdio::null());
     }
@@ -386,52 +424,42 @@ async fn spawn_child(
     Ok(status)
 }
 
-/// Wait for the proxy to write its CA, then hand back a bundle the child can
-/// trust *without losing the trust it already had*.
+/// Wait until the CA is completely written, and return its certificate PEM.
 ///
-/// Returns `None` if the CA never appears, which downgrades the run to
-/// routing-only rather than pointing the child at a file that is not there.
+/// Returns `None` if it never arrives, which downgrades the session to
+/// routing-only rather than pointing anything at a file that is not there.
 /// Generating a P-256 CA takes microseconds; the bound is for the case where
-/// startup failed altogether, and in that case the run is about to report
-/// nothing anyway.
-async fn wait_for_trust_bundle(
-    ca_path: &Path,
-    key_path: &Path,
-    bundle_path: &Path,
-) -> Option<PathBuf> {
-    let ca_pem = wait_for_ca_pem(ca_path, key_path).await?;
-    match write_trust_bundle(bundle_path, &ca_pem) {
-        Ok(()) => Some(bundle_path.to_path_buf()),
-        Err(e) => {
-            warn!(error = %e, "could not build the trust bundle; the child will not trust intercepted TLS");
-            None
-        }
-    }
-}
-
-/// Read the CA once it is completely written.
+/// startup failed altogether, and then the session is about to report nothing
+/// anyway.
 ///
-/// Existence is not enough. `ca.rs` writes the certificate with `fs::write`,
-/// which truncates before it writes, so a file can be observed at zero length
-/// or half a PEM block. The end marker is the cheap proof that the whole thing
-/// landed — a child handed a truncated bundle fails to verify anything, which
-/// reads as a broken proxy rather than as a race.
-async fn wait_for_ca_pem(path: &Path, key_path: &Path) -> Option<String> {
-    const END: &str = "-----END CERTIFICATE-----";
+/// **Both halves are checked for completeness, not existence.** `ca.rs` writes
+/// each with a create-then-write pair, so either can be observed at zero length
+/// or mid-PEM. The certificate was already checked for its end marker; the key
+/// was only checked for existing, and the window between its `create` and its
+/// `write_all` was enough to hand `browse` an empty key — which is not a
+/// degraded run but a hard abort in `KeyPair::from_pem`, before a browser opens.
+async fn wait_for_ca(cert_path: &Path, key_path: &Path) -> Option<String> {
     for _ in 0..100 {
-        if let Ok(pem) = tokio::fs::read_to_string(path).await {
-            // The key is written *after* the certificate, so a poll that sees
-            // only the certificate has caught the CA half-created. Waiting for
-            // both is what makes "the session has a CA" mean the whole of one.
-            let key_there = tokio::fs::try_exists(key_path).await.unwrap_or(false);
-            if pem.contains(END) && key_there {
+        if let Some(pem) = read_complete_pem(cert_path, "-----END CERTIFICATE-----").await {
+            // The key is written after the certificate, so seeing a whole one
+            // of each is what makes "the session has a CA" mean the whole of one.
+            if read_complete_pem(key_path, "-----END ").await.is_some() {
                 return Some(pem);
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     }
-    warn!(path = %path.display(), "CA certificate never appeared; the child will not trust intercepted TLS");
+    warn!(
+        path = %cert_path.display(),
+        "CA never appeared; intercepted TLS will not be trusted"
+    );
     None
+}
+
+/// Read a PEM file only once its closing marker is on disk.
+async fn read_complete_pem(path: &Path, end_marker: &str) -> Option<String> {
+    let pem = tokio::fs::read_to_string(path).await.ok()?;
+    pem.contains(end_marker).then_some(pem)
 }
 
 /// Write the per-run CA followed by every platform root certificate.
@@ -577,6 +605,7 @@ mod tests {
                 "{}\n",
                 serde_json::to_string(&crate::capture::CaptureEnvelope {
                     schema_version: crate::capture::CAPTURE_SCHEMA_VERSION,
+                    session: None,
                     record: crate::capture::CaptureRecord::HttpTransaction(Box::new(
                         lint_http_core::test_helpers::make_test_transaction_with_response(200, &[])
                     )),
@@ -590,6 +619,43 @@ mod tests {
             run.records.is_empty(),
             "the seeded record was re-reported as this run's: {} record(s)",
             run.records.len()
+        );
+        Ok(())
+    }
+
+    /// Two sessions sharing one `--captures` path must each report only their
+    /// own traffic. They start before either writes, so both take the same byte
+    /// offset — position cannot separate them and only the session stamp can.
+    #[tokio::test]
+    async fn concurrent_sessions_on_one_capture_file_do_not_claim_each_other() -> anyhow::Result<()>
+    {
+        let caps =
+            std::env::temp_dir().join(format!("lint-http-shared-{}.jsonl", uuid::Uuid::new_v4()));
+
+        // Both sessions start against the same (absent) file, then one of them
+        // writes a record. The other must not report it.
+        let a = ProxySession::start(builtin(), Some(&caps)).await?;
+        let b = ProxySession::start(builtin(), Some(&caps)).await?;
+
+        let record = crate::capture::CaptureRecord::HttpTransaction(Box::new(
+            lint_http_core::test_helpers::make_test_transaction_with_response(200, &[]),
+        ));
+        // Written through `a`'s own writer path: stamp it as `a` would.
+        let line = serde_json::to_string(&crate::capture::CaptureEnvelope::for_session(
+            record,
+            Some(a.session_id),
+        ))?;
+        std::fs::write(&caps, format!("{line}\n"))?;
+
+        let a_records = a.finish().await?;
+        let b_records = b.finish().await?;
+        let _ = std::fs::remove_file(&caps);
+
+        assert_eq!(a_records.len(), 1, "a lost its own record");
+        assert!(
+            b_records.is_empty(),
+            "b claimed {} of a's record(s)",
+            b_records.len()
         );
         Ok(())
     }

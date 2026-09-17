@@ -36,15 +36,40 @@ pub enum CaptureRecord {
 pub struct CaptureEnvelope {
     #[serde(default)]
     pub schema_version: u32,
+    /// Which writing session produced this record.
+    ///
+    /// A capture file is opened for append, so one path can hold the output of
+    /// many sessions — and a session that shares its path with a *concurrent*
+    /// one cannot tell its own records apart by position: both start before
+    /// either writes, so an offset or a count taken at the start says the same
+    /// thing to both, and each ends up reporting the other's traffic. A gate
+    /// then fails on findings from a run that already passed its own.
+    ///
+    /// Absent for a record written by a `proxy-start` session, which has no
+    /// report to scope, and for every record written before this field existed
+    /// — serde-defaulted both ways, so an older capture reads back unchanged
+    /// and a record with no session serializes exactly as it always has.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<uuid::Uuid>,
     #[serde(flatten)]
     pub record: CaptureRecord,
 }
 
 impl CaptureEnvelope {
-    /// Wrap a record with the current schema version.
+    /// Wrap a record with the current schema version, unattributed.
     pub fn new(record: CaptureRecord) -> Self {
         Self {
             schema_version: CAPTURE_SCHEMA_VERSION,
+            session: None,
+            record,
+        }
+    }
+
+    /// Wrap a record and say which session wrote it.
+    pub fn for_session(record: CaptureRecord, session: Option<uuid::Uuid>) -> Self {
+        Self {
+            schema_version: CAPTURE_SCHEMA_VERSION,
+            session,
             record,
         }
     }
@@ -93,6 +118,9 @@ pub struct CaptureWriter {
     /// `/_lint_http/stream` SSE endpoint) get an `Arc` so one clone serves all
     /// of them; the durable file write is never gated on this channel.
     events: broadcast::Sender<Arc<CaptureEnvelope>>,
+    /// Stamped onto every record this writer queues; see
+    /// [`CaptureEnvelope::session`].
+    session: Option<uuid::Uuid>,
     /// Shared so any clone can join the task on shutdown: the first caller
     /// takes the handle, later callers find `None` and no-op.
     join: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -100,6 +128,16 @@ pub struct CaptureWriter {
 
 impl CaptureWriter {
     pub async fn new<P: Into<PathBuf>>(path: P, include_body: bool) -> anyhow::Result<Self> {
+        Self::for_session(path, include_body, None).await
+    }
+
+    /// A writer whose records carry a session id, so a reader sharing the file
+    /// with another writer can pick out the ones this session produced.
+    pub async fn for_session<P: Into<PathBuf>>(
+        path: P,
+        include_body: bool,
+        session: Option<uuid::Uuid>,
+    ) -> anyhow::Result<Self> {
         // Open before spawning so path errors (e.g. a directory) surface here
         // to the caller rather than only inside the background task.
         let file = OpenOptions::new()
@@ -113,6 +151,7 @@ impl CaptureWriter {
         Ok(Self {
             tx,
             events,
+            session,
             join: Arc::new(Mutex::new(Some(join))),
         })
     }
@@ -140,7 +179,7 @@ impl CaptureWriter {
     /// gone (e.g. after [`Self::shutdown`]); serialization and IO errors are
     /// logged in the task, not returned here.
     async fn queue(&self, record: CaptureRecord) -> anyhow::Result<()> {
-        let envelope = Arc::new(CaptureEnvelope::new(record));
+        let envelope = Arc::new(CaptureEnvelope::for_session(record, self.session));
         self.tx
             .send(CaptureMsg::Record(envelope))
             .await
@@ -359,7 +398,41 @@ pub(crate) fn serialize_record(
 pub async fn load_capture_records<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<Vec<CaptureRecord>> {
-    use tokio::io::AsyncBufReadExt;
+    load_capture_records_from(path, 0).await
+}
+
+/// Load the records appended at or after `offset` bytes.
+///
+/// The capture file is opened for append, so a session that shares its path
+/// with another writer cannot identify its own records by counting: both would
+/// count before either wrote. A byte offset taken when a session starts is that
+/// session's own mark whatever else is appending, and seeking past the history
+/// also skips parsing it — which for a long-lived capture file is the whole
+/// cost of reading it twice.
+///
+/// The offset is expected to land on a record boundary, because it is the
+/// file's length at a moment when only whole lines had been written. A partial
+/// line after it is skipped with a warning like any other unparseable record.
+pub async fn load_capture_records_from<P: AsRef<std::path::Path>>(
+    path: P,
+    offset: u64,
+) -> anyhow::Result<Vec<CaptureRecord>> {
+    load_session_records(path, offset, None).await
+}
+
+/// Load records appended at or after `offset`, optionally keeping only those a
+/// given session wrote.
+///
+/// The offset is the cheap half — it skips parsing a history that may be far
+/// larger than the session. The session id is the exact half: two sessions
+/// appending to one path both start at the same offset, so position alone
+/// cannot separate them and only the stamp can.
+pub async fn load_session_records<P: AsRef<std::path::Path>>(
+    path: P,
+    offset: u64,
+    session: Option<uuid::Uuid>,
+) -> anyhow::Result<Vec<CaptureRecord>> {
+    use tokio::io::{AsyncBufReadExt, AsyncSeekExt};
 
     let path_ref = path.as_ref();
 
@@ -367,7 +440,13 @@ pub async fn load_capture_records<P: AsRef<std::path::Path>>(
         return Ok(Vec::new());
     }
 
-    let file = tokio::fs::File::open(path_ref).await?;
+    let mut file = tokio::fs::File::open(path_ref).await?;
+    if offset > 0 {
+        // A file that shrank under us (truncated, or replaced) leaves the
+        // offset past the end; seeking there simply yields nothing, which is
+        // the right answer — this session's records are gone either way.
+        file.seek(std::io::SeekFrom::Start(offset)).await?;
+    }
     let reader = tokio::io::BufReader::new(file);
     let mut lines = reader.lines();
     let mut records = Vec::new();
@@ -383,6 +462,10 @@ pub async fn load_capture_records<P: AsRef<std::path::Path>>(
 
         // Parse the tagged, versioned envelope. Unknown types are skipped.
         match serde_json::from_str::<CaptureEnvelope>(trimmed) {
+            // A session filter keeps only what this session stamped. Records
+            // with no stamp are another writer's (or predate the field), so
+            // they are not this session's either way.
+            Ok(envelope) if session.is_some() && envelope.session != session => {}
             Ok(envelope) => records.push(envelope.record),
             Err(e) => {
                 tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
