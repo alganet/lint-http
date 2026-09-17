@@ -65,7 +65,7 @@ defects! {
     PRAGMA_CONFLICTING = {
         id: "pragma_conflicting",
         title: "A request asks for no-cache in the field its Cache-Control overrides",
-        message: "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)",
+        message: "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_5_4],
     }

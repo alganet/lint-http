@@ -206,7 +206,7 @@ impl Rule for Status101SwitchingProtocols {
                     ctx.report_with(
                         &STATUS_101_PROTOCOL_FORBIDDEN,
                         "Server sent 101 Switching Protocols but the request did not include an \
-                     Upgrade header (RFC 9110 §7.8)"
+                     Upgrade header"
                             .into(),
                     ),
                 );
@@ -217,14 +217,10 @@ impl Rule for Status101SwitchingProtocols {
             let resp_upgrade_combined =
                 crate::helpers::headers::get_all_header_values(&resp.headers, "upgrade");
             if resp_upgrade_combined.is_none() {
-                return Some(
-                    ctx.report_with(
-                        &UPGRADE_101_MISSING,
-                        "101 Switching Protocols response missing required Upgrade header \
-                     (RFC 9110 §15.2.2)"
-                            .into(),
-                    ),
-                );
+                return Some(ctx.report_with(
+                    &UPGRADE_101_MISSING,
+                    "101 Switching Protocols response missing required Upgrade header".into(),
+                ));
             }
             let resp_upgrade_val = resp_upgrade_combined.unwrap();
 
@@ -247,7 +243,7 @@ impl Rule for Status101SwitchingProtocols {
                     ctx.report_with(
                         &STATUS_101_PROTOCOL_FORBIDDEN,
                         "Server sent 101 Switching Protocols but the request Upgrade header \
-                     contains no protocol tokens (RFC 9110 §7.8)"
+                     contains no protocol tokens"
                             .into(),
                     ),
                 );
@@ -261,7 +257,7 @@ impl Rule for Status101SwitchingProtocols {
                     ctx.report_with(
                         &UPGRADE_101_EMPTY,
                         "101 Switching Protocols response Upgrade header contains no protocol \
-                     tokens (RFC 9110 §15.2.2)"
+                     tokens"
                             .into(),
                     ),
                 );
@@ -277,8 +273,7 @@ impl Rule for Status101SwitchingProtocols {
                 return Some(ctx.report_with(
                     &STATUS_101_PROTOCOL_FORBIDDEN,
                     format!(
-                        "101 response Upgrade '{}' was not offered by the client's Upgrade '{}' \
-                         (RFC 9110 §7.8)",
+                        "101 response Upgrade '{}' was not offered by the client's Upgrade '{}'",
                         resp_upgrade_val.trim(),
                         req_upgrade_val.trim()
                     ),

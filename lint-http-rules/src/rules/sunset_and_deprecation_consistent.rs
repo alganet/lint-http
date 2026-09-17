@@ -196,7 +196,7 @@ impl Rule for SunsetAndDeprecationConsistent {
                 let allowed_skew = chrono::Duration::seconds(60);
                 if dep_dt > sun_dt + allowed_skew {
                     return Some(ctx.report_with(&SUNSET_CONFLICTING, format!(
-                            "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
+                            "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation",
                             dep_raw, sun_raw
                         )));
                 }

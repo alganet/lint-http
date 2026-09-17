@@ -10,7 +10,7 @@ A peer sent a second SETTINGS frame on one connection
 
 ## Message
 
-HTTP/3 duplicate SETTINGS frame from the same peer on one connection (RFC 9114 §7.2.4)
+HTTP/3 duplicate SETTINGS frame from the same peer on one connection
 
 ## Specifications
 

@@ -126,7 +126,7 @@ impl Rule for DeprecationHeaderSyntax {
 
             // Accept legacy HTTP-date but report it as deprecated (helpful message)
             if crate::http_date::is_valid_http_date(s) {
-                return Some(ctx.report_with(&DEPRECATION_MALFORMED, "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>' (see RFC 9745 §2.1)".into()));
+                return Some(ctx.report_with(&DEPRECATION_MALFORMED, "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>'".into()));
             }
 
             // Otherwise it's invalid

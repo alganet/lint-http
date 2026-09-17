@@ -148,7 +148,7 @@ impl ProtocolRule for QuicTransportParametersValid {
                     ctx.report_with(
                         &QUIC_REQUEST_STREAM_LIMIT_INVALID,
                         "QUIC initial_max_streams_bidi is 0; HTTP/3 requires at least one \
-                     bidirectional stream for request/response exchange (RFC 9114 §6.1)"
+                     bidirectional stream for request/response exchange"
                             .into(),
                     ),
                 );
@@ -164,7 +164,7 @@ impl ProtocolRule for QuicTransportParametersValid {
                     ctx.report_with(
                         &QUIC_CONNECTION_FLOW_CONTROL_INVALID,
                         "QUIC initial_max_data is 0; no data can be transferred on this \
-                     connection until a MAX_DATA frame raises the limit (RFC 9000 §18.2)"
+                     connection until a MAX_DATA frame raises the limit"
                             .into(),
                     ),
                 );
@@ -189,7 +189,7 @@ impl ProtocolRule for QuicTransportParametersValid {
                     ctx.report_with(
                         &QUIC_REQUEST_STREAM_LIMIT_INVALID,
                         "QUIC initial_max_stream_data_bidi_remote is 0; request streams \
-                     cannot carry data (RFC 9114 §6.1)"
+                     cannot carry data"
                             .into(),
                     ),
                 );

@@ -299,7 +299,7 @@ impl Rule for FromHeaderEmailSyntax {
                 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
                 return Some(ctx.report_with(
                     &MAILBOX_EMPTY,
-                    "From is present with an empty value. `From = mailbox`, both of that production's alternatives contain an `addr-spec`, and `addr-spec = local-part \"@\" domain` writes an at-sign the value does not have — so no empty value derives from the field's grammar (RFC 5322 §3.4.1)"
+                    "From is present with an empty value. `From = mailbox`, both of that production's alternatives contain an `addr-spec`, and `addr-spec = local-part \"@\" domain` writes an at-sign the value does not have — so no empty value derives from the field's grammar"
                         .to_string(),
                 ));
             }

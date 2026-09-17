@@ -61,7 +61,7 @@ defects! {
     HTTP3_SETTINGS_DUPLICATED = {
         id: "http3_settings_duplicated",
         title: "A peer sent a second SETTINGS frame on one connection",
-        message: "HTTP/3 duplicate SETTINGS frame from the same peer on one connection (RFC 9114 §7.2.4)",
+        message: "HTTP/3 duplicate SETTINGS frame from the same peer on one connection",
         default_severity: Severity::Warn,
         spec: &[RFC_9114_7_2_4],
     }

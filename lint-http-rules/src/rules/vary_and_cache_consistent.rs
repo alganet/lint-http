@@ -119,7 +119,7 @@ impl Rule for VaryAndCacheConsistent {
                 if ADVERTISES_REUSE.iter().any(|name| directive.is(name)) {
                     let name = directive.name.to_ascii_lowercase();
                     return Some(ctx.report_with(&CACHE_CONTROL_REDUNDANT, format!(
-                            "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
+                            "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective",
                             name, name
                         )));
                 }

@@ -10,7 +10,7 @@ A request asks for no-cache in the field its Cache-Control overrides
 
 ## Message
 
-Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)
+Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory
 
 ## Specifications
 

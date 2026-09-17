@@ -119,8 +119,7 @@ impl ProtocolRule for Http3GoawaySemantics {
                                     return Some(ctx.report_with(
                                         &HTTP3_GOAWAY_IDENTIFIER_INVALID,
                                         format!(
-                                            "HTTP/3 GOAWAY identifier {} increased from previous {} \
-                                             (RFC 9114 §5.2)",
+                                            "HTTP/3 GOAWAY identifier {} increased from previous {}",
                                             curr, prev
                                         ),
                                     ));
@@ -157,7 +156,7 @@ impl ProtocolRule for Http3GoawaySemantics {
                                         &HTTP3_GOAWAY_IGNORED,
                                         format!(
                                             "HTTP/3 stream {} opened after server GOAWAY with last \
-                                             stream ID {} (RFC 9114 §5.2)",
+                                             stream ID {}",
                                             stream_id, goaway_id
                                         ),
                                     ));
