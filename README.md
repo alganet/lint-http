@@ -65,6 +65,36 @@ Some clients cannot be reached this way — Go on macOS and Windows, Java, and a
 binary with its trust anchors compiled in. The list, with reasons, is in the
 module header of `lint-http-proxy/src/client_env.rs`.
 
+## Quick start — browse a site
+
+`browse` opens a browser through a proxy of its own and prints findings as the
+page loads:
+
+```bash
+lint-http browse https://example.com
+```
+
+```
+chromium through 127.0.0.1:34013 — reporting example.com
+GET https://example.com/ -> 200
+  info  cache_control_present/cache_control_missing  Response 200 without Cache-Control header  [RFC 9111 §4.2.2 ...]
+
+3 violation(s) in 8 transaction(s)
+26 more on other hosts, not shown (--all-hosts)
+```
+
+Nothing is installed. The browser gets a throwaway profile, and the CA is
+trusted for that one launch by public-key pin rather than by being added to any
+trust store — so closing the browser is the end of it.
+
+**Findings are scoped to the site you opened.** A real page pulls in tens of
+origins you do not control; the last line is the count of what that left out.
+`--only-host <HOST>` picks the scope yourself, `--all-hosts` turns it off.
+
+Chromium-family browsers only for now (`chromium`, `chrome`, `brave`, `edge`);
+`--browser <PATH>` names one. Firefox needs its CA in an NSS database, which has
+no per-launch equivalent — see the header of `lint-http-proxy/src/browser.rs`.
+
 ## Quick start — a proxy you point things at
 
 For a session rather than a command, `proxy-start` runs the proxy and leaves it

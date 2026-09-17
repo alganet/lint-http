@@ -23,6 +23,8 @@ rules; export and edit if you want the catalogue minus a few.
 
 - `run [OPTIONS] -- <COMMAND>...`: Run a command with its HTTP traffic proxied
   and linted (see below). The most common entry point; nothing needs configuring.
+- `browse [OPTIONS] [URL]`: Open a Chromium-family browser through a proxy of
+  its own and report as it loads (see below).
 - `proxy-start [--config <PATH>]`: Start the intercepting proxy and leave it
   listening.
 - `lint-captures [--config <PATH>] [--format text|json]
@@ -72,6 +74,35 @@ The variables and the clients that read them are a table in
 `lint-http-proxy/src/client_env.rs`, where each row quotes the documentation that
 defines it — so `just quotes` fails when a client's documentation drifts. The
 same module header lists the clients no environment variable can reach.
+
+## Browsing a site
+
+`lint-http browse [URL]` launches a browser with a throwaway profile, pointed at
+an ephemeral proxy, trusting the session CA by public-key pin.
+
+```bash
+lint-http browse https://example.com
+lint-http browse --only-host example.com --only-host api.example.com https://example.com
+lint-http browse --all-hosts --format json https://example.com > findings.json
+```
+
+- **Findings are scoped.** With a URL and no other instruction the report covers
+  that URL's host and anything under it; everything else is counted on the last
+  line. This is not tidiness — with the whole catalogue enabled, an unscoped
+  session on a real page buries its own findings under a third-party CDN's.
+- **Findings print as they happen**, because a browsing session lasts as long as
+  someone keeps it open. `--format json` opts back into one report at the end.
+- **Nothing is installed.** The CA is trusted through
+  `--ignore-certificate-errors-spki-list`, which pins one public key for one
+  launch. It is not `--ignore-certificate-errors`: verification stays on, so the
+  session can still be trusted to judge TLS.
+- **Loopback is not bypassed.** Chromium skips the proxy for `localhost` by
+  default, which would make `browse http://localhost:3000` load perfectly and
+  report nothing.
+- Chromium-family only. Firefox verifies through its own NSS database and has no
+  per-launch pin, so trusting a CA there means `certutil` against a profile or an
+  enterprise policy file next to the installation — a separate piece of work
+  rather than a flag.
 
 ## Linting recorded captures
 
