@@ -93,7 +93,7 @@ GET https://example.com/ -> 200
   info  cache_control_present/cache_control_missing  Response 200 without Cache-Control header  [RFC 9111 §4.2.2 ...]
 
 3 violation(s) in 8 transaction(s)
-26 more on other hosts, not shown (--all-hosts)
+26 more violation(s) in 7 transaction(s) on other hosts, not shown (--all-hosts)
 ```
 
 Nothing is installed. The browser gets a throwaway profile, and the CA is

@@ -143,10 +143,12 @@ ca_key_path = "ca.key"
 # configuration the binary runs with when none is given, and a default that
 # quietly excluded a domain would report a clean nothing for it.
 # passthrough_domains = ["example.com"]
-# Request headers removed before forwarding. Also commented out, and for a
-# sharper reason: a suppressed header is absent from what the origin sees *and*
-# from what the rules read, so a default here would silently disable every rule
-# that has an opinion about the named field.
+# Request headers removed before forwarding upstream. Commented out for a
+# different reason than the line above: the rules still see these — the linted
+# transaction is built from the headers the *client* sent, and suppression
+# applies only to the copy sent onward — so what a default here would change is
+# the response. The origin answers a request that is not quite the one that was
+# made, and the traffic being judged stops being the traffic that happened.
 # suppress_headers = ["X-Sensitive-Header"]
 "#;
 // REUSE-IgnoreEnd
