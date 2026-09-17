@@ -12,6 +12,10 @@ An error response carries a generic media type and no error format
 
 _Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 9457 §1](https://www.rfc-editor.org/rfc/rfc9457.html#section-1): Which status codes problem details suit, and the two sentences saying an application-specific format is often the better answer — between them the reason this finding is advice and not a defect

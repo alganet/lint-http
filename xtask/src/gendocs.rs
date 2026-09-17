@@ -31,7 +31,7 @@
 //! (`docs_match_generated` test) can diff regenerated output against the
 //! checked-in docs.
 
-use lint_http_rules::lint::Party;
+use lint_http_rules::lint::{Party, Strength};
 use lint_http_rules::rules::{
     all_rules, Compliance, Example, ProtocolRule, Rule, RuleMeta, RuleParty, SpecRef,
     PROTOCOL_RULES, RULES,
@@ -300,6 +300,45 @@ pub fn config_section(rule: &dyn RuleMeta) -> String {
 const PARAMETERISED_MESSAGE: &str = "_Written where it is reported: this defect's message names \
 the value that caused it, so it is not fixed text._";
 
+/// What the entry says its sentence obliges, in the words a reader of one page
+/// needs — including, for the majority answer, why saying nothing is an answer.
+///
+/// The severity each of these names is [`Strength::default_severity`]'s, not a
+/// second copy of the mapping: the gate that holds the catalogue to it is
+/// `a_stated_strength_sets_the_default_severity`, and
+/// `the_obligation_line_names_the_level_the_mapping_implies` keeps this prose
+/// from drifting away from what that gate enforces.
+fn obligation(def: &ViolationDef) -> &'static str {
+    match def.strength {
+        Strength::Must => {
+            "A **`MUST`** binding the sender of the message, so a finding here \
+reports at `error` by default."
+        }
+        Strength::Should => {
+            "A **`SHOULD`** binding the sender of the message — advice the \
+specification gives in its own voice and the sender declined — so a finding here reports at \
+`warn` by default."
+        }
+        Strength::May => {
+            "A **`MAY`**: a permission the sender did not take up, or a component \
+its own definition marks `OPTIONAL`. Nothing is broken, so a finding here reports at `info` by \
+default."
+        }
+        Strength::Grammar => {
+            "**A value that does not derive from the ABNF production it cites.** \
+The production states no keyword; what obliges it is RFC 9110 §2.2 — \"A sender MUST NOT generate \
+protocol elements that do not match the grammar defined by the corresponding ABNF rules\" — which \
+binds the sender, so a finding here reports at `error` by default."
+        }
+        Strength::Unstated => {
+            "**No sentence obliges the sender of this message.** Either nothing \
+states a requirement about this defect, or the keyword in the text it cites binds the *recipient* \
+and so says nothing about the peer being reported. The severity below is a judgement, argued in \
+the catalogue entry."
+        }
+    }
+}
+
 /// Render one defect's markdown page from its catalogue entry.
 ///
 /// Takes the `&ViolationDef` whole where [`render_doc`] takes six loose
@@ -347,6 +386,13 @@ pub fn render_violation_doc(def: &ViolationDef, reported_by: &[&str]) -> String 
         out.push_str(def.message.trim_end());
     }
     out.push('\n');
+
+    out.push_str("\n## Obligation\n\n");
+    out.push_str(obligation(def));
+    out.push('\n');
+    if let Some(why) = def.departure {
+        out.push_str(&format!("\n**It departs from that level.** {why}\n"));
+    }
 
     if !def.spec.is_empty() {
         out.push_str("\n## Specifications\n\n");
@@ -1172,6 +1218,8 @@ mod tests {
                 note: "Tokens",
             }],
             induced: lint_http_rules::violations::Induced::No,
+            strength: Strength::Unstated,
+            departure: None,
         };
         let page = render_violation_doc(&def, &["widget_count_valid", "widget_headers_consistent"]);
 
@@ -1198,6 +1246,8 @@ mod tests {
             default_severity: Severity::Warn,
             spec: &[],
             induced: lint_http_rules::violations::Induced::No,
+            strength: Strength::Unstated,
+            departure: None,
         };
         let page = render_violation_doc(&def, &["widget_count_valid"]);
         assert!(page.contains(PARAMETERISED_MESSAGE));
@@ -1216,6 +1266,8 @@ mod tests {
             default_severity: Severity::Info,
             spec: &[],
             induced: lint_http_rules::violations::Induced::No,
+            strength: Strength::Unstated,
+            departure: None,
         };
         let page = render_violation_doc(&def, &["widget_count_valid"]);
         assert!(!page.contains("## Specifications"));
@@ -1234,6 +1286,8 @@ mod tests {
             default_severity: Severity::Error,
             spec: &[],
             induced: lint_http_rules::violations::Induced::No,
+            strength: Strength::Unstated,
+            departure: None,
         };
         let page = render_violation_doc(&def, &[]);
         assert!(page.contains("_No rule reports this defect._"));

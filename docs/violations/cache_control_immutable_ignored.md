@@ -12,6 +12,10 @@ A still-fresh immutable response is revalidated anyway
 
 _Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 8246 §2](https://www.rfc-editor.org/rfc/rfc8246.html#section-2): `immutable` — clients SHOULD NOT revalidate during the response's freshness lifetime, and the extension applies during that lifetime only, so a response with none is outside it entirely

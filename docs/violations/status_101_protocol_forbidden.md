@@ -12,6 +12,10 @@ A 101 switches to a protocol the client did not indicate
 
 _Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade — the mechanism a 101 answers, the MUST NOT on switching to a protocol the client did not indicate, and the MUST that a server ignore an `Upgrade` received in an HTTP/1.0 request

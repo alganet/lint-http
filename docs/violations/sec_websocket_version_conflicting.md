@@ -12,6 +12,10 @@ Sec-WebSocket-Version advertises the version the request asked for
 
 _Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 6455 §11.3.5](https://www.rfc-editor.org/rfc/rfc6455.html#section-11.3.5): The field's registration — when a server sends it, and that it holds the versions the server supports, which is what a list holding the requested one contradicts

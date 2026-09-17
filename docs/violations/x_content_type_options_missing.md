@@ -12,6 +12,10 @@ A response does not ask for its content type to be respected
 
 Missing X-Content-Type-Options: nosniff header
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [Fetch §3.6](https://fetch.spec.whatwg.org/#x-content-type-options-header): `X-Content-Type-Options`: the conformance value ABNF (`"nosniff" ; case-insensitive`) and the determine-nosniff algorithm

@@ -12,6 +12,10 @@ A response gives a later request nothing to validate against
 
 Response 200 without ETag or Last-Modified validator
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 9110 §8.8.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2.1): Generation: an origin server SHOULD send Last-Modified for any selected representation whose last modification date can be reasonably and consistently determined

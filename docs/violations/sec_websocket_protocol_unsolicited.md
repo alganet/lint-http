@@ -12,6 +12,10 @@ Sec-WebSocket-Protocol names a subprotocol the request did not offer
 
 _Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
+## Obligation
+
+**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+
 ## Specifications
 
 - [RFC 6455 §4.2.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2): Sending the Server's Opening Handshake — what a server sends if it accepts, the five things it sends instead if it does not, and how `Sec-WebSocket-Accept`, `/subprotocol/` and `/extensions/` are derived from the request
