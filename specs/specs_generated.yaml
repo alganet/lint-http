@@ -6079,7 +6079,7 @@ sources:
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 309
+      line: 292
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 195
   - label: cache_coherence (5)
@@ -6087,7 +6087,7 @@ sources:
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 296
+      line: 279
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 44
   - label: cache_control_directive_valid
@@ -6109,13 +6109,13 @@ sources:
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 183
+      line: 196
   - label: cached_validators_reused (2)
     section: § 13.1.3
     snippet: 'If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag'
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 184
+      line: 197
   - label: challenge
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
@@ -10394,30 +10394,16 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 387
   - label: cache_coherence
-    section: § 4.1
-    snippet: adding or removing whitespace, where allowed in the header field's syntax
-    cited_by:
-    - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 132
-  - label: cache_coherence (2)
-    section: § 4.1
-    snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
-    cited_by:
-    - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 125
-    - file: lint-http-rules/src/violations/vary.rs
-      line: 60
-  - label: cache_coherence (3)
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 358
+      line: 341
     - file: lint-http-rules/src/violations/cache.rs
       line: 22
     - file: lint-http-rules/src/violations/cache.rs
       line: 73
-  - label: cache_coherence (4)
+  - label: cache_coherence (2)
     section: § 4.3.5
     snippet: A response to the HEAD method is identical to what an equivalent request made with a GET would have been, without sending the content.
     cited_by:
@@ -10522,7 +10508,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 169
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 174
+      line: 187
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 319
     - file: lint-http-rules/src/violations/conditional.rs
@@ -10545,6 +10531,16 @@ sources:
       line: 187
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 164
+  - label: cached_validators_reused (2)
+    section: § 4
+    snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
+    cited_by:
+    - file: lint-http-rules/src/rules/cached_validators_reused.rs
+      line: 153
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 205
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 182
   - label: caching_directive_interaction
     section: § 4.2.1
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'
@@ -10706,7 +10702,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 286
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 192
+      line: 205
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 464
   - label: lint-http-rules/src/helpers/cache_control.rs (10)
@@ -10718,7 +10714,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 287
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 208
+      line: 221
   - label: lint-http-rules/src/helpers/cache_control.rs (11)
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
@@ -10758,11 +10754,9 @@ sources:
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 120
+      line: 127
     - file: lint-http-rules/src/helpers/vary.rs
       line: 80
-    - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 127
     - file: lint-http-rules/src/rules/vary_and_cache_consistent.rs
       line: 106
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
@@ -10774,20 +10768,26 @@ sources:
     snippet: If (after any normalization that might take place) a header field is absent from a request, it can only match another request if it is also absent there.
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 119
+      line: 126
   - label: lint-http-rules/src/helpers/stored_response.rs (5)
+    section: § 4.1
+    snippet: adding or removing whitespace, where allowed in the header field's syntax
+    cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 125
+  - label: lint-http-rules/src/helpers/stored_response.rs (6)
     section: § 4.1
     snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request (i.e., the request that caused the cached response to be stored).
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 118
-  - label: lint-http-rules/src/helpers/stored_response.rs (6)
+      line: 124
+  - label: lint-http-rules/src/helpers/stored_response.rs (7)
     section: § 4.4
     snippet: in need of a mandatory validation before they can be sent in response to a subsequent request
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 41
-  - label: lint-http-rules/src/helpers/stored_response.rs (7)
+  - label: lint-http-rules/src/helpers/stored_response.rs (8)
     section: § 5.2.1.5
     snippet: The no-store request directive indicates that a cache MUST NOT store any part of either this request or any response to it.
     cited_by:
@@ -10818,15 +10818,15 @@ sources:
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 226
+      line: 239
   - label: must_revalidate_enforced (2)
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 218
+      line: 231
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 188
+      line: 201
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 98
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
@@ -10838,7 +10838,7 @@ sources:
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 231
+      line: 244
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 425
   - label: pragma_token_valid
@@ -10917,6 +10917,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 129
+  - label: vary
+    section: § 4.1
+    snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
+    cited_by:
+    - file: lint-http-rules/src/violations/vary.rs
+      line: 60
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.html
   fragments:

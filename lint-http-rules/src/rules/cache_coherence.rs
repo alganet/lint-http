@@ -104,37 +104,20 @@ fn dates_the_resource(method: &str, status: u16) -> bool {
 /// rule reported that difference as a stale response, on origins that were
 /// serving both variants correctly.
 ///
-/// The comparison is § 4.1's, as far as a rule with no knowledge of the
-/// individual fields can take it: the field lines are joined and the value is
-/// trimmed, which is the whitespace transformation and the combining one. The
-/// third — normalising each value the way its own specification defines — needs
-/// the field's grammar, and this reads any field a response cares to nominate.
-/// So two values that differ only in a way their field calls insignificant read
-/// here as different, and the rule declines to compare the pair. That is the
-/// direction to be wrong in: it costs a finding the rule was entitled to make,
-/// where the other direction is the finding it was making and could not
-/// support.
+/// The question is § 4's, asked of every reader that pairs a stored response
+/// with a later request, so the reading lives with the other conditions on
+/// that pairing in [`crate::helpers::stored_response`]; what it tolerates,
+/// and why the strict direction is the right one, is written there.
 fn selects_the_same_representation(
     stored: &crate::http_transaction::ResponseInfo,
     stored_request: &hyper::HeaderMap,
     presented: &hyper::HeaderMap,
 ) -> bool {
-    use crate::helpers::headers::combined_field_value_as_written;
-    use crate::helpers::vary::VaryNomination;
-
-    // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
-    let nominated = match crate::helpers::vary::vary_nomination(&stored.headers) {
-        // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
-        VaryNomination::Wildcard => return false,
-        VaryNomination::Fields(fields) => fields,
-    };
-    nominated.iter().all(|name| {
-        // cite(RFC 9111 § 4.1): "adding or removing whitespace, where allowed in the header field's syntax"
-        let read = |h: &hyper::HeaderMap| {
-            combined_field_value_as_written(h, name).map(|v| v.trim().to_string())
-        };
-        read(presented) == read(stored_request)
-    })
+    crate::helpers::stored_response::selecting_fields_match(
+        stored_request,
+        &stored.headers,
+        presented,
+    )
 }
 
 /// The specification references this rule declares, each named so a finding
