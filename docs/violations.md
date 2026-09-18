@@ -156,6 +156,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [cookie_domain_ipv6_literal_forbidden](violations/cookie_domain_ipv6_literal_forbidden.md) — Set-Cookie Domain attribute is an IPv6 literal
 - [cookie_domain_leading_dot_obsolete](violations/cookie_domain_leading_dot_obsolete.md) — Set-Cookie Domain attribute keeps the obsolete leading dot
 - [cookie_domain_missing](violations/cookie_domain_missing.md) — Set-Cookie Domain attribute carries no value
+- [cookie_expires_malformed](violations/cookie_expires_malformed.md) — Set-Cookie Expires is readable but derives from no HTTP-date
 - [cookie_expires_missing](violations/cookie_expires_missing.md) — Set-Cookie Expires attribute carries no value
 - [cookie_flag_value_forbidden](violations/cookie_flag_value_forbidden.md) — Set-Cookie writes a value on a flag attribute
 - [cookie_max_age_malformed](violations/cookie_max_age_malformed.md) — Set-Cookie Max-Age is not a number a user agent will read
