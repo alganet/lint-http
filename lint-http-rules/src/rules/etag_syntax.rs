@@ -148,7 +148,21 @@ impl Rule for EtagSyntax {
                 if let Err(defect) = crate::helpers::validator::check_entity_tag(t) {
                     return Some(ctx.report_with(
                         entity_tag_defect(defect),
-                        format!("ETag header invalid: {}", defect.message()),
+                        // The value is quoted back, as the two conditional
+                        // fields carrying the same ids have always quoted
+                        // theirs. `check_entity_tag` reports several defects
+                        // under one id apiece, and the id plus the reason name
+                        // the shape of the mistake without naming the value it
+                        // was made on -- so a report of it against a field that
+                        // holds one value per response said which header was
+                        // wrong and never which tag, and an operator reading it
+                        // had to go back to the wire to learn what its own
+                        // origin had sent.
+                        format!(
+                            "ETag header value '{}' is invalid: {}",
+                            crate::helpers::shown::shown_in_finding(t),
+                            defect.message()
+                        ),
                     ));
                 }
             }
@@ -183,6 +197,13 @@ mod tests {
     /// conditional lists a client sends back draw the same id for the same
     /// value, out of two rules that share no code and read opposite directions
     /// of the exchange.
+    ///
+    /// **And all three quote the value back.** The id and the reason name the
+    /// shape of the mistake, not the tag it was made on, so a message that
+    /// omits the value leaves an operator with a defect and no way to tell
+    /// which of a response's tags carries it. The conditional lists quoted
+    /// their member from the start and `ETag` did not, which made the same
+    /// finding answerable on one field and not on another.
     #[rstest]
     #[case("abc", "etag_delimiter_missing")]
     #[case("w/\"abc\"", "etag_weak_indicator_invalid")]
@@ -199,6 +220,12 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(found.violation, id, "{value}");
+        let shown = crate::helpers::shown::shown_in_finding(value);
+        assert!(
+            found.message.contains(&shown),
+            "ETag finding names no value: {}",
+            found.message
+        );
 
         let rule = &super::super::conditional_etag_syntax::ConditionalEtagSyntax;
         for field in ["if-match", "if-none-match"] {
@@ -213,6 +240,11 @@ mod tests {
             )
             .expect("a finding");
             assert_eq!(found.violation, id, "{field}: {value}");
+            assert!(
+                found.message.contains(&shown),
+                "{field} finding names no value: {}",
+                found.message
+            );
         }
     }
 

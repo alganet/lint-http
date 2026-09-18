@@ -236,7 +236,15 @@ impl Rule for ConditionalHeadersConsistent {
                     if let Err(defect) = crate::helpers::validator::check_entity_tag(trimmed) {
                         return Some(ctx.report_with(
                             entity_tag_defect(defect),
-                            format!("If-Range entity-tag is invalid: {}", defect.message()),
+                            // Quoted back, the way the date branch below it
+                            // already quotes the value it refuses. One field,
+                            // read two ways, and only one of them used to say
+                            // what it had read.
+                            format!(
+                                "If-Range entity-tag '{}' is invalid: {}",
+                                crate::helpers::shown::shown_in_finding(trimmed),
+                                defect.message()
+                            ),
                         ));
                     }
                 } else if let Err(defect) = crate::http_date::check_imf_fixdate(trimmed) {
@@ -465,6 +473,37 @@ mod tests {
             .unwrap()
             .message
             .contains("If-Unmodified-Since MUST be ignored"));
+    }
+
+    /// The field is read two ways and both say what they read. The date branch
+    /// quoted the value it refused from the start; the entity-tag branch beside
+    /// it did not, so one half of a single field answered "which value?" and
+    /// the other half did not.
+    #[rstest]
+    #[case("\"a\"b\"", "etag_character_forbidden")]
+    #[case("\"unterminated", "etag_delimiter_missing")]
+    fn a_refused_if_range_names_the_value_it_refused(#[case] value: &str, #[case] id: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("range", "bytes=0-1"),
+            ("if-range", value),
+        ]);
+
+        let rule = ConditionalHeadersConsistent;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, id, "{value}");
+        assert!(
+            v.message
+                .contains(&crate::helpers::shown::shown_in_finding(value)),
+            "finding names no value: {}",
+            v.message
+        );
     }
 
     #[rstest]
