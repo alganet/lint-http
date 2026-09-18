@@ -328,6 +328,22 @@ show each thing it lists and no flag shows a line that did not parse. Read the
 share rather than the count: one line lost out of nine hundred is a torn file;
 one out of one is a report of nothing.
 
+**Why each line was skipped goes to stderr**, one `WARN` per record, naming the
+line number and the reason — so stdout stays exactly what a pipe reads, and the
+count above has somewhere to send whoever asks *which* line:
+
+```
+WARN lint_http::capture: failed to parse capture record, skipping line=3
+     error=field "user-agent" holds octet 0x7f at index 14, which no field
+     value admits, so the record carrying it cannot be read
+```
+
+That last reason is the common one for a file this tool did not write. A field
+value may hold HTAB and every octet from `%x20` up except `%x7f`, which is the
+field-value grammar; the control octets are outside it, and a record carrying
+one is refused whole rather than read without the field — a rule that read that
+field's absence would otherwise report a defect the sender never committed.
+
 **A file that yielded no records at all is an error**, not a report of nothing
 — the same judgement a missing path gets, for the same reason. A capture
 written by a broken producer, or a path pointing at some other JSONL, would
