@@ -95,6 +95,10 @@ enabled = true
 < HTTP/1.1 200 OK
 < Set-Cookie: id=1; Path=/
 
+> GET /bar HTTP/1.1
+> Host: example.com
+> Cookie: id=1
+
 < HTTP/1.1 200 OK
 < Set-Cookie: id=2; Path=/
 

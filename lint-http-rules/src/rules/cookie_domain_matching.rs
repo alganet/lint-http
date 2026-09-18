@@ -81,11 +81,6 @@ impl RuleMeta for CookieDomainMatching {
                 label: Some("— domain mismatch"),
                 snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Domain=example.com\n\n> GET / HTTP/1.1\n> Host: other.com\n> Cookie: sid=123               # invalid; domain does not match",
             },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— path mismatch (also flagged by cookie_lifecycle)"),
-                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; Path=/private\n\n> GET /public HTTP/1.1\n> Host: example.com\n> Cookie: id=1                 # path does not match",
-            },
         ]
     }
 }

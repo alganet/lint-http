@@ -73,17 +73,17 @@ impl RuleMeta for CookieSameSiteEnforced {
             Example {
                 compliance: Compliance::Compliant,
                 label: Some("— Lax cookie sent on top-level navigation"),
-                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Sec-Fetch-Mode: navigate\n> Cookie: sid=abc\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=abc; SameSite=Lax; Path=/",
+                snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=abc; SameSite=Lax; Path=/\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Sec-Fetch-Mode: navigate\n> Cookie: sid=abc\n\n< HTTP/1.1 200 OK",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— Strict cookie sent cross-site"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Cookie: session=xyz\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=xyz; SameSite=Strict; Path=/",
+                snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=xyz; SameSite=Strict; Path=/\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Cookie: session=xyz\n\n< HTTP/1.1 200 OK",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— Lax cookie sent in cross-site subresource request"),
-                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Sec-Fetch-Mode: cors\n> Cookie: auth=1\n\n< HTTP/1.1 200 OK\n< Set-Cookie: auth=1; SameSite=Lax; Path=/",
+                snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: auth=1; SameSite=Lax; Path=/\n\n> GET /image.png HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Sec-Fetch-Mode: cors\n> Cookie: auth=1\n\n< HTTP/1.1 200 OK",
             },
         ]
     }

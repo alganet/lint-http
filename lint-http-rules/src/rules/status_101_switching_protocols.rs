@@ -100,7 +100,7 @@ impl RuleMeta for Status101SwitchingProtocols {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— HTTP traffic after 101 on the same connection"),
-                snippet: "// previous transaction on this connection: 101 upgrade to websocket\n\n> GET /other HTTP/1.1\n\n< HTTP/1.1 200 OK",
+                snippet: "> GET /chat HTTP/1.1\n> Upgrade: websocket\n> Connection: Upgrade\n\n< HTTP/1.1 101 Switching Protocols\n< Upgrade: websocket\n< Connection: Upgrade\n\n> GET /other HTTP/1.1\n\n< HTTP/1.1 200 OK",
             },
         ]
     }

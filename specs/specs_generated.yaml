@@ -2673,7 +2673,7 @@ sources:
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_matching.rs
-      line: 163
+      line: 158
   - label: cookie_domain_valid
     section: § 5.2
     snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
@@ -6127,7 +6127,7 @@ sources:
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 138
+      line: 128
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 157
   - label: cached_validators_reused
@@ -6135,13 +6135,13 @@ sources:
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 197
+      line: 175
   - label: cached_validators_reused (2)
     section: § 13.1.3
     snippet: 'If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag'
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 198
+      line: 176
   - label: challenge
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
@@ -10544,17 +10544,17 @@ sources:
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 178
+      line: 168
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 214
+      line: 204
   - label: cache_validation_chain (2)
     section: § 4.3.1
     snippet: MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 169
+      line: 159
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 188
+      line: 166
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 319
     - file: lint-http-rules/src/violations/conditional.rs
@@ -10564,7 +10564,7 @@ sources:
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 170
+      line: 160
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 292
   - label: cached_validators_reused
@@ -10572,7 +10572,7 @@ sources:
     snippet: 'A cache MUST NOT store a response to a request unless:'
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 136
+      line: 114
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 187
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
@@ -10582,7 +10582,7 @@ sources:
     snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 154
+      line: 132
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 206
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
@@ -10734,7 +10734,7 @@ sources:
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 89
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 148
+      line: 143
   - label: lint-http-rules/src/helpers/cache_control.rs (9)
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
@@ -10862,7 +10862,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 61
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 137
+      line: 115
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 173
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
@@ -10918,19 +10918,19 @@ sources:
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
     cited_by:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 179
+      line: 174
   - label: max_age_directive_valid (2)
     section: § 4.2
     snippet: When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency
     cited_by:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 185
+      line: 180
   - label: max_age_directive_valid (3)
     section: § 5.2.2.1
     snippet: The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds.
     cited_by:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 178
+      line: 173
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 126
   - label: must_revalidate_enforced

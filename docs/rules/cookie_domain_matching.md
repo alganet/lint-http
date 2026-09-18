@@ -59,17 +59,3 @@ enabled = true
 > Host: other.com
 > Cookie: sid=123               # invalid; domain does not match
 ```
-
-### ❌ Bad — path mismatch (also flagged by cookie_lifecycle)
-
-```http
-> GET / HTTP/1.1
-> Host: example.com
-
-< HTTP/1.1 200 OK
-< Set-Cookie: id=1; Path=/private
-
-> GET /public HTTP/1.1
-> Host: example.com
-> Cookie: id=1                 # path does not match
-```

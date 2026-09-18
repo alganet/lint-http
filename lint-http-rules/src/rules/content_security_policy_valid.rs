@@ -282,8 +282,8 @@ impl RuleMeta for ContentSecurityPolicyValid {
                 snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: def@ult-src 'self'",
             },
             Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
+                compliance: Compliance::Compliant,
+                label: Some("(a trailing `;` is a zero-directive repetition the production generates)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self';",
             },
             Example {

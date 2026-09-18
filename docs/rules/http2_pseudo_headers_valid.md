@@ -113,11 +113,10 @@ enabled = true
 :path: /ws
 ```
 
-### ❌ Bad A non-CONNECT request with no :path
+### ❌ Bad A non-CONNECT request with no :path, and no :scheme whose URI form would supply one
 
 ```http
 :method: GET
-:scheme: https
 :authority: example.com
 ```
 

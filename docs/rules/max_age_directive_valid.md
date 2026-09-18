@@ -80,19 +80,3 @@ enabled = true
 > Host: example.com
 > If-None-Match: "v1"    # age 10 < 60, should not revalidate yet
 ```
-
-### ❌ Bad — stale entry reused without conditional request
-
-```http
-> GET /data HTTP/1.1
-> Host: example.com
-
-< HTTP/1.1 200 OK
-< Cache-Control: max-age=1
-< ETag: "v1"
-
-# several seconds later the client fetches again but omits validators
-> GET /data HTTP/1.1
-> Host: example.com
-# violation: stale age but no conditional header
-```
