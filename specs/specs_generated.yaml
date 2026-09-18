@@ -7571,7 +7571,7 @@ sources:
     - file: lint-http-rules/src/helpers/comment.rs
       line: 54
     - file: lint-http-rules/src/violations/quoted_pair.rs
-      line: 40
+      line: 47
   - label: lint-http-rules/src/helpers/comment.rs (2)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -8071,7 +8071,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 680
     - file: lint-http-rules/src/violations/quoted_pair.rs
-      line: 39
+      line: 46
   - label: lint-http-rules/src/helpers/list.rs (5)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE

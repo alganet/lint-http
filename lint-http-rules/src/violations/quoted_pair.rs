@@ -36,6 +36,13 @@ defects! {
     /// `Via` all admit after their first element. Neither construct restates
     /// the production; § 5.6.4 writes it once and names them both.
     ///
+    /// **Reachable, through the comment half.** A comment that ends mid-escape —
+    /// `Server: foo (bar\` — is a backslash with nothing after it, and nothing
+    /// refuses that octet. The quoted-string half no longer reaches it: a
+    /// backslash before the closing DQUOTE escapes that DQUOTE, so `"a\"` is a
+    /// string that never closes and is `quoted_string_delimiter_missing`. Only
+    /// the backslash-before-a-control-octet shape is refused on the way in.
+    ///
     // cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
     // cite(RFC 9110 § 5.6.4): "The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs."
     QUOTED_PAIR_MALFORMED = {
@@ -45,11 +52,6 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_4],
         strength: Strength::Grammar,
-        unreachable: "the escape this names is a backslash before an octet `quoted-pair` \
-                      does not admit, which in a field value is a control octet — and \
-                      no route carries one to the rules: on the wire the parser refuses \
-                      the message before there is a transaction, and from a capture \
-                      file `HeaderValue` refuses the record",
     }
 }
 
@@ -63,5 +65,16 @@ mod tests {
     fn the_id_names_the_escape_and_not_its_container() {
         assert_eq!(QUOTED_PAIR_MALFORMED.id, "quoted_pair_malformed");
         assert_eq!(QUOTED_PAIR_MALFORMED.default_severity, Severity::Error);
+    }
+
+    /// A comment that ends mid-escape reaches this entry, so it is not one the
+    /// catalogue may mark as reachable by no input — the marker stays off while
+    /// a dangling backslash in a comment is a field value `HeaderValue` accepts.
+    #[test]
+    fn the_entry_is_reachable_through_a_comment_that_ends_mid_escape() {
+        assert!(
+            QUOTED_PAIR_MALFORMED.unreachable.is_none(),
+            "quoted_pair_malformed is reachable through a comment's dangling backslash"
+        );
     }
 }
