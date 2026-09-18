@@ -1044,6 +1044,27 @@ mod tests {
         })
     }
 
+    /// Every RFC 2119 keyword, in the spelling that makes it one.
+    ///
+    /// The negated forms are absent because they contain the positive one —
+    /// `MUST NOT` states `MUST` — and [`states_keyword`] matches on a word
+    /// boundary, so seven entries answer for all twelve.
+    ///
+    /// `MAY` and `OPTIONAL` are here for the same reason the other five are:
+    /// what the ratchet asks is whether an entry has been read, and a
+    /// permission is as readable as a requirement. Nine entries quote one and
+    /// state nothing, because the permission is granted to the peer they do not
+    /// report.
+    const KEYWORDS: &[&str] = &[
+        "MUST",
+        "SHALL",
+        "REQUIRED",
+        "SHOULD",
+        "RECOMMENDED",
+        "MAY",
+        "OPTIONAL",
+    ];
+
     /// Whether `text` is the conformance sentence itself: a `MUST` about
     /// matching a grammar.
     ///
@@ -1290,6 +1311,131 @@ mod tests {
         let prose = format!("/// Every `// {MARKER}source): \"text\"` comment");
         assert_eq!(parse_cite(&prose), None);
         assert!(!opens_a_cite(&prose));
+    }
+
+    /// The 37 entries that quote an RFC 2119 keyword or an ABNF production and
+    /// state [`Strength::Unstated`] anyway.
+    ///
+    /// **Every one has been read, and each says on its own page what the
+    /// reading found** — a keyword binding the recipient, a sentence whose
+    /// antecedent no capture can reach, a store the finding reconstructs and
+    /// cannot attribute, or two reporting sites governed by two different
+    /// keywords. This list is not an exemption from that reading; it is the
+    /// record that it happened.
+    ///
+    /// **It may only shrink.** Nothing here can enforce that — a baseline never
+    /// can — but a line added to it is a visible diff on a reviewed file, which
+    /// is the whole mechanism `specs/ratchet.txt` runs on and the reason that
+    /// migration finished. A new defect whose cited sentence carries a keyword
+    /// states what the keyword obliges, or someone writes its id here and says
+    /// in the entry above it why not.
+    const READ_AND_UNSTATED: &[&str] = &[
+        "accept_ranges_ignored",
+        "alt_svc_parameter_empty",
+        "alt_svc_persist_invalid",
+        "alt_svc_port_empty",
+        "alt_svc_port_invalid",
+        "alt_svc_port_missing",
+        "authority_value_conflicting",
+        "cache_control_missing",
+        "cache_control_no_store_ignored",
+        "cache_control_private_ignored",
+        "cache_control_storage_conflicting",
+        "cache_response_conflicting",
+        "conditional_date_ignored",
+        "conditional_date_redundant",
+        "content_range_missing",
+        "content_range_numeral_invalid",
+        "cookie_scope_ignored",
+        "early_data_duplicated",
+        "expires_conflicting",
+        "location_redirect_redundant",
+        "method_case_invalid",
+        "oauth2_state_conflicting",
+        "preference_applied_unsolicited",
+        "referer_empty",
+        "status_101_unsolicited",
+        "status_301_ambiguous",
+        "status_302_ambiguous",
+        "status_401_ignored",
+        "status_invalid",
+        "strict_transport_security_directive_value_forbidden",
+        "structured_field_malformed",
+        "trailer_connection_option_forbidden",
+        "trailer_member_invalid",
+        "transfer_encoding_coding_redundant",
+        "vary_ignored",
+        "well_known_name_empty",
+        "well_known_name_malformed",
+    ];
+
+    /// **The ratchet: a defect whose cited sentence carries a keyword or a
+    /// production has to say what it makes of it.**
+    ///
+    /// Gate B can say "you claimed a keyword that is not there" and, for the
+    /// reason its own comment gives, can never say "you missed one" — an entry
+    /// quoting a `MUST` addressed to the recipient is right to state nothing,
+    /// and a converse gate would fail on every one of them. This is the
+    /// converse question asked the only way it can be: not "is this entry
+    /// wrong" but "has anybody looked".
+    ///
+    /// [`Strength::Unstated`] is two claims wearing one word — *nothing binds
+    /// this sender* and *nobody has read this yet* — and the whole risk of the
+    /// vocabulary is that the second hides inside the first. So the entries
+    /// where the two are told apart are the ones with a keyword or a production
+    /// in front of them, and those are enumerated. Everything else is
+    /// `Unstated` because there is nothing to read.
+    ///
+    /// Two directions, like Gate A: a new entry that needs a line, and a stale
+    /// line for an entry that has since stated a strength or lost its citation.
+    /// The second is what keeps the list shrinking rather than merely not
+    /// growing.
+    #[test]
+    fn every_defect_that_quotes_a_keyword_states_a_reading() {
+        let cites = cites_by_violation();
+        let mut unread = Vec::new();
+        let mut quotes_something: std::collections::HashSet<&str> =
+            std::collections::HashSet::new();
+        for def in VIOLATIONS.iter() {
+            let quoted: Vec<&str> = cites
+                .iter()
+                .filter(|(id, _, _)| id == def.id)
+                .map(|(_, _, text)| text.as_str())
+                .collect();
+            let readable = quoted
+                .iter()
+                .any(|t| is_abnf_production(t) || KEYWORDS.iter().any(|w| states_keyword(t, w)));
+            if !readable {
+                continue;
+            }
+            quotes_something.insert(def.id);
+            if def.strength == Strength::Unstated && !READ_AND_UNSTATED.contains(&def.id) {
+                unread.push(format!(
+                    "{}: quotes a keyword or a production and states no reading. Say what it \
+                     obliges of the sender, or add the id to READ_AND_UNSTATED and say on the \
+                     entry why it obliges nothing",
+                    def.id,
+                ));
+            }
+        }
+        let stale: Vec<&&str> = READ_AND_UNSTATED
+            .iter()
+            .filter(|id| {
+                by_id(id).is_none_or(|def| {
+                    def.strength != Strength::Unstated || !quotes_something.contains(def.id)
+                })
+            })
+            .collect();
+        assert!(
+            unread.is_empty(),
+            "{} defects have not been read:\n{}",
+            unread.len(),
+            unread.join("\n"),
+        );
+        assert!(
+            stale.is_empty(),
+            "these ids no longer need a line in READ_AND_UNSTATED — delete them: {stale:?}",
+        );
     }
 
     /// **A ceiling, and the second one in this file** — see
