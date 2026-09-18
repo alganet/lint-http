@@ -56,6 +56,12 @@ Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 Strict-Transport-Security: max-age=0
 ```
 
+### ✅ Good — the quoted-string form § 6.1.1 unescapes before reading
+
+```http
+Strict-Transport-Security: max-age="63072000"
+```
+
 ### ❌ Bad — missing `max-age`
 
 ```http
