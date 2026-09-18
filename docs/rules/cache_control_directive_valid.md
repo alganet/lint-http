@@ -10,7 +10,7 @@ SPDX-License-Identifier: ISC
 
 Validate `Cache-Control` directive names and argument formats for common correctness issues. This rule enforces directive-specific semantics such as:
 
-- `max-age` and `s-maxage` must have non-negative integer values (delta-seconds).
+- `max-age`, `s-maxage`, `max-stale`, `min-fresh`, `stale-while-revalidate` and `stale-if-error` must have non-negative integer values (delta-seconds), and RFC 9111 has a sender write that argument in the token form: `max-age="60"` is a well-formed `quoted-string` every recipient reads, and a form the directive's own section says a sender MUST NOT generate.
 - `private` and `no-cache` when carrying a field-name-list must provide a comma-separated list of field-names (tokens) either as an unquoted list or inside a quoted-string.
 - Unquoted directive values must follow the `token` grammar and quoted values must be valid `quoted-string`s.
 
@@ -18,6 +18,7 @@ This rule complements `cache_control_token_valid` which enforces general token/q
 
 ## Violations
 
+- [cache_control_argument_quoted_form_forbidden](../violations/cache_control_argument_quoted_form_forbidden.md) — A Cache-Control delta-seconds argument is written in the quoted-string form
 - [cache_control_no_cache_argument_empty](../violations/cache_control_no_cache_argument_empty.md) — Cache-Control no-cache is qualified by no field name
 - [cache_control_private_argument_empty](../violations/cache_control_private_argument_empty.md) — Cache-Control private is qualified by no field name
 - [delta_seconds_character_forbidden](../violations/delta_seconds_character_forbidden.md) — A time in seconds holds an octet DIGIT does not admit
@@ -40,6 +41,11 @@ This rule complements `cache_control_token_valid` which enforces general token/q
 - [RFC 9111 §1.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2): `delta-seconds = 1*DIGIT` — the production every field carrying a time in seconds writes its value in, and the clamp that makes an over-long run of digits conforming
 - [RFC 9111 §5.2.2.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.4): no-cache — the unqualified form's prohibition on reuse without forwarding for validation, the argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified no-cache
 - [RFC 9111 §5.2.2.7](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7): private — the unqualified form's prohibition on a shared cache storing the response at all, the argument syntax `#field-name`, the qualified form defined as an argument listing one or more field names, and the Note that caches often handle it as an unqualified private
+- [RFC 9111 §5.2.2.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.1): `max-age` response directive — the argument uses the token form, and a sender MUST NOT generate the quoted-string form
+- [RFC 9111 §5.2.1.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.1.1): `max-age` request directive — the argument uses the token form, and a sender MUST NOT generate the quoted-string form
+- [RFC 9111 §5.2.1.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.1.2): `max-stale` — the argument uses the token form, and a sender MUST NOT generate the quoted-string form
+- [RFC 9111 §5.2.1.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.1.3): `min-fresh` — the argument uses the token form, and a sender MUST NOT generate the quoted-string form
+- [RFC 9111 §5.2.2.10](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.10): `s-maxage` — the directive is defined for a shared cache, where it overrides the maximum age given by `max-age` or `Expires`; it says nothing to any other kind of cache
 
 ## Configuration
 
@@ -65,6 +71,7 @@ Cache-Control: private=Foo,bar
 Cache-Control: max-age=abc     # non-numeric max-age
 Cache-Control: max-age=-1      # negative values not allowed
 Cache-Control: s-maxage=1.5    # fractional values invalid
+Cache-Control: max-age="60"    # the quoted-string form a sender must not generate
 Cache-Control: private=Set Cookie  # space in token
 Cache-Control: private="Set Cookie" # quoted content contains space-separated token
 ```

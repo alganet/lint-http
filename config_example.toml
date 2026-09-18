@@ -1116,6 +1116,11 @@ severity = "warn"
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.cache_control_argument_quoted_form_forbidden]
+# A Cache-Control delta-seconds argument is written in the quoted-string form
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.cache_control_freshness_conflicting]
 # A Cache-Control freshness directive is given more than one value
 severity = "warn"

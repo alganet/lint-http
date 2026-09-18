@@ -33,6 +33,16 @@
 //! `no-cache` revalidates the whole response. So nothing a recipient does with
 //! the value is wrong, and what the sender loses is the exemption they asked
 //! for. The exchange continues, and continues conservatively.
+//!
+//! **The third entry is about a form and not a meaning, and it sits here
+//! because the sentence is written per directive too.** `cache-directive =
+//! token [ "=" ( token / quoted-string ) ]` admits `max-age="60"`, and § 5.2
+//! has a recipient accept both forms; what refuses the spelling is the
+//! subsection of every `delta-seconds` directive, each of which prints the
+//! same sentence about the same mistake. The closing quote is not a character
+//! no `token` admits — it is the delimiter of the other alternative — so a
+//! reader that measured it against `tchar` named a production the value
+//! derives from, and named it for a sender that broke a different sentence.
 
 use crate::lint::Severity;
 use crate::lint::Strength;
@@ -109,6 +119,38 @@ pub const RFC_9111_5_2_2_10: SpecRef = SpecRef {
     note: "`s-maxage` — the directive is defined for a shared cache, where it overrides the maximum age given by `max-age` or `Expires`; it says nothing to any other kind of cache",
 };
 
+/// The `max-age` request directive, and the form its argument takes.
+pub const RFC_9111_5_2_1_1: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.1.1",
+    note: "`max-age` request directive — the argument uses the token form, and a sender MUST NOT generate the quoted-string form",
+};
+
+/// The `max-stale` request directive, and the form its argument takes.
+pub const RFC_9111_5_2_1_2: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.1.2",
+    note: "`max-stale` — the argument uses the token form, and a sender MUST NOT generate the quoted-string form",
+};
+
+/// The `min-fresh` request directive, and the form its argument takes.
+pub const RFC_9111_5_2_1_3: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.1.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.1.3",
+    note: "`min-fresh` — the argument uses the token form, and a sender MUST NOT generate the quoted-string form",
+};
+
+/// The `max-age` response directive, and the form its argument takes.
+pub const RFC_9111_5_2_2_1: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.1",
+    note: "`max-age` response directive — the argument uses the token form, and a sender MUST NOT generate the quoted-string form",
+};
+
 /// The `immutable` extension: what it asks of a client, and the window it
 /// applies in.
 pub const RFC_8246_2: SpecRef = SpecRef {
@@ -176,6 +218,56 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9111_5_2_2_7],
+    }
+
+    /// `max-age="60"`: a `delta-seconds` argument written as a `quoted-string`.
+    ///
+    /// **The grammar admits it and the directive refuses it.** `cache-directive
+    /// = token [ "=" ( token / quoted-string ) ]` derives the value, § 5.2 has a
+    /// recipient accept both forms, and every cache reading the response gets
+    /// the same sixty seconds out of it. What the value breaks is the sentence
+    /// in the directive's own subsection, which fixes the form a *sender* may
+    /// write — so this is a defect of the spelling, and the message says what
+    /// the token form of the same argument would be.
+    ///
+    /// **Not `token_character_forbidden`, which is what a reader measuring the
+    /// closing quote against `tchar` reported.** That entry names a value the
+    /// `token` production cannot derive, and this value is not one: it is the
+    /// other alternative, well-formed, and readable by anything that reads the
+    /// field. Reporting it as a bad character sent an operator to a production
+    /// the value satisfies and told them nothing about the sentence it broke.
+    ///
+    /// **One entry for five sentences, where the two above are one entry each,
+    /// and the difference is that these five are one sentence.** Each
+    /// `delta-seconds` directive's subsection prints the same words with its own
+    /// name in the example, and the repair is the same in all of them; so the
+    /// entry names every subsection, the finding carries no single citation
+    /// (a def naming several sentences is not cited, by design), and the message
+    /// names the one section the directive in front of it was read against.
+    ///
+    /// **`error`, because the sentence is a MUST NOT and it binds the sender.**
+    /// The consequence is small — recipients are told to read both forms — but
+    /// the catalogue ranks a finding by the keyword as it binds the party that
+    /// wrote the value, and this one is written five times.
+    ///
+    // cite(RFC 9111 § 5.2.2.1): "This directive uses the token form of the argument syntax: e.g., 'max-age=5' not 'max-age="5"'. A sender MUST NOT generate the quoted-string form."
+    // cite(RFC 9111 § 5.2.1.1): "This directive uses the token form of the argument syntax: e.g., 'max-age=5' not 'max-age="5"'. A sender MUST NOT generate the quoted-string form."
+    // cite(RFC 9111 § 5.2.1.2): "This directive uses the token form of the argument syntax: e.g., 'max-stale=10' not 'max-stale="10"'. A sender MUST NOT generate the quoted-string form."
+    // cite(RFC 9111 § 5.2.1.3): "This directive uses the token form of the argument syntax: e.g., 'min-fresh=20' not 'min-fresh="20"'. A sender MUST NOT generate the quoted-string form."
+    // cite(RFC 9111 § 5.2.2.10): "This directive uses the token form of the argument syntax: e.g., 's-maxage=10' not 's-maxage="10"'. A sender MUST NOT generate the quoted-string form."
+    CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN = {
+        id: "cache_control_argument_quoted_form_forbidden",
+        title: "A Cache-Control delta-seconds argument is written in the quoted-string form",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[
+            RFC_9111_5_2_2_1,
+            RFC_9111_5_2_1_1,
+            RFC_9111_5_2_1_2,
+            RFC_9111_5_2_1_3,
+            RFC_9111_5_2_2_10,
+        ],
+        strength: Strength::Must,
     }
 
     /// Two directives in one field value that say opposite things about

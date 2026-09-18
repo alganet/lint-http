@@ -4791,7 +4791,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 163
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 457
+      line: 549
   - label: immutable_cache_never_stale (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
@@ -4801,7 +4801,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 436
+      line: 528
 - label: RFC 8259
   url: https://www.rfc-editor.org/rfc/rfc8259.html
   fragments:
@@ -6091,7 +6091,7 @@ sources:
     snippet: A field name labels the corresponding field value as having the semantics defined by that name.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 331
+      line: 310
   - label: cache_validation_chain
     section: § 13.1.2
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
@@ -7667,7 +7667,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 142
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 359
+      line: 422
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
@@ -9877,7 +9877,7 @@ sources:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 116
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 510
+      line: 602
   - label: status_code_semantics
     section: § 11.6.1
     snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
@@ -10375,8 +10375,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 386
-    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 280
     - file: lint-http-rules/src/violations/delta_seconds.rs
       line: 23
   - label: alt_svc_h3_advertisement_valid (2)
@@ -10385,16 +10383,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 360
-    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 246
   - label: alt_svc_h3_advertisement_valid (3)
     section: § 1.2.2
     snippet: or the greatest positive integer it can conveniently represent.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 387
-    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 281
   - label: cache_coherence
     section: § 4.1
     snippet: adding or removing whitespace, where allowed in the header field's syntax
@@ -10426,11 +10420,41 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 86
   - label: cache_control
+    section: § 5.2.1.1
+    snippet: 'This directive uses the token form of the argument syntax: e.g., ''max-age=5'' not ''max-age="5"''. A sender MUST NOT generate the quoted-string form.'
+    cited_by:
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 254
+  - label: cache_control (2)
+    section: § 5.2.1.2
+    snippet: 'This directive uses the token form of the argument syntax: e.g., ''max-stale=10'' not ''max-stale="10"''. A sender MUST NOT generate the quoted-string form.'
+    cited_by:
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 255
+  - label: cache_control (3)
+    section: § 5.2.1.3
+    snippet: 'This directive uses the token form of the argument syntax: e.g., ''min-fresh=20'' not ''min-fresh="20"''. A sender MUST NOT generate the quoted-string form.'
+    cited_by:
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 256
+  - label: cache_control (4)
+    section: § 5.2.2.10
+    snippet: 'This directive uses the token form of the argument syntax: e.g., ''s-maxage=10'' not ''s-maxage="10"''. A sender MUST NOT generate the quoted-string form.'
+    cited_by:
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 257
+  - label: cache_control (5)
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names
     cited_by:
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 155
+      line: 197
+  - label: cache_control (6)
+    section: § 5.2.2.7
+    snippet: If a qualified private response directive is present, with an argument that lists one or more field names
+    cited_by:
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 214
   - label: cache_control_and_pragma_consistent
     section: § 5.4
     snippet: However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma.
@@ -10454,29 +10478,23 @@ sources:
     snippet: The "Cache-Control" header field is used to list directives for caches along the request/response chain.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 200
+      line: 214
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
       line: 150
-  - label: max-age argument syntax
-    section: § 5.2.2.1
-    snippet: delta-seconds (see Section 1.2.2)
-    cited_by:
-    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 266
   - label: cache_control_directive_valid (2)
-    section: § 5.2.2.7
-    snippet: If a qualified private response directive is present, with an argument that lists one or more field names
+    section: § 5.2.2.1
+    snippet: 'This directive uses the token form of the argument syntax: e.g., ''max-age=5'' not ''max-age="5"''. A sender MUST NOT generate the quoted-string form.'
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 288
+      line: 328
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 172
+      line: 253
   - label: private argument syntax
     section: § 5.2.2.7
     snippet: This directive uses the quoted-string form of the argument syntax.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 330
+      line: 309
   - label: cache_control_present
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
@@ -10484,7 +10502,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_present.rs
       line: 94
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 480
+      line: 572
   - label: cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -10530,7 +10548,7 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 181
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 228
+      line: 320
   - label: caching_directive_interaction (2)
     section: § 5.2.2.7
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
@@ -10542,7 +10560,7 @@ sources:
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 391
+      line: 483
   - label: caching_directive_interaction (3)
     section: § 5.2.2.9
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
@@ -10550,7 +10568,7 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 155
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 201
+      line: 293
   - label: expires_and_cache_control_consistent
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
@@ -10605,6 +10623,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 91
+    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
+      line: 357
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 706
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -10655,6 +10675,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 92
+    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
+      line: 327
   - label: lint-http-rules/src/helpers/cache_control.rs (7)
     section: § 5.2
     snippet: cache-directive  = token [ "=" ( token / quoted-string ) ]
@@ -10668,7 +10690,9 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 191
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 222
+      line: 236
+    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
+      line: 326
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
       line: 172
   - label: lint-http-rules/src/helpers/cache_control.rs (9)
@@ -10680,7 +10704,7 @@ sources:
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 192
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 372
+      line: 464
   - label: lint-http-rules/src/helpers/cache_control.rs (10)
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
@@ -10704,9 +10728,9 @@ sources:
     - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 228
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 202
+      line: 294
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 281
+      line: 373
   - label: lint-http-rules/src/helpers/stored_response.rs
     section: § 3
     snippet: the no-store cache directive is not present in the response
@@ -10750,7 +10774,7 @@ sources:
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 229
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 257
+      line: 349
   - label: max_age_directive_valid
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
@@ -10798,7 +10822,7 @@ sources:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 231
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 333
+      line: 425
   - label: pragma_token_valid
     section: § 5.4
     snippet: As a result, this specification deprecates Pragma.
@@ -10842,7 +10866,7 @@ sources:
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 143
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 414
+      line: 506
   - label: singleton_fields_not_repeated
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server.
