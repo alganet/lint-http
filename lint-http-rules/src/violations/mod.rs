@@ -262,7 +262,7 @@ pub struct ViolationDef {
     /// [`specifications()`](crate::rules::RuleMeta::specifications).
     pub spec: &'static [SpecRef],
     /// Whether the instrument produced what this reports. Defaults to
-    /// [`Induced::No`], one of the three keys in this struct an entry may
+    /// [`Induced::No`], one of the four keys in this struct an entry may
     /// omit: an entry that says nothing is describing traffic, which is what
     /// all but one of them do.
     pub induced: Induced,
@@ -300,6 +300,36 @@ pub struct ViolationDef {
     /// is a ceiling in the shape `few_defects_blame_the_instrument` already
     /// established: an escape hatch with no ceiling stops being an exception.
     pub departure: Option<&'static str>,
+    /// Why no input this tool accepts can produce this defect.
+    ///
+    /// `None` for all but a handful, and the handful is the point: an entry
+    /// that never fires is normally an entry nothing has aimed at yet, and one
+    /// that never *can* fire is a different thing that looks identical from
+    /// outside. Anything counting what the catalogue has and has not
+    /// demonstrated reads the two the same way, and reports work that does not
+    /// exist.
+    ///
+    /// The archetype is `quoted_pair_malformed`: the escape it names is a
+    /// backslash before an octet `quoted-pair` does not admit, which in a field
+    /// value means a control octet — and a control octet reaches the rules by
+    /// no route. On the wire the parser refuses the message before there is a
+    /// transaction; from a capture file `HeaderValue` refuses the record, since
+    /// a field value holds HTAB and %x20 upward except %x7f and nothing else.
+    /// The rule is right, the reading is right, and twenty-six rules declare
+    /// it; there is simply no message that gets it here.
+    ///
+    /// **This is a fact about the tool's inputs, not about the traffic.** It
+    /// says the defect cannot arrive, never that senders do not commit it, and
+    /// it is not a way to retire an entry that is merely hard to provoke — an
+    /// entry no probe has been *written* for says nothing here. If a route ever
+    /// opens the note comes off, which is why it names the route rather than
+    /// asserting the impossibility.
+    ///
+    /// **Capped**, for the reason `departure` is: `few_defects_are_unreachable`
+    /// is a ceiling, because "nothing can reach it" is the most inviting
+    /// explanation available for an entry that has never fired, and the whole
+    /// value of the marker is that it is rare enough to be read.
+    pub unreachable: Option<&'static str>,
 }
 
 /// Define a subject's defects, and register every one of them.
@@ -337,9 +367,10 @@ pub struct ViolationDef {
 ///   aspiration when it was written and is now literally true.
 ///
 /// Three keys may be left out, and are written in this order when they are
-/// not: `strength`, then `departure`, then `induced`. Each defaults to the
-/// answer that says nothing — `Strength::Unstated`, no departure, traffic
-/// rather than instrument — so an entry states only what someone read.
+/// not: `strength`, then `departure`, then `induced`, then `unreachable`. Each
+/// defaults to the answer that says nothing — `Strength::Unstated`, no
+/// departure, traffic rather than instrument, no route ruled out — so an entry
+/// states only what someone read.
 ///
 /// Each entry hides its registration in an anonymous `const` block, so every
 /// one can use the same name for it: the linker collects the section entry, and
@@ -368,6 +399,12 @@ macro_rules! defects {
     (@departure $value:expr) => {
         ::core::option::Option::Some($value)
     };
+    (@unreachable) => {
+        ::core::option::Option::None
+    };
+    (@unreachable $value:expr) => {
+        ::core::option::Option::Some($value)
+    };
     ($(
         $(#[$attr:meta])*
         $name:ident = {
@@ -379,6 +416,7 @@ macro_rules! defects {
             $(strength: $strength:expr,)?
             $(departure: $departure:expr,)?
             $(induced: $induced:expr,)?
+            $(unreachable: $unreachable:expr,)?
         }
     )*) => {$(
         $(#[$attr])*
@@ -391,6 +429,7 @@ macro_rules! defects {
             induced: $crate::violations::defects!(@induced $($induced)?),
             strength: $crate::violations::defects!(@strength $($strength)?),
             departure: $crate::violations::defects!(@departure $($departure)?),
+            unreachable: $crate::violations::defects!(@unreachable $($unreachable)?),
         };
 
         const _: () = {
@@ -550,6 +589,42 @@ mod tests {
             "{} defects are marked as induced by the proxy, above the ceiling of {CEILING}: {induced:?}",
             induced.len(),
         );
+    }
+
+    /// **A ceiling, in the shape `few_defects_blame_the_instrument` set.** An
+    /// entry that has never fired invites exactly one explanation, and it is
+    /// this one; the marker is worth anything only while it is rare enough that
+    /// a reader stops at it. A third entry arrives in a commit that argues the
+    /// route is closed, not behind a bumped constant.
+    #[test]
+    fn few_defects_are_unreachable() {
+        const CEILING: usize = 2;
+        let unreachable: Vec<&str> = VIOLATIONS
+            .iter()
+            .filter(|d| d.unreachable.is_some())
+            .map(|d| d.id)
+            .collect();
+        assert!(
+            unreachable.len() <= CEILING,
+            "{} defects are marked unreachable, above the ceiling of {CEILING}: {unreachable:?}",
+            unreachable.len(),
+        );
+    }
+
+    /// A route that is closed is closed for a *stated* reason. An empty note
+    /// would mark the entry and tell a reader nothing, which is the failure
+    /// this marker exists to prevent one level up.
+    #[test]
+    fn an_unreachable_defect_names_the_route_it_cannot_take() {
+        for def in VIOLATIONS.iter() {
+            if let Some(why) = def.unreachable {
+                assert!(
+                    why.len() > 20,
+                    "{}: `unreachable` must say which route is closed and why, not merely that one is",
+                    def.id,
+                );
+            }
+        }
     }
 
     #[test]
