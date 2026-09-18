@@ -6226,6 +6226,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 189
+    - file: lint-http-rules/src/rules/expires_date_syntax.rs
+      line: 119
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 117
   - label: conditional_etag_syntax
@@ -7130,6 +7132,8 @@ sources:
       line: 145
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 191
+    - file: lint-http-rules/src/rules/expires_date_syntax.rs
+      line: 120
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 119
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
@@ -10493,6 +10497,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 148
+    - file: lint-http-rules/src/rules/expires_date_syntax.rs
+      line: 127
+    - file: lint-http-rules/src/violations/expires.rs
+      line: 127
   - label: expires_and_cache_control_consistent (3)
     section: § 5.3
     snippet: If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.
@@ -10502,13 +10510,17 @@ sources:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 185
     - file: lint-http-rules/src/violations/expires.rs
-      line: 71
-  - label: expires_and_cache_control_consistent (4)
+      line: 83
+  - label: expires
     section: § 5.3
     snippet: The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 98
+    - file: lint-http-rules/src/rules/expires_date_syntax.rs
+      line: 118
+    - file: lint-http-rules/src/violations/expires.rs
+      line: 126
   - label: immutable_cache_never_stale
     section: § 5.2.2.4
     snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
