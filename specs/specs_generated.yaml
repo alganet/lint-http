@@ -5829,7 +5829,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 134
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 87
+      line: 88
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 189
     - file: lint-http-rules/src/violations/status.rs
@@ -6055,7 +6055,7 @@ sources:
     snippet: The content sent in a 200 response depends on the request method.
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 82
+      line: 83
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 112
   - label: cache_coherence (2)
@@ -6063,19 +6063,19 @@ sources:
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 88
+      line: 89
   - label: cache_coherence (3)
     section: § 15.5
     snippet: Except when responding to a HEAD request, the server SHOULD send a representation containing an explanation of the error situation, and whether it is a temporary or permanent condition.
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 89
+      line: 90
   - label: cache_coherence (4)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 255
+      line: 256
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 195
   - label: cache_coherence (5)
@@ -6083,7 +6083,7 @@ sources:
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 242
+      line: 243
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 44
   - label: cache_control_directive_valid
@@ -10394,7 +10394,7 @@ sources:
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 299
+      line: 301
     - file: lint-http-rules/src/violations/cache.rs
       line: 22
     - file: lint-http-rules/src/violations/cache.rs
@@ -10404,7 +10404,7 @@ sources:
     snippet: A response to the HEAD method is identical to what an equivalent request made with a GET would have been, without sending the content.
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 83
+      line: 84
   - label: cache_control
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names
