@@ -5707,7 +5707,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 284
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 269
+      line: 379
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 357
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
@@ -6061,7 +6061,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 85
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 112
+      line: 114
   - label: cache_coherence (2)
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
@@ -6577,7 +6577,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 134
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 268
+      line: 378
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 178
     - file: lint-http-rules/src/violations/method.rs
@@ -6881,9 +6881,9 @@ sources:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 67
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 172
+      line: 157
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 373
+      line: 262
     - file: lint-http-rules/src/violations/field.rs
       line: 195
   - label: extension_headers_registered (5)
@@ -6903,19 +6903,19 @@ sources:
     snippet: A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 372
+      line: 156
   - label: head_response_headers_match_get (2)
     section: § 12.5.5
     snippet: To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 379
+      line: 162
   - label: head_response_headers_match_get (3)
     section: § 15
     snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 297
+      line: 412
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 121
   - label: head_response_headers_match_get (4)
@@ -6923,7 +6923,7 @@ sources:
     snippet: A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 77
+      line: 133
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 146
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
@@ -6969,7 +6969,7 @@ sources:
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 263
+      line: 373
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 158
     - file: lint-http-rules/src/violations/method.rs
@@ -7715,7 +7715,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_length.rs
       line: 152
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 91
+      line: 87
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -10754,21 +10754,11 @@ sources:
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 154
   - label: lint-http-rules/src/helpers/stored_response.rs (3)
-    section: § 4.4
-    snippet: in need of a mandatory validation before they can be sent in response to a subsequent request
-    cited_by:
-    - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 41
-  - label: lint-http-rules/src/helpers/stored_response.rs (4)
-    section: § 5.2.1.5
-    snippet: The no-store request directive indicates that a cache MUST NOT store any part of either this request or any response to it.
-    cited_by:
-    - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 95
-  - label: lint-http-rules/src/helpers/vary.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
     cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 120
     - file: lint-http-rules/src/helpers/vary.rs
       line: 80
     - file: lint-http-rules/src/rules/cache_coherence.rs
@@ -10779,6 +10769,30 @@ sources:
       line: 229
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 349
+  - label: lint-http-rules/src/helpers/stored_response.rs (4)
+    section: § 4.1
+    snippet: If (after any normalization that might take place) a header field is absent from a request, it can only match another request if it is also absent there.
+    cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 119
+  - label: lint-http-rules/src/helpers/stored_response.rs (5)
+    section: § 4.1
+    snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request (i.e., the request that caused the cached response to be stored).
+    cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 118
+  - label: lint-http-rules/src/helpers/stored_response.rs (6)
+    section: § 4.4
+    snippet: in need of a mandatory validation before they can be sent in response to a subsequent request
+    cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 41
+  - label: lint-http-rules/src/helpers/stored_response.rs (7)
+    section: § 5.2.1.5
+    snippet: The no-store request directive indicates that a cache MUST NOT store any part of either this request or any response to it.
+    cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 95
   - label: max_age_directive_valid
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
@@ -11017,13 +11031,13 @@ sources:
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 322
+      line: 449
   - label: head_response_headers_match_get (2)
     section: § 6.1
     snippet: Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 321
+      line: 448
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 292
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs

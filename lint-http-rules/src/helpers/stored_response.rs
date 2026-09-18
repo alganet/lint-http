@@ -15,9 +15,9 @@
 //! purpose. That module reads a field and answers what it says; this one reads
 //! the *pairing* of two exchanges and asks that module whatever it needs to
 //! know about a value. § 4 lists several conditions on the pairing — the URI,
-//! the method, the selecting header fields — and the method is the first of
-//! them a linter that already scopes history by client and target has left to
-//! check.
+//! the method, the selecting header fields — and a linter that already scopes
+//! history by client and target has the last two left to check:
+//! [`method_allows`] is the method, [`selecting_fields_match`] the fields.
 //!
 //! **§ 3 comes before § 4, and it is the other half of the question.** § 4
 //! decides which stored response answers the request now presented, and it
@@ -98,6 +98,40 @@ pub fn storage_allowed(request: &hyper::HeaderMap, response: &hyper::HeaderMap) 
         && !super::cache_control::has_unqualified(request, "no-store")
 }
 
+/// Whether the request now presented selects the representation the earlier
+/// exchange stored, under the `Vary` that response carried.
+///
+/// § 4's condition after the method. A response that varies names the request
+/// fields that chose it, and it answers a later request only where those
+/// fields match — so a response served under `Vary: Accept-Encoding` to a
+/// request that asked for gzip is no entry for a request that asked for
+/// nothing, and the other way round. § 4.1 is precise about what "match"
+/// tolerates and this reads none of it: two values match here when they are
+/// the same octets, and a field is absent from both requests or from neither.
+/// Stricter than the section, and strict in the one direction that costs
+/// nothing — a pairing this refuses is an entry a reader does not find, and
+/// a reader that finds no entry reports nothing, where one that pairs two
+/// representations reports the wrong one.
+///
+/// `*` never matches, which is § 4.1's own sentence and not a simplification
+/// of it.
+// cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request (i.e., the request that caused the cached response to be stored)."
+// cite(RFC 9111 § 4.1): "If (after any normalization that might take place) a header field is absent from a request, it can only match another request if it is also absent there."
+// cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
+pub fn selecting_fields_match(
+    stored_request: &hyper::HeaderMap,
+    stored_response: &hyper::HeaderMap,
+    presented_request: &hyper::HeaderMap,
+) -> bool {
+    use super::headers::combined_field_value_as_written as value;
+    match super::vary::vary_nomination(stored_response) {
+        super::vary::VaryNomination::Wildcard => false,
+        super::vary::VaryNomination::Fields(names) => names
+            .iter()
+            .all(|name| value(stored_request, name) == value(presented_request, name)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,6 +161,37 @@ mod tests {
         #[case] expected: bool,
     ) {
         assert_eq!(method_allows(stored, presented), expected);
+    }
+
+    /// Each of § 4.1's answers: a nominated field that agrees, one that does
+    /// not, one absent from one side, a field the response does not nominate,
+    /// no `Vary` at all, and `*`.
+    #[rstest]
+    #[case(&[("accept-encoding", "gzip")], "Accept-Encoding", &[("accept-encoding", "gzip")], true)]
+    #[case(&[("accept-encoding", "gzip")], "Accept-Encoding", &[("accept-encoding", "br")], false)]
+    #[case(&[("accept-encoding", "gzip")], "Accept-Encoding", &[], false)]
+    #[case(&[], "Accept-Encoding", &[("accept-encoding", "gzip")], false)]
+    #[case(&[], "Accept-Encoding", &[], true)]
+    #[case(&[("accept-encoding", "gzip")], "Accept-Language", &[("accept-encoding", "br")], true)]
+    #[case(&[("accept-encoding", "gzip")], "", &[], true)]
+    #[case(&[], "*", &[], false)]
+    #[case(&[("accept", "text/html")], "Accept, Accept-Encoding", &[("accept", "text/html")], true)]
+    #[case(&[("accept", "text/html")], "Accept, Accept-Encoding", &[("accept", "text/html"), ("accept-encoding", "gzip")], false)]
+    fn a_stored_response_answers_only_a_request_that_selects_it(
+        #[case] stored: &[(&str, &str)],
+        #[case] vary: &str,
+        #[case] presented: &[(&str, &str)],
+        #[case] expected: bool,
+    ) {
+        let response = if vary.is_empty() {
+            headers(&[])
+        } else {
+            headers(&[("vary", vary)])
+        };
+        assert_eq!(
+            selecting_fields_match(&headers(stored), &response, &headers(presented)),
+            expected
+        );
     }
 
     fn headers(pairs: &[(&str, &str)]) -> hyper::HeaderMap {
