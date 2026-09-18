@@ -31,8 +31,20 @@ where
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     if req.method() == Method::CONNECT {
+        // Judge the tunnel request before it is consumed by the upgrade. Its
+        // target is authority-form — `example.com:443`, not a URI — and it is
+        // recorded exactly as the client wrote it, because that authority *is*
+        // what the rules about it read. Nothing is reconstructed here for the
+        // reason the exchange path reconstructs below: there is no `Host` to
+        // fall back to and no origin-form to repair.
+        let tunnel_facts = tunnel_facts(&req, &conn_metadata);
+
         if shared.ca.is_some() {
             let uri = req.uri().clone();
+            // The 200 below is this proxy's own answer and no origin sent it,
+            // which `record_tunnel_transaction` marks so that only the request
+            // half is judged.
+            super::exchange::record_tunnel_transaction(&shared, &tunnel_facts, 200).await;
             // `shared` and `conn_metadata` are owned `Arc`s and this branch
             // returns, so the task takes them rather than a second handle to
             // each. They were cloned here only because the surrounding function
@@ -49,6 +61,7 @@ where
             });
             return Ok(Response::new(boxed_full(Bytes::new())));
         } else {
+            super::exchange::record_tunnel_transaction(&shared, &tunnel_facts, 405).await;
             return Ok(Response::builder()
                 .status(405)
                 .body(boxed_full(Bytes::from(
@@ -111,6 +124,36 @@ where
             }));
     }
     handle_http_logic(req, shared, conn_metadata, scheme).await
+}
+
+/// The request facts for a CONNECT.
+///
+/// Separate from the exchange path's because almost nothing it does applies: a
+/// tunnel request has no body to read, no `Host` to reconcile against an
+/// origin-form target, and no upstream to forward to. What it has is a method,
+/// an authority, and the client that wrote them.
+fn tunnel_facts<B>(
+    req: &Request<B>,
+    conn_metadata: &Arc<crate::connection::ConnectionMetadata>,
+) -> super::exchange::RequestFacts {
+    let headers = req.headers().clone();
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+    super::exchange::RequestFacts {
+        method: req.method().clone(),
+        uri_str: req.uri().to_string(),
+        headers,
+        version: format_http_version(req.version()),
+        client_id: crate::state::ClientIdentifier::new(conn_metadata.remote_addr.ip(), user_agent),
+        connection_id: conn_metadata.id,
+        // A tunnel takes a sequence number like any other request: it is one
+        // message from this client on this connection, and the requests that
+        // follow it inside the tunnel are numbered after it.
+        sequence_number: conn_metadata.next_sequence_number(),
+    }
 }
 
 /// Build a boxed plaintext error response. Thin wrapper over the one shared

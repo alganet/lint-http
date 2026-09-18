@@ -537,6 +537,41 @@ pub(super) async fn record_error_transaction(
     shared.pipeline().commit(tx).await;
 }
 
+/// Record the CONNECT that opened a tunnel — or the refusal that did not.
+///
+/// **A tunnel request is the one message a proxy is certain to see and was the
+/// one it never judged.** It arrives before any exchange, is consumed by the
+/// upgrade, and produced no record at all: a capture of an HTTPS session held
+/// every request that went *through* the tunnel and nothing about the request
+/// that asked for it. The defects about a CONNECT's target — a missing
+/// authority, a colon with no port — were unreachable in consequence, not for
+/// want of traffic but because the traffic was discarded before the rules.
+///
+/// It shares [`record_error_transaction`]'s mechanism and not its meaning. The
+/// response half here is a `200` the proxy wrote itself, exactly as a `502`
+/// there is, and `upstream_never_answered` is what keeps every
+/// response-reading rule off a message no origin sent. The status is not an
+/// error; the authorship is the same.
+pub(super) async fn record_tunnel_transaction(
+    shared: &Arc<Shared>,
+    facts: &RequestFacts,
+    status: u16,
+) {
+    let mut tx = assemble_transaction(
+        facts,
+        ResponseFacts {
+            status,
+            version: facts.version.clone(),
+            headers: HeaderMap::new(),
+            body_length: None,
+            trailers: None,
+        },
+        0,
+    );
+    tx.upstream_never_answered = true;
+    shared.pipeline().commit(tx).await;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
