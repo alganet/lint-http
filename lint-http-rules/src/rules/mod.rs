@@ -2563,10 +2563,18 @@ enabled = "true"
     /// inside a larger value, and it is now the only one that says so. This
     /// ceiling falls on a merge; it also falls when a seam an operator was told
     /// about turns out not to exist.
+    ///
+    /// **105 again, and for the mirror of that.** `http_date_empty` was
+    /// declared by the one rule that asked whether the line was empty before
+    /// handing the value on, while `Date`, `Last-Modified`, `Sunset` and a
+    /// `warn-date` reported nothing-was-written as a timestamp somebody got
+    /// wrong. Moving the question into the shared reader gave the id four more
+    /// declarers, and the number counts them because an operator can now be
+    /// shown that defect from five seams — which is what is true.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 104;
+        const CEILING: usize = 105;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();
@@ -2621,14 +2629,26 @@ enabled = "true"
     /// the review: a fourth pair is either a merge waiting or a rule written by
     /// copying one that already reported everything it reports, and both want
     /// reading before they land.
+    ///
+    /// **The fourth arrived and it is neither.**
+    /// `last_modified_rfc1123_syntax` and `conditional_date_syntax` read one
+    /// production over three fields — `Last-Modified` in a response, the two
+    /// `If-*-Since` in a request — and became equal when the empty-value
+    /// question moved into the shared reader and the response side had to
+    /// declare the id it had always been able to report. It is the same shape
+    /// as the three above and one thing more: the two rules sit on opposite
+    /// halves of the message and answer to different parties, so merging them
+    /// would put a client-side reading and a server-side one behind one
+    /// `enabled` flag. The equality is exact; the conclusion is still not a
+    /// merge.
     #[test]
     fn no_two_rules_declare_the_same_defects() {
-        /// **The three it permits are the three that are not merges**, read
+        /// **The four it permits are the four that are not merges**, read
         /// above. There is nothing left for this to count down to, which is
-        /// what a finished ratchet looks like: it holds against a sixth pair
+        /// what a finished ratchet looks like: it holds against a further pair
         /// appearing and asserts nothing else. Read from what the assertion
         /// prints, never incremented.
-        const CEILING: usize = 3;
+        const CEILING: usize = 4;
 
         let declared: std::collections::BTreeMap<&str, std::collections::BTreeSet<&str>> =
             all_rules()

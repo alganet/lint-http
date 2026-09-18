@@ -15,6 +15,7 @@ Validate that date/time related headers are well-formed and mutually consistent.
 - [conditional_date_conflicting](../violations/conditional_date_conflicting.md) — A date precondition names a time after the request's own Date
 - [date_missing](../violations/date_missing.md) — A response does not say when it was written
 - [http_date_day_name_conflicting](../violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
+- [http_date_empty](../violations/http_date_empty.md) — A date field is written with no timestamp on it
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [last_modified_conflicting](../violations/last_modified_conflicting.md) — A Last-Modified is later than the Date beside it
 - [sunset_invalid](../violations/sunset_invalid.md) — A Sunset names a time that has already passed

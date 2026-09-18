@@ -8,8 +8,8 @@ use crate::violations::conditional::CONDITIONAL_DATE_CONFLICTING;
 use crate::violations::date::{DATE_MISSING, RFC_9110_6_6_1};
 use crate::violations::deprecation::{RFC_8594_3, SUNSET_INVALID};
 use crate::violations::http_date::{
-    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_MALFORMED, RFC_5322_3_3,
-    RFC_9110_5_6_7,
+    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED,
+    RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::last_modified::{LAST_MODIFIED_CONFLICTING, RFC_9110_8_8_2_1};
 use crate::violations::ViolationDef;
@@ -38,6 +38,7 @@ pub struct DateAndTimeHeadersConsistent;
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_DAY_NAME_CONFLICTING,
+    &HTTP_DATE_EMPTY,
     &LAST_MODIFIED_CONFLICTING,
     &SUNSET_INVALID,
     &CONDITIONAL_DATE_CONFLICTING,
@@ -181,6 +182,9 @@ impl DateAndTimeHeadersConsistent {
                         crate::http_date::HttpDateDefect::DayNameConflicting => {
                             "Date header names a weekday its own date does not fall on"
                         }
+                        crate::http_date::HttpDateDefect::Empty => {
+                            "Date header is empty or contains only whitespace"
+                        }
                         _ => "Date header is not a valid HTTP-date",
                     }
                     .into(),
@@ -240,6 +244,9 @@ impl DateAndTimeHeadersConsistent {
                         crate::http_date::HttpDateDefect::DayNameConflicting => {
                             "Sunset header names a weekday its own date does not fall on \
                              (RFC 8594 §3)"
+                        }
+                        crate::http_date::HttpDateDefect::Empty => {
+                            "Sunset header is empty or contains only whitespace (RFC 8594 §3)"
                         }
                         _ => "Sunset header is not a valid HTTP-date (RFC 8594 §3)",
                     }

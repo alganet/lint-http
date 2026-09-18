@@ -5,8 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
-    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
-    RFC_5322_3_3, RFC_9110_5_6_7,
+    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED,
+    HTTP_DATE_OBSOLETE, RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::ViolationDef;
 
@@ -35,6 +35,7 @@ static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_OBSOLETE,
     &HTTP_DATE_DAY_NAME_CONFLICTING,
+    &HTTP_DATE_EMPTY,
 ];
 
 impl RuleMeta for LastModifiedRfc1123Syntax {
@@ -137,6 +138,9 @@ impl Rule for LastModifiedRfc1123Syntax {
                         match defect {
                             crate::http_date::HttpDateDefect::DayNameConflicting => {
                                 "Last-Modified header names a weekday its own date does not fall on"
+                            }
+                            crate::http_date::HttpDateDefect::Empty => {
+                                "Last-Modified header is empty or contains only whitespace"
                             }
                             _ => "Last-Modified header is not a valid IMF-fixdate (RFC 9110)",
                         }

@@ -82,6 +82,17 @@ defects! {
     /// closed vocabulary separates the two everywhere and the evidence supports
     /// it here: both are in the capture.
     ///
+    /// **"Everywhere" was a claim about the vocabulary and not about the
+    /// readers, and for a while only one reader made it.** `If-Modified-Since`
+    /// asked whether the line was empty before handing the value on;
+    /// `Date`, `Last-Modified` and `Sunset` did not, so a field line with
+    /// nothing on it reported as a timestamp someone had got wrong. The split
+    /// is made in [`check_imf_fixdate`](crate::http_date::check_imf_fixdate)
+    /// now, where every field asks the same question once. `Expires` is the one
+    /// documented exception and says so on its own entry: RFC 9111 § 5.3 has a
+    /// cache read anything it cannot parse as already expired, which is not
+    /// what this entry says a recipient does.
+    ///
     /// **`OWS` and not `str::trim`** is what "nothing but whitespace" means: an
     /// `obs-text` octet is not whitespace of any kind, and trimming it would
     /// call a value that holds one empty.
@@ -201,6 +212,7 @@ pub fn http_date_defect(defect: HttpDateDefect) -> &'static ViolationDef {
         HttpDateDefect::ObsoleteFormat => &HTTP_DATE_OBSOLETE,
         HttpDateDefect::SurroundingWhitespace => &HTTP_DATE_WHITESPACE_FORBIDDEN,
         HttpDateDefect::DayNameConflicting => &HTTP_DATE_DAY_NAME_CONFLICTING,
+        HttpDateDefect::Empty => &HTTP_DATE_EMPTY,
     }
 }
 
@@ -264,6 +276,27 @@ mod tests {
     /// something the production admits. A recipient is separately required to
     /// read the obsolete formats, which is why the message still works — and
     /// working is not the question the level answers.
+    /// The vocabulary is closed and the readers agree about it: one call
+    /// answers "nothing was written" for every field defined as an
+    /// `HTTP-date`, so no site can quietly report an absence as a value
+    /// somebody got wrong. This is the claim
+    /// [`HTTP_DATE_EMPTY`]'s own entry makes, held where the mapping is
+    /// rather than at each of the five sites that used to make it separately or
+    /// not at all.
+    #[test]
+    fn nothing_written_is_one_answer_and_the_mapping_is_where_it_is_made() {
+        for empty in ["", " ", "\t"] {
+            let defect = check_imf_fixdate(empty).expect_err("nothing was written");
+            assert_eq!(http_date_defect(defect).id, "http_date_empty", "{empty:?}");
+        }
+        // And it is asked before the format is, so a value that *was* written
+        // never reaches it.
+        assert_eq!(
+            http_date_defect(check_imf_fixdate("not-a-date").expect_err("no format parses it")).id,
+            "http_date_malformed",
+        );
+    }
+
     #[test]
     fn the_three_ways_to_write_the_timestamp_wrongly_rank_together() {
         for def in [
