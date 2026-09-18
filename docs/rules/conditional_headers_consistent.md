@@ -18,6 +18,7 @@ Validate consistency and mutual exclusivity of conditional request headers. When
 - [etag_delimiter_missing](../violations/etag_delimiter_missing.md) — Entity-tag is not quoted
 - [etag_weak_indicator_invalid](../violations/etag_weak_indicator_invalid.md) — Weakness indicator is not written W/
 - [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
+- [http_date_day_name_conflicting](../violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
 - [http_date_whitespace_forbidden](../violations/http_date_whitespace_forbidden.md) — Timestamp is padded with whitespace the grammar does not print
@@ -36,6 +37,7 @@ Validate consistency and mutual exclusivity of conditional request headers. When
 - [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): Entity Tags — `entity-tag = [ weak ] opaque-tag`, `weak = %s"W/"` (case-sensitive by the `%s` prefix), `opaque-tag = DQUOTE *etagc DQUOTE`, and `etagc` as VCHAR minus the DQUOTE plus obs-text
 - [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats — `HTTP-date = IMF-fixdate / obs-date`, the recipient's MUST to accept all three, and the sender's MUST to generate only the first
 - [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
+- [RFC 5322 §3.3](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.3): Date and Time Specification — the semantics § 5.6.7 borrows, including the requirement that a date-time be semantically valid
 
 ## Configuration
 

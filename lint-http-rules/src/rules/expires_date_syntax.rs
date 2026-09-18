@@ -6,7 +6,9 @@ use crate::http_date::HttpDateDefect;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::expires::{EXPIRES_MALFORMED, RFC_9111_5_3};
-use crate::violations::http_date::{HTTP_DATE_OBSOLETE, RFC_9110_5_6_7};
+use crate::violations::http_date::{
+    HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_OBSOLETE, RFC_5322_3_3, RFC_9110_5_6_7,
+};
 use crate::violations::ViolationDef;
 
 pub struct ExpiresDateSyntax;
@@ -38,7 +40,11 @@ pub struct ExpiresDateSyntax;
 /// `http_date_empty`.** That entry's cost is that a recipient acts as though
 /// the field were absent; § 5.3 has it act as though the response were stale,
 /// which is a different answer and the one this field gets.
-static DECLARED: &[&ViolationDef] = &[&EXPIRES_MALFORMED, &HTTP_DATE_OBSOLETE];
+static DECLARED: &[&ViolationDef] = &[
+    &EXPIRES_MALFORMED,
+    &HTTP_DATE_OBSOLETE,
+    &HTTP_DATE_DAY_NAME_CONFLICTING,
+];
 
 impl RuleMeta for ExpiresDateSyntax {
     fn id(&self) -> &'static str {
@@ -59,7 +65,7 @@ impl RuleMeta for ExpiresDateSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_3, RFC_9110_5_6_7]
+        &[RFC_9111_5_3, RFC_9110_5_6_7, RFC_5322_3_3]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -126,6 +132,13 @@ impl Rule for ExpiresDateSyntax {
             //
             // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
             let (def, message) = match defect {
+                HttpDateDefect::DayNameConflicting => (
+                    &HTTP_DATE_DAY_NAME_CONFLICTING,
+                    format!(
+                        "Expires '{value}' names a weekday its own date does not fall on \
+                         (RFC 9110 §5.6.7, RFC 5322 §3.3)"
+                    ),
+                ),
                 HttpDateDefect::ObsoleteFormat => (
                     &HTTP_DATE_OBSOLETE,
                     format!(

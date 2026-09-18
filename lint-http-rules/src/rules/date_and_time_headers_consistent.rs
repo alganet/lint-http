@@ -7,7 +7,10 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::conditional::CONDITIONAL_DATE_CONFLICTING;
 use crate::violations::date::{DATE_MISSING, RFC_9110_6_6_1};
 use crate::violations::deprecation::{RFC_8594_3, SUNSET_INVALID};
-use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
+use crate::violations::http_date::{
+    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_MALFORMED, RFC_5322_3_3,
+    RFC_9110_5_6_7,
+};
 use crate::violations::last_modified::{LAST_MODIFIED_CONFLICTING, RFC_9110_8_8_2_1};
 use crate::violations::ViolationDef;
 
@@ -34,6 +37,7 @@ pub struct DateAndTimeHeadersConsistent;
 /// about a field's absence rather than about a value.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
+    &HTTP_DATE_DAY_NAME_CONFLICTING,
     &LAST_MODIFIED_CONFLICTING,
     &SUNSET_INVALID,
     &CONDITIONAL_DATE_CONFLICTING,
@@ -73,7 +77,15 @@ enum Timestamp {
     /// the *format* refuses — one defect, and the format's reader is the one
     /// that can name it. The variant that stood here reported four fields for
     /// an encoding instead.
-    Unparseable,
+    ///
+    /// **It carries which defect, because "this parser refused it" was two
+    /// verdicts wearing one word.** A timestamp naming a weekday its own date
+    /// does not fall on is refused here exactly as `not-a-date` is, and it is
+    /// not the same thing: it derives from the production and names its instant
+    /// unambiguously. The reporting sites below choose the id from this
+    /// payload, so the field they name is theirs and the verdict is the
+    /// production's.
+    Unparseable(crate::http_date::HttpDateDefect),
     /// A timestamp, and the text it was written as.
     At(chrono::DateTime<chrono::Utc>, String),
 }
@@ -137,7 +149,16 @@ impl Timestamp {
         let text = crate::helpers::headers::field_line_as_written(value);
         match crate::http_date::parse_http_date_to_datetime(&text) {
             Ok(at) => Timestamp::At(at, text),
-            Err(_) => Timestamp::Unparseable,
+            // The recipient's reader says only that it could not read the
+            // value; the sender-side reader says why, and the two agree about
+            // which values reach here. A value the recipient's reader accepted
+            // never arrives, so the answer is one of the two this arm can see:
+            // no format parses it, or the weekday contradicts its own date.
+            Err(_) => Timestamp::Unparseable(
+                crate::http_date::check_imf_fixdate(&text)
+                    .err()
+                    .unwrap_or(crate::http_date::HttpDateDefect::Unparsable),
+            ),
         }
     }
 }
@@ -153,10 +174,18 @@ impl DateAndTimeHeadersConsistent {
     ) -> Option<Violation> {
         match timestamp(headers, "date") {
             Timestamp::Absent | Timestamp::At(..) => None,
-            Timestamp::Unparseable => Some(ctx.by(party).report_with(
-                &HTTP_DATE_MALFORMED,
-                "Date header is not a valid HTTP-date".into(),
-            )),
+            Timestamp::Unparseable(defect) => Some(
+                ctx.by(party).report_with(
+                    http_date_defect(defect),
+                    match defect {
+                        crate::http_date::HttpDateDefect::DayNameConflicting => {
+                            "Date header names a weekday its own date does not fall on"
+                        }
+                        _ => "Date header is not a valid HTTP-date",
+                    }
+                    .into(),
+                ),
+            ),
         }
     }
 
@@ -174,7 +203,7 @@ impl DateAndTimeHeadersConsistent {
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         match timestamp(headers, "last-modified") {
-            Timestamp::Absent | Timestamp::Unparseable => None,
+            Timestamp::Absent | Timestamp::Unparseable(_) => None,
             Timestamp::At(last_modified, text) if last_modified > date + skew => {
                 Some(ctx.by_server().report_with(&LAST_MODIFIED_CONFLICTING, format!(
                     "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
@@ -205,9 +234,16 @@ impl DateAndTimeHeadersConsistent {
             .get_all("sunset")
             .iter()
             .find_map(|line| match Timestamp::of(line) {
-                Timestamp::Unparseable => Some(ctx.by_server().report_with(
-                    &HTTP_DATE_MALFORMED,
-                    "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
+                Timestamp::Unparseable(defect) => Some(ctx.by_server().report_with(
+                    http_date_defect(defect),
+                    match defect {
+                        crate::http_date::HttpDateDefect::DayNameConflicting => {
+                            "Sunset header names a weekday its own date does not fall on \
+                             (RFC 8594 §3)"
+                        }
+                        _ => "Sunset header is not a valid HTTP-date (RFC 8594 §3)",
+                    }
+                    .into(),
                 )),
                 Timestamp::At(sunset, text) if sunset <= now.at() - skew => {
                     Some(ctx.by_server().report_with(&SUNSET_INVALID, format!(
@@ -258,7 +294,7 @@ impl DateAndTimeHeadersConsistent {
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let since = match timestamp(headers, "if-modified-since") {
-            Timestamp::Absent | Timestamp::Unparseable => return None,
+            Timestamp::Absent | Timestamp::Unparseable(_) => return None,
             Timestamp::At(since, text) => (since, text),
         };
         let Timestamp::At(date, date_text) = timestamp(headers, "date") else {
@@ -300,6 +336,7 @@ impl RuleMeta for DateAndTimeHeadersConsistent {
             RFC_8594_3,
             RFC_9110_5_6_7,
             RFC_9110_8_8_2_1,
+            RFC_5322_3_3,
         ]
     }
 
@@ -390,7 +427,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                 // only response reaching the fallback is one that wrote none.
                 let now = match timestamp(&resp.headers, "date") {
                     Timestamp::At(date, date_text) => Now::Stated(date, date_text),
-                    Timestamp::Absent | Timestamp::Unparseable => Now::Observed(tx.timestamp),
+                    Timestamp::Absent | Timestamp::Unparseable(_) => Now::Observed(tx.timestamp),
                 };
                 if let Some(v) = self.sunset_is_still_to_come(&resp.headers, &now, skew, ctx) {
                     return Some(v);
@@ -427,6 +464,46 @@ mod tests {
     /// unreadable value drew two findings differing in nothing but the rule
     /// name. It stopped; this rule keeps the reading because it judges every
     /// field line where the other read only the first.
+    /// The weekday that is not the day its date falls on, in the two fields
+    /// this rule reads. `Fri, 01 Jan 1980 00:00:00 GMT` came off a real
+    /// response — the first of January 1980 was a Tuesday — and it used to be
+    /// reported as the value no format parses, which said the field named no
+    /// instant. It names one exactly; what it does not name is the day.
+    #[test]
+    fn a_weekday_the_date_does_not_imply_is_not_a_value_that_names_no_instant() {
+        let response = |pairs: &[(&str, &str)]| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(pairs);
+            crate::test_helpers::run_rule(
+                &DateAndTimeHeadersConsistent,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "date_and_time_headers_consistent",
+                ]),
+            )
+            .expect("a finding")
+        };
+
+        let date = response(&[("date", "Fri, 01 Jan 1980 00:00:00 GMT")]);
+        assert_eq!(date.violation, "http_date_day_name_conflicting");
+        assert_eq!(date.severity, crate::lint::Severity::Error);
+        assert!(date.message.contains("weekday"), "{}", date.message);
+
+        let sunset = response(&[
+            ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+            ("sunset", "Mon, 26 Jul 1997 05:00:00 GMT"),
+        ]);
+        assert_eq!(sunset.violation, "http_date_day_name_conflicting");
+
+        // The value that really does name no instant keeps the id that says so.
+        assert_eq!(
+            response(&[("date", "not-a-date")]).violation,
+            "http_date_malformed",
+        );
+    }
+
     #[test]
     fn a_timestamp_no_recipient_can_read_is_one_defect_in_three_fields() {
         let response = |pairs: &[(&str, &str)]| {

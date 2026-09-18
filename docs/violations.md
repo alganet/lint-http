@@ -241,6 +241,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [http3_settings_duplicated](violations/http3_settings_duplicated.md) — A peer sent a second SETTINGS frame on one connection
 - [http3_settings_identifier_duplicated](violations/http3_settings_identifier_duplicated.md) — One SETTINGS frame states the same identifier twice
 - [http3_settings_identifier_forbidden](violations/http3_settings_identifier_forbidden.md) — SETTINGS carries an identifier HTTP/3 reserves
+- [http_date_day_name_conflicting](violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
 - [http_date_empty](violations/http_date_empty.md) — A date field is written with no timestamp on it
 - [http_date_malformed](violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [http_date_obsolete](violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format

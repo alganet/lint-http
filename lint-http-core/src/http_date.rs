@@ -125,6 +125,52 @@ pub enum HttpDateDefect {
     /// the value by § 5.5 and the caller excludes it; what reaches here is
     /// padding *inside* the value, as in a `Warning`'s quoted `warn-date`.
     SurroundingWhitespace,
+    /// An IMF-fixdate whose `day-name` is not the day its own `date1` falls
+    /// on: `Fri, 01 Jan 1980 00:00:00 GMT`, where the first of January 1980
+    /// was a Tuesday.
+    ///
+    /// **The odd one out, because the value derives from the production.**
+    /// `day-name` and `date1` are separate elements of the ABNF and nothing in
+    /// it ties them together, so a parser reading only the grammar admits this
+    /// — which is why it arrived here as [`Unparsable`](Self::Unparsable) for
+    /// as long as the answer came from whether the dependency would parse it.
+    /// What the value breaks is § 5.6.7's other sentence about `day-name`, the
+    /// one that hands its *semantics* to RFC 5322 § 3.3, where a date-time
+    /// MUST be semantically valid and the day-of-week MUST be the day the date
+    /// implies.
+    DayNameConflicting,
+}
+
+/// The seven `day-name`s, in the one capitalization § 5.6.7 admits.
+const DAY_NAMES: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/// Whether `s` is an IMF-fixdate whose only fault is the weekday it names.
+///
+/// Asked only where the parser has already refused the value, and answered by
+/// repair: the seven day names are each written in front of the rest of the
+/// string, and the value conflicts when one of the other six produces an exact
+/// IMF-fixdate. Exact is what keeps the answer narrow — the repaired string
+/// must round-trip through `fmt_http_date` unchanged — so an obsolete
+/// spelling, a padded value and a zone that is not `GMT` all stay unparsable,
+/// as they are.
+///
+/// The value is measured as it was handed over. A caller that reads off a
+/// field line has already excluded the `OWS` § 5.5 puts outside the value, and
+/// one that has not is asking about a string whose first three octets are not
+/// a `day-name` to begin with.
+fn conflicting_day_name(s: &str) -> bool {
+    let Some((claimed, rest)) = s.split_once(", ") else {
+        return false;
+    };
+    if !DAY_NAMES.contains(&claimed) {
+        return false;
+    }
+    DAY_NAMES.iter().any(|implied| {
+        let repaired = format!("{implied}, {rest}");
+        *implied != claimed
+            && httpdate::parse_http_date(&repaired)
+                .is_ok_and(|at| httpdate::fmt_http_date(at) == repaired)
+    })
 }
 
 /// [`is_valid_imf_fixdate`] with the three answers kept apart.
@@ -142,11 +188,26 @@ pub enum HttpDateDefect {
 /// — a lowercase day name, a doubled interior `SP`, a zone that is not `GMT` —
 /// so those arrive as [`HttpDateDefect::Unparsable`], which is what they are.
 ///
+/// **One value the parser refuses is not one of them**, and it is asked about
+/// before the verdict is written: a `day-name` in the right spelling that is
+/// simply the wrong day for the date beside it derives from the production and
+/// names its instant unambiguously. See
+/// [`HttpDateDefect::DayNameConflicting`].
+///
 /// cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
 /// cite(RFC 9110 § 5.6.7): "obs-date = rfc850-date / asctime-date"
 pub fn check_imf_fixdate(s: &str) -> Result<(), HttpDateDefect> {
     let Ok(st) = httpdate::parse_http_date(s) else {
-        return Err(HttpDateDefect::Unparsable);
+        // The dependency refuses a weekday its date does not fall on, and a
+        // refusal is all it says. Two different defects arrive here as one, so
+        // the split is made before the verdict is: one of them derives from the
+        // production and names the instant it meant.
+        //
+        // cite(RFC 9110 § 5.6.7): "The semantics of day-name, day, month, year, and time-of-day are the same as those defined for the Internet Message Format constructs with the corresponding name ([RFC5322], Section 3.3)."
+        return Err(match conflicting_day_name(s) {
+            true => HttpDateDefect::DayNameConflicting,
+            false => HttpDateDefect::Unparsable,
+        });
     };
     let fixdate = httpdate::fmt_http_date(st);
     if fixdate == s {
@@ -209,6 +270,63 @@ mod tests {
     /// and whether or not the field line it came from was allowed to carry
     /// `OWS`. Excluding that `OWS` is the caller's, because only the caller knows
     /// it was a field value.
+    /// The fourth answer, and the two shapes it has to keep apart. Both
+    /// strings were read off real responses: the first of January 1980 was a
+    /// Tuesday and the twenty-sixth of July 1997 was a Saturday, and both
+    /// values name their instant without any help from the weekday. The
+    /// repair-and-round-trip reading is narrow on purpose, so everything that
+    /// fails the production for a second reason stays unparsable.
+    #[test]
+    fn a_weekday_that_is_the_wrong_day_is_not_a_date_that_names_no_instant() {
+        for wrong in [
+            "Fri, 01 Jan 1980 00:00:00 GMT",
+            "Mon, 26 Jul 1997 05:00:00 GMT",
+        ] {
+            assert_eq!(
+                check_imf_fixdate(wrong),
+                Err(HttpDateDefect::DayNameConflicting),
+                "{wrong}",
+            );
+        }
+
+        // The day the date does imply is not a defect at all.
+        assert!(check_imf_fixdate("Tue, 01 Jan 1980 00:00:00 GMT").is_ok());
+        assert!(check_imf_fixdate("Sat, 26 Jul 1997 05:00:00 GMT").is_ok());
+
+        // A second fault leaves nothing for the repair to find, and these stay
+        // what they were: no format parses them.
+        for unparsable in [
+            // The zone is not GMT, so no weekday makes this an IMF-fixdate.
+            "Fri, 01 Jan 1980 00:00:00 UTC",
+            // No such day of the month, whatever the weekday says.
+            "Sun, 32 Aug 2026 00:31:33 GMT",
+            // The dashes are RFC 850's and the year is four digits, so this is
+            // neither format.
+            "Fri, 01-Jan-1980 00:00:00 GMT",
+            "-1",
+            "",
+        ] {
+            assert_eq!(
+                check_imf_fixdate(unparsable),
+                Err(HttpDateDefect::Unparsable),
+                "{unparsable}",
+            );
+        }
+
+        // The obsolete spellings keep their own verdict: their day-name-l is
+        // not a day-name, and the parser reads them without help.
+        assert_eq!(
+            check_imf_fixdate("Sunday, 06-Nov-94 08:49:37 GMT"),
+            Err(HttpDateDefect::ObsoleteFormat),
+        );
+        // Padding is measured before the weekday is, because the parser this
+        // asks trims and then succeeds.
+        assert_eq!(
+            check_imf_fixdate(" Sun, 06 Nov 1994 08:49:37 GMT"),
+            Err(HttpDateDefect::SurroundingWhitespace),
+        );
+    }
+
     #[test]
     fn a_padded_date_is_not_an_imf_fixdate() {
         let imf = "Sun, 06 Nov 1994 08:49:37 GMT";

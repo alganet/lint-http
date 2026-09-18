@@ -2543,10 +2543,20 @@ enabled = "true"
     /// one walking an `Accept` member itself — which is this ceiling doing its
     /// job: an operator can now be shown that defect from four seams, and the
     /// number says so.
+    ///
+    /// **105, and the one that moved it was a fourth answer from a reader four
+    /// rules already share.** `check_imf_fixdate` used to return three, and
+    /// every timestamp a strict parser refused arrived as the one that names no
+    /// instant — a weekday contradicting its own date included, though that
+    /// value derives from the production and names its instant exactly.
+    /// `http_date_day_name_conflicting` is that answer, and it is declared
+    /// wherever the reader is: the two conditional-date sites, `Last-Modified`
+    /// and `Expires`. Four seams for one defect, arrived at by splitting a
+    /// verdict rather than by adding a rule.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 104;
+        const CEILING: usize = 105;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();
