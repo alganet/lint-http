@@ -40,15 +40,30 @@ defects! {
     /// A value that is neither `0` nor `1; mode=block`, matched without regard
     /// to case and tolerating whitespace around the `;`.
     ///
-    /// **Two kinds of value report through it and they are one claim.** A `2`
+    /// **Three kinds of value report through it and they are one claim.** A `2`
     /// or a word is a setting the field never had; a bare `1`, or
-    /// `1; report=<uri>`, is one it did have and this crate declines. The
-    /// entry does not split them the way the cross-origin embedder policy's
-    /// pair splits, and the test there is what decides it: that split put an
-    /// entry standing on HTML beside one standing on a preference, where both
-    /// halves here stand on the same preference and end at the same repair —
-    /// *write `0`, or `1; mode=block`.* Two ids for one repair would be two
-    /// names for one thing.
+    /// `1; report=<uri>`, is one it did have and this crate declines; and
+    /// `1; mode=block; report=<uri>` is the blocking spelling with a further
+    /// setting beside it, which no reference defines and which several
+    /// deployments behind one vendor's script send. The third is why the rule
+    /// builds two sentences rather than one — the first two spell neither
+    /// accepted setting and can be told so, while the third plainly spells one
+    /// of them and only the *combination* is unaccounted for. The entry does
+    /// not split them the way the cross-origin embedder policy's pair splits,
+    /// and the test there is what decides it: that split put an entry standing
+    /// on HTML beside one standing on a preference, where all three groups here
+    /// stand on the same preference and end at the same repair — *write `0`, or
+    /// `1; mode=block`.* Ids for one repair would be several names for one
+    /// thing.
+    ///
+    /// **The id says `_invalid` and the title is what the entry actually
+    /// claims.** A bare `1` was a real, documented setting, so "invalid" is
+    /// false of it in the sense a reader first takes — the title says the true
+    /// thing, that the value asks for neither the filter off nor the page
+    /// blocked. The id is kept regardless: it is the key an operator writes in
+    /// `[violations.<id>]`, and renaming it would break those files to gain
+    /// precision in the one place nobody configures, for a field no standard
+    /// defined and no current browser reads.
     ///
     /// **`info`, which is where a finding lands when nothing in force refuses
     /// what it reports.** No document defines this field, no current browser
