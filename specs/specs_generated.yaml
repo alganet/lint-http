@@ -946,37 +946,37 @@ sources:
     snippet: '"http_proxy" is an exception as it is only available in lower case.'
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 84
+      line: 94
   - label: lint-http-proxy/src/client_env.rs (2)
     snippet: Sets the proxy server to use for HTTP.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 85
+      line: 95
   - label: lint-http-proxy/src/client_env.rs (3)
     snippet: Sets the proxy server to use for HTTPS.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 96
+      line: 106
   - label: lint-http-proxy/src/client_env.rs (4)
     snippet: Sets the proxy server to use if no protocol-specific proxy is set.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 109
+      line: 119
   - label: lint-http-proxy/src/client_env.rs (5)
     snippet: The environment variables can be specified in lower case or upper case. The lower case version has precedence.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 81
+      line: 91
   - label: lint-http-proxy/src/client_env.rs (6)
     snippet: curl recognizes the environment variable named 'CURL_CA_BUNDLE' if it is set and the TLS backend is not Schannel, and uses the given path as a path to a CA cert bundle.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 130
+      line: 159
   - label: lint-http-proxy/src/client_env.rs (7)
     snippet: list of hostnames that should not go through any proxy.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 203
+      line: 232
   - label: lint-http-proxy/src/driver/curl.rs
     snippet: (HTTP) Attempt HTTP/3 to the host in the URL, but fallback to earlier HTTP versions if the HTTP/3 connection establishment fails or is slow. HTTP/3 is only available for HTTPS and not for HTTP URLs.
     cited_by:
@@ -1067,7 +1067,7 @@ sources:
     snippet: Specify the default directory or file containing CA certificates.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 124
+      line: 153
 - label: Node.js CLI
   url: https://nodejs.org/api/cli.html
   type: text/html
@@ -1076,7 +1076,12 @@ sources:
     snippet: The file should consist of one or more trusted certificates in PEM format.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 146
+      line: 175
+  - label: lint-http-proxy/src/client_env.rs (2)
+    snippet: When enabled, Node.js parses the HTTP_PROXY, HTTPS_PROXY and NO_PROXY environment variables during startup, and routes requests through the specified proxy.
+    cited_by:
+    - file: lint-http-proxy/src/client_env.rs
+      line: 143
 - label: Requests Advanced Usage
   url: https://requests.readthedocs.io/en/latest/user/advanced/
   type: text/html
@@ -1085,12 +1090,12 @@ sources:
     snippet: If REQUESTS_CA_BUNDLE is not set, CURL_CA_BUNDLE will be used as fallback.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 140
+      line: 169
   - label: lint-http-proxy/src/client_env.rs (2)
     snippet: This list of trusted CAs can also be specified through the REQUESTS_CA_BUNDLE environment variable.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 139
+      line: 168
 - label: git-config
   url: https://git-scm.com/docs/git-config
   type: text/html
@@ -1099,7 +1104,7 @@ sources:
     snippet: File containing the certificates to verify the peer with when fetching or pushing over HTTPS. Can be overridden by the GIT_SSL_CAINFO environment variable.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 160
+      line: 189
 - label: Cargo Environment Variables
   url: https://doc.rust-lang.org/cargo/reference/environment-variables.html
   type: text/html
@@ -1108,7 +1113,7 @@ sources:
     snippet: The TLS certificate Certificate Authority file
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 168
+      line: 197
 - label: AWS CLI Environment Variables
   url: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
   type: text/html
@@ -1117,7 +1122,7 @@ sources:
     snippet: Specifies the path to a certificate bundle to use for HTTPS certificate validation.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 174
+      line: 203
 - label: Deno Environment Variables
   url: https://docs.deno.com/runtime/reference/env_variables/
   type: text/html
@@ -1126,7 +1131,7 @@ sources:
     snippet: Load certificate authorities from a PEM encoded file. The file can contain more than one certificate, each in its own PEM block.
     cited_by:
     - file: lint-http-proxy/src/client_env.rs
-      line: 152
+      line: 181
 - label: RFC 1035
   url: https://www.rfc-editor.org/rfc/rfc1035.html
   fragments:
