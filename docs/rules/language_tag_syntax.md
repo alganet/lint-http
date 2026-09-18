@@ -22,6 +22,8 @@ Check the language tags in `Content-Language` and the language ranges in `Accept
 
 **Every field line of both fields is read**, since each is a list whose members may be spread across lines.
 
+**An empty list element is reported, and a field line holding no element at all is not.** §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits; §5.6.1.1 expands the same construct for a sender with nothing bracketed, and forbids generating an empty element. So `Accept-Language: en,,de` and `Content-Language: en,` are commas the sender may not write, while a bare `Content-Language:` is the zero-element list `#language-tag` does generate. The empty *tag* is a different finding and stays one: `;q=0.5` is a member the sender wrote with a weight and no range in front of it.
+
 ## Violations
 
 - [language_tag_character_forbidden](../violations/language_tag_character_forbidden.md) — Language tag holds a character outside letters, digits and hyphen
@@ -31,6 +33,7 @@ Check the language tags in `Content-Language` and the language ranges in `Accept
 - [language_tag_subtag_empty](../violations/language_tag_subtag_empty.md) — Language tag has an empty subtag
 - [language_tag_subtag_length_invalid](../violations/language_tag_subtag_length_invalid.md) — Language subtag is longer than eight characters
 - [language_tag_whitespace_or_control_forbidden](../violations/language_tag_whitespace_or_control_forbidden.md) — Language tag holds whitespace or a control character
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 
 ## Specifications
 
@@ -39,6 +42,7 @@ Check the language tags in `Content-Language` and the language ranges in `Accept
 - [RFC 4647 §2.1](https://www.rfc-editor.org/rfc/rfc4647.html#section-2.1): Basic Language Range: the production Accept-Language carries, including the `*` alternative and the statement that a range needs no well-formedness at all
 - [RFC 9110 §8.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5): Content-Language: `#language-tag` — a list of tags, with no wildcard and no weight in it
 - [RFC 9110 §12.5.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4): Accept-Language: where the `language-range` production is pulled in by reference. The weight beside it is `accept_language_weight_valid`'s subject
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 
 ## Configuration
 

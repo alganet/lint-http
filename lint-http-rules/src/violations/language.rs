@@ -40,11 +40,19 @@ pub const RFC_5646_2_1: SpecRef = SpecRef {
 };
 
 defects! {
-    /// A tag with nothing in it: `Accept-Language: en,,fr`, a field whose
-    /// whole value is a comma, or a `Link` member's `hreflang` written with no
+    /// A tag with nothing in it: `Accept-Language: ;q=0.5`, a member that is all
+    /// weight and no range, or a `Link` member's `hreflang` written with no
     /// value at all — the production is the whole grammar of each of them, and
     /// it generates no empty string. Nothing is trimmed first, so a tag of
     /// spaces reports as a character defect rather than as this one.
+    ///
+    /// **An empty list *member* is not this defect**, and the examples here used
+    /// to say it was. `Accept-Language: en,,fr` and a field whose whole value is
+    /// a comma are commas the sender wrote with nothing beside them, which is
+    /// [`LIST_MEMBER_EMPTY`](crate::violations::list::LIST_MEMBER_EMPTY) — one
+    /// sentence for every list-valued field. This one is the position *inside* a
+    /// member that the tag was supposed to fill, which is why a weight can sit
+    /// beside it.
     ///
     // cite(RFC 5646 § 2.1): "Language-Tag  = langtag             ; normal language tags"
     LANGUAGE_TAG_EMPTY = {

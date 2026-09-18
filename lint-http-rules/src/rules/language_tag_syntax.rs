@@ -9,6 +9,7 @@ use crate::violations::language::{
     LANGUAGE_TAG_EMPTY, LANGUAGE_TAG_LEADING_LETTER_MISSING, LANGUAGE_TAG_SUBTAG_EMPTY,
     LANGUAGE_TAG_SUBTAG_LENGTH_INVALID, LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_5646_2_1,
 };
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::ViolationDef;
 
 pub struct LanguageTagSyntax;
@@ -18,6 +19,7 @@ pub struct LanguageTagSyntax;
 /// an `hreflang` parameter through the same validator and will report the same
 /// seven.
 static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
     &LANGUAGE_TAG_EMPTY,
     &LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &LANGUAGE_TAG_CHARACTER_FORBIDDEN,
@@ -71,7 +73,7 @@ impl RuleMeta for LanguageTagSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Check the language tags in `Content-Language` and the language ranges in `Accept-Language` for the syntax problems that are unambiguous: a non-alphanumeric character, whitespace, an empty subtag, a leading or trailing hyphen, a subtag longer than eight characters, and a first subtag that does not begin with a letter. Common forms pass — `en`, `en-US`, `zh-Hant`, `sr-Latn-RS`, `es-419`, and private-use tags like `x-custom`.\n\n**The two fields do not use the same production, and RFC 9110 §8.5.1 says so outright:** \"Accept-Language uses the broader `language-range` production defined in Section 12.5.4, whereas Content-Language uses the `language-tag` production defined below.\" A range is RFC 4647 §2.1; a tag is RFC 5646 §2.1. This rule's specifications used to claim that Accept-Language uses RFC 5646 tags, which is the opposite of what §8.5.1 says.\n\n**One validator serves both, and it checks only what the two productions agree on.** That is deliberate. RFC 4647 is explicit that a basic language range carries no well-formedness requirement at all — an ill-formed one \"will probably not match anything\", which is a statement about matching rather than a licence to reject it. So the check is set at the properties a range and a tag share, and **where they differ this rule is lenient toward Content-Language**: `en-US-Latn` is a conforming range and not a conforming tag (script must precede region), and `e` is a conforming range whose single letter no `language` alternative of RFC 5646 admits. Neither is reported. Being stricter would take two validators and a decision about how much of RFC 5646 to implement; being wrong in the other direction would report conforming `Accept-Language` values, which is worse.\n\n**`*` is skipped in Accept-Language and reported in Content-Language.** It is one of the two alternatives of `language-range` and is not a `language-tag`; `Content-Language = #language-tag` has no wildcard. The asymmetry belongs to the two grammars, not to this rule.\n\n**Weights are not read here.** In `Accept-Language` everything from the first `;` onward is stripped and left to `accept_language_weight_valid`; in `Content-Language` there is no `;` in the grammar, so one reaches the validator and is reported as the invalid character it is.\n\n**An octet outside visible US-ASCII is reported, not skipped.** Neither production has a quoted-string in it, so no such octet is ever legal here — and refusing to decode the value used to make the whole field line vanish, hiding any other defect on it.\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines."
+        "Check the language tags in `Content-Language` and the language ranges in `Accept-Language` for the syntax problems that are unambiguous: a non-alphanumeric character, whitespace, an empty subtag, a leading or trailing hyphen, a subtag longer than eight characters, and a first subtag that does not begin with a letter. Common forms pass — `en`, `en-US`, `zh-Hant`, `sr-Latn-RS`, `es-419`, and private-use tags like `x-custom`.\n\n**The two fields do not use the same production, and RFC 9110 §8.5.1 says so outright:** \"Accept-Language uses the broader `language-range` production defined in Section 12.5.4, whereas Content-Language uses the `language-tag` production defined below.\" A range is RFC 4647 §2.1; a tag is RFC 5646 §2.1. This rule's specifications used to claim that Accept-Language uses RFC 5646 tags, which is the opposite of what §8.5.1 says.\n\n**One validator serves both, and it checks only what the two productions agree on.** That is deliberate. RFC 4647 is explicit that a basic language range carries no well-formedness requirement at all — an ill-formed one \"will probably not match anything\", which is a statement about matching rather than a licence to reject it. So the check is set at the properties a range and a tag share, and **where they differ this rule is lenient toward Content-Language**: `en-US-Latn` is a conforming range and not a conforming tag (script must precede region), and `e` is a conforming range whose single letter no `language` alternative of RFC 5646 admits. Neither is reported. Being stricter would take two validators and a decision about how much of RFC 5646 to implement; being wrong in the other direction would report conforming `Accept-Language` values, which is worse.\n\n**`*` is skipped in Accept-Language and reported in Content-Language.** It is one of the two alternatives of `language-range` and is not a `language-tag`; `Content-Language = #language-tag` has no wildcard. The asymmetry belongs to the two grammars, not to this rule.\n\n**Weights are not read here.** In `Accept-Language` everything from the first `;` onward is stripped and left to `accept_language_weight_valid`; in `Content-Language` there is no `;` in the grammar, so one reaches the validator and is reported as the invalid character it is.\n\n**An octet outside visible US-ASCII is reported, not skipped.** Neither production has a quoted-string in it, so no such octet is ever legal here — and refusing to decode the value used to make the whole field line vanish, hiding any other defect on it.\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines.\n\n**An empty list element is reported, and a field line holding no element at all is not.** §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits; §5.6.1.1 expands the same construct for a sender with nothing bracketed, and forbids generating an empty element. So `Accept-Language: en,,de` and `Content-Language: en,` are commas the sender may not write, while a bare `Content-Language:` is the zero-element list `#language-tag` does generate. The empty *tag* is a different finding and stays one: `;q=0.5` is a member the sender wrote with a weight and no range in front of it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -81,6 +83,7 @@ impl RuleMeta for LanguageTagSyntax {
             RFC_4647_2_1,
             RFC_9110_8_5,
             RFC_9110_12_5_4,
+            RFC_9110_5_6_1_1,
         ]
     }
 
@@ -216,11 +219,43 @@ impl Rule for LanguageTagSyntax {
             // validator and is reported as the invalid characters they are in this
             // field — which is the right verdict for the right reason.
             // cite(RFC 9110 § 8.5): "Content-Language = #language-tag"
+            // The empty member is the sender's defect and not the tag's, and the
+            // walk is the whole difference: `list_members` is a *recipient's*
+            // reader — §5.6.1.2 has a recipient ignore an empty element, so by the
+            // time that walk answers the comma is gone. Both fields here are `#`
+            // lists, so the sentence the sender is held to is §5.6.1.1's MUST NOT,
+            // and it can only be reported from a walk that kept the member.
+            //
+            // A field line holding no element at all is a different value and not
+            // this finding: `#language-tag` and `#( language-range [ weight ] )`
+            // both generate the zero-element list, so an absent list is skipped
+            // rather than read as one member the sender left blank.
+            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+            // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+            let empty_member = |hdr: &str,
+                                val: &str,
+                                party: crate::lint::Party|
+             -> Option<Violation> {
+                Some(ctx.by(party).report_with(
+                    &LIST_MEMBER_EMPTY,
+                    format!(
+                        "{hdr} holds an empty list element; the field line reads '{val}'. Every position in the list holds a language tag, and a comma with nothing beside it holds none"
+                    ),
+                ))
+            };
+
             let content_language =
                 |headers: &hyper::HeaderMap, party: crate::lint::Party| -> Option<Violation> {
                     for hv in headers.get_all("content-language").iter() {
                         let val = decode(hv);
-                        for token in crate::helpers::list::list_members(&val) {
+                        if crate::helpers::headers::trim_ows(&val).is_empty() {
+                            continue;
+                        }
+                        for token in crate::helpers::list::sender_list_members(&val) {
+                            if token.is_empty() {
+                                return empty_member("Content-Language", &val, party);
+                            }
                             if let Some(v) = check_tag("Content-Language", token, party) {
                                 return Some(v);
                             }
@@ -234,7 +269,17 @@ impl Rule for LanguageTagSyntax {
              -> Option<Violation> {
                 for hv in headers.get_all("accept-language").iter() {
                     let val = decode(hv);
-                    for member in crate::helpers::list::list_members(&val) {
+                    if crate::helpers::headers::trim_ows(&val).is_empty() {
+                        continue;
+                    }
+                    for member in crate::helpers::list::sender_list_members(&val) {
+                        // Before the weight is stripped, because `;q=0.5` is a
+                        // member the sender wrote with no range in it — an empty
+                        // *tag*, which is a different id — and an empty member is
+                        // a comma the sender wrote with nothing at all beside it.
+                        if member.is_empty() {
+                            return empty_member("Accept-Language", &val, party);
+                        }
                         // The weight is stripped rather than checked; whether it is
                         // a weight at all is `accept_language_weight_valid`'s
                         // subject, and this rule reads only the range in front of it.
@@ -642,5 +687,58 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some(), "{field} carrying %xA0 drew nothing");
+    }
+
+    /// The empty member and the empty tag are two findings, and which one a
+    /// value draws is what this pins. `en,,de` is a comma the sender wrote with
+    /// nothing beside it — §5.6.1.1's MUST NOT, and one id shared with every
+    /// other list-valued field. `;q=0.5` is a member the sender *did* write,
+    /// holding a weight and no range, which is the tag's own emptiness. Both
+    /// used to be silent on the first spelling, because the walk was the
+    /// recipient's and had already dropped the member.
+    ///
+    /// The zero-element list is the third answer and it is silence: both fields
+    /// are `#` and not `1#`, so a field line with no element in it is a value
+    /// the construct generates.
+    #[rstest]
+    #[case("accept-language", "en,,de", Some("list_member_empty"))]
+    #[case("accept-language", "en, , de", Some("list_member_empty"))]
+    #[case("accept-language", ",", Some("list_member_empty"))]
+    #[case("accept-language", "en,", Some("list_member_empty"))]
+    #[case("content-language", "en,,de", Some("list_member_empty"))]
+    #[case("content-language", "en,", Some("list_member_empty"))]
+    #[case("content-language", ",", Some("list_member_empty"))]
+    #[case("accept-language", ";q=0.5", Some("language_tag_empty"))]
+    #[case("accept-language", "en,;q=0.5", Some("language_tag_empty"))]
+    #[case("accept-language", "", None)]
+    #[case("accept-language", "  ", None)]
+    #[case("content-language", "", None)]
+    #[case("accept-language", "en, de", None)]
+    fn an_empty_member_and_an_empty_tag_are_two_findings(
+        #[case] field: &str,
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let rule = LanguageTagSyntax;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["language_tag_syntax"]);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        match expected {
+            Some(id) => assert_eq!(
+                v.map(|v| v.violation),
+                Some(id.to_string()),
+                "{field}: {value:?}"
+            ),
+            None => assert!(v.is_none(), "{field}: {value:?} drew {v:?}"),
+        }
     }
 }

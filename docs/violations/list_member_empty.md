@@ -44,6 +44,7 @@ severity = "error"
 - [digest_auth_valid](../rules/digest_auth_valid.md)
 - [expect_header_valid](../rules/expect_header_valid.md)
 - [forwarded_header_valid](../rules/forwarded_header_valid.md)
+- [language_tag_syntax](../rules/language_tag_syntax.md)
 - [link_header_valid](../rules/link_header_valid.md)
 - [pragma_token_valid](../rules/pragma_token_valid.md)
 - [prefer_header_valid](../rules/prefer_header_valid.md)
