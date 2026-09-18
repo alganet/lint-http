@@ -39,7 +39,7 @@ impl RuleMeta for CachedValidatorsReused {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time."
+        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -119,6 +119,20 @@ impl Rule for CachedValidatorsReused {
             // scoped to this (client, resource) pair by the rule's ByResource query.
             let previous_tx = history.previous()?;
             let resp = previous_tx.response.as_ref()?;
+
+            // A validator is an offer, and § 3 decides whether it was ever
+            // taken up. A response carrying `no-store` is one no cache was
+            // permitted to hold, so its `ETag` reached no store and the round
+            // trip this rule calls avoidable could not have been a `304`. The
+            // entry reads "a repeat request declines a validator the server
+            // provided"; on such a response nothing was provided to decline.
+            // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless:"
+            if !crate::helpers::stored_response::storage_allowed(
+                &previous_tx.request.headers,
+                &resp.headers,
+            ) {
+                return None;
+            }
 
             // The rule only has a case to make if the prior response gave the client a
             // validator to revalidate with: an ETag (If-None-Match) or a Last-Modified
@@ -224,6 +238,33 @@ mod tests {
         vec![("range", "bytes=0-99"), ("if-range", "Mon, 01 Jan 2020 00:00:00 GMT")],
         false
     )]
+    // § 3 is asked before the offer. A response carrying `no-store` reached no
+    // store, so the `ETag` on it was never in the client's hands and the round
+    // trip this entry calls avoidable could not have been a `304`.
+    #[case(
+        Some(vec![("etag", "\"abc123\""), ("cache-control", "no-store")]),
+        vec![],
+        false
+    )]
+    #[case(
+        Some(vec![
+            ("etag", "\"abc123\""),
+            ("cache-control", "no-cache, no-store, must-revalidate"),
+        ]),
+        vec![],
+        false
+    )]
+    // The boundary: the same offer with `no-store` taken out is declined
+    // exactly as before, so the reading is about storage and not about the
+    // length of a `Cache-Control` line.
+    #[case(
+        Some(vec![
+            ("etag", "\"abc123\""),
+            ("cache-control", "no-cache, must-revalidate"),
+        ]),
+        vec![],
+        true
+    )]
     fn check_request_cases(
         #[case] prev_resp_headers: Option<Vec<(&str, &str)>>,
         #[case] req_headers_pairs: Vec<(&str, &str)>,
@@ -270,6 +311,44 @@ mod tests {
             assert!(violation.is_none());
         }
 
+        Ok(())
+    }
+
+    /// The directive on the earlier *request* has the same effect, one section
+    /// over: § 5.2.1.5 keeps a cache from storing any part of that request or
+    /// any response to it, so the validator the response offered reached no
+    /// store either.
+    #[test]
+    fn a_request_that_forbade_storing_leaves_no_validator_to_decline() -> anyhow::Result<()> {
+        let rule = CachedValidatorsReused;
+        let store = StateStore::new(300, 10);
+        let client = make_client();
+        let resource = "http://example.com/api/no_store_request";
+
+        let mut prev = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("etag", "\"abc123\"")],
+        );
+        prev.client = client.clone();
+        prev.request.uri = resource.to_string();
+        prev.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("cache-control", "no-store")]);
+        store.record_transaction(&prev);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+        let history = crate::queries::by_resource::by_resource(&store, &client, resource);
+        assert!(
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none(),
+            "no cache held that response, so its ETag was never on offer"
+        );
         Ok(())
     }
 

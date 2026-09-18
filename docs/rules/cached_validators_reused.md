@@ -12,6 +12,8 @@ This rule checks if the client correctly uses conditional headers (`If-None-Matc
 
 If a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.
 
+**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.
+
 ## Violations
 
 - [conditional_missing](../violations/conditional_missing.md) — A repeat request declines a validator the server provided

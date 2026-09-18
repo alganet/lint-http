@@ -319,6 +319,17 @@ defects! {
     /// the catalogue's other entries that reconstruct a store nobody on this
     /// seam can see.
     ///
+    /// **And an entry no cache was allowed to hold is not one either.**
+    /// Storability is a conjunction and § 3 asks about `no-store` before
+    /// anything here asks about staleness, so a response carrying it left
+    /// nothing stored and the validator this entry names was never in the
+    /// client's hands. `no-cache, no-store, must-revalidate` is one of the
+    /// commonest `Cache-Control` lines there is, and while it drew this
+    /// finding the catalogue contradicted itself: send the validator instead
+    /// and `cache_control_no_store_ignored` reports the client for holding
+    /// what may not be stored, so no request the client could make drew
+    /// nothing.
+    ///
     // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
     CACHE_CONTROL_MUST_REVALIDATE_IGNORED = {
         id: "cache_control_must_revalidate_ignored",
@@ -349,6 +360,14 @@ defects! {
     /// re-fetching the body it could have had revalidated. That is § 4.3.1's
     /// efficiency reading, which is why this is `warn` and `Unstated` — the
     /// `MUST NOT` below binds the cache, not the sender named in the finding.
+    ///
+    /// **`no-store` beside it is a different sentence, and it comes first.**
+    /// The two arrive together on more than half the responses that carry
+    /// either: `no-cache` forbids reuse without validation, and `no-store`
+    /// forbids the storing that would have given the client something to
+    /// validate. Where both are present nothing was stored, so the request
+    /// this entry reports is not a client declining a validator — it is a
+    /// client that never had one.
     ///
     // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
     CACHE_CONTROL_NO_CACHE_IGNORED = {

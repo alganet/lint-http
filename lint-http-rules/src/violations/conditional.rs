@@ -272,6 +272,14 @@ defects! {
     ///
     /// `info`. What is lost is a body that need not have been sent, and the
     /// client may have had every reason to want a fresh one.
+    ///
+    /// **An offer no cache was allowed to accept is not one that was
+    /// declined.** RFC 9111 § 3 decides whether the earlier exchange left a
+    /// stored response at all, and a `no-store` on either of its two messages
+    /// answers no — so the `ETag` beside it reached no store and the round
+    /// trip named here could not have been a `304`. The entry is about a
+    /// validator the server provided; on such a response nothing was provided
+    /// to decline.
     CONDITIONAL_MISSING = {
         id: "conditional_missing",
         title: "A repeat request declines a validator the server provided",
