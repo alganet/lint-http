@@ -44,15 +44,25 @@
 use std::net::SocketAddr;
 use std::path::Path;
 
-/// What a row wants written into it — the proxy's URL, or the path to the CA
-/// certificate. Two shapes, because the table has exactly two kinds of answer,
-/// and the caller fills them in once for the whole table.
+/// What a row wants written into it — the proxy's URL, the path to the CA
+/// certificate, or a bare `1`. The caller fills the first two in once for the
+/// whole table; the third needs nothing from the caller.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EnvValue {
     /// The `http://host:port` the proxy is listening on.
     ProxyUrl,
     /// The filesystem path of the CA certificate, in PEM.
     CaFile,
+    /// The literal `1`: a switch, not an address.
+    ///
+    /// A row takes this when its client reads the proxy variables **only when
+    /// told to**. Setting the addresses is then not enough, and that failure is
+    /// silent in the worst way — the client makes the request directly,
+    /// succeeds, and the report is empty rather than wrong.
+    ///
+    /// It is a routing value, so it survives when there is no CA to point at,
+    /// exactly as [`EnvValue::ProxyUrl`] does.
+    On,
 }
 
 /// One environment variable, the value it takes, and who reads it.
@@ -116,6 +126,25 @@ pub static CLIENT_ENV: &[ClientEnvVar] = &[
         name: "ALL_PROXY",
         value: EnvValue::ProxyUrl,
         reads: "the upper-case half of the same convention",
+    },
+    // Node reads none of the six addresses above unless this is set. It is the
+    // only client in the table that has to be *asked*, which is why the row
+    // sits here rather than beside `NODE_EXTRA_CA_CERTS` in the trust half:
+    // that row answers "will it accept the certificate", and this one answers
+    // the question before it, "will it go through the proxy at all".
+    //
+    // Without it a wrapped Node process reaches the origin directly, exits
+    // zero, and the run reports no findings — the empty report being
+    // indistinguishable from a clean one, which is the failure this whole
+    // table exists to make impossible.
+    //
+    // Harmless on a Node too old to know the name, and on every other client,
+    // since an unread variable costs nothing.
+    // cite(Node.js CLI): "When enabled, Node.js parses the HTTP_PROXY, HTTPS_PROXY and NO_PROXY environment variables during startup, and routes requests through the specified proxy."
+    ClientEnvVar {
+        name: "NODE_USE_ENV_PROXY",
+        value: EnvValue::On,
+        reads: "Node.js, which ignores the proxy variables above until this asks it not to",
     },
     // ── Trust ────────────────────────────────────────────────────────────
     //
@@ -216,6 +245,7 @@ pub fn client_env(addr: SocketAddr, ca_path: Option<&Path>) -> Vec<(&'static str
                 // verify anything at all. `None` happens when TLS interception
                 // is off, where there is no forged certificate to trust anyway.
                 EnvValue::CaFile => ca.clone()?,
+                EnvValue::On => "1".to_string(),
             };
             Some((var.name, value))
         })
@@ -241,15 +271,34 @@ mod tests {
     #[test]
     fn without_a_ca_only_the_routing_rows_survive() {
         let env = client_env(addr(), None);
-        assert!(env.iter().all(|(_, v)| v.starts_with("http://")));
+        assert!(env
+            .iter()
+            .all(|(_, v)| v.starts_with("http://") || v == "1"));
         assert_eq!(
             env.len(),
             CLIENT_ENV
                 .iter()
-                .filter(|v| v.value == EnvValue::ProxyUrl)
+                .filter(|v| v.value != EnvValue::CaFile)
                 .count()
         );
         assert!(!env.iter().any(|(n, _)| *n == "SSL_CERT_FILE"));
+    }
+
+    /// Setting the six addresses is not enough for Node, and the way it fails
+    /// is an empty report rather than an error — so the switch travels with
+    /// them, including when there is no CA and the trust rows are dropped.
+    #[test]
+    fn node_is_asked_to_read_the_proxy_variables() {
+        for ca in [None, Some(Path::new("/tmp/ca.crt"))] {
+            let env = client_env(addr(), ca);
+            assert_eq!(
+                env.iter()
+                    .find(|(n, _)| *n == "NODE_USE_ENV_PROXY")
+                    .map(|(_, v)| v.as_str()),
+                Some("1"),
+                "the opt-in must survive with ca={ca:?}"
+            );
+        }
     }
 
     #[test]
