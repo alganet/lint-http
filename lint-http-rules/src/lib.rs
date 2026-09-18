@@ -42,3 +42,6 @@ pub mod violations;
 
 #[cfg(test)]
 mod test_helpers;
+
+#[cfg(test)]
+mod published_examples;
