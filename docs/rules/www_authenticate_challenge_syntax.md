@@ -19,9 +19,7 @@ This rule validates that each challenge:
 ## Violations
 
 - [auth_scheme_character_forbidden](../violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
-- [challenge_empty](../violations/challenge_empty.md) — Authentication challenge is empty
 - [challenge_member_empty](../violations/challenge_member_empty.md) — Authentication challenge list has an empty member
-- [challenge_parameter_empty](../violations/challenge_parameter_empty.md) — Authentication challenge has an empty parameter
 - [challenge_parameter_name_character_forbidden](../violations/challenge_parameter_name_character_forbidden.md) — Authentication parameter name holds a character outside token
 - [challenge_parameter_name_empty](../violations/challenge_parameter_name_empty.md) — Authentication parameter has an empty name
 - [challenge_parameter_value_character_forbidden](../violations/challenge_parameter_value_character_forbidden.md) — Authentication parameter value holds a character outside token
