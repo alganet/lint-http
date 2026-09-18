@@ -25,7 +25,13 @@ static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_MUST_REVALIDATE_IGNORED];
 /// to revalidate; our lint rules therefore do not flag that situation.
 ///
 /// This rule examines the history for the given client+resource and locates the
-/// most recent response that contained a `must-revalidate` directive.  It then
+/// most recent response that contained a `must-revalidate` directive.  The
+/// request now presented must be one that stored response could have answered
+/// at all (§4): the same method, or a `HEAD` against a stored `GET`, and only a
+/// method with caching semantics leaves a stored response behind in the first
+/// place.  A cache satisfies neither an `OPTIONS` nor a `TRACE` from a stored
+/// `GET`, and stores no response to either of them to reuse against itself, so
+/// on those there is no entry and no reuse to report.  It then
 /// computes an estimated "age" for that response (using the `Age` header and
 /// elapsed time) and compares it against whatever explicit freshness lifetime
 /// the response advertised.  The lifetime is derived first from a
@@ -42,6 +48,19 @@ pub struct MustRevalidateEnforced;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_9_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.3",
+    note: "Methods and Caching (which methods leave a stored response behind at all)",
+};
+const RFC_9111_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4",
+    note:
+        "Constructing Responses from Caches (which stored response may answer a presented request)",
+};
 const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("4.2"),
@@ -76,11 +95,18 @@ impl RuleMeta for MustRevalidateEnforced {
     }
 
     fn description(&self) -> &'static str {
-        "The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.\n\nThis rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.\n\nThis stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled."
+        "The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.\n\nThis rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  The request now presented must be one that stored response was allowed to answer in the first place (§4): the same method, or a `HEAD` against a stored `GET`.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method.  A stored `GET` is likewise no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and where nothing could have been reused there is no reuse to report.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.\n\nThis stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2_2_2, RFC_9111_4_2, RFC_9111_4_2_3, RFC_9111_4_3]
+        &[
+            RFC_9111_5_2_2_2,
+            RFC_9110_9_2_3,
+            RFC_9111_4,
+            RFC_9111_4_2,
+            RFC_9111_4_2_3,
+            RFC_9111_4_3,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -111,6 +137,11 @@ impl RuleMeta for MustRevalidateEnforced {
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: must-revalidate\n< ETag: \"v2\"\n\n# client must revalidate on every request; a conditional request is fine\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v2\"",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a method the stored entry could not have answered"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# later, after expiry, a different method on the same resource:\n> OPTIONS /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 405 Method Not Allowed\n\n# no cache answers an OPTIONS from a stored GET, so nothing was reused",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— stale entry reused without conditional request"),
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# several seconds later the client fetches again but omits validators\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: stale according to must-revalidate semantics",
@@ -129,9 +160,21 @@ impl Rule for MustRevalidateEnforced {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // The most recent past response that contained must-revalidate.
-            let (prev_tx, prev_resp) =
-                history.latest_response(|resp| header_has_must_revalidate(&resp.headers))?;
+            // The most recent past response that carried must-revalidate AND that
+            // this request could have been served from. Staleness only matters for
+            // an entry that was a candidate at all: no cache answers an OPTIONS or
+            // a TRACE from a stored GET, so on those nothing was reused and the
+            // origin answered -- as the 405s such requests come back with attest.
+            //
+            // The method belongs in the search, not after it. Asked only for the
+            // newest must-revalidate response, this took a stored HEAD as the entry
+            // a GET had reused, and a GET that really had a stale GET entry behind
+            // it went unreported because a HEAD sat in front of it.
+            // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
+            let (prev_tx, prev_resp) = history.responses().find(|(prev_tx, resp)| {
+                header_has_must_revalidate(&resp.headers)
+                    && stored_method_allows(&prev_tx.request.method, &tx.request.method)
+            })?;
 
             // Freshness lifetime advertised by the response. The helper owns the §4.2.1
             // derivation (max-age wins, else Expires − Date), returning zero when no explicit
@@ -177,6 +220,27 @@ impl Rule for MustRevalidateEnforced {
         };
         Vec::from_iter(finding())
     }
+}
+
+/// Whether a stored response recorded against `stored` may be used to answer a
+/// request that presents `presented`.
+///
+/// §4 leaves this deliberately looser than equality — "allows it to be used for"
+/// rather than "matches" — because a stored `GET` response is the documented
+/// source for a `HEAD` reply, and §4.3.5 has a `HEAD` freshening a stored `GET`
+/// for the same reason. Everything else is equality: a stored `GET` is no
+/// candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and a rule about
+/// reuse has nothing to say about a request no reuse could have served.
+fn stored_method_allows(stored: &str, presented: &str) -> bool {
+    // Before asking what the entry may answer, ask whether it is an entry. A
+    // method that defines no caching semantics leaves nothing behind to go
+    // stale, so an OPTIONS answered from a previous OPTIONS is not a reuse of
+    // anything -- there was never a stored response to reuse.
+    // cite(RFC 9110 § 9.2.3): "This specification defines caching semantics for GET, HEAD, and POST"
+    if !matches!(stored, "GET" | "HEAD" | "POST") {
+        return false;
+    }
+    stored == presented || (stored == "GET" && presented == "HEAD")
 }
 
 /// Helper to detect presence of a must-revalidate directive in Cache-Control
@@ -460,6 +524,120 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "must_revalidate_enforced",
+            ]),
+        );
+        assert!(v.is_some());
+    }
+
+    /// The stored entry is a stale `GET` response carrying `must-revalidate` and
+    /// a validator — everything the rule needs except a request the entry could
+    /// have answered. Only the method varies, and it decides the verdict on its
+    /// own: a cache may answer a `HEAD` from a stored `GET`, and may answer
+    /// nothing else, so an `OPTIONS` or a `TRACE` reused no entry to report.
+    #[rstest::rstest]
+    #[case("GET", true)]
+    #[case("HEAD", true)]
+    #[case("OPTIONS", false)]
+    #[case("TRACE", false)]
+    #[case("POST", false)]
+    #[case("PUT", false)]
+    #[case("DELETE", false)]
+    fn only_a_method_the_entry_could_answer_is_reuse(
+        #[case] presented: &str,
+        #[case] reports: bool,
+    ) {
+        let rule = MustRevalidateEnforced;
+        let base = chrono::Utc::now();
+        let mut prev = make_prev(
+            200,
+            &[
+                ("cache-control", "max-age=1, must-revalidate"),
+                ("etag", "\"v\""),
+            ],
+        );
+        prev.timestamp = base;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = base + chrono::Duration::seconds(5);
+        tx.request.method = presented.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "must_revalidate_enforced",
+            ]),
+        );
+        assert_eq!(v.is_some(), reports, "presented method {presented}");
+    }
+
+    /// The same method on both sides is still not reuse when that method stores
+    /// nothing: an `OPTIONS` answered after an earlier `OPTIONS` had no entry
+    /// behind it to go stale.
+    #[rstest::rstest]
+    #[case("OPTIONS")]
+    #[case("TRACE")]
+    fn a_method_that_stores_nothing_is_no_entry_even_against_itself(#[case] method: &str) {
+        let rule = MustRevalidateEnforced;
+        let base = chrono::Utc::now();
+        let mut prev = make_prev(
+            200,
+            &[
+                ("cache-control", "max-age=1, must-revalidate"),
+                ("etag", "\"v\""),
+            ],
+        );
+        prev.request.method = method.to_string();
+        prev.timestamp = base;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = base + chrono::Duration::seconds(5);
+        tx.request.method = method.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "must_revalidate_enforced",
+            ]),
+        );
+        assert!(v.is_none(), "stored and presented {method}");
+    }
+
+    /// A stale `GET` entry with a `HEAD` response in front of it. The `HEAD` is
+    /// the newer must-revalidate response but is no candidate for a presented
+    /// `GET`, and the entry the `GET` would have been served from is the one
+    /// behind it — so the search has to look past the first match, not stop at it.
+    #[test]
+    fn a_newer_entry_this_request_could_not_use_does_not_hide_one_it_could() {
+        let rule = MustRevalidateEnforced;
+        let base = chrono::Utc::now();
+        let stale = &[
+            ("cache-control", "max-age=1, must-revalidate"),
+            ("etag", "\"v\""),
+        ];
+        let mut older_get = make_prev(200, stale);
+        older_get.timestamp = base;
+        let mut newer_head = make_prev(200, stale);
+        newer_head.request.method = "HEAD".to_string();
+        newer_head.timestamp = base + chrono::Duration::seconds(1);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = base + chrono::Duration::seconds(5);
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        // newest first
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            newer_head, older_get,
+        ]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,

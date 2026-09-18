@@ -10,7 +10,7 @@ SPDX-License-Identifier: ISC
 
 The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.
 
-This rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.
+This rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  The request now presented must be one that stored response was allowed to answer in the first place (§4): the same method, or a `HEAD` against a stored `GET`.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method.  A stored `GET` is likewise no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and where nothing could have been reused there is no reuse to report.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.
 
 This stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled.
 
@@ -21,6 +21,8 @@ This stateful check complements the existing `max_age_directive_valid` rule by c
 ## Specifications
 
 - [RFC 9111 §5.2.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2): `must-revalidate` — once the response is stale, a cache MUST NOT reuse it until it has been successfully validated by the origin
+- [RFC 9110 §9.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.3): Methods and Caching (which methods leave a stored response behind at all)
+- [RFC 9111 §4](https://www.rfc-editor.org/rfc/rfc9111.html#section-4): Constructing Responses from Caches (which stored response may answer a presented request)
 - [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Freshness (a response is stale once its age reaches its freshness lifetime)
 - [RFC 9111 §4.2.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.3): Calculating Age (the response age this rule estimates)
 - [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Validation (revalidating a stale entry before reuse)
@@ -77,6 +79,25 @@ enabled = true
 > GET /resource HTTP/1.1
 > Host: example.com
 > If-None-Match: "v2"
+```
+
+### ✅ Good — a method the stored entry could not have answered
+
+```http
+> GET /resource HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=1, must-revalidate
+< ETag: "v1"
+
+# later, after expiry, a different method on the same resource:
+> OPTIONS /resource HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 405 Method Not Allowed
+
+# no cache answers an OPTIONS from a stored GET, so nothing was reused
 ```
 
 ### ❌ Bad — stale entry reused without conditional request
