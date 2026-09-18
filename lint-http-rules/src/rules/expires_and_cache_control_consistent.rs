@@ -9,12 +9,22 @@ use crate::violations::ViolationDef;
 
 /// One entry over four shapes of one disagreement.
 ///
-/// An unreadable `Expires` beside a positive `max-age`, a future one beside
-/// `no-cache`, an already-past one beside a positive `max-age`, and a date that
-/// is not `Date` plus `max-age` are all the same message read two ways: caches
-/// that implement `Cache-Control` use the directive, caches that do not use the
-/// field. Same sender, same repair, same loss — which of the four it was is the
-/// message's to say.
+/// An `Expires` naming no instant at all beside a positive `max-age`, a future
+/// one beside `no-cache`, an already-past one beside a positive `max-age`, and a
+/// date that is not `Date` plus `max-age` are all the same message read two
+/// ways: caches that implement `Cache-Control` use the directive, caches that do
+/// not use the field. Same sender, same repair, same loss — which of the four it
+/// was is the message's to say.
+///
+/// **What no shape here is, and used to be: a value a recipient cannot read.**
+/// The first shape was every `Expires` the parser refused, which put a spelling
+/// in charge of the verdict. `Sun, 30 Aug 2026 00:27:20 UTC` beside `Date:
+/// 00:17:20 GMT` and `max-age=600` is the same instant twice — spell the zone
+/// `GMT` and this rule is silent — and it was reported as a response holding two
+/// lifetimes. That the value is unreadable is true, and
+/// [`EXPIRES_MALFORMED`](crate::violations::expires::EXPIRES_MALFORMED) is the
+/// entry that says so. Whether the two fields *disagree* is a question about
+/// what the sender wrote, and it is now asked of what the sender wrote.
 static DECLARED: &[&ViolationDef] = &[&EXPIRES_CONFLICTING];
 use chrono::{DateTime, Utc};
 
@@ -45,7 +55,7 @@ impl RuleMeta for ExpiresAndCacheControlConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nAn `Expires` value that is not a valid HTTP-date counts as contradictory too, rather\nthan as no information: a cache is required to read it as already expired, so the\ncommon `Expires: 0` paired with a positive `max-age` is flagged."
+        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nThe comparison is made against the instant the sender wrote, not the one a recipient\ncan read: a value refused only for its spelling — a zone token of `UTC`, a weekday that\nis not the day its own date falls on — still names its instant, and naming the same\ninstant `Date` plus `max-age` names is agreement however it is spelled. That such a\nvalue is unreadable is reported separately.\n\nAn `Expires` that names no instant at all counts as contradictory rather than as no\ninformation: a cache is required to read it as already expired, so the common\n`Expires: 0` paired with a positive `max-age` is flagged."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -96,14 +106,25 @@ impl Rule for ExpiresAndCacheControlConsistent {
 
             // Expires is an HTTP-date; the recipient parser owns the grammar.
             // cite(RFC 9111 § 5.3): "The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP]."
-            // An unparseable Expires is not missing information: §5.3 assigns it a meaning,
-            // so it is retained here (as already-expired) rather than returning early.
+            // An Expires that names no instant is not missing information: §5.3 assigns it a
+            // meaning, so it is retained here (as already-expired) rather than returning early.
             // Reporting the *invalidity* itself still belongs to other rules; what this rule
             // does with it is compare the meaning against Cache-Control.
             let expires_raw =
                 crate::helpers::headers::get_header_str(&resp.headers, "expires")?.trim();
-            let expires_dt: Option<DateTime<Utc>> =
+            // Read twice, because two different questions are asked of the same
+            // octets below. What a conforming recipient gets from the field is
+            // what decides whether the message has to say the value is
+            // unreadable; what the *sender* wrote is what decides whether the
+            // two fields disagree, and this rule asks only the second. A zone
+            // token spelled `UTC` is refused by every recipient and names its
+            // instant to anyone reading it, so `Date` plus `max-age` landing on
+            // that same instant is one lifetime written twice — and reporting
+            // it as two was a verdict about the spelling.
+            let readable_by_recipient: Option<DateTime<Utc>> =
                 crate::http_date::header_timestamp(&resp.headers, "expires");
+            let expires_meant: Option<DateTime<Utc>> =
+                crate::http_date::intended_timestamp(expires_raw);
 
             // The Cache-Control directives this rule compares against Expires.
             // `max-age` is read directly rather than through
@@ -136,9 +157,9 @@ impl Rule for ExpiresAndCacheControlConsistent {
                 return None;
             }
 
-            // The recipient is required to read an invalid Expires — `0` above all, the
-            // classic anti-caching idiom — as a time already past. So it contradicts a
-            // positive max-age/s-maxage exactly the way a stale date does, and the
+            // The recipient is required to read an Expires it cannot derive an instant from
+            // — `0` above all, the classic anti-caching idiom — as a time already past. So it
+            // contradicts a positive max-age/s-maxage exactly the way a stale date does, and the
             // disagreement is sharper than usual: §5.3 says Expires is "only intended for
             // recipients that have not yet implemented the Cache-Control header field", and
             // those are precisely the recipients that will act on the already-expired
@@ -146,14 +167,23 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // framing as the dated checks below; needs no reference time, since "already
             // expired" is true against any.
             // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
-            let Some(expires) = expires_dt else {
+            let Some(expires) = expires_meant else {
                 if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
                     return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
-                            "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory",
+                            "Expires '{}' names no instant, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory",
                             expires_raw
                         )));
                 }
                 return None;
+            };
+
+            // Where the instant came out of a spelling no recipient reads, the
+            // messages below name an instant that nothing downstream will ever
+            // act on, and a reader who greps the response for it finds nothing.
+            // The octets go with it.
+            let as_written = match readable_by_recipient {
+                Some(_) => String::new(),
+                None => format!(" — written '{expires_raw}', which no recipient parses"),
             };
 
             // The reference time is the origin's clock where it stated one, and
@@ -172,9 +202,9 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field"
             if (cc_no_cache || cc_no_store || cc_max_age == Some(0)) && expires > date_ref {
                 return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
-                        "Response contains Cache-Control directives {:?} that make it non-fresh, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1)",
+                        "Response contains Cache-Control directives {:?} that make it non-fresh, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1){}",
                         if cc_no_cache { "no-cache" } else if cc_no_store { "no-store" } else { "max-age=0" },
-                        expires
+                        expires, as_written
                     )));
             }
 
@@ -187,8 +217,8 @@ impl Rule for ExpiresAndCacheControlConsistent {
                 && expires <= date_ref
             {
                 return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
-                        "Response contains Cache-Control max-age/s-maxage but Expires {} is not in the future relative to Date {} — values are contradictory (RFC 9111 §4.2, §5.3)",
-                        expires, date_ref
+                        "Response contains Cache-Control max-age/s-maxage but Expires {} is not in the future relative to Date {} — values are contradictory (RFC 9111 §4.2, §5.3){}",
+                        expires, date_ref, as_written
                     )));
             }
 
@@ -217,8 +247,8 @@ impl Rule for ExpiresAndCacheControlConsistent {
                         let diff = (expected - expires).num_seconds().abs();
                         if diff > 1 {
                             return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
-                                    "Cache-Control max-age={} suggests Expires should be {} (Date + max-age), but Expires is {} — prefer consistent values or omit Expires (RFC 9111 §5.3)",
-                                    max_age, expected, expires
+                                    "Cache-Control max-age={} suggests Expires should be {} (Date + max-age), but Expires is {} — prefer consistent values or omit Expires (RFC 9111 §5.3){}",
+                                    max_age, expected, expires, as_written
                                 )));
                         }
                     }
@@ -262,6 +292,21 @@ mod tests {
     // A positive max-age keeps the arm: here the two name different futures, and which one a cache
     // believes depends on whether it reads the directive.
     #[case(Some(("cache-control","max-age=600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Wed, 21 Oct 2015 08:28:00 GMT")), true)]
+    // A spelling no recipient reads, naming the instant `Date` + `max-age` names. The
+    // sender wrote one lifetime and misspelled the zone token; write `GMT` and the row
+    // above it is the same response. Three spellings, one instant: the zone token in no
+    // grammar at all, the mail production's own numeric offset, and a weekday that is not
+    // the day its own date falls on (the twenty-first of October 2015 was a Wednesday).
+    #[case(Some(("cache-control","max-age=600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Wed, 21 Oct 2015 07:38:00 UTC")), false)]
+    #[case(Some(("cache-control","max-age=600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Wed, 21 Oct 2015 09:38:00 +0200")), false)]
+    #[case(Some(("cache-control","max-age=600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Tue, 21 Oct 2015 07:38:00 GMT")), false)]
+    // Unreadable is not the verdict either way: the same zone token on an instant an hour
+    // out is the disagreement the entry is for, and it is the hour that says so.
+    #[case(Some(("cache-control","max-age=600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Wed, 21 Oct 2015 08:28:00 UTC")), true)]
+    // What names no instant is untouched by any of it. `-1` is not a timestamp with a
+    // misspelling in it, it is a sender asking for stale-on-arrival beside a directive
+    // asking for ten minutes.
+    #[case(Some(("cache-control","max-age=600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","-1")), true)]
     fn expires_and_cache_control_cases(
         #[case] cc: Option<(&str, &str)>,
         #[case] date: Option<(&str, &str)>,
@@ -612,6 +657,55 @@ mod tests {
         );
         assert!(v.is_some());
         Ok(())
+    }
+
+    /// An instant recovered from a spelling nothing reads is not in the
+    /// response, and a reader who searches the response for it finds nothing.
+    /// The message carries the octets that are there.
+    #[test]
+    fn a_recovered_instant_is_reported_beside_the_octets_it_came_from() {
+        let tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("cache-control", "max-age=600"),
+                ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+                ("expires", "Wed, 21 Oct 2015 08:28:00 UTC"),
+            ],
+        );
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "expires_and_cache_control_consistent",
+        ]);
+        let v = crate::test_helpers::run_rule(
+            &ExpiresAndCacheControlConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("a finding");
+        assert!(
+            v.message.contains("'Wed, 21 Oct 2015 08:28:00 UTC'"),
+            "{}",
+            v.message
+        );
+
+        // A value the recipient does read needs no such note, and adding one
+        // would say a readable field was unreadable.
+        let readable = make_test_transaction_with_response(
+            200,
+            &[
+                ("cache-control", "max-age=600"),
+                ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+                ("expires", "Wed, 21 Oct 2015 08:28:00 GMT"),
+            ],
+        );
+        let v = crate::test_helpers::run_rule(
+            &ExpiresAndCacheControlConsistent,
+            &readable,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("a finding");
+        assert!(!v.message.contains("no recipient parses"), "{}", v.message);
     }
 
     #[test]

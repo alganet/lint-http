@@ -14,9 +14,15 @@ present, `Cache-Control` directives take precedence; clearly contradictory value
 (e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate
 misconfiguration and should be corrected.
 
-An `Expires` value that is not a valid HTTP-date counts as contradictory too, rather
-than as no information: a cache is required to read it as already expired, so the
-common `Expires: 0` paired with a positive `max-age` is flagged.
+The comparison is made against the instant the sender wrote, not the one a recipient
+can read: a value refused only for its spelling — a zone token of `UTC`, a weekday that
+is not the day its own date falls on — still names its instant, and naming the same
+instant `Date` plus `max-age` names is agreement however it is spelled. That such a
+value is unreadable is reported separately.
+
+An `Expires` that names no instant at all counts as contradictory rather than as no
+information: a cache is required to read it as already expired, so the common
+`Expires: 0` paired with a positive `max-age` is flagged.
 
 ## Violations
 

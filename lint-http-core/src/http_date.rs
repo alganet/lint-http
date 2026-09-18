@@ -179,18 +179,112 @@ fn is_only_ows(s: &str) -> bool {
 }
 
 fn conflicting_day_name(s: &str) -> bool {
-    let Some((claimed, rest)) = s.split_once(", ") else {
-        return false;
-    };
+    day_name_repaired(s).is_some()
+}
+
+/// The instant a wrong-weekday IMF-fixdate names, found by writing each of the
+/// other six `day-name`s in front of the rest of the string.
+///
+/// The verdict and the instant are one search, so they are one function: asking
+/// *whether* the weekday is the only fault means finding the repair that proves
+/// it, and the repair carries the time. [`conflicting_day_name`] is that
+/// question with the answer thrown away.
+fn day_name_repaired(s: &str) -> Option<std::time::SystemTime> {
+    let (claimed, rest) = s.split_once(", ")?;
     if !DAY_NAMES.contains(&claimed) {
-        return false;
+        return None;
     }
-    DAY_NAMES.iter().any(|implied| {
+    DAY_NAMES.iter().find_map(|implied| {
         let repaired = format!("{implied}, {rest}");
-        *implied != claimed
-            && httpdate::parse_http_date(&repaired)
-                .is_ok_and(|at| httpdate::fmt_http_date(at) == repaired)
+        (*implied != claimed)
+            .then(|| httpdate::parse_http_date(&repaired).ok())
+            .flatten()
+            .filter(|&at| httpdate::fmt_http_date(at) == repaired)
     })
+}
+
+/// The zone token `Expires` values are written with that no date production
+/// admits, and the one every reading of them agrees on.
+///
+/// RFC 5322 § 4.3 spells zero offset `UT` and `GMT`; RFC 3339 spells it `Z`;
+/// § 5.6.7 admits only `GMT`. `UTC` is in none of them and is what twenty of
+/// this corpus's `Expires` values are written with.
+const ZERO_OFFSET_ZONE_NO_GRAMMAR_ADMITS: &str = "UTC";
+
+/// The instant a value names, whether or not a recipient may read it.
+///
+/// **A different question from [`header_timestamp`], and the difference is who
+/// is being asked about.** That one answers what a conforming recipient gets
+/// from the field, which is the question every rule about caching, freshness
+/// and revalidation asks — a value it refuses is a value no cache can act on,
+/// and that is the finding. This one answers what the *sender* wrote down, for
+/// the narrower set of rules that compare two of one sender's own fields and
+/// report when they disagree. A value the parser refuses says nothing to a
+/// recipient and can still say plenty about the sender: `Expires` naming the
+/// same instant as `Date` plus `max-age`, in a zone spelled `UTC`, is one
+/// lifetime written twice, and a rule that reads it as two lifetimes reports a
+/// disagreement the response does not contain.
+///
+/// Three readings past the three formats, each one a value that derives from
+/// something and names its instant with nothing left to decide:
+///
+/// 1. **A weekday that is not the day its own date falls on.** The module
+///    already separates this from a value no format parses; see
+///    [`HttpDateDefect::DayNameConflicting`].
+/// 2. **The Internet Message Format's own zones.** § 5.6.7 hands the semantics
+///    of `day-name`, `day`, `month`, `year` and `time-of-day` to RFC 5322
+///    § 3.3, and the `zone` beside them there is `"+" / "-" 4DIGIT` or one of
+///    the obsolete names. `UT`, `+0000` and `-0500` each place the instant
+///    exactly; § 5.6.7 forbids a sender all of them, which is a fact about the
+///    spelling and not about the time.
+/// 3. **`UTC`.** In no grammar at all — not § 5.6.7's, not RFC 5322's — and
+///    the justification is not that some production admits it. It is that no
+///    reading of the string places the instant anywhere else, which is the same
+///    ground the weekday case stands on.
+///
+/// What stays `None` is what a sender wrote meaning something other than a
+/// time: `0` and `-1`, the anti-caching idiom, which § 5.3 answers on its own
+/// terms; and anything that names no instant. Nothing is guessed here — a value
+/// missing its zone, or written with RFC 850's dashes and a four-digit year,
+/// derives from no production and could be read more than one way, so it is not
+/// read at all.
+///
+// The quote names its reference in brackets, which rustdoc reads as an
+// intra-doc link, so it stays an ordinary comment beside the doc block.
+// cite(RFC 9110 § 5.6.7): "The semantics of day-name, day, month, year, and time-of-day are the same as those defined for the Internet Message Format constructs with the corresponding name ([RFC5322], Section 3.3)."
+pub fn intended_timestamp(s: &str) -> Option<DateTime<Utc>> {
+    // The zone swap is tried as a whole second candidate rather than as a step,
+    // because a value can carry both faults at once and neither one hides the
+    // other: `Fri, 01 Jan 1980 00:00:00 UTC` is the wrong weekday *and* a zone
+    // no grammar admits, and it names midnight on the first of January 1980
+    // either way.
+    read_one_spelling(s).or_else(|| read_one_spelling(&with_gmt_for_utc(s)?))
+}
+
+/// One candidate spelling, read every way that leaves nothing to decide.
+fn read_one_spelling(s: &str) -> Option<DateTime<Utc>> {
+    if let Ok(at) = parse_http_date_to_datetime(s) {
+        return Some(at);
+    }
+    if let Some(at) = day_name_repaired(s) {
+        return Some(DateTime::<Utc>::from(at));
+    }
+    // The mail production, which is where § 5.6.7 says these constructs get
+    // their meaning. It enforces the weekday itself, which is why the repair
+    // above is a separate reading and not something this call subsumes.
+    DateTime::parse_from_rfc2822(s)
+        .ok()
+        .map(|at| at.with_timezone(&Utc))
+}
+
+/// `s` with a trailing `UTC` written as `GMT`, or `None` when it carries none.
+///
+/// The token is measured where the productions put it — last, after a `SP` —
+/// so a value that merely contains the letters is untouched.
+fn with_gmt_for_utc(s: &str) -> Option<String> {
+    let (rest, zone) = s.trim_end().rsplit_once(' ')?;
+    zone.eq_ignore_ascii_case(ZERO_OFFSET_ZONE_NO_GRAMMAR_ADMITS)
+        .then(|| format!("{rest} GMT"))
 }
 
 /// [`is_valid_imf_fixdate`] with the three answers kept apart.
@@ -403,6 +497,82 @@ mod tests {
 
         // What the old body did to it, spelled out: the trim made it a date.
         assert!(is_valid_imf_fixdate(padded.trim()));
+    }
+
+    /// The sender's reading and the recipient's, on the values that separate
+    /// them. Every string here is one a conforming recipient refuses, and each
+    /// names its instant with nothing left to decide.
+    #[test]
+    fn a_spelling_no_recipient_reads_can_still_name_its_instant() {
+        let at = |s: &str| intended_timestamp(s).map(|d| d.to_rfc3339());
+        let noon = Some("2026-08-30T00:27:20+00:00".to_string());
+
+        // The spelling twenty of this corpus's `Expires` values are written
+        // with, and the one the production asks for.
+        assert_eq!(at("Sun, 30 Aug 2026 00:27:20 UTC"), noon);
+        assert_eq!(at("Sun, 30 Aug 2026 00:27:20 GMT"), noon);
+        // RFC 5322's own zones, which is where 5.6.7 sends the reader.
+        assert_eq!(at("Sun, 30 Aug 2026 00:27:20 UT"), noon);
+        assert_eq!(at("Sun, 30 Aug 2026 00:27:20 +0000"), noon);
+        assert_eq!(at("Sun, 30 Aug 2026 02:27:20 +0200"), noon);
+        // A weekday that is not the day its own date falls on.
+        assert_eq!(
+            at("Fri, 01 Jan 1980 00:00:00 GMT"),
+            Some("1980-01-01T00:00:00+00:00".to_string()),
+        );
+        // Both faults at once: neither hides the other.
+        assert_eq!(
+            at("Fri, 01 Jan 1980 00:00:00 UTC"),
+            Some("1980-01-01T00:00:00+00:00".to_string()),
+        );
+        // The two obsolete formats a recipient must read anyway.
+        assert_eq!(
+            at("Sunday, 06-Nov-94 08:49:37 GMT"),
+            Some("1994-11-06T08:49:37+00:00".to_string()),
+        );
+        assert_eq!(
+            at("Sun Nov  6 08:49:37 1994"),
+            Some("1994-11-06T08:49:37+00:00".to_string()),
+        );
+
+        // None of this is a recipient's reading, and that is the point: the
+        // rules asking what a cache does still get `None` from the same values.
+        for refused in [
+            "Sun, 30 Aug 2026 00:27:20 UTC",
+            "Sun, 30 Aug 2026 00:27:20 +0000",
+            "Fri, 01 Jan 1980 00:00:00 GMT",
+        ] {
+            assert!(
+                parse_http_date_to_datetime(refused).is_err(),
+                "{refused} parsed as an HTTP-date",
+            );
+        }
+    }
+
+    /// What names no instant stays naming none. The anti-caching idiom is the
+    /// population this function exists to keep separate: `-1` is not a
+    /// timestamp somebody misspelled, it is a sender asking for
+    /// stale-on-arrival, and 5.3 answers it without help.
+    #[test]
+    fn a_value_that_names_no_instant_is_not_recovered() {
+        for names_none in [
+            "-1",
+            "0",
+            "",
+            "   ",
+            "already-expired",
+            // No day of the month is the thirty-second.
+            "Sun, 32 Aug 2026 00:31:33 GMT",
+            // RFC 850's dashes with a four-digit year derive from neither
+            // format, and nothing here guesses at a value's intent.
+            "Fri, 01-Jan-1980 00:00:00 GMT",
+            // A zone missing altogether places the instant nowhere.
+            "Sun, 30 Aug 2026 00:27:20",
+            // The letters are in the value; the zone token is not.
+            "UTC, 30 Aug 2026 00:27:20",
+        ] {
+            assert_eq!(intended_timestamp(names_none), None, "{names_none:?}");
+        }
     }
 
     /// The dependency's two behaviours this module rests on, pinned in the crate
