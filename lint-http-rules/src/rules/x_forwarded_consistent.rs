@@ -412,6 +412,7 @@ mod tests {
     #[case("x-forwarded-for", "not-an-ip", "node_malformed")]
     #[case("x-forwarded-for", "010.1.2.3", "node_ipv4_address_malformed")]
     #[case("x-forwarded-for", "[::1", "node_ipv6_closing_bracket_missing")]
+    #[case("x-forwarded-for", "[::1]x", "node_malformed")]
     #[case("x-forwarded-for", "[nope]", "node_ipv6_address_malformed")]
     #[case("x-forwarded-for", "192.0.2.43:999999", "node_port_malformed")]
     #[case("x-forwarded-proto", "2https", "uri_scheme_leading_letter_missing")]

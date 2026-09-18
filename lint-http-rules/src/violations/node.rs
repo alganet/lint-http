@@ -60,9 +60,16 @@ defects! {
         spec: &[RFC_7239_6_1],
     }
 
-    /// A `[`-led nodename that never closes. Told apart from a literal whose
-    /// contents are not an address because the fix differs: this value was cut
-    /// or joined, that one names something that is not an IPv6 address.
+    /// A `[`-led nodename that never closes -- no `]` anywhere in it. Told
+    /// apart from a literal whose contents are not an address because the fix
+    /// differs: this value was cut or joined, that one names something that is
+    /// not an IPv6 address.
+    ///
+    /// **A value whose literal closes and then goes on is `node_malformed`**,
+    /// not this. The split that finds the `node-port` looks past the `]`, so
+    /// `[2001:db8::1] 8080` arrives at the same reading as a bracket that never
+    /// closed -- and this used to be what it reported, of a value carrying its
+    /// bracket.
     ///
     // cite(RFC 7239 § 6, label: nodename grammar): "nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode"
     NODE_IPV6_CLOSING_BRACKET_MISSING = {

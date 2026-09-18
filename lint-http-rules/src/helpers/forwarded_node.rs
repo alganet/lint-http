@@ -92,7 +92,9 @@ pub enum NodeDefect<'a> {
     /// requires them. Asked of the whole value before it is split, because
     /// every colon in such an address looks like the one before a `node-port`.
     UnbracketedIpv6(&'a str),
-    /// A `[`-led nodename with no closing `]`.
+    /// A `[`-led nodename with no closing `]` **anywhere in it**. A value whose
+    /// literal closes and then goes on is [`NotANode`](Self::NotANode): the
+    /// bracket is not what is wrong with it.
     UnclosedBrackets(&'a str),
     /// Brackets around something that is not an `IPv6address`, carrying what
     /// was inside them.
@@ -199,7 +201,19 @@ pub fn validate_node(value: &str, form: NodeForm) -> Result<(), NodeDefect<'_>> 
     // cite(RFC 7239 § 6, label: nodename grammar): "nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode"
     if let Some(rest) = nodename.strip_prefix('[') {
         let Some(inner) = rest.strip_suffix(']') else {
-            return Err(NodeDefect::UnclosedBrackets(nodename));
+            // **The `]` is often still there**, and the split above is why:
+            // it looks for the `node-port` colon *past* the closing bracket, so
+            // a `[`-led value with anything but a colon after its `]` comes back
+            // as one nodename with the bracket twelve characters in. Calling
+            // that a literal that never closes says something the value
+            // contradicts, under an entry titled exactly that -- so the absence
+            // is asked for before it is reported, and a literal that did close
+            // is a nodename deriving from no alternative of the production.
+            return Err(if rest.contains(']') {
+                NodeDefect::NotANode { nodename, form }
+            } else {
+                NodeDefect::UnclosedBrackets(nodename)
+            });
         };
         let Ok(address) = inner.parse::<Ipv6Addr>() else {
             return Err(NodeDefect::NotIpv6(inner));
@@ -357,6 +371,16 @@ mod tests {
             assert_eq!(
                 validate_node("[::1", form),
                 Err(NodeDefect::UnclosedBrackets("[::1"))
+            );
+            // The bracket closes and the value goes on. The split looks for the
+            // port past the `]` and finds none, which used to read as a literal
+            // that never closed -- said of a value carrying its bracket.
+            assert_eq!(
+                validate_node("[::1]x", form),
+                Err(NodeDefect::NotANode {
+                    nodename: "[::1]x",
+                    form
+                })
             );
             assert_eq!(
                 validate_node("[nope]", form),
