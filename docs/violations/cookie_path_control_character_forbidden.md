@@ -29,6 +29,7 @@ A **`SHOULD`** binding the sender of the message — advice the specification gi
 # Set-Cookie Path attribute holds a control character
 # SHOULD obliges the sender, so this defaults to warn.
 # Departs from that: RFC 6265 states its own grammar as a SHOULD NOT for historical reasons, and says in the same section that it is stricter than what a user agent will accept. A control octet in a `Path` is a hazard whatever the keyword: it is what smuggles a header boundary past a parser that splits on one, and no deployment wants it at `warn`.
+# No input this tool accepts reaches this defect: the octet this names is a control octet, and no route carries one to the rules: on the wire the parser refuses the message before there is a transaction, and from a capture file `HeaderValue` refuses the record -- 0x7f with the rest of the class
 severity = "error"
 ```
 
