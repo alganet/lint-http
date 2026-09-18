@@ -302,12 +302,17 @@ history of prior transactions, exactly as it would be live, so stateful rules
 work. WebSocket session records are replayed per-message through the protocol
 rules (the frame events the live relay emits are rebuilt from the captured
 message metadata); the session's live-recorded `violations` field is ignored —
-replay re-lints under the current config. **A replay is not a live pass and does
+replay re-lints under the current config. Protocol events are the exception and
+report the findings the record already carries, for the reason given under
+`--config` below. **A replay is not a live pass and does
 not claim to be**: request and response bodies are not written to a capture, so
 the rules that read one cannot fire here, and where the two disagree the live
 pass is the canonical one. `run` and `use` report their own live findings for
 exactly this reason. It prints one block per offending
-record and a summary line. The exit code is the signal for CI:
+record and a summary line naming what the report was built from — transactions
+always, and websocket sessions and protocol events when the capture held any,
+so a capture of records this report says nothing about is not the same sentence
+as a capture of nothing. The exit code is the signal for CI:
 
 - **0** — no violations found.
 - **1** — violations found, or an error occurred (e.g. missing capture file,
