@@ -16,7 +16,8 @@ use crate::violations::media_type::{
     media_type_error, MEDIA_TYPE_EMPTY, MEDIA_TYPE_MALFORMED, RFC_9110_8_3_1,
 };
 use crate::violations::parameter::{
-    PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
+    PARAMETER_EQUALS_MISSING, PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, PARAMETER_VALUE_EMPTY,
+    RFC_9110_5_6_6,
 };
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -70,6 +71,7 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
     &PARAMETER_EQUALS_MISSING,
+    &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
     &PARAMETER_VALUE_EMPTY,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
@@ -856,19 +858,20 @@ mod tests {
         );
     }
 
-    /// The one leniency this rule inherited from the shared `media-type` walk,
-    /// asserted rather than left silent. `parameter` is
-    /// `parameter-name "=" parameter-value` with no `OWS` in it, and § 5.6.6 says
-    /// so again in prose — but the whitespace beside the `=` is trimmed, which is
-    /// the reading three other rules in this tree publish as a known leniency.
-    /// Changing it is their audits' work; a test here is what keeps it from being
-    /// mistaken for the grammar.
+    /// The leniency this rule inherited from the shared `media-type` walk, and
+    /// then inherited the end of. `parameter` is `parameter-name "="
+    /// parameter-value` with no `OWS` in it, and § 5.6.6 says so again in prose,
+    /// so all three spellings derive from nothing. This rule reports whatever
+    /// the shared walk hands it, which is the point of the walk: the answer
+    /// changed in one place and every field reading a media type changed with
+    /// it.
     #[rstest]
     #[case("application/example;charset = utf-8")]
     #[case("application/example;charset =utf-8")]
     #[case("application/example;charset= utf-8")]
-    fn whitespace_beside_the_equals_is_the_inherited_leniency(#[case] value: &str) {
-        assert!(accept_patch(value).is_none());
+    fn whitespace_beside_the_equals_is_reported_through_the_shared_walk(#[case] value: &str) {
+        let violation = accept_patch(value).expect("a finding about the whitespace");
+        assert_eq!(violation.violation, "parameter_equals_whitespace_forbidden");
     }
 
     /// The claim the rewrite is named for: the field is measured on a response

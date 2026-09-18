@@ -2534,10 +2534,19 @@ enabled = "true"
     /// already uses, which is a commit that should have to say so — the number
     /// here is the count of defects an operator can be shown twice for one
     /// seam, and Phase 5's dedup is sized by it.
+    /// **104, and the one that moved it was not a new rule.**
+    /// `parameter_equals_whitespace_forbidden` was declared by
+    /// `expect_header_valid` alone for as long as the rules reading a media type
+    /// trimmed the octet and published the leniency in their `description()`.
+    /// Ending that leniency in the shared walk gave the id three more declarers
+    /// at once — the two rules reading through `media_type_parts_defect` and the
+    /// one walking an `Accept` member itself — which is this ceiling doing its
+    /// job: an operator can now be shown that defect from four seams, and the
+    /// number says so.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 103;
+        const CEILING: usize = 104;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();

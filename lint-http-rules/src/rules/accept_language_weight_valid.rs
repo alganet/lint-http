@@ -411,10 +411,13 @@ mod tests {
     }
 
     /// The other side of that line, and the reason the two ids are two: a
-    /// *parameter*'s `=` is § 5.6.6's, whose Note six rules in this tree
-    /// publish a leniency about. Only the `q` stopped being lenient.
+    /// *parameter*'s `=` is § 5.6.6's Note, while the `q`'s is the `weight`
+    /// production's. Both sentences forbid the octet, so the field's answer is
+    /// the same either way and only the id differs — which is the whole of what
+    /// this asserts. The parameter half used to be silent here, and the two ids
+    /// were told apart by one of them not existing on the wire.
     #[test]
-    fn a_media_range_parameter_keeps_the_leniency_the_weight_lost() {
+    fn a_media_range_parameter_and_a_weight_cite_two_sentences() {
         let rule = super::super::accept_header_media_type_syntax::AcceptHeaderMediaTypeSyntax;
         let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
             "accept",
@@ -427,8 +430,9 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "accept_header_media_type_syntax",
             ]),
-        );
-        assert!(found.is_none(), "{found:?}");
+        )
+        .expect("a finding about the parameter's whitespace");
+        assert_eq!(found.violation, "parameter_equals_whitespace_forbidden");
     }
 
     /// The assembly around the weight, which this rule's `DECLARED` used to

@@ -131,6 +131,16 @@ pub enum MediaTypeDefect<'a> {
     /// as written. The delimiter is not optional, so this is not a valueless
     /// flag — it derives from `parameter` not at all.
     ParameterMissingEquals(&'a str),
+    /// Whitespace beside a parameter's `=`, carrying the `parameter-name` as
+    /// written. `parameter = parameter-name "=" parameter-value` prints no
+    /// `OWS` anywhere inside itself, and § 5.6.6 says so a second time in prose
+    /// — refusing even the "bad" whitespace HTTP tolerates elsewhere — so a
+    /// value carrying one derives from nothing.
+    ///
+    /// The name arrives already trimmed, because naming the parameter is what
+    /// makes the finding actionable and the octet being reported is the one
+    /// that was trimmed off it.
+    ParameterEqualsWhitespace(&'a str),
     /// A parameter whose name half is empty: `;=value`, which has a value and
     /// nothing it belongs to. `token = 1*tchar` has a one-character floor, and
     /// a scan for an invalid character cannot see this — the empty string holds
@@ -185,6 +195,10 @@ impl MediaTypeDefect<'_> {
             Self::ParameterMissingEquals(segment) => {
                 format!("parameter '{}' missing '='", segment.escape_debug())
             }
+            Self::ParameterEqualsWhitespace(name) => format!(
+                "parameter '{}' writes whitespace beside its '=', which parameters do not allow, not even \"bad\" whitespace",
+                name.escape_debug()
+            ),
             Self::ParameterNameEmpty => "empty parameter name".to_string(),
             Self::ParameterNameCharacter { name, character } => format!(
                 "invalid character '{}' in parameter name '{}'",
@@ -243,16 +257,21 @@ impl MediaTypeDefect<'_> {
 /// in its grammar — and the two rules answer it separately, at different
 /// strengths, from different sentences.
 ///
-/// **One inherited leniency, and it is now a decision rather than an accident.**
-/// `parameter` is `parameter-name "=" parameter-value` with no `OWS` anywhere in
-/// it, and § 5.6.6 says so again in prose — *"Parameters do not allow whitespace
-/// (not even 'bad' whitespace) around the '=' character"* — yet
-/// `text/example; charset = utf-8` passes here. [`parameters`] hands back
+/// **One inherited leniency, and it is gone.** `parameter` is `parameter-name
+/// "=" parameter-value` with no `OWS` anywhere in it, and § 5.6.6 says so again
+/// in prose — *"Parameters do not allow whitespace (not even 'bad' whitespace)
+/// around the '=' character"* — so `text/example; charset = utf-8` derives from
+/// nothing and is reported here. [`parameters`] hands back
 /// `whitespace_beside_equals` rather than trimming in silence, and this function
-/// reads it and drops it; that is what makes the "Known leniency" paragraph six
-/// rules publish a true statement about the code rather than a plausible one.
-/// Changing the answer changes those rules' verdicts, so it stays theirs.
-/// `expect_header_valid` is the one caller in the tree that reports it.
+/// now acts on it.
+///
+/// It was dropped for as long as the answer was thought to be each rule's, and
+/// three rules published a "Known leniency" paragraph saying so. The answer was
+/// never theirs: `parameter` is one production, the two other ways it fails to
+/// derive — `parameter_equals_missing` and `parameter_value_empty` — were
+/// already reported from this function at `error`, and a reader that enforced
+/// two thirds of one sentence was making a claim about the third it could not
+/// support. `expect_header_valid` had been the only reporter in the tree.
 ///
 /// cite(RFC 9110 § 8.3.1): "type       = token subtype    = token"
 /// cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
@@ -293,13 +312,14 @@ pub fn media_type_parts_defect<'a>(parsed: &ParsedMediaType<'a>) -> Option<Media
             }
         };
 
-        // The whitespace beside the `=` is the leniency named in this function's
-        // doc comment, and it is declined *here* rather than absorbed by the
-        // walk: § 5.6.6's Note forbids it, and five of the six rules reading a
-        // media type through this function say in their `description()` that
-        // they tolerate it. Reading the flag and dropping it is what makes that
-        // paragraph true rather than merely plausible.
-        let _ = parameter.whitespace_beside_equals;
+        // Reported before the name is judged, which is the order
+        // `expect_header_valid` has always read these two in: the octet sits
+        // between the constructs and a sender put it there on purpose, while an
+        // empty or non-`token` name is a defect of one construct alone.
+        // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
+        if parameter.whitespace_beside_equals {
+            return Some(MediaTypeDefect::ParameterEqualsWhitespace(parameter.name));
+        }
 
         if parameter.name.is_empty() {
             return Some(MediaTypeDefect::ParameterNameEmpty);

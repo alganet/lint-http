@@ -20,7 +20,7 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 
 **Whitespace inside a media-range is reported**, as the `token` defect it is. The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and the shared reader hands back the two halves exactly as written, so the space arrives inside the `type` and the character scan names it. This rule used to run a whitespace check of its own in front of the parse, from when that reader trimmed each half and the space vanished before anything could see it.
 
-**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `"q="` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them.
+**Whitespace beside an `=` is reported, and the parameter's name is what chooses the sentence.** RFC 9110 §5.6.6 forbids it inside a `parameter`, in the production and again in prose, so `text/plain;charset = utf-8` draws `parameter_equals_whitespace_forbidden`. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `"q="` and nothing optional inside it, so `q =0.5` draws `weight_equals_whitespace_forbidden`. The same three characters, two sentences. The parameter half used to be trimmed here and published as a known leniency.
 
 **An empty list element is reported, and a field line holding no element at all is not.** §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits; §5.6.1.1 expands the same construct for a sender with nothing bracketed, and forbids generating an empty element outright. So `text/html, , text/plain` is a comma the sender may not write, while a bare `Accept:` is the zero-element list the construct does generate. This rule used to skip the first as well, on the recipient's expansion.
 
@@ -32,6 +32,7 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 - [media_type_empty](../violations/media_type_empty.md) — Media type is written with nothing in it
 - [media_type_malformed](../violations/media_type_malformed.md) — Media type is not a type/subtype pair
 - [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_equals_whitespace_forbidden](../violations/parameter_equals_whitespace_forbidden.md) — Parameter writes whitespace beside its '='
 - [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
 - [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character

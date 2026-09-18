@@ -38,13 +38,14 @@ pub struct Parameter<'a> {
     pub value: &'a str,
     /// Whether whitespace sat beside the `=`.
     ///
-    /// **This is the "Known leniency" six rules describe in prose, returned as a
-    /// fact instead.** § 5.6.6's Note forbids whitespace there in as many words
-    /// — *"not even 'bad' whitespace"* — and six rules trim it and say so in
-    /// their `description()`, while `expect_header_valid` reports it. A
-    /// walk that trimmed silently would have to pick one of those; a walk that
-    /// hands back what it found lets each caller keep the answer its own audit
-    /// reached, and turns a paragraph of prose into a branch a reader can see.
+    /// **Every caller reports it, and this flag is why they could.** § 5.6.6's
+    /// Note forbids whitespace there in as many words — *"not even 'bad'
+    /// whitespace"* — but for a while only `expect_header_valid` acted on it
+    /// and the rules reading a media type trimmed it and published a "Known
+    /// leniency" paragraph instead. A walk that trimmed silently would have
+    /// settled that question for all of them and left no branch to change; a
+    /// walk that hands back what it found let the answer be revisited where it
+    /// was made.
     pub whitespace_beside_equals: bool,
 }
 
