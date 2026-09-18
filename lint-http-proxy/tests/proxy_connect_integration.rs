@@ -328,3 +328,82 @@ async fn connect_tls_alpn_mismatch_fails_handshake() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+/// The tunnel request is judged, and its defects are reachable.
+///
+/// A CONNECT used to be consumed by the upgrade without ever becoming a
+/// transaction, so the first message every HTTPS client sends through this
+/// proxy was never linted — and the defects about a tunnel's target could not
+/// fire at all, whatever a client sent. These targets are malformed, which is
+/// why they go to a proxy under test and nowhere else.
+#[tokio::test]
+async fn a_malformed_tunnel_target_is_reported_against_the_client() -> anyhow::Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut temp = TempFiles::new();
+    let mut cfg = tls_config(&mut temp);
+    // The default configuration enables nothing, so the rule that reads a
+    // request target has to be asked for by name.
+    let mut table = toml::map::Map::new();
+    table.insert("enabled".to_string(), toml::Value::Boolean(true));
+    cfg.rules.insert(
+        "request_target_form_valid".to_string(),
+        toml::Value::Table(table),
+    );
+    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
+
+    // `<host>` with no port is a different defect from `:<port>` with no host,
+    // and the third has neither — the authority-form target's three ways of
+    // being incomplete.
+    for target in [":443", "example.com:", "example.com"] {
+        let mut stream = tokio::net::TcpStream::connect(addr).await?;
+        let req = format!("CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n");
+        stream.write_all(req.as_bytes()).await?;
+        let mut buf = [0u8; 64];
+        let _ = timeout(Duration::from_secs(3), stream.read(&mut buf)).await;
+        drop(stream);
+    }
+
+    // Captures are written after the response, so wait for all three.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let found = loop {
+        let content = tokio::fs::read_to_string(&cap_path)
+            .await
+            .unwrap_or_default();
+        let connects: Vec<serde_json::Value> = content
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+            .filter(|v| v["request"]["method"] == "CONNECT")
+            .collect();
+        if connects.len() >= 3 || Instant::now() > deadline {
+            break connects;
+        }
+        sleep(Duration::from_millis(50)).await;
+    };
+    assert_eq!(found.len(), 3, "not every CONNECT was recorded: {found:?}");
+
+    let mut seen: Vec<String> = Vec::new();
+    for c in &found {
+        // The 200 on this record is the proxy's own, so nothing may read it as
+        // an origin's response.
+        assert_eq!(c["upstream_never_answered"], true);
+        for v in c["violations"].as_array().into_iter().flatten() {
+            // Every finding here is about the request, so it is the client's.
+            assert_eq!(v["party"], "client", "not the client's defect: {v}");
+            if let Some(id) = v["violation"].as_str() {
+                seen.push(id.to_string());
+            }
+        }
+    }
+    for want in [
+        "authority_tunnel_host_empty",
+        "authority_tunnel_port_empty",
+        "request_target_malformed",
+    ] {
+        assert!(seen.contains(&want.to_string()), "no {want} among {seen:?}");
+    }
+
+    handle.abort();
+    Ok(())
+}
