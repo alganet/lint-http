@@ -2347,7 +2347,7 @@ severity = "warn"
 severity = "warn"
 
 [violations.origin_agent_cluster_malformed]
-# Origin-Agent-Cluster carries a list where a boolean is due
+# Origin-Agent-Cluster carries something that is not a boolean
 severity = "warn"
 
 [violations.origin_malformed]

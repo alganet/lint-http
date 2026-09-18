@@ -28,11 +28,20 @@
 //! **What HTML asks of the value, in one sentence and one consequence.** The
 //! value must be a boolean, which is an Item and not a List; and any value that
 //! is not the true value `?1` is ignored. The first is a grammar, so writing a
-//! list or writing nothing breaks it. The second is not — `?0` is a perfectly
-//! well-formed boolean — which is why the entry for it is `_invalid` rather
-//! than `_malformed`, and why this crate reports something the specification
-//! is content to drop on the floor: a server that wrote `?0` or `unsafe-none`
-//! meant to ask for something, and is not getting it.
+//! list, writing nothing, or writing something a boolean's production does not
+//! admit breaks it. The second is not — `?0` is a perfectly well-formed
+//! boolean — which is why the entry for it is `_invalid` rather than
+//! `_malformed`, and why this crate reports something the specification is
+//! content to drop on the floor: a server that wrote `?0` meant to ask for
+//! something, and is not getting it.
+//!
+//! **`unsafe-none` is not that, and used to be filed as though it were.** The
+//! two entries divided the value by whether it was written once, so `?0` and
+//! `unsafe-none` arrived under one id and one sentence calling each of them
+//! invalid — while RFC 9651 § 4.2.8 admits exactly two strings and `?0` is one
+//! of them. The line falls between a boolean the sender wrote false and a value
+//! whose parse never reaches a boolean at all: the first is a preference the
+//! document declines to honour, the second is a field a recipient cannot read.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -66,24 +75,30 @@ defects! {
         spec: &[HTML_7_1_2],
     }
 
-    /// More than one member on the line, where the field's value is a single
-    /// Item. `?1, ?1` is a List, and a List is not a boolean however true each
-    /// of its members is — so this is the grammar being broken rather than a
-    /// preference being refused, and a recipient has no sentence telling it
-    /// which member to read.
+    /// What is written on the line is not a boolean, in either of the two ways
+    /// that can happen. `?1, ?1` is a List, and a List is not a boolean however
+    /// true each of its members is; `unsafe-none` is one Item and the boolean's
+    /// production never admits it. Both are the grammar being broken rather
+    /// than a preference being refused, and in both a recipient is left with a
+    /// field it has no sentence for — which member to read, or what value it
+    /// read at all.
+    ///
+    /// The message is the site's, because the operator's next question is which
+    /// value arrived and the two shapes answer it differently.
     ///
     // cite(HTML § 7.1.2, label: Origin-Agent-Cluster is a boolean): "This header is a structured header whose value must be a boolean."
     ORIGIN_AGENT_CLUSTER_MALFORMED = {
         id: "origin_agent_cluster_malformed",
-        title: "Origin-Agent-Cluster carries a list where a boolean is due",
-        message: "Origin-Agent-Cluster must be a single value",
+        title: "Origin-Agent-Cluster carries something that is not a boolean",
+        message: "",
         default_severity: Severity::Warn,
         spec: &[HTML_7_1_2],
     }
 
-    /// One value, and it is not the true value. `?1` is what requests an
-    /// origin-keyed agent cluster; `?0`, `1`, `true` and `unsafe-none` are each
-    /// a value the processing model ignores.
+    /// One boolean, and it is the false one. `?1` is what requests an
+    /// origin-keyed agent cluster, so `?0` is a sender stating the other of the
+    /// field's two values — well-formed, and asking for what an absent header
+    /// already gives.
     ///
     /// **The document ignores it and this catalogue reports it**, which is a
     /// deliberate step past what is quoted below: nothing is broken for the
@@ -128,13 +143,15 @@ mod tests {
         }
     }
 
-    /// The grammar half carries its whole message and the preference half does
-    /// not: `?0` is reported with the value in hand, because the operator's
-    /// next question is which value arrived.
+    /// An entry whose finding names the value it fired on leaves its message to
+    /// the site; the one whose value is always the same octets keeps its own.
+    /// `_empty` is that one — there is nothing to quote back — while `_invalid`
+    /// and `_malformed` are both answered with the value in hand, because the
+    /// operator's next question is which value arrived.
     #[test]
-    fn only_the_entry_naming_a_value_leaves_its_message_to_the_site() {
+    fn an_entry_whose_finding_names_a_value_leaves_its_message_to_the_site() {
         assert!(!ORIGIN_AGENT_CLUSTER_EMPTY.message.is_empty());
-        assert!(!ORIGIN_AGENT_CLUSTER_MALFORMED.message.is_empty());
+        assert!(ORIGIN_AGENT_CLUSTER_MALFORMED.message.is_empty());
         assert!(ORIGIN_AGENT_CLUSTER_INVALID.message.is_empty());
     }
 }
