@@ -60,3 +60,11 @@ HTTP/1.1 200 OK
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Credentials: true
 ```
+
+### ❌ Bad (`false` is what omitting the field already says)
+
+```http
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: https://example.com
+Access-Control-Allow-Credentials: false
+```

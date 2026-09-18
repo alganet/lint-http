@@ -92,6 +92,11 @@ impl RuleMeta for AccessControlAllowCredentialsWhenOrigin {
                 label: Some("(wildcard with credentials)"),
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *\nAccess-Control-Allow-Credentials: true",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`false` is what omitting the field already says)"),
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com\nAccess-Control-Allow-Credentials: false",
+            },
         ]
     }
 }

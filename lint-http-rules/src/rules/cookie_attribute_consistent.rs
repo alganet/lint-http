@@ -338,8 +338,15 @@ impl RuleMeta for CookieAttributeConsistent {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— Expires must be a valid HTTP-date"),
+                label: Some("— Expires names no instant at all"),
                 snippet: "Set-Cookie: SID=1; Expires=NotADate",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— the hyphenated form every user agent reads, which is still not the rfc1123-date § 4.1.1 asks a sender for",
+                ),
+                snippet: "Set-Cookie: SID=1; Expires=Wed, 27-Aug-2036 02:28:19 GMT",
             },
         ]
     }

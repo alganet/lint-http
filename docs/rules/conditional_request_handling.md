@@ -69,3 +69,18 @@ enabled = true
 < 200 OK  HTTP/1.1
 < Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT
 ```
+
+### ❌ Bad — the condition was not met, so the response owed is 304 and not a second copy
+
+```http
+> GET /resource HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "abc"
+
+> GET /resource HTTP/1.1
+> If-None-Match: "abc"
+
+< 200 OK  HTTP/1.1
+< ETag: "abc"
+```

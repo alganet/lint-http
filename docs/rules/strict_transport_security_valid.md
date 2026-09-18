@@ -79,3 +79,9 @@ Strict-Transport-Security: max-age=abc
 ```http
 Strict-Transport-Security: max-age=63072000; includeSubDomains=1
 ```
+
+### ❌ Bad — a trailing `;` opens a directive the sender never wrote
+
+```http
+Strict-Transport-Security: max-age=15552000;
+```

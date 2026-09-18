@@ -56,3 +56,17 @@ Date: Wed, 21 Oct 2015 07:28:00 GMT
 Last-Modified: Wed, 21 Oct 2015 07:30:00 GMT  # Last-Modified after Date
 Sunset: Wed, 21 Oct 2015 07:27:00 GMT        # Sunset is in the past relative to Date
 ```
+
+### ❌ Bad — the weekday and the date name different days; 21 Oct 2015 was a Wednesday
+
+```http
+HTTP/1.1 200 OK
+Date: Mon, 21 Oct 2015 07:28:00 GMT
+```
+
+### ❌ Bad — a 200 that never says when it was written
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/html;charset=utf-8
+```
