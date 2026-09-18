@@ -7166,6 +7166,18 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 29
+  - label: lint-http-core/src/serde_helpers.rs
+    section: § 5.5
+    snippet: field-value    = *field-content
+    cited_by:
+    - file: lint-http-core/src/serde_helpers.rs
+      line: 125
+  - label: lint-http-core/src/serde_helpers.rs (2)
+    section: § 5.5
+    snippet: field-vchar    = VCHAR / obs-text
+    cited_by:
+    - file: lint-http-core/src/serde_helpers.rs
+      line: 126
   - label: lint-http-proxy/src/proxy/exchange.rs
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
