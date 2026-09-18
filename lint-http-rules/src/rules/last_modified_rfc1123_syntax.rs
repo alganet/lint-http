@@ -127,24 +127,43 @@ impl Rule for LastModifiedRfc1123Syntax {
                 // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace"
                 // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
                 // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
-                if let Err(defect) =
-                    crate::http_date::check_imf_fixdate(crate::helpers::headers::trim_ows(s))
-                {
-                    // The day-name is the one defect whose sentence cannot be
-                    // the field's usual one: the value *is* an IMF-fixdate by
-                    // the production, and what it gets wrong is the weekday.
+                let value = crate::helpers::headers::trim_ows(s);
+                if let Err(defect) = crate::http_date::check_imf_fixdate(value) {
+                    let shown = crate::helpers::shown::shown_in_finding(value);
+                    // One sentence per defect, and the value in each of them.
+                    // A single catch-all said "is not a valid IMF-fixdate"
+                    // about the obsolete spellings and about a value no format
+                    // parses alike — two entries, one sentence, and neither of
+                    // them naming what it had read. The day-name is the one
+                    // whose sentence cannot be the field's usual one: the value
+                    // *is* an IMF-fixdate by the production, and what it gets
+                    // wrong is the weekday.
                     return Some(ctx.report_with(
                         http_date_defect(defect),
                         match defect {
-                            crate::http_date::HttpDateDefect::DayNameConflicting => {
-                                "Last-Modified header names a weekday its own date does not fall on"
-                            }
+                            crate::http_date::HttpDateDefect::DayNameConflicting => format!(
+                                "Last-Modified '{shown}' names a weekday its own date does not \
+                                 fall on (RFC 9110 §5.6.7, RFC 5322 §3.3)"
+                            ),
                             crate::http_date::HttpDateDefect::Empty => {
-                                "Last-Modified header is empty or contains only whitespace"
+                                "Last-Modified header is empty or contains only whitespace".into()
                             }
-                            _ => "Last-Modified header is not a valid IMF-fixdate (RFC 9110)",
-                        }
-                        .into(),
+                            // `HTTP-date = IMF-fixdate / obs-date`, so this
+                            // value *is* an HTTP-date and every recipient is
+                            // required to read it. What it breaks is § 5.6.7's
+                            // sentence to the sender, and saying it is not a
+                            // date says the opposite of the production.
+                            crate::http_date::HttpDateDefect::ObsoleteFormat => format!(
+                                "Last-Modified '{shown}' is written in an obsolete date format; a \
+                                 recipient must read it, and a sender must generate IMF-fixdate \
+                                 (RFC 9110 §5.6.7)"
+                            ),
+                            crate::http_date::HttpDateDefect::Unparsable
+                            | crate::http_date::HttpDateDefect::SurroundingWhitespace => format!(
+                                "Last-Modified '{shown}' derives from no HTTP-date, so the field \
+                                 names no instant (RFC 9110 §5.6.7)"
+                            ),
+                        },
                     ));
                 }
             }
@@ -193,6 +212,31 @@ mod tests {
         let unreadable = last_modified("not-a-date");
         assert_eq!(unreadable.violation, "http_date_malformed");
         assert_eq!(unreadable.severity, crate::lint::Severity::Error);
+
+        // Two entries, two sentences, and the value in both. One catch-all
+        // said "is not a valid IMF-fixdate" of each -- which is the malformed
+        // entry's claim said about a date every recipient is required to read,
+        // and neither report named what it had read.
+        assert!(
+            obsolete.message.contains("Sunday, 06-Nov-94 08:49:37 GMT"),
+            "{}",
+            obsolete.message,
+        );
+        assert!(
+            obsolete.message.contains("obsolete"),
+            "{}",
+            obsolete.message
+        );
+        assert!(
+            unreadable.message.contains("not-a-date"),
+            "{}",
+            unreadable.message,
+        );
+        assert!(
+            unreadable.message.contains("derives from no HTTP-date"),
+            "{}",
+            unreadable.message,
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[

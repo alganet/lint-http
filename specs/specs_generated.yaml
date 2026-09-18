@@ -6307,9 +6307,9 @@ sources:
     snippet: A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 274
+      line: 289
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 292
+      line: 307
     - file: lint-http-rules/src/violations/conditional.rs
       line: 112
   - label: conditional_headers_consistent (3)
@@ -6325,7 +6325,7 @@ sources:
     snippet: A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates).
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 275
+      line: 290
   - label: conditional_headers_consistent (5)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak.
@@ -8013,7 +8013,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 41
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 271
+      line: 286
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 285
     - file: lint-http-rules/src/rules/content_type_valid.rs
