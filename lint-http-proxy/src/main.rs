@@ -725,8 +725,21 @@ async fn lint_app(
     if !tokio::fs::try_exists(captures_path).await.unwrap_or(false) {
         anyhow::bail!("capture file not found: {captures_path}");
     }
-    let records = capture::load_capture_records(captures_path).await?;
-    let report = lint_records(&cfg, records, min_severity, global.about())?;
+    let load = capture::load_capture_records_from(captures_path, 0).await?;
+    // A file that yielded nothing and refused everything is not a capture, and
+    // the reasoning is the one directly above: a report of it is a green CI run
+    // over a file this tool never read. An empty file is a different thing and
+    // stays a report of nothing — it holds no records because it holds no
+    // lines, which is an honest answer to `lint-captures` on a session that
+    // captured nothing.
+    if load.records.is_empty() && load.unread > 0 {
+        anyhow::bail!(
+            "no capture records could be read from {captures_path}: every one of its {} was unparseable",
+            plural(load.unread, "line")
+        );
+    }
+    let records_read = load.records.len();
+    let report = lint_records(&cfg, load.records, min_severity, global.about())?;
     let total = report.total();
     let summary = Summary {
         hidden_severity: report.suppressed,
@@ -734,6 +747,8 @@ async fn lint_app(
         hidden_party: report.hidden_party,
         about: global.about(),
         unattributed: report.unattributed,
+        records_read,
+        records_unread: load.unread,
         ..Summary::counted(
             &report.findings,
             report.transaction_count,
@@ -1900,10 +1915,24 @@ fn render_groups(groups: &[Group<'_>], opts: RenderOpts) -> String {
 
 /// Render the `lint-captures` report: the text form ends with a human summary line
 /// (whose violation count is derived from `findings`, so it can't disagree
-/// with the blocks above it); the JSON form is a bare array of
-/// [`FindingsBlock`]s so it stays machine-parseable. The summary mentions
-/// websocket sessions only when the capture had any, so pure-HTTP output is
-/// unchanged.
+/// with the blocks above it); the JSON form is an object whose `findings` are
+/// those same blocks. The summary mentions websocket sessions only when the
+/// capture had any, so pure-HTTP output is unchanged.
+///
+/// **The JSON document was the bare array and is now an object**, because the
+/// array had no place to put the one thing a machine reader cannot work out
+/// for itself: how many records the report was built from, and how many the
+/// reader could not build one from. A consumer counting blocks learns the
+/// first and can never learn the second — an unreadable line leaves nothing
+/// behind to count — so a capture that was wholly unreadable and a capture
+/// with nothing wrong in it were the same two characters on stdout.
+///
+/// The wrapper is written on both paths that produce this document, a replay
+/// and a session, so there is one shape rather than two. The counts a *session*
+/// reports are about the file it wrote itself, where an unread line is a defect
+/// in this program; the counts a *replay* reports are about a file it was
+/// handed. The number means the same thing in both: records that are in no part
+/// of what follows.
 fn render_lint_report(
     findings: &[FindingsBlock],
     summary: &Summary,
@@ -1911,7 +1940,26 @@ fn render_lint_report(
     opts: RenderOpts,
 ) -> anyhow::Result<String> {
     match format {
-        OutputFormat::Json => Ok(format!("{}\n", serde_json::to_string_pretty(findings)?)),
+        OutputFormat::Json => {
+            // A struct rather than a `json!` map, so the two counts are read
+            // before the findings they qualify. `serde_json` sorts a map's keys
+            // and would put the array first, which buries the one part of the
+            // document a reader has to see before trusting the rest.
+            #[derive(serde::Serialize)]
+            struct Document<'a> {
+                records_read: usize,
+                records_unread: usize,
+                findings: &'a [FindingsBlock],
+            }
+            Ok(format!(
+                "{}\n",
+                serde_json::to_string_pretty(&Document {
+                    records_read: summary.records_read,
+                    records_unread: summary.records_unread,
+                    findings,
+                })?
+            ))
+        }
         OutputFormat::Text => {
             let mut out = render_findings(findings, opts)?;
             out.push_str(&render_summary(summary, opts));
@@ -1963,6 +2011,23 @@ struct Summary {
     /// its own so it cannot read as one — what it measures is this tool's own
     /// incompleteness, and it disappears when the catalogue is fully read.
     unattributed: usize,
+    /// Records the reader turned the capture into, whatever became of them
+    /// afterwards.
+    ///
+    /// Deliberately not `transactions`: that count is scoped, is only the
+    /// transactions, and answers "what is this report of". This one answers
+    /// "what was this report built from", which is the only denominator the
+    /// count below divides into.
+    records_read: usize,
+    /// Lines of the capture the reader could not turn into a record.
+    ///
+    /// Not a clause of `hidden:` and not a flag's doing: there is nothing to
+    /// reveal, because nothing was read. It is the denominator's missing half —
+    /// `in 3 transactions` says how much the report covers and says nothing
+    /// about how much it was handed — and until it was counted, a capture whose
+    /// every line was unreadable and a capture with nothing wrong in it printed
+    /// the same sentence.
+    records_unread: usize,
     /// The gate this report will be read by, when one was asked for.
     fail_on: Option<lint::Severity>,
 }
@@ -1988,6 +2053,8 @@ impl Default for Summary {
             hidden_party: 0,
             about: AboutScope::all(),
             unattributed: 0,
+            records_read: 0,
+            records_unread: 0,
             fail_on: None,
         }
     }
@@ -2169,6 +2236,34 @@ fn render_summary(summary: &Summary, opts: RenderOpts) -> String {
         );
     }
 
+    // What the reader never got to. Its own line and not a clause of `hidden:`
+    // for the plainest reason there is: `hidden:` names the flag that would
+    // show each thing it lists, and no flag reveals a line that did not parse.
+    // It sits above `unattributed:` because it qualifies the count on the line
+    // above it — the report is of the records that were read, and this says how
+    // many there were not.
+    if summary.records_unread > 0 {
+        let _ = writeln!(
+            out,
+            "{}",
+            styles.paint(
+                styles.dim(),
+                // "n of m" rather than a bare count, because the number that
+                // makes it alarming is the share: one line lost out of nine
+                // hundred is a torn file, and one out of one is a report of
+                // nothing wearing a clean bill.
+                &format!(
+                    "unread: {} of {} could not be parsed",
+                    summary.records_unread,
+                    plural(
+                        summary.records_read + summary.records_unread,
+                        "capture record"
+                    )
+                )
+            )
+        );
+    }
+
     // What the report is showing but could not measure — its own line, and not
     // a clause of `hidden:`, because these findings are on the screen. The
     // number is a fact about how much of the catalogue has been read for the
@@ -2242,6 +2337,7 @@ struct ReportStyle {
 /// transactions the way its own summary line claimed to.
 fn report_session(
     records: &[capture::CaptureRecord],
+    unread: usize,
     scope: &HostScope,
     global: &GlobalArgs,
     style: ReportStyle,
@@ -2276,6 +2372,8 @@ fn report_session(
     summary.hidden_party = report.hidden_party;
     summary.about = global.about();
     summary.unattributed = report.unattributed;
+    summary.records_read = records.len();
+    summary.records_unread = unread;
     summary.fail_on = style.fail_on;
 
     match global.format() {
@@ -2286,11 +2384,14 @@ fn report_session(
             } else {
                 write_stderr(&document)?;
             }
-            // The document is scoped and nothing inside it says so — it is an
-            // array, and giving it a wrapper would fork the shape
-            // `lint-captures --format json` produces. The note goes to stderr,
-            // which JSON mode leaves free, so a reader can tell a clean session
-            // from one whose findings were filtered.
+            // The document is scoped and nothing inside it says so. The
+            // wrapper it now has is not the place to say it either: those two
+            // counts are about the capture the report was built from, and a
+            // scope is about which of those records the report kept — a
+            // different question, and one every remaining reader of a *session*
+            // document would have to learn. The note goes to stderr, which JSON
+            // mode leaves free, so a reader can tell a clean session from one
+            // whose findings were filtered.
             if elsewhere > 0 {
                 write_stderr(&format!(
                     "note: {elsewhere} violation(s) on other hosts are not in this document (--all-hosts)\n"
@@ -2396,6 +2497,7 @@ async fn run_wrapped(args: RunArgs, global: &GlobalArgs) -> anyhow::Result<u8> {
     let scope = args.session.scope(&[]);
     let findings = report_session(
         &run.records,
+        run.unread,
         &scope,
         global,
         ReportStyle {
@@ -2593,7 +2695,8 @@ async fn drive(
     };
 
     let findings = report_session(
-        &records,
+        &records.records,
+        records.unread,
         &scope,
         global,
         ReportStyle {
@@ -3143,6 +3246,53 @@ enabled = true
 
         fs::remove_file(&cfg).await?;
         fs::remove_file(&caps).await?;
+        Ok(())
+    }
+
+    /// A file whose every line was refused is not a capture of nothing. It
+    /// used to be reported as one — an empty document and a zero exit, which
+    /// in CI is a passing gate over a file this program never read. The
+    /// judgement is the same one the missing path below gets, and for the same
+    /// reason: what is wrong is upstream of anything a report could say.
+    #[tokio::test]
+    async fn a_capture_file_nothing_could_be_read_from_is_an_error() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_cache_control_config(&mut temp).await?;
+        let caps = temp.path("lint_unreadable_caps", "jsonl");
+        tokio::fs::write(&caps, "{\"not\":\"a capture\"}\nnor this\n").await?;
+
+        let result = lint_app(
+            Some(cfg.to_str().unwrap()),
+            caps.to_str().unwrap(),
+            &plain_global(),
+        )
+        .await;
+        let message = result
+            .expect_err("a file of refused lines is not a clean bill")
+            .to_string();
+        assert!(
+            message.contains("no capture records could be read"),
+            "{message}"
+        );
+        assert!(message.contains("2 lines"), "{message}");
+
+        // A file with no lines at all keeps its old answer: it holds no
+        // records because it holds nothing, and reporting nothing is honest.
+        let none = temp.path("lint_empty_caps", "jsonl");
+        tokio::fs::write(&none, "").await?;
+        assert_eq!(
+            lint_app(
+                Some(cfg.to_str().unwrap()),
+                none.to_str().unwrap(),
+                &plain_global()
+            )
+            .await?,
+            0
+        );
+
+        fs::remove_file(&cfg).await?;
+        fs::remove_file(&caps).await?;
+        fs::remove_file(&none).await?;
         Ok(())
     }
 
@@ -4124,6 +4274,19 @@ enabled = true
         }
     }
 
+    /// The blocks of a rendered JSON report.
+    ///
+    /// Its own function so a test asserting about a *block* does not spell the
+    /// document's shape, and the tests that are about the shape are the ones
+    /// below that name the two counts.
+    fn json_blocks(rendered: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+        let doc: serde_json::Value = serde_json::from_str(rendered)?;
+        Ok(doc["findings"]
+            .as_array()
+            .expect("the document carries its findings under `findings`")
+            .clone())
+    }
+
     #[test]
     fn render_lint_report_json_mirrors_the_text_block() -> anyhow::Result<()> {
         let out = render_lint_report(
@@ -4132,7 +4295,7 @@ enabled = true
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
-        let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
+        let parsed = json_blocks(&out)?;
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0]["kind"], "http_transaction");
         assert_eq!(parsed[0]["method"], "GET");
@@ -4157,7 +4320,7 @@ enabled = true
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
-        let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
+        let parsed = json_blocks(&out)?;
         assert!(parsed[0]["status"].is_null());
         Ok(())
     }
@@ -4234,12 +4397,84 @@ enabled = true
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
-        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
+        let parsed = json_blocks(&json)?;
         assert_eq!(
             parsed[0]["violations"][0]["violation"],
             "cache_control_missing"
         );
         assert!(parsed[0]["violations"][1]["violation"].is_null());
+        Ok(())
+    }
+
+    /// The two counts are the reason the JSON document stopped being an array:
+    /// they are what a machine reader cannot recover from the blocks. An
+    /// unreadable line leaves nothing behind to count, so `records_unread` has
+    /// no other source, and `records_read` is the denominator it divides into.
+    #[test]
+    fn the_json_document_states_what_it_was_built_from() -> anyhow::Result<()> {
+        let findings = sample_findings();
+        let summary = Summary {
+            records_read: 3,
+            records_unread: 2,
+            ..Summary::counted(&findings, 3, 0)
+        };
+        let out = render_lint_report(&findings, &summary, OutputFormat::Json, RenderOpts::plain())?;
+        let doc: serde_json::Value = serde_json::from_str(&out)?;
+        assert_eq!(doc["records_read"], 3);
+        assert_eq!(doc["records_unread"], 2);
+        assert_eq!(doc["findings"].as_array().map(Vec::len), Some(1));
+
+        // A clean report says so with a number rather than by omission: a
+        // reader must not have to tell "nothing was lost" from "this producer
+        // does not report losses" by whether a key is there.
+        let clean = render_lint_report(
+            &findings,
+            &Summary {
+                records_read: 3,
+                ..Summary::counted(&findings, 3, 0)
+            },
+            OutputFormat::Json,
+            RenderOpts::plain(),
+        )?;
+        let doc: serde_json::Value = serde_json::from_str(&clean)?;
+        assert_eq!(doc["records_unread"], 0);
+        Ok(())
+    }
+
+    /// The count is on its own line and not a clause of `hidden:`, because
+    /// `hidden:` names the flag that would show each thing it lists and no
+    /// flag shows a line that did not parse.
+    #[test]
+    fn a_text_report_says_how_much_of_the_capture_it_could_not_read() -> anyhow::Result<()> {
+        let findings = sample_findings();
+        let out = render_lint_report(
+            &findings,
+            &Summary {
+                records_read: 3,
+                records_unread: 2,
+                ..Summary::counted(&findings, 3, 0)
+            },
+            OutputFormat::Text,
+            RenderOpts::plain(),
+        )?;
+        assert!(
+            out.contains("unread: 2 of 5 capture records could not be parsed"),
+            "{out}"
+        );
+        assert!(!out.contains("hidden:"), "{out}");
+
+        // Nothing lost, nothing said: the line earns its place by being absent,
+        // like every other line of this summary.
+        let clean = render_lint_report(
+            &findings,
+            &Summary {
+                records_read: 3,
+                ..Summary::counted(&findings, 3, 0)
+            },
+            OutputFormat::Text,
+            RenderOpts::plain(),
+        )?;
+        assert!(!clean.contains("unread:"), "{clean}");
         Ok(())
     }
 
@@ -4294,7 +4529,7 @@ enabled = true
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
-        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
+        let parsed = json_blocks(&json)?;
         assert_eq!(parsed[0]["kind"], "websocket_session");
         assert_eq!(parsed[0]["session_id"], session_id.to_string());
         assert_eq!(parsed[0]["close_code"], 1000);
@@ -4823,6 +5058,7 @@ enabled = true
         let scope = HostScope::new(["example.com".to_string()]);
         let findings = report_session(
             &records,
+            0,
             &scope,
             &global,
             ReportStyle {
@@ -4837,6 +5073,7 @@ enabled = true
         // Unscoped, the same records are all one report.
         let every = report_session(
             &records,
+            0,
             &HostScope::all(),
             &global,
             ReportStyle {
@@ -4897,7 +5134,7 @@ enabled = true
             ),
         ];
         for (global, style) in styles {
-            let findings = report_session(&records, &HostScope::all(), global, style)?;
+            let findings = report_session(&records, 0, &HostScope::all(), global, style)?;
             assert_eq!(findings.len(), 1, "{style:?}");
         }
         Ok(())
