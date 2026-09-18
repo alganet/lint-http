@@ -47,7 +47,7 @@ impl RuleMeta for OriginIsolatedHeaderValid {
     }
 
     fn description(&self) -> &'static str {
-        "Checks the `Origin-Agent-Cluster` response header and ensures it uses the structured-header boolean value `?1` to request an origin-keyed agent cluster. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster; the specification ignores any other value, but this rule reports it because a non-`?1` value is almost always a server misconfiguration.\n\n(The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)"
+        "Checks the `Origin-Agent-Cluster` response header, whose value is one structured-field boolean. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster. A value that is not a boolean at all — a comma-separated list, a bare token such as `unsafe-none`, or nothing — breaks the grammar and leaves a recipient with a field it cannot read. `?0` does not: it is the field's other value, well-formed, and it asks for what an absent header already gives, which the specification ignores and this rule reports as advice. The header must also appear on one field line only.\n\n(The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -72,17 +72,17 @@ impl RuleMeta for OriginIsolatedHeaderValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("(the boolean, written false)"),
                 snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("(a list where a boolean is due)"),
                 snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?1, ?1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("(a token, which no boolean admits)"),
                 snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: unsafe-none",
             },
         ]
@@ -148,7 +148,31 @@ impl Rule for OriginIsolatedHeaderValid {
                 return Some(ctx.report(&ORIGIN_AGENT_CLUSTER_EMPTY));
             }
             if members > 1 {
-                return Some(ctx.report(&ORIGIN_AGENT_CLUSTER_MALFORMED));
+                return Some(ctx.report_with(
+                    &ORIGIN_AGENT_CLUSTER_MALFORMED,
+                    format!(
+                        "Origin-Agent-Cluster carries {members} values ('{}') where the field's \
+                         value is one boolean",
+                        crate::helpers::shown::shown_in_finding(val)
+                    ),
+                ));
+            }
+
+            // What is written is one thing; the question left is whether it is
+            // a boolean. `?1` and `?0` are the only two strings that parse as
+            // one, and the reader every structured field shares says so — this
+            // rule used to compare against `?1` and call the rest invalid,
+            // which put a token and a false boolean under one sentence.
+            // cite(RFC 9651 § 4.2.8, label: origin_isolated_header_valid): "If the first character of input_string is not "?", fail parsing."
+            if !crate::helpers::structured_fields::is_boolean(val) {
+                return Some(ctx.report_with(
+                    &ORIGIN_AGENT_CLUSTER_MALFORMED,
+                    format!(
+                        "Origin-Agent-Cluster value '{}' is not a structured-field boolean; the \
+                         field carries `?1` or `?0` and nothing else",
+                        crate::helpers::shown::shown_in_finding(val)
+                    ),
+                ));
             }
 
             // `?1` is the structured-header boolean true value that requests an
@@ -212,10 +236,14 @@ mod tests {
         }
     }
 
-    /// Three ways to write a value that is not the boolean, and each answers
-    /// under its own id — a line with nothing on it is a different defect from
-    /// a line with two things on it, and both are different from a `?0`. The
-    /// commas-only value is the one worth pinning: it holds octets and no
+    /// Four ways to write something other than the true boolean, and each
+    /// answers under the id its own defect belongs to — a line with nothing on
+    /// it, a line with two things on it, and a line with one thing that is no
+    /// boolean are all the grammar broken, while `?0` is the grammar kept and
+    /// the preference declined. `unsafe-none`, `1` and `true` are the values
+    /// that used to answer under `?0`'s id: they are not booleans, and RFC 9651
+    /// § 4.2.8 admits exactly the two strings that are. The commas-only value
+    /// is the one worth pinning for its own reason: it holds octets and no
     /// member, which is the same reading `Content-Length` makes of `,,`.
     #[test]
     fn each_shape_of_wrong_value_reports_its_own_id() {
@@ -223,8 +251,10 @@ mod tests {
             ("", "origin_agent_cluster_empty"),
             (",,", "origin_agent_cluster_empty"),
             ("?1, ?1", "origin_agent_cluster_malformed"),
+            ("unsafe-none", "origin_agent_cluster_malformed"),
+            ("1", "origin_agent_cluster_malformed"),
+            ("true", "origin_agent_cluster_malformed"),
             ("?0", "origin_agent_cluster_invalid"),
-            ("unsafe-none", "origin_agent_cluster_invalid"),
         ] {
             let tx = crate::test_helpers::make_test_transaction_with_response(
                 200,
@@ -293,10 +323,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
+        let found = v.expect("a finding");
+        assert_eq!(found.violation, "origin_agent_cluster_malformed");
         assert_eq!(
-            v.expect("a finding").message,
-            "Origin-Agent-Cluster header value '\u{ff}' is invalid: expected '?1' to request an \
-             origin-keyed agent cluster"
+            found.message,
+            "Origin-Agent-Cluster value '\u{ff}' is not a structured-field boolean; the field \
+             carries `?1` or `?0` and nothing else"
         );
         Ok(())
     }
@@ -319,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn comma_list_reports_single_value_message() {
+    fn comma_list_names_how_many_values_it_carries() {
         let rule = OriginIsolatedHeaderValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -331,8 +363,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("single value"));
+        let found = v.expect("a finding");
+        assert_eq!(found.violation, "origin_agent_cluster_malformed");
+        assert!(found.message.contains("2 values"), "{}", found.message);
+        assert!(found.message.contains("one boolean"), "{}", found.message);
     }
 
     #[test]

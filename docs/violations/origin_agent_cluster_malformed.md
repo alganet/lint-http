@@ -6,11 +6,11 @@ SPDX-License-Identifier: ISC
 
 # origin_agent_cluster_malformed
 
-Origin-Agent-Cluster carries a list where a boolean is due
+Origin-Agent-Cluster carries something that is not a boolean
 
 ## Message
 
-Origin-Agent-Cluster must be a single value
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
@@ -24,7 +24,7 @@ Origin-Agent-Cluster must be a single value
 
 ```toml
 [violations.origin_agent_cluster_malformed]
-# Origin-Agent-Cluster carries a list where a boolean is due
+# Origin-Agent-Cluster carries something that is not a boolean
 severity = "warn"
 ```
 

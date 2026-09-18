@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Checks the `Origin-Agent-Cluster` response header and ensures it uses the structured-header boolean value `?1` to request an origin-keyed agent cluster. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster; the specification ignores any other value, but this rule reports it because a non-`?1` value is almost always a server misconfiguration.
+Checks the `Origin-Agent-Cluster` response header, whose value is one structured-field boolean. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster. A value that is not a boolean at all — a comma-separated list, a bare token such as `unsafe-none`, or nothing — breaks the grammar and leaves a recipient with a field it cannot read. `?0` does not: it is the field's other value, well-formed, and it asks for what an absent header already gives, which the specification ignores and this rule reports as advice. The header must also appear on one field line only.
 
 (The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)
 
@@ -17,7 +17,7 @@ Checks the `Origin-Agent-Cluster` response header and ensures it uses the struct
 - [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
 - [origin_agent_cluster_empty](../violations/origin_agent_cluster_empty.md) — Origin-Agent-Cluster is written with no boolean on it
 - [origin_agent_cluster_invalid](../violations/origin_agent_cluster_invalid.md) — Origin-Agent-Cluster states a value that is not `?1`
-- [origin_agent_cluster_malformed](../violations/origin_agent_cluster_malformed.md) — Origin-Agent-Cluster carries a list where a boolean is due
+- [origin_agent_cluster_malformed](../violations/origin_agent_cluster_malformed.md) — Origin-Agent-Cluster carries something that is not a boolean
 
 ## Specifications
 
@@ -41,17 +41,21 @@ HTTP/1.1 200 OK
 Origin-Agent-Cluster: ?1
 ```
 
-### ❌ Bad
+### ❌ Bad (the boolean, written false)
 
 ```http
 HTTP/1.1 200 OK
 Origin-Agent-Cluster: ?0
 ```
 
+### ❌ Bad (a list where a boolean is due)
+
 ```http
 HTTP/1.1 200 OK
 Origin-Agent-Cluster: ?1, ?1
 ```
+
+### ❌ Bad (a token, which no boolean admits)
 
 ```http
 HTTP/1.1 200 OK
