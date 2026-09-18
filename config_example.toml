@@ -2869,7 +2869,7 @@ severity = "error"
 
 [violations.strict_transport_security_directive_empty]
 # The policy holds a separator with no directive
-severity = "warn"
+severity = "info"
 
 [violations.strict_transport_security_directive_value_forbidden]
 # A valueless directive is written with a value
