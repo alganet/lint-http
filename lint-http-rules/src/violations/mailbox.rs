@@ -236,9 +236,12 @@ defects! {
         strength: Strength::Grammar,
     }
 
-    /// The value ends where the `addr-spec` has its `local-part` — the half
-    /// before the at-sign, which is either a `dot-atom` or a `quoted-string`
-    /// and cannot be nothing.
+    /// Nothing that can begin a `local-part` is where the `addr-spec` has one
+    /// — the half before the at-sign, which is either a `dot-atom` or a
+    /// `quoted-string` and cannot be nothing. The value ending there is one way
+    /// to have none; `@example.com`, which puts the at-sign where the
+    /// `local-part` goes, is the other, and the finding names whichever it
+    /// stopped on.
     ///
     // cite(RFC 5322 § 3.4.1): "local-part = dot-atom / quoted-string / obs-local-part"
     MAILBOX_LOCAL_PART_MISSING = {
@@ -263,8 +266,9 @@ defects! {
         spec: &[RFC_5322_3_4_1],
     }
 
-    /// The value ends where the `addr-spec` has its `domain` — `alice@` and
-    /// nothing after it.
+    /// Nothing that can begin a `domain` is where the `addr-spec` has one —
+    /// `alice@` and nothing after it, or `alice@@example.com`, where what
+    /// follows the at-sign opens neither a `dot-atom` nor a `domain-literal`.
     ///
     // cite(RFC 5322 § 3.4.1): "domain = dot-atom / domain-literal / obs-domain"
     MAILBOX_DOMAIN_MISSING = {
@@ -398,9 +402,9 @@ pub fn syntax_defect(defect: MailboxSyntaxDefect) -> &'static ViolationDef {
         | MailboxSyntaxDefect::QuotedPairCharacter { .. } => &MAILBOX_QUOTED_PAIR_MALFORMED,
         MailboxSyntaxDefect::AtomCharacter { .. } => &MAILBOX_ATOM_CHARACTER_FORBIDDEN,
         MailboxSyntaxDefect::AtomEmpty { .. } => &MAILBOX_ATOM_EMPTY,
-        MailboxSyntaxDefect::LocalPartMissing => &MAILBOX_LOCAL_PART_MISSING,
+        MailboxSyntaxDefect::LocalPartMissing(_) => &MAILBOX_LOCAL_PART_MISSING,
         MailboxSyntaxDefect::AtSignMissing(_) => &MAILBOX_AT_SIGN_MISSING,
-        MailboxSyntaxDefect::DomainMissing => &MAILBOX_DOMAIN_MISSING,
+        MailboxSyntaxDefect::DomainMissing(_) => &MAILBOX_DOMAIN_MISSING,
         MailboxSyntaxDefect::DomainLiteralCharacter(_) => {
             &MAILBOX_DOMAIN_LITERAL_CHARACTER_FORBIDDEN
         }
@@ -458,7 +462,7 @@ mod tests {
             (
                 MailboxSyntaxDefect::AtomCharacter {
                     what: "local-part",
-                    character: '@',
+                    character: '[',
                 },
                 "mailbox_atom_character_forbidden",
             ),
@@ -467,14 +471,17 @@ mod tests {
                 "mailbox_atom_empty",
             ),
             (
-                MailboxSyntaxDefect::LocalPartMissing,
+                MailboxSyntaxDefect::LocalPartMissing(None),
                 "mailbox_local_part_missing",
             ),
             (
                 MailboxSyntaxDefect::AtSignMissing(None),
                 "mailbox_at_sign_missing",
             ),
-            (MailboxSyntaxDefect::DomainMissing, "mailbox_domain_missing"),
+            (
+                MailboxSyntaxDefect::DomainMissing(None),
+                "mailbox_domain_missing",
+            ),
             (
                 MailboxSyntaxDefect::DomainLiteralCharacter('\u{e9}'),
                 "mailbox_domain_literal_character_forbidden",
