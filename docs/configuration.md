@@ -379,6 +379,16 @@ The `--config` file is the same TOML used by `proxy-start`; `lint-captures` read
 (used to size the replay's history window). The `listen`, `captures`, and
 `[tls]` fields are ignored by `lint-captures`.
 
+Transactions and WebSocket sessions are re-linted under that config; protocol
+events are not, and report the findings the capture already carries. A
+protocol rule reads a *run* of frames through the store the live connection
+built, and a capture file holds the frames without it — so re-running the rule
+would answer a different question than the wire did. The toggles still apply:
+a rule switched off, a defect switched off beneath it, and a severity moved
+are all read for those recorded findings too, because which rules ran and
+which findings are reported are different questions and only the first was
+settled when the file was written.
+
 ## Configuration File Structure
 
 The configuration file is divided into three main sections: `[general]`, `[tls]`, and `[rules]`.

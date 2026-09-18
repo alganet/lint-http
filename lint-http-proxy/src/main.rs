@@ -1079,9 +1079,30 @@ fn lint_records(
             // half the history and get a different answer than the wire did.
             // The findings the live pass reached are on the record; this
             // reports those.
+            //
+            // Reports them *as this configuration says to*, which does not
+            // follow from the paragraph above and did not happen. Which rules
+            // run was settled when the record was written and cannot be
+            // revisited here; which findings are reported is a separate
+            // question that only the reader's config answers, and the answer
+            // was being taken from the file. A capture linted under a config
+            // that switches every rule off reported nothing from its
+            // transactions and every recorded protocol finding, at the
+            // severity the *writer's* config chose, and failed the exit code
+            // on it — while the documented contract said `--config` reads the
+            // `[rules]` toggles and the `[violations]` overrides.
             capture::CaptureRecord::ProtocolEvent(record) => {
                 pe_count += 1;
                 let mut violations = record.violations.clone();
+                violations.retain_mut(|v| {
+                    match engine.recorded_protocol_severity(&v.rule, &v.violation, v.severity) {
+                        Some(severity) => {
+                            v.severity = severity;
+                            true
+                        }
+                        None => false,
+                    }
+                });
                 removed.add(retain_reportable(&mut violations, min_severity, about));
                 if violations.is_empty() {
                     continue;
@@ -3256,6 +3277,15 @@ mod tests {
         rule_id: &str,
         temp: &mut crate::temp_files::TempFiles,
     ) -> anyhow::Result<std::path::PathBuf> {
+        write_config(&format!("[rules.{rule_id}]\nenabled = true\n"), temp).await
+    }
+
+    // The same file with the caller's own sections appended, for a test whose
+    // subject is a `[violations.*]` override rather than a rule toggle.
+    async fn write_config(
+        sections: &str,
+        temp: &mut crate::temp_files::TempFiles,
+    ) -> anyhow::Result<std::path::PathBuf> {
         let tmp = temp.path("lint_lint_cfg", "toml");
         let toml = format!(
             r#"[general]
@@ -3265,9 +3295,7 @@ captures = "captures.jsonl"
 [tls]
 enabled = false
 
-[rules.{rule_id}]
-enabled = true
-"#
+{sections}"#
         );
         fs::write(&tmp, toml).await?;
         Ok(tmp)
@@ -3709,6 +3737,105 @@ enabled = true
             replayed.total(),
             0,
             "the replay is expected to miss it — that is the defect this reports around"
+        );
+        Ok(())
+    }
+
+    /// A protocol event replays from its record, and the reader's config still
+    /// decides what that record gets to say.
+    ///
+    /// The three answers are separate because they came from three different
+    /// places and only one of them was ever asked: a rule switched off, a
+    /// defect switched off under a rule that is on, and a severity moved. All
+    /// three were read for a transaction and none of them for a protocol
+    /// event, which reported at the level the *writer's* config chose and
+    /// carried the exit code with it.
+    #[tokio::test]
+    async fn a_recorded_protocol_finding_is_reported_as_this_config_says() -> anyhow::Result<()> {
+        use lint_http::protocol_event::{
+            MessageDirection, ProtocolEvent, ProtocolEventKind, ProtocolEventRecord,
+        };
+
+        let mut temp = crate::temp_files::TempFiles::new();
+        let record = || {
+            capture::CaptureRecord::ProtocolEvent(Box::new(ProtocolEventRecord::new(
+                ProtocolEvent {
+                    timestamp: chrono::Utc::now(),
+                    connection_id: Uuid::new_v4(),
+                    kind: ProtocolEventKind::H3SettingsReceived {
+                        settings: vec![(0x02, 1)],
+                        direction: MessageDirection::Server,
+                    },
+                },
+                vec![{
+                    let mut v = lint::Violation::new(
+                        "http3_settings_frame",
+                        lint::Severity::Error,
+                        "SETTINGS carries a reserved identifier",
+                    );
+                    v.violation = "http3_settings_identifier_forbidden".to_string();
+                    v
+                }],
+            )))
+        };
+        let replay = |cfg: &config::Config| {
+            lint_records(cfg, vec![record()], lint::Severity::Info, AboutScope::all())
+        };
+
+        // The rule this config runs, so the finding stands — and the count says
+        // the record was read either way, which is the line that tells a
+        // silenced report from a capture of nothing.
+        let on = load_validated_config(
+            write_config_enabling("http3_settings_frame", &mut temp)
+                .await?
+                .to_str(),
+        )
+        .await?;
+        let kept = replay(&on)?;
+        assert_eq!(kept.total(), 1);
+        assert_eq!(kept.protocol_count, 1);
+
+        // A different rule enabled, so this one is off: the finding is not this
+        // config's to report.
+        let elsewhere = load_validated_config(
+            write_config_enabling("cache_control_present", &mut temp)
+                .await?
+                .to_str(),
+        )
+        .await?;
+        let dropped = replay(&elsewhere)?;
+        assert_eq!(dropped.total(), 0);
+        assert_eq!(dropped.protocol_count, 1, "read, and then not reported");
+
+        // The rule on and the defect turned off beneath it.
+        let muted = load_validated_config(
+            write_config(
+                "[rules.http3_settings_frame]\nenabled = true\n\n\
+                 [violations.http3_settings_identifier_forbidden]\nenabled = false\n",
+                &mut temp,
+            )
+            .await?
+            .to_str(),
+        )
+        .await?;
+        assert_eq!(replay(&muted)?.total(), 0);
+
+        // And the level the operator chose, not the one on the record.
+        let lowered = load_validated_config(
+            write_config(
+                "[rules.http3_settings_frame]\nenabled = true\n\n\
+                 [violations.http3_settings_identifier_forbidden]\nseverity = \"info\"\n",
+                &mut temp,
+            )
+            .await?
+            .to_str(),
+        )
+        .await?;
+        let report = replay(&lowered)?;
+        assert_eq!(report.total(), 1);
+        assert_eq!(
+            report.findings[0].violations()[0].severity,
+            lint::Severity::Info
         );
         Ok(())
     }
