@@ -288,38 +288,76 @@ defects! {
         strength: Strength::Unstated,
     }
 
-    /// A stale response carrying `must-revalidate`, reused without a
-    /// conditional request.
+    /// A stale response carrying `must-revalidate`, re-requested without the
+    /// validator it holds.
     ///
     /// The directive's whole content is what happens *after* the response goes
     /// stale, so freshness is the antecedent and the finding needs both: an age
-    /// past the freshness lifetime, and a reuse that carried no validator.
+    /// past the freshness lifetime, and a later request that carried no
+    /// conditional header.
+    ///
+    /// **§ 5.2.2.2 forbids something this observer cannot see.** The sentence
+    /// binds a *cache*: once the response is stale, it must not be reused to
+    /// satisfy another request until the origin has validated it. This
+    /// implementation watches the wire between a client and an origin, and a
+    /// reuse is exactly the event that never crosses it — had the client's cache
+    /// answered from the stored entry, no request would have arrived here at
+    /// all. Every request this entry fires on is therefore one the cache did
+    /// *not* satisfy, which is the directive being honoured rather than
+    /// ignored.
+    ///
+    /// So the entry says only what the wire carries: a stale `must-revalidate`
+    /// entry that held a validator, and a later request for it that went out
+    /// unconditionally. Forwarding that request is what § 5.2.2.2 asks for; what
+    /// it passed up is § 4.3.1's conditional mechanism, which would have let the
+    /// origin answer `304` instead of sending the body again.
+    ///
+    /// `warn`, and `Unstated` rather than `Must`: the `MUST NOT` quoted below
+    /// binds the recipient cache, so no keyword here binds the sender being
+    /// reported and none derives this level. It ranks with
+    /// `cache_control_no_store_ignored` and `cache_control_private_ignored`,
+    /// the catalogue's other entries that reconstruct a store nobody on this
+    /// seam can see.
     ///
     // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
     CACHE_CONTROL_MUST_REVALIDATE_IGNORED = {
         id: "cache_control_must_revalidate_ignored",
-        title: "A stale must-revalidate response is reused without validation",
+        title: "A stale must-revalidate response is re-requested without its validator",
         message: "",
-        default_severity: Severity::Error,
+        default_severity: Severity::Warn,
         spec: &[RFC_9111_5_2_2_2],
-        strength: Strength::Must,
+        strength: Strength::Unstated,
     }
 
-    /// A response marked `no-cache` reused without forwarding the later request
-    /// for validation.
+    /// A response marked `no-cache` re-requested without the validator it
+    /// holds.
     ///
     /// **The unqualified form is the one this entry is about.** § 5.2.2.4's
     /// qualified form — an argument listing field names — permits a cache to
     /// use the response, so a finding against it would report a permission.
     ///
+    /// **And the reuse it forbids is one this observer cannot witness.**
+    /// § 5.2.2.4 bars using the response *without forwarding it for
+    /// validation* — an unconditional request arriving here is that forwarding,
+    /// not a breach of it, because a cache that had answered from the stored
+    /// entry would have sent nothing for this seam to read. § 4.3 lets a cache
+    /// use the conditional mechanism; it does not require it, so the request
+    /// that omits a validator has still forwarded.
+    ///
+    /// What is left is worth reporting on its own: the client held a validator
+    /// for a response it may not reuse unvalidated and spent a full round trip
+    /// re-fetching the body it could have had revalidated. That is § 4.3.1's
+    /// efficiency reading, which is why this is `warn` and `Unstated` — the
+    /// `MUST NOT` below binds the cache, not the sender named in the finding.
+    ///
     // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
     CACHE_CONTROL_NO_CACHE_IGNORED = {
         id: "cache_control_no_cache_ignored",
-        title: "A no-cache response is reused without being revalidated",
+        title: "A no-cache response is re-requested without its validator",
         message: "",
-        default_severity: Severity::Error,
+        default_severity: Severity::Warn,
         spec: &[RFC_9111_5_2_2_4],
-        strength: Strength::Must,
+        strength: Strength::Unstated,
     }
 
     /// A validator from an unqualified-`private` response arriving from a

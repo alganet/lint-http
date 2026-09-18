@@ -1130,18 +1130,16 @@ severity = "info"
 severity = "info"
 
 [violations.cache_control_must_revalidate_ignored]
-# A stale must-revalidate response is reused without validation
-# MUST obliges the sender, so this defaults to error.
-severity = "error"
+# A stale must-revalidate response is re-requested without its validator
+severity = "warn"
 
 [violations.cache_control_no_cache_argument_empty]
 # Cache-Control no-cache is qualified by no field name
 severity = "info"
 
 [violations.cache_control_no_cache_ignored]
-# A no-cache response is reused without being revalidated
-# MUST obliges the sender, so this defaults to error.
-severity = "error"
+# A no-cache response is re-requested without its validator
+severity = "warn"
 
 [violations.cache_control_no_store_ignored]
 # A validator from a no-store response comes back on a later request
