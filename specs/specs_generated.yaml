@@ -3699,13 +3699,13 @@ sources:
     snippet: directive-name            = token
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 212
+      line: 220
   - label: strict_transport_security_valid (3)
     section: § 6.1
     snippet: directive-value           = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 280
+      line: 288
 - label: RFC 6838
   url: https://www.rfc-editor.org/rfc/rfc6838.html
   fragments:

@@ -179,6 +179,7 @@ impl Rule for StrictTransportSecurityValid {
 
                 let mut saw_max_age = false;
                 let mut max_age_count = 0usize;
+                let mut saw_empty_directive = false;
 
                 for member in crate::helpers::list::split_semicolons_respecting_quotes(v) {
                     let member = crate::helpers::headers::trim_ows(member);
@@ -189,9 +190,16 @@ impl Rule for StrictTransportSecurityValid {
                     // the empty one. The rule refuses it anyway and that is its
                     // own claim, which is the same shape of refusal
                     // `Sec-WebSocket-Extensions` made about RFC 2616's list.
+                    //
+                    // Recorded and stepped over rather than returned on. A
+                    // separator states nothing about the directives around it,
+                    // and the one directive this field is required to carry is
+                    // looked for only after the whole value has been read — so
+                    // ending the scan here answers a policy that never states a
+                    // `max-age` with the stray `;` it also happens to contain.
                     if member.is_empty() {
-                        // skip stray semicolons but flag as violation
-                        return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY));
+                        saw_empty_directive = true;
+                        continue;
                     }
 
                     // directive = token [ "=" token ]
@@ -304,8 +312,20 @@ impl Rule for StrictTransportSecurityValid {
                     ));
                 }
 
+                // Ahead of the separator finding below, and the ranks are
+                // the reason. This is a MUST § 6.1.1 states, and § 6.1 gives it
+                // teeth by having the user agent ignore the entire field: a
+                // policy with no `max-age` is not a weaker policy but no policy,
+                // and the deployment reading the report believes it has one. The
+                // empty directive is this rule's own claim against a member the
+                // § 6.1 grammar derives, which is not a thing to repair inside a
+                // field already discarded.
                 if !saw_max_age {
                     return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING));
+                }
+
+                if saw_empty_directive {
+                    return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY));
                 }
             }
 
@@ -460,6 +480,62 @@ mod tests {
             "for {value:?}: {:?}",
             finding.message
         );
+        assert_eq!(finding.violation, violation, "for {value:?}");
+    }
+
+    /// A separator is not an answer to a policy that states no duration.
+    ///
+    /// `max-age` is looked for only once the whole value has been read, so a
+    /// scan that ends at the first empty member never reaches the question. The
+    /// shape that makes this matter is deployed: a `max-age` misspelled with a
+    /// hyphen is a well-formed unknown directive § 6.1 says to ignore, which
+    /// leaves the field carrying no duration at all, and such a field is one the
+    /// user agent discards whole — while the trailing `;` beside it is a member
+    /// the § 6.1 grammar derives and this rule refuses on its own authority, at
+    /// `info`, citing nothing. The deployment reading that answer is told about
+    /// the semicolon and not that it has no HSTS.
+    #[rstest]
+    #[case::hyphen_for_equals_and_a_trailing_separator(
+        "max-age-16000000; includeSubDomains; preload;",
+        "strict_transport_security_max_age_missing"
+    )]
+    #[case::no_duration_behind_a_trailing_separator(
+        "includeSubDomains;",
+        "strict_transport_security_max_age_missing"
+    )]
+    #[case::a_separator_leads_the_value(
+        "; includeSubDomains",
+        "strict_transport_security_max_age_missing"
+    )]
+    // The separator still answers for itself when the policy is otherwise whole,
+    // which is every one of these the field carries in practice.
+    #[case::a_whole_policy_keeps_its_separator_finding(
+        "max-age=31536000;",
+        "strict_transport_security_directive_empty"
+    )]
+    #[case::a_whole_policy_keeps_it_mid_value(
+        "max-age=31536000;; includeSubDomains",
+        "strict_transport_security_directive_empty"
+    )]
+    // And a defect written after the separator is now read rather than hidden
+    // behind it.
+    #[case::a_directive_past_the_separator_is_still_read(
+        "max-age=1;; includeSubDomains=2",
+        "strict_transport_security_directive_value_forbidden"
+    )]
+    fn an_empty_member_does_not_end_the_search_for_the_required_directive(
+        #[case] value: &str,
+        #[case] violation: &str,
+    ) {
+        let finding = crate::test_helpers::run_rule(
+            &StrictTransportSecurityValid,
+            &make_resp(value),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "strict_transport_security_valid",
+            ]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {value:?}"));
         assert_eq!(finding.violation, violation, "for {value:?}");
     }
 
