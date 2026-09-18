@@ -26,6 +26,15 @@ use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
+/// Freshness: the definition "stale" is measured against, and the arithmetic
+/// a response carries the terms of.
+pub const RFC_9111_4_2: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
+    note: "Freshness — a response is fresh while its freshness lifetime exceeds its current age, and a fresh response is one a cache may serve",
+};
+
 /// Serving stale responses: the MUST NOT, and the two conditions that lift it.
 pub const RFC_9111_4_2_4: SpecRef = SpecRef {
     spec: "RFC 9111",
@@ -40,11 +49,24 @@ defects! {
     /// already seen.
     ///
     /// **The observable shape of a stale response**, which is as close as a
-    /// proxy can get to § 4.2.4's MUST NOT. Freshness is not computable from
-    /// here — there is no stored age and no lifetime to compare it against — so
-    /// what stands in for "stale" is a representation time that went down, read
-    /// from `Last-Modified` where the response carries one and from `Date`
-    /// where it does not.
+    /// proxy can get to § 4.2.4's MUST NOT where the response carries no
+    /// freshness of its own: what stands in for "stale" is a representation
+    /// time that went down, read from `Last-Modified` where the response
+    /// carries one and from `Date` where it does not.
+    ///
+    /// **Where the response carries § 4.2's terms, the definition outranks
+    /// the shape.** "Stale" is defined against a freshness lifetime and a
+    /// current age, and a response that states both — `max-age` or `Expires`
+    /// beside an `Age` — is fresh or stale by arithmetic, not by appearance.
+    /// A cache hit that answers under `max-age=600` with `Age: 31` is a
+    /// response every cache on the path was permitted to serve, however much
+    /// newer the representation a neighbouring node handed over five seconds
+    /// earlier; reporting it named a fix that does not exist, on every
+    /// multi-node CDN that serves a page whose modification time is its
+    /// generation time. A response whose age has run past its lifetime is
+    /// reported as before, and so is one that advertises no lifetime at all,
+    /// because the definition then has nothing to say and the shape is all
+    /// there is.
     ///
     /// **A time only ever descends against another read off the same header.**
     /// `Last-Modified` and `Date` measure different events, and within one
@@ -61,11 +83,11 @@ defects! {
     /// something stale from an origin that reverted a deployment, and the
     /// entry does not claim to.
     ///
-    /// **The comparison is deliberately blind to `Vary`**, which is the known
-    /// cost of the reading: two responses that legitimately differ on
-    /// `Accept-Language` are compared as though they were one representation.
-    /// The alternative is to reconstruct every cache key an intermediary might
-    /// have used, and the finding is worth having without that.
+    /// **The comparison reads `Vary` the way a cache does**, so two responses
+    /// that differ on a field the earlier one nominated are two entries and
+    /// not one representation going backwards. What it still does not read is
+    /// a validator: two representations one origin distinguishes by `ETag`
+    /// and `Vary` does not are compared as one.
     ///
     /// `warn`, and the subject's ceiling: everything above rests on what a
     /// proxy could see rather than on what a cache holds.
@@ -76,7 +98,7 @@ defects! {
         title: "Two responses for one URI disagree about which version is current",
         message: "",
         default_severity: Severity::Warn,
-        spec: &[RFC_9111_4_2_4],
+        spec: &[RFC_9111_4_2_4, RFC_9111_4_2],
         strength: Strength::Unstated,
     }
 }

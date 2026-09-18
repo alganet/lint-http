@@ -8,8 +8,11 @@ use crate::rules::{Rule, RuleMeta};
 /// Ensure that responses for a given resource do not regress in their
 /// representation date.  This is a heuristic, not a direct spec check: RFC 9111
 /// §4.2.4 forbids a cache from generating a *stale* response, but it defines
-/// "stale" against the §4.2 freshness calculation, which this rule never
-/// performs.  Instead we approximate the observable symptom — a later response
+/// "stale" against the §4.2 freshness calculation, which this rule performs
+/// only where the response carries its terms — and where it does, the
+/// arithmetic decides: a response whose lifetime exceeds its age is fresh and
+/// is not reported, whatever its representation time says against the
+/// history.  Elsewhere we approximate the observable symptom — a later response
 /// carrying an older representation timestamp than one already seen for the
 /// same URI — by computing a simple timestamp from the `Last-Modified` header
 /// (RFC 9110 §8.8.2, the representation's own modification time) or, failing
@@ -123,7 +126,7 @@ fn selects_the_same_representation(
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-use crate::violations::cache::{CACHE_RESPONSE_CONFLICTING, RFC_9111_4_2_4};
+use crate::violations::cache::{CACHE_RESPONSE_CONFLICTING, RFC_9111_4_2, RFC_9111_4_2_4};
 use crate::violations::ViolationDef;
 
 /// One entry, and it belongs to a subject about caches rather than about
@@ -190,12 +193,13 @@ impl RuleMeta for CacheCoherence {
     }
 
     fn description(&self) -> &'static str {
-        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\nthe later response appears to be serving a stale representation.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  Only a 200 or a 206\nanswering a GET or a HEAD joins the timeline, on either side of the\ncomparison.  Those carry the resource; a 3xx, a 4xx, a 5xx, a 204 or a 304\nis generated when the request arrives and so dates the asking, and even a\n200 represents the communication options rather than the resource when it\nanswers an OPTIONS, or our own request when it answers a TRACE.  Reading\none of those as a previous observation raises the timeline to *now* and\nreports every later cache hit — which correctly carries the stored\nresponse's older Date — as stale.\n\nA previous response is compared only when its `Vary` nominates nothing the\ntwo requests wrote differently.  Two encodings of one page are two stored\nentries, and the timestamps of one say nothing about the freshness of the\nother."
+        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\nthe later response appears to be serving a stale representation.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  Only a 200 or a 206\nanswering a GET or a HEAD joins the timeline, on either side of the\ncomparison.  Those carry the resource; a 3xx, a 4xx, a 5xx, a 204 or a 304\nis generated when the request arrives and so dates the asking, and even a\n200 represents the communication options rather than the resource when it\nanswers an OPTIONS, or our own request when it answers a TRACE.  Reading\none of those as a previous observation raises the timeline to *now* and\nreports every later cache hit — which correctly carries the stored\nresponse's older Date — as stale.\n\nA previous response is compared only when its `Vary` nominates nothing the\ntwo requests wrote differently.  Two encodings of one page are two stored\nentries, and the timestamps of one say nothing about the freshness of the\nother.\n\nA response that carries the terms of §4.2's definition is judged by the\ndefinition rather than by the timeline.  Where `max-age`, `s-maxage` or\n`Expires` gives a freshness lifetime and `Age` or `Date` gives a current\nage, a lifetime that exceeds the age makes the response fresh, and a fresh\nresponse is one every cache on the path was permitted to serve — a cache\nhit under `max-age=600` with `Age: 31` is not stale because a sibling node\nhanded over a newer copy five seconds earlier.  Such a response is not\nreported.  One whose age has run past its lifetime, or one that advertises\nno lifetime at all, is reported by the timeline as before."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9111_4_2_4,
+            RFC_9111_4_2,
             RFC_9111_4_1,
             RFC_9110_8_8_2,
             RFC_9110_6_6_1,
@@ -341,6 +345,20 @@ impl Rule for CacheCoherence {
             // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
             if let Some(prev_max) = max_prev {
                 if curr_time < prev_max {
+                    // The shape is only a stand-in for the definition, and a response
+                    // that carries the definition's terms is judged by them. A cache hit
+                    // under `max-age=600` with `Age: 31` is fresh, and a fresh response
+                    // is exactly what § 4.2.4 permits a cache to serve — however much
+                    // newer the representation a sibling node handed over moments
+                    // before. Only a response past its lifetime, or one that states no
+                    // lifetime at all, is left for the shape to describe.
+                    // cite(RFC 9111 § 4.2): "response_is_fresh = (freshness_lifetime > current_age)"
+                    if crate::helpers::cache_control::fresh_when_observed(
+                        &resp.headers,
+                        tx.timestamp,
+                    ) {
+                        return None;
+                    }
                     return Some(ctx.report_with(
                         &CACHE_RESPONSE_CONFLICTING,
                         format!(
@@ -478,6 +496,144 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
         assert!(v.is_some());
+    }
+
+    /// The shape a multi-node CDN serves for a page whose modification time is
+    /// its generation time: one node misses and hands over a copy stamped
+    /// *now*, and five seconds later a sibling node hits on the copy it stored
+    /// half a minute ago. The representation went backwards on the wire and
+    /// nothing was served stale: the hit carries `max-age=600` and `Age: 31`,
+    /// so § 4.2's arithmetic makes it fresh, and a fresh response is one
+    /// every cache on the path was permitted to serve.
+    #[test]
+    fn a_fresh_hit_behind_a_newer_miss_is_not_stale() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let miss = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("last-modified", "Sun, 30 Aug 2026 01:36:09 GMT"),
+                ("cache-control", "max-age=600, must-revalidate"),
+            ],
+        );
+        let mut hit = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("last-modified", "Sun, 30 Aug 2026 01:35:43 GMT"),
+                ("cache-control", "max-age=600, must-revalidate"),
+                ("age", "31"),
+            ],
+        );
+        hit.timestamp = miss.timestamp + chrono::Duration::seconds(5);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![miss]);
+        assert!(crate::test_helpers::run_rule(&rule, &hit, &history, &cfg).is_none());
+    }
+
+    /// The same hit once its lifetime has run out is what the definition calls
+    /// stale, and the timeline is allowed to say so.
+    #[test]
+    fn a_hit_past_its_lifetime_behind_a_newer_miss_is_stale() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let miss = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("last-modified", "Sun, 30 Aug 2026 01:36:09 GMT"),
+                ("cache-control", "max-age=600, must-revalidate"),
+            ],
+        );
+        let mut hit = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("last-modified", "Sun, 30 Aug 2026 01:35:43 GMT"),
+                ("cache-control", "max-age=600, must-revalidate"),
+                ("age", "700"),
+            ],
+        );
+        hit.timestamp = miss.timestamp + chrono::Duration::seconds(5);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![miss]);
+        let v = crate::test_helpers::run_rule(&rule, &hit, &history, &cfg);
+        assert_eq!(
+            v.map(|v| v.violation).as_deref(),
+            Some("cache_response_conflicting")
+        );
+    }
+
+    /// A lifetime the response gives only to a shared cache is a lifetime
+    /// some conforming cache served it under; and a lifetime a bare
+    /// `no-cache` withdraws is no lifetime, so the shape decides again.
+    #[test]
+    fn the_lifetime_read_is_any_a_conforming_cache_could_use() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        for (cache_control, expected_silent) in [
+            ("max-age=0, s-maxage=600", true),
+            ("no-cache, max-age=600", false),
+        ] {
+            let miss = make_resp_tx(
+                "https://example.com/foo",
+                200,
+                &[
+                    ("last-modified", "Sun, 30 Aug 2026 01:36:09 GMT"),
+                    ("cache-control", cache_control),
+                ],
+            );
+            let mut hit = make_resp_tx(
+                "https://example.com/foo",
+                200,
+                &[
+                    ("last-modified", "Sun, 30 Aug 2026 01:35:43 GMT"),
+                    ("cache-control", cache_control),
+                    ("age", "31"),
+                ],
+            );
+            hit.timestamp = miss.timestamp + chrono::Duration::seconds(5);
+            let history =
+                crate::transaction_history::TransactionHistory::from_transactions(vec![miss]);
+            assert_eq!(
+                crate::test_helpers::run_rule(&rule, &hit, &history, &cfg).is_none(),
+                expected_silent,
+                "under `{cache_control}`"
+            );
+        }
+    }
+
+    /// The `Date` clock under the same definition: a hit whose `Date` sits
+    /// below the previous one and whose `Age` has run past a `max-age=0` is
+    /// stale by arithmetic as well as by shape, and still reports.
+    #[test]
+    fn a_date_that_descends_past_a_zero_lifetime_is_stale() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let prev = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("date", "Sun, 30 Aug 2026 01:12:53 GMT"),
+                ("cache-control", "public, max-age=0, must-revalidate"),
+                ("age", "329"),
+            ],
+        );
+        let mut curr = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("date", "Sun, 30 Aug 2026 01:12:41 GMT"),
+                ("cache-control", "public, max-age=0, must-revalidate"),
+                ("age", "350"),
+            ],
+        );
+        curr.timestamp = prev.timestamp + chrono::Duration::seconds(9);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
+        assert_eq!(
+            v.map(|v| v.violation).as_deref(),
+            Some("cache_response_conflicting")
+        );
     }
 
     /// The shape a real origin serves: one unchanging page, fetched three
