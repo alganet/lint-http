@@ -17,6 +17,17 @@ use crate::rules::{Rule, RuleMeta};
 /// bullet that does name subranges is a MAY. A stored partial with no entity tag
 /// therefore asks nothing of this request, and the rule is silent there.
 ///
+/// The premise is asked per **range unit**, and that is not a detail. Positions
+/// are counted in units, so a fragment held in `bytes` and a fragment asked for
+/// in some other unit overlap in nothing and combine into nothing — and § 14.2
+/// requires an origin to ignore a unit it does not apply, which makes such a
+/// request one for the whole representation rather than a re-request of a stored
+/// partial copy. The unit a stored 206 holds comes from its `Content-Range`, or,
+/// when it is multipart and § 15.3.7.2 keeps that field out of the header
+/// section, from the `Range` it was fulfilling. The media type is not a third
+/// source: § 14.6 says `multipart/byteranges` is not limited to byte ranges and
+/// prints an `exampleunit` response saying so.
+///
 /// The premise — that this client is the one holding the partial copy — is the
 /// one thing no sentence supplies. The capture cannot tell a cache from a user
 /// agent that simply asked for another range. What it can see is that this client
@@ -95,7 +106,7 @@ impl RuleMeta for RangeRequestAndCaching {
     }
 
     fn description(&self) -> &'static str {
-        "A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.\n\nThis rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request that carries none of those three fields, an `If-Range` holding a tag other than the one most recently provided for the resource, and an `If-Range` holding a date when an entity tag was provided (RFC 9110 §13.1.5 forbids the date in that case).  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.\n\n**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  Turn the rule off for traffic that is not caching."
+        "A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.\n\nThis rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request **in that same range unit** that carries none of those three fields, an `If-Range` holding a tag other than the one most recently provided for the resource, and an `If-Range` holding a date when an entity tag was provided (RFC 9110 §13.1.5 forbids the date in that case).  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.\n\n**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  A stored 206 whose unit the header section does not name is passed over rather than guessed at: a multipart 206 carries its `Content-Range` in each body part instead of the header section (§15.3.7.2), so unless the request it answered is in the same history there is nothing to compare a later unit against.  Turn the rule off for traffic that is not caching."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -159,6 +170,43 @@ impl RuleMeta for RangeRequestAndCaching {
     }
 }
 
+/// The range unit a stored 206 holds a fragment in, or `None` when the header
+/// section does not say.
+///
+/// Two sources, and neither is an inference. A single-part 206 carries
+/// `Content-Range`, whose first token is the unit. A multipart one carries none
+/// — § 15.3.7.2 forbids it there and puts a `Content-Range` in each body part
+/// instead, which is behind a body this rule never has — so the unit is read
+/// from the `Range` that request asked with, which a 206 is by definition the
+/// fulfilment of.
+///
+/// The media type is not a third source. `multipart/byteranges` names bytes and
+/// does not mean them: § 14.6 says so in a sentence, and prints an
+/// `exampleunit` response under it.
+///
+// cite(RFC 9110 § 14.4): "The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation."
+// cite(RFC 9110 § 15.3.7.2): "To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead)."
+// cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
+// cite(RFC 9110 § 14.6): "Despite the name, the "multipart/byteranges" media type is not limited to byte ranges."
+fn partial_copy_unit(past: &crate::http_transaction::HttpTransaction) -> Option<String> {
+    if let Some(raw) = past
+        .response
+        .as_ref()
+        .and_then(|r| r.headers.get("content-range"))
+    {
+        let value = crate::helpers::headers::field_line_as_written(raw);
+        return crate::helpers::content_range::parse_content_range(&value)
+            .ok()
+            .map(|content_range| content_range.unit().to_string());
+    }
+
+    let raw = past.request.headers.get("range")?;
+    let value = crate::helpers::headers::field_line_as_written(raw);
+    crate::helpers::content_range::split_ranges_specifier(&value)
+        .ok()
+        .map(|(unit, _)| unit)
+}
+
 impl Rule for RangeRequestAndCaching {
     fn findings(
         &self,
@@ -187,16 +235,29 @@ impl Rule for RangeRequestAndCaching {
             }
 
             // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
-            req.headers.get("range")?;
+            let raw_range = req.headers.get("range")?;
+            let raw_range = crate::helpers::headers::field_line_as_written(raw_range);
 
-            // The premise. `history` is scoped to this (client, resource) pair by the
-            // rule's `ByResource` query, so a 206 anywhere in it is a partial copy of
-            // the representation this request is ranging over.
+            // Which unit this request is ranging in. A value that is not a
+            // `ranges-specifier` names no unit at all, and its syntax is
+            // `range_header_syntax`'s finding rather than this rule's.
+            let (requested_unit, _) =
+                crate::helpers::content_range::split_ranges_specifier(&raw_range).ok()?;
+
+            // The premise, and it is asked per range unit. `history` is scoped to
+            // this (client, resource) pair by the rule's `ByResource` query, so a 206
+            // in it is a partial copy of the representation this request is ranging
+            // over — but only if the two name the same unit. Positions are counted in
+            // units, so a fragment held in one unit and a fragment requested in
+            // another overlap in nothing and combine into nothing, and the origin is
+            // required to discard a unit it does not apply rather than range on it.
             // cite(RFC 9111 § 3.3): "A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4."
             // cite(RFC 9110 § 15.3.7.3): "A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator."
-            let holds_a_partial_copy = history
-                .iter()
-                .any(|past| past.response.as_ref().is_some_and(|r| r.status == 206));
+            // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
+            let holds_a_partial_copy = history.iter().any(|past| {
+                past.response.as_ref().is_some_and(|r| r.status == 206)
+                    && partial_copy_unit(past).is_some_and(|unit| unit == requested_unit)
+            });
             if !holds_a_partial_copy {
                 return None;
             }
@@ -334,6 +395,21 @@ mod tests {
         crate::http_transaction::HttpTransaction,
         crate::transaction_history::TransactionHistory,
     ) {
+        sequence_asking(Some("bytes=0-0"), earlier, request)
+    }
+
+    /// The same constructor with the stored responses' own `Range` in the
+    /// caller's hands. `None` is a history whose requests asked for no range at
+    /// all, which is what a fixture uses to say the stored copy's unit is
+    /// unknowable from anything but its `Content-Range`.
+    fn sequence_asking(
+        asked: Option<&str>,
+        earlier: &[(u16, &[(&str, &str)])],
+        request: &[(&str, &str)],
+    ) -> (
+        crate::http_transaction::HttpTransaction,
+        crate::transaction_history::TransactionHistory,
+    ) {
         assert!(
             request.iter().any(|(name, _)| *name == "range"),
             "a fixture for this rule sends a Range"
@@ -348,6 +424,14 @@ mod tests {
             past.request.uri = "/resource".to_string();
             past.client = crate::test_helpers::make_test_client();
             past.timestamp = base - chrono::Duration::seconds(age as i64 + 1);
+            // A 206 is the fulfilment of a range request, so the request that
+            // drew one carries the `Range` it was fulfilling. Without it a
+            // stored partial copy in these fixtures would name no unit, and the
+            // rule would decline every one of them for the wrong reason.
+            if let Some(asked) = asked {
+                past.request.headers =
+                    crate::test_helpers::make_headers_from_pairs(&[("range", asked)]);
+            }
             entries.push(past);
         }
 
@@ -389,6 +473,87 @@ mod tests {
         let v = judge(&tx, &history).expect("the stored tag has nowhere to have been sent");
         assert_eq!(v.violation, "conditional_entity_tag_missing");
         assert!(v.message.contains("carries none of If-Range"));
+    }
+
+    /// The premise is per unit. A client holding a `bytes` fragment and asking
+    /// for `items` is not validating that fragment: positions are counted in
+    /// units, the two overlap in nothing, and § 14.2 has the origin discard a
+    /// unit it does not apply and send the whole representation instead. There
+    /// is no stored response being validated, so § 4.3.1 asks for nothing.
+    #[test]
+    fn a_range_in_another_unit_is_not_validating_the_stored_copy() {
+        let (tx, history) = sequence(&[(206, &[("etag", "\"a\"")])], &[("range", "items=0-9")]);
+        assert!(judge(&tx, &history).is_none());
+    }
+
+    /// A single-part 206 names its unit in `Content-Range`, and that is the
+    /// source when the stored request is not the one that asked for it.
+    #[test]
+    fn a_partial_copys_unit_can_come_from_its_content_range() {
+        let stored: &[(&str, &str)] = &[("etag", "\"a\""), ("content-range", "bytes 0-0/8")];
+
+        let (tx, history) = sequence_asking(None, &[(206, stored)], &[("range", "bytes=0-0")]);
+        let v = judge(&tx, &history).expect("the stored copy is a bytes fragment");
+        assert_eq!(v.violation, "conditional_entity_tag_missing");
+
+        let (tx, history) = sequence_asking(None, &[(206, stored)], &[("range", "items=0-0")]);
+        assert!(
+            judge(&tx, &history).is_none(),
+            "items ranges over no fragment"
+        );
+    }
+
+    /// A multipart 206 carries no `Content-Range` at all — § 15.3.7.2 forbids one
+    /// in its header section — so the unit comes from the `Range` it answered.
+    /// The media type does not supply it: § 14.6 prints an `exampleunit`
+    /// response under the sentence saying `multipart/byteranges` is not limited
+    /// to bytes.
+    #[test]
+    fn a_multipart_partial_copys_unit_comes_from_the_request_it_answered() {
+        let stored: &[(&str, &str)] = &[
+            ("etag", "\"a\""),
+            ("content-type", "multipart/byteranges; boundary=x"),
+        ];
+
+        let (tx, history) = sequence_asking(
+            Some("bytes=0-9,20-29"),
+            &[(206, stored)],
+            &[("range", "bytes=100-199")],
+        );
+        let v = judge(&tx, &history).expect("the stored copy is a bytes fragment");
+        assert_eq!(v.violation, "conditional_entity_tag_missing");
+
+        let (tx, history) = sequence_asking(
+            Some("exampleunit=0-9"),
+            &[(206, stored)],
+            &[("range", "bytes=100-199")],
+        );
+        assert!(
+            judge(&tx, &history).is_none(),
+            "a multipart 206 in exampleunit is not a bytes fragment"
+        );
+    }
+
+    /// Neither source available: nothing in the header section says what the
+    /// stored copy is a fragment of, and a premise that cannot be established is
+    /// not one to report on.
+    #[test]
+    fn a_partial_copy_naming_no_unit_is_not_one_to_validate() {
+        let (tx, history) = sequence_asking(
+            None,
+            &[(206, &[("etag", "\"a\"")])],
+            &[("range", "bytes=0-0")],
+        );
+        assert!(judge(&tx, &history).is_none());
+    }
+
+    /// A `Range` that is not a `ranges-specifier` names no unit. Its syntax is
+    /// `range_header_syntax`'s finding, and reporting a missing validator on it
+    /// would charge the client for a second defect on one field.
+    #[test]
+    fn a_range_that_names_no_unit_is_left_to_its_own_rule() {
+        let (tx, history) = sequence(&[(206, &[("etag", "\"a\"")])], &[("range", "0-9")]);
+        assert!(judge(&tx, &history).is_none());
     }
 
     #[test]
