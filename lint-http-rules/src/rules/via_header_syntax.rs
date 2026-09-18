@@ -378,6 +378,21 @@ fn validate_via(value: &[u8]) -> Result<(), Defect> {
     }
 }
 
+/// The member as the sender wrote it, for the findings that have to name it.
+///
+/// `n` counts members and a count is not a value: a `Via` naming four proxies
+/// draws its finding against one of them, and an operator matching that finding
+/// back to a hop needs the hop rather than its ordinal. The member ends at the
+/// separator or at the end of the value, which is as much as a member that
+/// stopped early has.
+fn member_as_written(v: &[u8], start: usize) -> String {
+    let end = v[start..]
+        .iter()
+        .position(|&b| b == b',')
+        .map_or(v.len(), |p| start + p);
+    crate::helpers::shown::shown_in_finding(String::from_utf8_lossy(&v[start..end]).trim())
+}
+
 /// Validate one list member, returning the offset just past it and whether the
 /// optional comment was there.
 ///
@@ -433,7 +448,10 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), De
         None | Some(&b',') => {
             return Err(Defect::named(
                 &VIA_RECEIVED_BY_MISSING,
-                format!("member {n} has a received-protocol and no received-by"),
+                format!(
+                    "member {n} '{}' has a received-protocol and no received-by",
+                    member_as_written(v, start)
+                ),
             ))
         }
         Some(&b) if b != b' ' && b != b'\t' => {
@@ -460,7 +478,10 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), De
         return Err(match v.get(i) {
             None | Some(&b',') => Defect::named(
                 &VIA_RECEIVED_BY_MISSING,
-                format!("member {n} has a received-protocol and no received-by"),
+                format!(
+                    "member {n} '{}' has a received-protocol and no received-by",
+                    member_as_written(v, start)
+                ),
             ),
             // The brackets are § B.2's statement rather than the token's: the
             // production used to admit a `uri-host` and does not, so what is
@@ -573,12 +594,15 @@ mod tests {
     }
 
     #[rstest]
-    #[case("1.1", "member 1 has a received-protocol and no received-by")]
-    #[case("1.1 ", "member 1 has a received-protocol and no received-by")]
-    #[case("1.1, 1.0 fred", "member 1 has a received-protocol and no received-by")]
+    #[case("1.1", "member 1 '1.1' has a received-protocol and no received-by")]
+    #[case("1.1 ", "member 1 '1.1' has a received-protocol and no received-by")]
+    #[case(
+        "1.1, 1.0 fred",
+        "member 1 '1.1' has a received-protocol and no received-by"
+    )]
     #[case(
         "1.1 , 1.0 fred",
-        "member 1 has a received-protocol and no received-by"
+        "member 1 '1.1' has a received-protocol and no received-by"
     )]
     #[case(",", "member 1 is empty")]
     #[case("1.1 a, , 1.0 b", "member 2 is empty")]

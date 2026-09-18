@@ -192,7 +192,19 @@ impl Rule for UserAgentTokenValid {
                 // reject the field before the grammar could accept it.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                 if let Err(defect) = crate::helpers::product::check_product_list(hv.as_bytes()) {
-                    let message = format!("Invalid User-Agent header: {}", defect.message());
+                    // The value is quoted back. `check_product_list` names the
+                    // part of the production that failed and not the octets it
+                    // failed on, so the finding without it says a `User-Agent`
+                    // somewhere in the capture is malformed and leaves the
+                    // reader to find which -- and a value read as raw octets is
+                    // exactly the one a reader cannot reconstruct by guessing.
+                    let message = format!(
+                        "Invalid User-Agent header '{}': {}",
+                        crate::helpers::shown::shown_in_finding(&String::from_utf8_lossy(
+                            hv.as_bytes()
+                        )),
+                        defect.message()
+                    );
                     return Some(ctx.report_with(product_defect(defect), message));
                 }
             }

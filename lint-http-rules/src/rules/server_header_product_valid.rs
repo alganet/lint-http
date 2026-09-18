@@ -183,7 +183,19 @@ impl Rule for ServerHeaderProductValid {
                 // decode would reject the field before the grammar could accept it.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                 if let Err(defect) = crate::helpers::product::check_product_list(hv.as_bytes()) {
-                    let message = format!("Invalid Server header: {}", defect.message());
+                    // The value is quoted back. `check_product_list` names the
+                    // part of the production that failed and not the octets it
+                    // failed on, so the finding without it says a `Server`
+                    // somewhere in the capture is malformed and leaves the
+                    // reader to find which -- and a value read as raw octets is
+                    // exactly the one a reader cannot reconstruct by guessing.
+                    let message = format!(
+                        "Invalid Server header '{}': {}",
+                        crate::helpers::shown::shown_in_finding(&String::from_utf8_lossy(
+                            hv.as_bytes()
+                        )),
+                        defect.message()
+                    );
                     return Some(ctx.report_with(product_defect(defect), message));
                 }
             }
@@ -211,6 +223,13 @@ mod tests {
     /// a value that opens with a comment, two elements with no whitespace
     /// between them, and an octet after a comment that closed — the last of
     /// which the reader used to file *inside* the comment.
+    ///
+    /// **And every row is checked for naming the value it refused.** The defect
+    /// names the part of the production that failed, never the octets it failed
+    /// on, so a finding without the value says only that some `Server` in the
+    /// capture is malformed — and this is a field read as raw octets precisely
+    /// because a conforming value need not be visible US-ASCII, which is the
+    /// case a reader has no hope of reconstructing by guessing.
     #[rstest]
     #[case("Bad@Srv/1.0", "token_character_forbidden")]
     #[case("Srv/1@0", "token_character_forbidden")]
@@ -219,6 +238,9 @@ mod tests {
     #[case("(Apache)", "product_missing")]
     #[case("nginx/1.0(Ubuntu)", "product_separator_missing")]
     #[case("nginx/1.0 (Ubuntu)@", "product_separator_missing")]
+    // The shape servers actually ship it in: a comment closed up against the
+    // product with no `RWS` between them.
+    #[case("Jetty(12.1.12)", "product_separator_missing")]
     fn both_halves_of_a_product_are_one_token(#[case] value: &str, #[case] id: &str) {
         for (rule, field) in [
             (
@@ -245,6 +267,11 @@ mod tests {
             )
             .expect("a finding");
             assert_eq!(found.violation, id, "{field}: {value}");
+            assert!(
+                found.message.contains(value),
+                "{field} finding names no value: {}",
+                found.message
+            );
         }
     }
 
