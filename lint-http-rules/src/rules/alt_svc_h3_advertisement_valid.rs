@@ -197,10 +197,23 @@ impl Rule for AltSvcH3AdvertisementValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // The body sits behind an Option so `?` can end it early on a message
+        // with nothing to read; what it ends with is every finding the field
+        // earned, which is not always one.
+        //
+        // **Each draft token in the field is named, and the `ma` findings keep
+        // their at-most-one shape.** A `protocol-id` names one alternative
+        // service, so a field advertising two draft tokens has advertised two
+        // endpoints no client can negotiate, and reporting the first alone said
+        // the second was fine. An `ma` value is a property of an advertisement
+        // this rule has already accepted as `h3`, and its repair is the same
+        // wherever it recurs, so the first is the finding and the rest would be
+        // the same sentence again. Neither kind can mask the other now: the
+        // stop that used to end the read on either has become a flag on one.
+        let finding = || -> Option<Vec<Violation>> {
             let resp = tx.response.as_ref()?;
+            let mut out: Vec<Violation> = Vec::new();
+            let mut ma_reported = false;
 
             // The field probe before the config, and the value read as the sender
             // wrote it — one `char` per octet. The `to_str()` + `continue` this
@@ -272,13 +285,14 @@ impl Rule for AltSvcH3AdvertisementValid {
                 // valid advertisement of the shipped protocol.
                 // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
                 if proto_lower.starts_with("h3-") {
-                    return Some(ctx.report_with(
+                    out.push(ctx.report_with(
                         &ALPN_PROTOCOL_NAME_OBSOLETE,
                         format!(
                             "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead",
                             shown_in_finding(protocol_id)
                         ),
                     ));
+                    continue;
                 }
 
                 // Only validate parameters for actual h3 entries
@@ -286,14 +300,17 @@ impl Rule for AltSvcH3AdvertisementValid {
                     continue;
                 }
 
-                if let Some(defect) = h3_ma_defect(parameters) {
-                    return Some(ctx.report_with(defect.def, defect.message));
+                if !ma_reported {
+                    if let Some(defect) = h3_ma_defect(parameters) {
+                        out.push(ctx.report_with(defect.def, defect.message));
+                        ma_reported = true;
+                    }
                 }
             }
 
-            None
+            Some(out)
         };
-        Vec::from_iter(finding())
+        finding().unwrap_or_default()
     }
 }
 
@@ -504,6 +521,80 @@ mod tests {
                 v
             );
         }
+    }
+
+    /// Every draft token in the field is a separate advertisement, and each one
+    /// is named. The rule used to end its read on the first finding, so a field
+    /// carrying two draft tokens reported the first and said nothing about the
+    /// second — which is the shape most of them are actually written in, `h3-29`
+    /// beside a second draft the same deployment still offers.
+    #[test]
+    fn every_draft_token_in_the_field_is_named() {
+        let rule = AltSvcH3AdvertisementValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("alt-svc", "h3-29=\":443\", h3-27=\":443\"")],
+        );
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        assert_eq!(v.len(), 2, "{:?}", v);
+        assert!(v
+            .iter()
+            .all(|f| f.violation == ALPN_PROTOCOL_NAME_OBSOLETE.id));
+        assert!(v[0].message.contains("h3-29"), "{}", v[0].message);
+        assert!(v[1].message.contains("h3-27"), "{}", v[1].message);
+    }
+
+    /// The two kinds of finding cannot mask each other. An `ma` defect on an
+    /// `h3` entry used to end the read, so a draft token written after it went
+    /// unreported — the value below named an advertisement stale on arrival and
+    /// one no client can negotiate, and only the first was said.
+    #[test]
+    fn an_ma_finding_does_not_hide_a_draft_token_behind_it() {
+        let rule = AltSvcH3AdvertisementValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("alt-svc", "h3=\":443\"; ma=0, h3-27=\":443\"")],
+        );
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        let ids: Vec<&str> = v.iter().map(|f| f.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["alt_svc_ma_invalid", ALPN_PROTOCOL_NAME_OBSOLETE.id],
+            "{:?}",
+            v
+        );
+    }
+
+    /// The `ma` findings keep the at-most-one shape the whole rule used to
+    /// have. Two `h3` entries with the same defective value are one repair, and
+    /// saying it twice would be the same sentence about the same mistake.
+    #[test]
+    fn a_repeated_ma_defect_is_reported_once() {
+        let rule = AltSvcH3AdvertisementValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("alt-svc", "h3=\":443\"; ma=0, h3=\":8443\"; ma=0")],
+        );
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        assert_eq!(v.len(), 1, "{:?}", v);
     }
 
     #[test]

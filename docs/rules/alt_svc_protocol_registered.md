@@ -52,13 +52,14 @@ enabled = true
 # the narrower and more useful list: the alternatives this deployment actually
 # serves. Everything else is reported, registered or not.
 #
-# `h3-29` is listed because the draft-29 identifier is still advertised
-# alongside `h3` by large operators, and this rule is not the one that has an
-# opinion about that: naming a draft identifier where the final one exists
-# belongs to `alt_svc_h3_advertisement_valid`, which reports it with the
-# advice to use `h3`. Leaving `h3-29` out here made both rules report the same
-# token on the same response, saying two different things about it.
-allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
+# No draft HTTP/3 token belongs in this list, `h3-29` included, however widely
+# it is still advertised alongside `h3`. Naming a draft identifier where the
+# final one exists is `alt_svc_h3_advertisement_valid`'s finding, and this rule
+# passes every `h3-*` name over to it rather than asking the list about one.
+# Listing `h3-29` here to keep the two rules from reporting the same token twice
+# is what this list used to do, and it bought the silence by stating that this
+# deployment serves a draft.
+allowed = ["h2", "h3", "h2c", "http/1.1"]
 ```
 
 ## Examples
