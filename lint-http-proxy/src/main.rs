@@ -888,6 +888,21 @@ fn gated_block(
                 unattributed: removed.unattributed,
             }
         }
+        capture::CaptureRecord::ProtocolEvent(record) => {
+            let (violations, suppressed) = gate(&record.violations);
+            Gated {
+                block: (!violations.is_empty()).then_some(FindingsBlock::ProtocolEvent(
+                    ProtocolEventFindings {
+                        connection_id: record.event.connection_id,
+                        kind: record.event.kind.name().to_string(),
+                        violations,
+                    },
+                )),
+                suppressed,
+                hidden_party: removed.hidden_party,
+                unattributed: removed.unattributed,
+            }
+        }
     }
 }
 
@@ -946,6 +961,10 @@ fn recorded_findings(
         match record {
             capture::CaptureRecord::HttpTransaction(_) => tx_count += 1,
             capture::CaptureRecord::WebsocketSession(_) => ws_count += 1,
+            // Not counted as a transaction: it is one frame on a connection,
+            // and adding it to the denominator would make "N transactions"
+            // mean something different for an H3 capture than an H2 one.
+            capture::CaptureRecord::ProtocolEvent(_) => {}
         }
         let gated = gated_block(record, min_severity, about);
         suppressed += gated.suppressed;
@@ -1026,6 +1045,25 @@ fn lint_records(
                     violations,
                 }));
             }
+            // Replayed from the record rather than re-linted. A protocol rule
+            // reads a *run* of events through the store the live connection
+            // built, and a capture file holds the events without that store —
+            // so re-linting here would ask a stateful rule a question with
+            // half the history and get a different answer than the wire did.
+            // The findings the live pass reached are on the record; this
+            // reports those.
+            capture::CaptureRecord::ProtocolEvent(record) => {
+                let mut violations = record.violations.clone();
+                removed.add(retain_reportable(&mut violations, min_severity, about));
+                if violations.is_empty() {
+                    continue;
+                }
+                findings.push(FindingsBlock::ProtocolEvent(ProtocolEventFindings {
+                    connection_id: record.event.connection_id,
+                    kind: record.event.kind.name().to_string(),
+                    violations,
+                }));
+            }
         }
     }
 
@@ -1086,6 +1124,7 @@ fn lint_websocket_session(
 enum FindingsBlock {
     HttpTransaction(TransactionFindings),
     WebsocketSession(WebsocketFindings),
+    ProtocolEvent(ProtocolEventFindings),
 }
 
 impl FindingsBlock {
@@ -1093,6 +1132,7 @@ impl FindingsBlock {
         match self {
             FindingsBlock::HttpTransaction(f) => &f.violations,
             FindingsBlock::WebsocketSession(f) => &f.violations,
+            FindingsBlock::ProtocolEvent(f) => &f.violations,
         }
     }
 
@@ -1102,6 +1142,7 @@ impl FindingsBlock {
         match self {
             FindingsBlock::HttpTransaction(f) => f.violations.retain(keep),
             FindingsBlock::WebsocketSession(f) => f.violations.retain(keep),
+            FindingsBlock::ProtocolEvent(f) => f.violations.retain(keep),
         }
     }
 }
@@ -1132,6 +1173,16 @@ struct WebsocketFindings {
     session_id: uuid::Uuid,
     transaction_id: uuid::Uuid,
     close_code: Option<u16>,
+    violations: Vec<lint::Violation>,
+}
+
+/// One protocol event's findings. The event is named by its kind and the
+/// connection it was seen on, because that is all a control-stream frame has
+/// to be identified by — there is no request line and no session to point at.
+#[derive(serde::Serialize)]
+struct ProtocolEventFindings {
+    connection_id: uuid::Uuid,
+    kind: String,
     violations: Vec<lint::Violation>,
 }
 
@@ -1279,6 +1330,10 @@ impl HostScope {
         match block {
             FindingsBlock::HttpTransaction(f) => self.includes(&f.uri),
             FindingsBlock::WebsocketSession(_) => true,
+            // Same reason as the session above, and one more: a control-stream
+            // frame belongs to a connection, not to a request, so there is no
+            // host to compare even in principle.
+            FindingsBlock::ProtocolEvent(_) => true,
         }
     }
 
@@ -1693,6 +1748,9 @@ fn render_findings_block(block: &FindingsBlock, opts: RenderOpts) -> anyhow::Res
                 f.session_id, f.transaction_id, close
             )?;
         }
+        FindingsBlock::ProtocolEvent(f) => {
+            writeln!(out, "{} on connection {}", f.kind, f.connection_id)?;
+        }
     }
     for v in block.violations() {
         render_violation(v, opts, &mut out);
@@ -1735,6 +1793,9 @@ fn group_findings(findings: &[FindingsBlock]) -> Vec<Group<'_>> {
         let target = match block {
             FindingsBlock::HttpTransaction(f) => format!("{} {}", f.method, f.uri),
             FindingsBlock::WebsocketSession(f) => format!("websocket session {}", f.session_id),
+            FindingsBlock::ProtocolEvent(f) => {
+                format!("{} on connection {}", f.kind, f.connection_id)
+            }
         };
         for v in block.violations() {
             let key = (v.severity, violation_name(v), v.message.as_str());
@@ -2198,7 +2259,8 @@ fn report_session(
         .iter()
         .filter(|record| match record {
             capture::CaptureRecord::HttpTransaction(tx) => scope.includes(&tx.request.uri),
-            capture::CaptureRecord::WebsocketSession(_) => false,
+            capture::CaptureRecord::WebsocketSession(_)
+            | capture::CaptureRecord::ProtocolEvent(_) => false,
         })
         .count();
 

@@ -545,7 +545,7 @@ fn emit_upstream_h3_event(kind: ProtocolEventKind, connection_id: Uuid, shared: 
         connection_id,
         kind,
     };
-    for v in shared.protocol_event_pipeline().commit(&pe) {
+    for v in shared.protocol_event_pipeline().commit_observed(&pe) {
         warn!(
             rule = %v.rule,
             severity = ?v.severity,

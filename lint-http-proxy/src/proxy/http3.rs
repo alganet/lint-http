@@ -284,7 +284,12 @@ async fn handle_h3_connection(
     Ok(())
 }
 
-/// Emit an HTTP/3 protocol event: lint it, record it, and log any violations.
+/// Emit an HTTP/3 protocol event: lint it, record it to the store and to the
+/// capture file, and log any violations.
+///
+/// The capture line is written for every event, not only for the ones that draw
+/// a finding — a control frame the rules read and passed is the evidence that
+/// they read it, and the log has never been able to carry that.
 fn emit_h3_protocol_event(
     kind: crate::protocol_event::ProtocolEventKind,
     connection_id: uuid::Uuid,
@@ -295,7 +300,7 @@ fn emit_h3_protocol_event(
         connection_id,
         kind,
     };
-    let violations = shared.protocol_event_pipeline().commit(&pe);
+    let violations = shared.protocol_event_pipeline().commit_observed(&pe);
     for v in &violations {
         if let Some(cite) = &v.cite {
             warn!(
