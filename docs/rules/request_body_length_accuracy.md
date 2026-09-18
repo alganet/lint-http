@@ -14,7 +14,7 @@ Checks that a request's `Content-Length` matches the number of body octets actua
 
 **Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.
 
-**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed.
+**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed — and where the reading of one stopped before its end, nothing is claimed either. An upload the client abandoned leaves an incomplete message on the wire, which is §6.3's business with the recipient, and not a `Content-Length` the client declared wrongly, which is what this finding says; a partial count cannot be told from a genuinely short body, so the comparison declines. This is not the same condition as an over-limit capture, where only the retained prefix is short and the count stays exact.
 
 ## Violations
 

@@ -48,7 +48,7 @@ impl RuleMeta for RequestBodyLengthAccuracy {
     }
 
     fn description(&self) -> &'static str {
-        "Checks that a request's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that number the framing — \"the Content-Length field value provides the framing information necessary for determining where the data (and message) ends\" — and §6.3 says a recipient that does not receive that many octets \"MUST consider the message to be incomplete and close the connection\". A mismatch is that message.\n\n**Only when there is no `Transfer-Encoding`.** §6.3 licenses the comparison in exactly those terms: \"If a valid Content-Length header field is present *without Transfer-Encoding*, its decimal value defines the expected message body length in octets.\" When both fields are present the Transfer-Encoding overrides, and the declared length is a number the specification says to disregard — so this rule stays silent. Sending both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n\n**Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.\n\n**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed."
+        "Checks that a request's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that number the framing — \"the Content-Length field value provides the framing information necessary for determining where the data (and message) ends\" — and §6.3 says a recipient that does not receive that many octets \"MUST consider the message to be incomplete and close the connection\". A mismatch is that message.\n\n**Only when there is no `Transfer-Encoding`.** §6.3 licenses the comparison in exactly those terms: \"If a valid Content-Length header field is present *without Transfer-Encoding*, its decimal value defines the expected message body length in octets.\" When both fields are present the Transfer-Encoding overrides, and the declared length is a number the specification says to disregard — so this rule stays silent. Sending both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n\n**Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.\n\n**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed — and where the reading of one stopped before its end, nothing is claimed either. An upload the client abandoned leaves an incomplete message on the wire, which is §6.3's business with the recipient, and not a `Content-Length` the client declared wrongly, which is what this finding says; a partial count cannot be told from a genuinely short body, so the comparison declines. This is not the same condition as an over-limit capture, where only the retained prefix is short and the count stays exact."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -183,6 +183,20 @@ impl Rule for RequestBodyLengthAccuracy {
             // the length is `None` and this rule has already declined. Skipping on
             // the flag would lose real findings and prevent none.
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
+            //
+            // What `request_body_over_limit` is not, `body_interrupted` is. It
+            // does not say the retained prefix is short while the count stays
+            // exact; it says the counting itself stopped early, because the
+            // upload was abandoned or the stream failed part-way. A client that
+            // declared 4000 octets and was cut off after 1700 has an incomplete
+            // message on the wire, which § 6.3 addresses to the recipient, and
+            // not a `Content-Length` it declared wrongly, which is what this
+            // finding says. With no way to tell those apart from a partial
+            // count, the comparison declines.
+            if req.body_interrupted {
+                return None;
+            }
+
             if let Some(body_len) = req.body_length {
                 if declared != body_len as u128 {
                     return Some(ctx.report_with(
@@ -240,6 +254,38 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
+    }
+
+    /// An upload the client abandoned, and the same upload read to its end. The
+    /// numbers are identical; only the flag differs, and only one of them is a
+    /// statement about the `Content-Length` the client declared.
+    #[test]
+    fn an_abandoned_upload_is_not_a_misdeclared_length() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request = crate::http_transaction::RequestInfo {
+            method: "POST".into(),
+            uri: "http://example/".into(),
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "4000")]),
+            body_length: Some(1700),
+            body_interrupted: false,
+            trailers: None,
+        };
+
+        let rule = RequestBodyLengthAccuracy;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let hist = crate::transaction_history::TransactionHistory::empty();
+
+        let v = crate::test_helpers::run_rule(&rule, &tx, &hist, &cfg)
+            .expect("a complete short body is a real conflict");
+        assert_eq!(v.violation, "content_length_conflicting");
+
+        tx.request.body_interrupted = true;
+        assert!(
+            crate::test_helpers::run_rule(&rule, &tx, &hist, &cfg).is_none(),
+            "a count that stopped where the reading stopped says nothing about \
+             the sender's Content-Length"
+        );
     }
 
     #[test]
