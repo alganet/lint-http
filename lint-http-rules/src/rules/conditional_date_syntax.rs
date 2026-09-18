@@ -5,8 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
-    http_date_defect, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
-    HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_9110_5_6_7,
+    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED,
+    HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::ViolationDef;
 
@@ -45,6 +45,7 @@ static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_OBSOLETE,
     &HTTP_DATE_WHITESPACE_FORBIDDEN,
     &HTTP_DATE_EMPTY,
+    &HTTP_DATE_DAY_NAME_CONFLICTING,
 ];
 
 /// The two fields, each with the spelling a finding names it by. Header lookup
@@ -96,7 +97,12 @@ impl RuleMeta for ConditionalDateSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_13_1_3, RFC_9110_13_1_4, RFC_9110_5_6_7]
+        &[
+            RFC_9110_13_1_3,
+            RFC_9110_13_1_4,
+            RFC_9110_5_6_7,
+            RFC_5322_3_3,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -192,9 +198,18 @@ impl ConditionalDateSyntax {
             if let Err(defect) =
                 crate::http_date::check_imf_fixdate(crate::helpers::headers::trim_ows(s))
             {
+                // As at every other site reading this production: the weekday
+                // that is not the day its date implies derives from the
+                // grammar, so it does not take the grammar's sentence.
                 return Some(ctx.report_with(
                     http_date_defect(defect),
-                    format!("{shown} header is not a valid IMF-fixdate (RFC 9110 §5.6.7)"),
+                    match defect {
+                        crate::http_date::HttpDateDefect::DayNameConflicting => format!(
+                            "{shown} header names a weekday its own date does not fall on \
+                             (RFC 9110 §5.6.7, RFC 5322 §3.3)"
+                        ),
+                        _ => format!("{shown} header is not a valid IMF-fixdate (RFC 9110 §5.6.7)"),
+                    },
                 ));
             }
         }

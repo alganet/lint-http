@@ -12,6 +12,7 @@ Verifies that the `Last-Modified` header (when present) uses the IMF-fixdate for
 
 ## Violations
 
+- [http_date_day_name_conflicting](../violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
 - [http_date_whitespace_forbidden](../violations/http_date_whitespace_forbidden.md) — Timestamp is padded with whitespace the grammar does not print
@@ -19,6 +20,7 @@ Verifies that the `Last-Modified` header (when present) uses the IMF-fixdate for
 ## Specifications
 
 - [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats — `HTTP-date = IMF-fixdate / obs-date`, the recipient's MUST to accept all three, and the sender's MUST to generate only the first
+- [RFC 5322 §3.3](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.3): Date and Time Specification — the semantics § 5.6.7 borrows, including the requirement that a date-time be semantically valid
 
 ## Configuration
 

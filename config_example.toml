@@ -1892,6 +1892,11 @@ severity = "error"
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.http_date_day_name_conflicting]
+# Timestamp names a weekday its own date does not fall on
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.http_date_empty]
 # A date field is written with no timestamp on it
 # GRAMMAR obliges the sender, so this defaults to error.

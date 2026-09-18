@@ -5,8 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
-    http_date_defect, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN,
-    RFC_9110_5_6_7,
+    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
+    HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::ViolationDef;
 
@@ -26,6 +26,7 @@ static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_OBSOLETE,
     &HTTP_DATE_WHITESPACE_FORBIDDEN,
+    &HTTP_DATE_DAY_NAME_CONFLICTING,
 ];
 
 impl RuleMeta for LastModifiedRfc1123Syntax {
@@ -47,7 +48,7 @@ impl RuleMeta for LastModifiedRfc1123Syntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_5_6_7]
+        &[RFC_9110_5_6_7, RFC_5322_3_3]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -120,9 +121,18 @@ impl Rule for LastModifiedRfc1123Syntax {
                 if let Err(defect) =
                     crate::http_date::check_imf_fixdate(crate::helpers::headers::trim_ows(s))
                 {
+                    // The day-name is the one defect whose sentence cannot be
+                    // the field's usual one: the value *is* an IMF-fixdate by
+                    // the production, and what it gets wrong is the weekday.
                     return Some(ctx.report_with(
                         http_date_defect(defect),
-                        "Last-Modified header is not a valid IMF-fixdate (RFC 9110)".into(),
+                        match defect {
+                            crate::http_date::HttpDateDefect::DayNameConflicting => {
+                                "Last-Modified header names a weekday its own date does not fall on"
+                            }
+                            _ => "Last-Modified header is not a valid IMF-fixdate (RFC 9110)",
+                        }
+                        .into(),
                     ));
                 }
             }
@@ -191,6 +201,11 @@ mod tests {
                 // out, so a line with nothing on it is a client that meant
                 // to condition and did not.
                 "http_date_empty",
+                // And the fourth answer the shared reader gained: a weekday
+                // that is not the day its own date falls on. Both conditional
+                // fields carry it for the same reason `Last-Modified` does —
+                // one production, one reader, one id.
+                "http_date_day_name_conflicting",
             ],
         );
         let conditional = crate::test_helpers::run_rule(
@@ -201,6 +216,46 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(conditional.violation, obsolete.violation);
+    }
+
+    /// `Last-Modified` and the two conditional fields answer the fourth way a
+    /// timestamp fails the same way they answer the other three, because the
+    /// reader is one reader. The value is a real one: GitHub's `Expires` is
+    /// `Fri, 01 Jan 1980 00:00:00 GMT`, and the first of January 1980 was a
+    /// Tuesday.
+    #[test]
+    fn a_weekday_the_date_does_not_imply_is_its_own_id_in_all_three_fields() {
+        let last_modified = |value: &str| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[("last-modified", value)]);
+            crate::test_helpers::run_rule(
+                &LastModifiedRfc1123Syntax,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "last_modified_rfc1123_syntax",
+                ]),
+            )
+            .expect("a finding")
+        };
+        let here = last_modified("Fri, 01 Jan 1980 00:00:00 GMT");
+        assert_eq!(here.violation, "http_date_day_name_conflicting");
+        assert_eq!(here.severity, crate::lint::Severity::Error);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("if-modified-since", "Fri, 01 Jan 1980 00:00:00 GMT"),
+            ("if-unmodified-since", "Fri, 01 Jan 1980 00:00:00 GMT"),
+        ]);
+        let conditional = crate::test_helpers::run_rule(
+            &crate::rules::conditional_date_syntax::ConditionalDateSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["conditional_date_syntax"]),
+        )
+        .expect("a finding");
+        assert_eq!(conditional.violation, here.violation);
     }
 
     #[rstest]

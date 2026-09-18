@@ -13,7 +13,8 @@ use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
-    HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_9110_5_6_7,
+    HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
+    HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
@@ -76,6 +77,7 @@ static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_OBSOLETE,
     &HTTP_DATE_WHITESPACE_FORBIDDEN,
+    &HTTP_DATE_DAY_NAME_CONFLICTING,
 ];
 
 /// One finding from the reading, and the entry it reports as.
@@ -245,6 +247,7 @@ impl RuleMeta for WarningHeaderSyntax {
             RFC_3986_3_2_2,
             RFC_3986_3_2_3,
             RFC_3986_2_1,
+            RFC_5322_3_3,
         ]
     }
 
@@ -686,6 +689,25 @@ fn validate_warn_date(quoted: &str) -> Result<(), Defect> {
             &HTTP_DATE_WHITESPACE_FORBIDDEN,
             format!(
                 "has a warn-date padded with whitespace inside its DQUOTEs: '{}'",
+                shown_in_finding(&inner)
+            ),
+        ));
+    }
+
+    // A weekday that is not the day its own date falls on is refused by every
+    // reader here, and it is not the value that names no instant: `IMF-fixdate`
+    // puts `day-name` beside `date1` and ties them to nothing, so the string
+    // derives from the production and the instant is exactly the one written.
+    // § 5.6.7 hands the *semantics* of those elements to RFC 5322 § 3.3, and
+    // that is the sentence this breaks.
+    // cite(RFC 9110 § 5.6.7): "The semantics of day-name, day, month, year, and time-of-day are the same as those defined for the Internet Message Format constructs with the corresponding name ([RFC5322], Section 3.3)."
+    if crate::http_date::check_imf_fixdate(&inner)
+        == Err(crate::http_date::HttpDateDefect::DayNameConflicting)
+    {
+        return Err(Defect::named(
+            &HTTP_DATE_DAY_NAME_CONFLICTING,
+            format!(
+                "has a warn-date naming a weekday its own date does not fall on: '{}'",
                 shown_in_finding(&inner)
             ),
         ));

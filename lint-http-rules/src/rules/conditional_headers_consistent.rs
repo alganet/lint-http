@@ -13,8 +13,8 @@ use crate::violations::etag::{
 };
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::http_date::{
-    http_date_defect, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN,
-    RFC_9110_5_6_7,
+    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
+    HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::if_range::{
     IF_RANGE_EMPTY, IF_RANGE_FORBIDDEN, IF_RANGE_VALIDATOR_WEAK_FORBIDDEN, RFC_9110_13_1_5,
@@ -51,6 +51,7 @@ static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_OBSOLETE,
     &HTTP_DATE_WHITESPACE_FORBIDDEN,
+    &HTTP_DATE_DAY_NAME_CONFLICTING,
 ];
 
 /// Validate mutual exclusivity and sanity of conditional request headers.
@@ -113,6 +114,7 @@ impl RuleMeta for ConditionalHeadersConsistent {
             RFC_9110_8_8_3,
             RFC_9110_5_6_7,
             RFC_9110_5_3,
+            RFC_5322_3_3,
         ]
     }
 
@@ -239,12 +241,16 @@ impl Rule for ConditionalHeadersConsistent {
                         ));
                     }
                 } else if let Err(defect) = crate::http_date::check_imf_fixdate(trimmed) {
+                    let shown = crate::helpers::shown::shown_in_finding(trimmed);
                     return Some(ctx.report_with(
                         http_date_defect(defect),
-                        format!(
-                            "If-Range timestamp '{}' is not a valid IMF-fixdate",
-                            crate::helpers::shown::shown_in_finding(trimmed)
-                        ),
+                        match defect {
+                            crate::http_date::HttpDateDefect::DayNameConflicting => format!(
+                                "If-Range timestamp '{shown}' names a weekday its own date does \
+                                 not fall on"
+                            ),
+                            _ => format!("If-Range timestamp '{shown}' is not a valid IMF-fixdate"),
+                        },
                     ));
                 }
             }

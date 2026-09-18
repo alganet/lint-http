@@ -14,6 +14,7 @@ Validate that date/time related headers are well-formed and mutually consistent.
 
 - [conditional_date_conflicting](../violations/conditional_date_conflicting.md) — A date precondition names a time after the request's own Date
 - [date_missing](../violations/date_missing.md) — A response does not say when it was written
+- [http_date_day_name_conflicting](../violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [last_modified_conflicting](../violations/last_modified_conflicting.md) — A Last-Modified is later than the Date beside it
 - [sunset_invalid](../violations/sunset_invalid.md) — A Sunset names a time that has already passed
@@ -26,6 +27,7 @@ Validate that date/time related headers are well-formed and mutually consistent.
 - [RFC 8594 §3](https://www.rfc-editor.org/rfc/rfc8594.html#section-3): The `Sunset` HTTP header field — an `HTTP-date` timestamp that SHOULD be in the future
 - [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats — `HTTP-date = IMF-fixdate / obs-date`, the recipient's MUST to accept all three, and the sender's MUST to generate only the first
 - [RFC 9110 §8.8.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2.1): Generation — an origin server with a clock MUST NOT generate a `Last-Modified` date later than its own `Date`
+- [RFC 5322 §3.3](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.3): Date and Time Specification — the semantics § 5.6.7 borrows, including the requirement that a date-time be semantically valid
 
 ## Configuration
 

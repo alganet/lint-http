@@ -46,6 +46,15 @@ pub const RFC_9110_5_6_7: SpecRef = SpecRef {
     note: "Date/Time Formats — `HTTP-date = IMF-fixdate / obs-date`, the recipient's MUST to accept all three, and the sender's MUST to generate only the first",
 };
 
+/// Where § 5.6.7 sends a reader for what `day-name` and the rest of the
+/// elements *mean*, as opposed to what they may be spelled as.
+pub const RFC_5322_3_3: SpecRef = SpecRef {
+    spec: "RFC 5322",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.3",
+    note: "Date and Time Specification — the semantics § 5.6.7 borrows, including the requirement that a date-time be semantically valid",
+};
+
 defects! {
     /// A timestamp none of the three formats parses. The field names no
     /// instant, so everything downstream of it — a cache's freshness
@@ -143,6 +152,46 @@ defects! {
         spec: &[RFC_9110_5_6_7],
         strength: Strength::Must,
     }
+
+    /// A timestamp naming a weekday its own date does not fall on:
+    /// `Fri, 01 Jan 1980 00:00:00 GMT`, where the first of January 1980 was a
+    /// Tuesday. Both halves are written in the spelling § 5.6.7 fixes and they
+    /// disagree with each other.
+    ///
+    /// **Distinct from [`HTTP_DATE_MALFORMED`] above, and the production is
+    /// why.** `IMF-fixdate` puts `day-name` and `date1` side by side and ties
+    /// them to nothing, so this value derives from the grammar exactly as
+    /// written and names one instant, unambiguously, without the weekday. The
+    /// entry above says the field names no instant and everything downstream
+    /// of it has nothing to work from; said here that would be false, and it
+    /// was said here — every dated field reported this as the value no format
+    /// parses, because the reading came from whether a strict parser would
+    /// accept the string rather than from what was wrong with it.
+    ///
+    /// **What the value does break is § 5.6.7's other sentence about
+    /// `day-name`.** The grammar is not the whole of the section: it hands the
+    /// *semantics* of `day-name`, `day`, `month`, `year` and `time-of-day` to
+    /// RFC 5322 § 3.3, where a date-time MUST be semantically valid and the
+    /// day-of-week MUST be the day the date implies. So the sender broke a
+    /// `MUST` and `error` is what that means — the same level the unreadable
+    /// value carries, which is the point: what changes is the claim, not the
+    /// rank.
+    ///
+    /// The cost is real and small. § 5.6.7 encourages a recipient to be robust
+    /// in parsing timestamps, so most read the date and drop the weekday; a
+    /// strict one refuses the value outright, and the two populations disagree
+    /// about a response nobody meant to write ambiguously.
+    ///
+    // cite(RFC 9110 § 5.6.7): "The semantics of day-name, day, month, year, and time-of-day are the same as those defined for the Internet Message Format constructs with the corresponding name ([RFC5322], Section 3.3)."
+    // cite(RFC 5322 § 3.3): "A date-time specification MUST be semantically valid.  That is, the day-of-week (if included) MUST be the day implied by the date"
+    HTTP_DATE_DAY_NAME_CONFLICTING = {
+        id: "http_date_day_name_conflicting",
+        title: "Timestamp names a weekday its own date does not fall on",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_5_6_7, RFC_5322_3_3],
+        strength: Strength::Must,
+    }
 }
 
 /// The defect a [`HttpDateDefect`] reports as.
@@ -151,6 +200,7 @@ pub fn http_date_defect(defect: HttpDateDefect) -> &'static ViolationDef {
         HttpDateDefect::Unparsable => &HTTP_DATE_MALFORMED,
         HttpDateDefect::ObsoleteFormat => &HTTP_DATE_OBSOLETE,
         HttpDateDefect::SurroundingWhitespace => &HTTP_DATE_WHITESPACE_FORBIDDEN,
+        HttpDateDefect::DayNameConflicting => &HTTP_DATE_DAY_NAME_CONFLICTING,
     }
 }
 
