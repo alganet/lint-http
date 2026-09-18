@@ -2,22 +2,34 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! `Expires` defects — one entry, about a field a modern cache does not read.
+//! `Expires` defects — two entries about a field a modern cache does not read.
 //!
-//! The value's own syntax is [`http_date`](crate::violations::http_date)'s and
-//! is reported by the rules that measure a date. What is here is what `Expires`
-//! *says* beside a `Cache-Control`, which RFC 9111 § 5.3 settles in a direction
-//! that makes the disagreement worth reporting rather than harmless: a
-//! recipient MUST ignore `Expires` when `max-age` is present, and the section
-//! adds that the field "is only intended for recipients that have not yet
-//! implemented the Cache-Control header field".
+//! What `Expires` *says* beside a `Cache-Control` is the first of them, and
+//! RFC 9111 § 5.3 settles it in a direction that makes the disagreement worth
+//! reporting rather than harmless: a recipient MUST ignore `Expires` when
+//! `max-age` is present, and the section adds that the field "is only intended
+//! for recipients that have not yet implemented the Cache-Control header
+//! field".
 //!
 //! **So the two values are read by two different populations of cache**, and a
 //! response whose `Expires` and whose freshness directives disagree is a
 //! response with two answers, sorted by how old the cache is. That is the whole
-//! content of the entry below, and it is why nothing here is a conformance
+//! content of [`EXPIRES_CONFLICTING`], and it is why it is not a conformance
 //! finding: the specification resolves the disagreement by precedence and calls
 //! nothing an error.
+//!
+//! **The second entry is here rather than in
+//! [`http_date`](crate::violations::http_date) for the reason the field is
+//! unlike every other one written as a timestamp**, and this module's doc
+//! comment used to say the opposite in as many words — that the value's own
+//! syntax was reported by the rules that measure a date. It was not reported by
+//! anything: `Date`, `Last-Modified`, `Sunset` and the two conditional dates
+//! each have a reader and `Expires` had none, so an `Expires` no format parses
+//! passed in silence unless a `Cache-Control` happened to be beside it to make
+//! the entry above fire. It has one now, and it draws
+//! [`EXPIRES_MALFORMED`] rather than `http_date_malformed`, because § 5.3
+//! answers for this field what "no format parses it" leaves open everywhere
+//! else: the response is already expired.
 
 use crate::lint::Severity;
 use crate::lint::Strength;
@@ -72,6 +84,50 @@ defects! {
     EXPIRES_CONFLICTING = {
         id: "expires_conflicting",
         title: "Expires and the Cache-Control freshness directives disagree",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_3],
+        strength: Strength::Unstated,
+    }
+
+    /// An `Expires` that derives from no `HTTP-date`, in a field whose own
+    /// section has already settled what that means: every cache reads the
+    /// response as stale on arrival.
+    ///
+    /// **Not [`HTTP_DATE_MALFORMED`](crate::violations::http_date::HTTP_DATE_MALFORMED),
+    /// and § 5.3 is the whole of the difference.** That entry says the field
+    /// names no instant, so everything downstream of it has nothing to work
+    /// from — true of a `Date` or a `Last-Modified` that will not parse, and
+    /// false here. § 5.3 hands a cache an answer for every value this entry
+    /// names, in a `MUST`, and names the commonest of them while doing it:
+    /// `Expires: 0` is a time already past. The field still states a freshness
+    /// lifetime; what this reports is that the lifetime it states is zero.
+    ///
+    /// **Two populations, one finding, because one sentence is true of both.**
+    /// A server writing `0` or `-1` asked for stale-on-arrival and got it. A
+    /// server writing `Sun, 30 Aug 2026 00:27:20 UTC` asked for the ten minutes
+    /// its `max-age` also asks for and got the same zero, because nothing sends
+    /// a reader of `Expires` anywhere but the production — there is no § 5.1.1
+    /// here, no lenient algorithm of the kind RFC 6265 defines for a cookie
+    /// attribute spelled the same way, and so no
+    /// [`COOKIE_EXPIRES_MALFORMED`](crate::violations::cookie::COOKIE_EXPIRES_MALFORMED)
+    /// tier where the value works anyway. The message carries the value, which
+    /// is what tells a reader which of the two is in front of them.
+    ///
+    /// `warn`, and `Unstated` is why that is argued here rather than derived.
+    /// § 5.3's keyword binds the **recipient** — a cache MUST read an invalid
+    /// date as already expired — so it obliges nothing of the sender being
+    /// reported and states no level. What is left to weigh is a specification
+    /// that standardised this spelling's handling rather than refusing it,
+    /// against a freshness lifetime that is lost outright whenever the sender
+    /// did mean one. `error` overstates the first; `info` understates the
+    /// second.
+    ///
+    // cite(RFC 9111 § 5.3, label: expires): "The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP]."
+    // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
+    EXPIRES_MALFORMED = {
+        id: "expires_malformed",
+        title: "Expires derives from no HTTP-date, so a cache reads it as already expired",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_5_3],

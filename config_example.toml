@@ -411,6 +411,9 @@ enabled = true
 [rules.expires_and_cache_control_consistent]
 enabled = true
 
+[rules.expires_date_syntax]
+enabled = true
+
 [rules.extension_headers_registered]
 # The 'allowed' array is this rule's only authority: it is not the IANA field
 # name registry, so every field name the deployment expects has to be listed
@@ -1787,6 +1790,10 @@ severity = "error"
 
 [violations.expires_conflicting]
 # Expires and the Cache-Control freshness directives disagree
+severity = "warn"
+
+[violations.expires_malformed]
+# Expires derives from no HTTP-date, so a cache reads it as already expired
 severity = "warn"
 
 [violations.ext_value_malformed]

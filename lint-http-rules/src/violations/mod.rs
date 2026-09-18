@@ -1429,6 +1429,7 @@ mod tests {
         "date_missing",
         "early_data_duplicated",
         "expires_conflicting",
+        "expires_malformed",
         "location_redirect_redundant",
         "method_case_invalid",
         "oauth2_state_conflicting",

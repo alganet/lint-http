@@ -33,5 +33,6 @@ severity = "error"
 
 - [conditional_date_syntax](../rules/conditional_date_syntax.md)
 - [conditional_headers_consistent](../rules/conditional_headers_consistent.md)
+- [expires_date_syntax](../rules/expires_date_syntax.md)
 - [last_modified_rfc1123_syntax](../rules/last_modified_rfc1123_syntax.md)
 - [warning_header_syntax](../rules/warning_header_syntax.md)
