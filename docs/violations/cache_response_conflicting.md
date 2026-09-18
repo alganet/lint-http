@@ -19,6 +19,7 @@ _Written where it is reported: this defect's message names the value that caused
 ## Specifications
 
 - [RFC 9111 §4.2.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4): Serving Stale Responses — a cache MUST NOT generate one unless it is disconnected or a client or origin server explicitly permitted it
+- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Freshness — a response is fresh while its freshness lifetime exceeds its current age, and a fresh response is one a cache may serve
 
 ## Configuration
 

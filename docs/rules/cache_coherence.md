@@ -41,6 +41,16 @@ two requests wrote differently.  Two encodings of one page are two stored
 entries, and the timestamps of one say nothing about the freshness of the
 other.
 
+A response that carries the terms of §4.2's definition is judged by the
+definition rather than by the timeline.  Where `max-age`, `s-maxage` or
+`Expires` gives a freshness lifetime and `Age` or `Date` gives a current
+age, a lifetime that exceeds the age makes the response fresh, and a fresh
+response is one every cache on the path was permitted to serve — a cache
+hit under `max-age=600` with `Age: 31` is not stale because a sibling node
+handed over a newer copy five seconds earlier.  Such a response is not
+reported.  One whose age has run past its lifetime, or one that advertises
+no lifetime at all, is reported by the timeline as before.
+
 ## Violations
 
 - [cache_response_conflicting](../violations/cache_response_conflicting.md) — Two responses for one URI disagree about which version is current
@@ -48,6 +58,7 @@ other.
 ## Specifications
 
 - [RFC 9111 §4.2.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4): Serving Stale Responses — a cache MUST NOT generate one unless it is disconnected or a client or origin server explicitly permitted it
+- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Freshness — a response is fresh while its freshness lifetime exceeds its current age, and a fresh response is one a cache may serve
 - [RFC 9111 §4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1): Vary — the cache key's second half, so two variants are two timelines
 - [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): Last-Modified — the representation's modification time (preferred signal)
 - [RFC 9110 §6.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1): Date — the message's origination time (coarser fallback signal)

@@ -423,6 +423,51 @@ pub fn compute_freshness_lifetime(
     0
 }
 
+/// Whether a response was fresh at the moment it was observed: § 4.2's
+/// definition, answered from the response alone.
+///
+/// **A response that carries the terms of the definition is judged by the
+/// definition, not by what it looks like.** The two lifetimes and both age
+/// terms are on the wire — `max-age` or `Expires` against `Date`, `s-maxage`,
+/// `Age`, and the message's own `Date` against the moment it arrived — and a
+/// response whose lifetime exceeds its age is one a cache was permitted to
+/// serve, whatever an older `Last-Modified` beside a newer one suggests.
+///
+/// `s-maxage` is read as an alternative, not a preference, because this
+/// reader cannot say which kind of cache served the response: the directive
+/// overrides `max-age` for a shared cache and is ignored by a private one, so
+/// a response fresh under either lifetime was fresh for some conforming
+/// cache. The same reasoning refuses an entry in
+/// [`storage_allowed`](super::stored_response::storage_allowed) only when
+/// neither kind could have held it.
+///
+/// The age is § 4.2.3's more conservative form, with the two terms this seam
+/// can measure: the `Age` the sender stated, and the apparent age the
+/// message's `Date` gives against the moment it was observed, which is what
+/// catches a hop that forgot to insert `Age`. `response_delay` needs the
+/// request's departure time and is not recorded, so the age read here is at
+/// most a round trip short — and a short age errs toward calling a response
+/// fresh, which is the silent direction.
+// cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has."
+// cite(RFC 9111 § 4.2): "response_is_fresh = (freshness_lifetime > current_age)"
+// cite(RFC 9111 § 4.2.3): "apparent_age = max(0, response_time - date_value);"
+// cite(RFC 9111 § 4.2.3): "corrected_initial_age = max(apparent_age, corrected_age_value);"
+// cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
+pub fn fresh_when_observed(
+    headers: &HeaderMap,
+    observed_at: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    let freshness_lifetime = compute_freshness_lifetime(headers, observed_at)
+        .max(get_cache_control_s_maxage(headers).unwrap_or(0));
+    let apparent_age = crate::helpers::headers::get_header_str(headers, "date")
+        .and_then(|s| crate::http_date::parse_http_date_to_datetime(s.trim()).ok())
+        .map(|date_value| observed_at.signed_duration_since(date_value).num_seconds())
+        .unwrap_or(0)
+        .max(0);
+    let current_age = estimated_age(headers, observed_at, observed_at).max(apparent_age);
+    freshness_lifetime > current_age
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -803,5 +848,70 @@ mod tests {
             "expected ~20s from receipt, got {}",
             val
         );
+    }
+
+    /// § 4.2's definition, from the response alone. One row per term: a
+    /// lifetime above the stated age, one below it, the shared-cache lifetime
+    /// standing in for a private one that has run out, a lifetime a bare
+    /// `no-cache` withdraws, no lifetime at all (which is never fresh, so the
+    /// callers keep their own heuristic there), an age only the `Date`
+    /// reveals, and the larger of the two age terms winning.
+    #[rstest::rstest]
+    #[case(&[("cache-control", "max-age=600"), ("age", "31")], None, true)]
+    #[case(&[("cache-control", "max-age=600"), ("age", "700")], None, false)]
+    #[case(&[("cache-control", "max-age=0, s-maxage=600"), ("age", "31")], None, true)]
+    #[case(&[("cache-control", "no-cache, max-age=600"), ("age", "31")], None, false)]
+    #[case(&[("age", "0")], None, false)]
+    #[case(&[], None, false)]
+    #[case(&[("cache-control", "max-age=600")], Some(31), true)]
+    #[case(&[("cache-control", "max-age=600")], Some(700), false)]
+    #[case(&[("cache-control", "max-age=600"), ("age", "700")], Some(31), false)]
+    #[case(&[("cache-control", "max-age=600"), ("age", "31")], Some(700), false)]
+    fn a_response_is_fresh_when_its_lifetime_exceeds_its_age(
+        #[case] pairs: &[(&str, &str)],
+        #[case] date_seconds_ago: Option<i64>,
+        #[case] expected: bool,
+    ) {
+        let observed_at = chrono::Utc::now();
+        let mut hm = HeaderMap::new();
+        for (name, value) in pairs {
+            hm.append(
+                hyper::header::HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                HeaderValue::from_str(value).unwrap(),
+            );
+        }
+        if let Some(seconds) = date_seconds_ago {
+            let date = observed_at - chrono::Duration::seconds(seconds);
+            hm.append(
+                "date",
+                date.format("%a, %d %b %Y %H:%M:%S GMT")
+                    .to_string()
+                    .parse()
+                    .unwrap(),
+            );
+        }
+        assert_eq!(fresh_when_observed(&hm, observed_at), expected);
+    }
+
+    /// The other lifetime § 4.2.1 names: `Expires` against `Date`, with the
+    /// age the same `Date` gives.
+    #[test]
+    fn an_expires_lifetime_counts_against_the_apparent_age() {
+        let observed_at = chrono::Utc::now();
+        let fmt =
+            |d: chrono::DateTime<chrono::Utc>| d.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let mut hm = HeaderMap::new();
+        let date = observed_at - chrono::Duration::seconds(31);
+        hm.append("date", fmt(date).parse().unwrap());
+        hm.append(
+            "expires",
+            fmt(date + chrono::Duration::seconds(600)).parse().unwrap(),
+        );
+        assert!(fresh_when_observed(&hm, observed_at));
+        hm.insert(
+            "expires",
+            fmt(date + chrono::Duration::seconds(30)).parse().unwrap(),
+        );
+        assert!(!fresh_when_observed(&hm, observed_at));
     }
 }
