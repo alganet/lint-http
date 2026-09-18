@@ -5240,7 +5240,7 @@ sources:
     snippet: The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 255
+      line: 307
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 129
     - file: lint-http-rules/src/violations/deprecation.rs
@@ -6111,7 +6111,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 296
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 195
+      line: 196
   - label: cache_coherence (5)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
@@ -6729,7 +6729,7 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST generate a Date header field in all 2xx (Successful), 3xx (Redirection), and 4xx (Client Error) responses, and MAY generate a Date header field in 1xx (Informational) and 5xx (Server Error) responses.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 297
+      line: 349
     - file: lint-http-rules/src/violations/date.rs
       line: 55
   - label: date_and_time_headers_consistent (2)
@@ -6737,7 +6737,7 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 229
+      line: 281
     - file: lint-http-rules/src/violations/last_modified.rs
       line: 51
   - label: early_data_header_safe_method
@@ -7236,6 +7236,8 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_date.rs
       line: 31
+    - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
+      line: 242
     - file: lint-http-rules/src/violations/http_date.rs
       line: 64
     - file: lint-http-rules/src/violations/http_date.rs
@@ -7266,6 +7268,8 @@ sources:
       line: 311
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 194
+    - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
+      line: 243
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
       line: 126
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
