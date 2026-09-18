@@ -5828,6 +5828,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 134
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 72
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 189
     - file: lint-http-rules/src/violations/status.rs
@@ -6053,21 +6055,27 @@ sources:
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 156
+      line: 73
   - label: cache_coherence (2)
+    section: § 15.5
+    snippet: Except when responding to a HEAD request, the server SHOULD send a representation containing an explanation of the error situation, and whether it is a temporary or permanent condition.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 74
+  - label: cache_coherence (3)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 183
+      line: 226
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 195
-  - label: cache_coherence (3)
+  - label: cache_coherence (4)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 170
+      line: 213
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 44
   - label: cache_control_directive_valid
@@ -10384,7 +10392,7 @@ sources:
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 226
+      line: 270
     - file: lint-http-rules/src/violations/cache.rs
       line: 22
     - file: lint-http-rules/src/violations/cache.rs

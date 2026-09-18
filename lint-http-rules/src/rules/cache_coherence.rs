@@ -17,7 +17,8 @@ use crate::rules::{Rule, RuleMeta};
 /// time, a coarser proxy).  The two are compared only with themselves — a
 /// `Last-Modified` read against a `Date` reports staleness that is an artefact
 /// of which headers the pair of responses carried rather than of the traffic,
-/// for the reason the private `Clock` type records.  It
+/// for the reason the private `Clock` type records.  Only responses that carry
+/// the resource are read at all — see `dates_the_resource`.  It
 /// examines neither validators such as `ETag` nor the Vary
 /// secondary key, so URI identity is itself an approximation of the cache key.
 pub struct CacheCoherence;
@@ -47,6 +48,33 @@ enum Clock {
     Message,
 }
 
+/// Whether a response of this status times the *target resource* rather than
+/// the exchange that asked for it.
+///
+/// The rule reads a timeline of one resource, so every entry on it has to be a
+/// response that carries that resource. A 200 does (RFC 9110 § 15.3.1) and so
+/// does a 206, which transfers parts of the very same selected representation.
+/// Nothing else does: a 3xx describes where to go next, a 4xx or 5xx describes
+/// what went wrong, and a 204 or a 304 carries no representation at all. Those
+/// are generated when the request arrives, so their `Date` is the moment of
+/// asking — while a cache hit for the resource legitimately carries the
+/// *stored* response's `Date`, which is older by design.
+///
+/// Letting one of them onto the timeline therefore poisons it: a single
+/// conditional request answered `304`, or one `TRACE` refused with `405`,
+/// raises the maximum to *now*, and every subsequent cache hit for the resource
+/// reads as a representation that went backwards. That is not a stale response,
+/// it is two different kinds of message being read off one clock.
+///
+/// The rule already declined to *report* on a 304 for exactly this reason. The
+/// same sentence rules it out as something to report *against*.
+fn dates_the_resource(status: u16) -> bool {
+    // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
+    // cite(RFC 9110 § 15.4.5): "there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation"
+    // cite(RFC 9110 § 15.5): "Except when responding to a HEAD request, the server SHOULD send a representation containing an explanation of the error situation, and whether it is a temporary or permanent condition."
+    matches!(status, 200 | 206)
+}
+
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
@@ -69,11 +97,23 @@ const RFC_9110_6_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
     note: "Date — the message's origination time (coarser fallback signal)",
 };
+const RFC_9110_15_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
+    note: "206 Partial Content — parts of the same selected representation, so it dates it",
+};
 const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.4.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
-    note: "304 Not Modified — conveys no representation, so it is skipped",
+    note: "304 Not Modified — conveys no representation, so it dates nothing",
+};
+const RFC_9110_15_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5",
+    note: "4xx Client Error — the representation explains the error, not the resource",
 };
 
 impl RuleMeta for CacheCoherence {
@@ -87,7 +127,7 @@ impl RuleMeta for CacheCoherence {
     }
 
     fn description(&self) -> &'static str {
-        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\nthe later response appears to be serving a stale representation.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  304 Not Modified\nresponses are skipped since they do not convey a new representation."
+        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\nthe later response appears to be serving a stale representation.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  Only a 200 or a 206\njoins the timeline, on either side of the comparison: those carry the\nresource, while a 3xx, a 4xx, a 5xx, a 204 or a 304 is generated when the\nrequest arrives and so dates the asking rather than the resource.  Reading\none of those as a previous observation raises the timeline to *now* and\nreports every later cache hit — which correctly carries the stored\nresponse's older Date — as stale."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -95,7 +135,9 @@ impl RuleMeta for CacheCoherence {
             RFC_9111_4_2_4,
             RFC_9110_8_8_2,
             RFC_9110_6_6_1,
+            RFC_9110_15_3_7,
             RFC_9110_15_4_5,
+            RFC_9110_15_5,
         ]
     }
 
@@ -152,9 +194,10 @@ impl Rule for CacheCoherence {
         let finding = || -> Option<Violation> {
             let resp = tx.response.as_ref()?;
 
-            // ignore 304 responses, they have no representation body of their own
-            // cite(RFC 9110 § 15.4.5): "there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation"
-            if resp.status == 304 {
+            // Only a response that carries the resource itself belongs on the
+            // timeline — as the message being judged and as one it is judged
+            // against.
+            if !dates_the_resource(resp.status) {
                 return None;
             }
 
@@ -197,7 +240,7 @@ impl Rule for CacheCoherence {
             // timestamp read off THE SAME CLOCK, which is the only comparison that
             // means anything: see `Clock`.
             let mut max_prev: Option<chrono::DateTime<chrono::Utc>> = None;
-            for prev in history.iter() {
+            for (prev, prev_resp) in history.responses() {
                 // URI identity stands in for the cache key. This is an
                 // approximation: a real key also folds in the request method and
                 // the Vary secondary key (RFC 9111 §4.1), neither of which is consulted
@@ -206,16 +249,17 @@ impl Rule for CacheCoherence {
                 if prev.request.uri != tx.request.uri {
                     continue;
                 }
-                if let Some(prev_resp) = &prev.response {
-                    if let Some((t, prev_clock)) = rep_time(&prev_resp.headers) {
-                        if prev_clock != curr_clock {
-                            continue;
-                        }
-                        max_prev = Some(match max_prev {
-                            Some(existing) => std::cmp::max(existing, t),
-                            None => t,
-                        });
+                if !dates_the_resource(prev_resp.status) {
+                    continue;
+                }
+                if let Some((t, prev_clock)) = rep_time(&prev_resp.headers) {
+                    if prev_clock != curr_clock {
+                        continue;
                     }
+                    max_prev = Some(match max_prev {
+                        Some(existing) => std::cmp::max(existing, t),
+                        None => t,
+                    });
                 }
             }
 
@@ -403,6 +447,104 @@ mod tests {
             crate::transaction_history::TransactionHistory::from_transactions(vec![bare, first]);
         let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
         assert!(v.is_some());
+        assert_eq!(v.unwrap().violation, "cache_response_conflicting");
+    }
+
+    /// The shape a CDN serves all day: a cache hit whose `Date` is the stored
+    /// response's, with one conditional request answered `304` standing between
+    /// two of them. The 304 was generated on the spot, so its `Date` is *now* —
+    /// and reading it as a previous observation makes the next hit, a byte for
+    /// byte identical response, the one that went backwards.
+    #[test]
+    fn a_304_between_two_hits_is_not_the_resource_going_backwards() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let stored = "Sat, 29 Aug 2026 23:57:32 GMT";
+        let hit = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+        let mut revalidated = make_resp_tx(
+            "https://example.com/foo",
+            304,
+            &[("date", "Sun, 30 Aug 2026 00:02:09 GMT")],
+        );
+        revalidated.timestamp = hit.timestamp + chrono::Duration::seconds(1);
+        let mut curr = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+        curr.timestamp = hit.timestamp + chrono::Duration::seconds(2);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            revalidated,
+            hit,
+        ]);
+        assert!(crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).is_none());
+    }
+
+    /// A conditional request the origin refused with `412`, or a `TRACE` it
+    /// refused with `405`, dates the refusal. Neither says the resource is
+    /// newer than the copy the cache is still serving.
+    #[test]
+    fn a_refusal_does_not_date_the_resource() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        for refused in [405u16, 412, 416, 404, 204, 302] {
+            let stored = "Sun, 30 Aug 2026 01:12:41 GMT";
+            let hit = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+            let mut declined = make_resp_tx(
+                "https://example.com/foo",
+                refused,
+                &[("date", "Sun, 30 Aug 2026 01:18:28 GMT")],
+            );
+            declined.timestamp = hit.timestamp + chrono::Duration::seconds(1);
+            let mut curr = make_resp_tx("https://example.com/foo", 200, &[("date", stored)]);
+            curr.timestamp = hit.timestamp + chrono::Duration::seconds(2);
+            let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+                declined, hit,
+            ]);
+            assert!(
+                crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).is_none(),
+                "a {refused} in history was read as the resource moving forward"
+            );
+        }
+    }
+
+    /// The other side of the same reading: a response that only explains why
+    /// the request failed is not itself a representation that went backwards,
+    /// however old its `Date` is against the hits around it.
+    #[test]
+    fn a_refusal_is_not_a_representation_that_regressed() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let hit = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[("date", "Sun, 30 Aug 2026 01:41:18 GMT")],
+        );
+        let mut curr = make_resp_tx(
+            "https://example.com/foo",
+            416,
+            &[("date", "Sun, 30 Aug 2026 01:41:17 GMT")],
+        );
+        curr.timestamp = hit.timestamp + chrono::Duration::seconds(1);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![hit]);
+        assert!(crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).is_none());
+    }
+
+    /// A `206` transfers parts of the very same selected representation, so it
+    /// stays on the timeline on both sides of the comparison.
+    #[test]
+    fn a_206_still_dates_the_representation() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let prev = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[("last-modified", "Sun, 30 Aug 2026 01:30:13 GMT")],
+        );
+        let mut curr = make_resp_tx(
+            "https://example.com/foo",
+            206,
+            &[("last-modified", "Sun, 30 Aug 2026 01:30:05 GMT")],
+        );
+        curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
         assert_eq!(v.unwrap().violation, "cache_response_conflicting");
     }
 
