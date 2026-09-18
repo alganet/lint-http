@@ -23,8 +23,17 @@ use hyper::HeaderMap;
 ///
 /// Returns `true` if the ETag is present in the comma-separated list of
 /// values.  The comparison ignores leading `W/` prefixes to emulate HTTP's
-/// weak comparison rules.  A lone `"*"` value is treated as **not** matching;
-/// it represents an existence condition rather than a specific validator.
+/// weak comparison rules.  A `"*"` member is treated as **not** matching;
+/// it represents an existence condition rather than a specific validator, so
+/// a value that is nothing but `*` names no known tag and this answers no.
+///
+/// **A `*` is skipped and does not end the walk.** The grammar admits either
+/// `*` or a list of entity-tags and never both, so `*, "abc"` is malformed
+/// whatever a reader does with it -- but ending the walk there answered "this
+/// tag was never provided" about a tag written two characters later and
+/// plainly in the list. The one member that names no validator is the one
+/// member skipped; the rest are still compared.
+// cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
 pub fn inm_matches_known(inm: &str, known: &str) -> bool {
     fn normalize(s: &str) -> &str {
         let s = trim_ows(s);
@@ -40,7 +49,7 @@ pub fn inm_matches_known(inm: &str, known: &str) -> bool {
     for member in split_commas_respecting_quotes(inm) {
         let t = trim_ows(member);
         if t == "*" {
-            return false;
+            continue;
         }
         if normalize(t) == known_norm {
             return true;
@@ -296,6 +305,23 @@ mod tests {
         assert!(inm_matches_known("W/\"a\"", "\"a\""));
         assert!(!inm_matches_known("\"b\"", "\"a\""));
         assert!(!inm_matches_known("*", "\"a\""));
+    }
+
+    /// A `*` beside entity-tags is a value the grammar does not generate, and
+    /// what a reader does with it is still a claim about the tags written
+    /// beside it.
+    ///
+    /// Ending the walk at the `*` answered "no" for a tag two characters
+    /// later, so a rule asking whether the exchange ever provided the client's
+    /// validator said it had not while the value named it. Skipping the member
+    /// that names no validator leaves a value of nothing but `*` answering
+    /// "no" exactly as before.
+    #[test]
+    fn a_star_is_skipped_and_does_not_end_the_walk() {
+        assert!(inm_matches_known("\"a\", *", "\"a\""));
+        assert!(inm_matches_known("*, \"a\"", "\"a\""));
+        assert!(!inm_matches_known("*, \"b\"", "\"a\""));
+        assert!(!inm_matches_known(" * ", "\"a\""));
     }
 
     // Entity-tag helper tests
