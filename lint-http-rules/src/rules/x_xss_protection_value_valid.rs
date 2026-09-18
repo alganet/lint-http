@@ -93,7 +93,7 @@ impl RuleMeta for XXssProtectionValueValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(`mode=block` and `report=` are never spelled together)"),
+                label: Some("(`mode=block` beside a setting no reference defines with it)"),
                 snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; mode=block; report=/r",
             },
         ]
@@ -170,6 +170,35 @@ impl Rule for XXssProtectionValueValid {
                 && parts[1].eq_ignore_ascii_case("mode=block")
             {
                 return None;
+            }
+
+            // A value that spells the blocking pair and then keeps going. It is
+            // still reported — no document defines `mode=block` beside a further
+            // setting, so which behaviour a browser applies is not something any
+            // reference here states — but the sentence below cannot be the one
+            // that says it. "Neither of the two settings that keep the browser
+            // from rewriting the page" is a claim about the octets, and
+            // `mode=block` is written in them: a deployment that had already
+            // chosen the blocking spelling was told it had not. What is unknown
+            // is the combination, and that is what the finding now says.
+            let spells_block = parts[0].eq_ignore_ascii_case("1")
+                && parts[1..]
+                    .iter()
+                    .any(|p| p.eq_ignore_ascii_case("mode=block"));
+            // A trailing `;` leaves an empty part and adds no setting, so it is
+            // not what this branch is about: `1;mode=block;` is still the pair
+            // and nothing else, and the sentence below stays its answer.
+            let further = parts[1..]
+                .iter()
+                .any(|p| !p.is_empty() && !p.eq_ignore_ascii_case("mode=block"));
+            if spells_block && further {
+                return Some(ctx.report_with(
+                    &X_XSS_PROTECTION_INVALID,
+                    format!(
+                        "X-XSS-Protection is set to '{}', which spells '1; mode=block' and then a further setting that no reference here defines beside it, so which behaviour a browser applies is unstated: '0' turns the filter off, and '1; mode=block' on its own has the page blocked instead of sanitized",
+                        crate::helpers::shown::shown_in_finding(val)
+                    ),
+                ));
             }
 
             // Naming the two settings rather than calling the value unsupported. A
@@ -269,6 +298,56 @@ mod tests {
         .expect("a finding");
         assert_eq!(found.violation, "x_xss_protection_invalid", "{value}");
         assert_eq!(found.severity, crate::lint::Severity::Info, "{value}");
+    }
+
+    /// A value carrying `mode=block` is not told it carries neither setting.
+    /// The finding stands — nothing defines the pair beside a further setting
+    /// — but the sentence has to be true of the octets, and four deployments
+    /// that had already chosen the blocking spelling were reading that they
+    /// had not.
+    #[test]
+    fn a_value_spelling_mode_block_is_not_told_it_spells_neither_setting() {
+        let rule = XXssProtectionValueValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[(
+                "x-xss-protection",
+                "1; mode=block; report=https://example.test/r",
+            )],
+        );
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert!(
+            !found.message.contains("neither of the two settings"),
+            "{}",
+            found.message
+        );
+        assert!(found.message.contains("unstated"), "{}", found.message);
+
+        // The values that genuinely spell neither keep the sentence that says so.
+        for bare in ["1", "1;report=1", "2"] {
+            let tx = crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("x-xss-protection", bare)],
+            );
+            let found = crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .expect("a finding");
+            assert!(
+                found.message.contains("neither of the two settings"),
+                "{bare}: {}",
+                found.message
+            );
+        }
     }
 
     #[test]

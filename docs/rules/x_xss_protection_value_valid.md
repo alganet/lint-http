@@ -59,7 +59,7 @@ HTTP/1.1 200 OK
 X-XSS-Protection: 1; report=1
 ```
 
-### ❌ Bad (`mode=block` and `report=` are never spelled together)
+### ❌ Bad (`mode=block` beside a setting no reference defines with it)
 
 ```http
 HTTP/1.1 200 OK
