@@ -5210,7 +5210,7 @@ sources:
     snippet: The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 229
+      line: 255
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 129
     - file: lint-http-rules/src/violations/deprecation.rs
@@ -6061,7 +6061,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 183
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 169
+      line: 195
   - label: cache_coherence (3)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
@@ -6683,7 +6683,7 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST generate a Date header field in all 2xx (Successful), 3xx (Redirection), and 4xx (Client Error) responses, and MAY generate a Date header field in 1xx (Informational) and 5xx (Server Error) responses.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 271
+      line: 297
     - file: lint-http-rules/src/violations/date.rs
       line: 55
   - label: date_and_time_headers_consistent (2)
@@ -6691,7 +6691,7 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 201
+      line: 229
     - file: lint-http-rules/src/violations/last_modified.rs
       line: 51
   - label: early_data_header_safe_method
