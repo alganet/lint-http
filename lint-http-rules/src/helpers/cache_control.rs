@@ -480,6 +480,28 @@ mod tests {
         assert!(has(&headers(&["ImMuTaBlE"]), "immutable"));
     }
 
+    /// The bare form is looked for across the whole section and with the same
+    /// fold, so a directive written `No-StOrE` on the second of two field lines
+    /// is the directive.
+    ///
+    /// This stood beside `no_store_enforced` as a one-line wrapper of its own,
+    /// which outlived the reading it was written for: that rule now asks
+    /// whether a response was storable at all rather than whether one directive
+    /// is present. The property is about this function, so it is asked here.
+    #[test]
+    fn the_bare_form_is_read_across_every_field_line() {
+        assert!(!has_unqualified(&HeaderMap::new(), "no-store"));
+        assert!(!has_unqualified(&headers(&["max-age=60"]), "no-store"));
+        assert!(has_unqualified(
+            &headers(&["max-age=60", "no-store"]),
+            "no-store"
+        ));
+        assert!(has_unqualified(
+            &headers(&["MAX-AGE=0, No-StOrE"]),
+            "no-store"
+        ));
+    }
+
     #[test]
     /// A field line holding an octet outside US-ASCII is read like any other,
     /// and the directives written beside it are still there. The reader used to
