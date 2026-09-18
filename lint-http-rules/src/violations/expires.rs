@@ -39,7 +39,15 @@ defects! {
     /// treat as already expired) beside a positive `max-age`, a future
     /// `Expires` beside `no-cache`, `no-store` or `max-age=0`, an already-past
     /// `Expires` beside a positive `max-age`, or a date more than a second away
-    /// from `Date` plus `max-age`.
+    /// from `Date` plus a *positive* `max-age`.
+    ///
+    /// **The last shape asks for a positive `max-age` because a zero cannot
+    /// produce the disagreement.** `max-age=0` beside a past `Expires` is one
+    /// answer written twice — stale on arrival for the cache that reads the
+    /// directive, stale on arrival for the cache that reads the date — and the
+    /// distance between the two instants is not a second answer when both are
+    /// behind `Date`. A future `Expires` beside that zero is the second shape
+    /// above and is still reported.
     ///
     /// **Four shapes, one entry, and the population is why.** Every one of them
     /// is the same message read two ways: a cache that implements

@@ -196,9 +196,22 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // diverge by more than a second. No requirement makes Expires equal Date+max-age —
             // they are alternatives and max-age wins (§4.2.1/§5.3) — so this is a heuristic with a
             // 1-second formatting/rounding leeway, recorded in the tracker.
+            //
+            // `max_age > 0`, and the zero is not an oversight. What this entry reports is one
+            // response holding two expiry answers sorted by the age of the cache reading it, and
+            // `max-age=0` beside a past `Expires` holds one: the directive makes the response stale
+            // on arrival for a cache that implements Cache-Control, and the date makes it stale on
+            // arrival for the older cache the field is kept for. Reaching here with a zero already
+            // means the date is at or before `Date` — a future one is the branch above — so the
+            // only population this arm could take from a zero is the agreeing one. Distance between
+            // the two instants is what is left, and distance is not disagreement when both lie in
+            // the past; `Expires: 0` beside the same directive has always been silent, and
+            // `Thu, 01 Jan 1970 00:00:00 GMT` is that instruction spelled so a recipient can read
+            // it. The advice the message carries would also be wrong here, since dropping the field
+            // is dropping the only expiry the HTTP/1.0 cache had.
             if resp.headers.contains_key("date") {
                 if let Some(max_age) = cc_max_age {
-                    if max_age >= 0 {
+                    if max_age > 0 {
                         let expected = date_ref + chrono::Duration::seconds(max_age);
                         // Allow a small leeway (1 second) for formatting/rounding differences
                         let diff = (expected - expires).num_seconds().abs();
@@ -240,6 +253,15 @@ mod tests {
     // ... but agrees with directives that already deny reuse, so those stay quiet.
     #[case(Some(("cache-control","no-store")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","0")), false)]
     #[case(Some(("cache-control","max-age=0")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","0")), false)]
+    // The same agreement written so a recipient can read it. `max-age=0` says stale on arrival to
+    // a cache that implements the directive and a date already past says stale on arrival to the
+    // one that does not, however far back it is written, so the distance from `Date` + 0 is not a
+    // second answer. The epoch is the idiom; the second row is the day before the message.
+    #[case(Some(("cache-control","max-age=0")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Thu, 01 Jan 1970 00:00:00 GMT")), false)]
+    #[case(Some(("cache-control","no-cache, no-store, max-age=0")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Tue, 20 Oct 2015 07:28:00 GMT")), false)]
+    // A positive max-age keeps the arm: here the two name different futures, and which one a cache
+    // believes depends on whether it reads the directive.
+    #[case(Some(("cache-control","max-age=600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Wed, 21 Oct 2015 08:28:00 GMT")), true)]
     fn expires_and_cache_control_cases(
         #[case] cc: Option<(&str, &str)>,
         #[case] date: Option<(&str, &str)>,

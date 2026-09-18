@@ -10418,7 +10418,7 @@ sources:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 185
     - file: lint-http-rules/src/violations/expires.rs
-      line: 63
+      line: 71
   - label: expires_and_cache_control_consistent (4)
     section: § 5.3
     snippet: The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP].
