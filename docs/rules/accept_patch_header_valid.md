@@ -33,6 +33,7 @@ Scope: responses only — §3.1 defines `Accept-Patch` as a response header, and
 - [media_type_empty](../violations/media_type_empty.md) — Media type is written with nothing in it
 - [media_type_malformed](../violations/media_type_malformed.md) — Media type is not a type/subtype pair
 - [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_equals_whitespace_forbidden](../violations/parameter_equals_whitespace_forbidden.md) — Parameter writes whitespace beside its '='
 - [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
 - [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character

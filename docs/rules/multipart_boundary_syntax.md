@@ -20,7 +20,7 @@ Check that a `Content-Type` naming a `multipart/*` media type carries a `boundar
 
 **Quoting that never closes is declined, not guessed at.** After a stray `"` no separator can be trusted, so `multipart/mixed; foo="unterminated; boundary=abc` is not reported as missing a boundary — whether that text is a parameter is precisely what the broken quoting makes unknowable, and the malformed value is `content_type_valid`'s finding. This applies only to the *absence* claim: a boundary the scan did find is still judged, so `boundary="unfinished` is reported as the malformed quoted-string it is.
 
-**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `boundary= abc` is accepted. It never causes a false report, only a missed one — and the missed report belongs to `content_type_valid`, which is lenient in the same place.
+**Whitespace beside the `=` is read through here and reported elsewhere.** RFC 9110 §5.6.6 forbids it, and this rule trims it before judging the boundary, so `boundary= abc` names the boundary `abc` — the value a recipient would use, and the one worth judging. The octet itself is `content_type_valid`'s finding, and that rule no longer passes over it.
 
 ## Violations
 

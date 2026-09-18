@@ -29,7 +29,9 @@ use crate::helpers::word::{TokenBwsWordDefect, WordDefect};
 use crate::lint::Severity;
 use crate::lint::Strength;
 use crate::rules::SpecRef;
-use crate::violations::parameter::{PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY};
+use crate::violations::parameter::{
+    PARAMETER_EQUALS_MISSING, PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, PARAMETER_VALUE_EMPTY,
+};
 use crate::violations::quoted_string::quoted_string_defect;
 use crate::violations::{defects, ViolationDef};
 
@@ -189,6 +191,7 @@ pub fn media_type_defect(defect: MediaTypeDefect<'_>) -> &'static ViolationDef {
             token_character(c)
         }
         MediaTypeDefect::ParameterMissingEquals(_) => &PARAMETER_EQUALS_MISSING,
+        MediaTypeDefect::ParameterEqualsWhitespace(_) => &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
         MediaTypeDefect::ParameterNameEmpty => &TOKEN_EMPTY,
         MediaTypeDefect::ParameterNameCharacter { character, .. } => token_character(character),
         MediaTypeDefect::ParameterValue { defect, .. } => {
@@ -266,6 +269,10 @@ mod tests {
             (
                 MediaTypeDefect::ParameterMissingEquals("badparam"),
                 "parameter_equals_missing",
+            ),
+            (
+                MediaTypeDefect::ParameterEqualsWhitespace("charset"),
+                "parameter_equals_whitespace_forbidden",
             ),
             (MediaTypeDefect::ParameterNameEmpty, "token_empty"),
             (

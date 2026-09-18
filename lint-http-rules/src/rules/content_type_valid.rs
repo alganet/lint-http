@@ -11,7 +11,8 @@ use crate::violations::media_type::{
     RFC_9110_12_5_1, RFC_9110_8_3_1,
 };
 use crate::violations::parameter::{
-    PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
+    PARAMETER_EQUALS_MISSING, PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, PARAMETER_VALUE_EMPTY,
+    RFC_9110_5_6_6,
 };
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -54,6 +55,7 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
     &PARAMETER_EQUALS_MISSING,
+    &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
     &PARAMETER_VALUE_EMPTY,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
@@ -86,7 +88,7 @@ impl RuleMeta for ContentTypeValid {
     }
 
     fn description(&self) -> &'static str {
-        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `text/*` parses as a `media-type`. The asterisk is defined in §12.5.1 as what groups media types into *ranges* — `media-range`, which Accept takes and Content-Type does not — so a Content-Type carrying one names a set where a single media type is expected. This is the rule's judgement, not a grammar violation. (`*/plain` is rejected too, though it is not a valid `media-range` either: `media-range` allows `*/*` and `type/*`, never a wildcard type with a concrete subtype.)\n\n**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A rule yields one finding, and which value applies comes before whether a value is well formed.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `charset =utf-8` is accepted. It never causes a false report, only a missed one."
+        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `text/*` parses as a `media-type`. The asterisk is defined in §12.5.1 as what groups media types into *ranges* — `media-range`, which Accept takes and Content-Type does not — so a Content-Type carrying one names a set where a single media type is expected. This is the rule's judgement, not a grammar violation. (`*/plain` is rejected too, though it is not a valid `media-range` either: `media-range` allows `*/*` and `type/*`, never a wildcard type with a concrete subtype.)\n\n**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A rule yields one finding, and which value applies comes before whether a value is well formed.\n\n**Whitespace beside a parameter's `=` is reported.** RFC 9110 §5.6.6 forbids it in the production and again in prose — not even the \"bad\" whitespace HTTP tolerates elsewhere — so `charset =utf-8` derives from nothing. This rule used to trim it and publish the leniency here; the other two ways a `parameter` fails to derive were already reported from the same reader, and enforcing two thirds of one sentence made a claim about the third that nothing backed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -408,6 +410,14 @@ mod tests {
     // `charset=""` is a different value and still conforms.
     #[case("text/plain; charset=", true)]
     #[case("text/plain; charset=\"\"", false)]
+    // § 5.6.6 prints no `OWS` inside `parameter` and says so again in prose, so
+    // all three spellings derive from nothing. This rule used to trim them.
+    #[case("text/plain; charset = utf-8", true)]
+    #[case("text/plain; charset =utf-8", true)]
+    #[case("text/plain; charset= utf-8", true)]
+    #[case("text/plain; charset=\tutf-8", true)]
+    // The `OWS` the production *does* print sits beside the `;`, not the `=`.
+    #[case("text/plain ;  charset=utf-8", false)]
     fn content_type_parsing_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let res = check_one_value(val);
         if expect_violation {
@@ -420,6 +430,24 @@ mod tests {
                 res
             );
         }
+    }
+
+    /// The octet between the two constructs is § 5.6.6's Note, not § 5.6.2's
+    /// alphabet: a space is a `tchar` in no position, so before this rule read
+    /// the flag the whitespace had to land *inside* a name or a value to be
+    /// seen at all, and the id that came back named the wrong requirement.
+    #[rstest]
+    #[case("text/plain; charset = utf-8")]
+    #[case("text/plain; charset =utf-8")]
+    #[case("text/plain; charset= utf-8")]
+    #[case("multipart/mixed; boundary= abc")]
+    fn whitespace_beside_the_equals_is_the_parameter_entry(#[case] val: &str) {
+        let v = check_one_value(val).expect("a violation");
+        assert_eq!(
+            v.violation, "parameter_equals_whitespace_forbidden",
+            "for '{}'",
+            val
+        );
     }
 
     #[rstest]

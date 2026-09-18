@@ -16,7 +16,7 @@ Check that a `Content-Type` header — in a request or a response — reads as a
 
 **Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A rule yields one finding, and which value applies comes before whether a value is well formed.
 
-**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `charset =utf-8` is accepted. It never causes a false report, only a missed one.
+**Whitespace beside a parameter's `=` is reported.** RFC 9110 §5.6.6 forbids it in the production and again in prose — not even the "bad" whitespace HTTP tolerates elsewhere — so `charset =utf-8` derives from nothing. This rule used to trim it and publish the leniency here; the other two ways a `parameter` fails to derive were already reported from the same reader, and enforcing two thirds of one sentence made a claim about the third that nothing backed.
 
 ## Violations
 
@@ -25,6 +25,7 @@ Check that a `Content-Type` header — in a request or a response — reads as a
 - [media_type_malformed](../violations/media_type_malformed.md) — Media type is not a type/subtype pair
 - [media_type_wildcard_forbidden](../violations/media_type_wildcard_forbidden.md) — A media range is written where one media type belongs
 - [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_equals_whitespace_forbidden](../violations/parameter_equals_whitespace_forbidden.md) — Parameter writes whitespace beside its '='
 - [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
 - [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
