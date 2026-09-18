@@ -34,11 +34,17 @@
 //! the next message sent by a second identity. A pseudo-header snippet is an
 //! HTTP/2 message unless its label says `HTTP/3`.
 //!
-//! **What is not judged, counted so it cannot grow unnoticed.** A block whose
-//! every line is the same field name is a list of alternative values, not a
-//! message; a field name the header map refuses cannot be built at all, and
-//! the rules that show one build it as octets in their own tests. Both are
-//! skipped by shape, never by rule name, and the counts are asserted below.
+//! **A block whose every line names one field is that field's alternative
+//! values**, and each of them is judged as a message of its own: `Cache-Control:
+//! max-age=3600` beside `Cache-Control: no-cache` is two policies a sender might
+//! write, not one message carrying both. So a non-compliant block of them has to
+//! draw on every line rather than on some line, which is what found the
+//! `Content-Disposition` example whose first value was conforming.
+//!
+//! **What is not judged, counted so it cannot grow unnoticed.** A field name the
+//! header map refuses cannot be built at all, and the rules that show one build
+//! it as octets in their own tests. It is skipped by shape, never by rule name,
+//! and the count is asserted below.
 
 use crate::http_transaction::{HttpTransaction, ResponseInfo};
 use crate::rules::{Compliance, Rule};
@@ -674,8 +680,6 @@ fn judge_story(
 /// Why a snippet was not judged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Skipped {
-    /// Every line names the same field: alternatives, not a message.
-    SameNameList,
     /// Nothing in it is a message.
     NoMessageShape,
     /// A name or value the header map refuses.
@@ -697,9 +701,29 @@ fn judge_bare(
         .flat_map(|m| m.headers.iter())
         .map(|l| header_name_of(l))
         .collect();
-    if names.len() > 1 && names.iter().all(|n| n == &names[0]) {
-        return Err(Skipped::SameNameList);
-    }
+    // A block whose every line names one field is a list of that field's
+    // alternative values, and the label speaks of each of them: `Cache-Control:
+    // max-age=3600` beside `Cache-Control: no-cache` is two policies a sender
+    // might write, not one message carrying both. So each line is judged as its
+    // own message, and a `NonCompliant` block has to draw on every one of them.
+    // Read as a single message instead, the block asserts only that *something*
+    // in it is wrong, and the line that is right rides in unexamined.
+    let alternatives = names.len() > 1 && names.iter().all(|n| n == &names[0]);
+    let owned: Vec<Msg>;
+    let msgs: &[Msg] = if alternatives {
+        owned = msgs
+            .iter()
+            .flat_map(|m| m.headers.iter())
+            .map(|line| Msg {
+                headers: vec![line.clone()],
+                body: Vec::new(),
+                ..Default::default()
+            })
+            .collect();
+        &owned
+    } else {
+        msgs
+    };
     let placement = placement_of(&names, rule.needs_response());
     let mut out = Vec::new();
     for m in msgs {
@@ -825,12 +849,6 @@ fn published_examples_are_judged_the_way_they_are_labelled() {
     // landing in one of them is noticed rather than silently unjudged.
     let count = |k: Skipped| skipped.get(&k).map_or(0, Vec::len);
     assert_eq!(
-        count(Skipped::SameNameList),
-        22,
-        "{:?}",
-        skipped.get(&Skipped::SameNameList)
-    );
-    assert_eq!(
         count(Skipped::NoMessageShape),
         0,
         "{:?}",
@@ -842,7 +860,7 @@ fn published_examples_are_judged_the_way_they_are_labelled() {
         "{:?}",
         skipped.get(&Skipped::Unbuildable)
     );
-    assert!(judged > 800, "{judged} examples judged");
+    assert!(judged > 860, "{judged} examples judged");
 }
 
 #[cfg(test)]
