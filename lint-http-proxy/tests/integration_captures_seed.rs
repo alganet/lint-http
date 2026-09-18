@@ -41,6 +41,7 @@ async fn test_captures_seed_behavior(#[case] seed_enabled: bool) -> anyhow::Resu
         headers: resp_headers,
 
         body_length: None,
+        body_interrupted: false,
         trailers: None,
     });
 

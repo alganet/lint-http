@@ -528,6 +528,7 @@ mod tests {
                 ("content-disposition", second),
             ]),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 

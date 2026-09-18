@@ -250,6 +250,7 @@ mod tests {
             ),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 

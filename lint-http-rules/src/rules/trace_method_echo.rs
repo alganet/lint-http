@@ -454,6 +454,7 @@ mod tests {
                 ("content-length", "29"),
             ]),
             body_length: Some(29),
+            body_interrupted: false,
             trailers: None,
         });
         assert!(check(&tx).is_none());
@@ -470,6 +471,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "29")]),
             body_length: Some(29),
+            body_interrupted: false,
             trailers: None,
         });
         assert!(check(&tx).is_none());

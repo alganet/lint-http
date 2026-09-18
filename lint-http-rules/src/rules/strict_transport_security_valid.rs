@@ -357,6 +357,7 @@ mod tests {
             )]),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         tx
@@ -599,6 +600,7 @@ mod tests {
             headers,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let rule = StrictTransportSecurityValid;
@@ -803,6 +805,7 @@ mod tests {
             ]),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let rule = StrictTransportSecurityValid;

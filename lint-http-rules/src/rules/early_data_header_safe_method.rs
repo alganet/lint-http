@@ -627,6 +627,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("early-data", "1")]),
             body_length: Some(0),
+            body_interrupted: false,
             trailers: None,
         });
         let v = check(&tx).expect("reported");

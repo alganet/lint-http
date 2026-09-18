@@ -166,6 +166,10 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
             //
             // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
             body_length: if status == 101 { Some(0) } else { None },
+            // Neither arm is a reading that stopped early. The 101's zero is the
+            // whole of its body, and the other arm never began a reading to
+            // interrupt.
+            body_interrupted: false,
             trailers: None,
         },
         duration,

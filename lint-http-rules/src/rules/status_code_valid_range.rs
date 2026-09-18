@@ -221,6 +221,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let found = crate::test_helpers::run_rule(
@@ -257,6 +258,7 @@ mod tests {
             headers: hyper::HeaderMap::new(),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 

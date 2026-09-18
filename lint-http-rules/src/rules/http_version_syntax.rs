@@ -219,6 +219,7 @@ mod tests {
                 version: v.into(),
                 headers: crate::test_helpers::make_headers_from_pairs(&[]),
                 body_length: None,
+                body_interrupted: false,
                 trailers: None,
             });
             let rule = HttpVersionSyntax;
@@ -242,6 +243,7 @@ mod tests {
             version: v.into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let rule = HttpVersionSyntax;

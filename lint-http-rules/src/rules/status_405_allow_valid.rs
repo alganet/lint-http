@@ -352,6 +352,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: build(lines),
             body_length: None,
+            body_interrupted: false,
             trailers: if trailer_lines.is_empty() {
                 None
             } else {

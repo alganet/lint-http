@@ -866,6 +866,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&field_lines(response_lines)),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         tx

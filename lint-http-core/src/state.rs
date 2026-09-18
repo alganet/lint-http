@@ -728,6 +728,7 @@ mod tests {
                     headers: HeaderMap::new(),
 
                     body_length: None,
+                    body_interrupted: false,
                     trailers: None,
                 });
                 store1.record_transaction(&tx);

@@ -352,6 +352,7 @@ mod tests {
             version: version.into(),
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs),
             body_length,
+            body_interrupted: false,
             trailers: trailer_pairs.map(crate::test_helpers::make_headers_from_pairs),
         });
         tx
@@ -547,6 +548,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers,
             body_length,
+            body_interrupted: false,
             trailers: None,
         });
         tx

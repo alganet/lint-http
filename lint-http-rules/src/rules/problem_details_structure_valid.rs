@@ -322,6 +322,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(headers),
             body_length,
+            body_interrupted: false,
             trailers: None,
         });
         tx.response_body = body.map(bytes::Bytes::from_static);
@@ -606,6 +607,7 @@ mod tests {
                 version: "HTTP/1.1".into(),
                 headers: crate::test_helpers::make_headers_from_pairs(&headers),
                 body_length: Some(body.len() as u64),
+                body_interrupted: false,
                 trailers: None,
             });
             tx.response_body = Some(bytes::Bytes::copy_from_slice(body.as_bytes()));

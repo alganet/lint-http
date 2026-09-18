@@ -965,6 +965,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: Some(0),
+            body_interrupted: false,
             trailers: None,
         });
         tx

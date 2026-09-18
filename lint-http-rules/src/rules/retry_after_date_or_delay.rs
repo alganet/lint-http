@@ -194,6 +194,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
@@ -271,6 +272,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 

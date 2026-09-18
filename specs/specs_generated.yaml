@@ -7223,7 +7223,7 @@ sources:
     snippet: 'A single request can have multiple associated responses: zero or more "interim" (non-final) responses with status codes in the "informational" (1xx) range, followed by exactly one "final" response with a status code in one of the other ranges.'
     cited_by:
     - file: lint-http-core/src/http_transaction.rs
-      line: 64
+      line: 73
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 24
     - file: lint-http-rules/src/violations/status.rs
@@ -7271,7 +7271,7 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
     cited_by:
     - file: lint-http-proxy/src/proxy/exchange.rs
-      line: 403
+      line: 411
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
     section: § 11.7.1
     snippet: Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain.

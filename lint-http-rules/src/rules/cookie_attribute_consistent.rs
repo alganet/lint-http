@@ -512,6 +512,7 @@ mod tests {
             headers: hyper::HeaderMap::new(),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
@@ -595,6 +596,7 @@ mod tests {
             headers: hyper::HeaderMap::new(),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
