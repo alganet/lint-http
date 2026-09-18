@@ -149,13 +149,10 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, ChallengeDefec
 /// `String` this replaced made it one sentence among the rest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChallengeDefect<'a> {
-    /// Nothing between the commas the challenge was assembled from.
-    Empty,
     /// An empty member of `WWW-Authenticate = #challenge`, found while the
-    /// members were being grouped rather than while one challenge was read.
-    /// Kept apart from [`Empty`](Self::Empty) because the two are found by
-    /// different halves of the reading and one of them may be a stray comma
-    /// between two well-formed challenges.
+    /// members were being grouped. There is no second variant for a challenge
+    /// that is empty once assembled, because a challenge is a member: the
+    /// grouping refuses every empty one before anything is assembled from it.
     EmptyMember,
     /// A member that continues a challenge with no challenge before it: an
     /// `auth-param` arriving where the list has not yet had an `auth-scheme`.
@@ -169,8 +166,6 @@ pub enum ChallengeDefect<'a> {
     /// A single bare word after the scheme that is a `token68` by the grammar
     /// and a value-less `auth-param` by eye. Carries the word.
     SuspiciousSingleToken(&'a str),
-    /// An empty member of the `#auth-param` list.
-    EmptyParameter,
     /// A member whose name is empty — `=x`, which has a value and nothing it
     /// belongs to.
     EmptyParameterName,
@@ -203,7 +198,6 @@ impl ChallengeDefect<'_> {
     /// the sentence whole.
     pub fn message(self) -> String {
         match self {
-            Self::Empty => "WWW-Authenticate header contains empty challenge".to_string(),
             Self::EmptyMember => {
                 "WWW-Authenticate header contains empty challenge/member".to_string()
             }
@@ -220,7 +214,6 @@ impl ChallengeDefect<'_> {
                 "WWW-Authenticate challenge has suspicious single token '{}' after scheme; token68 or auth-param expected",
                 word
             ),
-            Self::EmptyParameter => "WWW-Authenticate contains empty parameter".to_string(),
             Self::EmptyParameterName => "WWW-Authenticate auth-param name is empty".to_string(),
             Self::ParameterMissingValue(name) => {
                 format!("WWW-Authenticate auth-param '{}' missing value", name)
@@ -259,8 +252,17 @@ impl ChallengeDefect<'_> {
 /// member whose scheme reads as `realm="x"` and fails on the `=`.
 pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<'_>> {
     let c = trim_ows(challenge);
+    // The caller has already refused this. `split_and_group_challenges` returns
+    // `EmptyMember` for any member that is empty after the splitter's `OWS`
+    // trim, so every string it assembles is non-empty and a continuation is
+    // joined onto one that already was. The branch stays anyway, and reports
+    // the live id the value would be rather than a variant of its own: an
+    // `Err` nothing constructs is a claim this module cannot back, and a
+    // silent `Ok` on a value no caller sends today is a claim it cannot back
+    // tomorrow.
+    // cite(RFC 9110 § 11.3): "challenge   = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
     if c.is_empty() {
-        return Err(ChallengeDefect::Empty);
+        return Err(ChallengeDefect::SchemeMissing);
     }
 
     // The three `token68` readings below share this: the alternative's alphabet
@@ -327,10 +329,12 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
         // Parse auth-params. The `OWS` around the `#auth-param` commas is the
         // splitter's; the `str::trim` this replaced also took the two `obs-text`
         // octets that look like whitespace, and no `token` admits either.
+        // No empty-member branch here, for the reason there is none above: every
+        // comma this splits on is one the assembler wrote between two non-empty
+        // members, or one that sat inside a member the outer split had already
+        // found non-empty using this same function. An empty parameter would
+        // fall to `EmptyParameterName` below, which is what it is.
         for param in split_commas_respecting_quotes(rest) {
-            if param.is_empty() {
-                return Err(ChallengeDefect::EmptyParameter);
-            }
             let mut kv = param.splitn(2, '=');
             let name = kv
                 .next()
@@ -977,9 +981,17 @@ mod tests {
         );
     }
 
+    /// Not a value any caller sends: `split_and_group_challenges` refuses an
+    /// empty member before one is assembled. What is pinned is where the
+    /// branch points now that it has no variant of its own — a challenge with
+    /// nothing in it has no `auth-scheme`, which is a live id and not a dead
+    /// arm.
     #[test]
-    fn validate_empty_challenge() {
-        assert_eq!(validate_challenge_syntax(""), Err(ChallengeDefect::Empty));
+    fn an_empty_challenge_has_no_auth_scheme() {
+        assert_eq!(
+            validate_challenge_syntax(""),
+            Err(ChallengeDefect::SchemeMissing)
+        );
     }
 
     /// The name is what the challenge *cannot* fail at. A member with leading
@@ -1089,11 +1101,15 @@ mod tests {
         assert!(r.is_ok());
     }
 
+    /// Also not a value any caller sends — the assembler joins members with
+    /// `", "` and a non-empty member, so no assembled challenge ends in a
+    /// separator. An empty `#auth-param` member is a parameter whose name is
+    /// empty, and that is what it reports.
     #[test]
-    fn empty_parameter_in_param_list_is_error() {
+    fn an_empty_auth_param_is_a_parameter_with_no_name() {
         assert_eq!(
             validate_challenge_syntax("Basic realm=\"x\", "),
-            Err(ChallengeDefect::EmptyParameter)
+            Err(ChallengeDefect::EmptyParameterName)
         );
     }
 

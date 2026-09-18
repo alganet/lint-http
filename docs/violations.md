@@ -82,9 +82,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [cache_control_s_maxage_ignored](violations/cache_control_s_maxage_ignored.md) — A cache s-maxage does not address used it for freshness
 - [cache_control_storage_conflicting](violations/cache_control_storage_conflicting.md) — Two Cache-Control directives disagree about storing the response
 - [cache_response_conflicting](violations/cache_response_conflicting.md) — Two responses for one URI disagree about which version is current
-- [challenge_empty](violations/challenge_empty.md) — Authentication challenge is empty
 - [challenge_member_empty](violations/challenge_member_empty.md) — Authentication challenge list has an empty member
-- [challenge_parameter_empty](violations/challenge_parameter_empty.md) — Authentication challenge has an empty parameter
 - [challenge_parameter_name_character_forbidden](violations/challenge_parameter_name_character_forbidden.md) — Authentication parameter name holds a character outside token
 - [challenge_parameter_name_empty](violations/challenge_parameter_name_empty.md) — Authentication parameter has an empty name
 - [challenge_parameter_value_character_forbidden](violations/challenge_parameter_value_character_forbidden.md) — Authentication parameter value holds a character outside token

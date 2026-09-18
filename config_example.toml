@@ -1177,18 +1177,8 @@ severity = "warn"
 # Two responses for one URI disagree about which version is current
 severity = "warn"
 
-[violations.challenge_empty]
-# Authentication challenge is empty
-# GRAMMAR obliges the sender, so this defaults to error.
-severity = "error"
-
 [violations.challenge_member_empty]
 # Authentication challenge list has an empty member
-# GRAMMAR obliges the sender, so this defaults to error.
-severity = "error"
-
-[violations.challenge_parameter_empty]
-# Authentication challenge has an empty parameter
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 

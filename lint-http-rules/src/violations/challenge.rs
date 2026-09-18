@@ -64,24 +64,12 @@ pub const RFC_9110_11_6_1: SpecRef = SpecRef {
 };
 
 defects! {
-    /// A challenge with nothing in it. `challenge` opens with an `auth-scheme`,
-    /// which is a `token`, and `token` is `1*tchar` — so the empty value
-    /// derives from nothing at all.
-    ///
-    // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
-    CHALLENGE_EMPTY = {
-        id: "challenge_empty",
-        title: "Authentication challenge is empty",
-        message: "",
-        default_severity: Severity::Error,
-        spec: &[RFC_9110_11_3],
-        strength: Strength::Grammar,
-    }
-
     /// An empty member of the field's `#challenge` list — a doubled comma, or
-    /// one at either end. Kept apart from [`CHALLENGE_EMPTY`] because it is
-    /// found while the members are being grouped, and because it may sit
-    /// between two challenges that are each well formed.
+    /// one at either end. **The only id for a challenge with nothing in it**,
+    /// because a challenge is a member of this list: the grouping refuses every
+    /// empty member, so no reader downstream is handed one to call empty on its
+    /// own account. It may sit between two challenges that are each well
+    /// formed, which is why the sentence it cites is the list's.
     ///
     // cite(RFC 9110 § 11.6.1): "WWW-Authenticate = #challenge"
     CHALLENGE_MEMBER_EMPTY = {
@@ -120,18 +108,6 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[],
-    }
-
-    /// An empty member of a challenge's `#auth-param` list.
-    ///
-    // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
-    CHALLENGE_PARAMETER_EMPTY = {
-        id: "challenge_parameter_empty",
-        title: "Authentication challenge has an empty parameter",
-        message: "",
-        default_severity: Severity::Error,
-        spec: &[RFC_9110_11_3],
-        strength: Strength::Grammar,
     }
 
     /// A parameter whose name is empty — `=x`, which has a value and nothing
@@ -237,13 +213,11 @@ defects! {
 /// under the same names.
 pub fn challenge_defect(defect: ChallengeDefect<'_>) -> &'static ViolationDef {
     match defect {
-        ChallengeDefect::Empty => &CHALLENGE_EMPTY,
         ChallengeDefect::EmptyMember => &CHALLENGE_MEMBER_EMPTY,
         ChallengeDefect::SchemeMissing => &CHALLENGE_SCHEME_MISSING,
         ChallengeDefect::SchemeCharacter(_) => &AUTH_SCHEME_CHARACTER_FORBIDDEN,
         ChallengeDefect::Token68ControlCharacter => &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
         ChallengeDefect::SuspiciousSingleToken(_) => &CHALLENGE_TOKEN68_INVALID,
-        ChallengeDefect::EmptyParameter => &CHALLENGE_PARAMETER_EMPTY,
         ChallengeDefect::EmptyParameterName => &CHALLENGE_PARAMETER_NAME_EMPTY,
         ChallengeDefect::ParameterMissingValue(_) => &CHALLENGE_PARAMETER_VALUE_MISSING,
         ChallengeDefect::ParameterNameCharacter(_) => &CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
@@ -258,7 +232,7 @@ pub fn challenge_defect(defect: ChallengeDefect<'_>) -> &'static ViolationDef {
 mod tests {
     use super::*;
 
-    /// Twelve variants, twelve ids, spelled out — two of them belonging to other
+    /// Ten variants, ten ids, spelled out — two of them belonging to other
     /// subjects, which are the mappings most worth pinning: the scheme is
     /// § 11.2's `auth-scheme` wherever it was written, and a quoted value
     /// inside an `auth-param` is a `quoted-string` defect and not a challenge
@@ -266,7 +240,6 @@ mod tests {
     #[test]
     fn each_challenge_defect_maps_to_its_own_id() {
         for (defect, id) in [
-            (ChallengeDefect::Empty, "challenge_empty"),
             (ChallengeDefect::EmptyMember, "challenge_member_empty"),
             (ChallengeDefect::SchemeMissing, "challenge_scheme_missing"),
             (
@@ -281,7 +254,6 @@ mod tests {
                 ChallengeDefect::SuspiciousSingleToken("realm"),
                 "challenge_token68_invalid",
             ),
-            (ChallengeDefect::EmptyParameter, "challenge_parameter_empty"),
             (
                 ChallengeDefect::EmptyParameterName,
                 "challenge_parameter_name_empty",
@@ -318,6 +290,6 @@ mod tests {
     fn the_heuristic_is_the_one_without_a_spec() {
         assert!(CHALLENGE_TOKEN68_INVALID.spec.is_empty());
         assert_eq!(CHALLENGE_TOKEN68_INVALID.default_severity, Severity::Info);
-        assert_eq!(CHALLENGE_EMPTY.default_severity, Severity::Error);
+        assert_eq!(CHALLENGE_MEMBER_EMPTY.default_severity, Severity::Error);
     }
 }

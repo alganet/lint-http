@@ -6,10 +6,10 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::challenge::{
-    challenge_defect, CHALLENGE_EMPTY, CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_EMPTY,
-    CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN, CHALLENGE_PARAMETER_NAME_EMPTY,
-    CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN, CHALLENGE_PARAMETER_VALUE_MISSING,
-    CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID, RFC_9110_11_3, RFC_9110_11_6_1,
+    challenge_defect, CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
+    CHALLENGE_PARAMETER_NAME_EMPTY, CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN,
+    CHALLENGE_PARAMETER_VALUE_MISSING, CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID,
+    RFC_9110_11_3, RFC_9110_11_6_1,
 };
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -21,7 +21,7 @@ use crate::violations::ViolationDef;
 
 pub struct WwwAuthenticateChallengeSyntax;
 
-/// The defects this rule reports, and none of them is its own. The ten
+/// The defects this rule reports, and none of them is its own. The seven
 /// `challenge_*` belong to `challenge = auth-scheme [ 1*SP ( token68 /
 /// #auth-param ) ]`, which `Proxy-Authenticate` carries under another name; the
 /// four `quoted_string_*` belong to the production a parameter's value may
@@ -29,13 +29,11 @@ pub struct WwwAuthenticateChallengeSyntax;
 /// own defect is shared with the request side of the framework, where
 /// `authorization_credentials_valid` reports it about an `Authorization`.
 static DECLARED: &[&ViolationDef] = &[
-    &CHALLENGE_EMPTY,
     &CHALLENGE_MEMBER_EMPTY,
     &CHALLENGE_SCHEME_MISSING,
     &AUTH_SCHEME_CHARACTER_FORBIDDEN,
     &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &CHALLENGE_TOKEN68_INVALID,
-    &CHALLENGE_PARAMETER_EMPTY,
     &CHALLENGE_PARAMETER_NAME_EMPTY,
     &CHALLENGE_PARAMETER_VALUE_MISSING,
     &CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
