@@ -69,6 +69,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/origin.rs
       line: 219
+  - label: options_method_capabilities
+    section: § 3.3.3
+    snippet: 'An HTTP response to a CORS-preflight request can include the following headers:'
+    cited_by:
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 74
+  - label: options_method_capabilities (2)
+    section: § 3.3.3
+    snippet: The `Allow` header is not relevant for the purposes of the CORS protocol.
+    cited_by:
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 65
+  - label: options_method_capabilities (3)
+    section: § 3.3.3
+    snippet: '`Access-Control-Allow-Headers` Indicates which headers are supported by the response’s URL for the purposes of the CORS protocol.'
+    cited_by:
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 81
+  - label: options_method_capabilities (4)
+    section: § 3.3.3
+    snippet: '`Access-Control-Allow-Methods` Indicates which methods are supported by the response’s URL for the purposes of the CORS protocol.'
+    cited_by:
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 75
   - label: origin_matching_for_cors
     section: § 4.10
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
@@ -2494,7 +2518,7 @@ sources:
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 62
+      line: 72
     - file: lint-http-rules/src/violations/accept_patch.rs
       line: 77
   - label: patch_method_content_type_match
@@ -5657,7 +5681,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 60
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 57
+      line: 67
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 283
   - label: accept_patch_header_valid (2)
@@ -5717,7 +5741,7 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 379
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 206
+      line: 241
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 213
     - file: lint-http-rules/src/rules/patch_partial_update.rs
@@ -5749,7 +5773,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 465
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 259
+      line: 294
   - label: accept_ranges_and_206_consistent
     section: § 14
     snippet: Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability.
@@ -5797,7 +5821,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 139
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 59
+      line: 69
   - label: accept_ranges_and_206_consistent (6)
     section: § 14.3
     snippet: to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose.
@@ -5927,7 +5951,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 80
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 54
+      line: 63
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 245
   - label: allow_header_method_tokens_valid (3)
@@ -7427,7 +7451,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 281
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 60
+      line: 70
   - label: lint-http-rules/src/helpers/accept_ranges.rs (4)
     section: § 5.6.1.2
     snippet: Empty elements do not contribute to the count of elements present.
@@ -7911,7 +7935,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 46
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 55
+      line: 64
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 150
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
@@ -8915,7 +8939,7 @@ sources:
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 275
+      line: 310
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 223
   - label: options_method_capabilities (2)
@@ -8923,15 +8947,15 @@ sources:
     snippet: The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 266
+      line: 301
   - label: options_method_capabilities (3)
     section: § 9.3.7
     snippet: A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 151
+      line: 181
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 228
+      line: 263
     - file: lint-http-rules/src/violations/method.rs
       line: 221
   - label: options_method_capabilities (4)
@@ -8939,9 +8963,9 @@ sources:
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 53
+      line: 62
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 276
+      line: 311
     - file: lint-http-rules/src/violations/method.rs
       line: 243
   - label: options_method_capabilities (5)
@@ -8949,13 +8973,13 @@ sources:
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 260
+      line: 295
   - label: options_method_capabilities (6)
     section: § 9.3.7
     snippet: The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 205
+      line: 240
   - label: patch_method_content_type_match
     section: § 12.3
     snippet: When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource.
