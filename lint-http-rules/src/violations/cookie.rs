@@ -190,6 +190,10 @@ defects! {
             will accept. A control octet in a `Path` is a hazard whatever the \
             keyword: it is what smuggles a header boundary past a parser that \
             splits on one, and no deployment wants it at `warn`.",
+        unreachable: "the octet this names is a control octet, and no route carries one to \
+                      the rules: on the wire the parser refuses the message before there is \
+                      a transaction, and from a capture file `HeaderValue` refuses the \
+                      record -- 0x7f with the rest of the class",
     }
 
     /// A space, which `CHAR` admits and this crate refuses anyway — the one defect

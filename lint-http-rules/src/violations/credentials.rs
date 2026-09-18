@@ -89,6 +89,10 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_11_4],
         strength: Strength::Grammar,
+        unreachable: "the octet this names is a control octet, and no route carries one to \
+                      the rules: on the wire the parser refuses the message before there is \
+                      a transaction, and from a capture file `HeaderValue` refuses the \
+                      record -- 0x7f with the rest of the class",
     }
 }
 
