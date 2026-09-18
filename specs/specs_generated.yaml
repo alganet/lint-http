@@ -6060,6 +6060,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 88
+    - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
+      line: 105
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 114
   - label: cache_coherence (2)
@@ -6755,21 +6757,39 @@ sources:
     - file: lint-http-rules/src/violations/etag.rs
       line: 65
   - label: etag_or_last_modified_present
+    section: § 3.2
+    snippet: This "selected representation" provides the data and metadata for evaluating conditional requests (Section 13)
+    cited_by:
+    - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
+      line: 104
+  - label: etag_or_last_modified_present (2)
     section: § 8.8.2.1
     snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
     cited_by:
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
-      line: 94
+      line: 117
     - file: lint-http-rules/src/violations/validator.rs
-      line: 63
-  - label: etag_or_last_modified_present (2)
+      line: 85
+  - label: etag_or_last_modified_present (3)
     section: § 8.8.3.1
     snippet: An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined
     cited_by:
     - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
-      line: 95
+      line: 118
     - file: lint-http-rules/src/violations/validator.rs
-      line: 64
+      line: 86
+  - label: etag_or_last_modified_present (4)
+    section: § 9.3.7
+    snippet: Responses to the OPTIONS method are not cacheable.
+    cited_by:
+    - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
+      line: 106
+  - label: etag_or_last_modified_present (5)
+    section: § 9.3.8
+    snippet: Responses to the TRACE method are not cacheable.
+    cited_by:
+    - file: lint-http-rules/src/rules/etag_or_last_modified_present.rs
+      line: 107
   - label: etag_syntax
     section: § 8.8.3
     snippet: The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request.

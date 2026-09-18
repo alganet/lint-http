@@ -20,6 +20,15 @@ use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
+/// The selected representation: the thing both SHOULDs are about, and which a
+/// 200 carries only when it answers a GET or a HEAD.
+pub const RFC_9110_3_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.2",
+    note: "Representations — the \"selected representation\" is what a GET would select, and it is what conditional requests are evaluated against; a 200 answering any other method carries no such thing",
+};
+
 /// Last-Modified, Generation: the SHOULD and the condition written into it.
 pub const RFC_9110_8_8_2_1: SpecRef = SpecRef {
     spec: "RFC 9110",
@@ -57,6 +66,19 @@ defects! {
     /// server SHOULD send the field for any representation where the answer can
     /// reasonably be determined. What the finding buys is that every later
     /// request for this resource has to be answered in full.
+    ///
+    /// **Only a `200` answering a `GET` or a `HEAD` is asked.** Both sentences
+    /// are about the *selected representation*, which § 3.2 defines as the one
+    /// a GET would select and the thing a conditional request is evaluated
+    /// against; § 15.3.1 tabulates what a 200's content is for every other
+    /// method — the status of an action, the communication options, the
+    /// request echoed back — and none of those is a representation a later
+    /// request could validate. A `200` to an `OPTIONS` or a `TRACE` is not
+    /// cacheable at all (§ 9.3.7, § 9.3.8), so the "every later request is a
+    /// full transfer" this entry warns of was never avoidable there. The one
+    /// shape not read is a `POST` response that names its own target in
+    /// `Content-Location` and so is cacheable (§ 9.3.3); that reads as silence
+    /// here, which is the cheaper mistake.
     ///
     /// Both sentences are quoted here, where neither is claimed as the one:
     ///
