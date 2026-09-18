@@ -45,7 +45,12 @@ enabled = true
 Content-Length: 0
 Content-Length: 10
 Content-Length:  20  
+```
 
+### ✅ Good Repeated field lines carrying one length
+
+```http
+HTTP/1.1 200 OK
 Content-Length: 10
 Content-Length:  10 
 ```
@@ -58,7 +63,12 @@ Content-Length: +1
 Content-Length: 1.5
 Content-Length: abc
 Content-Length:
+```
 
+### ❌ Bad Repeated field lines naming two lengths
+
+```http
+HTTP/1.1 200 OK
 Content-Length: 10
 Content-Length: 20
 ```
