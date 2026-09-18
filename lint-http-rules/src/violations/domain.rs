@@ -2,15 +2,25 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! Domain name defects — the preferred name syntax, wherever a field carries a
-//! host name.
+//! Domain name defects — the preferred name syntax, wherever a field carries
+//! an Internet domain name.
 //!
 //! These are the clearest case for a catalogue that is not indexed by rule.
-//! A `Set-Cookie` `Domain`, a `From` mailbox's domain half and every other
-//! field holding a name are all answered by the same five sentences of RFC
-//! 1035, through the same helper — so an operator who does not care about a
-//! hyphen at the edge of a label should be able to say so once, not once per
-//! field. Each rule that reads a name declares these; none of them owns one.
+//! A `Set-Cookie` `Domain` and a `From` mailbox's domain half are answered by
+//! the same five sentences of RFC 1035, through the same helper — so an
+//! operator who does not care about a hyphen at the edge of a label should be
+//! able to say so once, not once per field. Each rule that reads a name
+//! declares these; none of them owns one.
+//!
+//! **Not every field holding a host reads one.** A `Host`, a `Forwarded`
+//! `host=`, an `Origin` and a URI authority carry a `uri-host`, and its
+//! `reg-name` is a wider production than this one: every unreserved octet is
+//! in it, the underscore and a hyphen at either edge included, and an empty
+//! label is nothing it forbids. Those fields answer to
+//! [`uri_host_character_forbidden`](crate::violations::uri::URI_HOST_CHARACTER_FORBIDDEN)
+//! instead. So `ex_ample.com` is a conforming `Host` and a malformed `From`
+//! domain in the same message, and a rule that asked these five sentences of a
+//! `Host` would report a name the URI grammar generates.
 //!
 //! The `name` defects are about the whole string and the `label` defects about
 //! one dot-separated piece of it, which is also the order the helper checks

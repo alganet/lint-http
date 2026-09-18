@@ -940,6 +940,17 @@ mod tests {
             // `uri-host` is wider than `token`, so a registered name holding a
             // sub-delimiter is a `value` only in its quoted form.
             "host=\"a(b).example\"",
+            // A `reg-name` is not RFC 1035's preferred name syntax, and this
+            // parameter is measured against the first. Each of the three below
+            // is a `domain_label_*` finding where a rule reads a domain name —
+            // a `From` mailbox's domain half, a `Set-Cookie` `Domain` — and
+            // none of them is one here, because every unreserved octet is a
+            // `reg-name` octet and an empty label is nothing that production
+            // forbids. Asking the narrower grammar of a `host=` would report a
+            // name the URI it came out of generates.
+            "host=ex_ample.com",
+            "host=-example.com",
+            "host=ex..ample.com",
         ] {
             assert_eq!(judge_one(value), None, "{value}");
         }

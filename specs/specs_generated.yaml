@@ -1160,13 +1160,13 @@ sources:
     snippet: They must start with a letter, end with a letter or digit, and have as interior characters only letters, digits, and hyphen.
     cited_by:
     - file: lint-http-rules/src/violations/domain.rs
-      line: 61
+      line: 71
     - file: lint-http-rules/src/violations/domain.rs
-      line: 73
+      line: 83
     - file: lint-http-rules/src/violations/domain.rs
-      line: 98
+      line: 108
     - file: lint-http-rules/src/violations/domain.rs
-      line: 110
+      line: 120
   - label: lint-http-rules/src/helpers/domain.rs
     section: § 2.3.1
     snippet: Labels must be 63 characters or less.
@@ -1176,7 +1176,7 @@ sources:
     - file: lint-http-rules/src/helpers/domain.rs
       line: 166
     - file: lint-http-rules/src/violations/domain.rs
-      line: 85
+      line: 95
   - label: lint-http-rules/src/helpers/domain.rs (2)
     section: § 2.3.1
     snippet: end with a letter or digit, and have as interior characters only letters, digits, and hyphen.
@@ -1192,7 +1192,7 @@ sources:
     - file: lint-http-rules/src/helpers/domain.rs
       line: 157
     - file: lint-http-rules/src/violations/domain.rs
-      line: 48
+      line: 58
 - label: RFC 1123
   url: https://www.rfc-editor.org/rfc/rfc1123.html
   fragments:
