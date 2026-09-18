@@ -53,7 +53,7 @@ const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.6.1.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
-    note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
+    note: "Recipient Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore. The sender's MUST NOT against generating one is §5.6.1.1's, and `language_tag_syntax` reports it on this field",
 };
 
 impl RuleMeta for AcceptLanguageWeightValid {
@@ -71,7 +71,7 @@ impl RuleMeta for AcceptLanguageWeightValid {
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`: each member a language range, optionally followed by a weight whose value is a `qvalue` — `0` to `1` with at most three digits after the point.\n\n**There is no parameter list in this field.** A range may carry a weight and nothing else, so `en;charset=utf-8` is reported however well formed the pair looks in isolation. The rule used to check that parameter names were tokens and values were tokens or quoted-strings, which is the parameter grammar of a *different* kind of field; its own SpecRef note said it was following \"the same q/parameter validation semantics used across other headers in this project\".\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `en;` and `en;;q=0.5` are separators introducing a weight that is not there. `[ weight ]` is singular, so `en;q=0.5;q=0.8` is two of it. And a weight is optional — `en, fr` is as conforming as `en;q=1, fr;q=0.8`.\n\n**The language range itself is not checked here.** That is `language_tag_syntax`'s subject: it reports an empty range, whitespace inside one, and an over-long subtag, and lets `*` through.\n\n**A response's Accept-Language is read, but the spec does not describe one.** This is the asymmetry worth knowing about: §12.5.1 and §12.5.3 each say what `Accept` and `Accept-Encoding` mean when a server sends them in a response, and §12.5.4 says no such thing — it defines a request field and stops. The value is still checked, because a malformed one is malformed wherever it appears, but the finding is about syntax and claims nothing about meaning.\n\n**Whitespace beside the weight's `=` is reported**, and the production is the whole argument: `weight = OWS \";\" OWS \"q=\" qvalue` prints both of its `OWS` *before* `\"q=\"`, which is one string literal with nothing optional inside it. So `q =0.5` is not bad whitespace a recipient parses out — it is characters the construct does not generate, in the one place it has no `OWS` to spare. The value is still trimmed before the number is read, because that is what a recipient does; reporting it is what the *sender* is told.\n\n**The value is read as the octets the sender wrote**, and each is reported by whichever production it landed in. Nothing in this grammar is a quoted-string, so no octet outside visible US-ASCII is legal anywhere in the field — but this rule reads only what follows the `;`, where such an octet fails the `q` name or the `qvalue`. One inside the range is `language_tag_syntax`'s, which reads the same field the same way: the range's characters are deferred to the same place as the range's syntax. Refusing to decode the line reported the octet and put every other defect written beside it out of reach."
+        "Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`: each member a language range, optionally followed by a weight whose value is a `qvalue` — `0` to `1` with at most three digits after the point.\n\n**There is no parameter list in this field.** A range may carry a weight and nothing else, so `en;charset=utf-8` is reported however well formed the pair looks in isolation. The rule used to check that parameter names were tokens and values were tokens or quoted-strings, which is the parameter grammar of a *different* kind of field; its own SpecRef note said it was following \"the same q/parameter validation semantics used across other headers in this project\".\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `en;` and `en;;q=0.5` are separators introducing a weight that is not there. `[ weight ]` is singular, so `en;q=0.5;q=0.8` is two of it. And a weight is optional — `en, fr` is as conforming as `en;q=1, fr;q=0.8`.\n\n**The language range itself is not checked here, and neither is an empty list element.** Both are `language_tag_syntax`'s subject: it reports an empty range, whitespace inside one, and an over-long subtag, it lets `*` through, and it reports the comma a sender wrote with nothing beside it. One stray comma reported by both rules would be two findings, so this one drops the empty member and claims nothing about it.\n\n**A response's Accept-Language is read, but the spec does not describe one.** This is the asymmetry worth knowing about: §12.5.1 and §12.5.3 each say what `Accept` and `Accept-Encoding` mean when a server sends them in a response, and §12.5.4 says no such thing — it defines a request field and stops. The value is still checked, because a malformed one is malformed wherever it appears, but the finding is about syntax and claims nothing about meaning.\n\n**Whitespace beside the weight's `=` is reported**, and the production is the whole argument: `weight = OWS \";\" OWS \"q=\" qvalue` prints both of its `OWS` *before* `\"q=\"`, which is one string literal with nothing optional inside it. So `q =0.5` is not bad whitespace a recipient parses out — it is characters the construct does not generate, in the one place it has no `OWS` to spare. The value is still trimmed before the number is read, because that is what a recipient does; reporting it is what the *sender* is told.\n\n**The value is read as the octets the sender wrote**, and each is reported by whichever production it landed in. Nothing in this grammar is a quoted-string, so no octet outside visible US-ASCII is legal anywhere in the field — but this rule reads only what follows the `;`, where such an octet fails the `q` name or the `qvalue`. One inside the range is `language_tag_syntax`'s, which reads the same field the same way: the range's characters are deferred to the same place as the range's syntax. Refusing to decode the line reported the octet and put every other defect written beside it out of reach."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -165,9 +165,17 @@ impl Rule for AcceptLanguageWeightValid {
             let validate_value = |hdr_value: &str| -> Option<Violation> {
                 // A comma split with no regard for quoting, which is right rather
                 // than merely tolerable: nothing in this grammar is a
-                // quoted-string, so there is no quoted comma to protect. Empty list
-                // elements are skipped, which §5.6.1.2 permits a recipient to do.
+                // quoted-string, so there is no quoted comma to protect.
+                //
+                // Empty list elements are dropped here, and that is an ownership
+                // claim rather than a verdict on the value. §5.6.1.1 forbids the
+                // sender to generate one and `language_tag_syntax` reports it —
+                // that rule walks the same field for the range's own syntax, and
+                // one stray comma reported by both would be two findings. What
+                // is skipped is the member; what §5.6.1.2 licenses is only a
+                // recipient's ignoring of it.
                 // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                 for member in crate::helpers::list::list_members(hdr_value) {
                     // Each member: language-range [; params]. `OWS`, not
                     // `str::trim`: on a value read one `char` per octet the
@@ -859,6 +867,42 @@ mod tests {
             &cfg,
         );
         assert!(v.is_none());
+    }
+
+    /// The empty member is a finding on this field and it is not this rule's.
+    /// `language_tag_syntax` reports it — the two rules walk the same list, and
+    /// a stray comma answered by both would be one defect counted twice. What
+    /// this pins is the silence, so that a later reader meeting the dropped
+    /// member here does not conclude the value is clean.
+    ///
+    /// The weight is still read on every member the sender did write, which is
+    /// what makes the silence a deferral rather than a gap.
+    #[rstest]
+    #[case("en,,de", false)]
+    #[case("en, , de", false)]
+    #[case(",", false)]
+    #[case("en,", false)]
+    #[case("en,,de;q=bad", true)]
+    fn the_empty_member_belongs_to_the_range_rule(
+        #[case] value: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = AcceptLanguageWeightValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "accept_language_weight_valid",
+        ]);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("accept-language", value)]);
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect_violation, "{value:?} drew {v:?}");
     }
 
     #[test]
