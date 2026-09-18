@@ -5829,7 +5829,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 134
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 72
+      line: 87
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 189
     - file: lint-http-rules/src/violations/status.rs
@@ -6051,31 +6051,39 @@ sources:
     - file: lint-http-rules/src/violations/credentials.rs
       line: 69
   - label: cache_coherence
+    section: § 15.3.1
+    snippet: The content sent in a 200 response depends on the request method.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 82
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 112
+  - label: cache_coherence (2)
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 73
-  - label: cache_coherence (2)
+      line: 88
+  - label: cache_coherence (3)
     section: § 15.5
     snippet: Except when responding to a HEAD request, the server SHOULD send a representation containing an explanation of the error situation, and whether it is a temporary or permanent condition.
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 74
-  - label: cache_coherence (3)
+      line: 89
+  - label: cache_coherence (4)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 226
+      line: 255
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 195
-  - label: cache_coherence (4)
+  - label: cache_coherence (5)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 213
+      line: 242
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 44
   - label: cache_control_directive_valid
@@ -6913,12 +6921,6 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 121
   - label: head_response_headers_match_get (4)
-    section: § 15.3.1
-    snippet: The content sent in a 200 response depends on the request method.
-    cited_by:
-    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 112
-  - label: head_response_headers_match_get (5)
     section: § 8.6
     snippet: A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method.
     cited_by:
@@ -6928,43 +6930,43 @@ sources:
       line: 146
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 185
-  - label: head_response_headers_match_get (6)
+  - label: head_response_headers_match_get (5)
     section: § 8.8
     snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 47
-  - label: head_response_headers_match_get (7)
+  - label: head_response_headers_match_get (6)
     section: § 8.8.1
     snippet: A "strong validator" is representation metadata that changes value whenever a change occurs to the representation data that would be observable in the content of a 200 (OK) response to GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 48
-  - label: head_response_headers_match_get (8)
+  - label: head_response_headers_match_get (7)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified, as determined at the conclusion of handling the request.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 49
-  - label: head_response_headers_match_get (9)
+  - label: head_response_headers_match_get (8)
     section: § 9.2.1
     snippet: Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 46
-  - label: head_response_headers_match_get (10)
+  - label: head_response_headers_match_get (9)
     section: § 9.3.2
     snippet: However, a server MAY omit header fields for which a value is determined only while generating the content.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 24
-  - label: head_response_headers_match_get (11)
+  - label: head_response_headers_match_get (10)
     section: § 9.3.2
     snippet: Such a response to GET might contain Content-Length and Vary fields, for example, that are not generated within a HEAD response.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 25
-  - label: head_response_headers_match_get (12)
+  - label: head_response_headers_match_get (11)
     section: § 9.3.2
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
     cited_by:
@@ -10392,11 +10394,17 @@ sources:
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 270
+      line: 299
     - file: lint-http-rules/src/violations/cache.rs
       line: 22
     - file: lint-http-rules/src/violations/cache.rs
       line: 73
+  - label: cache_coherence (2)
+    section: § 4.3.5
+    snippet: A response to the HEAD method is identical to what an equivalent request made with a GET would have been, without sending the content.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 83
   - label: cache_control
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names

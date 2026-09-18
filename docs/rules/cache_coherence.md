@@ -27,9 +27,11 @@ reports a page whose siblings simply omit `Last-Modified` as stale.
 
 Only transactions whose response contains a parseable HTTP-date are
 examined; missing or unparseable headers are ignored.  Only a 200 or a 206
-joins the timeline, on either side of the comparison: those carry the
-resource, while a 3xx, a 4xx, a 5xx, a 204 or a 304 is generated when the
-request arrives and so dates the asking rather than the resource.  Reading
+answering a GET or a HEAD joins the timeline, on either side of the
+comparison.  Those carry the resource; a 3xx, a 4xx, a 5xx, a 204 or a 304
+is generated when the request arrives and so dates the asking, and even a
+200 represents the communication options rather than the resource when it
+answers an OPTIONS, or our own request when it answers a TRACE.  Reading
 one of those as a previous observation raises the timeline to *now* and
 reports every later cache hit — which correctly carries the stored
 response's older Date — as stale.
@@ -43,6 +45,8 @@ response's older Date — as stale.
 - [RFC 9111 §4.2.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4): Serving Stale Responses — a cache MUST NOT generate one unless it is disconnected or a client or origin server explicitly permitted it
 - [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): Last-Modified — the representation's modification time (preferred signal)
 - [RFC 9110 §6.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1): Date — the message's origination time (coarser fallback signal)
+- [RFC 9110 §15.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1): 200 OK — what its content represents depends on the request method
+- [RFC 9111 §4.3.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.5): HEAD answers as the GET would have, so it dates the same resource
 - [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): 206 Partial Content — parts of the same selected representation, so it dates it
 - [RFC 9110 §15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5): 304 Not Modified — conveys no representation, so it dates nothing
 - [RFC 9110 §15.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5): 4xx Client Error — the representation explains the error, not the resource
