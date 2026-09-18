@@ -1,0 +1,886 @@
+// SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+//
+// SPDX-License-Identifier: ISC
+
+//! Every example a rule publishes is run through that rule, and the verdict
+//! has to be the one the label makes.
+//!
+//! An `Example` is a claim: *this message conforms* or *this message draws a
+//! finding*. The claim is rendered into the documentation and into `rules
+//! list`, and until this module existed nothing checked it — five rules ran
+//! their own examples, 190 did not. The first run over all of them found
+//! examples describing an entry the rule had stopped reporting, examples that
+//! contradicted the rule's own reasoning, exchanges shown one side at a time,
+//! and a config example that did not name the value its non-compliant example
+//! used. This gate is what keeps a repair to a rule from leaving its examples
+//! behind.
+//!
+//! **What a snippet may look like.** The examples were written by hand in
+//! several shapes, and the tokenizer here reads all of them: a request line
+//! or a status line opening a message, header lines under it, a blank line
+//! and then content; HTTP/2 and HTTP/3 pseudo-header fields; a curl-style
+//! trace with `> ` and `< ` prefixes; a status line written as `200 OK`
+//! alone; and a bare block of header lines with no start line, which is
+//! placed on the side the field names it carries belong to. A full-line `#`
+//! or `//` comment, and an inline `  # note` after a value, are documentation
+//! and are not part of the message.
+//!
+//! **What a story is.** Several messages with a response among them are one
+//! exchange after another, judged on the last one with the earlier ones as its
+//! history; a run of requests alone is a list of alternatives, each judged on
+//! its own. Two conventions carry what a story cannot say in fields: a comment
+//! naming a delay (`# thirty seconds later`, `# after 120s`) spaces the next
+//! message from the one before it, and a comment naming *another client* has
+//! the next message sent by a second identity. A pseudo-header snippet is an
+//! HTTP/2 message unless its label says `HTTP/3`.
+//!
+//! **What is not judged, counted so it cannot grow unnoticed.** A block whose
+//! every line is the same field name is a list of alternative values, not a
+//! message; a field name the header map refuses cannot be built at all, and
+//! the rules that show one build it as octets in their own tests. Both are
+//! skipped by shape, never by rule name, and the counts are asserted below.
+
+use crate::http_transaction::{HttpTransaction, ResponseInfo};
+use crate::rules::{Compliance, Rule};
+use bytes::Bytes;
+use hyper::header::{HeaderMap, HeaderName, HeaderValue};
+
+/// Fields a snippet writes only on a request.
+const REQUEST_ONLY: &[&str] = &[
+    "host",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "accept-charset",
+    "authorization",
+    "proxy-authorization",
+    "user-agent",
+    "if-match",
+    "if-none-match",
+    "if-modified-since",
+    "if-unmodified-since",
+    "if-range",
+    "range",
+    "te",
+    "expect",
+    "origin",
+    "referer",
+    "cookie",
+    "early-data",
+    "upgrade-insecure-requests",
+    "max-forwards",
+    "from",
+    "sec-fetch-user",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-dest",
+    "sec-purpose",
+    "want-digest",
+    "want-repr-digest",
+    "want-content-digest",
+    "forwarded",
+    "x-forwarded-for",
+    "x-forwarded-proto",
+    "x-forwarded-host",
+    "sec-websocket-key",
+    "sec-websocket-version",
+    "prefer",
+    "a-im",
+    "access-control-request-method",
+    "access-control-request-headers",
+    "sec-ch-ua",
+    "sec-ch-ua-platform",
+    "sec-ch-ua-mobile",
+    "dnt",
+    "sec-gpc",
+    "service-worker",
+    "purpose",
+];
+
+/// Fields a snippet writes only on a response.
+const RESPONSE_ONLY: &[&str] = &[
+    "www-authenticate",
+    "proxy-authenticate",
+    "set-cookie",
+    "content-disposition",
+    "alt-svc",
+    "strict-transport-security",
+    "vary",
+    "server-timing",
+    "content-security-policy",
+    "content-security-policy-report-only",
+    "cache-status",
+    "proxy-status",
+    "accept-ch",
+    "age",
+    "etag",
+    "location",
+    "retry-after",
+    "server",
+    "accept-ranges",
+    "accept-patch",
+    "accept-post",
+    "x-content-type-options",
+    "x-frame-options",
+    "x-xss-protection",
+    "referrer-policy",
+    "permissions-policy",
+    "cross-origin-opener-policy",
+    "cross-origin-embedder-policy",
+    "cross-origin-resource-policy",
+    "origin-agent-cluster",
+    "access-control-allow-origin",
+    "access-control-allow-credentials",
+    "access-control-allow-methods",
+    "access-control-allow-headers",
+    "access-control-expose-headers",
+    "access-control-max-age",
+    "timing-allow-origin",
+    "sunset",
+    "deprecation",
+    "link",
+    "content-location",
+    "expires",
+    "last-modified",
+    "authentication-info",
+    "proxy-authentication-info",
+    "sec-websocket-accept",
+    "clear-site-data",
+    "nel",
+    "report-to",
+    "reporting-endpoints",
+    "x-robots-tag",
+    "priority",
+    "cdn-cache-control",
+    "surrogate-control",
+    "refresh",
+];
+
+/// Where a bare header block goes.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Placement {
+    Request,
+    Response,
+    Either,
+}
+
+fn placement_of(names: &[String], needs_response: bool) -> Placement {
+    let req = names.iter().any(|n| REQUEST_ONLY.contains(&n.as_str()));
+    let resp = names.iter().any(|n| RESPONSE_ONLY.contains(&n.as_str()));
+    match (req, resp) {
+        (true, false) => Placement::Request,
+        (false, true) => Placement::Response,
+        (true, true) => Placement::Either,
+        (false, false) if needs_response => Placement::Response,
+        (false, false) => Placement::Either,
+    }
+}
+
+/// The version string the transaction model records: the two specifications
+/// that have no start-line write the minor digit, and so does a capture.
+// cite(RFC 9113 § 8.3.1): "All HTTP/2 requests implicitly have a protocol version of "2.0""
+// cite(RFC 9114 § 4.3.1): "HTTP/3 requests implicitly have a protocol version of "3.0"."
+fn map_version(v: &str) -> String {
+    match v {
+        "HTTP/2" => "HTTP/2.0".into(),
+        "HTTP/3" => "HTTP/3.0".into(),
+        other => other.to_string(),
+    }
+}
+
+fn strip_trace(line: &str) -> &str {
+    if line == ">" || line == "<" {
+        return "";
+    }
+    line.strip_prefix("> ")
+        .or_else(|| line.strip_prefix("< "))
+        .unwrap_or(line)
+}
+
+fn is_request_line(l: &str) -> bool {
+    let parts: Vec<&str> = l.split(' ').collect();
+    parts.len() == 3
+        && !parts[0].is_empty()
+        && !parts[0].chars().all(|c| c.is_ascii_digit())
+        && !parts[0].contains(':')
+        && parts[2].to_ascii_uppercase().starts_with("HTTP/")
+}
+
+/// `HTTP/1.1 200 OK`, `HTTP/2 200`, or the trace shorthand `200 OK`.
+fn parse_status_line(l: &str) -> Option<(String, u16)> {
+    let mut it = l.split(' ');
+    let first = it.next()?;
+    if first.to_ascii_uppercase().starts_with("HTTP/") {
+        let code: u16 = it.next()?.parse().ok()?;
+        return Some((map_version(first), code));
+    }
+    if first.len() == 3 && first.chars().all(|c| c.is_ascii_digit()) {
+        let code: u16 = first.parse().ok()?;
+        return Some(("HTTP/1.1".into(), code));
+    }
+    None
+}
+
+fn is_header_line(l: &str) -> bool {
+    match l.split_once(':') {
+        Some((n, _)) => !n.is_empty() && !n.contains(' '),
+        None => false,
+    }
+}
+
+fn header_name_of(l: &str) -> String {
+    l.split(':')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase()
+}
+
+/// The value without the inline `  # note` a snippet may put after it.
+fn value_without_note(v: &str) -> &str {
+    let v = match v.find(" #") {
+        Some(i) if v[..i].ends_with(' ') || v[i + 2..].starts_with(' ') => &v[..i],
+        _ => v,
+    };
+    v.trim_end_matches(' ').trim_start_matches(' ')
+}
+
+fn parse_headers(lines: &[String]) -> Result<HeaderMap, String> {
+    let mut hm = HeaderMap::new();
+    for l in lines {
+        let (n, v) = l
+            .split_once(':')
+            .ok_or_else(|| format!("not a header line: {l:?}"))?;
+        let name = HeaderName::from_bytes(n.as_bytes()).map_err(|e| format!("{n:?}: {e}"))?;
+        let value = HeaderValue::from_bytes(value_without_note(v).as_bytes())
+            .map_err(|e| format!("{v:?}: {e}"))?;
+        hm.append(name, value);
+    }
+    Ok(hm)
+}
+
+/// `...500 bytes...`, `<chunked body>`, `(body)`: a stand-in for content the
+/// example does not spell out, which is no content at all.
+fn is_placeholder_body(body: &str) -> bool {
+    let t = body.trim();
+    let bracketed = |open: char, close: char| {
+        t.starts_with(open) && t.ends_with(close) && !t.contains('\n') && !t.starts_with("<html")
+    };
+    t.starts_with("...") || t.starts_with('…') || bracketed('<', '>') || bracketed('(', ')')
+}
+
+/// One message as the snippet wrote it.
+#[derive(Debug, Default, Clone)]
+struct Msg {
+    is_response: bool,
+    method: String,
+    target: String,
+    version: String,
+    status: u16,
+    pseudo: Vec<(String, String)>,
+    headers: Vec<String>,
+    body: Vec<String>,
+    /// Seconds after the previous message, when a comment before it said so.
+    delay: Option<i64>,
+    /// Sent by a second client, when a comment before it said so.
+    other_client: bool,
+}
+
+/// `# thirty seconds later`, `# after 120s`, `# 5 minutes later`.
+fn delay_in_comment(line: &str) -> Option<i64> {
+    let l = line.to_ascii_lowercase();
+    if !(l.contains("later") || l.contains("after")) {
+        return None;
+    }
+    let words: Vec<&str> = l
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect();
+    words
+        .iter()
+        .enumerate()
+        .find_map(|(i, w)| delay_at(&words, i, w))
+}
+
+fn delay_at(words: &[&str], i: usize, w: &str) -> Option<i64> {
+    let digits: String = w.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let (num, unit) = if !digits.is_empty() && digits.len() < w.len() {
+        (digits.parse::<i64>().ok(), &w[digits.len()..])
+    } else {
+        (number_word(w), words.get(i + 1).copied().unwrap_or(""))
+    };
+    let n = num?;
+    let mult = match unit.chars().next()? {
+        's' => 1,
+        'm' => 60,
+        'h' => 3600,
+        'd' => 86400,
+        _ => return None,
+    };
+    Some(n * mult)
+}
+
+fn number_word(w: &str) -> Option<i64> {
+    match w.parse::<i64>() {
+        Ok(n) => Some(n),
+        Err(_) => match w {
+            "one" | "a" | "an" => Some(1),
+            "two" => Some(2),
+            "five" => Some(5),
+            "ten" => Some(10),
+            "thirty" => Some(30),
+            "sixty" => Some(60),
+            _ => None,
+        },
+    }
+}
+
+/// A comment naming another client switches the identity of what follows.
+fn other_client_in_comment(line: &str) -> bool {
+    let l = line.to_ascii_lowercase();
+    l.contains("another client") || l.contains("different client") || l.contains("client b")
+}
+
+/// Reads a snippet line by line into messages.
+#[derive(Default)]
+struct Tokenizer {
+    msgs: Vec<Msg>,
+    cur: Option<Msg>,
+    in_body: bool,
+    pending_delay: Option<i64>,
+    other_client: bool,
+}
+
+impl Tokenizer {
+    fn finish_current(&mut self) {
+        if let Some(m) = self.cur.take() {
+            self.msgs.push(m);
+        }
+    }
+
+    fn comment(&mut self, line: &str) {
+        if let Some(d) = delay_in_comment(line) {
+            self.pending_delay = Some(d);
+        }
+        if other_client_in_comment(line) {
+            self.other_client = true;
+        }
+    }
+
+    fn start(&mut self, msg: Msg) {
+        self.finish_current();
+        self.cur = Some(Msg {
+            delay: self.pending_delay.take(),
+            other_client: self.other_client,
+            ..msg
+        });
+        self.in_body = false;
+    }
+
+    /// A start line ends a body; anything else in a body is content.
+    fn body_line(&mut self, line: &str) -> bool {
+        if !self.in_body || self.cur.is_none() {
+            return false;
+        }
+        if is_request_line(line) || parse_status_line(line).is_some() {
+            self.in_body = false;
+            return false;
+        }
+        self.cur
+            .as_mut()
+            .expect("a message is open")
+            .body
+            .push(line.to_string());
+        true
+    }
+
+    fn pseudo(&mut self, line: &str) -> Option<()> {
+        let (n, v) = line[1..].split_once(':')?;
+        let m = self.cur.get_or_insert_with(|| Msg {
+            version: "HTTP/2.0".into(),
+            ..Default::default()
+        });
+        if n == "status" {
+            m.is_response = true;
+            m.status = v.trim().parse().ok()?;
+        }
+        m.pseudo.push((n.to_string(), v.trim().to_string()));
+        Some(())
+    }
+
+    fn header(&mut self, line: &str) {
+        let m = self.cur.get_or_insert_with(|| Msg {
+            version: "HTTP/1.1".into(),
+            ..Default::default()
+        });
+        m.headers.push(line.to_string());
+    }
+
+    /// `None` when the line is nothing a message can hold.
+    fn line(&mut self, raw: &str) -> Option<()> {
+        let line = strip_trace(raw.trim_end_matches('\r'));
+        if line.starts_with('#') || line.starts_with("//") {
+            self.comment(line);
+            return Some(());
+        }
+        if self.body_line(line) {
+            return Some(());
+        }
+        if line.trim().is_empty() {
+            self.in_body = self.cur.is_some();
+            return Some(());
+        }
+        if is_request_line(line) {
+            let parts: Vec<&str> = line.split(' ').collect();
+            self.start(Msg {
+                method: parts[0].to_string(),
+                target: parts[1].to_string(),
+                version: map_version(parts[2]),
+                ..Default::default()
+            });
+            return Some(());
+        }
+        if let Some((version, status)) = parse_status_line(line) {
+            self.start(Msg {
+                is_response: true,
+                version,
+                status,
+                ..Default::default()
+            });
+            return Some(());
+        }
+        if line.starts_with(':') {
+            return self.pseudo(line);
+        }
+        if is_header_line(line) {
+            self.header(line);
+            return Some(());
+        }
+        None
+    }
+}
+
+/// The messages a snippet holds, or `None` when it has no message shape.
+fn tokenize(snippet: &str) -> Option<Vec<Msg>> {
+    let mut t = Tokenizer::default();
+    for raw in snippet.lines() {
+        t.line(raw)?;
+    }
+    t.finish_current();
+    if t.msgs.is_empty() {
+        None
+    } else {
+        Some(t.msgs)
+    }
+}
+
+fn fresh_tx() -> HttpTransaction {
+    let mut tx = HttpTransaction::new(
+        crate::test_helpers::make_test_client(),
+        "GET".into(),
+        "http://example/".into(),
+    );
+    tx.request.headers = HeaderMap::new();
+    tx
+}
+
+struct Content {
+    length: Option<u64>,
+    bytes: Option<Bytes>,
+    trailers: Option<HeaderMap>,
+}
+
+fn content_of(lines: &[String]) -> Result<Content, String> {
+    let none = Content {
+        length: None,
+        bytes: None,
+        trailers: None,
+    };
+    let text = lines.join("\n");
+    let text = text.trim_end_matches('\n').to_string();
+    if text.trim().is_empty() {
+        return Ok(none);
+    }
+    // A chunked-body placeholder followed by field lines: those are trailers.
+    if lines.len() > 1
+        && is_placeholder_body(&lines[0])
+        && lines[1..].iter().all(|l| is_header_line(l))
+    {
+        return Ok(Content {
+            trailers: Some(parse_headers(&lines[1..])?),
+            ..none
+        });
+    }
+    if is_placeholder_body(&text) {
+        return Ok(none);
+    }
+    Ok(Content {
+        length: Some(text.len() as u64),
+        bytes: Some(Bytes::from(text)),
+        trailers: None,
+    })
+}
+
+/// The target a capture records for pseudo-header control data: the URI the
+/// transport reassembles, or `*` for the asterisk form.
+fn reassembled_target(pseudo: &[(String, String)]) -> Result<String, String> {
+    let get = |k: &str| -> Result<Option<String>, String> {
+        let mut found = pseudo
+            .iter()
+            .filter(|(n, _)| n == k)
+            .map(|(_, v)| v.clone());
+        let first = found.next();
+        if found.next().is_some() {
+            return Err(format!("repeated :{k}"));
+        }
+        Ok(first)
+    };
+    let (scheme, authority, path) = (get("scheme")?, get("authority")?, get("path")?);
+    Ok(match (scheme, authority, path) {
+        (_, _, Some(p)) if p == "*" => "*".into(),
+        (Some(s), Some(a), Some(p)) => format!("{s}://{a}{p}"),
+        (Some(s), Some(a), None) => format!("{s}://{a}"),
+        (_, _, Some(p)) => p,
+        (_, Some(a), None) => a,
+        _ => String::new(),
+    })
+}
+
+fn fill_request(tx: &mut HttpTransaction, m: &Msg) -> Result<(), String> {
+    if m.pseudo.is_empty() {
+        tx.request.method = m.method.clone();
+        tx.request.uri = m.target.clone();
+    } else {
+        let method = m
+            .pseudo
+            .iter()
+            .find(|(n, _)| n == "method")
+            .map(|(_, v)| v.clone());
+        tx.request.method = method.unwrap_or_else(|| "GET".into());
+        tx.request.uri = reassembled_target(&m.pseudo)?;
+    }
+    tx.request.version = m.version.clone();
+    tx.request.headers = parse_headers(&m.headers)?;
+    let content = content_of(&m.body)?;
+    tx.request.body_length = content.length;
+    tx.request_body = content.bytes;
+    tx.request.trailers = content.trailers;
+    Ok(())
+}
+
+fn fill_response(tx: &mut HttpTransaction, m: &Msg) -> Result<(), String> {
+    let headers = parse_headers(&m.headers)?;
+    let content = content_of(&m.body)?;
+    tx.response_body = content.bytes;
+    tx.response = Some(ResponseInfo {
+        status: m.status,
+        version: m.version.clone(),
+        headers,
+        body_length: content.length,
+        body_interrupted: false,
+        trailers: content.trailers,
+    });
+    Ok(())
+}
+
+fn second_client() -> lint_http_core::state::ClientIdentifier {
+    lint_http_core::state::ClientIdentifier::new(
+        std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 2)),
+        "other-agent".to_string(),
+    )
+}
+
+/// Groups messages into transactions: a request and the final response after
+/// it are one; a lone response is one; a lone request is one. Timestamps
+/// advance by the delays the comments named, one second otherwise.
+fn group(msgs: &[Msg]) -> Result<Vec<HttpTransaction>, String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    let mut clock: i64 = 0;
+    let base = chrono::Utc::now() - chrono::Duration::days(1);
+    while i < msgs.len() {
+        let mut tx = fresh_tx();
+        clock += msgs[i].delay.unwrap_or(1);
+        tx.timestamp = base + chrono::Duration::seconds(clock);
+        if msgs[i].other_client {
+            tx.client = second_client();
+        }
+        if msgs[i].is_response {
+            fill_response(&mut tx, &msgs[i])?;
+            i += 1;
+        } else {
+            fill_request(&mut tx, &msgs[i])?;
+            i += 1;
+            // Interim responses are read past; the final one is the answer.
+            while i < msgs.len() && msgs[i].is_response {
+                clock += msgs[i].delay.unwrap_or(0);
+                fill_response(&mut tx, &msgs[i])?;
+                i += 1;
+                if msgs[i - 1].status >= 200 {
+                    break;
+                }
+            }
+        }
+        out.push(tx);
+    }
+    Ok(out)
+}
+
+/// The rule's own config example, enabled, is the configuration its examples
+/// are documented beside.
+fn rule_config(rule: &dyn Rule) -> crate::config::Config {
+    let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+    if let Ok(mut t) = rule.config_example().parse::<toml::Table>() {
+        t.insert("enabled".into(), toml::Value::Boolean(true));
+        cfg.rules
+            .insert(rule.id().to_string(), toml::Value::Table(t));
+    }
+    cfg
+}
+
+fn ids_of(found: Vec<crate::lint::Violation>) -> Vec<String> {
+    found.into_iter().map(|v| v.violation).collect()
+}
+
+fn judge_one(rule: &dyn Rule, cfg: &crate::config::Config, tx: &HttpTransaction) -> Vec<String> {
+    ids_of(crate::test_helpers::run_rule_all(
+        rule,
+        tx,
+        &crate::transaction_history::TransactionHistory::empty(),
+        cfg,
+    ))
+}
+
+/// The last transaction judged with the earlier ones as its history, all on
+/// one connection.
+fn judge_story(
+    rule: &dyn Rule,
+    cfg: &crate::config::Config,
+    mut txs: Vec<HttpTransaction>,
+) -> Vec<String> {
+    let conn = uuid::Uuid::new_v4();
+    for t in txs.iter_mut() {
+        t.connection_id = Some(conn);
+    }
+    let last = txs.pop().expect("a story has a last exchange");
+    // History is newest-first; the group stamped the timestamps increasing.
+    txs.reverse();
+    let history = crate::transaction_history::TransactionHistory::from_transactions(txs);
+    ids_of(crate::test_helpers::run_rule_all(
+        rule, &last, &history, cfg,
+    ))
+}
+
+/// Why a snippet was not judged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Skipped {
+    /// Every line names the same field: alternatives, not a message.
+    SameNameList,
+    /// Nothing in it is a message.
+    NoMessageShape,
+    /// A name or value the header map refuses.
+    Unbuildable,
+}
+
+/// The findings each judged message drew; one entry per message judged.
+type Verdicts = Vec<Vec<String>>;
+
+/// A bare header block, placed on the side its names belong to; a block
+/// naming both sides is two messages, one each way.
+fn judge_bare(
+    rule: &dyn Rule,
+    cfg: &crate::config::Config,
+    msgs: &[Msg],
+) -> Result<Verdicts, Skipped> {
+    let names: Vec<String> = msgs
+        .iter()
+        .flat_map(|m| m.headers.iter())
+        .map(|l| header_name_of(l))
+        .collect();
+    if names.len() > 1 && names.iter().all(|n| n == &names[0]) {
+        return Err(Skipped::SameNameList);
+    }
+    let placement = placement_of(&names, rule.needs_response());
+    let mut out = Vec::new();
+    for m in msgs {
+        let mut fired = Vec::new();
+        for (as_response, lines) in bare_variants(m, placement, rule.needs_response()) {
+            let mut mm = m.clone();
+            mm.headers = lines;
+            let mut tx = fresh_tx();
+            let built = if as_response {
+                mm.is_response = true;
+                mm.status = 200;
+                mm.version = "HTTP/1.1".into();
+                fill_response(&mut tx, &mm)
+            } else {
+                mm.method = "GET".into();
+                mm.target = "/".into();
+                mm.version = "HTTP/1.1".into();
+                fill_request(&mut tx, &mm)
+            };
+            built.map_err(|_| Skipped::Unbuildable)?;
+            fired.extend(judge_one(rule, cfg, &tx));
+        }
+        out.push(fired);
+    }
+    Ok(out)
+}
+
+/// `(as_response, header lines)` for each side a bare block is judged on.
+fn bare_variants(m: &Msg, placement: Placement, needs_response: bool) -> Vec<(bool, Vec<String>)> {
+    let names: Vec<String> = m.headers.iter().map(|l| header_name_of(l)).collect();
+    let p = match placement {
+        Placement::Either => placement_of(&names, needs_response),
+        p => p,
+    };
+    match p {
+        Placement::Request => vec![(false, m.headers.clone())],
+        Placement::Response => vec![(true, m.headers.clone())],
+        Placement::Either => {
+            let not_in = |set: &[&str]| -> Vec<String> {
+                m.headers
+                    .iter()
+                    .filter(|l| !set.contains(&header_name_of(l).as_str()))
+                    .cloned()
+                    .collect()
+            };
+            [(false, not_in(RESPONSE_ONLY)), (true, not_in(REQUEST_ONLY))]
+                .into_iter()
+                .filter(|(_, lines)| !lines.is_empty())
+                .collect()
+        }
+    }
+}
+
+/// Everything a rule's example is judged as.
+fn judge(rule: &dyn Rule, ex: &crate::rules::Example) -> Result<Verdicts, Skipped> {
+    let cfg = rule_config(rule);
+    let mut msgs = tokenize(ex.snippet).ok_or(Skipped::NoMessageShape)?;
+    if ex.label.is_some_and(|l| l.contains("HTTP/3")) {
+        for m in msgs.iter_mut().filter(|m| !m.pseudo.is_empty()) {
+            m.version = "HTTP/3.0".into();
+        }
+    }
+    let bare = msgs
+        .iter()
+        .all(|m| !m.is_response && m.method.is_empty() && m.pseudo.is_empty());
+    if bare {
+        return judge_bare(rule, &cfg, &msgs);
+    }
+    let txs = group(&msgs).map_err(|_| Skipped::Unbuildable)?;
+    // Several messages with a response among them are one story; a run of
+    // requests alone is a list of alternatives.
+    if msgs.len() > 1 && msgs.iter().any(|m| m.is_response) {
+        return Ok(vec![judge_story(rule, &cfg, txs)]);
+    }
+    Ok(txs.iter().map(|tx| judge_one(rule, &cfg, tx)).collect())
+}
+
+/// A compliant example draws nothing on any message; a non-compliant one
+/// draws a finding on every message it lists, or on the story's last exchange.
+fn as_labelled(compliance: Compliance, verdicts: &Verdicts) -> bool {
+    match compliance {
+        Compliance::Compliant => verdicts.iter().all(|v| v.is_empty()),
+        Compliance::NonCompliant => verdicts.iter().all(|v| !v.is_empty()),
+    }
+}
+
+#[test]
+fn published_examples_are_judged_the_way_they_are_labelled() {
+    use std::collections::BTreeMap;
+    let mut skipped: BTreeMap<Skipped, Vec<String>> = BTreeMap::new();
+    let mut mismatches: Vec<String> = Vec::new();
+    let mut judged = 0usize;
+    for rule in crate::rules::REGISTERED_RULES.iter() {
+        let rule: &dyn Rule = *rule;
+        for ex in rule.examples() {
+            let label = ex.label.unwrap_or("");
+            let first_line = ex.snippet.lines().next().unwrap_or("");
+            match judge(rule, ex) {
+                Err(why) => skipped
+                    .entry(why)
+                    .or_default()
+                    .push(format!("{} {label} {first_line}", rule.id())),
+                Ok(verdicts) => {
+                    judged += 1;
+                    if !as_labelled(ex.compliance, &verdicts) {
+                        mismatches.push(format!(
+                            "{} labelled {:?} {label}: {first_line:?} drew {verdicts:?}",
+                            rule.id(),
+                            ex.compliance
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "{} published examples are not judged the way they are labelled:\n  {}",
+        mismatches.len(),
+        mismatches.join("\n  ")
+    );
+    // The three shapes nothing here can judge, each pinned so a new example
+    // landing in one of them is noticed rather than silently unjudged.
+    let count = |k: Skipped| skipped.get(&k).map_or(0, Vec::len);
+    assert_eq!(
+        count(Skipped::SameNameList),
+        22,
+        "{:?}",
+        skipped.get(&Skipped::SameNameList)
+    );
+    assert_eq!(
+        count(Skipped::NoMessageShape),
+        0,
+        "{:?}",
+        skipped.get(&Skipped::NoMessageShape)
+    );
+    assert_eq!(
+        count(Skipped::Unbuildable),
+        2,
+        "{:?}",
+        skipped.get(&Skipped::Unbuildable)
+    );
+    assert!(judged > 800, "{judged} examples judged");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_status_first_trace_line_is_not_a_request() {
+        assert!(!is_request_line("401 Unauthorized HTTP/1.1"));
+        assert_eq!(
+            parse_status_line("401 Unauthorized HTTP/1.1"),
+            Some(("HTTP/1.1".into(), 401))
+        );
+        assert!(is_request_line("G@T /index.html HTTP/1.1"));
+    }
+
+    #[test]
+    fn comments_carry_time_and_identity() {
+        assert_eq!(delay_in_comment("# thirty seconds later"), Some(30));
+        assert_eq!(delay_in_comment("# revalidates after 120s"), Some(120));
+        assert_eq!(delay_in_comment("# five minutes later"), Some(300));
+        assert_eq!(delay_in_comment("# later, after expiry:"), None);
+        assert!(other_client_in_comment("# later, a different client sends"));
+    }
+
+    #[test]
+    fn an_inline_note_is_not_part_of_the_value() {
+        assert_eq!(value_without_note(" ?1  # whitespace is trimmed"), "?1");
+        assert_eq!(value_without_note(" a#b"), "a#b");
+    }
+
+    #[test]
+    fn the_asterisk_form_reassembles_to_the_asterisk() {
+        let pseudo = vec![
+            ("scheme".to_string(), "https".to_string()),
+            ("authority".to_string(), "example.com".to_string()),
+            ("path".to_string(), "*".to_string()),
+        ];
+        assert_eq!(reassembled_target(&pseudo).unwrap(), "*");
+    }
+}
