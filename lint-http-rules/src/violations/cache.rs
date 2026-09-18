@@ -46,6 +46,14 @@ defects! {
     /// from `Last-Modified` where the response carries one and from `Date`
     /// where it does not.
     ///
+    /// **A time only ever descends against another read off the same header.**
+    /// `Last-Modified` and `Date` measure different events, and within one
+    /// response the edit precedes the sending, so a later message's
+    /// `Last-Modified` sits below an earlier message's `Date` whenever the two
+    /// responses merely differ in which header they carry. An unchanged page
+    /// served twice, once by a hop that omits `Last-Modified`, is enough — and
+    /// says nothing about any version being current.
+    ///
     /// **`_conflicting` because that is what the evidence supports.** Two
     /// responses for one resource disagree about which version is current, and
     /// the finding is that disagreement rather than a demonstration that any

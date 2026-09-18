@@ -14,9 +14,38 @@ use crate::rules::{Rule, RuleMeta};
 /// same URI — by computing a simple timestamp from the `Last-Modified` header
 /// (RFC 9110 §8.8.2, the representation's own modification time) or, failing
 /// that, the `Date` header (RFC 9110 §6.6.1, only the message's origination
-/// time, a coarser proxy).  It examines neither validators such as `ETag` nor the Vary
+/// time, a coarser proxy).  The two are compared only with themselves — a
+/// `Last-Modified` read against a `Date` reports staleness that is an artefact
+/// of which headers the pair of responses carried rather than of the traffic,
+/// for the reason the private `Clock` type records.  It
+/// examines neither validators such as `ETag` nor the Vary
 /// secondary key, so URI identity is itself an approximation of the cache key.
 pub struct CacheCoherence;
+
+/// Which of two clocks a representation time was read off.
+///
+/// They are never compared with one another. `Last-Modified` names when the
+/// origin believes the representation was edited; `Date` names when it
+/// originated the message carrying it. For any one response the first is at or
+/// before the second — a server cannot describe a representation before it has
+/// one — so reading a later response's `Last-Modified` against an earlier
+/// response's `Date` compares a smaller number with a larger one for reasons
+/// that have nothing to do with staleness. Two responses for an unchanged page,
+/// one of which happens not to advertise its modification time, are enough to
+/// produce it.
+///
+/// Keeping the clocks apart costs nothing the rule was entitled to: the maximum
+/// within one clock is a maximum over a subset, so every finding that survives
+/// is one the mixed comparison also made.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Clock {
+    /// `Last-Modified` — the representation's own edit time, and the signal the
+    /// rule is really after: a decrease is the representation going backwards.
+    Representation,
+    /// `Date` — the message's origination time, the coarser fallback used only
+    /// when a response times nothing else.
+    Message,
+}
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -58,7 +87,7 @@ impl RuleMeta for CacheCoherence {
     }
 
     fn description(&self) -> &'static str {
-        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously, we report a violation — the later response\nappears to be serving a stale representation.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  304 Not Modified\nresponses are skipped since they do not convey a new representation."
+        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\nthe later response appears to be serving a stale representation.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  304 Not Modified\nresponses are skipped since they do not convey a new representation."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -132,7 +161,9 @@ impl Rule for CacheCoherence {
             // helper to extract a "representation time" from headers.  We prefer
             // Last-Modified but fall back to Date.  Return None if neither can be
             // parsed.
-            fn rep_time(headers: &hyper::HeaderMap) -> Option<chrono::DateTime<chrono::Utc>> {
+            fn rep_time(
+                headers: &hyper::HeaderMap,
+            ) -> Option<(chrono::DateTime<chrono::Utc>, Clock)> {
                 // Prefer Last-Modified: it timestamps the *representation* itself, so
                 // a decrease directly signals the representation went backwards. The
                 // HTTP-date grammar is owned by the parse helper (§5.6.7).
@@ -140,7 +171,7 @@ impl Rule for CacheCoherence {
                 if let Some(hv) = headers.get("last-modified") {
                     if let Ok(s) = hv.to_str() {
                         if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                            return Some(dt);
+                            return Some((dt, Clock::Representation));
                         }
                     }
                 }
@@ -153,17 +184,18 @@ impl Rule for CacheCoherence {
                 if let Some(hv) = headers.get("date") {
                     if let Ok(s) = hv.to_str() {
                         if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                            return Some(dt);
+                            return Some((dt, Clock::Message));
                         }
                     }
                 }
                 None
             }
 
-            let curr_time = rep_time(&resp.headers)?; // nothing we can compare
+            let (curr_time, curr_clock) = rep_time(&resp.headers)?; // nothing we can compare
 
-            // scan previous history entries for the same URI and track the largest
-            // timestamp we've seen so far.
+            // Scan previous history entries for the same URI and track the largest
+            // timestamp read off THE SAME CLOCK, which is the only comparison that
+            // means anything: see `Clock`.
             let mut max_prev: Option<chrono::DateTime<chrono::Utc>> = None;
             for prev in history.iter() {
                 // URI identity stands in for the cache key. This is an
@@ -175,7 +207,10 @@ impl Rule for CacheCoherence {
                     continue;
                 }
                 if let Some(prev_resp) = &prev.response {
-                    if let Some(t) = rep_time(&prev_resp.headers) {
+                    if let Some((t, prev_clock)) = rep_time(&prev_resp.headers) {
+                        if prev_clock != curr_clock {
+                            continue;
+                        }
                         max_prev = Some(match max_prev {
                             Some(existing) => std::cmp::max(existing, t),
                             None => t,
@@ -298,6 +333,77 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
         assert!(v.is_some());
+    }
+
+    /// The shape a real origin serves: one unchanging page, fetched three
+    /// times, where the middle response happens to omit `Last-Modified`. Its
+    /// `Date` is *now* and the page's edit time is months back, so a rule that
+    /// compares the two clocks reports the third response — byte-identical to
+    /// the first — as stale.
+    #[test]
+    fn last_modified_under_a_sibling_date_is_not_a_regression() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let edited = "Tue, 16 Jun 2026 14:44:29 GMT";
+        let first = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("last-modified", edited),
+                ("date", "Sat, 29 Aug 2026 23:57:49 GMT"),
+            ],
+        );
+        // Same page, same hop-visible content, but this response times only
+        // itself: its Date is the newest number either header has produced.
+        let mut bare = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[("date", "Sat, 29 Aug 2026 23:57:53 GMT")],
+        );
+        bare.timestamp = first.timestamp + chrono::Duration::seconds(1);
+        let mut curr = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("last-modified", edited),
+                ("date", "Sat, 29 Aug 2026 23:57:54 GMT"),
+            ],
+        );
+        curr.timestamp = first.timestamp + chrono::Duration::seconds(2);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![bare, first]);
+        assert!(crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).is_none());
+    }
+
+    /// The clocks are kept apart, not silenced: a `Last-Modified` that descends
+    /// against another `Last-Modified` still reports, even with a later `Date`
+    /// standing between them.
+    #[test]
+    fn last_modified_decrease_flagged_across_a_bare_sibling() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let first = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[("last-modified", "Sun, 30 Aug 2026 01:36:09 GMT")],
+        );
+        let mut bare = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[("date", "Sun, 30 Aug 2026 01:40:00 GMT")],
+        );
+        bare.timestamp = first.timestamp + chrono::Duration::seconds(1);
+        let mut curr = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[("last-modified", "Sun, 30 Aug 2026 01:35:43 GMT")],
+        );
+        curr.timestamp = first.timestamp + chrono::Duration::seconds(2);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![bare, first]);
+        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
+        assert!(v.is_some());
+        assert_eq!(v.unwrap().violation, "cache_response_conflicting");
     }
 
     #[test]
