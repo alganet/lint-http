@@ -173,7 +173,10 @@ impl Rule for MustRevalidateEnforced {
             // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
             let (prev_tx, prev_resp) = history.responses().find(|(prev_tx, resp)| {
                 header_has_must_revalidate(&resp.headers)
-                    && stored_method_allows(&prev_tx.request.method, &tx.request.method)
+                    && crate::helpers::stored_response::method_allows(
+                        &prev_tx.request.method,
+                        &tx.request.method,
+                    )
             })?;
 
             // Freshness lifetime advertised by the response. The helper owns the §4.2.1
@@ -220,27 +223,6 @@ impl Rule for MustRevalidateEnforced {
         };
         Vec::from_iter(finding())
     }
-}
-
-/// Whether a stored response recorded against `stored` may be used to answer a
-/// request that presents `presented`.
-///
-/// §4 leaves this deliberately looser than equality — "allows it to be used for"
-/// rather than "matches" — because a stored `GET` response is the documented
-/// source for a `HEAD` reply, and §4.3.5 has a `HEAD` freshening a stored `GET`
-/// for the same reason. Everything else is equality: a stored `GET` is no
-/// candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and a rule about
-/// reuse has nothing to say about a request no reuse could have served.
-fn stored_method_allows(stored: &str, presented: &str) -> bool {
-    // Before asking what the entry may answer, ask whether it is an entry. A
-    // method that defines no caching semantics leaves nothing behind to go
-    // stale, so an OPTIONS answered from a previous OPTIONS is not a reuse of
-    // anything -- there was never a stored response to reuse.
-    // cite(RFC 9110 § 9.2.3): "This specification defines caching semantics for GET, HEAD, and POST"
-    if !matches!(stored, "GET" | "HEAD" | "POST") {
-        return false;
-    }
-    stored == presented || (stored == "GET" && presented == "HEAD")
 }
 
 /// Helper to detect presence of a must-revalidate directive in Cache-Control

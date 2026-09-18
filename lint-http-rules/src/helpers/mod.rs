@@ -113,6 +113,7 @@ pub mod rule_config;
 pub mod scheme;
 pub mod shown;
 pub mod status;
+pub mod stored_response;
 pub mod structured_fields;
 pub mod token;
 pub mod uri;

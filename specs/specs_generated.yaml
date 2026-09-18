@@ -8346,6 +8346,12 @@ sources:
       line: 7
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 84
+  - label: lint-http-rules/src/helpers/stored_response.rs
+    section: § 9.2.3
+    snippet: This specification defines caching semantics for GET, HEAD, and POST
+    cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 38
   - label: lint-http-rules/src/helpers/token.rs
     section: § 5.6.2
     snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
@@ -8674,12 +8680,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 263
-  - label: must_revalidate_enforced
-    section: § 9.2.3
-    snippet: This specification defines caching semantics for GET, HEAD, and POST
-    cited_by:
-    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 239
   - label: no_body_for_1xx_204_304
     section: § 15.3.5
     snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -10510,7 +10510,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 270
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 137
+      line: 178
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 315
   - label: lint-http-rules/src/helpers/cache_control.rs (9)
@@ -10522,7 +10522,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 271
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 153
+      line: 194
   - label: lint-http-rules/src/helpers/cache_control.rs (10)
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
@@ -10539,6 +10539,16 @@ sources:
       line: 202
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 281
+  - label: lint-http-rules/src/helpers/stored_response.rs
+    section: § 4
+    snippet: the request method associated with the stored response allows it to be used for the presented request
+    cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 39
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 173
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 154
   - label: lint-http-rules/src/helpers/vary.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
@@ -10572,37 +10582,31 @@ sources:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 115
   - label: must_revalidate_enforced
-    section: § 4
-    snippet: the request method associated with the stored response allows it to be used for the presented request
-    cited_by:
-    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 173
-  - label: must_revalidate_enforced (2)
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 205
-  - label: must_revalidate_enforced (3)
+      line: 208
+  - label: must_revalidate_enforced (2)
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 197
+      line: 200
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 133
+      line: 174
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 98
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 134
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 112
-  - label: must_revalidate_enforced (4)
+  - label: must_revalidate_enforced (3)
     section: § 5.2.2.2
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 210
+      line: 213
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 298
   - label: pragma_token_valid
