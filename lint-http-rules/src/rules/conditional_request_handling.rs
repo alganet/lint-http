@@ -94,12 +94,83 @@ impl ConditionalRequestHandling {
     /// stateful heuristic with no governing MUST/SHOULD in RFC 9110 (recorded
     /// §4.1) — `If-None-Match: *` legitimately needs no prior tag — so none of
     /// these findings carries a cite.
+    /// Whether any response this exchange holds for the resource actually
+    /// carried the validator the precondition names.
+    ///
+    /// **The question this whole function is named for is about a value, and
+    /// the tests below never ask it.** They ask whether the *immediately
+    /// previous* response happened to carry a validator of the right kind,
+    /// which is a different question with a different answer: one unrelated
+    /// response between the store and the revalidation — a `503`, a redirect,
+    /// anything an origin emits without an `ETag` — makes a client conditioning
+    /// on exactly the tag it was given read as a client that invented one.
+    /// History is already scoped to this (client, resource) pair by the rule's
+    /// `ByResource` query, so every response here is one for this resource.
+    fn entity_tag_was_provided(
+        headers: &hyper::HeaderMap,
+        history: &crate::transaction_history::TransactionHistory,
+    ) -> bool {
+        let lines: Vec<String> = ["if-none-match", "if-match"]
+            .iter()
+            .flat_map(|name| crate::helpers::headers::field_lines_as_written(headers, name))
+            .collect();
+        !lines.is_empty()
+            && history.responses().any(|(_, resp)| {
+                crate::helpers::validator::extract_validators_from_response(&resp.headers)
+                    .0
+                    .is_some_and(|known| {
+                        lines
+                            .iter()
+                            .any(|line| crate::helpers::validator::inm_matches_known(line, &known))
+                    })
+            })
+    }
+
+    /// [`Self::entity_tag_was_provided`]'s other half. Two spellings of one
+    /// instant are one validator, so the comparison is on parsed instants where
+    /// both sides parse and on the text where either does not.
+    fn last_modified_was_provided(
+        headers: &hyper::HeaderMap,
+        history: &crate::transaction_history::TransactionHistory,
+    ) -> bool {
+        let sent: Vec<String> = ["if-modified-since", "if-unmodified-since"]
+            .iter()
+            .filter_map(|name| crate::helpers::headers::get_header_str(headers, name))
+            .map(|v| v.trim().to_string())
+            .collect();
+        !sent.is_empty()
+            && history.responses().any(|(_, resp)| {
+                crate::helpers::validator::extract_validators_from_response(&resp.headers)
+                    .1
+                    .is_some_and(|known| {
+                        let known = known.trim();
+                        sent.iter().any(|s| {
+                            match (
+                                crate::http_date::parse_http_date_to_datetime(s),
+                                crate::http_date::parse_http_date_to_datetime(known),
+                            ) {
+                                (Ok(a), Ok(b)) => a == b,
+                                _ => s == known,
+                            }
+                        })
+                    })
+            })
+    }
+
     fn validator_was_observed(
         &self,
+        tx: &crate::http_transaction::HttpTransaction,
         sent: &Preconditions,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
+        // A validator this exchange did provide is not one it never provided,
+        // whatever the most recent response happens to carry.
+        if (sent.entity_tag() && Self::entity_tag_was_provided(&tx.request.headers, history))
+            || (sent.date() && Self::last_modified_was_provided(&tx.request.headers, history))
+        {
+            return None;
+        }
         let Some(prev) = history.previous() else {
             return Some(ctx.by_client().report_with(&CONDITIONAL_VALIDATOR_MISSING, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()));
         };
@@ -262,7 +333,7 @@ impl Rule for ConditionalRequestHandling {
             if !sent.any() {
                 return None;
             }
-            self.validator_was_observed(&sent, history, ctx)
+            self.validator_was_observed(tx, &sent, history, ctx)
                 .or_else(|| self.if_none_match_was_evaluated(tx, &sent, ctx))
                 .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx))
         };
@@ -284,6 +355,18 @@ mod tests {
         let mut prev = crate::test_helpers::make_test_transaction_with_response(200, headers);
         prev.request.method = "GET".to_string();
         prev
+    }
+
+    /// `TransactionHistory` is newest-first and debug-asserts it, while the
+    /// fixtures above stamp themselves at construction — so a two-entry history
+    /// has to say which one is older rather than rely on the order it was
+    /// written in.
+    fn aged(
+        mut tx: crate::http_transaction::HttpTransaction,
+        seconds: i64,
+    ) -> crate::http_transaction::HttpTransaction {
+        tx.timestamp -= chrono::Duration::seconds(seconds);
+        tx
     }
 
     /// Four situations, one entry, because the claim is the same in all four:
@@ -316,6 +399,76 @@ mod tests {
         ]);
         let found = crate::test_helpers::run_rule(&ConditionalRequestHandling, &tx, &history, &cfg)
             .expect("a finding");
+        assert_eq!(found.violation, "conditional_validator_missing");
+    }
+
+    /// A validator this exchange *did* provide is not one it never provided.
+    ///
+    /// The entry's claim is about the value, so one unrelated response between
+    /// the store and the revalidation must not change the answer: an origin
+    /// that emits a `503` — or anything else without a validator — leaves the
+    /// client holding exactly the tag it was given, and it is still that tag.
+    #[test]
+    fn a_validator_an_earlier_response_carried_is_not_one_that_was_never_provided() {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "conditional_request_handling",
+        ]);
+        // Newest first: the blip, then the response that handed out the tag.
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            aged(make_prev_with_headers(&[("cache-control", "no-store")]), 1),
+            aged(make_prev_with_headers(&[("etag", "\"v1\"")]), 2),
+        ]);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v1\"")]);
+        assert!(
+            crate::test_helpers::run_rule(&ConditionalRequestHandling, &tx, &history, &cfg)
+                .is_none(),
+            "the exchange provided \"v1\"; a later response without an ETag does not unprovide it"
+        );
+
+        // The same shape on the date half of the entry.
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            aged(make_prev_with_headers(&[("cache-control", "no-store")]), 1),
+            aged(
+                make_prev_with_headers(&[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")]),
+                2,
+            ),
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "if-modified-since",
+            "Wed, 21 Oct 2015 07:28:00 GMT",
+        )]);
+        assert!(
+            crate::test_helpers::run_rule(&ConditionalRequestHandling, &tx, &history, &cfg)
+                .is_none(),
+            "the exchange provided that Last-Modified"
+        );
+    }
+
+    /// The narrowing above turns on the value and on nothing else: a tag no
+    /// response ever carried is still unaccountable, however many responses
+    /// carried some other one.
+    #[test]
+    fn a_tag_no_response_carried_is_still_unaccountable() {
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            aged(make_prev_with_headers(&[("cache-control", "no-store")]), 1),
+            aged(make_prev_with_headers(&[("etag", "\"v2\"")]), 2),
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v1\"")]);
+        let found = crate::test_helpers::run_rule(
+            &ConditionalRequestHandling,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        )
+        .expect("a finding");
         assert_eq!(found.violation, "conditional_validator_missing");
     }
 
