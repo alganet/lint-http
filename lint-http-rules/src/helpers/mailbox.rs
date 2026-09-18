@@ -134,15 +134,26 @@ pub enum MailboxSyntaxDefect {
     AtSignMissing(Option<char>),
     /// The value ends where the `addr-spec` has its `domain`.
     DomainMissing,
-    /// The `angle-addr`'s `"<"` is not where the `name-addr` puts it — which
-    /// is what an `obs-phrase`'s bare `.` in a display-name comes to.
+    /// The `angle-addr`'s `"<"` is not where the `name-addr` puts it, and is
+    /// nowhere else either: a display-name beside a *bare* `addr-spec`, or a
+    /// value that ends. It is never the reading for a value that carries one —
+    /// see `Reader::display_name_stop`.
     AngleAddrMissing(Option<char>),
     /// The `angle-addr`'s closing `">"` is not where the production puts it.
     AngleAddrUnterminated(Option<char>),
     /// A display-name was opened and holds no `word`.
     DisplayNameWordMissing(Option<char>),
-    /// A complete `mailbox` with something after it.
-    TrailingCharacter(char),
+    /// A production that completed, with something after it the value has no
+    /// room for. `after` is the production: the whole `mailbox` at the top
+    /// level, or one of its parts where the next part is due and what is
+    /// there instead is not a character any part refuses -- only one no part
+    /// wanted here.
+    TrailingCharacter {
+        /// The character.
+        character: char,
+        /// What it follows.
+        after: &'static str,
+    },
 }
 
 impl MailboxSyntaxDefect {
@@ -200,8 +211,8 @@ impl MailboxSyntaxDefect {
             Self::DisplayNameWordMissing(at) => {
                 format!("{} where the display-name has a word", stopped_at(at))
             }
-            Self::TrailingCharacter(c) => {
-                format!("{} follows a complete mailbox", describe_char(c))
+            Self::TrailingCharacter { character, after } => {
+                format!("{} follows a complete {after}", describe_char(character))
             }
         }
     }
@@ -252,7 +263,10 @@ pub fn parse_mailbox(value: &str) -> Result<Mailbox, MailboxDefect> {
         None => Ok(parsed),
         Some(',') => Err(MailboxDefect::ListSeparator),
         Some(c) => Err(MailboxDefect::Syntax(
-            MailboxSyntaxDefect::TrailingCharacter(c),
+            MailboxSyntaxDefect::TrailingCharacter {
+                character: c,
+                after: "mailbox",
+            },
         )),
     }
 }
@@ -581,7 +595,101 @@ impl<'a> Reader<'a> {
                 character: c,
             },
             Some(c) if !in_angle_addr => MailboxSyntaxDefect::AngleAddrMissing(Some(c)),
-            at => MailboxSyntaxDefect::AtSignMissing(at),
+            // Inside an `angle-addr` there is no display-name reading to offer,
+            // and the at-sign is not the answer either: this arm is reached only
+            // with one still in the value. What is true of `<a ice@example.com>`
+            // is that the `local-part` finished -- at the CFWS `dot-atom` admits
+            // around it, or at a `quoted-string`'s closing DQUOTE -- and a word
+            // follows it where the production writes the `"@"`.
+            Some(c) => MailboxSyntaxDefect::TrailingCharacter {
+                character: c,
+                after: "local-part",
+            },
+            // Unreachable: the value ending is the `@` being absent, which the
+            // test above already answered. Written rather than asserted, for the
+            // reason the two stops below are.
+            None => MailboxSyntaxDefect::AtSignMissing(None),
+        }
+    }
+
+    /// What stopped the `display-name`, for a `name-addr` whose next character
+    /// is not the `"<"`.
+    ///
+    /// **The `angle-addr` is always still there.** `has_top_level_angle` is what
+    /// chose this alternative of `mailbox`, and it found a `<` outside every
+    /// quoted-string, comment and domain-literal; nothing between that test and
+    /// here consumes one. So a reading that stops short of it has not found a
+    /// mailbox with no `angle-addr` -- which is what the entry says in as many
+    /// words -- it has found a character the `phrase` before the `angle-addr`
+    /// cannot hold. `John Q. Public <jqp@example.com>` is the shape that makes
+    /// this plain: an `obs-phrase`'s bare dot, with an angle-addr two words
+    /// along that the finding used to deny.
+    ///
+    /// The character is always one `atext` refuses, because the loop that reads
+    /// the phrase consumes every `atext`, every `quoted-string` and every
+    /// `CFWS`, and stops only at what none of the three admits.
+    ///
+    /// The value running out is the one ending where the `<` really is absent.
+    /// It cannot happen, and it is rendered rather than asserted for the reason
+    /// the caller states: a parser that panics on its own invariant is worse
+    /// than one that reports a sentence nobody reads.
+    // cite(RFC 5322 § 3.2.5): "phrase = 1*word / obs-phrase"
+    fn display_name_stop(&self) -> MailboxSyntaxDefect {
+        match self.peek() {
+            Some(character) => MailboxSyntaxDefect::AtomCharacter {
+                what: "display-name",
+                character,
+            },
+            None => MailboxSyntaxDefect::AngleAddrMissing(None),
+        }
+    }
+
+    /// What stopped the `angle-addr`, for a value whose next character is not
+    /// the closing `">"`.
+    ///
+    /// **The `">"` is usually still there**, and for the same reason the
+    /// at-sign usually is: `dot_atom_text` stops at the first character `atext`
+    /// does not admit and returns what it read, so `<alice@e\xample.com>`
+    /// arrives here positioned on the backslash with its `>` eight characters
+    /// further on. Calling the `angle-addr` never closed says something the
+    /// value contradicts, under an entry whose title is exactly that sentence.
+    ///
+    /// **So the absence is checked before it is reported.** When no `">"`
+    /// remains the entry is right and keeps its message. When one does, what
+    /// stopped the reading is reported instead:
+    ///
+    /// - a character `atext` does not admit ended the `domain`, where the
+    ///   domain was a `dot-atom` -- which `domain_was_an_atom` is asked for,
+    ///   since a `domain-literal` is read against `dtext` and holds no atom to
+    ///   name;
+    /// - otherwise the `addr-spec` is complete and something follows it inside
+    ///   the brackets: the `CFWS` a `dot-atom` admits around itself with a
+    ///   second atom after it, or a literal with anything at all after it.
+    ///
+    // cite(RFC 5322 § 3.4): "angle-addr = [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr"
+    // cite(RFC 5322 § 3.4.1): "addr-spec = local-part "@" domain"
+    fn angle_addr_stop(&self, domain_was_an_atom: bool) -> MailboxSyntaxDefect {
+        // The question the entry asks, asked. A `>` inside a later comment or
+        // quoted-string would answer it too generously, and the cost of that is
+        // reporting the character the reading actually stopped at -- which is
+        // true of the value either way. The cost of not asking is a title that
+        // is false.
+        if !self.c[self.i..].contains(&'>') {
+            return MailboxSyntaxDefect::AngleAddrUnterminated(self.peek());
+        }
+        match self.peek() {
+            Some(character) if domain_was_an_atom && !is_atext(character) => {
+                MailboxSyntaxDefect::AtomCharacter {
+                    what: "domain",
+                    character,
+                }
+            }
+            Some(character) => MailboxSyntaxDefect::TrailingCharacter {
+                character,
+                after: "addr-spec",
+            },
+            // Unreachable, as above: the value ending is the `>` being absent.
+            None => MailboxSyntaxDefect::AngleAddrUnterminated(None),
         }
     }
 
@@ -598,14 +706,14 @@ impl<'a> Reader<'a> {
         // because a parser that panics on its own invariant is worse than one
         // that reports a sentence nobody reads.
         if self.peek() != Some('<') {
-            return Err(MailboxSyntaxDefect::AngleAddrMissing(self.peek()));
+            return Err(self.display_name_stop());
         }
         self.i += 1;
 
         let domain_name = self.addr_spec(true)?;
 
         if self.peek() != Some('>') {
-            return Err(MailboxSyntaxDefect::AngleAddrUnterminated(self.peek()));
+            return Err(self.angle_addr_stop(domain_name.is_some()));
         }
         self.i += 1;
         self.skip_cfws()?;
@@ -732,12 +840,31 @@ mod tests {
     #[case("alice@example.com.", "the domain has a \".\" with no atext after it")]
     #[case("Alice <alice@example.com", "ends where the angle-addr has its \">\"")]
     #[case("alice@example.com>", "'>' follows a complete mailbox")]
+    // The angle-addr closes at the end of each of these, so what stopped the
+    // reading is what is named. The first two are the domain's `dot-atom`
+    // refusing an octet; the third is a domain-literal, which is read against
+    // `dtext` and holds no atom to name, so what is true of it is that the
+    // addr-spec finished and something follows it; the fourth is that same
+    // sentence about a `dot-atom` domain whose CFWS has a second atom after it.
+    #[case(
+        "Alice <alice@e\\xample.com>",
+        "the domain holds '\\', which no atext admits"
+    )]
+    #[case(
+        "Alice <a@ice@example.com>",
+        "the domain holds '@', which no atext admits"
+    )]
+    #[case("Alice <a@[192.0.2.1]x>", "'x' follows a complete addr-spec")]
+    #[case("Alice <alice@exa mple.com>", "'m' follows a complete addr-spec")]
     #[case("a@b.com (unclosed", "a comment is opened and never closed")]
     #[case("\"unclosed@example.com", "a quoted-string is opened and never closed")]
     #[case("alice@[192.0.2.1", "a domain-literal is opened and never closed")]
+    // An `obs-phrase`'s bare dot. The angle-addr is two words along, so the
+    // finding used to deny an `<` the value carries; what the `phrase` cannot
+    // hold is the dot.
     #[case(
         "John Q. Public <jqp@example.com>",
-        "'.' where the mailbox has the \"<\""
+        "the display-name holds '.', which no atext admits"
     )]
     // A `group`, which RFC 9110's `From = mailbox` has no alternative for. The
     // `:` is what ends the local-part and the finding says so; it used to say
@@ -805,7 +932,10 @@ mod tests {
         "'a' where the mailbox has the \"<\" of its angle-addr"
     )]
     #[case("nobody", "the value ends where the addr-spec has its \"@\"")]
-    #[case("<Someone a@example.com>", "'a' where the addr-spec has its \"@\"")]
+    // Inside an `angle-addr` the at-sign was the last reading available and the
+    // value carries one anyway. What is true is that the local-part finished at
+    // the CFWS a `dot-atom` admits around it, and a word follows.
+    #[case("<Someone a@example.com>", "'a' follows a complete local-part")]
     fn an_at_sign_that_is_present_is_not_reported_missing(
         #[case] value: &str,
         #[case] expected: &str,

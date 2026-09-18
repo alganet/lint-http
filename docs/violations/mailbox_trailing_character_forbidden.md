@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # mailbox_trailing_character_forbidden
 
-Mailbox is followed by something else
+Mailbox production is followed by something else
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.mailbox_trailing_character_forbidden]
-# Mailbox is followed by something else
+# Mailbox production is followed by something else
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 ```

@@ -2148,7 +2148,7 @@ severity = "error"
 severity = "error"
 
 [violations.mailbox_trailing_character_forbidden]
-# Mailbox is followed by something else
+# Mailbox production is followed by something else
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 

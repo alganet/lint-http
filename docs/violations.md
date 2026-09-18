@@ -296,7 +296,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [mailbox_quoted_pair_malformed](violations/mailbox_quoted_pair_malformed.md) — Mailbox escape is not a quoted-pair
 - [mailbox_quoted_string_character_forbidden](violations/mailbox_quoted_string_character_forbidden.md) — Mailbox quoted-string holds a character outside qtext
 - [mailbox_quoted_string_terminator_missing](violations/mailbox_quoted_string_terminator_missing.md) — Mailbox quoted-string is never closed
-- [mailbox_trailing_character_forbidden](violations/mailbox_trailing_character_forbidden.md) — Mailbox is followed by something else
+- [mailbox_trailing_character_forbidden](violations/mailbox_trailing_character_forbidden.md) — Mailbox production is followed by something else
 - [max_forwards_empty](violations/max_forwards_empty.md) — Max-Forwards is written with no digits on it
 - [max_forwards_malformed](violations/max_forwards_malformed.md) — Max-Forwards holds something that is not a digit
 - [media_range_parameter_forbidden](violations/media_range_parameter_forbidden.md) — Accept member writes a parameter after the weight
