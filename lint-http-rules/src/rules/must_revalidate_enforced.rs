@@ -95,7 +95,7 @@ impl RuleMeta for MustRevalidateEnforced {
     }
 
     fn description(&self) -> &'static str {
-        "The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.\n\nThis rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  The request now presented must be one that stored response was allowed to answer in the first place (§4): the same method, or a `HEAD` against a stored `GET`.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method.  A stored `GET` is likewise no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and where nothing could have been reused there is no reuse to report.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.\n\n**The reuse the directive forbids is not what this reads.** §5.2.2.2 binds a cache, and this implementation watches the wire between a client and an origin: had the client's cache reused the stale entry, no request would have crossed it. Every finding here therefore sits on a request the cache did *not* satisfy — the directive honoured — and what it reports is the narrower fact the wire carries, that a validator the client held went unsent and a full body came back where a `304` would have served. The level follows: a `warn` whose obligation is unstated, because the `MUST NOT` binds the cache and not the client the finding names. This stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled."
+        "The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.\n\nThis rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  The request now presented must be one that stored response was allowed to answer in the first place (§4): the same method, or a `HEAD` against a stored `GET`.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method.  A stored `GET` is likewise no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and where nothing could have been reused there is no reuse to report.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.\n\n**The reuse the directive forbids is not what this reads.** §5.2.2.2 binds a cache, and this implementation watches the wire between a client and an origin: had the client's cache reused the stale entry, no request would have crossed it. Every finding here therefore sits on a request the cache did *not* satisfy — the directive honoured — and what it reports is the narrower fact the wire carries, that a validator the client held went unsent and a full body came back where a `304` would have served. The level follows: a `warn` whose obligation is unstated, because the `MUST NOT` binds the cache and not the client the finding names. **And § 3 comes before § 4.** A prior response carrying `no-store` is one no cache was permitted to store, so there is no entry for the later request to have reused and no validator the client could have sent; the search skips such a response rather than stopping at it, because an entry an earlier exchange left is still stored. The directive on the earlier request has the same effect (RFC 9111 §5.2.1.5). `no-cache, no-store, must-revalidate` is one of the commonest `Cache-Control` lines on the web, and while it drew this finding there was no request a client could make that drew nothing: sending the validator instead draws `cache_control_no_store_ignored`.\n\nThis stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -171,8 +171,26 @@ impl Rule for MustRevalidateEnforced {
             // a GET had reused, and a GET that really had a stale GET entry behind
             // it went unreported because a HEAD sat in front of it.
             // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
+            //
+            // And § 3 comes before § 4: a response carrying `no-store` is one
+            // no cache was permitted to hold, so there is no entry for this
+            // request to have reused and no validator the client could have
+            // sent. `no-cache, no-store, must-revalidate` is one of the
+            // commonest `Cache-Control` lines there is, and on every response
+            // spelling it this rule was naming a repair the client had no way
+            // to make — while `cache_control_no_store_ignored` reports the
+            // client that keeps the validator and sends it, leaving no request
+            // that draws nothing. The search skips such a response rather than
+            // stopping at it: a stored entry from an earlier exchange is still
+            // stored, and one the origin refused to let a cache keep does not
+            // unstore it.
+            // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless:"
             let (prev_tx, prev_resp) = history.responses().find(|(prev_tx, resp)| {
                 header_has_must_revalidate(&resp.headers)
+                    && crate::helpers::stored_response::storage_allowed(
+                        &prev_tx.request.headers,
+                        &resp.headers,
+                    )
                     && crate::helpers::stored_response::method_allows(
                         &prev_tx.request.method,
                         &tx.request.method,
@@ -635,6 +653,124 @@ mod tests {
             ]),
         );
         assert!(v.is_some());
+    }
+
+    /// A response `no-store` kept out of every cache is no entry, however stale
+    /// the arithmetic would make it.
+    ///
+    /// `no-cache, no-store, must-revalidate` is one of the commonest
+    /// `Cache-Control` lines on the web, and on every response spelling it this
+    /// rule named a repair the client could not make: the validator it is
+    /// reported for withholding reached no store. The directive on the earlier
+    /// *request* has the same effect, one section over.
+    #[rstest::rstest]
+    #[case(&[("cache-control", "max-age=1, must-revalidate, no-store"), ("etag", "\"v\"")], &[])]
+    #[case(&[("cache-control", "no-store, no-cache, must-revalidate"), ("etag", "\"v\"")], &[])]
+    #[case(
+        &[("cache-control", "max-age=1, must-revalidate"), ("etag", "\"v\"")],
+        &[("cache-control", "no-store")]
+    )]
+    fn a_response_no_cache_stored_is_no_entry_to_revalidate(
+        #[case] prev_response: &[(&str, &str)],
+        #[case] prev_request: &[(&str, &str)],
+    ) {
+        let rule = MustRevalidateEnforced;
+        let base = chrono::Utc::now();
+        let mut prev = make_prev(200, prev_response);
+        prev.timestamp = base;
+        prev.request.headers = crate::test_helpers::make_headers_from_pairs(prev_request);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = base + chrono::Duration::seconds(5);
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        assert!(
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "must_revalidate_enforced",
+                ]),
+            )
+            .is_none(),
+            "no cache held this response, so no validator was withheld"
+        );
+    }
+
+    /// The boundary from the other side: take `no-store` out and the same
+    /// exchange is reported exactly as before. The reading is about storage,
+    /// not about a `Cache-Control` line being long.
+    #[test]
+    fn the_same_exchange_without_no_store_is_still_reported() {
+        let rule = MustRevalidateEnforced;
+        let base = chrono::Utc::now();
+        let mut prev = make_prev(
+            200,
+            &[
+                ("cache-control", "no-cache, must-revalidate"),
+                ("etag", "\"v\""),
+            ],
+        );
+        prev.timestamp = base;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = base + chrono::Duration::seconds(5);
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "must_revalidate_enforced",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "cache_control_must_revalidate_ignored");
+    }
+
+    /// A response the origin refused to let a cache keep does not unstore the
+    /// entry an earlier exchange left, so the search looks past it — the same
+    /// reasoning the method filter above rests on.
+    #[test]
+    fn a_no_store_response_does_not_hide_the_entry_behind_it() {
+        let rule = MustRevalidateEnforced;
+        let base = chrono::Utc::now();
+        let mut older = make_prev(
+            200,
+            &[
+                ("cache-control", "max-age=1, must-revalidate"),
+                ("etag", "\"v\""),
+            ],
+        );
+        older.timestamp = base;
+        let mut newer = make_prev(
+            200,
+            &[
+                ("cache-control", "must-revalidate, no-store"),
+                ("etag", "\"w\""),
+            ],
+        );
+        newer.timestamp = base + chrono::Duration::seconds(1);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = base + chrono::Duration::seconds(5);
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        // newest first
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![newer, older]);
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "must_revalidate_enforced",
+            ]),
+        )
+        .is_some());
     }
 
     #[test]
