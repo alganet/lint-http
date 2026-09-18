@@ -909,7 +909,7 @@ fn gated_block(
                 block: (!violations.is_empty()).then_some(FindingsBlock::ProtocolEvent(
                     ProtocolEventFindings {
                         connection_id: record.event.connection_id,
-                        kind: record.event.kind.name().to_string(),
+                        event: record.event.kind.name().to_string(),
                         violations,
                     },
                 )),
@@ -1075,7 +1075,7 @@ fn lint_records(
                 }
                 findings.push(FindingsBlock::ProtocolEvent(ProtocolEventFindings {
                     connection_id: record.event.connection_id,
-                    kind: record.event.kind.name().to_string(),
+                    event: record.event.kind.name().to_string(),
                     violations,
                 }));
             }
@@ -1133,7 +1133,18 @@ fn lint_websocket_session(
 }
 
 /// One capture record's surviving findings, tagged by record kind in the JSON
-/// output (`"kind": "http_transaction" | "websocket_session"`).
+/// output (`"kind": "http_transaction" | "websocket_session" |
+/// "protocol_event"`).
+///
+/// **The tag owns the name `kind`, so no variant's struct may spell a field
+/// that way.** serde writes the tag and then the struct's own fields, without
+/// noticing that one of them repeats the tag's name: the protocol event's
+/// block carried its frame name in a field called `kind` and the object went
+/// out with two members of that name. Every parser that reads such an object
+/// keeps one of the two, and the one they keep is the last — so the value that
+/// says *which kind of record this block is* was destroyed in the output of
+/// every consumer, replaced by the name of an HTTP/3 frame. The two other
+/// variants never collided and so never showed it.
 #[derive(serde::Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum FindingsBlock {
@@ -1194,10 +1205,14 @@ struct WebsocketFindings {
 /// One protocol event's findings. The event is named by its kind and the
 /// connection it was seen on, because that is all a control-stream frame has
 /// to be identified by — there is no request line and no session to point at.
+///
+/// The name of that kind is `event` and not `kind`: `kind` belongs to the
+/// enum's tag, which says this block is a protocol event at all, and a struct
+/// field of the same name overwrites it in the serialized object.
 #[derive(serde::Serialize)]
 struct ProtocolEventFindings {
     connection_id: uuid::Uuid,
-    kind: String,
+    event: String,
     violations: Vec<lint::Violation>,
 }
 
@@ -1764,7 +1779,7 @@ fn render_findings_block(block: &FindingsBlock, opts: RenderOpts) -> anyhow::Res
             )?;
         }
         FindingsBlock::ProtocolEvent(f) => {
-            writeln!(out, "{} on connection {}", f.kind, f.connection_id)?;
+            writeln!(out, "{} on connection {}", f.event, f.connection_id)?;
         }
     }
     for v in block.violations() {
@@ -1809,7 +1824,7 @@ fn group_findings(findings: &[FindingsBlock]) -> Vec<Group<'_>> {
             FindingsBlock::HttpTransaction(f) => format!("{} {}", f.method, f.uri),
             FindingsBlock::WebsocketSession(f) => format!("websocket session {}", f.session_id),
             FindingsBlock::ProtocolEvent(f) => {
-                format!("{} on connection {}", f.kind, f.connection_id)
+                format!("{} on connection {}", f.event, f.connection_id)
             }
         };
         for v in block.violations() {
@@ -4579,6 +4594,51 @@ enabled = true
         assert_eq!(parsed[0]["kind"], "websocket_session");
         assert_eq!(parsed[0]["session_id"], session_id.to_string());
         assert_eq!(parsed[0]["close_code"], 1000);
+        Ok(())
+    }
+
+    /// The block whose struct once spelled a field `kind`, which is the name
+    /// the enum's tag already owns.
+    ///
+    /// **Both halves of the assertion are needed and neither replaces the
+    /// other.** The parsed check is what a consumer sees, and it is the one
+    /// that was wrong: `serde_json` keeps the last of two members sharing a
+    /// name, so `kind` read back as `h3 SETTINGS` and the discriminator that
+    /// tells a protocol block from a transaction was gone. The raw check is
+    /// what went over the wire, and it is the one a parser hides — an object
+    /// carrying the name twice parses without complaint, so nothing downstream
+    /// can report the collision that produced it.
+    #[test]
+    fn render_lint_report_protocol_event_block_names_its_kind_once() -> anyhow::Result<()> {
+        let connection_id = Uuid::new_v4();
+        let findings = vec![FindingsBlock::ProtocolEvent(ProtocolEventFindings {
+            connection_id,
+            event: "h3 SETTINGS".to_string(),
+            violations: vec![sample_violation()],
+        })];
+
+        let text = render_lint_report(
+            &findings,
+            &Summary::counted(&findings, 0, 0),
+            OutputFormat::Text,
+            RenderOpts::plain(),
+        )?;
+        assert!(
+            text.contains(&format!("h3 SETTINGS on connection {connection_id}")),
+            "{text}"
+        );
+
+        let json = render_lint_report(
+            &findings,
+            &Summary::counted(&findings, 0, 0),
+            OutputFormat::Json,
+            RenderOpts::plain(),
+        )?;
+        assert_eq!(json.matches("\"kind\"").count(), 1, "{json}");
+        let parsed = json_blocks(&json)?;
+        assert_eq!(parsed[0]["kind"], "protocol_event");
+        assert_eq!(parsed[0]["event"], "h3 SETTINGS");
+        assert_eq!(parsed[0]["connection_id"], connection_id.to_string());
         Ok(())
     }
 

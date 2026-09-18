@@ -361,7 +361,10 @@ Two flags shape the report:
   (`"kind": "http_transaction"`) carry `method`, `uri`, `status` (`null` when
   the transaction got no response); WebSocket sessions
   (`"kind": "websocket_session"`) carry `session_id`, `transaction_id`,
-  `close_code`. Both carry `violations`, each with `rule`, `severity`,
+  `close_code`; protocol events (`"kind": "protocol_event"`) carry
+  `connection_id` and `event`, the frame's name — a control-stream frame has
+  no request line and no session to be pointed at, so those two are all there
+  is to name it by. All three carry `violations`, each with `rule`, `severity`,
   `message`, and — when the rule named the defect it found — `violation`, the
   catalogue id the `[violations]` config section tunes. `run` and `use` write
   the same document under `--format json`, so one reader serves both.
