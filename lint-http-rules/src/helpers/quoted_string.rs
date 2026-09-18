@@ -81,9 +81,25 @@ pub fn quoted_string_end(s: &str) -> Option<usize> {
 /// generates. [`validate_quoted_string`] and [`unescape_quoted_string`] both ask
 /// this rather than each slicing the ends off, because "is this quoted at all"
 /// has to be one answer for the pair of them.
+///
+/// **A backslash escapes the octet after it, and the DQUOTE this function strips
+/// is an octet.** `quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )` admits a
+/// DQUOTE, so `"a\"` is a string whose only closing quote was escaped — it never
+/// closes, and the interior it pretends to hand back (`a\`) ends in a backslash
+/// that was never dangling. Reading that backslash as a trailing escape reported
+/// a valid `quoted-pair` as a malformed one and let the real defect, the missing
+/// delimiter, go unnamed. An even run of trailing backslashes pairs them up and
+/// leaves the final DQUOTE a genuine delimiter; an odd run means the last
+/// backslash escaped it, and the value is `NotQuoted` rather than an interior.
 // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+// cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
 pub fn quoted_string_interior(val: &str) -> Option<&str> {
-    val.strip_prefix('"')?.strip_suffix('"')
+    let inner = val.strip_prefix('"')?.strip_suffix('"')?;
+    let trailing = inner.bytes().rev().take_while(|&b| b == b'\\').count();
+    if trailing % 2 == 1 {
+        return None;
+    }
+    Some(inner)
 }
 
 /// What a `quoted-string` can fail to be.
@@ -421,13 +437,16 @@ mod tests {
     }
 
     #[test]
-    fn validate_quoted_string_ends_with_escape_reports_violation() {
-        let s = "\"abc\\\""; // ends with escaped state before final quote
+    fn validate_quoted_string_escaped_final_quote_is_unterminated() {
+        // The final DQUOTE is escaped by the backslash before it, so the value
+        // never closes. `\"` is a valid quoted-pair; what is missing is the
+        // delimiter, and that is the finding rather than a dangling escape.
+        let s = "\"abc\\\"";
         let res = validate_quoted_string(s);
         assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .contains("Quoted-string ends with escape character"));
+        let m = res.unwrap_err();
+        assert!(m.contains("not properly quoted"), "{m}");
+        assert!(m.contains("\\\\"), "{m}");
     }
 
     #[test]
@@ -533,8 +552,13 @@ mod tests {
             ("\"a\"x", Some(QuotedStringDefect::NotQuoted)),
             ("\"a\"b\"", Some(QuotedStringDefect::UnescapedQuote)),
             ("\"a\u{1}\"", Some(QuotedStringDefect::ControlCharacter)),
-            ("\"a\\\"", Some(QuotedStringDefect::TrailingEscape)),
+            // The final DQUOTE is escaped by the backslash before it, so the
+            // value never closes — NotQuoted, not a trailing escape.
+            ("\"a\\\"", Some(QuotedStringDefect::NotQuoted)),
             ("\"\\\u{1}\"", Some(QuotedStringDefect::BadQuotedPair)),
+            // A doubled backslash is a quoted-pair that stands for a backslash,
+            // so the final DQUOTE is a genuine delimiter and the interior is `a\`.
+            ("\"a\\\\\"", None),
         ];
         for (case, want) in cases {
             assert_eq!(check_quoted_string(case).err(), want, "for {:?}", case);
@@ -619,10 +643,10 @@ mod tests {
         assert_eq!(m, "Control character in quoted-string: '\\\"a\\u{1}b\\\"'");
         assert!(!m.contains('\u{1}'), "{m}");
 
-        // A backslash with nothing after it, which reads as an escape to
-        // whoever the message reaches next.
-        let m = validate_quoted_string("\"a\\\"").expect_err("a trailing escape is reported");
-        assert!(m.contains("ends with escape character"), "{m}");
+        // A final DQUOTE escaped by the backslash before it: the value never
+        // closes, and the message reports that without pasting the escape.
+        let m = validate_quoted_string("\"a\\\"").expect_err("an escaped final quote is reported");
+        assert!(m.contains("not properly quoted"), "{m}");
         assert!(m.contains("\\\\"), "{m}");
 
         // A DQUOTE that closes the value early: unescaped, the message reads as

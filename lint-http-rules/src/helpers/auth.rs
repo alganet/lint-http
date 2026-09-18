@@ -1214,7 +1214,7 @@ mod tests {
     }
 
     #[test]
-    fn quoted_string_ends_with_escape_reports_error() {
+    fn quoted_string_escaped_final_quote_reports_unterminated() {
         // Build the string programmatically to ensure exact control of contents:
         // Resulting string contains the characters: '"' 'a' 'b' 'c' '\' '"' i.e. "abc\"
         let mut s = String::new();
@@ -1223,8 +1223,9 @@ mod tests {
         s.push('\\');
         s.push('"');
         let r = crate::helpers::quoted_string::validate_quoted_string(&s);
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("ends with escape"));
+        // `\"` is a valid quoted-pair, so what is missing is the delimiter: the
+        // value is an unterminated string, not one ending in a dangling escape.
+        assert!(r.unwrap_err().contains("not properly quoted"));
     }
 
     /// Two `Invalid character` sentences that a `String` made

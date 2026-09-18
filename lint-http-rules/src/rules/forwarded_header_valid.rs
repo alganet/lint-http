@@ -684,18 +684,19 @@ mod tests {
     /// grammar — and the ways it can are ids of that production, where one rule
     /// severity and one message shape used to be all this field could say.
     ///
-    /// Three of the four, and the fourth is not a gap in the reading:
-    /// `quoted_string_control_character_forbidden` cannot be reached through a
-    /// field value at all, because a `HeaderValue` refuses every octet below SP
-    /// but HTAB and refuses DEL — so the octet never survives to the field
-    /// reader. It is declared because the mapping is exhaustive, and it is the
-    /// same shape as the two node defects the legacy spelling cannot reach.
+    /// Two of the ids are reachable through a field value, and the other two
+    /// are not a gap in the reading. `quoted_string_control_character_forbidden`
+    /// and `quoted_pair_malformed` both name an octet `HeaderValue` refuses
+    /// (every octet below SP but HTAB, and DEL), so neither survives to this
+    /// reader. A backslash before the final DQUOTE escapes it — `foo="ab\"` is
+    /// an unterminated string, `quoted_string_delimiter_missing`, not a dangling
+    /// escape. All four are declared because the mapping is exhaustive.
     #[test]
     fn a_quoted_value_reports_the_quoted_string_defect() {
         for (value, id) in [
             ("foo=\"abc", "quoted_string_delimiter_missing"),
             ("foo=\"a\"b\"", "quoted_string_quote_escape_missing"),
-            ("foo=\"ab\\\"", "quoted_pair_malformed"),
+            ("foo=\"ab\\\"", "quoted_string_delimiter_missing"),
         ] {
             let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value:?}"));
             assert_eq!(violation, id, "{value:?}");

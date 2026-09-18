@@ -1521,7 +1521,10 @@ mod tests {
         b"</a>; rel=next; title=\"a\"b\"",
         "quoted_string_quote_escape_missing"
     )]
-    #[case(b"</a>; rel=next; title=\"a\\\"", "quoted_pair_malformed")]
+    // The final DQUOTE is escaped by the backslash before it, so the title
+    // never closes — `\"` is a valid `quoted-pair`, and the missing delimiter
+    // is the finding rather than a dangling escape.
+    #[case(b"</a>; rel=next; title=\"a\\\"", "quoted_string_delimiter_missing")]
     #[case(b"</a>; rel = next", "bws_forbidden")]
     #[case(b"</a\xe9>; rel=next", "uri_character_forbidden")]
     #[case(b"</a>; rel=\"http://a\xe9/b\"", "uri_character_forbidden")]
