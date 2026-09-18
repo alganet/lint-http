@@ -79,10 +79,14 @@ use crate::violations::ViolationDef;
 /// a trailing backslash are both reported there as the missing delimiter; a
 /// control octet cannot enter a `hyper::HeaderValue` at all. The mapping is
 /// exhaustive regardless — the grammar's reader is where the grammar's question
-/// is answered — and `uri_host_closing_bracket_missing` is nearly the same
-/// story from the other side: it needs a `]` that is not where the host ends,
-/// because a literal that never closes leaves the composition with no port to
-/// find and is reported as that instead.
+/// is answered.
+///
+/// **`uri_host_closing_bracket_missing` used to be nearly the same story from
+/// the other side, and it was the wrong story.** A literal that never closes
+/// leaves the composition with no port to find, and the missing port was what
+/// got reported — of `"[::1:443"`, a value carrying the colon the finding said
+/// it had none of. The host is judged first now, so a bracket that does not
+/// close is named as the bracket it is.
 static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_CLEAR_CONFLICTING,
     &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
@@ -312,17 +316,14 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
     // split is looking for.
     // cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
     let (host, port) = crate::helpers::authority::split_host_and_port(&inner);
-    let Some(port) = port else {
-        // The prose beside the production, and it is this document's: the two
-        // halves are RFC 3986's and which of them is optional is § 3's.
-        return Some(Defect::named(
-            &ALT_SVC_PORT_MISSING,
-            format!(
-                "Alt-Svc alternative '{shown}' has an alt-authority with no ':' in it. The host is optional and the colon and the port number are not, so '{}' names no port for a client to open the alternative on",
-                shown_in_finding(&inner)
-            ),
-        ));
-    };
+    // **The host is judged before the port is called missing**, because a host
+    // that never closed its bracket is what swallows the colon. The split looks
+    // for the port *past* the `]` of an `IP-literal`, so `"[:443"` — a bracket
+    // that opens and never closes — comes back with no port at all, and naming
+    // the colon missing says something the value contradicts four characters in.
+    // What is wrong with it is the bracket, and the host half is where that is
+    // read. A value whose host is well formed and whose port is absent still
+    // reaches the report below.
     if !host.is_empty() {
         if let Err(defect) = crate::helpers::authority::validate_uri_host(host) {
             let message = defect.message();
@@ -334,6 +335,17 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
             ));
         }
     }
+    let Some(port) = port else {
+        // The prose beside the production, and it is this document's: the two
+        // halves are RFC 3986's and which of them is optional is § 3's.
+        return Some(Defect::named(
+            &ALT_SVC_PORT_MISSING,
+            format!(
+                "Alt-Svc alternative '{shown}' has an alt-authority with no ':' in it. The host is optional and the colon and the port number are not, so '{}' names no port for a client to open the alternative on",
+                shown_in_finding(&inner)
+            ),
+        ));
+    };
     if port.is_empty() {
         // Said in the finding itself: `port = *DIGIT` generates this, so no
         // production is broken and there is no defect of one to report. What is
@@ -934,12 +946,18 @@ mod tests {
         "is not a `uri-host`",
         "uri_host_character_forbidden"
     )]
-    // The bracket has to close *somewhere* for the composition's split to find
-    // a port at all -- `[::1:443` with no `]` is a value with no colon after
-    // the literal, and the row above is what it draws. What reaches this defect
-    // is a `]` that is not where the host ends.
+    // Two ways a bracketed host fails, and both are the host's rather than the
+    // port's. `[abc]x` closes its literal somewhere other than where the host
+    // ends; `[::1:443` never closes it at all, so the split that looks for a
+    // port *past* the `]` finds none -- and that used to be reported as a
+    // missing colon, of a value spelling one.
     #[case(
         "h2=\"[abc]x:443\"",
+        "is not a `uri-host`",
+        "uri_host_closing_bracket_missing"
+    )]
+    #[case(
+        "h2=\"[::1:443\"",
         "is not a `uri-host`",
         "uri_host_closing_bracket_missing"
     )]
