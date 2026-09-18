@@ -479,7 +479,7 @@ mod tests {
     #[case("   ", "is present with an empty value")]
     #[case("not-an-email", "ends where the addr-spec has its \"@\"")]
     #[case("alice@", "ends where the addr-spec has a domain")]
-    #[case("@example.com", "local-part holds '@'")]
+    #[case("@example.com", "'@' where the addr-spec has a local-part")]
     #[case("Alice <alice@example.com", "ends where the angle-addr has its \">\"")]
     #[case(
         "John Q. Public <jqp@example.com>",
@@ -551,7 +551,7 @@ mod tests {
     #[case("", "mailbox_empty")]
     #[case("not-an-email", "mailbox_at_sign_missing")]
     #[case("alice@", "mailbox_domain_missing")]
-    #[case("@example.com", "mailbox_atom_character_forbidden")]
+    #[case("@example.com", "mailbox_local_part_missing")]
     #[case("alice.@example.com", "mailbox_atom_empty")]
     #[case("Alice <alice@example.com", "mailbox_angle_addr_terminator_missing")]
     #[case("John Q. Public <jqp@example.com>", "mailbox_atom_character_forbidden")]

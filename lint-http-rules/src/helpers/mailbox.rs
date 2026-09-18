@@ -129,12 +129,16 @@ pub enum MailboxSyntaxDefect {
         /// Which `dot-atom` — `local-part` or `domain`.
         what: &'static str,
     },
-    /// The value ends where the `addr-spec` has its `local-part`.
-    LocalPartMissing,
+    /// Nothing that can begin a `local-part` is where the `addr-spec` has one:
+    /// a character that opens neither a `dot-atom` nor a `quoted-string`, or a
+    /// value that ends before either.
+    LocalPartMissing(Option<char>),
     /// The `addr-spec`'s `"@"` is not where the production puts it.
     AtSignMissing(Option<char>),
-    /// The value ends where the `addr-spec` has its `domain`.
-    DomainMissing,
+    /// Nothing that can begin a `domain` is where the `addr-spec` has one: a
+    /// character that opens neither a `dot-atom` nor a `domain-literal`, or a
+    /// value that ends before either.
+    DomainMissing(Option<char>),
     /// The `angle-addr`'s `"<"` is not where the `name-addr` puts it, and is
     /// nowhere else either: a display-name beside a *bare* `addr-spec`, or a
     /// value that ends. It is never the reading for a value that carries one —
@@ -194,13 +198,15 @@ impl MailboxSyntaxDefect {
             Self::AtomEmpty { what } => {
                 format!("the {what} has a \".\" with no atext after it")
             }
-            Self::LocalPartMissing => {
-                "the value ends where the addr-spec has a local-part".to_string()
+            Self::LocalPartMissing(at) => {
+                format!("{} where the addr-spec has a local-part", stopped_at(at))
             }
             Self::AtSignMissing(at) => {
                 format!("{} where the addr-spec has its \"@\"", stopped_at(at))
             }
-            Self::DomainMissing => "the value ends where the addr-spec has a domain".to_string(),
+            Self::DomainMissing(at) => {
+                format!("{} where the addr-spec has a domain", stopped_at(at))
+            }
             Self::AngleAddrMissing(at) => format!(
                 "{} where the mailbox has the \"<\" of its angle-addr",
                 stopped_at(at)
@@ -221,7 +227,7 @@ impl MailboxSyntaxDefect {
 /// What a construct stopped at, as the subject of a finding's sentence.
 ///
 /// One rendering for both endings — a character the grammar has no room for,
-/// and the value running out — so the four defects that carry a position state
+/// and the value running out — so the six defects that carry a position state
 /// what they wanted once each instead of twice.
 fn stopped_at(at: Option<char>) -> String {
     match at {
@@ -469,7 +475,6 @@ impl<'a> Reader<'a> {
     /// the next statement.
     fn dot_atom_text(&mut self, what: &'static str) -> Result<&'a [char], MailboxSyntaxDefect> {
         let start = self.i;
-        let mut after_dot = false;
         loop {
             let run = self.i;
             while matches!(self.peek(), Some(c) if is_atext(c)) {
@@ -477,23 +482,18 @@ impl<'a> Reader<'a> {
             }
             // Both `1*atext` floors, read as one branch: the one before the first
             // dot and the one after every later dot. A character-class scan would
-            // pass an empty run at either, which is how a leading, trailing or
-            // doubled `.` derives from nothing and reads as clean.
+            // pass an empty run at either, which is how a trailing or doubled `.`
+            // derives from nothing and reads as clean.
+            //
+            // An empty run on the *first* pass is unreachable: both callers enter
+            // only on an `atext`, so that pass always consumes one. Every empty
+            // run left is one the `.` this loop just consumed was promising, and
+            // it reads the same whether the value ends there or carries on.
             if self.i == run {
-                return Err(match self.peek() {
-                    Some(c) if !after_dot => {
-                        MailboxSyntaxDefect::AtomCharacter { what, character: c }
-                    }
-                    // The value running out on the *first* pass is unreachable:
-                    // both callers test for the end before entering the
-                    // production. So a `None` here has always just followed the
-                    // `.` this loop consumed, and reads as that arm does.
-                    _ => MailboxSyntaxDefect::AtomEmpty { what },
-                });
+                return Err(MailboxSyntaxDefect::AtomEmpty { what });
             }
             if self.peek() == Some('.') {
                 self.i += 1;
-                after_dot = true;
                 continue;
             }
             return Ok(&self.c[start..self.i]);
@@ -522,13 +522,19 @@ impl<'a> Reader<'a> {
         // the grammar says which: a quoted-string can only open on a DQUOTE, and
         // no `atext` is one.
         //
+        // Both arms are entered on a character that can actually begin them, so
+        // a value positioned on neither has no `local-part` here at all —
+        // whether it ends or carries on. Entering `dot-atom` on any character
+        // instead reported the very delimiter that follows an empty local-part
+        // as a character the local-part *holds*.
+        //
         // cite(RFC 5322 § 3.4.1): "The locally interpreted string is either a quoted-string or a dot-atom."
         match self.peek() {
             Some('"') => self.quoted_string()?,
-            Some(_) => {
+            Some(c) if is_atext(c) => {
                 self.dot_atom_text("local-part")?;
             }
-            None => return Err(MailboxSyntaxDefect::LocalPartMissing),
+            at => return Err(MailboxSyntaxDefect::LocalPartMissing(at)),
         }
 
         self.skip_cfws()?;
@@ -544,8 +550,8 @@ impl<'a> Reader<'a> {
                 self.domain_literal()?;
                 None
             }
-            Some(_) => Some(self.dot_atom_text("domain")?.iter().collect()),
-            None => return Err(MailboxSyntaxDefect::DomainMissing),
+            Some(c) if is_atext(c) => Some(self.dot_atom_text("domain")?.iter().collect()),
+            at => return Err(MailboxSyntaxDefect::DomainMissing(at)),
         };
         self.skip_cfws()?;
         Ok(domain_name)
@@ -826,9 +832,11 @@ mod tests {
     #[rstest]
     #[case("", "ends where the addr-spec has a local-part")]
     #[case("not-an-email", "ends where the addr-spec has its \"@\"")]
-    #[case("@example.com", "local-part holds '@'")]
+    // Neither of these is a local-part that *holds* the character named: the
+    // production never began, so what the reading stopped on is what is said.
+    #[case("@example.com", "'@' where the addr-spec has a local-part")]
     #[case("alice@", "ends where the addr-spec has a domain")]
-    #[case(".alice@example.com", "local-part holds '.'")]
+    #[case(".alice@example.com", "'.' where the addr-spec has a local-part")]
     #[case(
         "alice.@example.com",
         "the local-part has a \".\" with no atext after it"
@@ -937,6 +945,46 @@ mod tests {
     // the CFWS a `dot-atom` admits around it, and a word follows.
     #[case("<Someone a@example.com>", "'a' follows a complete local-part")]
     fn an_at_sign_that_is_present_is_not_reported_missing(
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
+        let e = err(value);
+        assert!(e.contains(expected), "{value:?} was rejected as {e:?}");
+    }
+
+    /// **A production that never began is not one that holds a character.**
+    ///
+    /// `local-part` and `domain` are each an alternation of two forms, and
+    /// entering one of them on any character at all meant a value positioned on
+    /// neither still read as a `dot-atom` — an empty one, whose first `1*atext`
+    /// run stopped on the very character that was supposed to follow it. So
+    /// `@example.com` was reported as a local-part *holding* the at-sign that
+    /// delimits it, under `mailbox_atom_character_forbidden`, while
+    /// `mailbox_local_part_missing` — the entry whose sentence is the true one
+    /// — could not be reached by the shape that most plainly deserves it.
+    ///
+    /// The arms are entered on a character that can begin them now, so a value
+    /// that has neither says so and names what it stopped on. The last two rows
+    /// keep the pair honest: a value that really does run out, and one whose
+    /// production began and then met a character `atext` excludes, which is
+    /// still the entry it always was.
+    #[rstest]
+    #[case("@example.com", "'@' where the addr-spec has a local-part")]
+    #[case("<@example.com>", "'@' where the addr-spec has a local-part")]
+    #[case(".a@b.com", "'.' where the addr-spec has a local-part")]
+    #[case("a@@example.com", "'@' where the addr-spec has a domain")]
+    #[case("a@,b.com", "',' where the addr-spec has a domain")]
+    #[case("a@.b.com", "'.' where the addr-spec has a domain")]
+    #[case(
+        "(only-a-comment)",
+        "the value ends where the addr-spec has a local-part"
+    )]
+    #[case("a@", "the value ends where the addr-spec has a domain")]
+    #[case(
+        "no[body]@example.com",
+        "the local-part holds '[', which no atext admits"
+    )]
+    fn a_production_that_never_began_is_not_one_that_holds_a_character(
         #[case] value: &str,
         #[case] expected: &str,
     ) {
