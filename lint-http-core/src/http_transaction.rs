@@ -356,10 +356,30 @@ mod tests {
     }
 
     /// `body_interrupted` survives a round trip, and a record written before the
-    /// field existed still reads. The default is the honest one for such a
-    /// record: every producer that never said the count was partial was
-    /// recording a body it had read to the end, so absence means complete and no
-    /// existing capture changes what it reports.
+    /// field existed still reads.
+    ///
+    /// **Absence reading as complete is a choice, and not an inference.** It
+    /// was justified here by the claim that every producer which never said the
+    /// count was partial had read the body to the end. That is not true, and
+    /// this proxy is the counterexample: it wrote captures before this field
+    /// existed, and an interrupted read left a `body_length` short of the
+    /// declared `Content-Length` with nothing on the record to say so. Such a
+    /// capture reads back as complete, and the length comparisons then report
+    /// the *sender's* framing for a shortfall that was the reading's.
+    ///
+    /// The choice stands anyway, because the alternative is worse in the
+    /// direction that matters. Declining wherever a record cannot answer would
+    /// silence those comparisons for every producer that does not write the
+    /// field — which is every capture this proxy did not write — trading a
+    /// bounded set of stale records for permanent blindness on all of them. The
+    /// error the default admits is confined to captures older than the field
+    /// and shrinks as they age out; the error it avoids would not.
+    ///
+    /// The signal itself is not lost, for anyone who needs it later: the field
+    /// serializes unconditionally, so a record *lacking* the key was written by
+    /// a producer that predates it, and one carrying `false` was written by a
+    /// producer that looked and found the body complete. What is chosen here is
+    /// only what to do with that difference, and the answer is nothing.
     #[test]
     fn body_interrupted_roundtrips_and_absence_reads_as_complete() -> anyhow::Result<()> {
         let mut tx = make_test_transaction();
