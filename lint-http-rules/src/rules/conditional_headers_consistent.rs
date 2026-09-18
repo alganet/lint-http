@@ -256,7 +256,22 @@ impl Rule for ConditionalHeadersConsistent {
                                 "If-Range timestamp '{shown}' names a weekday its own date does \
                                  not fall on"
                             ),
-                            _ => format!("If-Range timestamp '{shown}' is not a valid IMF-fixdate"),
+                            // `HTTP-date = IMF-fixdate / obs-date`, so an RFC
+                            // 850 timestamp is one half of the alternation this
+                            // field offers and not a value outside it. The
+                            // catch-all that stood here called it invalid,
+                            // which is what the entry beside it says about a
+                            // value no format parses.
+                            crate::http_date::HttpDateDefect::ObsoleteFormat => format!(
+                                "If-Range timestamp '{shown}' is written in an obsolete date \
+                                 format; a recipient must read it, and a sender must generate \
+                                 IMF-fixdate"
+                            ),
+                            crate::http_date::HttpDateDefect::Empty
+                            | crate::http_date::HttpDateDefect::Unparsable
+                            | crate::http_date::HttpDateDefect::SurroundingWhitespace => {
+                                format!("If-Range timestamp '{shown}' derives from no HTTP-date")
+                            }
                         },
                     ));
                 }
@@ -482,6 +497,13 @@ mod tests {
     #[rstest]
     #[case("\"a\"b\"", "etag_character_forbidden")]
     #[case("\"unterminated", "etag_delimiter_missing")]
+    // The date half of the alternation, which named its value from the start
+    // and reported two entries under one sentence: `HTTP-date = IMF-fixdate /
+    // obs-date`, so an RFC 850 timestamp is a value this field admits and a
+    // recipient must read, and calling it invalid said the neighbouring
+    // entry's claim about it.
+    #[case("Sunday, 06-Nov-94 08:49:37 GMT", "http_date_obsolete")]
+    #[case("not-a-date", "http_date_malformed")]
     fn a_refused_if_range_names_the_value_it_refused(#[case] value: &str, #[case] id: &str) {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[

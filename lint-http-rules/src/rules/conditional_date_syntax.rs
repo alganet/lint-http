@@ -192,17 +192,21 @@ impl ConditionalDateSyntax {
             // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace"
             // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
             // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
-            if let Err(defect) =
-                crate::http_date::check_imf_fixdate(crate::helpers::headers::trim_ows(s))
-            {
+            let value = crate::helpers::headers::trim_ows(s);
+            if let Err(defect) = crate::http_date::check_imf_fixdate(value) {
+                let written = crate::helpers::shown::shown_in_finding(value);
                 // As at every other site reading this production: the weekday
                 // that is not the day its date implies derives from the
-                // grammar, so it does not take the grammar's sentence.
+                // grammar, so it does not take the grammar's sentence. The two
+                // that used to share a catch-all are separated for the same
+                // reason — an obsolete spelling and a value no format parses
+                // are two entries, and one sentence for both said neither
+                // entry's claim and named no value at all.
                 return Some(ctx.report_with(
                     http_date_defect(defect),
                     match defect {
                         crate::http_date::HttpDateDefect::DayNameConflicting => format!(
-                            "{shown} header names a weekday its own date does not fall on \
+                            "{shown} '{written}' names a weekday its own date does not fall on \
                              (RFC 9110 §5.6.7, RFC 5322 §3.3)"
                         ),
                         // The reading this branch used to make for itself,
@@ -211,7 +215,19 @@ impl ConditionalDateSyntax {
                         crate::http_date::HttpDateDefect::Empty => {
                             format!("{shown} header is empty or contains only whitespace")
                         }
-                        _ => format!("{shown} header is not a valid IMF-fixdate (RFC 9110 §5.6.7)"),
+                        // `HTTP-date = IMF-fixdate / obs-date`: the value is a
+                        // date every recipient must read, and the sender is the
+                        // only party § 5.6.7 refuses it to.
+                        crate::http_date::HttpDateDefect::ObsoleteFormat => format!(
+                            "{shown} '{written}' is written in an obsolete date format; a \
+                             recipient must read it, and a sender must generate IMF-fixdate \
+                             (RFC 9110 §5.6.7)"
+                        ),
+                        crate::http_date::HttpDateDefect::Unparsable
+                        | crate::http_date::HttpDateDefect::SurroundingWhitespace => format!(
+                            "{shown} '{written}' derives from no HTTP-date, so the field names no \
+                             instant (RFC 9110 §5.6.7)"
+                        ),
                     },
                 ));
             }
@@ -307,14 +323,23 @@ mod tests {
         // format, each named for the field that carried it.
         assert_eq!(found[0].violation, "http_date_malformed", "{seen:?}");
         assert!(
-            found[0].message.starts_with("If-Modified-Since header"),
-            "{seen:?}",
+            found[0].message.starts_with("If-Modified-Since "),
+            "{seen:?}"
         );
         assert_eq!(found[1].violation, "http_date_obsolete", "{seen:?}");
         assert!(
-            found[1].message.starts_with("If-Unmodified-Since header"),
+            found[1].message.starts_with("If-Unmodified-Since "),
+            "{seen:?}"
+        );
+        // And each names the octets it read. The two used to share one
+        // sentence that named neither the value nor which of the two entries
+        // it was reporting.
+        assert!(found[0].message.contains("'not-a-date'"), "{seen:?}");
+        assert!(
+            found[1].message.contains("'Sun Nov  6 08:49:37 1994'"),
             "{seen:?}",
         );
+        assert!(found[1].message.contains("obsolete"), "{seen:?}");
     }
 
     /// An octet outside visible US-ASCII is a character the format does not
