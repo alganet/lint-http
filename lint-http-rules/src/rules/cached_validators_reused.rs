@@ -39,7 +39,7 @@ impl RuleMeta for CachedValidatorsReused {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
+        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**An entry stored for one variant is not one a request for another declined.** §4's last condition on the pairing is §4.1's: the request now presented must match the stored request in every field the response's `Vary` nominates. A response served under `Vary: Accept-Encoding` to a request that asked for nothing is stored for the identity variant, and its validator could not have turned a request for gzip into a `304`, so the search reads past it.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -142,6 +142,19 @@ impl Rule for CachedValidatorsReused {
                 ) && crate::helpers::stored_response::method_allows(
                     &prev_tx.request.method,
                     &tx.request.method,
+                )
+                // And § 4's remaining condition: the request now presented
+                // selects the representation that response stored. An entry
+                // held under `Vary: Accept-Encoding` for a request that
+                // asked for nothing is no entry for one asking for gzip —
+                // its validator names the identity variant, which the gzip
+                // request could not have been answered with, so a client
+                // sending it unconditionally declined nothing.
+                // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
+                && crate::helpers::stored_response::selecting_fields_match(
+                    &prev_tx.request.headers,
+                    &resp.headers,
+                    &tx.request.headers,
                 )
             })?;
 
@@ -329,6 +342,46 @@ mod tests {
     /// over: § 5.2.1.5 keeps a cache from storing any part of that request or
     /// any response to it, so the validator the response offered reached no
     /// store either.
+    /// RFC 9111 § 4.1: the entry is stored for the variant the earlier request
+    /// selected, so a later request that presents a different value for a
+    /// field the response varies on is not reusing it, and declined nothing.
+    /// The same value presented twice is the ordinary finding.
+    #[rstest::rstest]
+    #[case(None, None, true)]
+    #[case(Some("gzip"), Some("gzip"), true)]
+    #[case(None, Some("gzip"), false)]
+    #[case(Some("gzip"), None, false)]
+    #[case(Some("gzip"), Some("br"), false)]
+    fn an_entry_stored_for_another_variant_is_not_reused(
+        #[case] stored: Option<&str>,
+        #[case] presented: Option<&str>,
+        #[case] expect_finding: bool,
+    ) {
+        fn asked(e: Option<&str>) -> Vec<(&str, &str)> {
+            e.map(|e| ("accept-encoding", e)).into_iter().collect()
+        }
+        let rule = CachedValidatorsReused;
+        let mut prev = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("etag", "\"v\""), ("vary", "Accept-Encoding")],
+        );
+        prev.request.method = "GET".to_string();
+        prev.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(stored));
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(presented));
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cached_validators_reused",
+            ]),
+        );
+        assert_eq!(v.is_some(), expect_finding, "{v:?}");
+    }
+
     #[test]
     fn a_request_that_forbade_storing_leaves_no_validator_to_decline() -> anyhow::Result<()> {
         let rule = CachedValidatorsReused;

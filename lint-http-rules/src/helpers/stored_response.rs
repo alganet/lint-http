@@ -105,17 +105,24 @@ pub fn storage_allowed(request: &hyper::HeaderMap, response: &hyper::HeaderMap) 
 /// fields that chose it, and it answers a later request only where those
 /// fields match — so a response served under `Vary: Accept-Encoding` to a
 /// request that asked for gzip is no entry for a request that asked for
-/// nothing, and the other way round. § 4.1 is precise about what "match"
-/// tolerates and this reads none of it: two values match here when they are
-/// the same octets, and a field is absent from both requests or from neither.
-/// Stricter than the section, and strict in the one direction that costs
-/// nothing — a pairing this refuses is an entry a reader does not find, and
-/// a reader that finds no entry reports nothing, where one that pairs two
-/// representations reports the wrong one.
+/// nothing, and the other way round.
+///
+/// The comparison is § 4.1's, as far as a reader with no knowledge of the
+/// individual fields can take it: the field lines are joined and the value is
+/// trimmed, which are the combining transformation and the whitespace one.
+/// The third — normalising each value the way its own specification defines —
+/// needs the field's grammar, and this reads any field a response cares to
+/// nominate. So two values that differ only in a way their field calls
+/// insignificant read here as different, and a field is absent from both
+/// requests or from neither. Stricter than the section, and strict in the
+/// one direction that costs nothing: a pairing this refuses is an entry a
+/// reader does not find, and a reader that finds no entry reports nothing,
+/// where one that pairs two representations reports the wrong one.
 ///
 /// `*` never matches, which is § 4.1's own sentence and not a simplification
 /// of it.
 // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request (i.e., the request that caused the cached response to be stored)."
+// cite(RFC 9111 § 4.1): "adding or removing whitespace, where allowed in the header field's syntax"
 // cite(RFC 9111 § 4.1): "If (after any normalization that might take place) a header field is absent from a request, it can only match another request if it is also absent there."
 // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
 pub fn selecting_fields_match(
@@ -123,7 +130,9 @@ pub fn selecting_fields_match(
     stored_response: &hyper::HeaderMap,
     presented_request: &hyper::HeaderMap,
 ) -> bool {
-    use super::headers::combined_field_value_as_written as value;
+    let value = |headers: &hyper::HeaderMap, name: &str| {
+        super::headers::combined_field_value_as_written(headers, name).map(|v| v.trim().to_string())
+    };
     match super::vary::vary_nomination(stored_response) {
         super::vary::VaryNomination::Wildcard => false,
         super::vary::VaryNomination::Fields(names) => names
@@ -177,6 +186,10 @@ mod tests {
     #[case(&[], "*", &[], false)]
     #[case(&[("accept", "text/html")], "Accept, Accept-Encoding", &[("accept", "text/html")], true)]
     #[case(&[("accept", "text/html")], "Accept, Accept-Encoding", &[("accept", "text/html"), ("accept-encoding", "gzip")], false)]
+    // The whitespace transformation, and only that one: the ends are trimmed,
+    // and a difference inside the value is a difference.
+    #[case(&[("accept-encoding", " gzip ")], "Accept-Encoding", &[("accept-encoding", "gzip")], true)]
+    #[case(&[("accept-encoding", "gzip, br")], "Accept-Encoding", &[("accept-encoding", "gzip,br")], false)]
     fn a_stored_response_answers_only_a_request_that_selects_it(
         #[case] stored: &[(&str, &str)],
         #[case] vary: &str,
