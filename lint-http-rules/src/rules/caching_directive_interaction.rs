@@ -91,7 +91,7 @@ impl RuleMeta for CachingDirectiveInteraction {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Cache-Control: public, private\n\nCache-Control: no-store, public\n\nCache-Control: max-age=60, max-age=30",
+                snippet: "Cache-Control: public, private\nCache-Control: no-store, public\nCache-Control: max-age=60, max-age=30",
             },
         ]
     }

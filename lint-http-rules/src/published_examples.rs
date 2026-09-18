@@ -849,7 +849,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "base64_quantum_malformed",
     "basic_credentials_control_character_forbidden",
     "boundary_character_forbidden",
-    "cache_control_freshness_conflicting",
     "cache_control_no_cache_argument_empty",
     "cache_control_private_argument_empty",
     "challenge_member_empty",
