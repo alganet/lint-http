@@ -201,28 +201,34 @@ defects! {
     }
 
     /// A precondition naming a validator this exchange never provided: a
-    /// conditional request with no stored response for the resource, one whose
-    /// stored response was never observed, an entity-tag conditional after a
-    /// response with no `ETag`, or a date conditional after one with no
-    /// `Last-Modified`.
+    /// conditional request with no stored response for the resource, an
+    /// entity-tag conditional naming a tag no response for the resource
+    /// carried, or a date conditional naming an instant no `Last-Modified`
+    /// stated.
     ///
     /// **The one entry in this subject that names no sentence, and the reason
     /// is that there is none.** RFC 9110 states no requirement that a client
-    /// have previously received the validator it conditions on — `If-None-Match:
-    /// *` legitimately needs no prior tag at all, and a client may carry a
-    /// validator from a cache this observer never saw fill. The heuristic is
-    /// this crate's, and a reference on it would dress a stateful guess as a
-    /// requirement.
+    /// have previously received the validator it conditions on, and a client
+    /// may carry a validator from a cache this observer never saw fill. The
+    /// heuristic is this crate's, and a reference on it would dress a stateful
+    /// guess as a requirement.
     ///
-    /// **Four situations, one entry, and two of them are about the observer
-    /// rather than the sender.** "No stored response for this resource" and
-    /// "a stored transaction whose response was never recorded" are statements
-    /// about what reached the proxy; "the response carried no `ETag`" and "no
-    /// `Last-Modified`" are statements about what the server sent. They share
-    /// the claim that matters — the precondition was built from something this
-    /// exchange cannot account for — and the message says which of the four it
-    /// was, which is where the difference belongs when the repair is the same
-    /// in all four: none, unless the validator was invented.
+    /// **`If-None-Match: *` and `If-Match: *` are outside it entirely**, and
+    /// not as an exception granted to them: `*` is an existence condition and
+    /// names no validator, so there is none for this exchange to have failed to
+    /// provide.
+    ///
+    /// **Three situations, one entry, and the first of them is about the
+    /// observer rather than the sender.** "No stored response for this
+    /// resource" is a statement about what reached the proxy; the other two are
+    /// statements about the value the client wrote and what the server ever
+    /// sent for the resource. All three are read over the whole history rather
+    /// than off the most recent response, whose header set answers a question
+    /// about ordering and not about the validator. They share the claim that
+    /// matters — the precondition was built from something this exchange cannot
+    /// account for — and the message says which of the three it was, which is
+    /// where the difference belongs when the repair is the same in all three:
+    /// none, unless the validator was invented.
     ///
     /// `info`, for a finding with no sentence behind it and a legitimate
     /// explanation available in every case.

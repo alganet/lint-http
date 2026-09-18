@@ -157,6 +157,41 @@ impl ConditionalRequestHandling {
             })
     }
 
+    /// Whether the entity-tag preconditions the request carried name an entity
+    /// tag at all.
+    ///
+    /// **`*` is an existence condition, not a validator.** It asks whether the
+    /// origin holds any current representation, and a client that has never
+    /// been handed a tag may write it and be right — which is why the entry
+    /// below has nothing to say about a request whose only entity-tag
+    /// precondition is `*`. A field written with nothing in it names no tag
+    /// either; that absence is `conditional_empty`'s finding, not this one's.
+    // cite(RFC 9110 § 13.1.1): "If-Match = "*" / #entity-tag"
+    // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
+    fn names_an_entity_tag(headers: &hyper::HeaderMap) -> bool {
+        ["if-none-match", "if-match"]
+            .iter()
+            .flat_map(|name| crate::helpers::headers::field_lines_as_written(headers, name))
+            .flat_map(|line| {
+                crate::helpers::list::split_commas_respecting_quotes(&line)
+                    .into_iter()
+                    .map(|member| crate::helpers::headers::trim_ows(member).to_string())
+                    .collect::<Vec<_>>()
+            })
+            .any(|member| !member.is_empty() && member != "*")
+    }
+
+    /// A precondition naming a validator no response for this resource carried.
+    ///
+    /// **The claim is about a value, so the whole history answers it and the
+    /// most recent response does not.** Asking whether the immediately previous
+    /// response happened to carry a field of the right kind answers a different
+    /// question from where an unrelated exchange landed in the history: one
+    /// `TRACE` answered `405` between the store and the revalidation turned a
+    /// client holding exactly the tag it was given into a client that invented
+    /// one, and — in the other direction — let a client that really did invent
+    /// a tag pass unremarked whenever the response before it happened to carry
+    /// some other `ETag`. Both are decided here by the tag the request wrote.
     fn validator_was_observed(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -164,29 +199,42 @@ impl ConditionalRequestHandling {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
+        let names_tag = sent.entity_tag() && Self::names_an_entity_tag(&tx.request.headers);
+
         // A validator this exchange did provide is not one it never provided,
         // whatever the most recent response happens to carry.
-        if (sent.entity_tag() && Self::entity_tag_was_provided(&tx.request.headers, history))
+        if (names_tag && Self::entity_tag_was_provided(&tx.request.headers, history))
             || (sent.date() && Self::last_modified_was_provided(&tx.request.headers, history))
         {
             return None;
         }
-        let Some(prev) = history.previous() else {
-            return Some(ctx.by_client().report_with(&CONDITIONAL_VALIDATOR_MISSING, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()));
-        };
-        let Some(resp) = &prev.response else {
+
+        // Nothing but an existence condition was written, so no validator was
+        // named and none can be unaccounted for.
+        if !names_tag && !sent.date() {
+            return None;
+        }
+
+        // The one statement here about the observer rather than the sender:
+        // nothing was recorded for this resource, so there was nothing for a
+        // validator to have come from.
+        if history.responses().next().is_none() {
             return Some(ctx.by_client().report_with(
                 &CONDITIONAL_VALIDATOR_MISSING,
-                "Conditional request sent but previous transaction has no response recorded".into(),
+                "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into(),
             ));
-        };
-        if sent.entity_tag() && !resp.headers.contains_key("etag") {
-            return Some(ctx.by_client().report_with(&CONDITIONAL_VALIDATOR_MISSING, "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into()));
         }
-        if sent.date() && !resp.headers.contains_key("last-modified") {
-            return Some(ctx.by_client().report_with(&CONDITIONAL_VALIDATOR_MISSING, "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into()));
+
+        if names_tag {
+            return Some(ctx.by_client().report_with(
+                &CONDITIONAL_VALIDATOR_MISSING,
+                "Request conditions on an entity-tag (If-Match/If-None-Match) that no response for this resource carried".into(),
+            ));
         }
-        None
+        Some(ctx.by_client().report_with(
+            &CONDITIONAL_VALIDATOR_MISSING,
+            "Request conditions on a modification date (If-Modified-Since/If-Unmodified-Since) that no response for this resource carried".into(),
+        ))
     }
 
     /// A GET or HEAD whose `If-None-Match` condition is false is answered with
@@ -268,7 +316,7 @@ impl RuleMeta for ConditionalRequestHandling {
     }
 
     fn description(&self) -> &'static str {
-        "Warn when conditional requests are used without a prior validator (ETag / Last-Modified) observed for the same resource and client. Also flag obvious cases where a server returns a `200` for a conditional `GET`/`HEAD` when the validator clearly matches (the server should return `304 Not Modified`)."
+        "Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are not reported at all — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send. Also flag obvious cases where a server returns a `200` for a conditional `GET`/`HEAD` when the validator clearly matches (the server should return `304 Not Modified`)."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -348,6 +396,8 @@ static REGISTRATION: &dyn crate::rules::Rule = &ConditionalRequestHandling;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use rstest::rstest;
 
     fn make_prev_with_headers(
         headers: &[(&str, &str)],
@@ -470,6 +520,102 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(found.violation, "conditional_validator_missing");
+    }
+
+    /// The response that happened to arrive last does not decide it in the
+    /// other direction either.
+    ///
+    /// A client conditioning on a tag nothing ever handed it is the case this
+    /// entry exists for, and it stayed silent whenever the newest response
+    /// carried some *other* `ETag` — the field was there, of the right kind,
+    /// belonging to a different representation, and the positional test asked
+    /// only whether the field was there.
+    #[test]
+    fn a_tag_no_response_carried_is_reported_even_when_the_newest_one_carried_another() {
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            make_prev_with_headers(&[("etag", "\"v2\"")]),
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-match", "\"v1\"")]);
+        let found = crate::test_helpers::run_rule(
+            &ConditionalRequestHandling,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "conditional_validator_missing");
+    }
+
+    /// The message is a claim about the resource's history, so it has to be one
+    /// the history bears out.
+    ///
+    /// "The previous response did not include an ETag" was true only of the one
+    /// response it looked at, and false of the exchange: six earlier responses
+    /// for the resource had carried tags, and the client's was still none of
+    /// them.
+    #[test]
+    fn the_message_names_the_history_and_not_the_response_before_it() {
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            aged(make_prev_with_headers(&[("cache-control", "no-store")]), 1),
+            aged(make_prev_with_headers(&[("etag", "\"v2\"")]), 2),
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v1\"")]);
+        let found = crate::test_helpers::run_rule(
+            &ConditionalRequestHandling,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        )
+        .expect("a finding");
+        assert!(
+            found
+                .message
+                .contains("no response for this resource carried"),
+            "the claim is about every response for the resource: {}",
+            found.message
+        );
+    }
+
+    /// `*` names no validator, so there is none this exchange failed to
+    /// provide.
+    ///
+    /// An existence condition asks whether the origin holds any current
+    /// representation. A client that has never been handed a tag may write it
+    /// and be right, whatever the responses before it carried.
+    #[rstest]
+    #[case("if-none-match", "*")]
+    #[case("if-match", "*")]
+    #[case("if-none-match", " * ")]
+    fn an_existence_condition_names_no_validator_to_be_missing(
+        #[case] field: &str,
+        #[case] value: &str,
+    ) {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "conditional_request_handling",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+
+        for history in [
+            crate::transaction_history::TransactionHistory::empty(),
+            crate::transaction_history::TransactionHistory::from_transactions(vec![
+                make_prev_with_headers(&[("cache-control", "no-store")]),
+            ]),
+        ] {
+            assert!(
+                crate::test_helpers::run_rule(&ConditionalRequestHandling, &tx, &history, &cfg)
+                    .is_none(),
+                "`*` is an existence condition and names no validator"
+            );
+        }
     }
 
     #[test]
@@ -719,8 +865,12 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// A history of transactions none of which was answered holds no response,
+    /// which is the same statement as an empty one — so it draws the same
+    /// message. The stored request that went unanswered is not a response that
+    /// withheld a validator.
     #[test]
-    fn previous_without_response_reports_violation() {
+    fn a_history_whose_transactions_were_never_answered_holds_no_response() {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
@@ -737,11 +887,10 @@ mod tests {
                 "conditional_request_handling",
             ]),
         );
-        assert!(v.is_some());
         assert!(v
-            .unwrap()
+            .expect("a finding")
             .message
-            .contains("previous transaction has no response recorded"));
+            .contains("no previous response recorded for this resource"));
     }
 
     #[test]
