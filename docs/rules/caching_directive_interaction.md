@@ -44,8 +44,6 @@ Cache-Control: public, max-age=3600
 
 ```http
 Cache-Control: public, private
-
 Cache-Control: no-store, public
-
 Cache-Control: max-age=60, max-age=30
 ```
