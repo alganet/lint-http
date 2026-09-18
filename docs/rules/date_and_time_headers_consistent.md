@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. A value that is not a parseable HTTP-date is flagged for the field this rule owns the reading of — `Date` and `Sunset` — and left to the per-field format rule otherwise. The value is read as octets: every octet an HTTP-date prints is visible US-ASCII in all three formats, so a field line no string reader accepts is one no format accepts, and it is reported as the timestamp defect it is.
+Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats), and at the two fields this rule owns the reading of — `Date` and `Sunset` — the sender-only IMF-fixdate obligation is read here too, because neither field has a per-header format rule to leave it to; everywhere else it belongs to that rule, then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. A value that is not a parseable HTTP-date is flagged for the field this rule owns the reading of — `Date` and `Sunset` — and left to the per-field format rule otherwise. The value is read as octets: every octet an HTTP-date prints is visible US-ASCII in all three formats, so a field line no string reader accepts is one no format accepts, and it is reported as the timestamp defect it is.
 
 ## Violations
 
@@ -17,6 +17,7 @@ Validate that date/time related headers are well-formed and mutually consistent.
 - [http_date_day_name_conflicting](../violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
 - [http_date_empty](../violations/http_date_empty.md) — A date field is written with no timestamp on it
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
+- [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
 - [last_modified_conflicting](../violations/last_modified_conflicting.md) — A Last-Modified is later than the Date beside it
 - [sunset_invalid](../violations/sunset_invalid.md) — A Sunset names a time that has already passed
 
@@ -69,4 +70,11 @@ Date: Mon, 21 Oct 2015 07:28:00 GMT
 ```http
 HTTP/1.1 200 OK
 Content-Type: text/html;charset=utf-8
+```
+
+### ❌ Bad — an RFC 850 timestamp: every recipient must read it, and no sender may write it
+
+```http
+HTTP/1.1 200 OK
+Date: Sunday, 06-Nov-94 08:49:37 GMT
 ```

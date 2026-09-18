@@ -9,7 +9,7 @@ use crate::violations::date::{DATE_MISSING, RFC_9110_6_6_1};
 use crate::violations::deprecation::{RFC_8594_3, SUNSET_INVALID};
 use crate::violations::http_date::{
     http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED,
-    RFC_5322_3_3, RFC_9110_5_6_7,
+    HTTP_DATE_OBSOLETE, RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::last_modified::{LAST_MODIFIED_CONFLICTING, RFC_9110_8_8_2_1};
 use crate::violations::ViolationDef;
@@ -37,6 +37,7 @@ pub struct DateAndTimeHeadersConsistent;
 /// about a field's absence rather than about a value.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
+    &HTTP_DATE_OBSOLETE,
     &HTTP_DATE_DAY_NAME_CONFLICTING,
     &HTTP_DATE_EMPTY,
     &LAST_MODIFIED_CONFLICTING,
@@ -219,6 +220,57 @@ impl DateAndTimeHeadersConsistent {
         }
     }
 
+    /// The spelling § 5.6.7 asks a sender for, at the two fields this rule owns
+    /// the reading of.
+    ///
+    /// **[`Timestamp::of`] cannot ask this, and the reason is what it is for.**
+    /// It parses as a recipient does, and a recipient reads all three formats —
+    /// so `Sunday, 06-Nov-94 08:49:37 GMT` becomes the instant it names and
+    /// [`Timestamp::Unparseable`] is never reached. Asking the sender's reader
+    /// only after that parse has failed asks the sender's question about the one
+    /// population it cannot apply to: the values no recipient could read. The
+    /// two obsolete spellings passed through both halves untouched, and `Date`
+    /// is on nearly every response there is.
+    ///
+    /// Only [`HttpDateDefect::ObsoleteFormat`] leaves here. Every other answer
+    /// the sender's reader gives is one the recipient's reader has already
+    /// refused, and the checks above report it against the field it arrived on.
+    ///
+    /// Every field line, because `Sunset` is read line by line above for the
+    /// same reason: no other rule owns its repetition.
+    ///
+    // cite(RFC 9110 § 5.6.7): "HTTP-date = IMF-fixdate / obs-date"
+    // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
+    fn spelled_as_a_sender_may_generate(
+        headers: &hyper::HeaderMap,
+        name: &str,
+        shown: &str,
+        party: crate::lint::Party,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        headers
+            .get_all(name)
+            .iter()
+            .filter_map(|line| {
+                let text = crate::helpers::headers::field_line_as_written(line);
+                match crate::http_date::check_imf_fixdate(&text) {
+                    Err(crate::http_date::HttpDateDefect::ObsoleteFormat) => {
+                        Some(ctx.by(party).report_with(
+                            &HTTP_DATE_OBSOLETE,
+                            format!(
+                                "{shown} '{}' is written in an obsolete date format; a recipient \
+                                 must read it, and a sender must generate IMF-fixdate \
+                                 (RFC 9110 §5.6.7)",
+                                crate::helpers::shown::shown_in_finding(&text)
+                            ),
+                        ))
+                    }
+                    Ok(()) | Err(_) => None,
+                }
+            })
+            .collect()
+    }
+
     /// A representation cannot have last changed after the message that carries
     /// it was written.
     ///
@@ -355,7 +407,7 @@ impl RuleMeta for DateAndTimeHeadersConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. A value that is not a parseable HTTP-date is flagged for the field this rule owns the reading of — `Date` and `Sunset` — and left to the per-field format rule otherwise. The value is read as octets: every octet an HTTP-date prints is visible US-ASCII in all three formats, so a field line no string reader accepts is one no format accepts, and it is reported as the timestamp defect it is."
+        "Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats), and at the two fields this rule owns the reading of — `Date` and `Sunset` — the sender-only IMF-fixdate obligation is read here too, because neither field has a per-header format rule to leave it to; everywhere else it belongs to that rule, then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. A value that is not a parseable HTTP-date is flagged for the field this rule owns the reading of — `Date` and `Sunset` — and left to the per-field format rule otherwise. The value is read as octets: every octet an HTTP-date prints is visible US-ASCII in all three formats, so a field line no string reader accepts is one no format accepts, and it is reported as the timestamp defect it is."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -406,6 +458,13 @@ impl RuleMeta for DateAndTimeHeadersConsistent {
                 compliance: Compliance::NonCompliant,
                 label: Some("— a 200 that never says when it was written"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html;charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— an RFC 850 timestamp: every recipient must read it, and no sender may write it",
+                ),
+                snippet: "HTTP/1.1 200 OK\nDate: Sunday, 06-Nov-94 08:49:37 GMT",
             },
         ]
     }
@@ -479,7 +538,38 @@ impl Rule for DateAndTimeHeadersConsistent {
 
             Self::if_modified_since_not_after_date(&tx.request.headers, skew, ctx)
         };
-        Vec::from_iter(finding())
+        // Beside the chain above rather than inside it. Every check in there
+        // reads what the value *names*, and the first one to answer ends the
+        // chain because the ones behind it are measured against the instant it
+        // failed to produce. The spelling is a different question about the
+        // same octets: an obsolete `Sunset` still names an instant, so
+        // `sunset_invalid` is still true of it, and neither finding stands in
+        // for the other.
+        let mut out = Vec::from_iter(finding());
+        out.extend(Self::spelled_as_a_sender_may_generate(
+            &tx.request.headers,
+            "date",
+            "Date",
+            crate::lint::Party::Client,
+            ctx,
+        ));
+        if let Some(resp) = &tx.response {
+            out.extend(Self::spelled_as_a_sender_may_generate(
+                &resp.headers,
+                "date",
+                "Date",
+                crate::lint::Party::Server,
+                ctx,
+            ));
+            out.extend(Self::spelled_as_a_sender_may_generate(
+                &resp.headers,
+                "sunset",
+                "Sunset",
+                crate::lint::Party::Server,
+                ctx,
+            ));
+        }
+        out
     }
 }
 
@@ -556,6 +646,91 @@ mod tests {
 
         // An hour on the right side of Date is not a finding in any spelling.
         assert!(response(&[date, ("last-modified", "Wed, 21 Oct 2015 06:28:00 UTC")]).is_none());
+    }
+
+    /// The two obsolete spellings, at the two fields whose format this rule
+    /// owns.
+    ///
+    /// **These are exactly the values the recipient's parser reads.** That is
+    /// why the reading had to move out from behind it: `Timestamp::of` turns
+    /// `Sunday, 06-Nov-94 08:49:37 GMT` into the instant it names, so
+    /// `Timestamp::Unparseable` never carried `ObsoleteFormat` and § 5.6.7's
+    /// sentence to the sender was asked only of values no recipient could read
+    /// — the one population it cannot apply to. `Date` is on nearly every
+    /// response there is, and drew nothing at all.
+    #[rstest]
+    #[case::date_rfc850("date", "Sunday, 06-Nov-94 08:49:37 GMT")]
+    #[case::date_asctime("date", "Sun Nov  6 08:49:37 1994")]
+    #[case::sunset_rfc850("sunset", "Sunday, 06-Nov-94 08:49:37 GMT")]
+    #[case::sunset_asctime("sunset", "Sun Nov  6 08:49:37 1994")]
+    fn a_spelling_a_recipient_must_read_is_still_one_no_sender_may_write(
+        #[case] field: &str,
+        #[case] value: &str,
+    ) {
+        let found = response_findings(&[("date", "Wed, 21 Oct 2015 07:28:00 GMT"), (field, value)]);
+        let v = found
+            .iter()
+            .find(|v| v.violation == "http_date_obsolete")
+            .unwrap_or_else(|| panic!("{field}: {value} draws no finding about its spelling"));
+        assert_eq!(v.severity, crate::lint::Severity::Error);
+        // The value, so a response carrying two dated fields says which one.
+        assert!(v.message.contains(value), "{}", v.message);
+        assert!(v.message.contains("IMF-fixdate"), "{}", v.message);
+    }
+
+    /// The spelling is one question and the instant is another, so neither
+    /// finding stands in for the other. `Sunset` is the pair that shows it: an
+    /// RFC 850 timestamp in 1994 is both a spelling no sender may write and a
+    /// shutdown already past, and the case that found this drew only the
+    /// second.
+    #[test]
+    fn an_obsolete_sunset_reports_its_spelling_beside_the_time_it_names() {
+        let found = response_findings(&[
+            ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+            ("sunset", "Sunday, 06-Nov-94 08:49:37 GMT"),
+        ]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"http_date_obsolete"), "{ids:?}");
+        assert!(ids.contains(&"sunset_invalid"), "{ids:?}");
+    }
+
+    /// The spelling § 5.6.7 asks for draws nothing, and neither does a value
+    /// the recipient's parser refuses: that one is `http_date_malformed`'s, and
+    /// reporting it here as well would be one value under two ids.
+    #[rstest]
+    #[case::imf("Wed, 21 Oct 2015 07:28:00 GMT", None)]
+    #[case::unreadable("not-a-date", Some("http_date_malformed"))]
+    #[case::empty("", Some("http_date_empty"))]
+    #[case::weekday(
+        "Mon, 21 Oct 2015 07:28:00 GMT",
+        Some("http_date_day_name_conflicting")
+    )]
+    fn only_the_obsolete_spelling_leaves_the_sender_side_reader(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let found = response_findings(&[("date", value)]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(!ids.contains(&"http_date_obsolete"), "{value}: {ids:?}");
+        match expected {
+            Some(id) => assert!(ids.contains(&id), "{value}: {ids:?}"),
+            None => assert!(found.is_empty(), "{value}: {ids:?}"),
+        }
+    }
+
+    /// Every finding this rule makes about one response's fields.
+    fn response_findings(pairs: &[(&str, &str)]) -> Vec<crate::lint::Violation> {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(pairs);
+        crate::test_helpers::run_rule_all(
+            &DateAndTimeHeadersConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "date_and_time_headers_consistent",
+            ]),
+        )
     }
 
     /// The client's half of the same reading: a conditional carrying tomorrow's
