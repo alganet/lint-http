@@ -20,9 +20,11 @@ use crate::rules::{Rule, RuleMeta};
 /// for the reason the private `Clock` type records.  Only a GET or HEAD
 /// response that carries the resource is read at all — see
 /// `dates_the_resource`.  The engine keys the history it hands this rule on the
-/// client and the request target, and the method is now read off each entry, so
-/// what the cache key still misses is the Vary secondary key and validators
-/// such as `ETag`.
+/// client and the request target; the method and the Vary secondary key are
+/// read off each entry, by `dates_the_resource` and
+/// `selects_the_same_representation`.  What the key still misses is a validator
+/// such as `ETag`, so two representations one origin distinguishes and `Vary`
+/// does not are read as one.
 pub struct CacheCoherence;
 
 /// Which of two clocks a representation time was read off.
@@ -91,6 +93,50 @@ fn dates_the_resource(method: &str, status: u16) -> bool {
     matches!(status, 200 | 206)
 }
 
+/// Whether the stored response's `Vary` lets these two requests read the same
+/// entry — that is, whether the two responses are timestamps of one selected
+/// representation or of two.
+///
+/// `Vary` is the cache key's second half. A response that nominates
+/// `Accept-Encoding` is stored once per encoding, and the compressed variant of
+/// a page carrying a `Last-Modified` a few seconds apart from the identity one
+/// is two files built at two moments, not one file that went backwards. The
+/// rule reported that difference as a stale response, on origins that were
+/// serving both variants correctly.
+///
+/// The comparison is § 4.1's, as far as a rule with no knowledge of the
+/// individual fields can take it: the field lines are joined and the value is
+/// trimmed, which is the whitespace transformation and the combining one. The
+/// third — normalising each value the way its own specification defines — needs
+/// the field's grammar, and this reads any field a response cares to nominate.
+/// So two values that differ only in a way their field calls insignificant read
+/// here as different, and the rule declines to compare the pair. That is the
+/// direction to be wrong in: it costs a finding the rule was entitled to make,
+/// where the other direction is the finding it was making and could not
+/// support.
+fn selects_the_same_representation(
+    stored: &crate::http_transaction::ResponseInfo,
+    stored_request: &hyper::HeaderMap,
+    presented: &hyper::HeaderMap,
+) -> bool {
+    use crate::helpers::headers::combined_field_value_as_written;
+    use crate::helpers::vary::VaryNomination;
+
+    // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
+    let nominated = match crate::helpers::vary::vary_nomination(&stored.headers) {
+        // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
+        VaryNomination::Wildcard => return false,
+        VaryNomination::Fields(fields) => fields,
+    };
+    nominated.iter().all(|name| {
+        // cite(RFC 9111 § 4.1): "adding or removing whitespace, where allowed in the header field's syntax"
+        let read = |h: &hyper::HeaderMap| {
+            combined_field_value_as_written(h, name).map(|v| v.trim().to_string())
+        };
+        read(presented) == read(stored_request)
+    })
+}
+
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
@@ -112,6 +158,12 @@ const RFC_9110_6_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("6.6.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
     note: "Date — the message's origination time (coarser fallback signal)",
+};
+const RFC_9111_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
+    note: "Vary — the cache key's second half, so two variants are two timelines",
 };
 const RFC_9110_15_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -155,12 +207,13 @@ impl RuleMeta for CacheCoherence {
     }
 
     fn description(&self) -> &'static str {
-        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\nthe later response appears to be serving a stale representation.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  Only a 200 or a 206\nanswering a GET or a HEAD joins the timeline, on either side of the\ncomparison.  Those carry the resource; a 3xx, a 4xx, a 5xx, a 204 or a 304\nis generated when the request arrives and so dates the asking, and even a\n200 represents the communication options rather than the resource when it\nanswers an OPTIONS, or our own request when it answers a TRACE.  Reading\none of those as a previous observation raises the timeline to *now* and\nreports every later cache hit — which correctly carries the stored\nresponse's older Date — as stale."
+        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously *on that same header*, we report a violation —\nthe later response appears to be serving a stale representation.\n\nThe two headers are never compared with each other.  `Last-Modified` is when\nthe representation was edited and `Date` is when the message was sent, so the\nfirst is at or before the second in any one response; comparing across them\nreports a page whose siblings simply omit `Last-Modified` as stale.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  Only a 200 or a 206\nanswering a GET or a HEAD joins the timeline, on either side of the\ncomparison.  Those carry the resource; a 3xx, a 4xx, a 5xx, a 204 or a 304\nis generated when the request arrives and so dates the asking, and even a\n200 represents the communication options rather than the resource when it\nanswers an OPTIONS, or our own request when it answers a TRACE.  Reading\none of those as a previous observation raises the timeline to *now* and\nreports every later cache hit — which correctly carries the stored\nresponse's older Date — as stale.\n\nA previous response is compared only when its `Vary` nominates nothing the\ntwo requests wrote differently.  Two encodings of one page are two stored\nentries, and the timestamps of one say nothing about the freshness of the\nother."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9111_4_2_4,
+            RFC_9111_4_1,
             RFC_9110_8_8_2,
             RFC_9110_6_6_1,
             RFC_9110_15_3_1,
@@ -274,13 +327,17 @@ impl Rule for CacheCoherence {
                 // The URI half of the cache key is the engine's: this rule is
                 // registered `ByResource`, so every entry here already has this
                 // client and this request target. The rule used to test it again,
-                // which was a test that could not be false.
-                //
-                // What the key still misses is the Vary secondary key
-                // (RFC 9111 §4.1): two responses selected on different `Accept-
-                // Encoding` values are two stored entries, and neither is stale
-                // against the other.
+                // which was a test that could not be false. The method and the
+                // Vary secondary key are the rest of the key, and both are read
+                // off the entry below.
                 if !dates_the_resource(&prev.request.method, prev_resp.status) {
+                    continue;
+                }
+                if !selects_the_same_representation(
+                    prev_resp,
+                    &prev.request.headers,
+                    &tx.request.headers,
+                ) {
                     continue;
                 }
                 if let Some((t, prev_clock)) = rep_time(&prev_resp.headers) {
@@ -332,6 +389,24 @@ mod tests {
     ) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, headers);
         tx.request.uri = uri.to_string();
+        tx
+    }
+
+    /// The same, for the Vary dimension: what the request wrote matters only
+    /// when the stored response nominated the field.
+    fn make_negotiated_tx(
+        uri: &str,
+        req_headers: &[(&str, &str)],
+        status: u16,
+        headers: &[(&str, &str)],
+    ) -> crate::http_transaction::HttpTransaction {
+        let mut tx = make_resp_tx(uri, status, headers);
+        for (name, value) in req_headers {
+            tx.request.headers.insert(
+                hyper::header::HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                hyper::header::HeaderValue::from_str(value).unwrap(),
+            );
+        }
         tx
     }
 
@@ -663,6 +738,98 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
         assert_eq!(v.unwrap().violation, "cache_response_conflicting");
+    }
+
+    /// A page served under `Vary: Accept-Encoding` is stored once per encoding.
+    /// Its compressed variant carrying a `Last-Modified` seconds apart from the
+    /// identity one is two files built at two moments, not one file that went
+    /// backwards, and the two timelines do not meet.
+    #[test]
+    fn two_variants_of_one_page_are_two_timelines() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let identity = make_negotiated_tx(
+            "https://example.com/foo",
+            &[],
+            200,
+            &[
+                ("vary", "Accept-Encoding"),
+                ("last-modified", "Sun, 30 Aug 2026 01:30:13 GMT"),
+            ],
+        );
+        let mut compressed = make_negotiated_tx(
+            "https://example.com/foo",
+            &[("accept-encoding", "gzip, br, identity;q=0")],
+            200,
+            &[
+                ("vary", "Accept-Encoding"),
+                ("last-modified", "Sun, 30 Aug 2026 01:30:05 GMT"),
+            ],
+        );
+        compressed.timestamp = identity.timestamp + chrono::Duration::seconds(1);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![identity]);
+        assert!(crate::test_helpers::run_rule(&rule, &compressed, &history, &cfg).is_none());
+    }
+
+    /// The nomination is what decides it, not the presence of `Vary`: a response
+    /// that varies on a field neither request wrote is one entry, and a
+    /// regression across it is still a regression.
+    #[test]
+    fn a_vary_on_a_field_neither_request_wrote_is_still_one_timeline() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let first = make_negotiated_tx(
+            "https://example.com/foo",
+            &[],
+            200,
+            &[
+                ("vary", "rsc, next-router-prefetch"),
+                ("date", "Sun, 30 Aug 2026 01:12:53 GMT"),
+            ],
+        );
+        let mut curr = make_negotiated_tx(
+            "https://example.com/foo",
+            &[("accept-encoding", "gzip")],
+            200,
+            &[
+                ("vary", "rsc, next-router-prefetch"),
+                ("date", "Sun, 30 Aug 2026 01:12:41 GMT"),
+            ],
+        );
+        curr.timestamp = first.timestamp + chrono::Duration::seconds(1);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![first]);
+        let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
+        assert_eq!(v.unwrap().violation, "cache_response_conflicting");
+    }
+
+    /// `Vary: *` never matches, so nothing is ever compared against a response
+    /// that sent one, however alike the two requests look.
+    #[test]
+    fn a_wildcard_vary_matches_nothing() {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let first = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("vary", "*"),
+                ("last-modified", "Sun, 30 Aug 2026 01:36:09 GMT"),
+            ],
+        );
+        let mut curr = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[
+                ("vary", "*"),
+                ("last-modified", "Sun, 30 Aug 2026 01:35:43 GMT"),
+            ],
+        );
+        curr.timestamp = first.timestamp + chrono::Duration::seconds(1);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![first]);
+        assert!(crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).is_none());
     }
 
     #[test]
