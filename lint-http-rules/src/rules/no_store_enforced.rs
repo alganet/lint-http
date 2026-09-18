@@ -248,14 +248,6 @@ impl Rule for NoStoreEnforced {
     }
 }
 
-/// Look for a `no-store` directive in any Cache-Control header field.
-///
-/// `no-store` is defined with no argument, so the bare form is the only form,
-/// and asking for it excludes a member that merely starts with the name.
-fn header_has_no_store(headers: &hyper::HeaderMap) -> bool {
-    crate::helpers::cache_control::has_unqualified(headers, "no-store")
-}
-
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
 static REGISTRATION: &dyn crate::rules::Rule = &NoStoreEnforced;
@@ -585,19 +577,6 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]),
         )
         .is_none());
-    }
-
-    #[test]
-    fn header_has_no_store_variations() {
-        let mut hm = hyper::HeaderMap::new();
-        assert!(!header_has_no_store(&hm));
-        hm.append("cache-control", "max-age=60".parse().unwrap());
-        assert!(!header_has_no_store(&hm));
-        hm.append("cache-control", "no-store".parse().unwrap());
-        assert!(header_has_no_store(&hm));
-        hm = hyper::HeaderMap::new();
-        hm.append("cache-control", "MAX-AGE=0, No-StOrE".parse().unwrap());
-        assert!(header_has_no_store(&hm));
     }
 
     #[test]
