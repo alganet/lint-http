@@ -14,7 +14,7 @@
 //! type in core.
 
 use crate::config::Config;
-use crate::lint::Violation;
+use crate::lint::{Severity, Violation};
 use crate::rules::{ProtocolRule, Rule};
 
 /// One enabled rule with everything the engine resolved about it at
@@ -109,6 +109,53 @@ impl PreparedEngine {
                 })
                 .collect::<anyhow::Result<_>>()?,
         })
+    }
+
+    /// How this configuration reports a protocol-event finding that some
+    /// *earlier* pass already made: `None` when it does not report it at all,
+    /// and the level it carries here when it does.
+    ///
+    /// **A capture's protocol events replay from the record rather than
+    /// through the rules, and that is the reason this exists.** A protocol
+    /// rule reads a run of events through the store the live connection built,
+    /// and a capture file holds the events without that store — so re-running
+    /// the rule would answer a different question than the wire did. What does
+    /// *not* follow is that the operator's configuration has nothing to say
+    /// about the answer: which rules run and which findings are reported are
+    /// two questions, and only the first is settled by the time a record is
+    /// written. A rule switched off here reported anyway, at a severity this
+    /// config had already overridden, and failed the exit code with it.
+    ///
+    /// The lookup is over the *enabled* protocol rules, so a rule that is off
+    /// answers `None` by not being in the table — `enabled` keeps the one
+    /// place it is read.
+    ///
+    /// `recorded` is the level the finding was written with, and it is the
+    /// answer for a defect this catalogue does not declare. Such a finding was
+    /// made by another version's rule, about which this configuration has said
+    /// nothing — and a `[violations.<id>]` section it could have been tuned by
+    /// is one `validate_rules` would already have refused. Dropping it would
+    /// be this config claiming an opinion it does not have.
+    pub fn recorded_protocol_severity(
+        &self,
+        rule: &str,
+        violation: &str,
+        recorded: Severity,
+    ) -> Option<Severity> {
+        let prepared = self.enabled_protocol.iter().find(|p| p.rule.id() == rule)?;
+        let Some(index) = prepared
+            .rule
+            .violations()
+            .iter()
+            .position(|def| def.id == violation)
+        else {
+            return Some(recorded);
+        };
+        prepared
+            .violations
+            .get(index)
+            .filter(|resolved| resolved.enabled)
+            .map(|resolved| resolved.severity)
     }
 
     /// Lint an entire `HttpTransaction` against the enabled rule set. No
