@@ -5459,7 +5459,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 436
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 213
+      line: 221
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 176
   - label: the weight production
@@ -5629,7 +5629,7 @@ sources:
     snippet: Each language-range can be given an associated quality value representing an estimate of the user's preference for the languages specified by that range, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 195
+      line: 203
   - label: accept_language_weight_valid (3)
     section: § 12.5.4
     snippet: The "Accept-Language" header field can be used by user agents to indicate the set of natural languages that are preferred in the response.
@@ -7446,6 +7446,8 @@ sources:
       line: 241
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 237
+    - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
+      line: 178
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 137
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -8011,7 +8013,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 213
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 170
+      line: 177
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 790
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -8343,7 +8345,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 397
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 273
+      line: 281
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 77
   - label: lint-http-rules/src/helpers/request_target.rs
