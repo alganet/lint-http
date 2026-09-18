@@ -163,6 +163,7 @@ impl Rule for PatchPartialUpdate {
             let evidence = crate::helpers::content_length::content_evidence(
                 &tx.request.headers,
                 tx.request.body_length,
+                tx.request.body_interrupted,
             )?;
 
             // Presence is the whole test, so `contains_key` answers it and no

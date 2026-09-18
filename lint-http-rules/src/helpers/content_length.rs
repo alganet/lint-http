@@ -155,10 +155,24 @@ impl std::fmt::Display for ContentEvidence {
 // The captured count is that stream measured directly, so it answers first; a
 // coded representation of nothing is still nothing, which is why a
 // `Content-Encoding` does not disturb the comparison against zero.
-pub fn content_evidence(headers: &HeaderMap, body_length: Option<u64>) -> Option<ContentEvidence> {
+//
+// `body_interrupted` says the counting stopped where the reading stopped rather
+// than where the body did, which makes the count a lower bound. A lower bound
+// above zero still settles the question -- octets were seen, so content
+// existed -- but a lower bound *of* zero settles nothing, and reading it as
+// "no content" turns a download nobody waited for into a message that carried
+// none. So that one case falls through to the sender's own declaration, which
+// is exactly the evidence an uncaptured body already relies on.
+pub fn content_evidence(
+    headers: &HeaderMap,
+    body_length: Option<u64>,
+    body_interrupted: bool,
+) -> Option<ContentEvidence> {
     match body_length {
-        Some(n) => (n > 0).then_some(ContentEvidence::Captured(n)),
-        None => declared_content_length(headers)
+        Some(n) if n > 0 => Some(ContentEvidence::Captured(n)),
+        // A zero the reading never got past is not a zero the body had.
+        Some(_) if !body_interrupted => None,
+        _ => declared_content_length(headers)
             .filter(|n| *n > 0)
             .map(ContentEvidence::Declared),
     }
@@ -178,6 +192,34 @@ pub fn declared_content_length(headers: &HeaderMap) -> Option<u128> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A count that stopped early is a lower bound: above zero it still proves
+    /// content existed, and at zero it proves nothing, so the sender's own
+    /// declaration answers instead. A complete zero keeps meaning what it meant.
+    #[test]
+    fn an_interrupted_zero_is_not_evidence_of_an_empty_body() {
+        let declared = crate::test_helpers::make_headers_from_pairs(&[("content-length", "4000")]);
+        let bare = crate::test_helpers::make_headers_from_pairs(&[]);
+
+        // Read to the end, zero octets is an empty body whatever the header said.
+        assert!(content_evidence(&declared, Some(0), false).is_none());
+
+        // The same zero from a reading that never reached the body's end falls
+        // through to what the sender declared.
+        assert!(matches!(
+            content_evidence(&declared, Some(0), true),
+            Some(ContentEvidence::Declared(4000))
+        ));
+        // With nothing declared either, there is still no evidence of content --
+        // the fallback does not invent any.
+        assert!(content_evidence(&bare, Some(0), true).is_none());
+
+        // A non-zero count settles it on its own, interrupted or not.
+        assert!(matches!(
+            content_evidence(&bare, Some(7), true),
+            Some(ContentEvidence::Captured(7))
+        ));
+    }
 
     // Quoted-string helper tests
     /// Two `Content-Length: 5` field lines and one `Content-Length: 5, 5` line are

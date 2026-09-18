@@ -229,6 +229,7 @@ impl Rule for OptionsMethodCapabilities {
         if let Some(evidence) = crate::helpers::content_length::content_evidence(
             &tx.request.headers,
             tx.request.body_length,
+            tx.request.body_interrupted,
         ) {
             if !tx.request.headers.contains_key("content-type") {
                 out.push(ctx.by_client().report_with(&METHOD_OPTIONS_CONTENT_TYPE_MISSING, format!(

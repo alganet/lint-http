@@ -288,7 +288,13 @@ impl Rule for ExpectHeaderValid {
                 //
                 // cite(RFC 9110 § 10.1.1): "A client MUST NOT generate a 100-continue expectation in a request that does not include content."
                 // cite(RFC 9110 § 10.1.1): "A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request"
-                if content_evidence(&tx.request.headers, tx.request.body_length).is_none() {
+                if content_evidence(
+                    &tx.request.headers,
+                    tx.request.body_length,
+                    tx.request.body_interrupted,
+                )
+                .is_none()
+                {
                     return report(Defect::named(
                         &EXPECT_100_CONTINUE_FORBIDDEN,
                         "Request carries a 100-continue expectation but no content: the expectation \

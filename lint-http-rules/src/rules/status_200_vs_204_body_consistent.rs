@@ -91,7 +91,7 @@ impl RuleMeta for Status200Vs204BodyConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a `200 (OK)` response that carries no content, so an operator can check whether `204 (No Content)` was meant instead. **Nothing is being violated.** RFC 9110 §15.3.1 says an origin server *\"ought to\"* send a 204 *\"if some aspect of the request indicates a preference for no content upon success\"* — a modal weaker than SHOULD, and a condition about the *request* that no field on the wire records, so this rule cannot tell the case the sentence is about from the case it is not. It reports both. The same section's preceding sentence expects a 200 to contain content *\"unless the message framing explicitly indicates that the content has zero length\"*, which is the very state reported here, and §6.4.1 says of every response that is not a HEAD response, a CONNECT tunnel, a 1xx, a 204 or a 304: *\"All other responses do include content, although that content might be of zero length.\"* A 200 returning an empty representation — an empty file, an empty collection — is therefore conforming, and reads as a finding only because the alternative status code is often the better answer. `OPTIONS` is the case an operator will meet most often: §9.3.7 says of a successful OPTIONS that *\"the response content, if any\"* describes the communication options, so having none is anticipated by the method's own definition, and it is still reported here. Two responses are exempt because they cannot carry content at all: responses to `HEAD` (§9.3.2) and 2xx responses to `CONNECT`, where the tunnel begins where the content would be and a 204 would not open it. Method tokens are compared case-sensitively (§9.1). Emptiness is read from the declared `Content-Length` when the response has no `Transfer-Encoding`, and otherwise from the captured content length; when neither is available the response is not reported, and an invalid `Content-Length` is left to `content_length_valid`."
+        "Reports a `200 (OK)` response that carries no content, so an operator can check whether `204 (No Content)` was meant instead. **Nothing is being violated.** RFC 9110 §15.3.1 says an origin server *\"ought to\"* send a 204 *\"if some aspect of the request indicates a preference for no content upon success\"* — a modal weaker than SHOULD, and a condition about the *request* that no field on the wire records, so this rule cannot tell the case the sentence is about from the case it is not. It reports both. The same section's preceding sentence expects a 200 to contain content *\"unless the message framing explicitly indicates that the content has zero length\"*, which is the very state reported here, and §6.4.1 says of every response that is not a HEAD response, a CONNECT tunnel, a 1xx, a 204 or a 304: *\"All other responses do include content, although that content might be of zero length.\"* A 200 returning an empty representation — an empty file, an empty collection — is therefore conforming, and reads as a finding only because the alternative status code is often the better answer. `OPTIONS` is the case an operator will meet most often: §9.3.7 says of a successful OPTIONS that *\"the response content, if any\"* describes the communication options, so having none is anticipated by the method's own definition, and it is still reported here. Two responses are exempt because they cannot carry content at all: responses to `HEAD` (§9.3.2) and 2xx responses to `CONNECT`, where the tunnel begins where the content would be and a 204 would not open it. Method tokens are compared case-sensitively (§9.1). Emptiness is read from the declared `Content-Length` when the response has no `Transfer-Encoding`, and otherwise from the captured content length; when neither is available the response is not reported, and an invalid `Content-Length` is left to `content_length_valid`. The captured count answers only where the counting reached the body's end: a chunked response whose client hung up before the first chunk counts zero as well, and advising a 204 there would describe the reading rather than the message."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -232,6 +232,15 @@ impl Rule for Status200Vs204BodyConsistent {
                 // count is of content, not of framing: chunk sizes and the trailer section
                 // are not in it.
                 // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
+                //
+                // Zero counted octets are evidence of an empty body only when the
+                // counting ran to the body's end. A chunked 200 whose client hung
+                // up before the first chunk arrived counts zero too, and reading
+                // that as an empty success advised a 204 for a response that was
+                // carrying content when the reading stopped. This branch is the
+                // one place the emptiness comes from the capture rather than the
+                // sender, so it is the only one that has to ask.
+                Some(0) if resp.body_interrupted => None,
                 Some(0) => Some(Self::report(ctx, "captured length 0")),
                 // Content was counted.
                 Some(_) => None,
@@ -281,6 +290,41 @@ mod tests {
         .expect("a finding");
         assert_eq!(found.violation, "status_200_ambiguous");
         assert_eq!(found.severity, crate::lint::Severity::Info);
+    }
+
+    /// The capture's own zero, and the only branch that reads one. A chunked 200
+    /// declares no length, so the counted octets are the whole of the evidence --
+    /// and a client that hung up before the first chunk arrived counts zero for a
+    /// response that was carrying content. Advising a 204 there describes the
+    /// reading, not the message.
+    #[test]
+    fn a_zero_the_reading_never_got_past_is_not_an_empty_success() {
+        let mut tx = make_tx_with_response(200, "GET", &[("transfer-encoding", "chunked")]);
+        tx.response.as_mut().expect("response").body_length = Some(0);
+
+        let run = |tx: &crate::http_transaction::HttpTransaction| {
+            crate::test_helpers::run_rule(
+                &Status200Vs204BodyConsistent,
+                tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "status_200_vs_204_body_consistent",
+                ]),
+            )
+        };
+
+        // Counted to the end, zero octets is the empty success the advice is about.
+        assert_eq!(
+            run(&tx).expect("a finding").violation,
+            "status_200_ambiguous"
+        );
+
+        tx.response.as_mut().expect("response").body_interrupted = true;
+        assert!(
+            run(&tx).is_none(),
+            "a count that stopped before the first chunk says nothing about \
+             whether the response was empty"
+        );
     }
 
     #[rstest]

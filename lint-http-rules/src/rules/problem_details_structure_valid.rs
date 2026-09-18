@@ -90,7 +90,7 @@ impl RuleMeta for ProblemDetailsStructureValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a response whose `Content-Type` is `application/problem+json` but whose content is not the problem details JSON object that media type identifies — content that is empty, that does not parse as JSON, or that parses as some other JSON value (an array, a string, a number). RFC 9457 defines the format; it obsoletes RFC 7807.\n\n**Any status code.** RFC 9457 says problem details \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.\n\n**An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with \"can have\", §3.1.1 says that when `type` is absent \"its value is assumed to be `about:blank`\", and §4.2.1 confirms that \"any problem details object not carrying an explicit `type` member implicitly uses this URI\" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.\n\n**What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being \"in a format and encoding defined by the representation metadata header fields\", §8.3 says the indicated media type \"defines both the data format and how that data is intended to be processed by a recipient\", and the same section calls a server that does otherwise one that has not been configured \"to provide the correct Content-Type for a given representation\". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.\n\n**Limits.** Only the JSON serialization is checked: RFC 9457 defines an equivalent XML format (`application/problem+xml`) in Appendix B, and measuring an XML document against it needs a parser this crate does not have. A `Content-Encoding` means the captured octets are the coded form, so they are not parsed as JSON — the emptiness checks still apply, since a coded representation of nothing is still nothing. Two `Content-Type` field lines are declined: `Content-Type` is a singleton, recipients often act on the last member, and `content_type_valid` reports the duplication. A response carrying no `Content-Type` at all is `content_type_present`'s finding, and an unparseable one is `content_type_valid`'s.\n\nCaptured bodies are available to rules in memory; the `captures_include_body` setting only controls whether bodies are persisted to the captures file. A body captured as a truncated prefix is not parsed. Where no bytes are available — a transaction read back from a capture file — the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it."
+        "Reports a response whose `Content-Type` is `application/problem+json` but whose content is not the problem details JSON object that media type identifies — content that is empty, that does not parse as JSON, or that parses as some other JSON value (an array, a string, a number). RFC 9457 defines the format; it obsoletes RFC 7807.\n\n**Any status code.** RFC 9457 says problem details \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.\n\n**An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with \"can have\", §3.1.1 says that when `type` is absent \"its value is assumed to be `about:blank`\", and §4.2.1 confirms that \"any problem details object not carrying an explicit `type` member implicitly uses this URI\" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.\n\n**What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being \"in a format and encoding defined by the representation metadata header fields\", §8.3 says the indicated media type \"defines both the data format and how that data is intended to be processed by a recipient\", and the same section calls a server that does otherwise one that has not been configured \"to provide the correct Content-Type for a given representation\". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.\n\n**Limits.** Only the JSON serialization is checked: RFC 9457 defines an equivalent XML format (`application/problem+xml`) in Appendix B, and measuring an XML document against it needs a parser this crate does not have. A `Content-Encoding` means the captured octets are the coded form, so they are not parsed as JSON — the emptiness checks still apply, since a coded representation of nothing is still nothing. Two `Content-Type` field lines are declined: `Content-Type` is a singleton, recipients often act on the last member, and `content_type_valid` reports the duplication. A response carrying no `Content-Type` at all is `content_type_present`'s finding, and an unparseable one is `content_type_valid`'s.\n\nCaptured bodies are available to rules in memory; the `captures_include_body` setting only controls whether bodies are persisted to the captures file. A body captured as a truncated prefix is not parsed. Nor is a counted zero read as an empty document when the reading stopped before the body's end — the zero is then where the reading stopped, not where the content ran out. Where no bytes are available — a transaction read back from a capture file — the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -259,6 +259,12 @@ impl Rule for ProblemDetailsStructureValid {
             // zero here is zero octets of representation.
             // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
             if let Some(len) = resp.body_length {
+                // ...and only where the counting reached the body's end. Otherwise
+                // the zero is where the reading stopped, and "the capture counted
+                // zero content octets" would be reporting the capture.
+                if resp.body_interrupted {
+                    return None;
+                }
                 return (len == 0).then(|| {
                     Self::report(
                         ctx,
@@ -337,6 +343,25 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The counted zero is the last evidence the rule reaches for, and it is
+    /// evidence only where the counting finished. A problem document whose
+    /// reading was cut off before its first octet is not an empty one.
+    #[test]
+    fn an_interrupted_zero_is_not_an_empty_problem_document() {
+        let mut tx = fixture(400, &[PJ], None, Some(0));
+
+        assert_eq!(
+            check(&tx).expect("a finding").violation,
+            "problem_details_empty"
+        );
+
+        tx.response.as_mut().expect("response").body_interrupted = true;
+        assert!(
+            check(&tx).is_none(),
+            "zero counted octets from an unfinished reading is not an empty body"
+        );
     }
 
     const PJ: (&str, &str) = ("content-type", "application/problem+json");
