@@ -140,6 +140,11 @@ impl RuleMeta for StrictTransportSecurityValid {
                 label: Some("— `includeSubDomains` must not have a value"),
                 snippet: "Strict-Transport-Security: max-age=63072000; includeSubDomains=1",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a trailing `;` opens a directive the sender never wrote"),
+                snippet: "Strict-Transport-Security: max-age=15552000;",
+            },
         ]
     }
 }

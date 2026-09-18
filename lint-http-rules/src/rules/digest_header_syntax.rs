@@ -686,6 +686,11 @@ impl RuleMeta for DigestHeaderSyntax {
                 label: None,
                 snippet: "Digest: SHA-256=not-base64!  # legacy Digest is obsoleted by RFC 9530 and will be reported",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— `Content-MD5` was removed from HTTP, whatever its value"),
+                snippet: "Content-MD5: Q2hlY2sgSW50ZWdyaXR5IQ==",
+            },
         ]
     }
 }

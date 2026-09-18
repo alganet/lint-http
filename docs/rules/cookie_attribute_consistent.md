@@ -83,8 +83,14 @@ Set-Cookie: id=1; SameSite=None
 Set-Cookie: SID=1; Max-Age=abc
 ```
 
-### ❌ Bad — Expires must be a valid HTTP-date
+### ❌ Bad — Expires names no instant at all
 
 ```http
 Set-Cookie: SID=1; Expires=NotADate
+```
+
+### ❌ Bad — the hyphenated form every user agent reads, which is still not the rfc1123-date § 4.1.1 asks a sender for
+
+```http
+Set-Cookie: SID=1; Expires=Wed, 27-Aug-2036 02:28:19 GMT
 ```

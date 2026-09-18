@@ -72,3 +72,9 @@ Content-Digest: sha-256=dGVzdA==   # missing the required ':' byte sequence deli
 ```http
 Digest: SHA-256=not-base64!  # legacy Digest is obsoleted by RFC 9530 and will be reported
 ```
+
+### ❌ Bad — `Content-MD5` was removed from HTTP, whatever its value
+
+```http
+Content-MD5: Q2hlY2sgSW50ZWdyaXR5IQ==
+```

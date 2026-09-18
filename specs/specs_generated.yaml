@@ -14,7 +14,7 @@ sources:
     snippet: Access-Control-Allow-Credentials = %s"true" ; case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 182
+      line: 187
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
       line: 101
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
@@ -24,7 +24,7 @@ sources:
     snippet: Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 183
+      line: 188
   - label: access_control_allow_origin_valid
     section: § 3.3.3
     snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.
@@ -3727,27 +3727,27 @@ sources:
     snippet: UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification.
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 166
+      line: 171
   - label: strict_transport_security_valid (2)
     section: § 6.1
     snippet: directive-name            = token
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 227
+      line: 232
   - label: strict_transport_security_valid (3)
     section: § 6.1
     snippet: directive-value           = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 256
+      line: 261
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 319
+      line: 324
   - label: max-age carries a value
     section: § 6.1.1
     snippet: 'The syntax of the max-age directive''s REQUIRED value (after quoted-string unescaping, if necessary) is defined as:'
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 257
+      line: 262
     - file: lint-http-rules/src/violations/strict_transport_security.rs
       line: 137
 - label: RFC 6838

@@ -363,6 +363,11 @@ impl RuleMeta for ConditionalRequestHandling {
                 label: Some("— client used conditional header without previously seeing an ETag/Last-Modified"),
                 snippet: "> GET /resource HTTP/1.1\n> If-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT\n\n< 200 OK  HTTP/1.1\n< Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— the condition was not met, so the response owed is 304 and not a second copy"),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"",
+            },
         ]
     }
 }

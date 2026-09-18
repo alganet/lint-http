@@ -397,6 +397,16 @@ impl RuleMeta for DateAndTimeHeadersConsistent {
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nLast-Modified: Wed, 21 Oct 2015 07:30:00 GMT  # Last-Modified after Date\nSunset: Wed, 21 Oct 2015 07:27:00 GMT        # Sunset is in the past relative to Date",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— the weekday and the date name different days; 21 Oct 2015 was a Wednesday"),
+                snippet: "HTTP/1.1 200 OK\nDate: Mon, 21 Oct 2015 07:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a 200 that never says when it was written"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html;charset=utf-8",
+            },
         ]
     }
 }
