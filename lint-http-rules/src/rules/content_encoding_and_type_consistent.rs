@@ -7,6 +7,7 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::content_coding::{
     CONTENT_CODING_REDUNDANT, CONTENT_CODING_WILDCARD_FORBIDDEN, RFC_9110_12_5_3, RFC_9110_8_4,
 };
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::status::{
     RFC_9110_15_4_5, STATUS_304_METADATA_FORBIDDEN, STATUS_METADATA_REDUNDANT,
 };
@@ -41,6 +42,7 @@ pub struct ContentEncodingAndTypeConsistent;
 /// `1xx` or `204`, which nothing states and this crate reports anyway. Splitting
 /// them is what keeps the stated finding out of the inference's reach.
 static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -82,6 +84,7 @@ impl RuleMeta for ContentEncodingAndTypeConsistent {
             RFC_9110_15_4_5,
             RFC_9110_15_3_5,
             RFC_9110_5_6_2,
+            RFC_9110_5_6_1_1,
         ]
     }
 
@@ -150,6 +153,11 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // has a floor, so the name that is not there is the token's
                     // own defect: the mirror rule on `Transfer-Encoding` reached
                     // the same id from the same member shape.
+                    //
+                    // The member this walk drops is reported before the walk
+                    // runs, by `empty_member` below. That is a change of
+                    // ownership rather than of this branch: the two shapes were
+                    // always two defects, and only one of them had a reporter.
                     if token.is_empty() {
                         return Some(ctx.by(party).report_with(
                             &TOKEN_EMPTY,
@@ -194,6 +202,60 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 }
                 None
             };
+
+            // The empty member, before the walk above drops it. §5.6.1.2 has a
+            // recipient parse and ignore an empty list element, which is what
+            // `list_members` does and why nothing downstream can report one;
+            // §5.6.1.1 is the sentence the sender is held to, and it forbids
+            // generating the element at all. `Content-Encoding` is one of the
+            // fields the catalogue's list subject names, and until this walk it
+            // answered a stray comma with silence.
+            //
+            // Per field line rather than over the joined value the coding walk
+            // uses. A `#` list spread across two lines is one list to a
+            // recipient that joins them, so a line holding no element becomes
+            // an empty element only in the join — a claim about the join rather
+            // than about a comma this sender wrote.
+            //
+            // A field line holding no element at all is passed over:
+            // `#content-coding` generates the zero-element list, and an absent
+            // list is not an element the sender left blank.
+            // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+            let empty_member = |headers: &hyper::HeaderMap,
+                                party: crate::lint::Party|
+             -> Option<Violation> {
+                for line in
+                    crate::helpers::headers::field_lines_as_written(headers, "content-encoding")
+                {
+                    let val = line.as_str();
+                    if crate::helpers::headers::trim_ows(val).is_empty() {
+                        continue;
+                    }
+                    if crate::helpers::list::sender_list_members(val).any(str::is_empty) {
+                        return Some(ctx.by(party).report_with(
+                                &LIST_MEMBER_EMPTY,
+                                format!(
+                                    "Content-Encoding holds an empty list element; the field line reads '{val}'. Every position in `#content-coding` holds a coding, and a comma with nothing beside it holds none"
+                                ),
+                            ));
+                    }
+                }
+                None
+            };
+
+            // Both halves are walked, because both may carry the field. The
+            // registry rule beside this one reads only the response, which is
+            // why the list's own defect is answered here.
+            if let Some(v) = empty_member(&tx.request.headers, crate::lint::Party::Client) {
+                return Some(v);
+            }
+            if let Some(resp) = &tx.response {
+                if let Some(v) = empty_member(&resp.headers, crate::lint::Party::Server) {
+                    return Some(v);
+                }
+            }
 
             // The lines of a section are one list, read as octets. `to_str`
             // refuses everything outside visible US-ASCII, which folded an
@@ -393,7 +455,9 @@ mod tests {
     #[case(Some("gzip, gzip"), 200, true)]
     #[case(Some("x@bad"), 200, true)]
     #[case(Some("gzip"), 204, true)]
-    #[case(Some("gzip, "), 200, false)]
+    // A trailing comma is an element the sender left blank, not whitespace: the
+    // walk that made this look clean was the recipient's, which drops it.
+    #[case(Some("gzip, "), 200, true)]
     #[case(None, 200, false)]
     fn response_cases(
         #[case] ce: Option<&str>,
@@ -480,19 +544,65 @@ mod tests {
         assert_eq!(v.violation, "token_character_forbidden");
         assert_eq!(v.message, "Invalid token 0xFF in Content-Encoding header");
     }
-    #[test]
-    fn request_trailing_comma_accepted() {
+    /// `Content-Encoding = #content-coding`, so an empty field value is a list
+    /// with no element in it and a comma with nothing beside it is an element
+    /// the sender left blank. This test used to say the trailing comma was
+    /// "accepted", which was true only because the recipient's list walk had
+    /// dropped the element before anything could see it — the walk §5.6.1.2
+    /// prescribes to the peer *reading* the value, where §5.6.1.1 forbids the
+    /// sender to write one.
+    ///
+    /// Both directions, because both halves may carry the field and the
+    /// registry rule beside this one reads only the response. Two field lines
+    /// each holding a coding are one list and no finding: the empty element is
+    /// looked for inside a line, never across the join.
+    #[rstest]
+    #[case(true, &["gzip, "], Some("list_member_empty"))]
+    #[case(true, &["gzip,,br"], Some("list_member_empty"))]
+    #[case(true, &[","], Some("list_member_empty"))]
+    #[case(true, &[",gzip"], Some("list_member_empty"))]
+    #[case(false, &["gzip,,br"], Some("list_member_empty"))]
+    #[case(false, &["gzip,"], Some("list_member_empty"))]
+    #[case(true, &[""], None)]
+    #[case(true, &["  "], None)]
+    #[case(false, &[""], None)]
+    #[case(true, &["gzip"], None)]
+    #[case(true, &["gzip", "br"], None)]
+    fn a_trailing_comma_is_an_element_and_the_space_beside_it_is_not(
+        #[case] on_request: bool,
+        #[case] lines: &[&str],
+        #[case] expected: Option<&str>,
+    ) {
         let rule = ContentEncodingAndTypeConsistent;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip, ")]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut section = hyper::HeaderMap::new();
+        for line in lines {
+            section.append(
+                hyper::header::HeaderName::from_static("content-encoding"),
+                hyper::header::HeaderValue::from_str(line).expect("a header value"),
+            );
+        }
+        if on_request {
+            tx.request.headers = section;
+        } else {
+            tx.response.as_mut().unwrap().headers = section;
+        }
+
         let violation = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(violation.is_none());
+        match expected {
+            Some(id) => assert_eq!(
+                violation.map(|v| v.violation),
+                Some(id.to_string()),
+                "{lines:?} on {}",
+                if on_request { "request" } else { "response" }
+            ),
+            None => assert!(violation.is_none(), "{lines:?} drew {violation:?}"),
+        }
     }
     #[test]
     fn content_encoding_wildcard_reports_violation() -> anyhow::Result<()> {

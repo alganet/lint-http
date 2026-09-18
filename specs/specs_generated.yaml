@@ -6171,11 +6171,9 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 152
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 141
+      line: 144
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 140
-    - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 222
+      line: 137
   - label: compression_and_transfer_encoding_consistent (5)
     section: § 8.4
     snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
@@ -6385,25 +6383,25 @@ sources:
     snippet: Metadata in the response header fields refer to the target resource and its selected representation after the requested action was applied.
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 241
+      line: 303
   - label: content_encoding_and_type_consistent (2)
     section: § 15.4.5
     snippet: a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 232
+      line: 294
   - label: content_encoding_registered
     section: § 12.5.3
     snippet: codings = content-coding / "identity" / "*"
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 141
+      line: 138
   - label: content_encoding_registered (2)
     section: § 8.4.1
     snippet: content-coding = token
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 173
+      line: 170
   - label: content_length_valid
     section: § 8.6
     snippet: The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets.
@@ -7418,7 +7416,7 @@ sources:
       line: 126
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 340
-    - file: lint-http-rules/src/rules/content_encoding_registered.rs
+    - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 223
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 234
@@ -7462,8 +7460,10 @@ sources:
       line: 215
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 89
-    - file: lint-http-rules/src/rules/content_encoding_registered.rs
+    - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 224
+    - file: lint-http-rules/src/rules/content_encoding_registered.rs
+      line: 211
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 376
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
@@ -7966,7 +7966,7 @@ sources:
       line: 202
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 168
-    - file: lint-http-rules/src/rules/content_encoding_registered.rs
+    - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 225
     - file: lint-http-rules/src/rules/host_header.rs
       line: 216
