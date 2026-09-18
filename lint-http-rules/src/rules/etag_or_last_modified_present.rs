@@ -134,6 +134,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(headers),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 

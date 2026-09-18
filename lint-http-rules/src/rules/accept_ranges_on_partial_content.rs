@@ -296,6 +296,7 @@ mod tests {
                     version: "HTTP/1.1".into(),
                     headers: section(headers),
                     body_length: None,
+                    body_interrupted: false,
                     trailers: (!trailers.is_empty()).then(|| section(trailers)),
                 });
                 crate::transaction_history::TransactionHistory::from_transactions(vec![prev])

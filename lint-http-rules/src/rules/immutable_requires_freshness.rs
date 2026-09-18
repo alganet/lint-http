@@ -241,6 +241,7 @@ mod tests {
             headers: HeaderMap::new(),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
@@ -292,6 +293,7 @@ mod tests {
                 version: "HTTP/1.1".into(),
                 headers,
                 body_length: None,
+                body_interrupted: false,
                 trailers: None,
             });
             crate::test_helpers::run_rule(

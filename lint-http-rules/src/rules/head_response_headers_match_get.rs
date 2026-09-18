@@ -782,6 +782,7 @@ mod tests {
             version: resp.version.clone(),
             headers: hm,
             body_length: resp.body_length,
+            body_interrupted: false,
             trailers: None,
         });
         tx

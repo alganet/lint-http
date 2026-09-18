@@ -280,6 +280,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(&[("pragma", val)]),
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         tx
@@ -529,6 +530,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let v = crate::test_helpers::run_rule(

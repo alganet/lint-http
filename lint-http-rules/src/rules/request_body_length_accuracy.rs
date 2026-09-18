@@ -228,6 +228,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "3")]),
             body_length: Some(3),
+            body_interrupted: false,
             trailers: None,
         };
 
@@ -250,6 +251,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "10")]),
             body_length: Some(3),
+            body_interrupted: false,
             trailers: None,
         };
 
@@ -273,6 +275,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
             body_length: Some(5),
+            body_interrupted: false,
             trailers: None,
         };
 
@@ -295,6 +298,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "3")]),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         };
 
@@ -321,6 +325,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: Some(10),
+            body_interrupted: false,
             trailers: None,
         };
 
@@ -343,6 +348,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "  3  ")]),
             body_length: Some(3),
+            body_interrupted: false,
             trailers: None,
         };
 
@@ -367,6 +373,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(headers),
             body_length,
+            body_interrupted: false,
             trailers: None,
         };
         tx

@@ -39,6 +39,11 @@ pub(super) struct CapturedBody {
     pub total: u64,
     /// Whether `prefix` is a truncated view of a larger body.
     pub truncated: bool,
+    /// False when the stream stopped before end-of-stream, which is to say that
+    /// `total` counts the octets that arrived rather than the octets the body
+    /// had. Only the end-of-stream path can set this, so every other way out --
+    /// an error, a drop -- leaves it false and says so.
+    pub complete: bool,
     /// Trailers, if the body carried any.
     pub trailers: Option<HeaderMap>,
 }
@@ -73,8 +78,18 @@ impl TeeBody {
     }
 
     /// Send the captured body to the waiting commit task. Idempotent: only the
-    /// first call (end-of-stream, error, or drop) fires.
-    fn finalize(&mut self) {
+    /// first call (end-of-stream, error, or drop) fires -- which is also what
+    /// makes `complete` trustworthy: a body that reaches end-of-stream finalizes
+    /// there, and the `Drop` that follows every body finds the sender already
+    /// taken and says nothing.
+    ///
+    /// `complete` is the whole reason this takes an argument. All three exits
+    /// used to build the same `CapturedBody`, so a count of the octets that
+    /// arrived before a client hung up was indistinguishable from a count of the
+    /// octets the body had -- and a reader comparing that count against a
+    /// declared `Content-Length` was told the sender's framing was wrong when
+    /// the only thing that had gone wrong was the reading.
+    fn finalize(&mut self, complete: bool) {
         if let Some(done) = self.done.take() {
             let prefix = std::mem::take(&mut self.prefix).freeze();
             let truncated = self.total > prefix.len() as u64;
@@ -82,6 +97,7 @@ impl TeeBody {
                 prefix,
                 total: self.total,
                 truncated,
+                complete,
                 trailers: self.trailers.take(),
             });
         }
@@ -113,12 +129,16 @@ impl Body for TeeBody {
                 }
                 Poll::Ready(Some(Ok(frame)))
             }
+            // The stream failed part-way. Whatever `total` holds is the octets
+            // that arrived before it did, and the body's real length is unknown.
             Poll::Ready(Some(Err(e))) => {
-                this.finalize();
+                this.finalize(false);
                 Poll::Ready(Some(Err(e)))
             }
+            // End of stream: every octet the body had has been counted, and this
+            // is the only exit that can say so.
             Poll::Ready(None) => {
-                this.finalize();
+                this.finalize(true);
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,
@@ -138,7 +158,10 @@ impl Drop for TeeBody {
     fn drop(&mut self) {
         // Covers early client disconnect: the body is dropped before reaching
         // end-of-stream, but we still record whatever prefix was forwarded.
-        self.finalize();
+        // Reaching here with the sender still in hand *is* the evidence that
+        // end-of-stream was never reached -- a completed body took it already --
+        // so this exit can only report an incomplete count.
+        self.finalize(false);
     }
 }
 
@@ -167,6 +190,9 @@ mod tests {
         assert_eq!(captured.prefix, Bytes::from_static(b"hello"));
         assert_eq!(captured.total, 11);
         assert!(captured.truncated);
+        // The stream reached its end, so the count is the body's length and not
+        // merely the octets that had arrived.
+        assert!(captured.complete);
     }
 
     #[tokio::test]
@@ -181,6 +207,7 @@ mod tests {
         assert_eq!(captured.prefix, Bytes::from_static(b"hi"));
         assert_eq!(captured.total, 2);
         assert!(!captured.truncated);
+        assert!(captured.complete);
     }
 
     #[tokio::test]
@@ -193,5 +220,47 @@ mod tests {
         assert_eq!(captured.total, 0);
         assert!(captured.prefix.is_empty());
         assert!(!captured.truncated);
+        assert!(!captured.complete);
+    }
+
+    /// The case a declared length is read against, and the one that makes the
+    /// flag worth carrying: octets *were* counted, and the count is still not the
+    /// body. A capture that says only `total: 6` cannot be told from a body that
+    /// was six octets long.
+    #[tokio::test]
+    async fn dropping_after_some_octets_counts_them_and_says_the_count_is_partial() {
+        let (tx, rx) = oneshot::channel();
+        let mut tee = TeeBody::new(boxed(b"abcdef"), 1024, tx);
+
+        // One frame arrives and is counted; end-of-stream is never polled for.
+        let frame = tee.frame().await.unwrap().unwrap();
+        assert_eq!(frame.into_data().unwrap(), Bytes::from_static(b"abcdef"));
+        drop(tee);
+
+        let captured = rx.await.unwrap();
+        assert_eq!(captured.total, 6);
+        assert!(!captured.complete);
+    }
+
+    /// A body that fails part-way leaves the same partial count as a disconnect,
+    /// and says so for the same reason: the octets after the error were never
+    /// counted because they never arrived.
+    #[tokio::test]
+    async fn erroring_mid_stream_reports_an_incomplete_count() {
+        use futures_util::stream;
+        let (tx, rx) = oneshot::channel();
+        let inner = http_body_util::StreamBody::new(stream::iter([
+            Ok(Frame::data(Bytes::from_static(b"abc"))),
+            Err(BoxError::from("upstream went away")),
+        ]))
+        .boxed_unsync();
+        let tee = TeeBody::new(inner, 1024, tx);
+
+        // Collecting surfaces the error; the tee has already finalized by then.
+        assert!(tee.collect().await.is_err());
+
+        let captured = rx.await.unwrap();
+        assert_eq!(captured.total, 3);
+        assert!(!captured.complete);
     }
 }

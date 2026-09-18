@@ -492,6 +492,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
@@ -531,6 +532,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
@@ -555,6 +557,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         // Should not panic; exercises the ByOrigin lazy init
@@ -578,6 +581,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         // Should not panic; exercises the ByResourceAll lazy init
@@ -601,6 +605,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         // Should use empty history for the ByOrigin None case
@@ -657,6 +662,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 

@@ -678,6 +678,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(13),
+            body_interrupted: false,
             trailers: None,
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"x\"}"));

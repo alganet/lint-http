@@ -843,6 +843,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[(field, value)]),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let finding = crate::test_helpers::run_rule(
@@ -1064,6 +1065,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let cfg =
@@ -1415,6 +1417,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let cfg =
@@ -1481,6 +1484,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let cfg =
@@ -1509,6 +1513,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let cfg =
@@ -1693,6 +1698,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let cfg =
@@ -1721,6 +1727,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let cfg =
@@ -2056,6 +2063,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
         let vresp = crate::test_helpers::run_rule(

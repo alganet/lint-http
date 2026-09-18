@@ -399,6 +399,7 @@ mod tests {
             headers: hdrs,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
@@ -452,6 +453,7 @@ mod tests {
             headers: hdrs,
 
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 

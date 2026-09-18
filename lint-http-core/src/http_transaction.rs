@@ -43,6 +43,15 @@ pub struct RequestInfo {
     pub headers: HeaderMap,
     /// Length in bytes of the captured (decoded) request body, if available.
     pub body_length: Option<u64>,
+    /// True when the body's transfer ended before end-of-stream: the peer went
+    /// away, or the stream errored. `body_length` then counts only the octets
+    /// that arrived, which is a lower bound on the body and not the message's
+    /// framing, so a rule comparing it against a declared length is measuring
+    /// the interruption rather than the sender. Distinct from
+    /// [`HttpTransaction::request_body_over_limit`], which says the retained
+    /// *prefix* is short while the count stays exact.
+    #[serde(default)]
+    pub body_interrupted: bool,
     /// Trailer fields received after the request body (chunked transfer encoding).
     #[serde(
         default,
@@ -78,6 +87,15 @@ pub struct ResponseInfo {
     pub headers: HeaderMap,
     /// Length in bytes of the captured (decoded) body, if available.
     pub body_length: Option<u64>,
+    /// True when the body's transfer ended before end-of-stream: the client went
+    /// away, or the stream errored. `body_length` then counts only the octets
+    /// that arrived, which is a lower bound on the body and not the message's
+    /// framing, so a rule comparing it against a declared length is measuring
+    /// the interruption rather than the sender. Distinct from
+    /// [`HttpTransaction::response_body_over_limit`], which says the retained
+    /// *prefix* is short while the count stays exact.
+    #[serde(default)]
+    pub body_interrupted: bool,
     /// Trailer fields received after the response body (chunked transfer encoding).
     #[serde(
         default,
@@ -184,6 +202,7 @@ impl HttpTransaction {
                 version: "HTTP/1.1".into(),
                 headers: HeaderMap::new(),
                 body_length: None,
+                body_interrupted: false,
                 trailers: None,
             },
             request_body: None,
@@ -318,6 +337,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("etag", "\"abc\"")]),
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
@@ -332,6 +352,46 @@ mod tests {
             resp.headers.get("etag").and_then(|v| v.to_str().ok()),
             Some("\"abc\"")
         );
+        Ok(())
+    }
+
+    /// `body_interrupted` survives a round trip, and a record written before the
+    /// field existed still reads. The default is the honest one for such a
+    /// record: every producer that never said the count was partial was
+    /// recording a body it had read to the end, so absence means complete and no
+    /// existing capture changes what it reports.
+    #[test]
+    fn body_interrupted_roundtrips_and_absence_reads_as_complete() -> anyhow::Result<()> {
+        let mut tx = make_test_transaction();
+        tx.request.body_length = Some(7);
+        tx.request.body_interrupted = true;
+        tx.response = Some(ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: HeaderMap::new(),
+            body_length: Some(3),
+            body_interrupted: true,
+            trailers: None,
+        });
+
+        let tx2: HttpTransaction = serde_json::from_str(&serde_json::to_string(&tx)?)?;
+        assert!(tx2.request.body_interrupted);
+        assert!(tx2.response.expect("response").body_interrupted);
+
+        // A capture from before the field existed: the key is simply absent.
+        let mut value = serde_json::to_value(&tx)?;
+        value["request"]
+            .as_object_mut()
+            .expect("request object")
+            .remove("body_interrupted");
+        value["response"]
+            .as_object_mut()
+            .expect("response object")
+            .remove("body_interrupted");
+        let older: HttpTransaction = serde_json::from_value(value)?;
+        assert!(!older.request.body_interrupted);
+        assert!(!older.response.expect("response").body_interrupted);
+
         Ok(())
     }
 }

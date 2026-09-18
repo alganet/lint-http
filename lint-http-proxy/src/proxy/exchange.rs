@@ -82,6 +82,10 @@ pub(super) struct ResponseFacts {
     /// holds what the upstream wrote).
     pub headers: HeaderMap,
     pub body_length: Option<u64>,
+    /// Whether the body reached end-of-stream. False makes `body_length` a count
+    /// of what arrived rather than a measure of the body, which is a difference
+    /// every rule reading it against a declared length depends on.
+    pub body_interrupted: bool,
     pub trailers: Option<HeaderMap>,
 }
 
@@ -117,6 +121,7 @@ pub(super) fn assemble_transaction(
         version: response.version,
         headers: response.headers,
         body_length: response.body_length,
+        body_interrupted: response.body_interrupted,
         trailers: response.trailers,
     });
     tx
@@ -200,6 +205,7 @@ pub(super) async fn exchange(
             headers: upstream_headers,
             // Filled in from the tee once the body has finished streaming.
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         },
         body_done,
@@ -305,12 +311,14 @@ fn spawn_commit(
             &facts,
             ResponseFacts {
                 body_length: Some(resp_cap.total),
+                body_interrupted: !resp_cap.complete,
                 trailers: resp_cap.trailers,
                 ..response
             },
             started.elapsed().as_millis() as u64,
         );
         tx.request.body_length = Some(req_cap.total);
+        tx.request.body_interrupted = !req_cap.complete;
         tx.request.trailers = req_cap.trailers;
         tx.request_body = Some(req_cap.prefix);
         tx.request_body_over_limit = req_cap.truncated;
@@ -521,7 +529,10 @@ pub(super) async fn record_error_transaction(
             status: err.status,
             version: facts.version.clone(),
             headers: HeaderMap::new(),
+            // No body was read, which is not the same as one whose reading was
+            // cut short: there was nothing here to interrupt.
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         },
         err.duration_ms,
@@ -563,7 +574,10 @@ pub(super) async fn record_tunnel_transaction(
             status,
             version: facts.version.clone(),
             headers: HeaderMap::new(),
+            // No body was read, which is not the same as one whose reading was
+            // cut short: there was nothing here to interrupt.
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         },
         0,
@@ -607,6 +621,7 @@ mod tests {
                 version: "HTTP/1.1".to_string(),
                 headers: resp_headers,
                 body_length: Some(0),
+                body_interrupted: false,
                 trailers: None,
             },
             12,
@@ -639,6 +654,7 @@ mod tests {
                 version: facts.version.clone(),
                 headers: HeaderMap::new(),
                 body_length: None,
+                body_interrupted: false,
                 trailers: None,
             },
             3,
@@ -660,6 +676,7 @@ mod tests {
                 version: "HTTP/1.1".to_string(),
                 headers: HeaderMap::new(),
                 body_length: None,
+                body_interrupted: false,
                 trailers: None,
             },
             5,

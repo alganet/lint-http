@@ -330,6 +330,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
@@ -529,6 +530,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: None,
+            body_interrupted: false,
             trailers: None,
         });
 
