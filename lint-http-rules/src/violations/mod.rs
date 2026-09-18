@@ -1331,6 +1331,7 @@ mod tests {
     /// in the entry above it why not.
     const READ_AND_UNSTATED: &[&str] = &[
         "accept_ranges_ignored",
+        "access_control_allow_credentials_redundant",
         "alt_svc_parameter_empty",
         "alt_svc_persist_invalid",
         "alt_svc_port_empty",

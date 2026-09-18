@@ -20,7 +20,8 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [accept_ranges_none_conflicting](violations/accept_ranges_none_conflicting.md) — Accept-Ranges says 'none' where range requests demonstrably work
 - [accept_ranges_unit_missing](violations/accept_ranges_unit_missing.md) — A range unit in use is absent from what the response advertises
 - [access_control_allow_credentials_conflicting](violations/access_control_allow_credentials_conflicting.md) — Access-Control-Allow-Credentials claims `true` beside a wildcard origin
-- [access_control_allow_credentials_invalid](violations/access_control_allow_credentials_invalid.md) — Access-Control-Allow-Credentials states a value that is not `true`
+- [access_control_allow_credentials_invalid](violations/access_control_allow_credentials_invalid.md) — Access-Control-Allow-Credentials was written to share with credentials and shares nothing
+- [access_control_allow_credentials_redundant](violations/access_control_allow_credentials_redundant.md) — Access-Control-Allow-Credentials states the `false` its own absence states
 - [access_control_allow_origin_conflicting](violations/access_control_allow_origin_conflicting.md) — Access-Control-Allow-Origin echoes an origin that did not ask
 - [access_control_allow_origin_credentials_conflicting](violations/access_control_allow_origin_credentials_conflicting.md) — The wildcard origin sits on a response that also allows credentials
 - [access_control_allow_origin_empty](violations/access_control_allow_origin_empty.md) — Access-Control-Allow-Origin is written with no value on it

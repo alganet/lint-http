@@ -8,13 +8,23 @@ sources:
     snippet: If credentials is `true`, then return success.
     cited_by:
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
-      line: 66
+      line: 102
+  - label: the value the production generates
+    section: § 3.3.4
+    snippet: Access-Control-Allow-Credentials = %s"true" ; case-sensitive
+    cited_by:
+    - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
+      line: 182
+    - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
+      line: 101
+    - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
+      line: 131
   - label: CORS check reads the field
     section: § 4.10
     snippet: Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 168
+      line: 183
   - label: access_control_allow_origin_valid
     section: § 3.3.3
     snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.
@@ -66,7 +76,7 @@ sources:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
       line: 228
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
-      line: 89
+      line: 154
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
       line: 138
   - label: origin_matching_for_cors (2)
