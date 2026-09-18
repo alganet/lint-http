@@ -83,6 +83,17 @@ pub const RFC_9110_9_3_2: SpecRef = SpecRef {
     note: "HEAD — the SHOULD to send the same header fields a GET would have carried, the MAY that excuses fields whose value is determined only while generating the content, and GET's content paragraph repeated word for word",
 };
 
+/// Content-Length on a HEAD response: the one thing § 9.3.2's SHOULD does not
+/// govern. The field may be omitted freely and its *value*, once written, is
+/// held to the octet count a `GET` would have delivered — by a MUST NOT, in a
+/// section about the field rather than about the method.
+pub const RFC_9110_8_6: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+    note: "Content-Length is the one requirement about a HEAD response that is not a SHOULD: \"a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method\". The same sentence opens with the MAY that lets a HEAD response omit it",
+};
+
 /// DELETE: GET's content paragraph a third time.
 pub const RFC_9110_9_3_5: SpecRef = SpecRef {
     spec: "RFC 9110",
@@ -303,6 +314,37 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9110_9_3_2],
         strength: Strength::Should,
+    }
+
+    /// A `HEAD` response whose `Content-Length` is not the number of octets a
+    /// `GET` would have delivered.
+    ///
+    /// **Not [`METHOD_HEAD_CONFLICTING`], although the same reader finds
+    /// both.** That entry is § 9.3.2's SHOULD, which asks a `HEAD` response to
+    /// carry the fields a `GET` would have carried — advice about *which fields
+    /// are present*, and advice the same section's MAY then withdraws for
+    /// anything computed while generating content. This one is § 8.6's MUST
+    /// NOT, and it is about the *value*: the field may be left out with no
+    /// finding at all, and a server that writes one is held to the count. Two
+    /// sentences, two modals, and a finding that named the SHOULD reported the
+    /// MUST NOT as advice the sender was free to decline.
+    ///
+    /// **`error`, because the recipient's next act depends on the number.**
+    /// A `HEAD` exists to be asked what a `GET` would return, and a client
+    /// sizing a transfer, deciding whether to fetch at all, or allocating for
+    /// what it is about to read has nothing but this value to go on. A
+    /// `Content-Length: 0` standing for content that is there is not a
+    /// description that is merely inaccurate — it is the one answer the request
+    /// was made to obtain, and it is wrong.
+    ///
+    // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
+    METHOD_HEAD_CONTENT_LENGTH_CONFLICTING = {
+        id: "method_head_content_length_conflicting",
+        title: "A HEAD response states a length the GET would not have sent",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_8_6],
+        strength: Strength::Must,
     }
 
     /// A response to a `HEAD` request that carries content octets, whatever its
