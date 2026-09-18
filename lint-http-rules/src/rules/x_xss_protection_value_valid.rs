@@ -91,6 +91,11 @@ impl RuleMeta for XXssProtectionValueValid {
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; report=1",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`mode=block` and `report=` are never spelled together)"),
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; mode=block; report=/r",
+            },
         ]
     }
 }
@@ -144,9 +149,10 @@ impl Rule for XXssProtectionValueValid {
             let val = crate::helpers::headers::trim_ows(&line);
 
             // Accept exactly "0" or "1;mode=block" (allow whitespace around separators, case-insensitive)
-            // `1` and `1; report=<uri>` are documented values that this rule rejects anyway.
-            // That is a policy, not a reading of a grammar: the filter these values enable is
-            // the thing the quote below warns about, and `0` is the one safe setting.
+            // `1` and `1; report=<uri>` are documented values that this rule reports anyway,
+            // and the description is what draws that line rather than a grammar: those two
+            // ask the filter to rewrite the page, which is the behaviour the warning is about,
+            // and the same description names the pair that does not rewrite it.
             // cite(MDN X-XSS-Protection): "Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites."
             // cite(MDN X-XSS-Protection): "Disables XSS filtering."
             if val.eq_ignore_ascii_case("0") {
@@ -166,10 +172,15 @@ impl Rule for XXssProtectionValueValid {
                 return None;
             }
 
+            // Naming the two settings rather than calling the value unsupported. A
+            // bare `1` and `1; report=<uri>` are in the description's own syntax
+            // list, so "unsupported" would be false of them — and an operator told
+            // that has no way to see that the repair is either of the two spellings
+            // below, one of which is not the value they already wrote.
             Some(ctx.report_with(
                 &X_XSS_PROTECTION_INVALID,
                 format!(
-                    "X-XSS-Protection contains unsupported value: '{}'",
+                    "X-XSS-Protection is set to '{}', which is neither of the two settings that keep the browser from rewriting the page: '0' turns the filter off, and '1; mode=block' has the page blocked instead of sanitized",
                     crate::helpers::shown::shown_in_finding(val)
                 ),
             ))
@@ -196,11 +207,16 @@ mod tests {
     #[case(Some("1; mode=block"), false)]
     #[case(Some("1;MODE=BLOCK"), false)]
     #[case(Some("1;  mode=block  "), false)]
-    // invalid values
+    // values that ask the browser to rewrite the page, or that are no setting
+    // at all. `1; mode=block; report=<uri>` is here because a deployment does
+    // send it: the description spells `mode=block` and `report=` as two
+    // separate settings and never the pair, so which of them a browser would
+    // honour is not something any document here says.
     #[case(Some("1"), true)]
     #[case(Some("2"), true)]
     #[case(Some("1;report=1"), true)]
     #[case(Some("1; mode=none"), true)]
+    #[case(Some("1; mode=block; report=https://example.test/r"), true)]
     #[case(Some(""), true)]
     fn check_header_values(#[case] val: Option<&str>, #[case] expect_violation: bool) {
         let rule = XXssProtectionValueValid;
@@ -237,6 +253,7 @@ mod tests {
     #[case("2")]
     #[case("1")]
     #[case("1;report=1")]
+    #[case("1; mode=block; report=/r")]
     fn every_declined_value_reports_one_entry_at_the_rank_of_advice(#[case] value: &str) {
         let rule = XXssProtectionValueValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
@@ -309,10 +326,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert_eq!(
-            v.expect("a finding").message,
-            "X-XSS-Protection contains unsupported value: 'ÿ'"
-        );
+        assert!(v
+            .expect("a finding")
+            .message
+            .starts_with("X-XSS-Protection is set to 'ÿ', which is neither"));
     }
 
     #[test]
@@ -347,22 +364,41 @@ mod tests {
         assert!(v.is_none());
     }
 
-    #[test]
-    fn unsupported_value_message_contains_value() {
+    /// The repair, held where the message is built. A bare `1` and
+    /// `1; report=<uri>` are spellings the description lists, so a finding may
+    /// not call them unsupported; what it may say is that neither keeps the
+    /// browser from rewriting the page, and it has to name the two that do —
+    /// otherwise the reader is left to guess, and the nearest guess from `1` is
+    /// the value they already wrote.
+    #[rstest]
+    #[case("1")]
+    #[case("1; report=https://example.test/r")]
+    #[case("1; mode=block; report=https://example.test/r")]
+    #[case("2")]
+    fn the_message_quotes_the_value_and_names_both_settings_that_repair_it(#[case] value: &str) {
         let rule = XXssProtectionValueValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
-            &[("x-xss-protection", "1")],
+            &[("x-xss-protection", value)],
         );
-        let v = crate::test_helpers::run_rule(
+        let msg = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding")
+        .message;
+        assert!(msg.contains(value), "the value it fired on: {msg}");
+        assert!(msg.contains("'0'"), "the setting that turns it off: {msg}");
+        assert!(
+            msg.contains("'1; mode=block'"),
+            "the setting that blocks instead of sanitizing: {msg}"
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("1"));
+        assert!(
+            !msg.contains("unsupported"),
+            "a spelling the description lists is not unsupported: {msg}"
+        );
     }
 
     #[test]
@@ -381,7 +417,7 @@ mod tests {
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
-        assert!(m.contains("unsupported value") && m.contains(val));
+        assert!(m.contains("neither of the two settings") && m.contains(val));
     }
 
     #[test]
@@ -400,6 +436,6 @@ mod tests {
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
-        assert!(m.contains("unsupported value") && m.contains("0, 1;mode=block"));
+        assert!(m.contains("neither of the two settings") && m.contains("0, 1;mode=block"));
     }
 }

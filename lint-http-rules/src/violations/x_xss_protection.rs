@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 //! `X-XSS-Protection` defects — a field no specification ever defined, and the
-//! one setting this crate accepts besides the one that turns it off.
+//! two settings this crate accepts out of the four the description spells.
 //!
 //! **One entry, and it names no document, because there is none to name.** The
 //! field was a browser feature rather than a definition: three engines shipped
@@ -11,17 +11,27 @@
 //! since dropped it. What is left is a description of what those browsers did,
 //! which is not a requirement anything can fail.
 //!
-//! **The value set this crate enforces is deliberately narrower than the one
-//! the description records.** `1` and `1; report=<uri>` were real settings; the
-//! rule reports them anyway, because the filter they switch on is the thing the
-//! same description warns can introduce the vulnerability it was meant to
-//! prevent. So the entry rests on a reading of deployed behaviour, on the
-//! footing [`crate::violations::content_disposition::CONTENT_DISPOSITION_SIZE_INVALID`]
+//! **The value set this crate accepts is narrower than the spellings the
+//! description lists, and the line between them is the description's own.**
+//! `1` and `1; report=<uri>` were real settings, and the rule reports them —
+//! but not because the filter they switch on is dangerous as such. `1;
+//! mode=block` switches on the same filter and is accepted. What the worked
+//! example shows introducing a vulnerability is the *sanitizing*: a filter
+//! that rewrites the page can delete the very script that made the page safe.
+//! So the line runs between the settings that rewrite the page and the
+//! settings that do not, and the description draws it — `0` runs every script,
+//! `1; mode=block` stops the page being processed at all, and those two are
+//! exactly the pair this rule accepts. So the entry rests on a reading of
+//! deployed behaviour, on the footing
+//! [`crate::violations::content_disposition::CONTENT_DISPOSITION_SIZE_INVALID`]
 //! and [`crate::violations::keep_alive::KEEP_ALIVE_TIMEOUT_INVALID`] already
-//! share — and a reference here would say a document refuses these values when
-//! none does.
+//! share — and a reference here would still say a document refuses these
+//! values when none does: the description says which settings prevent the
+//! vulnerability, not that a sender may not write the others.
 //
 // cite(MDN X-XSS-Protection): "response header was a feature of Internet Explorer, Chrome and Safari that stopped pages from loading when they detected reflected cross-site scripting"
+// cite(MDN X-XSS-Protection): "If a cross-site scripting attack is detected, the browser will sanitize the page"
+// cite(MDN X-XSS-Protection): "would prevent the page from being processed at all"
 
 use crate::lint::Severity;
 use crate::violations::defects;
@@ -37,20 +47,22 @@ defects! {
     /// pair splits, and the test there is what decides it: that split put an
     /// entry standing on HTML beside one standing on a preference, where both
     /// halves here stand on the same preference and end at the same repair —
-    /// *write `0`.* Two ids for one repair would be two names for one thing.
+    /// *write `0`, or `1; mode=block`.* Two ids for one repair would be two
+    /// names for one thing.
     ///
     /// **`info`, which is where a finding lands when nothing in force refuses
     /// what it reports.** No document defines this field, no current browser
     /// implements it, and the two values the rule declines are documented ones.
     /// What the finding says is that a deployment configured a defence that
-    /// either does nothing or, in a browser old enough to read it, switches on
-    /// a filter that can introduce a vulnerability into a page that had none.
+    /// either does nothing or, in a browser old enough to read it, asks the
+    /// filter to rewrite the page — the one behaviour that can introduce a
+    /// vulnerability into a page that had none.
     ///
     // cite(MDN X-XSS-Protection): "Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites."
     // cite(MDN X-XSS-Protection): "Disables XSS filtering."
     X_XSS_PROTECTION_INVALID = {
         id: "x_xss_protection_invalid",
-        title: "X-XSS-Protection asks for something other than the filter off",
+        title: "X-XSS-Protection asks for neither the filter off nor the page blocked",
         message: "",
         default_severity: Severity::Info,
         spec: &[],
