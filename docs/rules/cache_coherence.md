@@ -17,8 +17,13 @@ This rule reconstructs a simple timeline for each resource observed by the
 client.  Each response is assigned a timestamp derived from its
 `Last-Modified` header if present, otherwise from the `Date` header.  If a
 subsequent response for the *same URI* carries a timestamp that is strictly
-older than one seen previously, we report a violation — the later response
-appears to be serving a stale representation.
+older than one seen previously *on that same header*, we report a violation —
+the later response appears to be serving a stale representation.
+
+The two headers are never compared with each other.  `Last-Modified` is when
+the representation was edited and `Date` is when the message was sent, so the
+first is at or before the second in any one response; comparing across them
+reports a page whose siblings simply omit `Last-Modified` as stale.
 
 Only transactions whose response contains a parseable HTTP-date are
 examined; missing or unparseable headers are ignored.  304 Not Modified

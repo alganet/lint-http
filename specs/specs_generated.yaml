@@ -6037,13 +6037,13 @@ sources:
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 127
+      line: 156
   - label: cache_coherence (2)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 152
+      line: 183
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 115
   - label: cache_coherence (3)
@@ -6051,7 +6051,7 @@ sources:
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 139
+      line: 170
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 44
   - label: cache_control_directive_valid
@@ -10278,11 +10278,11 @@ sources:
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 191
+      line: 226
     - file: lint-http-rules/src/violations/cache.rs
       line: 22
     - file: lint-http-rules/src/violations/cache.rs
-      line: 65
+      line: 73
   - label: cache_control
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names
