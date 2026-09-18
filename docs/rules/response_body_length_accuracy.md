@@ -19,7 +19,7 @@ Checks that a response's `Content-Length` matches the number of body octets actu
 
 **Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.
 
-**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed.
+**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed — and where the reading of one stopped before its end, nothing is claimed either. A client that abandons a download leaves a count of the octets that arrived rather than a measure of the body, and the shortfall is the reading's, not the sender's; a partial count cannot be told from a genuinely short body, so the comparison declines. This is not the same condition as an over-limit capture, where only the retained prefix is short and the count stays exact.
 
 ## Violations
 

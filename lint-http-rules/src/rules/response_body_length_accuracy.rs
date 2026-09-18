@@ -52,7 +52,7 @@ impl RuleMeta for ResponseBodyLengthAccuracy {
     }
 
     fn description(&self) -> &'static str {
-        "Checks that a response's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that value the framing — \"necessary for determining where the data (and message) ends\" — and RFC 9110 §8.6 says why a proxy in particular must care: \"a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect\". A length that disagrees with the framing is how response splitting reaches the next hop.\n\n**RFC 9112 §6.3 lists eight ways a body length is determined, in precedence order, and this rule is item 6.** The items above it are the reason most of what follows is an exemption rather than a check:\n\n- *Item 1* — a response to `HEAD`, and any `1xx`, `204` or `304`, ends at the blank line \"regardless of the header fields present\". Its `Content-Length` describes a body that was deliberately not sent: §8.6 requires, in a MUST, that a HEAD response's value equal what a `GET` would have returned, and a 304's equal what a `200` would have. Comparing either against zero captured octets reports a conforming response, so these are not measured here. Whether the value matches what a GET *would* have returned needs two transactions; `head_response_headers_match_get` has them. What item 1 *does* say about these is checkable and is checked: there must be no body at all, so a `204` that answered with content is reported for the body's existence rather than for any mismatch. Nothing else looks — the rule covering these statuses reads the header fields that advertise a body, not the body.\n- *Item 2* — a `2xx` to `CONNECT` becomes a tunnel, and a client \"MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message\".\n- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n- *Item 8* — a response with no declared length is close-delimited; there is nothing to compare.\n\n**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.\n\n**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed."
+        "Checks that a response's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that value the framing — \"necessary for determining where the data (and message) ends\" — and RFC 9110 §8.6 says why a proxy in particular must care: \"a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect\". A length that disagrees with the framing is how response splitting reaches the next hop.\n\n**RFC 9112 §6.3 lists eight ways a body length is determined, in precedence order, and this rule is item 6.** The items above it are the reason most of what follows is an exemption rather than a check:\n\n- *Item 1* — a response to `HEAD`, and any `1xx`, `204` or `304`, ends at the blank line \"regardless of the header fields present\". Its `Content-Length` describes a body that was deliberately not sent: §8.6 requires, in a MUST, that a HEAD response's value equal what a `GET` would have returned, and a 304's equal what a `200` would have. Comparing either against zero captured octets reports a conforming response, so these are not measured here. Whether the value matches what a GET *would* have returned needs two transactions; `head_response_headers_match_get` has them. What item 1 *does* say about these is checkable and is checked: there must be no body at all, so a `204` that answered with content is reported for the body's existence rather than for any mismatch. Nothing else looks — the rule covering these statuses reads the header fields that advertise a body, not the body.\n- *Item 2* — a `2xx` to `CONNECT` becomes a tunnel, and a client \"MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message\".\n- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n- *Item 8* — a response with no declared length is close-delimited; there is nothing to compare.\n\n**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.\n\n**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed — and where the reading of one stopped before its end, nothing is claimed either. A client that abandons a download leaves a count of the octets that arrived rather than a measure of the body, and the shortfall is the reading's, not the sender's; a partial count cannot be told from a genuinely short body, so the comparison declines. This is not the same condition as an over-limit capture, where only the retained prefix is short and the count stays exact."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -235,6 +235,26 @@ impl Rule for ResponseBodyLengthAccuracy {
             // transfer coding resolved and any `Content-Encoding` left encoded,
             // which is what `Content-Length` counts too.
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
+            //
+            // It counts them only as far as the reading got, though, and that is
+            // the condition this comparison rests on. When the client abandons a
+            // download the tee stops counting where the reading stopped, and the
+            // shortfall that leaves behind is the reading's, not the sender's:
+            // `Content-Length: 4000000` against 1700000 counted octets said the
+            // origin had misdeclared a message it had framed correctly and was
+            // still sending. The finding named the wrong party at the catalogue's
+            // highest severity, and it named it on the most ordinary event a
+            // proxy sees -- every image a browser cancels, every navigation away
+            // from a page still loading.
+            //
+            // A partial count cannot distinguish the two cases, so there is no
+            // comparison left to make and this declines. The sentence quoted at
+            // the report is about a sender forwarding a length it knows to be
+            // wrong; nothing here knows that.
+            if resp.body_interrupted {
+                return None;
+            }
+
             if let Some(body_len) = resp.body_length {
                 if declared != body_len as u128 {
                     return Some(ctx.report_with(
@@ -426,6 +446,29 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    /// The shortfall a client's own disconnect leaves behind. The origin framed
+    /// the message correctly and was still sending it; the reading stopped. Both
+    /// rows carry the identical numbers and differ only in whether the count
+    /// reached the end of the body, which is the whole of what the flag says.
+    #[test]
+    fn an_interrupted_reading_is_not_a_misdeclared_length() {
+        let mut tx = resp_with(200, &[("content-length", "4000000")], Some(1700000));
+
+        // Read to the end, a count 2300000 octets short of the declaration is a
+        // message whose framing does not add up, and saying so is the point of
+        // the rule.
+        let v = run(&tx).expect("a complete short body is a real conflict");
+        assert_eq!(v.violation, "content_length_conflicting");
+
+        // The same numbers, from a reading that never reached the body's end.
+        tx.response.as_mut().expect("response").body_interrupted = true;
+        assert!(
+            run(&tx).is_none(),
+            "a count that stopped where the reading stopped says nothing about \
+             the sender's Content-Length"
+        );
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<crate::lint::Violation> {
