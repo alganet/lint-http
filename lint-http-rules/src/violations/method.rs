@@ -338,6 +338,18 @@ defects! {
     /// was made to obtain, and it is wrong.
     ///
     // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
+    /// **The comparison is only as good as the sameness behind it.** § 8.6
+    /// states a counterfactual — the number a `GET` *would have* delivered for
+    /// this same request — and an observer has no such GET, only a neighbouring
+    /// one. Where the two responses name one representation, or where the
+    /// `HEAD` declares zero octets for a resource a `GET` was seen to deliver
+    /// content for, the difference is the server's and this entry reports it.
+    /// Where neither response carries a validator and the counts merely differ,
+    /// nothing separates a misstated length from a resource that changed
+    /// between the two exchanges, and
+    /// [`METHOD_HEAD_CONTENT_LENGTH_AMBIGUOUS`] says so instead.
+    ///
+    // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
     METHOD_HEAD_CONTENT_LENGTH_CONFLICTING = {
         id: "method_head_content_length_conflicting",
         title: "A HEAD response states a length the GET would not have sent",
@@ -345,6 +357,35 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_8_6],
         strength: Strength::Must,
+    }
+
+    /// Two counts for one resource, and nothing that says they describe one
+    /// representation.
+    ///
+    /// **`_ambiguous`, because the defect is undetermined rather than
+    /// absent.** A `HEAD` said one number and a neighbouring `GET` another.
+    /// Either the server misstated the length § 8.6 binds it to, or the
+    /// representation changed between the two exchanges — and where neither
+    /// response carries an entity-tag or a `Last-Modified`, no evidence
+    /// available to an observer chooses between them. The sibling entry treats
+    /// the absence of a validator on both sides as though it were agreement;
+    /// this one is what that case actually supports.
+    ///
+    /// **`warn` and [`Strength::Unstated`], because § 8.6 binds the sender and
+    /// this entry does not claim the sender broke it.** The MUST NOT is quoted
+    /// because it is the sentence the discrepancy would offend if the
+    /// representation held still; reporting it at `error` would state as
+    /// settled the very thing nothing here settles. A news homepage whose
+    /// length changes on every request is not a server misdescribing its
+    /// content, and it drew an `error` under the sibling id.
+    ///
+    // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
+    METHOD_HEAD_CONTENT_LENGTH_AMBIGUOUS = {
+        id: "method_head_content_length_ambiguous",
+        title: "A HEAD and a GET report different lengths for a resource nothing pins",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_8_6],
     }
 
     /// A response to a `HEAD` request that carries content octets, whatever its

@@ -5,7 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::method::{
-    METHOD_HEAD_CONFLICTING, METHOD_HEAD_CONTENT_LENGTH_CONFLICTING, RFC_9110_8_6, RFC_9110_9_3_2,
+    METHOD_HEAD_CONFLICTING, METHOD_HEAD_CONTENT_LENGTH_AMBIGUOUS,
+    METHOD_HEAD_CONTENT_LENGTH_CONFLICTING, RFC_9110_8_6, RFC_9110_9_3_2,
 };
 use crate::violations::ViolationDef;
 
@@ -16,6 +17,7 @@ use crate::violations::ViolationDef;
 static DECLARED: &[&ViolationDef] = &[
     &METHOD_HEAD_CONFLICTING,
     &METHOD_HEAD_CONTENT_LENGTH_CONFLICTING,
+    &METHOD_HEAD_CONTENT_LENGTH_AMBIGUOUS,
 ];
 
 /// Whether a difference in *presence* of this field between the two responses
@@ -139,13 +141,48 @@ fn content_length_evidence(
 /// § 9.3.2's SHOULD.
 ///
 // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
+/// Whether the two responses name one representation, rather than merely
+/// failing to contradict each other.
+///
+/// [`selected_representation_changed`] answers the opposite question and is
+/// right to: a validator on one response alone is no reason to stop looking.
+/// But its `false` covers two unlike cases -- the validators agree, and there
+/// are no validators at all -- and only the first is evidence. § 8.6 compares
+/// against the `GET` this same request would have drawn, which no observer
+/// holds, so a neighbouring `GET` stands in for it only where something ties
+/// the two to one representation.
+fn representation_confirmed(prev: &hyper::HeaderMap, cur: &hyper::HeaderMap) -> bool {
+    let agrees = |name: &str, normalize: fn(&str) -> String| {
+        let a = crate::helpers::headers::combined_field_value_as_written(prev, name);
+        let b = crate::helpers::headers::combined_field_value_as_written(cur, name);
+        match (a, b) {
+            (Some(a), Some(b)) => normalize(&a) == normalize(&b),
+            _ => false,
+        }
+    };
+
+    agrees("etag", crate::helpers::validator::normalize_etag)
+        || agrees("last-modified", str::to_string)
+}
+
+/// The entry the evidence supports, and the sentence to report it with.
+///
+/// A count of zero standing against content a `GET` was seen to deliver is the
+/// one difference that needs no stable representation to read: whatever the
+/// resource became between the two exchanges, the `HEAD` answered that there is
+/// nothing to fetch and there was something to fetch. Every other difference is
+/// § 8.6's only where the representation held still.
 fn content_length_finding(
     prev_resp: &crate::http_transaction::ResponseInfo,
     resp: &crate::http_transaction::ResponseInfo,
-) -> Option<String> {
+) -> Option<(&'static ViolationDef, String)> {
     let cur_len = crate::helpers::content_length::declared_content_length(&resp.headers)?;
     let evidence = content_length_evidence(prev_resp)?;
-    (evidence.octets() != cur_len).then(|| match evidence {
+    if evidence.octets() == cur_len {
+        return None;
+    }
+
+    let message = match evidence {
         ContentLengthEvidence::Declared(declared) => format!(
             "Content-Length in HEAD ({}) differs from GET ({})",
             cur_len, declared
@@ -154,7 +191,20 @@ fn content_length_finding(
             "Content-Length in HEAD ({}) differs from the {} octets of content the GET response delivered",
             cur_len, captured
         ),
-    })
+    };
+
+    let content_was_there = cur_len == 0 && evidence.octets() > 0;
+    if content_was_there || representation_confirmed(&prev_resp.headers, &resp.headers) {
+        return Some((&METHOD_HEAD_CONTENT_LENGTH_CONFLICTING, message));
+    }
+
+    Some((
+        &METHOD_HEAD_CONTENT_LENGTH_AMBIGUOUS,
+        format!(
+            "{}, and neither response carries a validator tying the two to one representation",
+            message
+        ),
+    ))
 }
 
 /// The set a `Vary` value advertises. The field value is a set of field names,
@@ -349,9 +399,23 @@ headers = ["etag", "content-type", "content-length"]
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some(
-                    "(§8.6: a Content-Length that is not the octet count a GET would have delivered)",
+                    "(§8.6: a Content-Length that is not the octet count a GET would have delivered, and one entity tag across both exchanges to say the representation held still)",
                 ),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 100\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 50",
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 100\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 50",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "(§8.6: a HEAD declaring zero octets for a resource the GET delivered content for, which no validator is needed to read)",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: 73091\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: 0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "(the counts differ and neither response carries a validator, so a misstated length and a resource that changed are the same observation)",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: 1004101\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: 1004024",
             },
         ]
     }
@@ -469,8 +533,8 @@ impl Rule for HeadResponseHeadersMatchGet {
                 // declined advice — a `warn` an operator filtering for `error`
                 // never saw, citing a sentence that does not state it.
                 if name_str == "content-length" {
-                    if let Some(m) = content_length_finding(prev_resp, resp) {
-                        return Some(ctx.report_with(&METHOD_HEAD_CONTENT_LENGTH_CONFLICTING, m));
+                    if let Some((def, m)) = content_length_finding(prev_resp, resp) {
+                        return Some(ctx.report_with(def, m));
                     }
                     continue;
                 }
@@ -689,11 +753,18 @@ mod tests {
             .contains("includes header field not present"));
     }
 
+    /// The counts differ, the two responses share an entity-tag, and § 8.6's
+    /// counterfactual is therefore about one representation.
+    ///
+    /// § 8.6's MUST NOT, and not § 9.3.2's SHOULD that the sibling entry
+    /// carries. The two were one entry once, and every real-traffic finding
+    /// this rule produced was this one arriving as a `warn` an operator
+    /// filtering for `error` never saw.
     #[test]
-    fn content_length_mismatch_reports_violation() {
+    fn content_length_mismatch_under_one_validator_reports_violation() {
         let rule = HeadResponseHeadersMatchGet;
-        let prev = make_prev_with_headers(&[("content-length", "10")]);
-        let mut head = make_head_with_headers(&[("content-length", "5")]);
+        let prev = make_prev_with_headers(&[("content-length", "10"), ("etag", "\"v1\"")]);
+        let mut head = make_head_with_headers(&[("content-length", "5"), ("etag", "\"v1\"")]);
         head.request.uri = prev.request.uri.clone();
 
         let v = crate::test_helpers::run_rule(
@@ -702,14 +773,60 @@ mod tests {
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
-        // § 8.6's MUST NOT, and not § 9.3.2's SHOULD that the sibling entry
-        // carries. The two were one entry once, and every real-traffic finding
-        // this rule produced was this one arriving as a `warn` an operator
-        // filtering for `error` never saw.
         let found = v.expect("a finding");
         assert_eq!(found.violation, "method_head_content_length_conflicting");
         assert_eq!(found.severity, crate::lint::Severity::Error);
         assert!(found.message.contains("Content-Length"));
+    }
+
+    /// Neither response carries a validator, so the difference is as much a
+    /// resource that changed between the two exchanges as a length the server
+    /// misstated. Observed on a news homepage answering `1004024` to a `HEAD`
+    /// while its own `GET`s ran `1004101`, `1004131` and `1004489` within
+    /// minutes of each other -- reported, before the split, as an `error`
+    /// against a server that had done nothing wrong.
+    #[test]
+    fn content_length_mismatch_with_no_validator_is_undetermined() {
+        let rule = HeadResponseHeadersMatchGet;
+        let prev = make_prev_with_headers(&[("content-length", "1004101")]);
+        let mut head = make_head_with_headers(&[("content-length", "1004024")]);
+        head.request.uri = prev.request.uri.clone();
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &head,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &make_cfg_with_headers(vec!["content-length"]),
+        );
+        let found = v.expect("a finding");
+        assert_eq!(found.violation, "method_head_content_length_ambiguous");
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
+        assert!(found
+            .message
+            .contains("neither response carries a validator"));
+    }
+
+    /// A zero standing against content a `GET` delivered needs no stable
+    /// representation to read: whatever the resource became, the `HEAD`
+    /// answered that there is nothing to fetch and there was something to
+    /// fetch. Observed on a server answering `Content-Length: 0` to a `HEAD`
+    /// for a resource its `GET`s delivered 73091 octets of.
+    #[test]
+    fn a_head_declaring_zero_against_content_is_settled_without_a_validator() {
+        let rule = HeadResponseHeadersMatchGet;
+        let prev = make_prev_with_headers(&[("content-length", "73091")]);
+        let mut head = make_head_with_headers(&[("content-length", "0")]);
+        head.request.uri = prev.request.uri.clone();
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &head,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &make_cfg_with_headers(vec!["content-length"]),
+        );
+        let found = v.expect("a finding");
+        assert_eq!(found.violation, "method_head_content_length_conflicting");
+        assert_eq!(found.severity, crate::lint::Severity::Error);
     }
 
     #[test]

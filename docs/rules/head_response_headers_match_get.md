@@ -17,6 +17,7 @@ Ensure responses to `HEAD` carry the header fields the server would have sent fo
 ## Violations
 
 - [method_head_conflicting](../violations/method_head_conflicting.md) — A HEAD response disagrees with the GET it stands in for
+- [method_head_content_length_ambiguous](../violations/method_head_content_length_ambiguous.md) — A HEAD and a GET report different lengths for a resource nothing pins
 - [method_head_content_length_conflicting](../violations/method_head_content_length_conflicting.md) — A HEAD response states a length the GET would not have sent
 
 ## Specifications
@@ -159,13 +160,14 @@ HTTP/1.1 200 OK
 Content-Type: text/plain
 ```
 
-### ❌ Bad (§8.6: a Content-Length that is not the octet count a GET would have delivered)
+### ❌ Bad (§8.6: a Content-Length that is not the octet count a GET would have delivered, and one entity tag across both exchanges to say the representation held still)
 
 ```http
 GET /resource HTTP/1.1
 Host: example.com
 
 HTTP/1.1 200 OK
+ETag: "v2"
 Content-Type: text/plain
 Content-Length: 100
 
@@ -173,6 +175,43 @@ HEAD /resource HTTP/1.1
 Host: example.com
 
 HTTP/1.1 200 OK
+ETag: "v2"
 Content-Type: text/plain
 Content-Length: 50
+```
+
+### ❌ Bad (§8.6: a HEAD declaring zero octets for a resource the GET delivered content for, which no validator is needed to read)
+
+```http
+GET /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 73091
+
+HEAD /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 0
+```
+
+### ❌ Bad (the counts differ and neither response carries a validator, so a misstated length and a resource that changed are the same observation)
+
+```http
+GET /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1004101
+
+HEAD /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 1004024
 ```

@@ -1437,6 +1437,7 @@ mod tests {
         "expires_malformed",
         "location_redirect_redundant",
         "method_case_invalid",
+        "method_head_content_length_ambiguous",
         "oauth2_state_conflicting",
         "preference_applied_unsolicited",
         "referer_empty",
