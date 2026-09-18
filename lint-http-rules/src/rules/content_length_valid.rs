@@ -68,12 +68,22 @@ impl RuleMeta for ContentLengthValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Content-Length: 0\nContent-Length: 10\nContent-Length:  20  \n\nContent-Length: 10\nContent-Length:  10 ",
+                snippet: "Content-Length: 0\nContent-Length: 10\nContent-Length:  20  ",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Repeated field lines carrying one length"),
+                snippet: "HTTP/1.1 200 OK\nContent-Length: 10\nContent-Length:  10 ",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Content-Length: -1\nContent-Length: +1\nContent-Length: 1.5\nContent-Length: abc\nContent-Length:\n\nContent-Length: 10\nContent-Length: 20",
+                snippet: "Content-Length: -1\nContent-Length: +1\nContent-Length: 1.5\nContent-Length: abc\nContent-Length:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Repeated field lines naming two lengths"),
+                snippet: "HTTP/1.1 200 OK\nContent-Length: 10\nContent-Length: 20",
             },
         ]
     }
