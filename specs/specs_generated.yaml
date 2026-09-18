@@ -5455,7 +5455,7 @@ sources:
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 299
+      line: 330
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 436
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
@@ -5467,7 +5467,7 @@ sources:
     snippet: weight = OWS ";" OWS "q=" qvalue
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 198
+      line: 201
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 449
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
@@ -5487,19 +5487,19 @@ sources:
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 197
+      line: 200
   - label: accept_encoding_parameter_valid (3)
     section: § 12.5.3
     snippet: An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 239
+      line: 270
   - label: accept_encoding_parameter_valid (4)
     section: § 12.5.3
     snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 217
+      line: 219
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 138
     - file: lint-http-rules/src/violations/accept_encoding.rs
@@ -5509,13 +5509,13 @@ sources:
     snippet: Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 279
+      line: 310
   - label: accept_encoding_parameter_valid (6)
     section: § 12.5.3
     snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 238
+      line: 269
     - file: lint-http-rules/src/violations/content_coding.rs
       line: 67
   - label: accept_encoding_parameter_valid (7)
@@ -5523,13 +5523,13 @@ sources:
     snippet: The field value is evaluated the same way as in a request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 117
+      line: 120
   - label: accept_encoding_parameter_valid (8)
     section: § 12.5.3
     snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 115
+      line: 118
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 130
   - label: accept_encoding_parameter_valid (9)
@@ -5537,13 +5537,13 @@ sources:
     snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 116
+      line: 119
   - label: accept_encoding_parameter_valid (10)
     section: § 8.4.1
     snippet: content-coding   = token
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 237
+      line: 268
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 153
   - label: accept_encoding_present
@@ -6173,7 +6173,9 @@ sources:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 141
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 137
+      line: 140
+    - file: lint-http-rules/src/rules/content_encoding_registered.rs
+      line: 222
   - label: compression_and_transfer_encoding_consistent (5)
     section: § 8.4
     snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
@@ -6395,13 +6397,13 @@ sources:
     snippet: codings = content-coding / "identity" / "*"
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 138
+      line: 141
   - label: content_encoding_registered (2)
     section: § 8.4.1
     snippet: content-coding = token
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 170
+      line: 173
   - label: content_length_valid
     section: § 8.6
     snippet: The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets.
@@ -7408,12 +7410,16 @@ sources:
       line: 197
     - file: lint-http-rules/src/helpers/list.rs
       line: 226
+    - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
+      line: 240
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 236
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 126
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 340
+    - file: lint-http-rules/src/rules/content_encoding_registered.rs
+      line: 223
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 234
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -7436,6 +7442,8 @@ sources:
       line: 87
     - file: lint-http-rules/src/helpers/list.rs
       line: 123
+    - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
+      line: 241
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 237
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
@@ -7452,6 +7460,8 @@ sources:
       line: 215
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 89
+    - file: lint-http-rules/src/rules/content_encoding_registered.rs
+      line: 224
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 376
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
@@ -7938,6 +7948,8 @@ sources:
       line: 251
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 82
+    - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
+      line: 221
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 214
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
@@ -7952,6 +7964,8 @@ sources:
       line: 202
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 168
+    - file: lint-http-rules/src/rules/content_encoding_registered.rs
+      line: 225
     - file: lint-http-rules/src/rules/host_header.rs
       line: 216
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
@@ -7993,7 +8007,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 84
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 218
+      line: 220
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 213
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
@@ -8327,7 +8341,7 @@ sources:
     - file: lint-http-rules/src/helpers/qvalue.rs
       line: 34
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 366
+      line: 397
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 273
     - file: lint-http-rules/src/violations/qvalue.rs

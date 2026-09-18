@@ -18,7 +18,7 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 
 **Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.
 
-**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.
+**An empty field value is not reported, and an empty list element is.** §12.5.3 gives the empty value a meaning of its own — the user agent wants no content coding at all — and the `#` construct generates it. An empty *element* is a different value: §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits, while §5.6.1.1 expands the same construct for a sender with nothing bracketed and forbids generating one. So `gzip,,br` and `gzip,` are commas the sender may not write, and this rule used to read the field through the recipient's walk, which dropped them before any check could see them.
 
 **Whitespace beside the weight's `=` is reported.** The production spells the weight as the literal text `"q="` rather than as a parameter with a name and a separator, and both `OWS` it prints stand before that literal — so there is no room in it for the space at all, and `gzip;q =0.5` is characters the construct does not generate rather than whitespace a recipient parses out. The value is still trimmed before the number is read, because that is what a recipient does; reporting it is what the *sender* is told.
 
@@ -26,6 +26,7 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 
 ## Violations
 
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [qvalue_malformed](../violations/qvalue_malformed.md) — Weight is not a qvalue
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
@@ -40,7 +41,8 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 - [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding: `#( codings [ weight ] )` — the production that says a coding may carry a weight and nothing else. Also the three `codings` alternatives, the meaning of an empty field value, and the meaning of the field in a response
 - [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality Values — `weight = OWS ";" OWS "q=" qvalue`, the `qvalue` production and its three-digit fraction, the case-insensitive `q` parameter name, and what a weight of zero means
 - [RFC 9110 §8.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1): Content Codings: `content-coding = token`, which is what the character check on each coding enforces
-- [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Recipient Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore, and the meaning of a field value that holds no element at all
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 
 ## Configuration
