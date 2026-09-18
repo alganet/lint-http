@@ -280,6 +280,13 @@ defects! {
     /// trip named here could not have been a `304`. The entry is about a
     /// validator the server provided; on such a response nothing was provided
     /// to decline.
+    ///
+    /// **Which response is the entry follows from the same question.** It is
+    /// the newest one a cache could have kept and that this request may be
+    /// served from, not whichever exchange happened last: a response nothing
+    /// stored evicts nothing, and neither does one to a method that leaves no
+    /// stored response behind. An `OPTIONS` between the offer and the refusal
+    /// used to read as the offer never having been made.
     CONDITIONAL_MISSING = {
         id: "conditional_missing",
         title: "A repeat request declines a validator the server provided",

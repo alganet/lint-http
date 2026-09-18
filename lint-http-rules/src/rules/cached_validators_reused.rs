@@ -39,7 +39,7 @@ impl RuleMeta for CachedValidatorsReused {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent."
+        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -115,24 +115,35 @@ impl Rule for CachedValidatorsReused {
                 return None;
             }
 
-            // Use the previous transaction passed by the linter (if any). History is
-            // scoped to this (client, resource) pair by the rule's ByResource query.
-            let previous_tx = history.previous()?;
-            let resp = previous_tx.response.as_ref()?;
-
-            // A validator is an offer, and § 3 decides whether it was ever
-            // taken up. A response carrying `no-store` is one no cache was
-            // permitted to hold, so its `ETag` reached no store and the round
-            // trip this rule calls avoidable could not have been a `304`. The
-            // entry reads "a repeat request declines a validator the server
-            // provided"; on such a response nothing was provided to decline.
+            // The stored entry, which is the newest response for this resource
+            // that a cache could have kept and that this request may be served
+            // from. History is scoped to the (client, resource) pair by the
+            // rule's ByResource query; the two filters here are the rest of it.
+            //
+            // Taking the immediately previous transaction instead asked the
+            // question of whatever happened last, which is not the same thing.
+            // An exchange that left no entry does not replace the one before
+            // it, and there are two ways to leave none. § 3 names the first: a
+            // response carrying `no-store` was never stored, so its `ETag`
+            // reached no cache — and neither did it evict the validator an
+            // earlier response handed over, which the client is still holding
+            // and still declining. § 4 names the second, and it is the reading
+            // both sibling rules already carry: only `GET`, `HEAD` and `POST`
+            // leave a stored response behind at all, and a stored `GET`
+            // answers a `HEAD` and nothing else — so an `OPTIONS` or a `TRACE`
+            // in front of the entry is not the entry, and reading it as one
+            // said a client had been offered no validator when it had.
             // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless:"
-            if !crate::helpers::stored_response::storage_allowed(
-                &previous_tx.request.headers,
-                &resp.headers,
-            ) {
-                return None;
-            }
+            // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
+            let (_previous_tx, resp) = history.responses().find(|(prev_tx, resp)| {
+                crate::helpers::stored_response::storage_allowed(
+                    &prev_tx.request.headers,
+                    &resp.headers,
+                ) && crate::helpers::stored_response::method_allows(
+                    &prev_tx.request.method,
+                    &tx.request.method,
+                )
+            })?;
 
             // The rule only has a case to make if the prior response gave the client a
             // validator to revalidate with: an ETag (If-None-Match) or a Last-Modified
@@ -349,6 +360,72 @@ mod tests {
             .is_none(),
             "no cache held that response, so its ETag was never on offer"
         );
+        Ok(())
+    }
+
+    /// An exchange that left no entry does not replace the one before it.
+    ///
+    /// Two ways to leave none, and a third response that is not one of them:
+    /// a `no-store` response was never stored, an `OPTIONS` or a `TRACE`
+    /// stores nothing a `GET` can be served from, and an ordinary `200` with
+    /// no validator *did* replace the entry — after which there is genuinely
+    /// nothing left to condition on, which is the boundary the first two rest
+    /// against.
+    #[rstest]
+    #[case(vec![("cache-control", "no-store")], "GET", false)]
+    #[case(vec![("cache-control", "no-cache, no-store, must-revalidate")], "GET", false)]
+    #[case(vec![], "OPTIONS", false)]
+    #[case(vec![], "TRACE", false)]
+    #[case(vec![], "GET", true)]
+    fn an_exchange_that_stored_nothing_does_not_hide_the_entry_behind_it(
+        #[case] in_front_headers: Vec<(&str, &str)>,
+        #[case] in_front_method: &str,
+        #[case] hides_it: bool,
+    ) -> anyhow::Result<()> {
+        let rule = CachedValidatorsReused;
+        let store = StateStore::new(300, 10);
+        let client = make_client();
+        let resource = "http://example.com/api/behind";
+
+        // The entry: a stored GET that handed over an ETag.
+        let mut entry =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"v1\"")]);
+        entry.client = client.clone();
+        entry.request.uri = resource.to_string();
+        entry.request.method = "GET".to_string();
+        store.record_transaction(&entry);
+
+        // Whatever happened last, which is not the same as the entry.
+        let mut in_front = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            in_front_headers.as_slice(),
+        );
+        in_front.client = client.clone();
+        in_front.request.uri = resource.to_string();
+        in_front.request.method = in_front_method.to_string();
+        store.record_transaction(&in_front);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+        tx.request.method = "GET".to_string();
+        let history = crate::queries::by_resource::by_resource(&store, &client, resource);
+        let violation = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        if hides_it {
+            assert!(
+                violation.is_none(),
+                "a stored 200 with no validator replaced the entry, so nothing is left to decline"
+            );
+        } else {
+            let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
+            assert_eq!(v.violation, "conditional_missing");
+            assert!(v.message.contains("\"v1\""), "{}", v.message);
+        }
         Ok(())
     }
 
