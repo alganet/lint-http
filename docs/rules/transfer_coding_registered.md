@@ -22,8 +22,11 @@ Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must 
 
 **A parameter on a coding that defines none is reported.** RFC 9112 §7.2 defines `compress`, `x-compress`, `deflate`, `gzip` and `x-gzip`, states that they "do not define any parameters", and says their presence "SHOULD be treated as an error". §7.1 says the same of `chunked` in its own two sentences, so all six are covered. The `q` in `TE: deflate;q=0.5` is exempt — the grammar puts the `weight` outside `transfer-coding` and §7.3 calls it a pseudo-parameter — but `Transfer-Encoding` has no weight in its grammar, so a `q` there is an ordinary parameter. A coding you add to `allowed` is not reached: its parameters answer to whatever registered it.
 
+**An empty `Transfer-Encoding` list element is reported, and a field line holding no element at all is not.** §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits; §5.6.1.1 expands the same construct for a sender with nothing bracketed and forbids generating one. So `chunked,,gzip` is a comma the sender may not write, while a bare `Transfer-Encoding:` is the zero-element list `#transfer-coding` generates — and `TE:` is the spelling §7.4 gives a meaning of its own. `TE`'s empty *member* is silent here as well, because `te_header_valid` owns that field's syntax and reports the same comma.
+
 ## Violations
 
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
 - [te_chunked_forbidden](../violations/te_chunked_forbidden.md) — TE names the chunked coding, which cannot be declined
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
@@ -43,6 +46,7 @@ Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must 
 - [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 - [IANA HTTP Parameters](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding): The registry this rule is named after and does not read: names are checked against the configured 'allowed' list instead
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 
 ## Configuration
 

@@ -57,6 +57,7 @@ severity = "error"
 - [te_header_valid](../rules/te_header_valid.md)
 - [timing_allow_origin_valid](../rules/timing_allow_origin_valid.md)
 - [trailer_header_valid](../rules/trailer_header_valid.md)
+- [transfer_coding_registered](../rules/transfer_coding_registered.md)
 - [upgrade_header_syntax](../rules/upgrade_header_syntax.md)
 - [vary_header_valid](../rules/vary_header_valid.md)
 - [via_header_syntax](../rules/via_header_syntax.md)
