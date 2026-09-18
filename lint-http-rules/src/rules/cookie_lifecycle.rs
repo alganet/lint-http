@@ -208,7 +208,7 @@ impl RuleMeta for CookieLifecycle {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— stale value"),
-                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; Path=/\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=2; Path=/\n\n> GET /baz HTTP/1.1\n> Host: example.com\n> Cookie: id=1               # old value should have been replaced",
+                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; Path=/\n\n> GET /bar HTTP/1.1\n> Host: example.com\n> Cookie: id=1\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=2; Path=/\n\n> GET /baz HTTP/1.1\n> Host: example.com\n> Cookie: id=1               # old value should have been replaced",
             },
             Example {
                 compliance: Compliance::NonCompliant,

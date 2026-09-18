@@ -92,23 +92,13 @@ impl RuleMeta for CacheValidationChain {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("Sequence"),
-                snippet: "HTTP/1.1 200 OK\nETag: \"abc\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Sequence"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
+                label: Some("— the precondition names the newest validator"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"abc\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet: "HTTP/1.1 304 Not Modified\nETag: \"xyz\"  # validator updated by 304\n\nHTTP/1.1 200 OK\nETag: \"abc\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
+                label: Some("— a 304 renewed the validator, and the next precondition names the old one"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"abc\"\n\n< HTTP/1.1 304 Not Modified\n< ETag: \"xyz\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"abc\"",
             },
         ]
     }

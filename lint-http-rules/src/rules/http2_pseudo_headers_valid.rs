@@ -347,8 +347,8 @@ impl RuleMeta for Http2PseudoHeadersValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("A non-CONNECT request with no :path"),
-                snippet: ":method: GET\n:scheme: https\n:authority: example.com",
+                label: Some("A non-CONNECT request with no :path, and no :scheme whose URI form would supply one"),
+                snippet: ":method: GET\n:authority: example.com",
             },
             Example {
                 compliance: Compliance::NonCompliant,

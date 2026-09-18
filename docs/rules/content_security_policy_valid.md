@@ -58,10 +58,14 @@ HTTP/1.1 200 OK
 Content-Security-Policy: def@ult-src 'self'
 ```
 
+### ✅ Good (a trailing `;` is a zero-directive repetition the production generates)
+
 ```http
 HTTP/1.1 200 OK
 Content-Security-Policy: default-src 'self';
 ```
+
+### ❌ Bad
 
 ```http
 HTTP/1.1 200 OK

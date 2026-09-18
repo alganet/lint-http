@@ -33,9 +33,14 @@ enabled = true
 
 ## Examples
 
-### ✅ Good
+### ✅ Good — the tag the request names is the one the resource handed over
 
 ```http
+> GET /resource HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "abc"
+
 > GET /resource HTTP/1.1
 > If-None-Match: "abc"
 
@@ -51,6 +56,7 @@ enabled = true
 
 < 200 OK  HTTP/1.1
 < ETag: "abc"
+
 < (body)
 ```
 

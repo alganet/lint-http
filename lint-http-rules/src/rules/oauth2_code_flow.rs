@@ -92,12 +92,12 @@ impl RuleMeta for Oauth2CodeFlow {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— callback missing or empty state"),
-                snippet: "> GET /callback?code=abc HTTP/1.1\n> Host: app.example.com",
+                snippet: "> GET /authorize?response_type=code&client_id=1&state=xyz HTTP/1.1\n> Host: idp.example.com\n\n< HTTP/1.1 302 Found\n< Location: https://app.example.com/callback?code=abc\n\n> GET /callback?code=abc HTTP/1.1\n> Host: app.example.com",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— unmatched state"),
-                snippet: "> GET /callback?code=abc&state=wrong HTTP/1.1\n> Host: app.example.com",
+                snippet: "> GET /authorize?response_type=code&client_id=1&state=xyz HTTP/1.1\n> Host: idp.example.com\n\n< HTTP/1.1 302 Found\n< Location: https://app.example.com/callback?code=abc&state=wrong\n\n> GET /callback?code=abc&state=wrong HTTP/1.1\n> Host: app.example.com",
             },
         ]
     }

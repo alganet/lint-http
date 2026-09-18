@@ -59,6 +59,12 @@ enabled = true
 ### ❌ Bad — callback missing or empty state
 
 ```http
+> GET /authorize?response_type=code&client_id=1&state=xyz HTTP/1.1
+> Host: idp.example.com
+
+< HTTP/1.1 302 Found
+< Location: https://app.example.com/callback?code=abc
+
 > GET /callback?code=abc HTTP/1.1
 > Host: app.example.com
 ```
@@ -66,6 +72,12 @@ enabled = true
 ### ❌ Bad — unmatched state
 
 ```http
+> GET /authorize?response_type=code&client_id=1&state=xyz HTTP/1.1
+> Host: idp.example.com
+
+< HTTP/1.1 302 Found
+< Location: https://app.example.com/callback?code=abc&state=wrong
+
 > GET /callback?code=abc&state=wrong HTTP/1.1
 > Host: app.example.com
 ```

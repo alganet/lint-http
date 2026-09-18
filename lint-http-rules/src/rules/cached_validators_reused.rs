@@ -61,35 +61,13 @@ impl RuleMeta for CachedValidatorsReused {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("Request"),
-                snippet: "GET /image.png HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Request"),
-                snippet: "HTTP/1.1 200 OK\nETag: \"abcdef12345\"\nContent-Length: 1024",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Request"),
-                snippet:
-                    "GET /image.png HTTP/1.1\nHost: example.com\nIf-None-Match: \"abcdef12345\"",
+                label: Some("— the second GET names the validator the first response provided"),
+                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abcdef12345\"\n< Content-Length: 1024\n\n> GET /image.png HTTP/1.1\n> Host: example.com\n> If-None-Match: \"abcdef12345\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet: "GET /image.png HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet: "HTTP/1.1 200 OK\nETag: \"abcdef12345\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet:
-                    "GET /image.png HTTP/1.1\nHost: example.com\n# Missing If-None-Match header!",
+                label: Some("— the second GET carries no precondition at all"),
+                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< ETag: \"abcdef12345\"\n< Content-Length: 1024\n\n> GET /image.png HTTP/1.1\n> Host: example.com",
             },
         ]
     }

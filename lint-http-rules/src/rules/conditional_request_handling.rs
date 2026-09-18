@@ -350,13 +350,13 @@ impl RuleMeta for ConditionalRequestHandling {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 304 Not Modified  HTTP/1.1\n< ETag: \"abc\"",
+                label: Some("— the tag the request names is the one the resource handed over"),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 304 Not Modified  HTTP/1.1\n< ETag: \"abc\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— conditional request with no prior validator recorded"),
-                snippet: "> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n< (body)",
+                snippet: "> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n< (body)",
             },
             Example {
                 compliance: Compliance::NonCompliant,

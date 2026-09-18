@@ -49,6 +49,12 @@ enabled = true
 ### ✅ Good — Lax cookie sent on top-level navigation
 
 ```http
+> GET /login HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Set-Cookie: sid=abc; SameSite=Lax; Path=/
+
 > GET /foo HTTP/1.1
 > Host: example.com
 > Sec-Fetch-Site: cross-site
@@ -56,24 +62,34 @@ enabled = true
 > Cookie: sid=abc
 
 < HTTP/1.1 200 OK
-< Set-Cookie: sid=abc; SameSite=Lax; Path=/
 ```
 
 ### ❌ Bad — Strict cookie sent cross-site
 
 ```http
+> GET /login HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Set-Cookie: session=xyz; SameSite=Strict; Path=/
+
 > GET /resource HTTP/1.1
 > Host: example.com
 > Sec-Fetch-Site: cross-site
 > Cookie: session=xyz
 
 < HTTP/1.1 200 OK
-< Set-Cookie: session=xyz; SameSite=Strict; Path=/
 ```
 
 ### ❌ Bad — Lax cookie sent in cross-site subresource request
 
 ```http
+> GET /login HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Set-Cookie: auth=1; SameSite=Lax; Path=/
+
 > GET /image.png HTTP/1.1
 > Host: example.com
 > Sec-Fetch-Site: cross-site
@@ -81,5 +97,4 @@ enabled = true
 > Cookie: auth=1
 
 < HTTP/1.1 200 OK
-< Set-Cookie: auth=1; SameSite=Lax; Path=/
 ```

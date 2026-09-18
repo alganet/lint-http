@@ -99,11 +99,6 @@ impl RuleMeta for MaxAgeDirectiveValid {
                 label: Some("— unnecessary revalidation while still fresh"),
                 snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n< ETag: \"v1\"\n\n# ten seconds later, client inexplicably revalidates\n> GET /data HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # age 10 < 60, should not revalidate yet",
             },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— stale entry reused without conditional request"),
-                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1\n< ETag: \"v1\"\n\n# several seconds later the client fetches again but omits validators\n> GET /data HTTP/1.1\n> Host: example.com\n# violation: stale age but no conditional header",
-            },
         ]
     }
 }

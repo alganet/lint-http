@@ -36,39 +36,31 @@ enabled = true
 
 ## Examples
 
-### ✅ Good Request
+### ✅ Good — the second GET names the validator the first response provided
 
 ```http
-GET /image.png HTTP/1.1
-Host: example.com
+> GET /image.png HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< ETag: "abcdef12345"
+< Content-Length: 1024
+
+> GET /image.png HTTP/1.1
+> Host: example.com
+> If-None-Match: "abcdef12345"
 ```
 
-```http
-HTTP/1.1 200 OK
-ETag: "abcdef12345"
-Content-Length: 1024
-```
+### ❌ Bad — the second GET carries no precondition at all
 
 ```http
-GET /image.png HTTP/1.1
-Host: example.com
-If-None-Match: "abcdef12345"
-```
+> GET /image.png HTTP/1.1
+> Host: example.com
 
-### ❌ Bad Request
+< HTTP/1.1 200 OK
+< ETag: "abcdef12345"
+< Content-Length: 1024
 
-```http
-GET /image.png HTTP/1.1
-Host: example.com
-```
-
-```http
-HTTP/1.1 200 OK
-ETag: "abcdef12345"
-```
-
-```http
-GET /image.png HTTP/1.1
-Host: example.com
-# Missing If-None-Match header!
+> GET /image.png HTTP/1.1
+> Host: example.com
 ```

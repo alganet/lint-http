@@ -95,7 +95,13 @@ enabled = true
 ### ❌ Bad — HTTP traffic after 101 on the same connection
 
 ```http
-// previous transaction on this connection: 101 upgrade to websocket
+> GET /chat HTTP/1.1
+> Upgrade: websocket
+> Connection: Upgrade
+
+< HTTP/1.1 101 Switching Protocols
+< Upgrade: websocket
+< Connection: Upgrade
 
 > GET /other HTTP/1.1
 

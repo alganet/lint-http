@@ -33,31 +33,37 @@ enabled = true
 
 ## Examples
 
-### ✅ Good Sequence
+### ✅ Good — the precondition names the newest validator
 
 ```http
-HTTP/1.1 200 OK
-ETag: "abc"
+> GET /resource HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< ETag: "abc"
+
+> GET /resource HTTP/1.1
+> Host: example.com
+> If-None-Match: "abc"
 ```
 
-```http
-GET /resource HTTP/1.1
-Host: example.com
-If-None-Match: "abc"
-```
-
-### ❌ Bad Request
+### ❌ Bad — a 304 renewed the validator, and the next precondition names the old one
 
 ```http
-HTTP/1.1 304 Not Modified
-ETag: "xyz"  # validator updated by 304
+> GET /resource HTTP/1.1
+> Host: example.com
 
-HTTP/1.1 200 OK
-ETag: "abc"
-```
+< HTTP/1.1 200 OK
+< ETag: "abc"
 
-```http
-GET /resource HTTP/1.1
-Host: example.com
-If-None-Match: "abc"
+> GET /resource HTTP/1.1
+> Host: example.com
+> If-None-Match: "abc"
+
+< HTTP/1.1 304 Not Modified
+< ETag: "xyz"
+
+> GET /resource HTTP/1.1
+> Host: example.com
+> If-None-Match: "abc"
 ```
