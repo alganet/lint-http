@@ -22,6 +22,7 @@ Repeating a coding is likewise a judgement call rather than a conformance failur
 
 - [content_coding_redundant](../violations/content_coding_redundant.md) — One coding is named twice in one field
 - [content_coding_wildcard_forbidden](../violations/content_coding_wildcard_forbidden.md) — The Accept-Encoding wildcard is written where a coding belongs
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [status_304_metadata_forbidden](../violations/status_304_metadata_forbidden.md) — A 304 sends representation metadata beyond the fields it owes
 - [status_metadata_redundant](../violations/status_metadata_redundant.md) — A response that cannot carry content sends representation metadata
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
@@ -35,6 +36,7 @@ Repeating a coding is likewise a judgement call rather than a conformance failur
 - [RFC 9110 §15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5): 304 Not Modified — the fields a 304 MUST send, the SHOULD NOT against any other representation metadata unless it guides cache updates, and the response being terminated by the end of the header section
 - [RFC 9110 §15.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5): 204 No Content — the response is terminated by the end of its header section and cannot contain content, and its metadata refers to the target resource and its selected representation after the action was applied
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 
 ## Configuration
 
