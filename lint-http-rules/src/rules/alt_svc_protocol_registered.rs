@@ -257,12 +257,18 @@ impl RuleMeta for AltSvcProtocolRegistered {
 # serves. Everything else is reported, registered or not.
 #
 # No draft HTTP/3 token belongs in this list, `h3-29` included, however widely
-# it is still advertised alongside `h3`. Naming a draft identifier where the
-# final one exists is `alt_svc_h3_advertisement_valid`'s finding, and this rule
-# passes every `h3-*` name over to it rather than asking the list about one.
-# Listing `h3-29` here to keep the two rules from reporting the same token twice
-# is what this list used to do, and it bought the silence by stating that this
-# deployment serves a draft.
+# it is still advertised alongside `h3`. A draft identifier is
+# `alt_svc_h3_advertisement_valid`'s subject, and this rule passes every `h3-*`
+# name over to it rather than asking the list about one. Listing `h3-29` here to
+# keep the two rules from reporting the same token twice is what this list used
+# to do, and it bought the silence by stating that this deployment serves a
+# draft.
+#
+# That sibling reports a draft token only where the field advertises no `h3`, so
+# `h3=":443", h3-29=":443"` draws nothing from either rule. That is the answer
+# and not a gap: the field has advertised HTTP/3 under the token it shipped
+# with, and the draft alternative beside it is one a client that knows only `h3`
+# never looks at.
 allowed = ["h2", "h3", "h2c", "http/1.1"]
 "#
     }
@@ -567,11 +573,21 @@ mod tests {
         assert!(v.is_none(), "unexpected violation for {header:?}: {v:?}");
     }
 
-    /// The invariant that makes the decline above safe: every name this rule
-    /// passes over, `alt_svc_h3_advertisement_valid` names. Both rules read the
-    /// `protocol-id` as written and fold it the same way, so there is no
-    /// spelling that falls between them — asking the *decoded* name here instead
-    /// would open one at `h3%2D29`, which the sibling does not read as a draft.
+    /// The invariant that makes the decline above safe: every draft name this
+    /// rule passes over is one the sibling *reaches*, and there is no spelling
+    /// that falls between them. Both read the `protocol-id` as written and fold
+    /// it the same way; asking the *decoded* name here instead would open a gap
+    /// at `h3%2D29`, which the sibling does not read as a draft.
+    ///
+    /// **Reaching it is not the same as reporting it, and the difference is
+    /// deliberate.** The sibling names a draft token only where the field
+    /// advertises no `h3`, so on `h3=":443", h3-29=":443"` neither rule reports
+    /// the draft — the test below holds that jointly. That silence is the
+    /// answer, not a hole: a field naming `h3` has advertised the shipped
+    /// protocol, and the draft alternative beside it is one a client that knows
+    /// only `h3` never looks at. What this rule must not do is fill it, because
+    /// the sentence it would fill it with — that this deployment does not serve
+    /// the name — would be read off the `Alt-Svc` that deployment wrote.
     #[rstest]
     #[case("h3-29=\":443\"")]
     #[case("h3-27=\":443\"; ma=3600")]
@@ -596,6 +612,40 @@ mod tests {
                 .any(|f| f.violation == crate::violations::alpn::ALPN_PROTOCOL_NAME_OBSOLETE.id),
             "nothing named the draft token in {header:?}: {v:?}"
         );
+    }
+
+    /// The one place the decline above is answered by silence from both rules,
+    /// held here so it stays a decision rather than a gap that grew back.
+    ///
+    /// This rule passes `h3-29` over because a draft token is the sibling's
+    /// subject; the sibling passes it over because the field names `h3` and has
+    /// therefore advertised HTTP/3 under the token it shipped with. Neither
+    /// reports, and the value deserves neither report. If this ever has to
+    /// change, it changes in the sibling — the sentence available *here* is
+    /// about a list an operator wrote, and using it would say this deployment
+    /// does not offer a name that this deployment is advertising.
+    #[rstest]
+    #[case("h3=\":443\", h3-29=\":443\"")]
+    #[case("h3-29=\":443\", h3=\":443\"; ma=86400")]
+    fn a_draft_beside_the_final_token_is_neither_rules_finding(#[case] header: &str) {
+        assert!(
+            run(&[("alt-svc", header)]).is_none(),
+            "this rule reported on {header:?}"
+        );
+
+        let sibling = crate::rules::alt_svc_h3_advertisement_valid::AltSvcH3AdvertisementValid;
+        let tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("alt-svc", header)]);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "alt_svc_h3_advertisement_valid",
+        ]);
+        let v = crate::test_helpers::run_rule_all(
+            &sibling,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_empty(), "the sibling reported on {header:?}: {v:?}");
     }
 
     /// The decline sits below the length check, and that is not an accident:
