@@ -106,6 +106,32 @@ fn timestamp(headers: &hyper::HeaderMap, name: &str) -> Timestamp {
     headers.get(name).map_or(Timestamp::Absent, Timestamp::of)
 }
 
+/// The instant a field's first line names as its *sender* wrote it, and the
+/// text it was written as.
+///
+/// **[`timestamp`] above is the other question, and the comparisons below ask
+/// this one.** That reader answers what a conforming recipient gets from the
+/// field, so a value it refuses is a value nothing downstream can act on. The
+/// sentences these functions enforce are not about a recipient: § 8.8.2.1 says
+/// what an origin server MUST NOT *generate*, RFC 8594 § 3 asks what a `Sunset`
+/// names, and a conditional carrying tomorrow's date is a client that wrote
+/// tomorrow's date. A value refused for its spelling still says what the sender
+/// put there.
+///
+/// Reading these through the recipient's parser let a `MUST NOT` out through a
+/// misspelling: `Last-Modified: Wed, 21 Oct 2015 09:38:00 UTC` beside `Date:
+/// Wed, 21 Oct 2015 07:28:00 GMT` stamps the representation two hours after the
+/// message carrying it, and reported nothing but the spelling — while the same
+/// two hours written `GMT` reported both. Which finding a response draws is not
+/// the zone token's to decide.
+fn stated_instant(
+    headers: &hyper::HeaderMap,
+    name: &str,
+) -> Option<(chrono::DateTime<chrono::Utc>, String)> {
+    let text = crate::helpers::headers::field_line_as_written(headers.get(name)?);
+    Some((crate::http_date::intended_timestamp(&text)?, text))
+}
+
 /// The instant a `Sunset` is measured against.
 ///
 /// **Two anchors and not one, because the field's sentence is about the future
@@ -196,8 +222,10 @@ impl DateAndTimeHeadersConsistent {
     /// A representation cannot have last changed after the message that carries
     /// it was written.
     ///
-    /// An unparseable `Last-Modified` is left to the rule that owns that
-    /// field's format, so this one does not report it twice.
+    /// The *format* of `Last-Modified` is left to the rule that owns it, so this
+    /// one does not report it twice; what the value names is read here whether
+    /// or not a recipient could have read it, because § 8.8.2.1 constrains what
+    /// the server generated. See [`stated_instant`].
     // cite(RFC 9110 § 8.8.2.1): "An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1)."
     fn last_modified_not_after_date(
         headers: &hyper::HeaderMap,
@@ -206,16 +234,14 @@ impl DateAndTimeHeadersConsistent {
         skew: chrono::Duration,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        match timestamp(headers, "last-modified") {
-            Timestamp::Absent | Timestamp::Unparseable(_) => None,
-            Timestamp::At(last_modified, text) if last_modified > date + skew => {
-                Some(ctx.by_server().report_with(&LAST_MODIFIED_CONFLICTING, format!(
-                    "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
-                    text, date_text
-                )))
-            }
-            Timestamp::At(..) => None,
+        let (last_modified, text) = stated_instant(headers, "last-modified")?;
+        if last_modified > date + skew {
+            return Some(ctx.by_server().report_with(&LAST_MODIFIED_CONFLICTING, format!(
+                "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
+                text, date_text
+            )));
         }
+        None
     }
 
     /// `Sunset` announces a shutdown, so it names a time still to come.
@@ -293,24 +319,21 @@ impl DateAndTimeHeadersConsistent {
     ///
     /// No sentence mandates this ordering, so it is a reasonableness heuristic,
     /// recorded in the ledger rather than cited. The format of
-    /// `If-Modified-Since` is owned by its dedicated rule, so an unparseable
-    /// value is skipped here.
+    /// `If-Modified-Since` is owned by its dedicated rule and not reported
+    /// again here; the date the client wrote is read through
+    /// [`stated_instant`], since writing tomorrow's date is what this reports
+    /// and a misspelling does not make it today's.
     fn if_modified_since_not_after_date(
         headers: &hyper::HeaderMap,
         skew: chrono::Duration,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let since = match timestamp(headers, "if-modified-since") {
-            Timestamp::Absent | Timestamp::Unparseable(_) => return None,
-            Timestamp::At(since, text) => (since, text),
-        };
-        let Timestamp::At(date, date_text) = timestamp(headers, "date") else {
-            return None;
-        };
-        if since.0 > date + skew {
+        let (since, since_text) = stated_instant(headers, "if-modified-since")?;
+        let (date, date_text) = stated_instant(headers, "date")?;
+        if since > date + skew {
             return Some(ctx.by_client().report_with(&CONDITIONAL_DATE_CONFLICTING, format!(
                 "If-Modified-Since '{}' is later than Date '{}'; conditional requests should not use a future date",
-                since.1, date_text
+                since_text, date_text
             )));
         }
         None
@@ -471,6 +494,90 @@ mod tests {
     /// unreadable value drew two findings differing in nothing but the rule
     /// name. It stopped; this rule keeps the reading because it judges every
     /// field line where the other read only the first.
+    /// The comparisons read what the sender wrote, and a spelling no recipient
+    /// parses does not decide which finding a response draws.
+    ///
+    /// § 8.8.2.1 is a `MUST NOT` about what the origin *generated*, so a
+    /// representation stamped two hours after the message carrying it is one
+    /// whether the zone token reads `GMT` or `UTC`. Reading the field through
+    /// the recipient's parser let the second spelling report nothing but its
+    /// own malformity, and the malformity is the lesser of the two things wrong
+    /// with it.
+    #[test]
+    fn a_spelling_no_recipient_reads_does_not_excuse_the_time_it_names() {
+        let response = |pairs: &[(&str, &str)]| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(pairs);
+            crate::test_helpers::run_rule(
+                &DateAndTimeHeadersConsistent,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "date_and_time_headers_consistent",
+                ]),
+            )
+        };
+
+        let date = ("date", "Wed, 21 Oct 2015 07:28:00 GMT");
+        for later in [
+            // The spelling § 5.6.7 asks for, and the three it refuses that name
+            // their instant anyway.
+            "Wed, 21 Oct 2015 09:38:00 GMT",
+            "Wed, 21 Oct 2015 09:38:00 UTC",
+            "Wed, 21 Oct 2015 11:38:00 +0200",
+            "Tue, 21 Oct 2015 09:38:00 GMT",
+        ] {
+            let v = response(&[date, ("last-modified", later)]).expect("a finding");
+            assert_eq!(v.violation, "last_modified_conflicting", "{later}");
+            // The octets, so a reader can find the field in the response.
+            assert!(v.message.contains(later), "{}", v.message);
+        }
+
+        // A value that names no instant is not a time this rule can compare,
+        // and it keeps the reading its own format rule gives it.
+        for names_none in ["-1", "not-a-date"] {
+            let v = response(&[date, ("last-modified", names_none)]);
+            assert!(
+                v.is_none_or(|v| v.violation != "last_modified_conflicting"),
+                "{names_none}",
+            );
+        }
+
+        // An hour on the right side of Date is not a finding in any spelling.
+        assert!(response(&[date, ("last-modified", "Wed, 21 Oct 2015 06:28:00 UTC")]).is_none());
+    }
+
+    /// The client's half of the same reading: a conditional carrying tomorrow's
+    /// date carries it however the zone is spelled.
+    #[test]
+    fn a_conditional_dated_after_its_own_request_is_read_as_written() {
+        let request = |pairs: &[(&str, &str)]| {
+            // The response carries a `Date` of its own: a 2xx without one is a
+            // finding this rule reports before it reads the request at all.
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("date", "Wed, 21 Oct 2015 07:28:00 GMT")],
+            );
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(pairs);
+            crate::test_helpers::run_rule(
+                &DateAndTimeHeadersConsistent,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "date_and_time_headers_consistent",
+                ]),
+            )
+        };
+
+        let v = request(&[
+            ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+            ("if-modified-since", "Wed, 21 Oct 2015 09:38:00 UTC"),
+        ])
+        .expect("a finding");
+        assert_eq!(v.violation, "conditional_date_conflicting");
+    }
+
     /// The weekday that is not the day its date falls on, in the two fields
     /// this rule reads. `Fri, 01 Jan 1980 00:00:00 GMT` came off a real
     /// response — the first of January 1980 was a Tuesday — and it used to be

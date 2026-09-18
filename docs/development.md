@@ -374,6 +374,38 @@ impl Rule for MyRule {
 }
 ```
 
+**Keep the `report_with` on a line that runs whenever the check runs.** Write
+the decision as an `if` that returns, rather than handing the call to a closure
+body of its own:
+
+```rust
+// Yes: the call is on a line reached on every run of the check.
+if last_modified > date + skew {
+    return Some(ctx.by_server().report_with(&LAST_MODIFIED_CONFLICTING, message));
+}
+None
+
+// No: the call is on a line reached only when the finding fires.
+(last_modified > date + skew).then(|| {
+    ctx.by_server().report_with(&LAST_MODIFIED_CONFLICTING, message)
+})
+```
+
+The two behave identically and the second reads shorter, which is why it gets
+written. What it costs is a measurement. Reachability is read out of a
+coverage-instrumented build by asking whether an executed region covers the
+entry's report site, so a report site the check only reaches on the runs that
+report tells you nothing you did not already know from the finding: a check
+that ran over a whole corpus and correctly stayed quiet stops being
+distinguishable from a check no input ever reached. Two entries here lost
+exactly that when these arms were first written with `bool::then`, and got it
+back as `if`.
+
+Measured, so state the boundary rather than guessing at it: the single-line
+`(cond).then(|| ctx.report_with(..))` keeps the call on the deciding line and
+does not lose the reading — `method_connect_content_forbidden` is written that
+way and measures as evaluated. It is the multi-line closure body that costs it.
+
 Configuration is resolved **once, when the engine is built**, by `RuleMeta`'s
 `prepare` hook. The default validates the one required key (`enabled`) and
 resolves nothing; a rule with its own options overrides `prepare`, parses them into
