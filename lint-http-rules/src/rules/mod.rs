@@ -1920,6 +1920,7 @@ enabled = "true"
             note: "",
         }],
         induced: crate::violations::Induced::No,
+        unreachable: None,
         strength: crate::lint::Strength::Unstated,
         departure: None,
     };
@@ -1933,6 +1934,7 @@ enabled = "true"
         default_severity: crate::lint::Severity::Error,
         spec: &[],
         induced: crate::violations::Induced::No,
+        unreachable: None,
         strength: crate::lint::Strength::Unstated,
         departure: None,
     };
@@ -2214,6 +2216,7 @@ enabled = "true"
             default_severity: crate::lint::Severity::Warn,
             spec: &[],
             induced: crate::violations::Induced::No,
+            unreachable: None,
             strength: crate::lint::Strength::Unstated,
             departure: None,
         };

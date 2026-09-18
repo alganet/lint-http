@@ -1218,6 +1218,7 @@ mod tests {
                 note: "Tokens",
             }],
             induced: lint_http_rules::violations::Induced::No,
+            unreachable: None,
             strength: Strength::Unstated,
             departure: None,
         };
@@ -1246,6 +1247,7 @@ mod tests {
             default_severity: Severity::Warn,
             spec: &[],
             induced: lint_http_rules::violations::Induced::No,
+            unreachable: None,
             strength: Strength::Unstated,
             departure: None,
         };
@@ -1266,6 +1268,7 @@ mod tests {
             default_severity: Severity::Info,
             spec: &[],
             induced: lint_http_rules::violations::Induced::No,
+            unreachable: None,
             strength: Strength::Unstated,
             departure: None,
         };
@@ -1286,6 +1289,7 @@ mod tests {
             default_severity: Severity::Error,
             spec: &[],
             induced: lint_http_rules::violations::Induced::No,
+            unreachable: None,
             strength: Strength::Unstated,
             departure: None,
         };

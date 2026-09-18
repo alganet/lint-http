@@ -73,6 +73,10 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_5],
         strength: Strength::Grammar,
+        unreachable: "a `ctext` violation in a field value is a control octet, and no route \
+                      carries one to the rules: on the wire the parser refuses the \
+                      message before there is a transaction, and from a capture file \
+                      `HeaderValue` refuses the record",
     }
 }
 

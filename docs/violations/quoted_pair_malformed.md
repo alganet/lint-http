@@ -26,6 +26,7 @@ _Written where it is reported: this defect's message names the value that caused
 [violations.quoted_pair_malformed]
 # Escape is not a quoted-pair
 # GRAMMAR obliges the sender, so this defaults to error.
+# No input this tool accepts reaches this defect: the escape this names is a backslash before an octet `quoted-pair` does not admit, which in a field value is a control octet — and no route carries one to the rules: on the wire the parser refuses the message before there is a transaction, and from a capture file `HeaderValue` refuses the record
 severity = "error"
 ```
 

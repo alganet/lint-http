@@ -183,6 +183,15 @@ pub(crate) fn violation_section(def: &ViolationDef) -> String {
             out.push_str(&format!("# Departs from that: {why}\n"));
         }
     }
+    // Above `severity`, because it changes what tuning this level can achieve:
+    // nothing reaches this entry, so an operator raising or lowering it is
+    // adjusting a line that will not be printed. Worth knowing before the
+    // number, not after it.
+    if let Some(why) = def.unreachable {
+        out.push_str(&format!(
+            "# No input this tool accepts reaches this defect: {why}\n"
+        ));
+    }
     out.push_str(&format!("severity = \"{}\"\n", def.default_severity.name()));
     out
 }
@@ -252,6 +261,7 @@ mod tests {
             default_severity: lint_http_rules::lint::Severity::Error,
             spec: &[],
             induced: lint_http_rules::violations::Induced::No,
+            unreachable: None,
             strength: Strength::Unstated,
             departure: None,
         };

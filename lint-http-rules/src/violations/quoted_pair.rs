@@ -45,6 +45,11 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_5_6_4],
         strength: Strength::Grammar,
+        unreachable: "the escape this names is a backslash before an octet `quoted-pair` \
+                      does not admit, which in a field value is a control octet — and \
+                      no route carries one to the rules: on the wire the parser refuses \
+                      the message before there is a transaction, and from a capture \
+                      file `HeaderValue` refuses the record",
     }
 }
 

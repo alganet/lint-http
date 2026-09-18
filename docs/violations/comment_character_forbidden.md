@@ -26,6 +26,7 @@ _Written where it is reported: this defect's message names the value that caused
 [violations.comment_character_forbidden]
 # Comment holds a character ctext does not admit
 # GRAMMAR obliges the sender, so this defaults to error.
+# No input this tool accepts reaches this defect: a `ctext` violation in a field value is a control octet, and no route carries one to the rules: on the wire the parser refuses the message before there is a transaction, and from a capture file `HeaderValue` refuses the record
 severity = "error"
 ```
 
