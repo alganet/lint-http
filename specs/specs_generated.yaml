@@ -5381,7 +5381,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 157
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 201
+      line: 204
   - label: accept_and_content_type_negotiation (7)
     section: § 12.5.1
     snippet: If more than one media range applies to a given type, the most specific reference has precedence.
@@ -5395,7 +5395,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 258
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 409
+      line: 437
   - label: accept_and_content_type_negotiation (9)
     section: § 12.5.1
     snippet: The "Accept" header field can be used by user agents to specify their preferences regarding response media types.
@@ -5403,7 +5403,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 80
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 125
+      line: 128
   - label: accept_and_content_type_negotiation (10)
     section: § 12.5.1
     snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
@@ -5429,7 +5429,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 246
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 241
+      line: 269
   - label: accept_and_content_type_negotiation (13)
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
@@ -5457,7 +5457,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 299
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 408
+      line: 436
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 213
     - file: lint-http-rules/src/violations/qvalue.rs
@@ -5469,7 +5469,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 198
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 421
+      line: 449
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 164
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
@@ -5583,7 +5583,7 @@ sources:
     snippet: A sender of qvalue MUST NOT generate more than three digits after the decimal point.
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 433
+      line: 461
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 330
   - label: accept_header_media_type_syntax (2)
@@ -5591,31 +5591,31 @@ sources:
     snippet: Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2).
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 202
+      line: 205
   - label: accept_header_media_type_syntax (3)
     section: § 12.5.1
     snippet: Senders using weights SHOULD send "q" last (after all media-range parameters).
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 349
+      line: 377
   - label: accept_header_media_type_syntax (4)
     section: § 12.5.1
     snippet: The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields.
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 348
+      line: 376
   - label: accept_header_media_type_syntax (5)
     section: § 12.5.1
     snippet: When sent by a server in a response, Accept provides information about which content types are preferred in the content of a subsequent request to the same resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 126
+      line: 129
   - label: accept_header_media_type_syntax (6)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 256
+      line: 284
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 48
   - label: accept_language_weight_valid
@@ -7309,7 +7309,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 146
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 216
+      line: 238
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 318
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
@@ -7408,6 +7408,8 @@ sources:
       line: 197
     - file: lint-http-rules/src/helpers/list.rs
       line: 226
+    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
+      line: 236
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 126
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -7432,6 +7434,8 @@ sources:
       line: 87
     - file: lint-http-rules/src/helpers/list.rs
       line: 123
+    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
+      line: 237
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 137
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -7931,7 +7935,9 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 82
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 230
+      line: 214
+    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
+      line: 258
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 341
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -7983,7 +7989,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 218
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 215
+      line: 213
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 170
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -8121,7 +8127,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 108
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 387
+      line: 415
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 507
   - label: parameter-value grammar
@@ -8149,7 +8155,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 79
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 229
+      line: 257
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 505
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs

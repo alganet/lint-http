@@ -20,10 +20,13 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 
 **Whitespace inside a media-range is reported**, as the `token` defect it is. The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and the shared reader hands back the two halves exactly as written, so the space arrives inside the `type` and the character scan names it. This rule used to run a whitespace check of its own in front of the parse, from when that reader trimmed each half and the space vanished before anything could see it.
 
-**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `"q="` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do.
+**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `"q="` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them.
+
+**An empty list element is reported, and a field line holding no element at all is not.** §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits; §5.6.1.1 expands the same construct for a sender with nothing bracketed, and forbids generating an empty element outright. So `text/html, , text/plain` is a comma the sender may not write, while a bare `Accept:` is the zero-element list the construct does generate. This rule used to skip the first as well, on the recipient's expansion.
 
 ## Violations
 
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [media_range_parameter_forbidden](../violations/media_range_parameter_forbidden.md) — Accept member writes a parameter after the weight
 - [media_range_wildcard_invalid](../violations/media_range_wildcard_invalid.md) — A wildcard type is written beside a concrete subtype
 - [media_type_empty](../violations/media_type_empty.md) — Media type is written with nothing in it
@@ -48,7 +51,8 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 - [RFC 9110 §5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6): Parameters — `parameters = *( OWS ";" OWS [ parameter ] )`, the `name=value` pair inside it with neither half optional, and the bracketing that leaves a trailing `;` conforming
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
-- [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Recipient Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore, and the meaning of a field value that holds no element at all
 
 ## Configuration
 

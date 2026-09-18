@@ -7,6 +7,7 @@ use crate::helpers::parameter::ParameterDefect;
 use crate::helpers::word::WordDefect;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::media_range::{
     MEDIA_RANGE_PARAMETER_FORBIDDEN, MEDIA_RANGE_WILDCARD_INVALID, RFC_9110_12_5_1,
 };
@@ -58,6 +59,7 @@ pub struct AcceptHeaderMediaTypeSyntax;
 /// — while the same whitespace beside a `charset=` is § 5.6.6's, which this
 /// rule and five others tolerate on the record.
 static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -82,7 +84,7 @@ const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.6.1.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
-    note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
+    note: "Recipient Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore, and the meaning of a field value that holds no element at all",
 };
 
 impl RuleMeta for AcceptHeaderMediaTypeSyntax {
@@ -100,7 +102,7 @@ impl RuleMeta for AcceptHeaderMediaTypeSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`) — but for different reasons, and only the second is about the asterisk. A `*` holds no `/`, so it is no `type/subtype` pair at all and is refused for the same reason `text` is. `*/json` *does* derive: `type` is a `token` and `*` is a `tchar`, so the ABNF produces it. What refuses it is that §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `content_type_valid` takes a stronger position on the same character, because a `Content-Type` states *the* media type of a representation and any wildcard there names nothing.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Whitespace inside a media-range is reported**, as the `token` defect it is. The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and the shared reader hands back the two halves exactly as written, so the space arrives inside the `type` and the character scan names it. This rule used to run a whitespace check of its own in front of the parse, from when that reader trimmed each half and the space vanished before anything could see it.\n\n**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `\"q=\"` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do."
+        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`) — but for different reasons, and only the second is about the asterisk. A `*` holds no `/`, so it is no `type/subtype` pair at all and is refused for the same reason `text` is. `*/json` *does* derive: `type` is a `token` and `*` is a `tchar`, so the ABNF produces it. What refuses it is that §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `content_type_valid` takes a stronger position on the same character, because a `Content-Type` states *the* media type of a representation and any wildcard there names nothing.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Whitespace inside a media-range is reported**, as the `token` defect it is. The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and the shared reader hands back the two halves exactly as written, so the space arrives inside the `type` and the character scan names it. This rule used to run a whitespace check of its own in front of the parse, from when that reader trimmed each half and the space vanished before anything could see it.\n\n**Known leniency, and the one exception to it:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it — `text/plain;charset = utf-8` is accepted, as it is in the five other rules that read a media type through the same helper. A `q` is not a parameter of the media-range but the member's `weight`, whose production prints both of its `OWS` before the literal `\"q=\"` and nothing optional inside it, so `q =0.5` **is** reported. The same three characters, two sentences, and the name is what chooses between them.\n\n**An empty list element is reported, and a field line holding no element at all is not.** §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits; §5.6.1.1 expands the same construct for a sender with nothing bracketed, and forbids generating an empty element outright. So `text/html, , text/plain` is a comma the sender may not write, while a bare `Accept:` is the zero-element list the construct does generate. This rule used to skip the first as well, on the recipient's expansion."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -111,6 +113,7 @@ impl RuleMeta for AcceptHeaderMediaTypeSyntax {
             RFC_9110_5_6_6,
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
+            RFC_9110_5_6_1_1,
             RFC_9110_5_6_1_2,
         ]
     }
@@ -201,6 +204,17 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
             // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
             // cite(RFC 9110 § 12.5.1): "Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2)."
             let check_val = |hdr: &str, val: &str| -> Option<Violation> {
+                // A field line holding no element at all is the `#` construct's
+                // zero-element list, and §12.5.1 has a meaning for it — a sender
+                // that accepts anything. Only the *bracketing* is a recipient's
+                // tolerance; an absent list is not an empty element, and the walk
+                // below would otherwise read `Accept:` as one member the sender
+                // left blank.
+                // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+                // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                if crate::helpers::headers::trim_ows(val).is_empty() {
+                    return None;
+                }
                 // Quote-aware, because a comma inside a quoted parameter value is
                 // not a list separator. A raw `split(',')` cut such a value in half
                 // and handed the halves on as members, so `text/html;foo="a,b"` —
@@ -209,13 +223,27 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                 // is still reported, and reported here: this is the rule that owns
                 // a malformed Accept, so it names the defect rather than declining.
                 for member in crate::helpers::list::split_commas_respecting_quotes(val) {
-                    // An empty list element is legal for a recipient to ignore, and
-                    // ignoring it is all this rule does with it. The production
-                    // brackets each element, so `a, , b` conforms.
-                    // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+                    // An empty element is a *recipient's* tolerance and never a
+                    // sender's licence. This rule used to skip one and say the
+                    // production brackets each element, so `a, , b` conforms — but
+                    // the bracketed expansion is §5.6.1.2's, written for the peer
+                    // reading the value, and the expansion §5.6.1.1 gives the
+                    // sender brackets nothing. So `text/html, , text/plain` is a
+                    // comma the sender may not have written, and skipping it left
+                    // the one MUST NOT this field's list construct carries with no
+                    // reporter on the field the catalogue's own list subject names
+                    // first.
+                    // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+                    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                     // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                     if member.is_empty() {
-                        continue;
+                        return Some(ctx.report_with(
+                            &LIST_MEMBER_EMPTY,
+                            format!(
+                                "{} holds an empty list element; the field line reads '{}'. Every position in `#( media-range [ weight ] )` holds a media range, and a comma with nothing beside it holds none",
+                                hdr, val
+                            ),
+                        ));
                     }
                     // Quote-aware for the same reason: a `;` inside a quoted value
                     // does not start a parameter.
@@ -704,8 +732,17 @@ mod tests {
     // Quoting that never closes is still a finding, and it is this rule's:
     // nothing downstream can read the members once the quoting breaks.
     #[case(Some("text/html;foo=\"a, application/json"), true)]
-    // An empty list element is legal for a recipient to ignore.
-    #[case(Some("text/html, , application/json"), false)]
+    // An empty list element is a recipient's tolerance and a sender's MUST NOT,
+    // and this rule reads the sender. It used to skip one on §5.6.1.2's bracketed
+    // expansion, which is the expansion written for the peer *reading* the value.
+    #[case(Some("text/html, , application/json"), true)]
+    #[case(Some("text/html,,application/json"), true)]
+    #[case(Some("text/html,"), true)]
+    #[case(Some(",text/html"), true)]
+    // A field line holding no element at all is the zero-element list the `#`
+    // construct generates, not an element left blank.
+    #[case(Some(""), false)]
+    #[case(Some("   "), false)]
     // A wildcard type with a concrete subtype names no set a recipient could
     // match against. The two shapes the asterisk does have still pass.
     #[case(Some("*/json"), true)]
