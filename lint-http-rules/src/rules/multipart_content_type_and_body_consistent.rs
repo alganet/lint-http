@@ -53,7 +53,7 @@ impl RuleMeta for MultipartContentTypeAndBodyConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "When a `Content-Type` declares a `multipart/*` media type, the body it describes has to be delimited by the `boundary` the header names. This rule reads a captured body and checks that it carries at least one **boundary delimiter line** opening a part, and the terminating one — `--<boundary>--` — that says no further parts follow.\n\n**A delimiter is a line, not text.** RFC 2046 §5.1.1 requires the delimiter to occur at the beginning of a line, so a body carrying the boundary text mid-line delimits nothing: `hello --abc-- world` is reported, and the finding says the text occurs but never at a line start rather than claiming the boundary is absent. Matching is a *prefix* match against the start of each candidate line, which §5.1.1 instructs implementors to do — the rest of the line may be `transport-padding`.\n\n**A body whose only delimiter line is the closing one is reported.** The closing line is defined as the one following the last body part, so with no part to follow it the body encapsulates nothing. A single part is the documented minimum, and it passes.\n\n**RFC 9110 §8.3.3 is why a MIME grammar governs an HTTP body**, and it is also careful about what this rule is not: HTTP framing does not use the boundary as a length indicator, so nothing here says anything about where the message ends.\n\n**Known leniency: line endings.** §8.3.3 requires senders to generate only CRLF between body parts, and this rule locates line starts on LF, so a body using bare LF has its delimiters recognised rather than reported as missing. The wrong line ending is a real defect and a different one; blaming the boundary for it would name the wrong thing. No rule currently reports it.\n\n**The epilogue is not read.** A delimiter line written after the closing one is `discard-text` that implementations must ignore, so it opens no part — a body consisting of a closing line followed by something that looks like a delimiter still encapsulates nothing and is reported.\n\n**Cost:** a conforming body settles the question in its first two lines and the scan stops there. A body that never carries the delimiter is walked in full, which is inherent — the answer is only known at the end — and is bounded by `max_body_bytes`.\n\n**Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `content_type_valid`'s finding. Whether the boundary *value* is syntactically legal is `multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored."
+        "When a `Content-Type` declares a `multipart/*` media type, the body it describes has to be delimited by the `boundary` the header names. This rule reads a captured body and checks that it carries at least one **boundary delimiter line** opening a part, and the terminating one — `--<boundary>--` — that says no further parts follow.\n\n**A delimiter is a line, not text.** RFC 2046 §5.1.1 requires the delimiter to occur at the beginning of a line, so a body carrying the boundary text mid-line delimits nothing: `hello --abc-- world` is reported, and the finding says the text occurs but never at a line start rather than claiming the boundary is absent. Matching is a *prefix* match against the start of each candidate line, which §5.1.1 instructs implementors to do — the rest of the line may be `transport-padding`.\n\n**A body whose only delimiter line is the closing one is reported.** The closing line is defined as the one following the last body part, so with no part to follow it the body encapsulates nothing. A single part is the documented minimum, and it passes.\n\n**RFC 9110 §8.3.3 is why a MIME grammar governs an HTTP body**, and it is also careful about what this rule is not: HTTP framing does not use the boundary as a length indicator, so nothing here says anything about where the message ends.\n\n**Known leniency: line endings.** §8.3.3 requires senders to generate only CRLF between body parts, and this rule locates line starts on LF, so a body using bare LF has its delimiters recognised rather than reported as missing. The wrong line ending is a real defect and a different one; blaming the boundary for it would name the wrong thing. No rule currently reports it.\n\n**The epilogue is not read.** A delimiter line written after the closing one is `discard-text` that implementations must ignore, so it opens no part — a body consisting of a closing line followed by something that looks like a delimiter still encapsulates nothing and is reported.\n\n**Cost:** a conforming body settles the question in its first two lines and the scan stops there. A body that never carries the delimiter is walked in full, which is inherent — the answer is only known at the end — and is bounded by `max_body_bytes`.\n\n**Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `content_type_valid`'s finding. Whether the boundary *value* is syntactically legal is `multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. So is a body whose reading stopped before the message ended, for the same reason and on different evidence: such a capture keeps every octet it counted, so nothing marks it truncated, and the delimiter is missing because the reading left rather than because the sender did. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -181,13 +181,20 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
                 None
             };
 
+            // Two ways a captured body can be less than the message's, and the
+            // parser below cannot survive either. `*_body_over_limit` says the
+            // retained prefix stopped at the capture's bound; `body_interrupted`
+            // says the reading itself stopped before the body ended, which leaves
+            // every counted octet retained and so is marked untruncated. A
+            // multipart body cut off before its closing delimiter is missing that
+            // delimiter for a reason that is not the sender's.
             if let Some(v) = check_message(
                 "request",
                 crate::lint::Party::Client,
                 &tx.request.headers,
                 tx.request_body
                     .as_ref()
-                    .filter(|_| !tx.request_body_over_limit),
+                    .filter(|_| !tx.request_body_over_limit && !tx.request.body_interrupted),
             ) {
                 return Some(v);
             }
@@ -199,7 +206,7 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
                     &resp.headers,
                     tx.response_body
                         .as_ref()
-                        .filter(|_| !tx.response_body_over_limit),
+                        .filter(|_| !tx.response_body_over_limit && !resp.body_interrupted),
                 ) {
                     return Some(v);
                 }
@@ -506,6 +513,40 @@ mod tests {
         assert!(
             v.is_none(),
             "no boundary was declared, so there is nothing to look for: {v:?}"
+        );
+    }
+
+    /// A multipart body the client stopped reading is missing its closing
+    /// delimiter for a reason that is not the sender's, and it carries no
+    /// over-limit flag to say so: the reading kept every octet it counted.
+    #[test]
+    fn an_interrupted_body_is_not_a_missing_closing_delimiter() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "multipart/mixed; boundary=abc")],
+        );
+        tx.response_body = Some(Bytes::from_static(
+            b"--abc\r\nContent-Type: text/plain\r\n\r\nhi",
+        ));
+        let rule = MultipartContentTypeAndBodyConsistent;
+        let run = |tx: &crate::http_transaction::HttpTransaction| {
+            crate::test_helpers::run_rule(
+                &rule,
+                tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+        };
+
+        assert!(
+            run(&tx).is_some(),
+            "read to its end, that body really does lack its closing delimiter"
+        );
+
+        tx.response.as_mut().expect("response").body_interrupted = true;
+        assert!(
+            run(&tx).is_none(),
+            "a delimiter the reading never reached is not one the sender omitted"
         );
     }
 

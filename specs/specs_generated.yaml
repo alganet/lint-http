@@ -1281,7 +1281,7 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 440
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 242
+      line: 249
   - label: multipart_boundary_syntax (3)
     section: § 5.1.1
     snippet: The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line.
@@ -1305,19 +1305,19 @@ sources:
     snippet: An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 288
+      line: 295
   - label: multipart_content_type_and_body_consistent (2)
     section: § 5.1.1
     snippet: Boundary string comparisons must compare the boundary value with the beginning of each candidate line.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 287
+      line: 294
   - label: close-delimiter
     section: § 5.1.1
     snippet: Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 366
+      line: 373
     - file: lint-http-rules/src/violations/multipart_body.rs
       line: 82
   - label: multipart_content_type_and_body_consistent (3)
@@ -1333,25 +1333,25 @@ sources:
     snippet: The boundary delimiter MUST occur at the beginning of a line, i.e., following a CRLF, and the initial CRLF is considered to be attached to the boundary delimiter line rather than part of the preceding part.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 262
+      line: 269
   - label: multipart_content_type_and_body_consistent (5)
     section: § 5.1.1
     snippet: The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 353
+      line: 360
   - label: multipart_content_type_and_body_consistent (6)
     section: § 5.1.1
     snippet: close-delimiter := delimiter "--"
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 299
+      line: 306
   - label: multipart_content_type_and_body_consistent (7)
     section: § 5.1.1
     snippet: dash-boundary := "--" boundary
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 241
+      line: 248
 - label: RFC 2068
   url: https://www.rfc-editor.org/rfc/rfc2068.html
   fragments:
@@ -4824,7 +4824,7 @@ sources:
     snippet: JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 247
+      line: 257
 - label: RFC 8288
   url: https://www.rfc-editor.org/rfc/rfc8288.html
   fragments:
@@ -6417,7 +6417,7 @@ sources:
     - file: lint-http-rules/src/rules/content_length_valid.rs
       line: 98
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 285
+      line: 295
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 185
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
@@ -8783,7 +8783,7 @@ sources:
     snippet: The message body is itself a protocol element; a sender MUST generate only CRLF to represent line breaks between body parts.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 263
+      line: 270
   - label: no_body_for_1xx_204_304
     section: § 15.3.5
     snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -8805,7 +8805,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 195
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 260
+      line: 270
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 234
   - label: no_body_for_1xx_204_304 (4)
@@ -10859,7 +10859,7 @@ sources:
     - file: lint-http-rules/src/rules/content_length_vs_transfer_encoding.rs
       line: 98
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 283
+      line: 293
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 140
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
@@ -11089,7 +11089,7 @@ sources:
     snippet: If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets.
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 284
+      line: 294
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 135
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
@@ -12160,19 +12160,19 @@ sources:
     snippet: Problem detail objects can have the following members.
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 231
+      line: 241
   - label: problem_details_structure_valid (2)
     section: § 3.1.1
     snippet: When this member is not present, its value is assumed to be "about:blank".
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 232
+      line: 242
   - label: problem_details_structure_valid (3)
     section: § 4.2.1
     snippet: Consequently, any problem details object not carrying an explicit "type" member implicitly uses this URI.
     cited_by:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
-      line: 233
+      line: 243
 - label: RFC 9530
   url: https://www.rfc-editor.org/rfc/rfc9530.html
   fragments:

@@ -205,10 +205,20 @@ impl Rule for ProblemDetailsStructureValid {
             // degrades gracefully. An untruncated capture with an empty prefix is an
             // empty body: the tee marks a capture truncated whenever the total
             // exceeds the prefix it kept, so the two cannot be confused.
+            //
+            // That last sentence was true of the only short capture this rule knew
+            // about and false of the other. A body whose reading stopped early keeps
+            // every octet it counted, so its total never exceeds its prefix and it is
+            // marked untruncated -- a complete-looking capture of an incomplete
+            // document. The first hundred octets of a well-formed problem document
+            // are not well-formed JSON, and parsing them reported the origin for a
+            // document it had written correctly and was still sending. The two ways
+            // a capture can be short are different conditions and both have to be
+            // asked.
             if let Some(b) = tx
                 .response_body
                 .as_ref()
-                .filter(|_| !tx.response_body_over_limit)
+                .filter(|_| !tx.response_body_over_limit && !resp.body_interrupted)
             {
                 // Zero octets is not a JSON document. The sentence is about what a
                 // JSON text is, and an empty octet sequence serializes no value.
@@ -511,6 +521,28 @@ mod tests {
         let mut tx = fixture(500, &[PJ], Some(b"{\"type\":\"abo"), Some(4096));
         tx.response_body_over_limit = true;
         assert!(check(&tx).is_none(), "{:?}", check(&tx));
+    }
+
+    /// The other way a capture comes up short, and the one the over-limit flag
+    /// does not cover. Every octet the reading counted was retained, so the
+    /// capture is marked untruncated -- and the opening of a well-formed problem
+    /// document is not itself well-formed JSON.
+    #[test]
+    fn an_interrupted_body_is_not_a_malformed_document() {
+        let mut tx = fixture(500, &[PJ], Some(b"{\"type\":\"abo"), Some(12));
+
+        // Nothing says this reading was cut short, so the bytes are the document.
+        assert!(
+            check(&tx).is_some(),
+            "a complete capture of those bytes really is malformed"
+        );
+
+        tx.response.as_mut().expect("response").body_interrupted = true;
+        assert!(
+            check(&tx).is_none(),
+            "the opening of a document is not a malformed document: {:?}",
+            check(&tx)
+        );
     }
 
     /// No captured bytes: the counted octets are the remaining evidence, and
