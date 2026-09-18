@@ -21,7 +21,6 @@ Validate consistency and mutual exclusivity of conditional request headers. When
 - [http_date_day_name_conflicting](../violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
-- [http_date_whitespace_forbidden](../violations/http_date_whitespace_forbidden.md) — Timestamp is padded with whitespace the grammar does not print
 - [if_range_empty](../violations/if_range_empty.md) — If-Range is written with no validator in it
 - [if_range_forbidden](../violations/if_range_forbidden.md) — If-Range is sent in a request with no Range
 - [if_range_validator_weak_forbidden](../violations/if_range_validator_weak_forbidden.md) — If-Range carries a weak entity-tag

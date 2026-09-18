@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
     http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED,
-    HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_5322_3_3, RFC_9110_5_6_7,
+    HTTP_DATE_OBSOLETE, RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::ViolationDef;
 
@@ -40,10 +40,18 @@ pub struct ConditionalDateSyntax;
 /// a value that is only whitespace, and one carrying octets outside visible
 /// US-ASCII. `Last-Modified` declares neither, because a response may omit the
 /// field and a blank line is not a client that meant to condition.
+///
+/// **`http_date_whitespace_forbidden` is not among them, and the reading is
+/// § 5.5's.** That entry reports an `IMF-fixdate` carrying octets the
+/// production never prints — but the `OWS` around a *field value* is not part
+/// of it, and the reading below excludes it before measuring, so no field line
+/// can produce the padding it names. It belongs to the one site where a
+/// timestamp arrives quoted inside a larger value: a `Warning`'s `warn-date`.
+/// Declaring it here published a verdict this rule has never been able to
+/// reach.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_OBSOLETE,
-    &HTTP_DATE_WHITESPACE_FORBIDDEN,
     &HTTP_DATE_EMPTY,
     &HTTP_DATE_DAY_NAME_CONFLICTING,
 ];

@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
     http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
-    HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_5322_3_3, RFC_9110_5_6_7,
+    RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::ViolationDef;
 
@@ -22,10 +22,18 @@ pub struct LastModifiedRfc1123Syntax;
 /// The non-UTF-8 line stays on the older API: the verdict names an encoding
 /// where the defect is an octet the field's grammar does not admit, and the
 /// right conversion for such a site is an octet-wise reader before a def.
+///
+/// **`http_date_whitespace_forbidden` is not among them, and the reading is
+/// § 5.5's.** That entry reports an `IMF-fixdate` carrying octets the
+/// production never prints — but the `OWS` around a *field value* is not part
+/// of it, and the reading below excludes it before measuring, so no field line
+/// can produce the padding it names. It belongs to the one site where a
+/// timestamp arrives quoted inside a larger value: a `Warning`'s `warn-date`.
+/// Declaring it here published a verdict this rule has never been able to
+/// reach.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &HTTP_DATE_OBSOLETE,
-    &HTTP_DATE_WHITESPACE_FORBIDDEN,
     &HTTP_DATE_DAY_NAME_CONFLICTING,
 ];
 
@@ -195,7 +203,6 @@ mod tests {
             vec![
                 "http_date_malformed",
                 "http_date_obsolete",
-                "http_date_whitespace_forbidden",
                 // The two conditional fields report an empty value where
                 // `Last-Modified` does not: a request may leave the field
                 // out, so a line with nothing on it is a client that meant
@@ -256,6 +263,47 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(conditional.violation, here.violation);
+    }
+
+    /// The padding a field line may carry is not the padding
+    /// `http_date_whitespace_forbidden` names, and this is what holds that rule
+    /// off the entry: § 5.5 puts the `OWS` outside the value, the reading
+    /// excludes it, and what is left is the format § 5.6.7 asked for.
+    #[rstest]
+    #[case(" Wed, 21 Oct 2015 07:28:00 GMT")]
+    #[case("Wed, 21 Oct 2015 07:28:00 GMT\t")]
+    fn a_field_line_cannot_carry_the_padding_the_whitespace_entry_names(#[case] value: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("last-modified", value)]);
+        assert!(
+            crate::test_helpers::run_rule(
+                &LastModifiedRfc1123Syntax,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "last_modified_rfc1123_syntax",
+                ]),
+            )
+            .is_none(),
+            "{value:?}",
+        );
+
+        let mut request = crate::test_helpers::make_test_transaction();
+        request.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-modified-since", value)]);
+        assert!(
+            crate::test_helpers::run_rule(
+                &crate::rules::conditional_date_syntax::ConditionalDateSyntax,
+                &request,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "conditional_date_syntax",
+                ]),
+            )
+            .is_none(),
+            "{value:?}",
+        );
     }
 
     #[rstest]
