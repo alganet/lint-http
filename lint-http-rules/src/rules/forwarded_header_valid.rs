@@ -494,12 +494,12 @@ impl RuleMeta for ForwardedHeaderValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Forwarded: for=192.0.2.43;proto=https;by=203.0.113.5\n\nForwarded: for=\"[2001:db8::1]\";host=example.com\n\nForwarded: for=\"192.0.2.43:47011\", for=_gazonk\n\nForwarded: for=unknown;by=_SEVKISEK",
+                snippet: "Forwarded: for=192.0.2.43;proto=https;by=203.0.113.5\nForwarded: for=\"[2001:db8::1]\";host=example.com\nForwarded: for=\"192.0.2.43:47011\", for=_gazonk\nForwarded: for=unknown;by=_SEVKISEK",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Forwarded: for=999.999.999.999\n# not an IPv4 address, and not a node identifier of any other kind\n\nForwarded: for=x-foo\n# an obfuscated identifier must begin with an underscore\n\nForwarded: for=192.0.2.43:4711\n# a node identifier with a port must be quoted: ':' is not a token character\n\nForwarded: for=\"192.0.2.43:123456\"\n# a numeric node-port is one to five digits\n\nForwarded: for=192.0.2.43;for=198.51.100.17\n# a parameter may be named only once per element\n\nForwarded: proto=ht_tp\n# a URI scheme name holds no underscore",
+                snippet: "Forwarded: for=999.999.999.999\n# not an IPv4 address, and not a node identifier of any other kind\nForwarded: for=x-foo\n# an obfuscated identifier must begin with an underscore\nForwarded: for=192.0.2.43:4711\n# a node identifier with a port must be quoted: ':' is not a token character\nForwarded: for=\"192.0.2.43:123456\"\n# a numeric node-port is one to five digits\nForwarded: for=192.0.2.43;for=198.51.100.17\n# a parameter may be named only once per element\nForwarded: proto=ht_tp\n# a URI scheme name holds no underscore",
             },
         ]
     }

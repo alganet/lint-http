@@ -80,11 +80,8 @@ enabled = true
 
 ```http
 Forwarded: for=192.0.2.43;proto=https;by=203.0.113.5
-
 Forwarded: for="[2001:db8::1]";host=example.com
-
 Forwarded: for="192.0.2.43:47011", for=_gazonk
-
 Forwarded: for=unknown;by=_SEVKISEK
 ```
 
@@ -93,19 +90,14 @@ Forwarded: for=unknown;by=_SEVKISEK
 ```http
 Forwarded: for=999.999.999.999
 # not an IPv4 address, and not a node identifier of any other kind
-
 Forwarded: for=x-foo
 # an obfuscated identifier must begin with an underscore
-
 Forwarded: for=192.0.2.43:4711
 # a node identifier with a port must be quoted: ':' is not a token character
-
 Forwarded: for="192.0.2.43:123456"
 # a numeric node-port is one to five digits
-
 Forwarded: for=192.0.2.43;for=198.51.100.17
 # a parameter may be named only once per element
-
 Forwarded: proto=ht_tp
 # a URI scheme name holds no underscore
 ```

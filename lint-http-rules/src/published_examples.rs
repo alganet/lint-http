@@ -684,6 +684,13 @@ enum Skipped {
     NoMessageShape,
     /// A name or value the header map refuses.
     Unbuildable,
+    /// A block with no start line that also carries content. A blank line
+    /// after a field line opens content, so everything under it is body: on a
+    /// block of alternative values, written one per line, the blank lines make
+    /// all but the first of them body and nothing judges them. Twice this
+    /// silently unjudged the very value an example was written for, so it is
+    /// named rather than judged on whatever the first line happened to draw.
+    BareBlockWithContent,
 }
 
 /// The findings each judged message drew; one entry per message judged.
@@ -790,6 +797,12 @@ fn judge(rule: &dyn Rule, ex: &crate::rules::Example) -> Result<Verdicts, Skippe
         .iter()
         .all(|m| !m.is_response && m.method.is_empty() && m.pseudo.is_empty());
     if bare {
+        if msgs
+            .iter()
+            .any(|m| m.body.iter().any(|l| !l.trim().is_empty()))
+        {
+            return Err(Skipped::BareBlockWithContent);
+        }
         return judge_bare(rule, &cfg, &msgs);
     }
     let txs = group(&msgs).map_err(|_| Skipped::Unbuildable)?;
@@ -916,7 +929,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "forwarded_element_whitespace_forbidden",
     "forwarded_pair_equals_missing",
     "forwarded_pair_value_empty",
-    "forwarded_parameter_duplicated",
     "forwarded_response_forbidden",
     "host_missing",
     "http_date_empty",
@@ -954,7 +966,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "node_ipv6_brackets_missing",
     "node_ipv6_closing_bracket_missing",
     "node_ipv6_representation_invalid",
-    "node_port_malformed",
     "origin_agent_cluster_empty",
     "parameter_equals_whitespace_forbidden",
     "preference_applied_conflicting",
@@ -1009,7 +1020,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "uri_host_bracket_forbidden",
     "uri_host_closing_bracket_missing",
     "uri_host_ip_literal_malformed",
-    "uri_scheme_character_forbidden",
     "uri_scheme_empty",
     "via_comment_duplicated",
     "via_member_malformed",
@@ -1116,6 +1126,12 @@ fn published_examples_are_judged_the_way_they_are_labelled() {
         0,
         "{:?}",
         skipped.get(&Skipped::NoMessageShape)
+    );
+    assert_eq!(
+        count(Skipped::BareBlockWithContent),
+        0,
+        "{:?}",
+        skipped.get(&Skipped::BareBlockWithContent)
     );
     assert_eq!(
         count(Skipped::Unbuildable),
