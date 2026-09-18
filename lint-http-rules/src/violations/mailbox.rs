@@ -201,11 +201,16 @@ defects! {
         strength: Strength::Grammar,
     }
 
-    /// An octet in a `dot-atom` — the `local-part` or the `domain` — that
-    /// `atext` does not admit. Every `special` is here as well as every octet
-    /// above %x7E: `@` inside a local-part reports as this and not as a missing
-    /// at-sign, because the at-sign the `addr-spec` wants is the one *after*
-    /// the atom.
+    /// An octet where `atext` is due and does not admit it — in a `dot-atom`,
+    /// so the `local-part` or the `domain`, and in the `display-name`, whose
+    /// `phrase` is words built on the same class. Every `special` is here as
+    /// well as every octet above %x7E.
+    ///
+    /// **This is where a stop that names the next production instead belongs.**
+    /// `@` inside a local-part reports as this and not as a missing at-sign,
+    /// because the at-sign the `addr-spec` wants is the one *after* the atom —
+    /// and a `.` in a display-name reports as this and not as a missing
+    /// `angle-addr`, for the same reason about the `<`.
     ///
     // cite(RFC 5322 § 3.2.3): "atext = ALPHA / DIGIT / ; Printable US-ASCII "!" / "#" / ; characters not including "$" / "%" / ; specials. Used for atoms. "&" / "'" / "*" / "+" / "-" / "/" / "=" / "?" / "^" / "_" / "`" / "{" / "|" / "}" / "~""
     MAILBOX_ATOM_CHARACTER_FORBIDDEN = {

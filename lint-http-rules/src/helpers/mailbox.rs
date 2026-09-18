@@ -115,9 +115,10 @@ pub enum MailboxSyntaxDefect {
         /// What it tried to quote.
         character: char,
     },
-    /// An octet in a `dot-atom` that `atext` does not admit.
+    /// An octet in a run of `atext` that `atext` does not admit.
     AtomCharacter {
-        /// Which `dot-atom` — `local-part` or `domain`.
+        /// Which run: the `local-part` or the `domain` of an `addr-spec`, or
+        /// the `display-name`, whose `phrase` is words built on the same class.
         what: &'static str,
         /// The octet.
         character: char,
@@ -143,11 +144,10 @@ pub enum MailboxSyntaxDefect {
     AngleAddrUnterminated(Option<char>),
     /// A display-name was opened and holds no `word`.
     DisplayNameWordMissing(Option<char>),
-    /// A production that completed, with something after it the value has no
-    /// room for. `after` is the production: the whole `mailbox` at the top
-    /// level, or one of its parts where the next part is due and what is
-    /// there instead is not a character any part refuses -- only one no part
-    /// wanted here.
+    /// A production that completed, with something after it the grammar has no
+    /// room for. `after` names which production: the whole `mailbox` at the top
+    /// level, or -- inside an `angle-addr` -- the part the reading had just
+    /// finished when the next part was due.
     TrailingCharacter {
         /// The character.
         character: char,
