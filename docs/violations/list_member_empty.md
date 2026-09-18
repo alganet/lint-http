@@ -31,6 +31,7 @@ severity = "error"
 
 ## Reported By
 
+- [accept_header_media_type_syntax](../rules/accept_header_media_type_syntax.md)
 - [accept_patch_header_valid](../rules/accept_patch_header_valid.md)
 - [accept_ranges_values_valid](../rules/accept_ranges_values_valid.md)
 - [allow_header_method_tokens_valid](../rules/allow_header_method_tokens_valid.md)
