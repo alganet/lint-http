@@ -1338,6 +1338,8 @@ mod tests {
         "alt_svc_port_missing",
         "authority_value_conflicting",
         "cache_control_missing",
+        "cache_control_must_revalidate_ignored",
+        "cache_control_no_cache_ignored",
         "cache_control_no_store_ignored",
         "cache_control_private_ignored",
         "cache_control_storage_conflicting",

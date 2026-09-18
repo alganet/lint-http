@@ -4775,7 +4775,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 163
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 400
+      line: 438
   - label: immutable_cache_never_stale (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
@@ -4785,7 +4785,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 379
+      line: 417
 - label: RFC 8259
   url: https://www.rfc-editor.org/rfc/rfc8259.html
   fragments:
@@ -9755,7 +9755,7 @@ sources:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 103
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 445
+      line: 483
   - label: status_code_semantics
     section: § 11.6.1
     snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
@@ -10342,7 +10342,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_present.rs
       line: 94
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 423
+      line: 461
   - label: cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -10388,7 +10388,7 @@ sources:
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 334
+      line: 372
   - label: caching_directive_interaction (3)
     section: § 5.2.2.9
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
@@ -10512,7 +10512,7 @@ sources:
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 178
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 315
+      line: 353
   - label: lint-http-rules/src/helpers/cache_control.rs (9)
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
@@ -10608,7 +10608,7 @@ sources:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 213
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 298
+      line: 322
   - label: pragma_token_valid
     section: § 5.4
     snippet: As a result, this specification deprecates Pragma.
@@ -10652,7 +10652,7 @@ sources:
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 143
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 357
+      line: 395
   - label: singleton_fields_not_repeated
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server.

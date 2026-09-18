@@ -85,7 +85,7 @@ impl RuleMeta for NoCacheRevalidation {
     }
 
     fn description(&self) -> &'static str {
-        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache` and that the request now presented was allowed to be answered from (§4): the same method, or a `HEAD` against a stored `GET`.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method, and a stored `GET` is no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method — where nothing could have been reused there is no reuse to report.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive."
+        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache` and that the request now presented was allowed to be answered from (§4): the same method, or a `HEAD` against a stored `GET`.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method, and a stored `GET` is no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method — where nothing could have been reused there is no reuse to report.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  **What this rule does not observe is the reuse itself.** §5.2.2.4 bars using a stored `no-cache` response *without forwarding it for validation*, and this implementation reads the seam between a client and an origin — a cache that had answered from its stored entry would have put nothing on that seam. Every request reaching this rule is one the cache declined to answer, so the forwarding the directive requires has happened, and §4.3 says a cache *can* use the conditional mechanism rather than that it must. The finding is therefore the narrower one the wire supports: a validator was held and not sent, costing a body where a `304` would have done. That is why it is a `warn` whose obligation is recorded as unstated — the `MUST NOT` is addressed to the cache, not to the client the finding names. This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -177,7 +177,7 @@ impl Rule for NoCacheRevalidation {
 
             // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
             if !has_conditional {
-                return Some(ctx.report_with(&CACHE_CONTROL_NO_CACHE_IGNORED, "Possible reuse of response marked 'no-cache' without conditional revalidation: subsequent request lacked If-None-Match/If-Modified-Since despite earlier no-cache response with a validator".into()));
+                return Some(ctx.report_with(&CACHE_CONTROL_NO_CACHE_IGNORED, "An earlier response marked 'no-cache' carried a validator, and this request for it went out with no If-None-Match or If-Modified-Since. The response may not be reused without forwarding for validation, and this request is that forwarding; sending the validator with it would have let the origin answer 304 instead of resending the body".into()));
             }
 
             None
@@ -390,13 +390,19 @@ mod tests {
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
         );
-        // The entry an operator configures, and the ending that says who is
-        // at fault: the response stated the directive correctly and a cache
-        // did not honour it.
+        // The entry an operator configures, and the level that says how far
+        // the evidence reaches: an unconditional request crossing this seam is
+        // the forwarding § 5.2.2.4 asks for, not the reuse it forbids, and
+        // § 4.3 lets a cache use the conditional mechanism without requiring
+        // it. So the finding is the unsent validator, at `warn`.
         let v = v.expect("a finding");
         assert_eq!(v.violation, "cache_control_no_cache_ignored");
-        assert_eq!(v.severity, crate::lint::Severity::Error);
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
         assert!(v.message.contains("no-cache"));
+        // The claim the message may no longer make, pinned as a value that
+        // stays true of the entry: nothing observed here was reused.
+        assert!(!v.message.contains("reuse of"), "{}", v.message);
+        assert!(v.message.contains("If-None-Match"), "{}", v.message);
     }
 
     #[test]

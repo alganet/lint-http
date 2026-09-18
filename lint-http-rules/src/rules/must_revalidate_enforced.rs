@@ -95,7 +95,7 @@ impl RuleMeta for MustRevalidateEnforced {
     }
 
     fn description(&self) -> &'static str {
-        "The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.\n\nThis rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  The request now presented must be one that stored response was allowed to answer in the first place (§4): the same method, or a `HEAD` against a stored `GET`.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method.  A stored `GET` is likewise no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and where nothing could have been reused there is no reuse to report.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.\n\nThis stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled."
+        "The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.\n\nThis rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  The request now presented must be one that stored response was allowed to answer in the first place (§4): the same method, or a `HEAD` against a stored `GET`.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method.  A stored `GET` is likewise no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and where nothing could have been reused there is no reuse to report.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.\n\n**The reuse the directive forbids is not what this reads.** §5.2.2.2 binds a cache, and this implementation watches the wire between a client and an origin: had the client's cache reused the stale entry, no request would have crossed it. Every finding here therefore sits on a request the cache did *not* satisfy — the directive honoured — and what it reports is the narrower fact the wire carries, that a validator the client held went unsent and a full body came back where a `304` would have served. The level follows: a `warn` whose obligation is unstated, because the `MUST NOT` binds the cache and not the client the finding names. This stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -213,7 +213,7 @@ impl Rule for MustRevalidateEnforced {
                 // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
                 if has_validator {
                     return Some(ctx.report_with(&CACHE_CONTROL_MUST_REVALIDATE_IGNORED, format!(
-                            "Cached response with 'must-revalidate' directive is stale (age {} >= freshness {}) and was reused without conditional request",
+                            "Stored response carrying 'must-revalidate' is stale (age {} >= freshness {}) and held a validator, but this request for it went out with no If-None-Match or If-Modified-Since. Forwarding the request is what the directive asks for; a conditional one would have let the origin answer 304 instead of resending the body",
                             current_age, freshness_lifetime
                         )));
                 }
@@ -373,12 +373,18 @@ mod tests {
                 "must_revalidate_enforced",
             ]),
         );
-        // The entry an operator configures, and the ending that says who is
-        // at fault: the response stated the directive correctly and a cache
-        // did not honour it.
+        // The entry an operator configures, and the level that says how far
+        // the evidence reaches: a request arriving on this seam is one the
+        // client's cache did *not* answer, so the reuse § 5.2.2.2 forbids is
+        // the one event that cannot be witnessed here. What is left is the
+        // unsent validator, which is a `warn` and not a broken `MUST`.
         let v = v.expect("a finding");
         assert_eq!(v.violation, "cache_control_must_revalidate_ignored");
-        assert_eq!(v.severity, crate::lint::Severity::Error);
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        // The claim the message may no longer make, pinned as a value that
+        // stays true of the entry: nothing observed here was reused.
+        assert!(!v.message.contains("reused"), "{}", v.message);
+        assert!(v.message.contains("If-None-Match"), "{}", v.message);
     }
 
     #[test]
