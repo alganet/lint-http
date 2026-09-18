@@ -256,13 +256,14 @@ impl RuleMeta for AltSvcProtocolRegistered {
 # the narrower and more useful list: the alternatives this deployment actually
 # serves. Everything else is reported, registered or not.
 #
-# `h3-29` is listed because the draft-29 identifier is still advertised
-# alongside `h3` by large operators, and this rule is not the one that has an
-# opinion about that: naming a draft identifier where the final one exists
-# belongs to `alt_svc_h3_advertisement_valid`, which reports it with the
-# advice to use `h3`. Leaving `h3-29` out here made both rules report the same
-# token on the same response, saying two different things about it.
-allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
+# No draft HTTP/3 token belongs in this list, `h3-29` included, however widely
+# it is still advertised alongside `h3`. Naming a draft identifier where the
+# final one exists is `alt_svc_h3_advertisement_valid`'s finding, and this rule
+# passes every `h3-*` name over to it rather than asking the list about one.
+# Listing `h3-29` here to keep the two rules from reporting the same token twice
+# is what this list used to do, and it bought the silence by stating that this
+# deployment serves a draft.
+allowed = ["h2", "h3", "h2c", "http/1.1"]
 "#
     }
 
@@ -435,6 +436,34 @@ impl Rule for AltSvcProtocolRegistered {
                     ));
                 }
 
+                // A draft HTTP/3 token is `alt_svc_h3_advertisement_valid`'s
+                // finding, and this rule declines it the way it declines the
+                // grammar's questions above. The two entries divide on what the
+                // sender does next: `alpn_protocol_name_unregistered` says a name
+                // is absent from the list this deployment serves, and the repair is
+                // to add it or stop advertising it; a draft token is one the
+                // protocol itself left behind, and the repair is `h3`. Reported
+                // here as well, one token drew both sentences at once, and the
+                // second was read off the deployment's own `Alt-Svc` while saying
+                // the deployment does not offer it.
+                //
+                // **Below the length check on purpose.** 255 octets is arithmetic
+                // on the wire format and holds whatever the name spells, so a draft
+                // token too long for its vector is still named by the entry that
+                // needs no list.
+                //
+                // The test is the sibling's, character for character — the
+                // `protocol-id` as written, folded to lowercase — so that every
+                // name declined here is one that rule reports. Asking the decoded
+                // name instead would open a gap at `h3%2D29`, which the sibling
+                // does not read as a draft: it would be declined here and reported
+                // by nobody. Whether that spelling is admissible at all is
+                // `alt_svc_header_syntax`'s question, and it reports the encoded
+                // `tchar` already.
+                if protocol_id.to_ascii_lowercase().starts_with("h3-") {
+                    continue;
+                }
+
                 // The comparison is against the configured list and not against the
                 // registry the rule's name invokes — nothing here fetches
                 // <https://www.iana.org/assignments/tls-extensiontype-values>. That
@@ -516,6 +545,69 @@ mod tests {
         check(&crate::test_helpers::make_test_transaction_with_response(
             200, headers,
         ))
+    }
+
+    /// A draft HTTP/3 token is declined here whatever the list says, and the
+    /// list below does not carry one. It used to draw
+    /// `alpn_protocol_name_unregistered` — a sentence saying this deployment
+    /// does not offer a name, read off the `Alt-Svc` that deployment wrote — on
+    /// top of the sibling's finding about the same token.
+    #[rstest]
+    #[case("h3-29=\":443\"")]
+    #[case("h3-27=\":443\"; ma=3600")]
+    #[case("h3-Q050=\":443\"")]
+    // The fold is the sibling's, so a case variant is declined here exactly
+    // where that rule still names it.
+    #[case("H3-29=\":443\"")]
+    // Beside a name the list does answer for: the draft is passed over and the
+    // other alternative is still measured.
+    #[case("h3-29=\":443\", h2=\":443\"")]
+    fn a_draft_h3_token_is_not_this_rules_question(#[case] header: &str) {
+        let v = run(&[("alt-svc", header)]);
+        assert!(v.is_none(), "unexpected violation for {header:?}: {v:?}");
+    }
+
+    /// The invariant that makes the decline above safe: every name this rule
+    /// passes over, `alt_svc_h3_advertisement_valid` names. Both rules read the
+    /// `protocol-id` as written and fold it the same way, so there is no
+    /// spelling that falls between them — asking the *decoded* name here instead
+    /// would open one at `h3%2D29`, which the sibling does not read as a draft.
+    #[rstest]
+    #[case("h3-29=\":443\"")]
+    #[case("h3-27=\":443\"; ma=3600")]
+    #[case("h3-Q050=\":443\"")]
+    #[case("H3-29=\":443\"")]
+    #[case("h3-29=\":443\", h2=\":443\"")]
+    fn what_this_rule_declines_the_h3_rule_reports(#[case] header: &str) {
+        let rule = crate::rules::alt_svc_h3_advertisement_valid::AltSvcH3AdvertisementValid;
+        let tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("alt-svc", header)]);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "alt_svc_h3_advertisement_valid",
+        ]);
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(
+            v.iter()
+                .any(|f| f.violation == crate::violations::alpn::ALPN_PROTOCOL_NAME_OBSOLETE.id),
+            "nothing named the draft token in {header:?}: {v:?}"
+        );
+    }
+
+    /// The decline sits below the length check, and that is not an accident:
+    /// 255 octets is arithmetic on the wire format rather than a question about
+    /// a list, so a draft token too long for its `ProtocolName` is still named
+    /// by the entry that needs no configuration.
+    #[test]
+    fn a_draft_token_too_long_for_its_vector_is_still_measured() {
+        let header = format!("h3-{}=\":443\"", "9".repeat(300));
+        let v = run(&[("alt-svc", header.as_str())])
+            .expect("a name longer than the vector is named without consulting a list");
+        assert_eq!(v.violation, ALPN_PROTOCOL_NAME_LENGTH_INVALID.id);
     }
 
     fn message(header: &str) -> String {
