@@ -3703,19 +3703,19 @@ sources:
     snippet: UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification.
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 159
+      line: 161
   - label: strict_transport_security_valid (2)
     section: § 6.1
     snippet: directive-name            = token
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 220
+      line: 222
   - label: strict_transport_security_valid (3)
     section: § 6.1
     snippet: directive-value           = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 288
+      line: 290
 - label: RFC 6838
   url: https://www.rfc-editor.org/rfc/rfc6838.html
   fragments:
@@ -8063,7 +8063,9 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 47
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 192
+      line: 95
+    - file: lint-http-rules/src/helpers/quoted_string.rs
+      line: 208
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 576
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -8081,9 +8083,9 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 46
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 84
+      line: 94
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 190
+      line: 206
     - file: lint-http-rules/src/helpers/word.rs
       line: 90
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -8341,13 +8343,13 @@ sources:
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 193
+      line: 209
   - label: lint-http-rules/src/helpers/quoted_string.rs (2)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 191
+      line: 207
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 121
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs

@@ -46,14 +46,16 @@ pub struct StrictTransportSecurityValid;
 /// under § 5.6.4 where RFC 2616's production would refuse it. **That is an
 /// under-report of one octet class in a superseded document's grammar, and it is
 /// the deliberate answer**: § 5.6.4 is the escape a recipient applies today, and
-/// no finding here claims otherwise. What reaches `quoted_pair_malformed` is
-/// still a backslash with nothing after it, which is two octets short of a
+/// no finding here claims otherwise. A backslash before the closing DQUOTE
+/// escapes it, so `foo="ab\"` is an unterminated string —
+/// `quoted_string_delimiter_missing` — and not a dangling escape; `\"` is a
 /// `quoted-pair` in either document. The reader is what decides this, which is
 /// why it is written down beside the ids rather than at the site.
 ///
-/// The other two `quoted_string_*` entries are declared and unreachable for the
-/// one reason that survives an octet-wise read: a control octet cannot enter a
-/// `hyper::HeaderValue`, whatever the rule does with it afterwards.
+/// `quoted_pair_malformed` and `quoted_string_control_character_forbidden` are
+/// declared and unreachable for the one reason that survives an octet-wise read:
+/// a control octet cannot enter a `hyper::HeaderValue`, whatever the rule does
+/// with it afterwards.
 static DECLARED: &[&ViolationDef] = &[
     &STRICT_TRANSPORT_SECURITY_EMPTY,
     &STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY,
@@ -446,10 +448,10 @@ mod tests {
         "Invalid quoted-string",
         "quoted_string_quote_escape_missing"
     )]
-    #[case::trailing_escape(
+    #[case::escaped_final_quote(
         "max-age=1; foo=\"ab\\\"",
         "Invalid quoted-string",
-        "quoted_pair_malformed"
+        "quoted_string_delimiter_missing"
     )]
     #[case::repeated_max_age(
         "max-age=1; max-age=2",

@@ -751,9 +751,9 @@ mod tests {
     #[rstest]
     #[case("timeout=5@0", "token_character_forbidden")]
     #[case("ext=\"unterminated", "quoted_string_delimiter_missing")]
-    // A backslash that eats the closing DQUOTE: the value is quoted and the
-    // escape is two octets short of a `quoted-pair`.
-    #[case("ext=\"a\\\"", "quoted_pair_malformed")]
+    // A backslash that eats the closing DQUOTE: the value never closes, and
+    // `\"` is a valid `quoted-pair` — the missing delimiter is the finding.
+    #[case("ext=\"a\\\"", "quoted_string_delimiter_missing")]
     #[case("timeout=", "keep_alive_parameter_value_empty")]
     #[case("timeout", "keep_alive_parameter_equals_missing")]
     #[case("=5", "keep_alive_parameter_name_missing")]

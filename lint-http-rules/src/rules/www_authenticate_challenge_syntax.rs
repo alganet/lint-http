@@ -266,7 +266,7 @@ mod tests {
     )]
     #[case(
         "Basic realm=\"a\\\"",
-        "quoted_pair_malformed",
+        "quoted_string_delimiter_missing",
         crate::lint::Severity::Error
     )]
     fn each_finding_names_the_defect_and_carries_its_severity(
