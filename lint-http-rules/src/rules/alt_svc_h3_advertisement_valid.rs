@@ -46,6 +46,18 @@ const CLEAR: &str = "clear";
 // cite(RFC 7838 § 3): "Unknown parameters MUST be ignored."
 const MA: &str = "ma";
 
+/// The ALPN protocol name HTTP/3 shipped under, spelled as § 3.1.1 spells it.
+///
+/// **Compared byte-exactly, where the draft scan below folds case**, and the
+/// two are not inconsistent: the fold there only ever *widens* what is
+/// reported, which is what makes it recordable as a leniency, and a fold here
+/// would only ever narrow it. To a client doing § 3's *"simple string
+/// comparison"* `H3` is not `h3`, so a field spelling the final token that way
+/// has advertised no endpoint that a draft alternative beside it stands in
+/// for, and the draft is still the only HTTP/3 on offer.
+// cite(RFC 7838 § 3): "With these constraints, recipients can apply simple string comparison to match protocol identifiers."
+const FINAL_H3: &str = "h3";
+
 /// Maximum reasonable max-age: 1 year in seconds. RFC 7838 sets **no** upper
 /// bound on `ma`; this is a linter heuristic to flag likely misconfiguration,
 /// not a spec limit — hence uncited (recorded in the audit ledger, §4.1).
@@ -122,7 +134,7 @@ impl RuleMeta for AltSvcH3AdvertisementValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reads the `Alt-Svc` response header field for the entries that advertise HTTP/3, and asks two things of each: that it names the shipped protocol, and that the freshness lifetime it carries is one.\n\n**The protocol identifier.** RFC 9114 §3.1.1: *\"An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the \"h3\" ALPN token.\"* A draft-era token — `h3-29`, `h3-Q050`, `h3-27` — is a different ALPN protocol name, so a client that speaks HTTP/3 and not that draft finds nothing it can use at the alternative.\n\n**The `ma` parameter.** RFC 7838 §3.1 gives it a `delta-seconds` value, and `delta-seconds` is `1*DIGIT` (RFC 9111 §1.2.2) — **the production, not an integer type**. A leading `+` is not part of it, so `ma=+5` is reported even though every standard-library parser reads it as 5; conversely a run of digits longer than 64 bits is a conforming value that RFC 9111 §1.2.2 tells a cache to clamp rather than reject, so it is measured against this rule's ceiling instead of being called malformed. `ma=0` is fresh for zero seconds — the advertisement is stale as it arrives — and is reported as the likely misconfiguration it is.\n\n**The ceiling is a heuristic and is the one thing here with no sentence behind it.** RFC 7838 places no upper bound on `ma`. One year (31 536 000 seconds) is this linter's guess at where a value stops being a policy and starts being a typo.\n\n**The parameter name is compared case-sensitively, and the protocol identifier is not.** RFC 7838 prints `parameter = token \"=\" ( token / quoted-string )` and states no case-insensitivity for the name; RFC 9110 §5.6.6's *\"Parameter names are case-insensitive\"* governs the `parameters` production, which this field does not import. So `MA=0` is a parameter name a client is required to ignore (*\"Unknown parameters MUST be ignored.\"*), and reporting it as invalidating an advertisement would describe something that does not happen. The **protocol identifier** is folded to lowercase, deliberately and against §3's *\"simple string comparison\"*: the fold only ever widens what this rule reports, so `H3-29` is still named as a draft token and `H3=…; ma=0` is still measured.\n\n**What this rule leaves to its two siblings.** Everything about the field's shape is `alt_svc_header_syntax`'s, on every protocol rather than on `h3` alone: an empty list element, an `alternative` with no `=`, an empty `protocol-id`, a percent-encoding this field's one-spelling constraints forbid, a `parameter` with no value or a value that is neither a `token` nor a well-formed `quoted-string`, and an unterminated DQUOTE — which this rule treats as making the whole value unreadable rather than guessing at where its members end. Whether the ALPN name is registered is `alt_svc_protocol_registered`'s.\n\nThe field lines are joined before they are read (RFC 9110 §5.3), because `1#alt-value` is the list that licenses the join, and the value is read one `char` per octet so that an `obs-text` octet is measured rather than hiding the line it is written on."
+        "Reads the `Alt-Svc` response header field for the entries that advertise HTTP/3, and asks two things of each: that it names the shipped protocol, and that the freshness lifetime it carries is one.\n\n**The protocol identifier.** RFC 9114 §3.1.1: *\"An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the \"h3\" ALPN token.\"* A draft-era token — `h3-29`, `h3-Q050`, `h3-27` — is a different ALPN protocol name, so a client that speaks HTTP/3 and not that draft finds nothing it can use at the alternative. **It is reported only where the field names no `h3` at all**, because that sentence asks an origin to advertise an equivalent HTTP/3 endpoint using `h3`, and a field carrying `h3` has done so — the draft alternative beside it is one a client that knows only `h3` never looks at. `Alt-Svc: h3=\":443\", h3-29=\":443\"` is the shape almost every draft advertisement on the web is written in and draws nothing; `Alt-Svc: h3-29=\":443\"` is the whole HTTP/3 offer written under a name nothing current negotiates, and draws the finding. **The `h3` is looked for byte-exactly** where the draft scan folds case, and the asymmetry runs the right way in both places: the fold only widens what is reported, and `H3` is not `h3` to a recipient doing §3's *\"simple string comparison\"*, so `H3=\":443\", h3-29=\":443\"` still offers HTTP/3 under the draft name alone.\n\n**The `ma` parameter.** RFC 7838 §3.1 gives it a `delta-seconds` value, and `delta-seconds` is `1*DIGIT` (RFC 9111 §1.2.2) — **the production, not an integer type**. A leading `+` is not part of it, so `ma=+5` is reported even though every standard-library parser reads it as 5; conversely a run of digits longer than 64 bits is a conforming value that RFC 9111 §1.2.2 tells a cache to clamp rather than reject, so it is measured against this rule's ceiling instead of being called malformed. `ma=0` is fresh for zero seconds — the advertisement is stale as it arrives — and is reported as the likely misconfiguration it is.\n\n**The ceiling is a heuristic and is the one thing here with no sentence behind it.** RFC 7838 places no upper bound on `ma`. One year (31 536 000 seconds) is this linter's guess at where a value stops being a policy and starts being a typo.\n\n**The parameter name is compared case-sensitively, and the protocol identifier is not.** RFC 7838 prints `parameter = token \"=\" ( token / quoted-string )` and states no case-insensitivity for the name; RFC 9110 §5.6.6's *\"Parameter names are case-insensitive\"* governs the `parameters` production, which this field does not import. So `MA=0` is a parameter name a client is required to ignore (*\"Unknown parameters MUST be ignored.\"*), and reporting it as invalidating an advertisement would describe something that does not happen. The **protocol identifier** is folded to lowercase, deliberately and against §3's *\"simple string comparison\"*: the fold only ever widens what this rule reports, so `H3-29` is still named as a draft token and `H3=…; ma=0` is still measured.\n\n**What this rule leaves to its two siblings.** Everything about the field's shape is `alt_svc_header_syntax`'s, on every protocol rather than on `h3` alone: an empty list element, an `alternative` with no `=`, an empty `protocol-id`, a percent-encoding this field's one-spelling constraints forbid, a `parameter` with no value or a value that is neither a `token` nor a well-formed `quoted-string`, and an unterminated DQUOTE — which this rule treats as making the whole value unreadable rather than guessing at where its members end. Whether the ALPN name is registered is `alt_svc_protocol_registered`'s.\n\nThe field lines are joined before they are read (RFC 9110 §5.3), because `1#alt-value` is the list that licenses the join, and the value is read one `char` per octet so that an `obs-text` octet is measured rather than hiding the line it is written on."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -163,8 +175,13 @@ impl RuleMeta for AltSvcH3AdvertisementValid {
                 snippet: "Alt-Svc: h3=\":443\"; MA=0",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("A draft token beside the final one: the client takes `h3`"),
+                snippet: "Alt-Svc: h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("A draft protocol identifier"),
+                label: Some("A draft protocol identifier, and the whole HTTP/3 offer"),
                 snippet: "Alt-Svc: h3-29=\":443\"",
             },
             Example {
@@ -250,6 +267,11 @@ impl Rule for AltSvcH3AdvertisementValid {
                 return None;
             }
 
+            // Asked once for the whole field, because it is a fact about the
+            // field: a draft token is reported for what the alternatives
+            // *beside* it do not say, and each member cannot see the others.
+            let final_h3_advertised = advertises_final_h3(value);
+
             for member in list_members_as_written(value) {
                 // An empty list element and a member with no '=' are both
                 // `alt_svc_header_syntax`'s findings; this rule has no
@@ -280,18 +302,29 @@ impl Rule for AltSvcH3AdvertisementValid {
                 // is still measured.
                 let proto_lower = protocol_id.to_ascii_lowercase();
 
-                // Draft h3 protocol IDs (h3-29, h3-Q050, etc.): the final ALPN token
-                // advertised for HTTP/3 is "h3", so any "h3-*" draft token is not a
-                // valid advertisement of the shipped protocol.
+                // Draft h3 protocol IDs (h3-29, h3-Q050, etc.): the ALPN token
+                // HTTP/3 shipped under is "h3", so an "h3-*" draft token names a
+                // protocol nothing current negotiates.
+                //
+                // **Reported only where the field names no `h3` at all.** The
+                // sentence cited asks that an equivalent HTTP/3 endpoint be
+                // advertised using `h3`, and a field carrying `h3` has done so;
+                // the draft alternative beside it is one a client that knows only
+                // `h3` never looks at. Where it stands alone the whole HTTP/3
+                // offer is a name no current client answers to, which is the
+                // finding. A draft token is still not an `h3` entry either way,
+                // so the `ma` reading below does not run on one.
                 // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
                 if proto_lower.starts_with("h3-") {
-                    out.push(ctx.report_with(
-                        &ALPN_PROTOCOL_NAME_OBSOLETE,
-                        format!(
-                            "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead",
-                            shown_in_finding(protocol_id)
-                        ),
-                    ));
+                    if !final_h3_advertised {
+                        out.push(ctx.report_with(
+                            &ALPN_PROTOCOL_NAME_OBSOLETE,
+                            format!(
+                                "Alt-Svc advertises HTTP/3 only under the draft protocol identifier '{}'; no alternative in this field names the final 'h3' token, so a client that does not implement that draft is offered no HTTP/3 endpoint",
+                                shown_in_finding(protocol_id)
+                            ),
+                        ));
+                    }
                     continue;
                 }
 
@@ -312,6 +345,40 @@ impl Rule for AltSvcH3AdvertisementValid {
         };
         finding().unwrap_or_default()
     }
+}
+
+/// Whether any alternative in this field advertises HTTP/3 under the token it
+/// shipped with.
+///
+/// **The question a draft token raises is about the field, not about the
+/// name.** RFC 9114 § 3.1.1 asks that an origin advertising an equivalent
+/// HTTP/3 endpoint do so using `h3`; an origin that lists `h3` has done that,
+/// and a draft token beside it is a second alternative offered to whatever
+/// still speaks that draft. A client that does not simply picks the one it
+/// knows. So the draft name is a defect only where it is the *whole* HTTP/3
+/// offer — there the field advertises an endpoint no current client can
+/// negotiate, which is the harm the entry names.
+///
+/// The `protocol-id` is read as written, the same spelling the draft scan
+/// reads, so both halves of one question are asked of one form. An `h3`
+/// escaped as `%68%33` is not counted here and does not need to be: this field
+/// constrains a name to one spelling, and encoding an octet a `token` already
+/// admits is `alt_svc_header_syntax`'s finding rather than a second way to
+/// name the shipped protocol.
+///
+/// `members` are the field's `alt-value`s, already split on the commas a
+/// `quoted-string` does not swallow.
+// cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
+fn advertises_final_h3(value: &str) -> bool {
+    list_members_as_written(value).into_iter().any(|member| {
+        let parts = split_semicolons_respecting_quotes(member);
+        let Some((alternative, _)) = parts.split_first() else {
+            return false;
+        };
+        alternative
+            .split_once('=')
+            .is_some_and(|(protocol_id, _)| protocol_id == FINAL_H3)
+    })
 }
 
 /// The reason this h3 entry's `ma` parameter does not advertise a freshness
@@ -488,6 +555,10 @@ mod tests {
     #[case(Some("CLEAR"), false)]
     // Draft with numeric suffix only
     #[case(Some("h3-14=\":443\""), true)]
+    // The same draft token beside the one HTTP/3 shipped under: the field has
+    // advertised the shipped protocol, so nothing is offered under a name
+    // alone.
+    #[case(Some("h3=\":443\", h3-14=\":443\""), false)]
     // h3 mixed with clear
     #[case(Some("clear, h3=\":443\"; ma=86400"), false)]
     // Quoted parameter value containing semicolon should not mis-split
@@ -550,16 +621,80 @@ mod tests {
         assert!(v[1].message.contains("h3-27"), "{}", v[1].message);
     }
 
+    /// The shape almost every draft advertisement on the web is written in:
+    /// the draft token beside the token HTTP/3 shipped under. Nothing is
+    /// reported, because nothing is wrong with it — a client that implements
+    /// the draft may take that alternative and one that does not takes `h3`,
+    /// and the sentence asking an origin to advertise HTTP/3 using `h3` has
+    /// been answered by the field itself.
+    ///
+    /// This drew a finding on every such field, whose message told the sender
+    /// to use the final token instead — advice the field had already taken.
+    #[rstest]
+    #[case("h3=\":443\"; ma=86400, h3-29=\":443\"; ma=86400")]
+    #[case("h3-29=\":443\", h3=\":443\"")]
+    #[case("h3=\":443\"; ma=3600, h3-25=\":443\"; ma=3600, h3-29=\":443\"; ma=3600")]
+    #[case("h2=\":443\", h3=\":443\", h3-27=\":443\"")]
+    fn a_draft_token_beside_the_final_one_is_no_finding(#[case] header: &str) {
+        let rule = AltSvcH3AdvertisementValid;
+        let tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("alt-svc", header)]);
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        assert!(v.is_empty(), "unexpected finding for {header:?}: {v:?}");
+    }
+
+    /// What counts as having advertised the shipped protocol is asked
+    /// byte-exactly, where the draft scan folds case — and the two are not in
+    /// tension. The fold widens what this rule reports and is recordable as a
+    /// leniency for exactly that reason; folding here would narrow it, and
+    /// would do so by claiming a recipient reads `H3` as `h3`, which §3 says it
+    /// does not. So a field spelling the final token in the wrong case has
+    /// advertised no endpoint the draft one stands in for, and the draft is
+    /// still the only HTTP/3 on offer.
+    #[rstest]
+    #[case("H3=\":443\", h3-29=\":443\"")]
+    #[case("h3-29=\":443\", H3=\":443\"")]
+    fn a_case_variant_final_token_does_not_stand_in_for_h3(#[case] header: &str) {
+        let rule = AltSvcH3AdvertisementValid;
+        let tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("alt-svc", header)]);
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert_eq!(v[0].violation, ALPN_PROTOCOL_NAME_OBSOLETE.id);
+        assert!(v[0].message.contains("h3-29"), "{}", v[0].message);
+    }
+
     /// The two kinds of finding cannot mask each other. An `ma` defect on an
     /// `h3` entry used to end the read, so a draft token written after it went
-    /// unreported — the value below named an advertisement stale on arrival and
+    /// unreported — the value below names an advertisement stale on arrival and
     /// one no client can negotiate, and only the first was said.
+    ///
+    /// **The value is spelled `H3` on purpose, and it is the only spelling that
+    /// can still make both findings at once.** `ma` is read on an entry whose
+    /// `protocol-id` folds to `h3`, and the draft token is reported only where
+    /// no entry spells `h3` byte-exactly — so on `h3=":443"; ma=0,
+    /// h3-27=":443"` the final token is advertised and the draft is no longer a
+    /// finding at all. `H3` sits between the two: folded, it is an `h3` entry
+    /// whose `ma` is measured; unfolded, it is not the token §3.1.1 asks for,
+    /// so the draft beside it is still the whole HTTP/3 offer.
     #[test]
     fn an_ma_finding_does_not_hide_a_draft_token_behind_it() {
         let rule = AltSvcH3AdvertisementValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
-            &[("alt-svc", "h3=\":443\"; ma=0, h3-27=\":443\"")],
+            &[("alt-svc", "H3=\":443\"; ma=0, h3-27=\":443\"")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = crate::test_helpers::run_rule_all(

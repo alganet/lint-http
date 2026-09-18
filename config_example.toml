@@ -170,12 +170,18 @@ enabled = true
 # serves. Everything else is reported, registered or not.
 #
 # No draft HTTP/3 token belongs in this list, `h3-29` included, however widely
-# it is still advertised alongside `h3`. Naming a draft identifier where the
-# final one exists is `alt_svc_h3_advertisement_valid`'s finding, and this rule
-# passes every `h3-*` name over to it rather than asking the list about one.
-# Listing `h3-29` here to keep the two rules from reporting the same token twice
-# is what this list used to do, and it bought the silence by stating that this
-# deployment serves a draft.
+# it is still advertised alongside `h3`. A draft identifier is
+# `alt_svc_h3_advertisement_valid`'s subject, and this rule passes every `h3-*`
+# name over to it rather than asking the list about one. Listing `h3-29` here to
+# keep the two rules from reporting the same token twice is what this list used
+# to do, and it bought the silence by stating that this deployment serves a
+# draft.
+#
+# That sibling reports a draft token only where the field advertises no `h3`, so
+# `h3=":443", h3-29=":443"` draws nothing from either rule. That is the answer
+# and not a gap: the field has advertised HTTP/3 under the token it shipped
+# with, and the draft alternative beside it is one a client that knows only `h3`
+# never looks at.
 allowed = ["h2", "h3", "h2c", "http/1.1"]
 
 [rules.auth_scheme_registered]

@@ -100,6 +100,16 @@ defects! {
     /// a name of its own: `h3-29`, `h3-Q050`, and the rest of the family whose
     /// final token is `h3`.
     ///
+    /// **Reported for what is advertised beside it, not for the name alone.**
+    /// A field naming `h3` has advertised the shipped protocol, and the draft
+    /// alternative next to it is a second offer to whatever still speaks that
+    /// draft — a client that does not simply takes `h3`, and nothing about the
+    /// message misleads it. This is the shape almost every draft
+    /// advertisement on the web is written in, and the entry used to report all
+    /// of them, telling a sender to use the final token in a field where the
+    /// final token was already written. What remains is the case the reasoning
+    /// below was always about: a draft name that is the *whole* HTTP/3 offer.
+    ///
     /// **`_obsolete` and not `_unregistered`**, though the two entries cost a
     /// client the same failed connection. The unregistered one is a name this
     /// deployment does not serve, which is a fact about a deployment; this is a
@@ -117,6 +127,12 @@ defects! {
     /// **The family this can name is HTTP/3's alone**, because it is the one
     /// whose final token this crate holds. Silence about some other protocol's
     /// drafts is that limit and not a verdict.
+    ///
+    /// **The narrowing is what makes the rank hold.** A draft token beside the
+    /// final one costs a client nothing, so reporting it at `warn` was ranking
+    /// a message no recipient is worse off for. Where the draft stands alone
+    /// the cost is the one the paragraphs above argue: a failed connection and
+    /// a fallback, for every client that does not implement that draft.
     ///
     // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
     ALPN_PROTOCOL_NAME_OBSOLETE = {
