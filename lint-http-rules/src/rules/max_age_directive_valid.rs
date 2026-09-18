@@ -71,8 +71,14 @@ impl RuleMeta for MaxAgeDirectiveValid {
     }
 
     /// examines both request and past responses
+    /// The client. The directive this rule is named after is the server's,
+    /// and that is the yardstick: what the finding reports is a precondition
+    /// the *request* carried while the copy it revalidates was still fresh,
+    /// and the request is the message the evidence was found in. Its two
+    /// siblings — the stale entry refetched without a validator, and the
+    /// `immutable` response revalidated early — say the same.
     fn party(&self) -> crate::rules::RuleParty {
-        crate::rules::RuleParty::Presumed(crate::lint::Party::Server)
+        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -225,6 +231,35 @@ mod tests {
         prev.client = crate::test_helpers::make_test_client();
         prev.timestamp = ts;
         prev
+    }
+
+    /// The finding names the peer that wrote the precondition. A report read
+    /// with `--about server` must not carry it, and one read with `--about
+    /// client` must.
+    #[test]
+    fn the_finding_is_about_the_client_that_revalidated_early() {
+        let rule = MaxAgeDirectiveValid;
+        let base = chrono::Utc::now();
+        let mut prev = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("cache-control", "max-age=600"), ("etag", "\"v1\"")],
+        );
+        prev.request.method = "GET".to_string();
+        prev.timestamp = base;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = base + chrono::Duration::seconds(10);
+        tx.request.method = "GET".to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v1\"")]);
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "conditional_redundant");
+        assert_eq!(found.party, Some(crate::lint::Party::Client));
     }
 
     #[test]
