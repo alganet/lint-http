@@ -2553,10 +2553,20 @@ enabled = "true"
     /// wherever the reader is: the two conditional-date sites, `Last-Modified`
     /// and `Expires`. Four seams for one defect, arrived at by splitting a
     /// verdict rather than by adding a rule.
+    ///
+    /// **And back to 104, on a declaration that was never real.**
+    /// `http_date_whitespace_forbidden` names an `IMF-fixdate` carrying octets
+    /// the production never prints, and four rules declared it — but three of
+    /// them read a *field line*, where § 5.5 puts the `OWS` outside the value
+    /// and the reading excludes it before measuring. No field line could ever
+    /// produce that verdict. One rule can, because a `warn-date` arrives quoted
+    /// inside a larger value, and it is now the only one that says so. This
+    /// ceiling falls on a merge; it also falls when a seam an operator was told
+    /// about turns out not to exist.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 105;
+        const CEILING: usize = 104;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();
