@@ -39,7 +39,7 @@ impl RuleMeta for CachedValidatorsReused {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**An entry stored for one variant is not one a request for another declined.** §4's last condition on the pairing is §4.1's: the request now presented must match the stored request in every field the response's `Vary` nominates. A response served under `Vary: Accept-Encoding` to a request that asked for nothing is stored for the identity variant, and its validator could not have turned a request for gzip into a `304`, so the search reads past it.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
+        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**An entry stored for one variant is not one a request for another declined.** §4's last condition on the pairing is §4.1's: the request now presented must match the stored request in every field the response's `Vary` nominates. A response served under `Vary: Accept-Encoding` to a request that asked for nothing is stored for the identity variant, and its validator could not have turned a request for gzip into a `304`, so the search reads past it. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -138,6 +138,7 @@ impl Rule for CachedValidatorsReused {
             let (_previous_tx, resp) = history.responses().find(|(prev_tx, resp)| {
                 crate::helpers::stored_response::storage_allowed(
                     &prev_tx.request.headers,
+                    resp.status,
                     &resp.headers,
                 ) && crate::helpers::stored_response::method_allows(
                     &prev_tx.request.method,
@@ -380,6 +381,47 @@ mod tests {
             ]),
         );
         assert_eq!(v.is_some(), expect_finding, "{v:?}");
+    }
+
+    /// A `412` carrying an `ETag` is not an entry -- § 3's last term refuses
+    /// it -- and it does not hide the entry behind it: the search reads past
+    /// it to the 200 that offered the tag, and reports that.
+    #[test]
+    fn a_response_no_cache_could_keep_is_no_entry_and_hides_none() {
+        let rule = CachedValidatorsReused;
+        let mut refused = crate::test_helpers::make_test_transaction_with_response(
+            412,
+            &[
+                ("cache-control", "no-cache, must-revalidate"),
+                ("etag", "\"v\""),
+            ],
+        );
+        refused.request.method = "GET".to_string();
+        let mut offered =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"v\"")]);
+        offered.request.method = "GET".to_string();
+        offered.timestamp = refused.timestamp - chrono::Duration::seconds(5);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = refused.timestamp + chrono::Duration::seconds(5);
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        let run = |history: Vec<crate::http_transaction::HttpTransaction>| {
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::from_transactions(history),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "cached_validators_reused",
+                ]),
+            )
+        };
+        assert!(
+            run(vec![refused.clone()]).is_none(),
+            "a 412 alone is no entry"
+        );
+        // newest first
+        let found = run(vec![refused, offered]).expect("the 200 behind the 412 is the entry");
+        assert_eq!(found.violation, "conditional_missing");
     }
 
     #[test]

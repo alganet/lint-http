@@ -91,11 +91,61 @@ pub fn method_allows(stored: &str, presented: &str) -> bool {
 /// Both messages are read because the directive is defined twice, once for
 /// each. § 3 lists the response's; § 5.2.1.5 gives the request the same power
 /// over the response it provokes.
+///
+/// **Two more terms are read, and the last of them is the one a validator
+/// cannot buy its way past.** § 3 asks that the status be final, and then
+/// that the response carry *some* licence to be kept: a freshness lifetime,
+/// `public`, `private`, or a status defined as heuristically cacheable. A
+/// `412` carrying `no-cache`, `must-revalidate` and an `ETag` has every
+/// directive the rules above search for and none of those, so no cache was
+/// allowed to keep it and the validator on it reached nobody — yet each rule
+/// read it as the entry the client was holding, once the responses in front
+/// of it had been read past for other reasons. The question here is the one
+/// `no-store` already answers from the other side, whether *any* conforming
+/// cache could have stored the response, so the shared-cache and private-cache
+/// alternatives both count: `private` licenses a private cache and `s-maxage`
+/// a shared one, and a reader that cannot say which it is standing in for
+/// refuses an entry only when neither could have held it. A cache extension
+/// that permits storing (§ 5.2.3) is the one alternative not read, and the
+/// omission errs toward silence.
 // cite(RFC 9111 § 3): "the no-store cache directive is not present in the response"
 // cite(RFC 9111 § 5.2.1.5): "The no-store request directive indicates that a cache MUST NOT store any part of either this request or any response to it."
-pub fn storage_allowed(request: &hyper::HeaderMap, response: &hyper::HeaderMap) -> bool {
-    !super::cache_control::has_unqualified(response, "no-store")
-        && !super::cache_control::has_unqualified(request, "no-store")
+// cite(RFC 9111 § 3): "the response status code is final"
+// cite(RFC 9111 § 3): "the response contains at least one of the following:"
+// cite(RFC 9111 § 3): "a private response directive, if the cache is not shared"
+// cite(RFC 9111 § 3): "if the cache is shared: an s-maxage response directive"
+// cite(RFC 9111 § 3): "a status code that is defined as heuristically cacheable"
+pub fn storage_allowed(
+    request: &hyper::HeaderMap,
+    status: u16,
+    response: &hyper::HeaderMap,
+) -> bool {
+    use super::cache_control::has;
+    !no_store_forbids(request, response)
+        && status >= 200
+        && (has(response, "public")
+            || has(response, "private")
+            || response.contains_key("expires")
+            || has(response, "max-age")
+            || has(response, "s-maxage")
+            || super::status::is_heuristically_cacheable(status))
+}
+
+/// Whether either message of an exchange carried `no-store` — § 3's one term
+/// that is also a claim in its own right.
+///
+/// [`storage_allowed`] reads the conjunction and answers whether any cache
+/// could have kept the response. A rule whose *finding* is about `no-store`
+/// asks this narrower question: `no_store_enforced` reports a client for
+/// sending a validator it took from a `no-store` response, and a `302` that
+/// advertises nothing is not storable but is not that — its tag came from
+/// nowhere forbidden. Reading the conjunction there named a `no-store`
+/// response that did not exist.
+// cite(RFC 9111 § 3): "the no-store cache directive is not present in the response"
+// cite(RFC 9111 § 5.2.1.5): "The no-store request directive indicates that a cache MUST NOT store any part of either this request or any response to it."
+pub fn no_store_forbids(request: &hyper::HeaderMap, response: &hyper::HeaderMap) -> bool {
+    super::cache_control::has_unqualified(response, "no-store")
+        || super::cache_control::has_unqualified(request, "no-store")
 }
 
 /// Whether the request now presented selects the representation the earlier
@@ -172,6 +222,44 @@ mod tests {
         assert_eq!(method_allows(stored, presented), expected);
     }
 
+    /// § 3's last alternatives, one per row, and the shapes that satisfy none
+    /// of them: a `412` however many directives it carries, a `302` with no
+    /// freshness, a `304` with none, and a status that is not final even with
+    /// a lifetime.
+    #[rstest]
+    #[case(200, "", false, true)]
+    #[case(404, "", false, true)]
+    #[case(412, "", false, false)]
+    #[case(412, "no-cache, must-revalidate", false, false)]
+    #[case(412, "max-age=0", false, true)]
+    #[case(412, "s-maxage=5", false, true)]
+    #[case(412, "public", false, true)]
+    #[case(412, "private", false, true)]
+    #[case(412, "", true, true)]
+    #[case(302, "", false, false)]
+    #[case(304, "", false, false)]
+    #[case(301, "", false, true)]
+    #[case(101, "max-age=5", false, false)]
+    #[case(200, "no-store", false, false)]
+    fn a_response_no_cache_could_keep_leaves_no_entry(
+        #[case] status: u16,
+        #[case] cache_control: &str,
+        #[case] expires: bool,
+        #[case] expected: bool,
+    ) {
+        let mut pairs: Vec<(&str, &str)> = Vec::new();
+        if !cache_control.is_empty() {
+            pairs.push(("cache-control", cache_control));
+        }
+        if expires {
+            pairs.push(("expires", "Thu, 01 Jan 2026 00:00:00 GMT"));
+        }
+        assert_eq!(
+            storage_allowed(&headers(&[]), status, &headers(&pairs)),
+            expected
+        );
+    }
+
     /// Each of § 4.1's answers: a nominated field that agrees, one that does
     /// not, one absent from one side, a field the response does not nominate,
     /// no `Vary` at all, and `*`.
@@ -238,7 +326,7 @@ mod tests {
         #[case] expected: bool,
     ) {
         assert_eq!(
-            storage_allowed(&headers(request), &headers(response)),
+            storage_allowed(&headers(request), 200, &headers(response)),
             expected
         );
     }

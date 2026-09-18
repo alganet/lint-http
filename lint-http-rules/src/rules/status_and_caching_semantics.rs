@@ -114,9 +114,7 @@ impl Rule for StatusAndCachingSemantics {
             // "cacheable by default"), enumerated in RFC 9110 §15.1. Such a response can be reused
             // with heuristic expiration, so it needs no explicit freshness.
             // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
-            const DEFAULT_CACHEABLE: [u16; 12] =
-                [200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501];
-            if DEFAULT_CACHEABLE.contains(&status) {
+            if crate::helpers::status::is_heuristically_cacheable(status) {
                 return None;
             }
 
