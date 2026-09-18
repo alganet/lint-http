@@ -331,6 +331,18 @@ shortcut: 35 entries cite a sentence using "must" or "ought to" descriptively,
 and reading those as requirements is the mistake the vocabulary exists to
 prevent.
 
+A third gate, `every_defect_that_quotes_a_keyword_states_a_reading`, asks the
+question Gate B is forbidden to: **has anybody looked.** `Unstated` is two
+claims wearing one word — *nothing binds this sender* and *nobody has read this
+yet* — and the whole risk of the vocabulary is the second hiding inside the
+first. So the entries where the two can be told apart, the ones with a keyword
+or a production in front of them, are enumerated in `READ_AND_UNSTATED`: 37 ids,
+each with its reason on its own page. A new defect whose cited sentence carries
+a keyword either states what the keyword obliges or gets a line there, which is
+a visible diff on a reviewed file — the same mechanism `specs/ratchet.txt` runs
+on, and the reason that migration finished. The gate also names a line that is
+no longer needed, so the list shrinks rather than merely not growing.
+
 ### 2. Implementation
 
 Create a new file in `src/rules/<rule_name>.rs`. Every rule implements two
