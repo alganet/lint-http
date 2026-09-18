@@ -243,7 +243,8 @@ pub fn parse_mailbox(value: &str) -> Result<Mailbox, MailboxDefect> {
     let parsed = if is_name_addr {
         r.name_addr()
     } else {
-        r.addr_spec().map(|domain_name| Mailbox { domain_name })
+        r.addr_spec(false)
+            .map(|domain_name| Mailbox { domain_name })
     };
     let parsed = parsed.map_err(MailboxDefect::Syntax)?;
 
@@ -501,7 +502,7 @@ impl<'a> Reader<'a> {
     /// cite(RFC 5322 § 3.4.1): "addr-spec = local-part "@" domain"
     /// cite(RFC 5322 § 3.4.1): "local-part = dot-atom / quoted-string / obs-local-part"
     /// cite(RFC 5322 § 3.4.1): "domain = dot-atom / domain-literal / obs-domain"
-    fn addr_spec(&mut self) -> Result<Option<String>, MailboxSyntaxDefect> {
+    fn addr_spec(&mut self, in_angle_addr: bool) -> Result<Option<String>, MailboxSyntaxDefect> {
         self.skip_cfws()?;
         // The alternation is decided by one character, and the sentence beside
         // the grammar says which: a quoted-string can only open on a DQUOTE, and
@@ -519,7 +520,7 @@ impl<'a> Reader<'a> {
         self.skip_cfws()?;
         // cite(RFC 5322 § 3.4.1): "An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain."
         if self.peek() != Some('@') {
-            return Err(MailboxSyntaxDefect::AtSignMissing(self.peek()));
+            return Err(self.local_part_stop(in_angle_addr));
         }
         self.i += 1;
 
@@ -534,6 +535,54 @@ impl<'a> Reader<'a> {
         };
         self.skip_cfws()?;
         Ok(domain_name)
+    }
+
+    /// What ended the `local-part`, for a value whose next character is not the
+    /// `"@"`.
+    ///
+    /// **The at-sign is usually still there.** `dot_atom_text` stops at the
+    /// first character `atext` does not admit and returns what it read, so
+    /// `no[body]@example.com` arrives here positioned on the `[` with its `"@"`
+    /// four characters further on. Blaming the stop on a missing at-sign says
+    /// something the value contradicts — and says it as `mailbox_at_sign_missing`,
+    /// which is `warn`, where the character that really broke the reading is an
+    /// `error`. So the stop is described rather than attributed to the thing the
+    /// reader happened to be about to look for.
+    ///
+    /// **So the absence is checked before it is reported**, which is the whole
+    /// correction: the old reading named a defect it had not looked for. When
+    /// no `"@"` remains the entry is right and keeps its message — `<not-an-email>`
+    /// really has none, and the `">"` the reading stopped at is the `angle-addr`
+    /// closing legitimately rather than a character in the `local-part`.
+    ///
+    /// When one *does* remain, what stopped the reading is reported instead:
+    ///
+    /// - a character `atext` does not admit ended the `local-part`;
+    /// - an `atext` character means `skip_cfws` consumed the whitespace between
+    ///   two words. Outside an `angle-addr` that is a display-name beside a bare
+    ///   `addr-spec` — `Someone a@example.com` — so what is missing is the `"<"`
+    ///   the `name-addr` wants. Inside one there is no such reading available,
+    ///   and the `"@"` is not where the production puts it.
+    ///
+    // cite(RFC 5322 § 3.4.1): "addr-spec = local-part "@" domain"
+    // cite(RFC 5322 § 3.4): "mailbox = name-addr / addr-spec"
+    fn local_part_stop(&self, in_angle_addr: bool) -> MailboxSyntaxDefect {
+        // The question the entry asks, asked. An `"@"` inside a later comment or
+        // quoted-string would answer it too generously, and the cost of that is
+        // reporting the character the reading actually stopped at — which is
+        // true of the value either way. The cost of not asking is a sentence
+        // that is false.
+        if !self.c[self.i..].contains(&'@') {
+            return MailboxSyntaxDefect::AtSignMissing(self.peek());
+        }
+        match self.peek() {
+            Some(c) if !is_atext(c) => MailboxSyntaxDefect::AtomCharacter {
+                what: "local-part",
+                character: c,
+            },
+            Some(c) if !in_angle_addr => MailboxSyntaxDefect::AngleAddrMissing(Some(c)),
+            at => MailboxSyntaxDefect::AtSignMissing(at),
+        }
     }
 
     fn name_addr(&mut self) -> Result<Mailbox, MailboxSyntaxDefect> {
@@ -553,7 +602,7 @@ impl<'a> Reader<'a> {
         }
         self.i += 1;
 
-        let domain_name = self.addr_spec()?;
+        let domain_name = self.addr_spec(true)?;
 
         if self.peek() != Some('>') {
             return Err(MailboxSyntaxDefect::AngleAddrUnterminated(self.peek()));
@@ -690,7 +739,13 @@ mod tests {
         "John Q. Public <jqp@example.com>",
         "'.' where the mailbox has the \"<\""
     )]
-    #[case("Team: a@example.com;", "':' where the addr-spec has its \"@\"")]
+    // A `group`, which RFC 9110's `From = mailbox` has no alternative for. The
+    // `:` is what ends the local-part and the finding says so; it used to say
+    // the at-sign was missing, from a value that plainly carries one.
+    #[case(
+        "Team: a@example.com;",
+        "the local-part holds ':', which no atext admits"
+    )]
     #[case("alice@exa mple.com", "'m' follows a complete mailbox")]
     // The four productions whose refusal nothing above reaches: `dtext`,
     // either half of a `quoted-pair`, and a display-name opened on something
@@ -707,6 +762,54 @@ mod tests {
     )]
     #[case(". <alice@example.com>", "'.' where the display-name has a word")]
     fn section_4_and_worse_is_refused(#[case] value: &str, #[case] expected: &str) {
+        let e = err(value);
+        assert!(e.contains(expected), "{value:?} was rejected as {e:?}");
+    }
+
+    /// **A value that carries its at-sign is never reported as missing one.**
+    ///
+    /// `dot_atom_text` returns what it read at the first character `atext` does
+    /// not admit, so every value here arrived at the `"@"` test positioned on
+    /// something else while its at-sign sat further along. Each used to be
+    /// reported as `mailbox_at_sign_missing` — `warn`, and a sentence the value
+    /// contradicts — instead of the `error` the character that really ended the
+    /// reading carries. The shapes are the ones a probe run against a local sink
+    /// actually produced, not invented ones.
+    ///
+    /// The last two are the pair that keeps `AtSignMissing` honest: a value that
+    /// really has no at-sign, and one where the reading has nowhere better to go.
+    #[rstest]
+    #[case(
+        "no[body]@example.com",
+        "the local-part holds '[', which no atext admits"
+    )]
+    #[case(
+        "user\"quoted\"@example.com",
+        "the local-part holds '\"', which no atext admits"
+    )]
+    #[case(
+        "user,other@example.com",
+        "the local-part holds ',', which no atext admits"
+    )]
+    #[case(
+        "user;x@example.com",
+        "the local-part holds ';', which no atext admits"
+    )]
+    // Not a counter-example to the name: `\x40` is the TEXT of an escape and
+    // the value holds no at-sign at all, so this is the entry saying something
+    // true. It sits here because it is the shape most likely to be mistaken for
+    // one of the rows above.
+    #[case("user\\x40example.com", "'\\' where the addr-spec has its \"@\"")]
+    #[case(
+        "Someone a@example.com",
+        "'a' where the mailbox has the \"<\" of its angle-addr"
+    )]
+    #[case("nobody", "the value ends where the addr-spec has its \"@\"")]
+    #[case("<Someone a@example.com>", "'a' where the addr-spec has its \"@\"")]
+    fn an_at_sign_that_is_present_is_not_reported_missing(
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
         let e = err(value);
         assert!(e.contains(expected), "{value:?} was rejected as {e:?}");
     }
