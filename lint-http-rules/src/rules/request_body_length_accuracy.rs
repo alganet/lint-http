@@ -193,12 +193,28 @@ impl Rule for RequestBodyLengthAccuracy {
             // not a `Content-Length` it declared wrongly, which is what this
             // finding says. With no way to tell those apart from a partial
             // count, the comparison declines.
-            if req.body_interrupted {
-                return None;
-            }
-
+            //
+            // **Only where the count fell short, though.** An interruption
+            // stops the counting; it cannot add to it. The octets already
+            // counted arrived, so a count that has passed the declared length
+            // is decided by what it holds however the upload ended, and only a
+            // count still under it is the undecidable case above.
+            //
+            // The direction matters most here, on the side § 8.6 addresses to
+            // an intermediary: a request body that outruns its own framing is
+            // read by the next hop as a second request, which is where this
+            // becomes smuggling rather than an accounting error. Declining on
+            // the flag alone hid exactly that, and the two conditions are not
+            // independent: overrunning a declared length is one of the ways a
+            // stream errors, and an errored stream is what sets the flag, so
+            // the guard was likeliest to engage on the very messages the
+            // finding is for.
             if let Some(body_len) = req.body_length {
-                if declared != body_len as u128 {
+                let counted = u128::from(body_len);
+                if req.body_interrupted && counted <= declared {
+                    return None;
+                }
+                if declared != counted {
                     return Some(ctx.report_with(
                         &CONTENT_LENGTH_CONFLICTING,
                         // The side is named, and it is not decoration: the
@@ -210,10 +226,25 @@ impl Rule for RequestBodyLengthAccuracy {
                         // saying the identical thing about different halves of
                         // one exchange is a defect of this rule and not of
                         // whatever reads the output.
-                        format!(
-                            "Request Content-Length ({}) does not match captured body bytes ({})",
-                            declared, body_len
-                        ),
+                        //
+                        // An interrupted count is quoted as the lower bound it
+                        // is, because that is what carries the finding: the
+                        // report would otherwise offer a total the reading
+                        // never established, and an operator checking it
+                        // against the client would find more octets than the
+                        // number here and read the finding as wrong.
+                        if req.body_interrupted {
+                            format!(
+                                "Request Content-Length ({declared}) is shorter than the \
+                                 {counted} body octets that had already arrived when the \
+                                 transfer was interrupted"
+                            )
+                        } else {
+                            format!(
+                                "Request Content-Length ({declared}) does not match captured \
+                                 body bytes ({counted})"
+                            )
+                        },
                     ));
                 }
             }
@@ -286,6 +317,36 @@ mod tests {
             "a count that stopped where the reading stopped says nothing about \
              the sender's Content-Length"
         );
+    }
+
+    /// The other direction of the same flag. An interruption stops the
+    /// counting and cannot add to it, so a count already past the declaration
+    /// is decided by the octets it holds -- which is the half a next hop reads
+    /// as a second request.
+    #[test]
+    fn an_interrupted_upload_still_decides_an_overrun() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request = crate::http_transaction::RequestInfo {
+            method: "POST".into(),
+            uri: "http://example/".into(),
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "10")]),
+            body_length: Some(5000),
+            body_interrupted: true,
+            trailers: None,
+        };
+
+        let rule = RequestBodyLengthAccuracy;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a count past the declaration is decided");
+        assert_eq!(v.violation, "content_length_conflicting");
+        // The count is quoted as the lower bound it is, not as a total.
+        assert!(v.message.contains("already arrived"), "{}", v.message);
     }
 
     #[test]
