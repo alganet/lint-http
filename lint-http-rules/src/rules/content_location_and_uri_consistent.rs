@@ -879,7 +879,7 @@ mod tests {
         );
         assert_eq!(
             CONTENT_LOCATION_FRAGMENT_FORBIDDEN.default_severity,
-            crate::lint::Severity::Warn
+            crate::lint::Severity::Error
         );
     }
 

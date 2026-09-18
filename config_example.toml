@@ -1363,7 +1363,8 @@ severity = "info"
 
 [violations.content_location_fragment_forbidden]
 # Content-Location carries a fragment component
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_md5_obsolete]
 # Content-MD5 is a field HTTP removed
@@ -2620,7 +2621,8 @@ severity = "warn"
 
 [violations.request_target_fragment_forbidden]
 # A request target carries a fragment identifier
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.request_target_malformed]
 # A request-target derives from none of the four forms

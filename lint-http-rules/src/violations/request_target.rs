@@ -360,13 +360,26 @@ defects! {
     /// percent-encoded before the URI is formed, so an encoded number sign is
     /// path data and not a component boundary.
     ///
+    /// **`Grammar`, and it ranks with the sibling above it.** None of the four
+    /// forms admits the component — `absolute-form` is RFC 3986's `URI` with
+    /// the `[ "#" fragment ]` group dropped, `origin-form` is a path and an
+    /// optional query, `authority-form` is a host and a port, and
+    /// `asterisk-form` is one character — so a value carrying one derives from
+    /// no reading of any of them. That is the same defect
+    /// [`REQUEST_TARGET_MALFORMED`] reports about the other ways a target
+    /// can fail to derive, and it inherits the same § 2.2 MUST NOT, so it
+    /// carries the same rank rather than a softer one for being a defect with
+    /// a name.
+    ///
     // cite(RFC 3986 § 3.5): "A fragment identifier component is indicated by the presence of a number sign ("#") character and terminated by the end of the URI."
+    // cite(RFC 9110 § 2.2, label: request-target fragment): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
     REQUEST_TARGET_FRAGMENT_FORBIDDEN = {
         id: "request_target_fragment_forbidden",
         title: "A request target carries a fragment identifier",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_3986_3_5],
+        strength: Strength::Grammar,
     }
 
 }

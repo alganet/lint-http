@@ -26,6 +26,7 @@
 //! HTTP". So the finding is about an identity nothing in the exchange resolves.
 
 use crate::lint::Severity;
+use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
@@ -55,24 +56,31 @@ defects! {
     /// dropped — so a value with a `#` in it derives from no reading of this
     /// field's grammar.
     ///
-    /// **The sentence quoted is the one that names the component**, not the
-    /// generic MUST NOT about matching an ABNF rule: § 4.1 says what
-    /// `partial-URI` is for, and that is the fact a sender needs. Unlike
-    /// `Referer`, whose own section names the fragment and forbids it, this
-    /// field's section says nothing about one — so the finding rests on the
-    /// production and on nothing else.
+    /// **`Grammar`, which is what a value deriving from no reading of a
+    /// production is.** Unlike `Referer`, whose own section names the fragment
+    /// and forbids it, this field's section says nothing about one — so there
+    /// is no field-specific keyword to quote, and the obligation is the one
+    /// § 2.2 lays on every production at once. That is what the variant is
+    /// for: the entry quotes its ABNF and inherits the sender's MUST NOT
+    /// rather than restating it, and it ranks with the requirement it
+    /// inherits.
     ///
-    /// `warn`: a recipient resolving the reference gets a URI it can use, and
-    /// what is lost is that the fragment names something the field was never
-    /// able to say.
+    /// It ranked `warn` on the argument that a recipient resolving the
+    /// reference still gets a URI it can use. That is true and is not the
+    /// question — it describes how well a recipient copes, where every other
+    /// entry in this class ranks on what the sender wrote. `Referer` and
+    /// `Host` report the same defect in a neighbouring field at `error`, and a
+    /// fragment is no more generable here than it is there.
     ///
+    // cite(RFC 9110 § 8.7, label: Content-Location grammar): "Content-Location = absolute-URI / partial-URI"
     // cite(RFC 9110 § 4.1): "A "partial-URI" rule is defined for protocol elements that can contain a relative URI but not a fragment component."
     CONTENT_LOCATION_FRAGMENT_FORBIDDEN = {
         id: "content_location_fragment_forbidden",
         title: "Content-Location carries a fragment component",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_9110_4_1],
+        strength: Strength::Grammar,
     }
 
     /// A `Content-Location` written and left blank.
