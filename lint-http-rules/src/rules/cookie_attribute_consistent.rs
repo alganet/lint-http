@@ -6,11 +6,11 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::DRAFT_IETF_HTTPBIS_RFC6265BIS;
 use crate::violations::cookie::{
-    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_EXPIRES_MISSING,
+    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_EXPIRES_MALFORMED, COOKIE_EXPIRES_MISSING,
     COOKIE_FLAG_VALUE_FORBIDDEN, COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING,
     COOKIE_PAIR_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
     COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, COOKIE_SECURE_MISSING, RFC_6265_4_1_1,
-    RFC_6265_5_2_2, RFC_6265_5_2_3, RFC_6265_5_2_4,
+    RFC_6265_5_1_1, RFC_6265_5_2_2, RFC_6265_5_2_3, RFC_6265_5_2_4,
 };
 use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
@@ -47,6 +47,7 @@ static DECLARED: &[&ViolationDef] = &[
     &COOKIE_MAX_AGE_MISSING,
     &COOKIE_MAX_AGE_MALFORMED,
     &COOKIE_EXPIRES_MISSING,
+    &COOKIE_EXPIRES_MALFORMED,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -192,13 +193,30 @@ impl CookieAttributeConsistent {
             let Some(value) = attribute.value else {
                 return Some(ctx.report(&COOKIE_EXPIRES_MISSING));
             };
-            // `sane-cookie-date` is the timestamp § 5.6.7 writes, under RFC
-            // 6265's name for it, so what is wrong with an unreadable `Expires`
-            // is not a fact about cookies. This is the recipient's parse — the
-            // one § 5.6.7 obliges every reader to perform — so a failure means
-            // the attribute names no instant at all.
+            // Two questions, and this used to ask only the first. § 4.1.1 writes
+            // `sane-cookie-date` as `rfc1123-date`, so § 5.6.7's parse answers
+            // whether the *sender* wrote the form it was asked for. It does not
+            // answer what the recipient makes of it: § 5.2.1 sends a user agent
+            // to § 5.1.1 for this attribute, and that algorithm reads hyphenated
+            // dates, two-digit years and an unrecognised zone alike.
+            //
+            // Asking only the grammar named every one of those `http_date_malformed`
+            // — an id whose sentence is that the field names no instant — while
+            // every user agent on the wire expired the cookie exactly when the
+            // server meant. The narrower id says the true half.
             // cite(RFC 6265 § 4.1.1): "expires-av        = "Expires=" sane-cookie-date"
-            return (!crate::http_date::is_valid_http_date(value)).then(|| {
+            if crate::http_date::is_valid_http_date(value) {
+                return None;
+            }
+            return Some(if crate::helpers::cookie::cookie_date_is_readable(value) {
+                ctx.report_with(
+                    &COOKIE_EXPIRES_MALFORMED,
+                    format!(
+                        "Set-Cookie attribute 'Expires' is not an rfc1123-date, though § 5.1.1 reads it: '{}'",
+                        value
+                    ),
+                )
+            } else {
                 ctx.report_with(
                     &HTTP_DATE_MALFORMED,
                     format!(
@@ -274,6 +292,7 @@ impl RuleMeta for CookieAttributeConsistent {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_6265_4_1_1,
+            RFC_6265_5_1_1,
             RFC_6265_5_2_2,
             RFC_6265_5_2_3,
             RFC_6265_5_2_4,
@@ -407,6 +426,60 @@ mod tests {
             assert!(v.is_some(), "expected violation for '{}', got none", value);
         } else {
             assert!(v.is_none(), "unexpected violation for '{}': {:?}", value, v);
+        }
+    }
+
+    /// Which of the two `Expires` ids a value draws, and the rule is whether a
+    /// user agent can read it. Every value here but the last two was taken off
+    /// the wire from a widely used origin, and each one used to be reported as
+    /// naming no instant.
+    #[rstest]
+    // rfc1123-date, so no finding at all.
+    #[case("SID=1; Expires=Wed, 21 Oct 2015 07:28:00 GMT", None)]
+    // `obs-date`: § 5.6.7 still parses the rfc850 form, spelled-out day and all.
+    #[case("SID=1; Expires=Monday, 30-Aug-27 01:13:44 GMT", None)]
+    // `-` is a § 5.1.1 delimiter, so this is `30 Aug 2026` to every user agent.
+    #[case(
+        "SID=1; Expires=Sun, 30-Aug-2026 02:23:34 GMT",
+        Some("cookie_expires_malformed")
+    )]
+    // `year = 2*4DIGIT`, and 0-69 maps onto 20xx: this is 2027.
+    #[case(
+        "SID=1; Expires=Mon, 30-Aug-27 01:13:44 GMT",
+        Some("cookie_expires_malformed")
+    )]
+    // No production matches the zone, so `UTC` is skipped and step 6 says UTC.
+    #[case(
+        "SID=1; Expires=Mon, 31 Aug 2026 00:16:39 UTC",
+        Some("cookie_expires_malformed")
+    )]
+    // No time, no month, no year: § 5.1.1 fails too, so it names no instant.
+    #[case("SID=1; Expires=NotADate", Some("http_date_malformed"))]
+    // § 5.1.1 tokenizes this fine and then step 5 rejects the day-of-month.
+    #[case(
+        "SID=1; Expires=Sun, 32 Aug 2026 00:31:33 GMT",
+        Some("http_date_malformed")
+    )]
+    // And the year floor, which is § 5.1.1's own and not the grammar's.
+    #[case(
+        "SID=1; Expires=Sun, 30-Aug-1500 02:23:34 GMT",
+        Some("http_date_malformed")
+    )]
+    fn expires_reports_what_a_user_agent_can_read(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let found = check_set_cookie(value);
+        match expected {
+            None => assert!(
+                found.is_none(),
+                "unexpected violation for '{value}': {found:?}"
+            ),
+            Some(id) => {
+                let found =
+                    found.unwrap_or_else(|| panic!("expected {id} for '{value}', got none"));
+                assert_eq!(found.violation, id, "wrong id for '{value}'");
+            }
         }
     }
 

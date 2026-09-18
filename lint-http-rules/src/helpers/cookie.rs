@@ -465,9 +465,144 @@ pub fn build_cookie_store(
     live_cookies
 }
 
+/// Does RFC 6265 § 5.1.1's algorithm read an instant out of this value?
+///
+/// **This is the recipient's parse, and it is not § 5.6.7's.** § 5.2.1 sends a
+/// user agent here and nowhere else for an `Expires` attribute, so this — not
+/// [`crate::http_date::is_valid_http_date`] — is what decides whether the
+/// attribute names an instant. The two disagree constantly and in one
+/// direction: § 5.1.1 tokenizes on delimiters and reads what the grammar in
+/// § 4.1.1 will not.
+///
+/// Three consequences the callers care about, all of them ordinary traffic:
+///
+/// * `-` is a `delimiter` (%x2D falls in %x20-2F), so `30-Aug-2026` is the
+///   three tokens `30`, `Aug`, `2026` and reads exactly as `30 Aug 2026` does.
+/// * `year` is `2*4DIGIT`, and steps 3 and 4 map 70-99 onto 19xx and 0-69 onto
+///   20xx, so `27` is 2027.
+/// * The zone is never looked at. No production matches `GMT` or `UTC`, both
+///   are skipped as unmatched tokens, and step 6 fixes the result as UTC
+///   regardless of what was written.
+///
+/// So this returns `false` only for a value that names no instant to anybody —
+/// which is the whole reason it is separate from a grammar check.
+///
+// cite(RFC 6265 § 5.1.1): "The user agent MUST use an algorithm equivalent to
+// the following algorithm to parse a cookie-date."
+pub fn cookie_date_is_readable(s: &str) -> bool {
+    // cite(RFC 6265 § 5.1.1): "delimiter       = %x09 / %x20-2F / %x3B-40 / %x5B-60 / %x7B-7E"
+    fn is_delimiter(b: u8) -> bool {
+        b == 0x09
+            || (0x20..=0x2F).contains(&b)
+            || (0x3B..=0x40).contains(&b)
+            || (0x5B..=0x60).contains(&b)
+            || (0x7B..=0x7E).contains(&b)
+    }
+
+    const MONTHS: [&str; 12] = [
+        "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+    ];
+
+    // Every production below is digits followed by `non-digit *OCTET`: the
+    // digits are read and whatever trails them is ignored rather than rejected,
+    // which is why `2026;` and `08:49:37.5` parse. A run longer than the
+    // production's maximum is not a match at all — that is what stops a
+    // four-digit year being read as a day-of-month.
+    fn leading_digits(token: &[u8], min: usize, max: usize) -> Option<(u64, &[u8])> {
+        let len = token
+            .iter()
+            .position(|b| !b.is_ascii_digit())
+            .unwrap_or(token.len());
+        if len < min || len > max {
+            return None;
+        }
+        let n = std::str::from_utf8(&token[..len]).ok()?.parse().ok()?;
+        Some((n, &token[len..]))
+    }
+
+    let (mut hour, mut minute, mut second) = (None, None, None);
+    let (mut day_of_month, mut month, mut year) = (None, None, None);
+
+    for token in s
+        .as_bytes()
+        .split(|&b| is_delimiter(b))
+        .filter(|t| !t.is_empty())
+    {
+        // cite(RFC 6265 § 5.1.1): "hms-time        = time-field ":" time-field ":" time-field"
+        if hour.is_none() {
+            if let Some((h, m, sec)) = parse_hms(token) {
+                (hour, minute, second) = (Some(h), Some(m), Some(sec));
+                continue;
+            }
+        }
+        // cite(RFC 6265 § 5.1.1): "day-of-month    = 1*2DIGIT ( non-digit *OCTET )"
+        if day_of_month.is_none() {
+            if let Some((n, _)) = leading_digits(token, 1, 2) {
+                day_of_month = Some(n);
+                continue;
+            }
+        }
+        // cite(RFC 6265 § 5.1.1): "month           = ( "jan" / "feb" / "mar" / "apr" /"
+        if month.is_none() && token.len() >= 3 {
+            if let Some(index) = MONTHS
+                .iter()
+                .position(|m| token[..3].eq_ignore_ascii_case(m.as_bytes()))
+            {
+                month = Some(index as u64 + 1);
+                continue;
+            }
+        }
+        // cite(RFC 6265 § 5.1.1): "year            = 2*4DIGIT ( non-digit *OCTET )"
+        if year.is_none() {
+            if let Some((n, _)) = leading_digits(token, 2, 4) {
+                year = Some(n);
+                continue;
+            }
+        }
+    }
+
+    let (Some(hour), Some(minute), Some(second)) = (hour, minute, second) else {
+        return false;
+    };
+    let (Some(day_of_month), Some(_), Some(year)) = (day_of_month, month, year) else {
+        return false;
+    };
+
+    // cite(RFC 6265 § 5.1.1): "If the year-value is greater than or equal to 70 and less than or"
+    let year = match year {
+        70..=99 => year + 1900,
+        0..=69 => year + 2000,
+        _ => year,
+    };
+
+    // cite(RFC 6265 § 5.1.1): "the day-of-month-value is less than 1 or greater than 31,"
+    (1..=31).contains(&day_of_month) && year >= 1601 && hour <= 23 && minute <= 59 && second <= 59
+}
+
+/// `hms-time`, split out only because three `time-field`s do not fit a
+/// condition. Returns `None` unless all three are present and digit-led.
+fn parse_hms(token: &[u8]) -> Option<(u64, u64, u64)> {
+    fn field(rest: &[u8]) -> Option<(u64, &[u8])> {
+        let len = rest
+            .iter()
+            .position(|b| !b.is_ascii_digit())
+            .unwrap_or(rest.len());
+        if len == 0 || len > 2 {
+            return None;
+        }
+        let n = std::str::from_utf8(&rest[..len]).ok()?.parse().ok()?;
+        Some((n, &rest[len..]))
+    }
+    let (hour, rest) = field(token)?;
+    let (minute, rest) = field(rest.strip_prefix(b":")?)?;
+    let (second, _) = field(rest.strip_prefix(b":")?)?;
+    Some((hour, minute, second))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn valid_paths() {
@@ -686,5 +821,41 @@ mod tests {
         assert_eq!(c_none.same_site, SameSite::None);
         let c_weird = parse_set_cookie("x=1; SameSite=Weird", "https://a/", ts).unwrap();
         assert_eq!(c_weird.same_site, SameSite::Unspecified);
+    }
+
+    /// § 5.1.1 against the forms § 5.6.7 refuses. The first group is what a
+    /// user agent reads happily and `rfc1123-date` does not admit; the second
+    /// is what nobody reads.
+    #[rstest]
+    #[case("Wed, 21 Oct 2015 07:28:00 GMT", true)]
+    #[case("Sun, 30-Aug-2026 02:23:34 GMT", true)]
+    #[case("Mon, 30-Aug-27 01:13:44 GMT", true)]
+    #[case("Mon, 31 Aug 2026 00:16:39 UTC", true)]
+    #[case("Sunday, 06-Nov-94 08:49:37 GMT", true)]
+    // Delimiters are structural, not decorative: the tokens are all that matter.
+    #[case("21;Oct;2015;07:28:00", true)]
+    // Two-digit years split at 69: both of these are in range once mapped.
+    #[case("Wed, 21 Oct 70 07:28:00 GMT", true)]
+    #[case("Wed, 21 Oct 69 07:28:00 GMT", true)]
+    #[case("NotADate", false)]
+    // A time and a month and no year.
+    #[case("Wed, 21 Oct 07:28:00 GMT", false)]
+    // A year and a month and no time.
+    #[case("Wed, 21 Oct 2015 GMT", false)]
+    // Step 5's bounds, one at a time.
+    #[case("Wed, 32 Oct 2015 07:28:00 GMT", false)]
+    #[case("Wed, 21 Oct 1500 07:28:00 GMT", false)]
+    #[case("Wed, 21 Oct 2015 24:28:00 GMT", false)]
+    #[case("Wed, 21 Oct 2015 07:60:00 GMT", false)]
+    #[case("Wed, 21 Oct 2015 07:28:60 GMT", false)]
+    // `year` is at most 4DIGIT, so a five-digit run matches no production.
+    #[case("Wed, 21 Oct 20155 07:28:00 GMT", false)]
+    #[case("", false)]
+    fn cookie_date_readability(#[case] value: &str, #[case] readable: bool) {
+        assert_eq!(
+            cookie_date_is_readable(value),
+            readable,
+            "§ 5.1.1 disagrees about '{value}'"
+        );
     }
 }

@@ -101,6 +101,17 @@ pub const RFC_6265_5_4: SpecRef = SpecRef {
     note: "The Cookie Header — the algorithm a user agent MUST use to compute the cookie-string, whose first step excludes a cookie whose path does not path-match and one whose secure-only-flag is set on a scheme that is not secure",
 };
 
+/// The parse a user agent performs on an `Expires` value, which is not the one
+/// RFC 9110 § 5.6.7 writes. § 4.1.1 states the *sender's* form as
+/// `rfc1123-date`; this states the *recipient's* algorithm, and it reads far
+/// more than that form.
+pub const RFC_6265_5_1_1: SpecRef = SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.1",
+    note: "Dates — the algorithm a user agent MUST use to parse a cookie-date: delimiter-separated tokens, `-` among the delimiters, a two-to-four-digit year, and no zone read at all",
+};
+
 pub const RFC_6265_5_1_3: SpecRef = SpecRef {
     spec: "RFC 6265",
     section: Some("5.1.3"),
@@ -414,6 +425,47 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
         strength: Strength::Should,
+    }
+
+    /// An `Expires` a user agent reads without difficulty and § 4.1.1's
+    /// grammar does not admit.
+    ///
+    /// **Distinct from [`HTTP_DATE_MALFORMED`](crate::violations::http_date)
+    /// beside it, and what the recipient can do is why.** That entry says the
+    /// field names no instant, so a cache has nothing to compute with. This one
+    /// cannot say that: RFC 6265 § 5.2.1 sends the user agent to § 5.1.1 for
+    /// this attribute and nowhere else, and § 5.1.1's algorithm — a MUST — is
+    /// far wider than `rfc1123-date`. It tokenizes on delimiters, and `-` is
+    /// one, so `Sun, 30-Aug-2026 02:23:34 GMT` reads as the same instant the
+    /// space-separated spelling does. It accepts a two-digit year. It never
+    /// looks at the zone, so `UTC` where `GMT` was meant changes nothing. Every
+    /// value this entry names therefore expires when the server intended.
+    ///
+    /// What is left is real and small: § 4.1.1 asks senders for `rfc1123-date`
+    /// and these are not that, so the message travels on the tolerance of its
+    /// recipients rather than on the grammar. `info`, because that is the whole
+    /// of it — no user agent mis-handles these, and reporting them at a level
+    /// that implies otherwise is how a true finding gets configured off along
+    /// with the rest of its id.
+    ///
+    // cite(RFC 6265 § 4.1.1, label: expires-av): "expires-av        = "Expires=" sane-cookie-date"
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
+    // cite(RFC 6265 § 5.1.1): "The user agent MUST use an algorithm equivalent to"
+    COOKIE_EXPIRES_MALFORMED = {
+        id: "cookie_expires_malformed",
+        title: "Set-Cookie Expires is readable but derives from no HTTP-date",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_6265_4_1_1, RFC_6265_5_1_1],
+        strength: Strength::Should,
+        departure: "The SHOULD NOT is § 4.1.1's, and the sibling entries that quote it \
+            report at `warn` on the strength of it. This one cannot: § 5.1.1 is a MUST \
+            on the recipient, and it reads every value this entry names. So the two \
+            sentences bracket the defect from both sides — the sender did depart from \
+            the grammar, and no conforming reader can be affected by it. There is no \
+            interoperability failure here to warn anybody about, and `warn` on traffic \
+            from most of the web's largest origins is how an operator learns to turn a \
+            whole id off.",
     }
 
     /// A cookie carrying the `Secure` attribute, sent on a request whose scheme
