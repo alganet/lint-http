@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # x_xss_protection_invalid
 
-X-XSS-Protection asks for something other than the filter off
+X-XSS-Protection asks for neither the filter off nor the page blocked
 
 ## Message
 
@@ -20,7 +20,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.x_xss_protection_invalid]
-# X-XSS-Protection asks for something other than the filter off
+# X-XSS-Protection asks for neither the filter off nor the page blocked
 severity = "info"
 ```
 

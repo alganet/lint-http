@@ -547,4 +547,4 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [x_content_type_options_missing](violations/x_content_type_options_missing.md) — A response does not ask for its content type to be respected
 - [x_frame_options_allow_from_obsolete](violations/x_frame_options_allow_from_obsolete.md) — X-Frame-Options carries the retired ALLOW-FROM variant
 - [x_frame_options_invalid](violations/x_frame_options_invalid.md) — X-Frame-Options carries neither DENY nor SAMEORIGIN
-- [x_xss_protection_invalid](violations/x_xss_protection_invalid.md) — X-XSS-Protection asks for something other than the filter off
+- [x_xss_protection_invalid](violations/x_xss_protection_invalid.md) — X-XSS-Protection asks for neither the filter off nor the page blocked

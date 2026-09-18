@@ -13,7 +13,7 @@ This rule checks that the `X-XSS-Protection` response header, when present, uses
 ## Violations
 
 - [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
-- [x_xss_protection_invalid](../violations/x_xss_protection_invalid.md) — X-XSS-Protection asks for something other than the filter off
+- [x_xss_protection_invalid](../violations/x_xss_protection_invalid.md) — X-XSS-Protection asks for neither the filter off nor the page blocked
 
 ## Specifications
 
@@ -57,4 +57,11 @@ X-XSS-Protection: 2
 ```http
 HTTP/1.1 200 OK
 X-XSS-Protection: 1; report=1
+```
+
+### ❌ Bad (`mode=block` and `report=` are never spelled together)
+
+```http
+HTTP/1.1 200 OK
+X-XSS-Protection: 1; mode=block; report=/r
 ```
