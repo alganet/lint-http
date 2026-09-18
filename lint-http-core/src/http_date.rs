@@ -139,6 +139,19 @@ pub enum HttpDateDefect {
     /// MUST be semantically valid and the day-of-week MUST be the day the date
     /// implies.
     DayNameConflicting,
+    /// Nothing was written: the value is empty, or holds nothing but `OWS`.
+    ///
+    /// **Separated from [`Unparsable`](Self::Unparsable) because the sender
+    /// is.** A value that derives from none of the three formats is a sender
+    /// that wrote a timestamp and got it wrong; an empty one is a sender that
+    /// meant to write one and emitted nothing — a template that expanded to
+    /// nothing, a proxy that dropped a value and kept the line. Every reader of
+    /// this production used to make the split for itself or not at all, which
+    /// is why one field made it and four did not.
+    ///
+    /// `OWS` and not `str::trim`, because an `obs-text` octet is not whitespace
+    /// of any kind and trimming it would call a value that holds one empty.
+    Empty,
 }
 
 /// The seven `day-name`s, in the one capitalization § 5.6.7 admits.
@@ -158,6 +171,13 @@ const DAY_NAMES: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /// field line has already excluded the `OWS` § 5.5 puts outside the value, and
 /// one that has not is asking about a string whose first three octets are not
 /// a `day-name` to begin with.
+/// Whether `s` holds nothing but the whitespace a field line may pad with.
+///
+/// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+fn is_only_ows(s: &str) -> bool {
+    s.bytes().all(|b| b == b' ' || b == b'\t')
+}
+
 fn conflicting_day_name(s: &str) -> bool {
     let Some((claimed, rest)) = s.split_once(", ") else {
         return false;
@@ -197,6 +217,10 @@ fn conflicting_day_name(s: &str) -> bool {
 /// cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
 /// cite(RFC 9110 § 5.6.7): "obs-date = rfc850-date / asctime-date"
 pub fn check_imf_fixdate(s: &str) -> Result<(), HttpDateDefect> {
+    // Asked first, because everything below it reads a value that was written.
+    if is_only_ows(s) {
+        return Err(HttpDateDefect::Empty);
+    }
     let Ok(st) = httpdate::parse_http_date(s) else {
         // The dependency refuses a weekday its date does not fall on, and a
         // refusal is all it says. Two different defects arrive here as one, so
@@ -304,7 +328,6 @@ mod tests {
             // neither format.
             "Fri, 01-Jan-1980 00:00:00 GMT",
             "-1",
-            "",
         ] {
             assert_eq!(
                 check_imf_fixdate(unparsable),
@@ -324,6 +347,25 @@ mod tests {
         assert_eq!(
             check_imf_fixdate(" Sun, 06 Nov 1994 08:49:37 GMT"),
             Err(HttpDateDefect::SurroundingWhitespace),
+        );
+    }
+
+    /// Nothing written is its own answer, and `OWS` is what "nothing" means:
+    /// an `obs-text` octet is not whitespace, so a value holding one was
+    /// written.
+    #[test]
+    fn a_value_with_nothing_on_it_is_not_a_timestamp_someone_got_wrong() {
+        for empty in ["", " ", "\t", "  \t "] {
+            assert_eq!(
+                check_imf_fixdate(empty),
+                Err(HttpDateDefect::Empty),
+                "{empty:?}"
+            );
+        }
+        assert_eq!(
+            check_imf_fixdate("\u{80}"),
+            Err(HttpDateDefect::Unparsable),
+            "an obs-text octet is a value, not an absence",
         );
     }
 

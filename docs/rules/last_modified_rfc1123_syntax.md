@@ -13,6 +13,7 @@ Verifies that the `Last-Modified` header (when present) uses the IMF-fixdate for
 ## Violations
 
 - [http_date_day_name_conflicting](../violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
+- [http_date_empty](../violations/http_date_empty.md) — A date field is written with no timestamp on it
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
 

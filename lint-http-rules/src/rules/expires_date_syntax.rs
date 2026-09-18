@@ -151,7 +151,15 @@ impl Rule for ExpiresDateSyntax {
                 // it ever did, the sentence would still be the true one: a
                 // padded timestamp derives from no `HTTP-date` either, and
                 // § 5.3 reads what does not derive from it as already expired.
-                HttpDateDefect::Unparsable | HttpDateDefect::SurroundingWhitespace => (
+                //
+                // `Empty` is the deliberate exception to the split every other
+                // dated field makes. `http_date_empty` says a recipient acts as
+                // though the field were not there; § 5.3 has it act as though
+                // the response were stale, which is a different answer and the
+                // one this field gets whatever the value was.
+                HttpDateDefect::Unparsable
+                | HttpDateDefect::SurroundingWhitespace
+                | HttpDateDefect::Empty => (
                     &EXPIRES_MALFORMED,
                     format!(
                         "Expires '{value}' derives from no HTTP-date, so every cache reads the \

@@ -13,7 +13,7 @@ use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
-    HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
+    HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
     HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_5322_3_3, RFC_9110_5_6_7,
 };
 use crate::violations::list::{
@@ -78,6 +78,7 @@ static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_OBSOLETE,
     &HTTP_DATE_WHITESPACE_FORBIDDEN,
     &HTTP_DATE_DAY_NAME_CONFLICTING,
+    &HTTP_DATE_EMPTY,
 ];
 
 /// One finding from the reading, and the entry it reports as.
@@ -710,6 +711,17 @@ fn validate_warn_date(quoted: &str) -> Result<(), Defect> {
                 "has a warn-date naming a weekday its own date does not fall on: '{}'",
                 shown_in_finding(&inner)
             ),
+        ));
+    }
+
+    // Nothing between the `DQUOTE`s is a sender that meant to write a
+    // `warn-date` and emitted none, which is the split the shared reader makes
+    // for every dated field. Asked before the format is, because there is no
+    // format in an empty string to be wrong about.
+    if crate::http_date::check_imf_fixdate(&inner) == Err(crate::http_date::HttpDateDefect::Empty) {
+        return Err(Defect::named(
+            &HTTP_DATE_EMPTY,
+            "has a warn-date with nothing written in it".into(),
         ));
     }
 

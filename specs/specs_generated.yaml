@@ -1624,7 +1624,7 @@ sources:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 218
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 631
+      line: 632
     - file: lint-http-rules/src/violations/uri.rs
       line: 278
   - label: lint-http-rules/src/helpers/authority.rs (10)
@@ -2134,7 +2134,7 @@ sources:
     snippet: A date-time specification MUST be semantically valid.  That is, the day-of-week (if included) MUST be the day implied by the date
     cited_by:
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 186
+      line: 197
   - label: lint-http-rules/src/helpers/mailbox.rs
     section: § 3.2.1
     snippet: quoted-pair = ("\" (VCHAR / WSP)) / obs-qp
@@ -3809,31 +3809,31 @@ sources:
     snippet: Warning = 1#warning-value
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 403
+      line: 404
   - label: warning_header_syntax (2)
     section: § 5.5
     snippet: Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 266
+      line: 267
   - label: warning_header_syntax (3)
     section: § 5.5
     snippet: Warnings are assigned three digit warn-codes.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 448
+      line: 449
   - label: warning_header_syntax (4)
     section: § 5.5
     snippet: warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 603
+      line: 604
   - label: warn-code grammar
     section: § 5.5
     snippet: warn-code = 3DIGIT warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 447
+      line: 448
     - file: lint-http-rules/src/violations/warning.rs
       line: 77
   - label: warning_header_syntax (5)
@@ -3841,15 +3841,15 @@ sources:
     snippet: warn-date = DQUOTE HTTP-date DQUOTE
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 547
+      line: 548
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 661
+      line: 662
   - label: warn-text position
     section: § 5.5
     snippet: warn-text = quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 505
+      line: 506
     - file: lint-http-rules/src/violations/warning.rs
       line: 116
   - label: warning-value assembly
@@ -3857,7 +3857,7 @@ sources:
     snippet: warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 441
+      line: 442
     - file: lint-http-rules/src/violations/warning.rs
       line: 40
     - file: lint-http-rules/src/violations/warning.rs
@@ -5210,7 +5210,7 @@ sources:
     snippet: The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 225
+      line: 229
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 129
     - file: lint-http-rules/src/violations/deprecation.rs
@@ -5687,7 +5687,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 289
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 404
+      line: 405
     - file: lint-http-rules/src/violations/list.rs
       line: 101
   - label: accept_patch_header_valid (6)
@@ -5973,7 +5973,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 185
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 390
+      line: 391
     - file: lint-http-rules/src/violations/request_target.rs
       line: 319
     - file: lint-http-rules/src/violations/request_target.rs
@@ -6061,7 +6061,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 183
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 168
+      line: 169
   - label: cache_coherence (3)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
@@ -6213,7 +6213,7 @@ sources:
     snippet: If-Modified-Since = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
-      line: 201
+      line: 190
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 50
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
@@ -6223,7 +6223,7 @@ sources:
     snippet: If-Unmodified-Since = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
-      line: 202
+      line: 191
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 51
   - label: conditional_date_syntax (3)
@@ -6231,11 +6231,11 @@ sources:
     snippet: A field value does not include leading or trailing whitespace
     cited_by:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
-      line: 203
+      line: 192
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
       line: 125
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 126
+      line: 127
   - label: conditional_etag_syntax
     section: § 13.1.1
     snippet: 'If-Match = "*" / #entity-tag'
@@ -6683,7 +6683,7 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST generate a Date header field in all 2xx (Successful), 3xx (Redirection), and 4xx (Client Error) responses, and MAY generate a Date header field in 1xx (Informational) and 5xx (Server Error) responses.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 264
+      line: 271
     - file: lint-http-rules/src/violations/date.rs
       line: 55
   - label: date_and_time_headers_consistent (2)
@@ -6691,7 +6691,7 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 197
+      line: 201
     - file: lint-http-rules/src/violations/last_modified.rs
       line: 51
   - label: early_data_header_safe_method
@@ -7069,7 +7069,7 @@ sources:
     snippet: Last-Modified = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 125
+      line: 126
   - label: link_header_valid
     section: § 5.6.3
     snippet: A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
@@ -7096,6 +7096,62 @@ sources:
       line: 354
     - file: lint-http-rules/src/violations/bws.rs
       line: 63
+  - label: OWS grammar
+    section: § 5.6.3
+    snippet: OWS            = *( SP / HTAB )
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 176
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 343
+    - file: lint-http-rules/src/helpers/list.rs
+      line: 36
+    - file: lint-http-rules/src/helpers/list.rs
+      line: 88
+    - file: lint-http-rules/src/helpers/list.rs
+      line: 124
+    - file: lint-http-rules/src/helpers/list.rs
+      line: 198
+    - file: lint-http-rules/src/helpers/list.rs
+      line: 227
+    - file: lint-http-rules/src/helpers/list.rs
+      line: 251
+    - file: lint-http-rules/src/helpers/parameter.rs
+      line: 83
+    - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
+      line: 221
+    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
+      line: 216
+    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
+      line: 260
+    - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
+      line: 341
+    - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
+      line: 168
+    - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
+      line: 171
+    - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
+      line: 202
+    - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
+      line: 225
+    - file: lint-http-rules/src/rules/host_header.rs
+      line: 216
+    - file: lint-http-rules/src/rules/language_tag_syntax.rs
+      line: 235
+    - file: lint-http-rules/src/rules/language_tag_syntax.rs
+      line: 292
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 331
+    - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
+      line: 626
+    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
+      line: 243
+    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
+      line: 287
+    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
+      line: 171
+    - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
+      line: 80
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -7111,9 +7167,9 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 98
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 685
+      line: 686
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 146
+      line: 157
   - label: lint-http-core/src/http_date.rs (3)
     section: § 5.6.7
     snippet: HTTP-date = IMF-fixdate / obs-date
@@ -7123,7 +7179,7 @@ sources:
     - file: lint-http-rules/src/violations/http_date.rs
       line: 64
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 93
+      line: 104
   - label: lint-http-core/src/http_date.rs (4)
     section: § 5.6.7
     snippet: IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT
@@ -7135,33 +7191,33 @@ sources:
     snippet: The semantics of day-name, day, month, year, and time-of-day are the same as those defined for the Internet Message Format constructs with the corresponding name ([RFC5322], Section 3.3).
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 206
+      line: 230
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 703
+      line: 704
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 185
+      line: 196
   - label: lint-http-core/src/http_date.rs (6)
     section: § 5.6.7
     snippet: When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format.
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 197
+      line: 217
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
-      line: 205
+      line: 194
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
       line: 126
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 128
+      line: 129
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 732
+      line: 744
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 117
+      line: 128
   - label: lint-http-core/src/http_date.rs (7)
     section: § 5.6.7
     snippet: obs-date = rfc850-date / asctime-date
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 198
+      line: 218
   - label: lint-http-core/src/http_transaction.rs
     section: § 15
     snippet: 'A single request can have multiple associated responses: zero or more "interim" (non-final) responses with status codes in the "informational" (1xx) range, followed by exactly one "final" response with a status code in one of the other ranges.'
@@ -7789,7 +7845,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 306
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 392
+      line: 393
   - label: lint-http-rules/src/helpers/field_placement.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -7976,62 +8032,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 181
-  - label: OWS grammar
-    section: § 5.6.3
-    snippet: OWS            = *( SP / HTAB )
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 343
-    - file: lint-http-rules/src/helpers/list.rs
-      line: 36
-    - file: lint-http-rules/src/helpers/list.rs
-      line: 88
-    - file: lint-http-rules/src/helpers/list.rs
-      line: 124
-    - file: lint-http-rules/src/helpers/list.rs
-      line: 198
-    - file: lint-http-rules/src/helpers/list.rs
-      line: 227
-    - file: lint-http-rules/src/helpers/list.rs
-      line: 251
-    - file: lint-http-rules/src/helpers/parameter.rs
-      line: 83
-    - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 221
-    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 216
-    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 260
-    - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 341
-    - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 168
-    - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 171
-    - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 202
-    - file: lint-http-rules/src/rules/conditional_date_syntax.rs
-      line: 182
-    - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 225
-    - file: lint-http-rules/src/rules/host_header.rs
-      line: 216
-    - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 235
-    - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 292
-    - file: lint-http-rules/src/rules/range_header_syntax.rs
-      line: 331
-    - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 626
-    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 243
-    - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 287
-    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 171
-    - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 80
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.3
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
@@ -8395,7 +8395,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 460
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 686
+      line: 687
     - file: lint-http-rules/src/violations/quoted_string.rs
       line: 60
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -10299,7 +10299,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 454
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 636
+      line: 637
   - label: via_header_syntax (13)
     section: § 7.6.3
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
@@ -10331,7 +10331,7 @@ sources:
     snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 731
+      line: 743
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.html
   fragments:
@@ -10841,9 +10841,9 @@ sources:
     snippet: field-line   = field-name ":" OWS field-value OWS
     cited_by:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
-      line: 204
+      line: 193
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 127
+      line: 128
   - label: content_length_vs_transfer_encoding
     section: § 6.3
     snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding
