@@ -66,6 +66,7 @@ pub mod content_type;
 pub mod cookie;
 pub mod credentials;
 pub mod cross_origin;
+pub mod date;
 pub mod delta_seconds;
 pub mod deprecation;
 pub mod digest;
@@ -1425,6 +1426,7 @@ mod tests {
         "content_range_missing",
         "content_range_numeral_invalid",
         "cookie_scope_ignored",
+        "date_missing",
         "early_data_duplicated",
         "expires_conflicting",
         "location_redirect_redundant",

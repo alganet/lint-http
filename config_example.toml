@@ -1627,6 +1627,10 @@ severity = "warn"
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.date_missing]
+# A response does not say when it was written
+severity = "warn"
+
 [violations.delta_seconds_character_forbidden]
 # A time in seconds holds an octet DIGIT does not admit
 # GRAMMAR obliges the sender, so this defaults to error.

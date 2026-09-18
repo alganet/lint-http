@@ -13,13 +13,14 @@ Validate that date/time related headers are well-formed and mutually consistent.
 ## Violations
 
 - [conditional_date_conflicting](../violations/conditional_date_conflicting.md) — A date precondition names a time after the request's own Date
+- [date_missing](../violations/date_missing.md) — A response does not say when it was written
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [last_modified_conflicting](../violations/last_modified_conflicting.md) — A Last-Modified is later than the Date beside it
 - [sunset_invalid](../violations/sunset_invalid.md) — A Sunset names a time that has already passed
 
 ## Specifications
 
-- [RFC 9110 §6.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1): `Date` header (parsed as HTTP-date for comparison)
+- [RFC 9110 §6.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1): `Date` — when the message was originated, who must generate it, who must not, and what a recipient does when it is absent
 - [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): `Last-Modified` header
 - [RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): `If-Modified-Since` (conditional requests)
 - [RFC 8594 §3](https://www.rfc-editor.org/rfc/rfc8594.html#section-3): The `Sunset` HTTP header field — an `HTTP-date` timestamp that SHOULD be in the future

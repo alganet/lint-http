@@ -5,6 +5,7 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::conditional::CONDITIONAL_DATE_CONFLICTING;
+use crate::violations::date::{DATE_MISSING, RFC_9110_6_6_1};
 use crate::violations::deprecation::{RFC_8594_3, SUNSET_INVALID};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
 use crate::violations::last_modified::{LAST_MODIFIED_CONFLICTING, RFC_9110_8_8_2_1};
@@ -26,25 +27,19 @@ pub struct DateAndTimeHeadersConsistent;
 /// The non-UTF-8 lines stay on the older API: the verdict names an encoding
 /// where the defect is an octet the field's grammar does not admit, and the
 /// right conversion for such a site is an octet-wise reader before a def.
-/// Four, and three of them are one shape read three ways: two timestamps in
-/// one message that cannot both be right. The fourth is the `HTTP-date` a
-/// `Sunset` failed to be, which is the production's rather than any field's.
+/// Five. Three of them are one shape read three ways: two timestamps in one
+/// message that cannot both be right. The fourth is the `HTTP-date` a `Sunset`
+/// failed to be, which is the production's rather than any field's. The fifth
+/// is the `Date` that was never written, which is the only one here that is
+/// about a field's absence rather than about a value.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &LAST_MODIFIED_CONFLICTING,
     &SUNSET_INVALID,
     &CONDITIONAL_DATE_CONFLICTING,
+    &DATE_MISSING,
 ];
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_6_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("6.6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
-    note: "`Date` header (parsed as HTTP-date for comparison)",
-};
 const RFC_9110_8_8_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("8.8.2"),
@@ -96,6 +91,43 @@ enum Timestamp {
 /// [`Timestamp::of`], because no other rule owns its repetition.
 fn timestamp(headers: &hyper::HeaderMap, name: &str) -> Timestamp {
     headers.get(name).map_or(Timestamp::Absent, Timestamp::of)
+}
+
+/// The instant a `Sunset` is measured against.
+///
+/// **Two anchors and not one, because the field's sentence is about the future
+/// and not about the message.** RFC 8594 § 3 asks a `Sunset` to name a time
+/// still to come; `Date` is the best statement of when "now" was for the
+/// message that carries it, and a response that states no `Date` has not
+/// thereby stopped having a shutdown time in the past. What is left is the
+/// instant the exchange was observed, which is a fact about the capture rather
+/// than about the message — so it is a separate variant and the finding says
+/// which one it measured against.
+enum Now {
+    /// The response's own `Date`, and the text it was written as.
+    Stated(chrono::DateTime<chrono::Utc>, String),
+    /// When the transaction was seen, for a response that states no `Date`.
+    Observed(chrono::DateTime<chrono::Utc>),
+}
+
+impl Now {
+    fn at(&self) -> chrono::DateTime<chrono::Utc> {
+        match self {
+            Self::Stated(at, _) => *at,
+            Self::Observed(at) => *at,
+        }
+    }
+
+    /// How a finding names the yardstick, so a reader can tell a comparison
+    /// against the message from a comparison against the capture.
+    fn describe(&self) -> String {
+        match self {
+            Self::Stated(_, text) => format!("Date '{}'", text),
+            Self::Observed(at) => {
+                format!("the time this exchange was observed ({})", at.to_rfc3339())
+            }
+        }
+    }
 }
 
 impl Timestamp {
@@ -162,11 +194,10 @@ impl DateAndTimeHeadersConsistent {
     /// the repeated-singleton rule does not list, so a second line judged
     /// nowhere would be a second line judged not at all.
     // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
-    fn sunset_is_after_date(
+    fn sunset_is_still_to_come(
         &self,
         headers: &hyper::HeaderMap,
-        date: chrono::DateTime<chrono::Utc>,
-        date_text: &str,
+        now: &Now,
         skew: chrono::Duration,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
@@ -178,14 +209,40 @@ impl DateAndTimeHeadersConsistent {
                     &HTTP_DATE_MALFORMED,
                     "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                 )),
-                Timestamp::At(sunset, text) if sunset <= date - skew => {
+                Timestamp::At(sunset, text) if sunset <= now.at() - skew => {
                     Some(ctx.by_server().report_with(&SUNSET_INVALID, format!(
-                        "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
-                        text, date_text
+                        "Sunset header '{}' is before or equal to {}; Sunset should indicate a future shutdown date",
+                        text, now.describe()
                     )))
                 }
                 Timestamp::At(..) | Timestamp::Absent => None,
             })
+    }
+
+    /// A 2xx, 3xx or 4xx response that never says when it was written.
+    ///
+    /// Asked last of the response, and the ordering is the reading: every other
+    /// finding here is about a value, and a value the sender wrote wrong
+    /// outranks a field it did not write at all. The `MAY` for 1xx and 5xx is
+    /// why the status decides whether the question is asked at all.
+    // cite(RFC 9110 § 6.6.1): "An origin server with a clock (as defined in Section 5.6.7) MUST generate a Date header field in all 2xx (Successful), 3xx (Redirection), and 4xx (Client Error) responses, and MAY generate a Date header field in 1xx (Informational) and 5xx (Server Error) responses."
+    fn date_states_when_the_response_was_written(
+        &self,
+        response: &crate::http_transaction::ResponseInfo,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Option<Violation> {
+        if !(200..500).contains(&response.status) {
+            return None;
+        }
+        matches!(timestamp(&response.headers, "date"), Timestamp::Absent).then(|| {
+            ctx.by_server().report_with(
+                &DATE_MISSING,
+                format!(
+                    "Response {} carries no Date header field, so nothing downstream can say when it was written from the message itself",
+                    response.status
+                ),
+            )
+        })
     }
 
     /// A conditional request asking for changes since a time later than the
@@ -313,6 +370,10 @@ impl Rule for DateAndTimeHeadersConsistent {
                 // The two comparisons below are against Date, so they are asked
                 // only where Date is a timestamp; where it is not, the check
                 // above has already reported it.
+                // `Last-Modified` is measured against `Date` and against
+                // nothing else: § 8.8.2.1 constrains it relative to the
+                // server's time of message origination, which is what `Date`
+                // states and what no observer can supply in its place.
                 if let Timestamp::At(date, date_text) = timestamp(&resp.headers, "date") {
                     if let Some(v) = Self::last_modified_not_after_date(
                         &resp.headers,
@@ -323,11 +384,19 @@ impl Rule for DateAndTimeHeadersConsistent {
                     ) {
                         return Some(v);
                     }
-                    if let Some(v) =
-                        self.sunset_is_after_date(&resp.headers, date, &date_text, skew, ctx)
-                    {
-                        return Some(v);
-                    }
+                }
+                // `Sunset` is measured against whichever instant is available.
+                // An unreadable `Date` has already been reported above, so the
+                // only response reaching the fallback is one that wrote none.
+                let now = match timestamp(&resp.headers, "date") {
+                    Timestamp::At(date, date_text) => Now::Stated(date, date_text),
+                    Timestamp::Absent | Timestamp::Unparseable => Now::Observed(tx.timestamp),
+                };
+                if let Some(v) = self.sunset_is_still_to_come(&resp.headers, &now, skew, ctx) {
+                    return Some(v);
+                }
+                if let Some(v) = self.date_states_when_the_response_was_written(resp, ctx) {
+                    return Some(v);
                 }
             }
 
@@ -621,23 +690,88 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn sunset_without_date_is_ignored() -> anyhow::Result<()> {
+    /// **A response that states no `Date` is not a response with no clock to be
+    /// measured against.** RFC 8594 § 3 asks a `Sunset` to name a time still to
+    /// come, and "to come" is about the future rather than about the message —
+    /// so where the message states no instant, the instant the exchange was
+    /// observed is what is left, and the finding says which one it used.
+    ///
+    /// This used to assert silence, and the silence was the rule declining to
+    /// ask: two of the three `Sunset`-bearing responses on the open web carry
+    /// no `Date`, so the check reached one response in three.
+    #[rstest]
+    #[case("Tue, 01 Jan 2030 00:00:00 GMT", "date_missing")]
+    #[case("Sun, 06 Nov 1994 08:49:37 GMT", "sunset_invalid")]
+    fn a_sunset_without_a_date_is_measured_against_the_observation(
+        #[case] sunset: &str,
+        #[case] expected: &str,
+    ) {
         let rule = DateAndTimeHeadersConsistent;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
-            "sunset",
-            "Tue, 01 Jan 2030 00:00:00 GMT",
-        )]);
+        tx.timestamp = "2026-08-30T00:00:00Z"
+            .parse::<chrono::DateTime<chrono::Utc>>()
+            .expect("a fixed observation time");
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("sunset", sunset)]);
 
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, expected);
+        if expected == "sunset_invalid" {
+            assert!(
+                v.message.contains("observed"),
+                "a comparison against the capture's clock says so: {}",
+                v.message
+            );
+        }
+    }
+
+    /// **`Date` is a `MUST` for 2xx, 3xx and 4xx and a `MAY` for the rest**, so
+    /// the status decides whether the question is asked at all. A `Sunset` still
+    /// gets its answer either way — the field's own sentence has no status in
+    /// it.
+    #[rstest]
+    #[case(200, Some("date_missing"))]
+    #[case(304, Some("date_missing"))]
+    #[case(404, Some("date_missing"))]
+    #[case(503, None)]
+    #[case(101, None)]
+    fn only_the_statuses_the_must_names_are_asked_for_a_date(
+        #[case] status: u16,
+        #[case] expected: Option<&str>,
+    ) {
+        let rule = DateAndTimeHeadersConsistent;
+        let tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none());
-        Ok(())
+        assert_eq!(v.map(|v| v.violation), expected.map(str::to_string));
+    }
+
+    /// A response that states a `Date` says when it was written, and the entry
+    /// about the absence has nothing to report.
+    #[test]
+    fn a_response_that_states_its_date_draws_nothing() {
+        let rule = DateAndTimeHeadersConsistent;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("date", "Wed, 21 Oct 2015 07:28:00 GMT")],
+        );
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .is_none());
     }
 
     #[test]
