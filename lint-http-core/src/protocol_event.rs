@@ -98,6 +98,57 @@ pub struct ProtocolEvent {
     pub kind: ProtocolEventKind,
 }
 
+impl ProtocolEventKind {
+    /// The event's name, for a report that must identify a frame with no
+    /// request line to name it by. Deliberately the variant's own name: it is
+    /// what the rules, this crate's documentation and the specifications all
+    /// call the thing, so a reader can search for it.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::WebSocketFrame { .. } => "websocket frame",
+            Self::H3GoawayReceived { .. } => "h3 GOAWAY",
+            Self::H3StreamOpened { .. } => "h3 stream opened",
+            Self::H3StreamClosed { .. } => "h3 stream closed",
+            Self::H3SettingsReceived { .. } => "h3 SETTINGS",
+            Self::H3MaxPushId { .. } => "h3 MAX_PUSH_ID",
+            Self::QuicTransportParams { .. } => "quic transport parameters",
+            Self::QuicFlowControlUpdate { .. } => "quic flow control update",
+            Self::QuicConnectionMigration { .. } => "quic connection migration",
+            Self::QuicVersionNegotiation { .. } => "quic version negotiation",
+        }
+    }
+}
+
+/// One protocol event as it was observed, with what the rules said about it.
+///
+/// **This exists so that "the rules ran and found nothing" is a thing a capture
+/// can say.** A transaction carries its own findings and a WebSocket session
+/// carries its frames', so both leave a trace whether or not anything was
+/// wrong. An HTTP/3 control frame had neither: its findings went to the log and
+/// the event itself went nowhere, which left "exercised and clean"
+/// indistinguishable from "never observed" for every protocol rule. An empty
+/// `violations` here is the positive evidence that distinguishes them.
+///
+/// The event is carried whole rather than summarized. A reader asking why a
+/// rule stayed quiet needs the frame it stayed quiet about, and a record that
+/// held only findings could not answer a question about an event that produced
+/// none — which is the only question this type was added to answer.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProtocolEventRecord {
+    /// The event the rules were given.
+    pub event: ProtocolEvent,
+    /// What they said about it. Empty is the common case and the informative
+    /// one; it is not skipped on the wire for exactly that reason.
+    pub violations: Vec<crate::lint::Violation>,
+}
+
+impl ProtocolEventRecord {
+    /// Pair an event with the findings a lint pass returned for it.
+    pub fn new(event: ProtocolEvent, violations: Vec<crate::lint::Violation>) -> Self {
+        Self { event, violations }
+    }
+}
+
 /// Discriminated payload for protocol events.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]

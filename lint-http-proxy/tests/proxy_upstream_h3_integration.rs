@@ -193,11 +193,17 @@ async fn proxy_get(
     Ok((status, headers, body))
 }
 
-/// Poll the capture file until `predicate` holds over the parsed records, or the
-/// startup timeout elapses. Captures are written asynchronously after a response
-/// returns, so a test needing a *specific* record — a later request's, or a
-/// particular version — must wait for it rather than reading once and racing the
-/// writer under a loaded CI CPU.
+/// Poll the capture file until `predicate` holds over the parsed **transaction**
+/// records, or the startup timeout elapses. Captures are written asynchronously
+/// after a response returns, so a test needing a *specific* record — a later
+/// request's, or a particular version — must wait for it rather than reading
+/// once and racing the writer under a loaded CI CPU.
+///
+/// Protocol-event records are filtered out. The upstream H3 leg writes one for
+/// every control-stream frame it observes, findings or not, and every caller
+/// here indexes the result as a transaction — so leaving them in would have a
+/// test read a SETTINGS frame where it expected the exchange it was waiting
+/// for, and `caps[0]["response"]` would be `null`.
 async fn read_captures_until(
     path: &str,
     predicate: impl Fn(&[serde_json::Value]) -> bool,
@@ -208,7 +214,8 @@ async fn read_captures_until(
             Ok(content) => content
                 .lines()
                 .filter(|l| !l.trim().is_empty())
-                .filter_map(|l| serde_json::from_str(l).ok())
+                .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+                .filter(|v| v["type"] == "http_transaction")
                 .collect(),
             Err(_) => Vec::new(),
         };
@@ -225,8 +232,8 @@ async fn read_captures_until(
     }
 }
 
-/// Wait for at least one capture record to be flushed. Callers that assert on a
-/// *specific* record should use [`read_captures_until`] instead.
+/// Wait for at least one transaction record to be flushed. Callers that assert
+/// on a *specific* record should use [`read_captures_until`] instead.
 async fn read_captures(path: &str) -> anyhow::Result<Vec<serde_json::Value>> {
     read_captures_until(path, |caps| !caps.is_empty()).await
 }

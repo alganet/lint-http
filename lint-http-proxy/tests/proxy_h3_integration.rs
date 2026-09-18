@@ -203,18 +203,53 @@ async fn read_captures_when_ready(
         let content = tokio::fs::read_to_string(path.as_ref())
             .await
             .unwrap_or_default();
-        let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-        if lines.len() >= want {
-            return lines.iter().map(|l| Ok(serde_json::from_str(l)?)).collect();
+        let records: Vec<serde_json::Value> = content
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(serde_json::from_str)
+            .collect::<Result<_, _>>()
+            .unwrap_or_default();
+        // An H3 connection writes a record for every control-stream frame it
+        // observes, whether or not the rules found anything in it, so the
+        // capture file interleaves those with the transactions. Every caller
+        // here is asking about transactions, and counting lines would have them
+        // return as soon as a SETTINGS frame landed — before the exchange they
+        // are waiting for had happened at all.
+        let transactions: Vec<serde_json::Value> = records
+            .into_iter()
+            .filter(|v| v["type"] == "http_transaction")
+            .collect();
+        if transactions.len() >= want {
+            return Ok(transactions);
         }
         if std::time::Instant::now() > deadline {
             return Err(anyhow::anyhow!(
-                "timed out waiting for {want} capture record(s); saw {}",
-                lines.len()
+                "timed out waiting for {want} transaction record(s); saw {}",
+                transactions.len()
             ));
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
+}
+
+/// Every protocol-event record in a capture file, in the order written.
+///
+/// The H3 legs are the only source of these: a WebSocket frame's findings ride
+/// its session record instead.
+async fn read_protocol_events(
+    path: impl AsRef<std::path::Path>,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    let content = tokio::fs::read_to_string(path.as_ref())
+        .await
+        .unwrap_or_default();
+    Ok(content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(serde_json::from_str)
+        .collect::<Result<Vec<serde_json::Value>, _>>()?
+        .into_iter()
+        .filter(|v| v["type"] == "protocol_event")
+        .collect())
 }
 
 /// Send a single HTTP/3 GET request via quinn+h3, return status and body.
@@ -321,6 +356,80 @@ async fn h3_request_with_body(
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+/// The evidence a protocol rule leaves when it finds nothing.
+///
+/// An H3 connection observes control-stream frames that no transaction record
+/// mentions. Their findings used to reach the log and stop there, and the
+/// events themselves reached nothing at all — so a protocol rule that ran and
+/// passed was indistinguishable from one that had never been given an event.
+/// This asserts the frames now land in the capture file, findings or not.
+#[tokio::test]
+async fn h3_control_frames_are_recorded_whether_or_not_they_draw_findings() -> anyhow::Result<()> {
+    let mock = MockServer::start().await;
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/pe"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+        .mount(&mock)
+        .await;
+
+    let mut temp = TempFiles::new();
+    let H3Proxy {
+        handle,
+        h3_addr,
+        captures_path,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(None, &mut temp).await?;
+
+    let endpoint = build_h3_client(&cert_path)?;
+    let uri = format!("http://127.0.0.1:{}/pe", mock.address().port());
+    let (status, _headers, _body) = h3_get(&endpoint, h3_addr, &uri, &[]).await?;
+    assert_eq!(status, 200);
+    read_captures_when_ready(&captures_path, 1).await?;
+
+    let events = read_protocol_events(&captures_path).await?;
+    assert!(
+        !events.is_empty(),
+        "an H3 connection wrote no protocol-event record"
+    );
+    // Every record carries the event it was judged on and a violations array —
+    // empty here, which is the whole point: these frames are conformant, and
+    // the record is what says the rules read them.
+    for e in &events {
+        assert!(
+            e["event"]["connection_id"].as_str().is_some(),
+            "record names no connection: {e}"
+        );
+        assert!(
+            e["violations"].is_array(),
+            "record carries no violations array: {e}"
+        );
+    }
+    // `kind` is internally tagged, so the discriminator is `kind.type`. A
+    // request over this connection opens and closes a stream, and both are
+    // events no transaction record mentions.
+    let kinds: Vec<&str> = events
+        .iter()
+        .filter_map(|e| e["event"]["kind"]["type"].as_str())
+        .collect();
+    for want in [
+        "h3_settings_received",
+        "h3_stream_opened",
+        "h3_stream_closed",
+    ] {
+        assert!(kinds.contains(&want), "no {want} among {kinds:?}");
+    }
+    assert!(
+        events
+            .iter()
+            .all(|e| e["violations"].as_array().is_some_and(|v| v.is_empty())),
+        "these frames are conformant; a finding here means the fixture changed"
+    );
+
+    drop(handle);
+    Ok(())
+}
 
 #[tokio::test]
 async fn h3_happy_path_forwards_request_and_captures() -> anyhow::Result<()> {

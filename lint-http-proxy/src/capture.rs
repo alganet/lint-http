@@ -27,6 +27,13 @@ pub const CAPTURE_SCHEMA_VERSION: u32 = 1;
 pub enum CaptureRecord {
     HttpTransaction(Box<crate::http_transaction::HttpTransaction>),
     WebsocketSession(Box<crate::websocket_session::WebSocketSession>),
+    /// One protocol event and what the rules said about it.
+    ///
+    /// Written whether or not anything was wrong, which is what separates this
+    /// from the two above: they exist because traffic happened, and this exists
+    /// so that a protocol rule running quietly leaves a trace at all. See
+    /// [`ProtocolEventRecord`](crate::protocol_event::ProtocolEventRecord).
+    ProtocolEvent(Box<crate::protocol_event::ProtocolEventRecord>),
 }
 
 /// Versioned envelope wrapping each capture record. Serializes flat: the
@@ -204,6 +211,54 @@ impl CaptureWriter {
             .await
     }
 
+    /// Write one protocol event and the findings it drew.
+    ///
+    /// Queued like every other record, so an event still applies backpressure
+    /// rather than being dropped: a capture that silently loses the quiet
+    /// events would lose exactly the evidence this record was added to carry.
+    pub async fn write_protocol_event(
+        &self,
+        record: crate::protocol_event::ProtocolEventRecord,
+    ) -> anyhow::Result<()> {
+        self.queue(CaptureRecord::ProtocolEvent(Box::new(record)))
+            .await
+    }
+
+    /// Queue a protocol event from synchronous code.
+    ///
+    /// The frame observer that produces these is a plain `Fn` inside the h3
+    /// connection driver and cannot await. Rather than spawn every write —
+    /// which would leave a record that had not yet been polled unqueued at
+    /// shutdown, and is the one moment a GOAWAY is most likely to arrive — this
+    /// takes the free slot the channel almost always has and returns with the
+    /// record **already queued**, so [`Self::shutdown`]'s drain covers it.
+    ///
+    /// The fallback is the interesting case and it keeps the promise the
+    /// bounded channel makes: a full queue means the writer is behind, so the
+    /// send is moved to a task that can wait for a slot instead of dropping the
+    /// record. Backpressure is deferred rather than skipped, which is the most
+    /// a caller with no `await` can offer.
+    pub fn queue_protocol_event(&self, record: crate::protocol_event::ProtocolEventRecord) {
+        let envelope = Arc::new(CaptureEnvelope::for_session(
+            CaptureRecord::ProtocolEvent(Box::new(record)),
+            self.session,
+        ));
+        match self.tx.try_send(CaptureMsg::Record(envelope)) {
+            Ok(()) => {}
+            Err(mpsc::error::TrySendError::Full(msg)) => {
+                let tx = self.tx.clone();
+                tokio::spawn(async move {
+                    if tx.send(msg).await.is_err() {
+                        warn!("capture writer task is gone; protocol event not recorded");
+                    }
+                });
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                warn!("capture writer task is gone; protocol event not recorded");
+            }
+        }
+    }
+
     /// Block until every record queued so far is flushed and fsynced to disk.
     /// The deterministic sync point for reading the capture file back.
     pub async fn flush(&self) -> anyhow::Result<()> {
@@ -334,7 +389,10 @@ pub(crate) fn serialize_record(
 ) -> serde_json::Result<String> {
     let tx = match &envelope.record {
         CaptureRecord::HttpTransaction(tx) => tx.as_ref(),
-        CaptureRecord::WebsocketSession(_) => return serde_json::to_string(envelope),
+        // Neither carries a separately-skipped body, so both serialize whole.
+        CaptureRecord::WebsocketSession(_) | CaptureRecord::ProtocolEvent(_) => {
+            return serde_json::to_string(envelope)
+        }
     };
 
     // Internal tagging + flatten keep `request`/`response` at the top level, so
@@ -487,7 +545,7 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
         .into_iter()
         .filter_map(|record| match record {
             CaptureRecord::HttpTransaction(tx) => Some(*tx),
-            CaptureRecord::WebsocketSession(_) => None,
+            CaptureRecord::WebsocketSession(_) | CaptureRecord::ProtocolEvent(_) => None,
         })
         .collect())
 }

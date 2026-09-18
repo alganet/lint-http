@@ -92,9 +92,49 @@ impl ProtocolEventPipeline {
 
     /// Lint `event`, then record it — in that order. Returns the violations
     /// so callers can log or collect them.
+    ///
+    /// **No capture line.** This is the path for an event whose findings have
+    /// somewhere else to go: a WebSocket frame's ride on the session record
+    /// written by [`commit_session`], and writing one here as well would record
+    /// the same finding twice and put a line in the capture file for every
+    /// frame of a long relay. An event with no such home takes
+    /// [`commit_observed`] instead.
+    ///
+    /// [`commit_session`]: ProtocolEventPipeline::commit_session
+    /// [`commit_observed`]: ProtocolEventPipeline::commit_observed
     pub(super) fn commit(&self, event: &ProtocolEvent) -> Vec<Violation> {
         let violations = self.engine.lint_protocol_event(event, &self.store);
         self.store.record_event(event);
+        violations
+    }
+
+    /// [`commit`], and write the event and its findings to the capture file.
+    ///
+    /// For an event that nothing else records — an HTTP/3 control-stream frame,
+    /// whose findings previously reached the log and stopped there while the
+    /// event itself went nowhere at all. Two things follow from writing it:
+    /// a protocol finding becomes readable by everything that reads captures
+    /// rather than only by whoever was watching stderr, and — because the
+    /// record is written **whether or not there were findings** — a protocol
+    /// rule that ran and stayed quiet stops being indistinguishable from one
+    /// that never ran.
+    ///
+    /// **Synchronous, because its caller is.** The frame observer that emits
+    /// these is a plain `Fn` inside the h3 connection driver and cannot await;
+    /// making it async would push a runtime concern through `h3_instrument` for
+    /// the sake of one caller. [`CaptureWriter::queue_protocol_event`] returns
+    /// with the record already queued in the ordinary case, which is what
+    /// keeps a GOAWAY arriving during shutdown from being lost to a task that
+    /// never got polled.
+    ///
+    /// [`commit`]: ProtocolEventPipeline::commit
+    pub(super) fn commit_observed(&self, event: &ProtocolEvent) -> Vec<Violation> {
+        let violations = self.commit(event);
+        self.captures
+            .queue_protocol_event(crate::protocol_event::ProtocolEventRecord::new(
+                event.clone(),
+                violations.clone(),
+            ));
         violations
     }
 
@@ -187,6 +227,85 @@ mod tests {
         let history = shared.state.get_history(&client, &uri);
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].violations.len(), 2);
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    /// The property the record was added for: a protocol rule that ran and
+    /// found nothing still leaves a trace. Before this, an event that drew no
+    /// finding wrote nothing anywhere, so "exercised and clean" and "never
+    /// observed" were the same empty file.
+    #[tokio::test]
+    async fn a_quiet_protocol_event_is_still_recorded() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) =
+            make_shared_with_cfg(Arc::new(crate::config::Config::default()), None, &mut temp)
+                .await?;
+
+        let connection_id = uuid::Uuid::new_v4();
+        let pe = ProtocolEvent {
+            timestamp: chrono::Utc::now(),
+            connection_id,
+            kind: crate::protocol_event::ProtocolEventKind::H3SettingsReceived {
+                settings: Default::default(),
+                direction: crate::protocol_event::MessageDirection::Server,
+            },
+        };
+        // No protocol rules are enabled in the default config, so this is
+        // exactly the quiet case.
+        let violations = shared.protocol_event_pipeline().commit_observed(&pe);
+        assert!(violations.is_empty());
+
+        cw.flush().await?;
+        let records = crate::capture::load_capture_records(&tmp).await?;
+        let recorded: Vec<_> = records
+            .iter()
+            .filter_map(|r| match r {
+                crate::capture::CaptureRecord::ProtocolEvent(e) => Some(e),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(recorded.len(), 1, "the quiet event was not written");
+        assert_eq!(recorded[0].event.connection_id, connection_id);
+        assert!(recorded[0].violations.is_empty());
+        assert_eq!(recorded[0].event.kind.name(), "h3 SETTINGS");
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    /// A WebSocket frame takes the other path on purpose: its findings ride the
+    /// session record, so writing one here too would say the same thing twice
+    /// and put a capture line under every frame of a long relay.
+    #[tokio::test]
+    async fn a_websocket_frame_writes_no_protocol_record() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) =
+            make_shared_with_cfg(Arc::new(crate::config::Config::default()), None, &mut temp)
+                .await?;
+
+        let pe = ProtocolEvent {
+            timestamp: chrono::Utc::now(),
+            connection_id: uuid::Uuid::new_v4(),
+            kind: crate::protocol_event::ProtocolEventKind::WebSocketFrame {
+                session_id: uuid::Uuid::new_v4(),
+                direction: crate::websocket_session::MessageDirection::Client,
+                fin: true,
+                opcode: 1,
+                rsv: 0,
+                extensions: Default::default(),
+                masked: None,
+                payload_length: 2,
+            },
+        };
+        shared.protocol_event_pipeline().commit(&pe);
+
+        cw.flush().await?;
+        let records = crate::capture::load_capture_records(&tmp).await?;
+        assert!(records
+            .iter()
+            .all(|r| !matches!(r, crate::capture::CaptureRecord::ProtocolEvent(_))));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
