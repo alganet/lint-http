@@ -311,18 +311,44 @@ record and a summary line. The exit code is the signal for CI:
 
 - **0** — no violations found.
 - **1** — violations found, or an error occurred (e.g. missing capture file,
-  malformed config).
+  a file no record could be read from, malformed config).
+
+### What the report could not read
+
+A capture line that does not parse as a record is skipped, and **the report
+says how many were**, on a line of its own:
+
+```
+✔  no findings in 1 transaction
+unread: 3 of 4 capture records could not be parsed
+```
+
+It is not a clause of `hidden:`, because `hidden:` names the flag that would
+show each thing it lists and no flag shows a line that did not parse. Read the
+share rather than the count: one line lost out of nine hundred is a torn file;
+one out of one is a report of nothing.
+
+**A file that yielded no records at all is an error**, not a report of nothing
+— the same judgement a missing path gets, for the same reason. A capture
+written by a broken producer, or a path pointing at some other JSONL, would
+otherwise pass a CI gate green on a file this tool never read. A file with *no
+lines* is not that: it holds no records because it holds nothing, and it is
+still reported as a capture of nothing.
 
 Two flags shape the report:
 
-- `--format text|json` (default `text`): `json` emits a machine-parseable array
-  with one object per offending record, tagged by `kind`. Transactions
+- `--format text|json` (default `text`): `json` emits a machine-parseable
+  object — `records_read` and `records_unread`, then `findings`, an array
+  with one object per offending record, tagged by `kind`. The two counts are
+  there because a reader cannot recover them from the array: an unreadable
+  line leaves nothing behind to count. Transactions
   (`"kind": "http_transaction"`) carry `method`, `uri`, `status` (`null` when
   the transaction got no response); WebSocket sessions
   (`"kind": "websocket_session"`) carry `session_id`, `transaction_id`,
   `close_code`. Both carry `violations`, each with `rule`, `severity`,
   `message`, and — when the rule named the defect it found — `violation`, the
-  catalogue id the `[violations]` config section tunes.
+  catalogue id the `[violations]` config section tunes. `run` and `use` write
+  the same document under `--format json`, so one reader serves both.
 - `--min-severity info|warn|error` (default `info`): drop findings below the
   given severity from the report *and* from the exit-code decision — with
   `--min-severity error`, warn-level findings no longer fail CI. Stateful rules

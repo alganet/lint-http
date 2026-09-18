@@ -81,6 +81,11 @@ pub struct WrappedRun {
     pub exit_code: Option<i32>,
     /// Every capture record the run committed, in the order they were written.
     pub records: Vec<CaptureRecord>,
+    /// Lines of the capture file this run could not read back as records.
+    ///
+    /// Carried beside them rather than dropped, so the report can say that it
+    /// describes less than the session produced.
+    pub unread: usize,
     /// Where the captures were written, when the caller asked to keep them.
     pub captures_path: Option<PathBuf>,
 }
@@ -289,7 +294,12 @@ impl ProxySession {
     /// Awaiting the proxy is what makes the captures complete rather than
     /// nearly complete: the shutdown sequence stops accepting, drains handlers
     /// and flushes the writer, and the records are read from that file.
-    pub async fn finish(self) -> anyhow::Result<Vec<CaptureRecord>> {
+    ///
+    /// The load carries its unreadable-line count as well as its records. A
+    /// session reads a file it wrote itself, so that count is ordinarily zero
+    /// and is a defect in this program when it is not — which is the reason to
+    /// hand it to the report rather than to drop it here.
+    pub async fn finish(self) -> anyhow::Result<capture::CaptureLoad> {
         self.shutdown.cancel();
         match self.proxy_task.await {
             Ok(Ok(())) => {}
@@ -366,7 +376,7 @@ pub async fn run_proxied(
     ))
     .await;
 
-    let records = session.finish().await?;
+    let load = session.finish().await?;
     // The child's own failure is reported after the proxy is down, so a command
     // that could not start still leaves a tidy machine behind.
     let exit_code = match status? {
@@ -379,7 +389,8 @@ pub async fn run_proxied(
 
     Ok(WrappedRun {
         exit_code,
-        records,
+        records: load.records,
+        unread: load.unread,
         captures_path: keep_captures.map(|p| p.to_path_buf()),
     })
 }
@@ -647,8 +658,8 @@ mod tests {
         ))?;
         std::fs::write(&caps, format!("{line}\n"))?;
 
-        let a_records = a.finish().await?;
-        let b_records = b.finish().await?;
+        let a_records = a.finish().await?.records;
+        let b_records = b.finish().await?.records;
         let _ = std::fs::remove_file(&caps);
 
         assert_eq!(a_records.len(), 1, "a lost its own record");

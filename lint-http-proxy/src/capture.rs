@@ -450,13 +450,37 @@ pub(crate) fn serialize_record(
     serde_json::to_string(&v)
 }
 
+/// What one read of a capture file yielded: the records, and how many lines it
+/// could not turn into one.
+///
+/// **The count is returned rather than only logged.** The skip has always
+/// written a `tracing::warn!`, which reaches a reader only where diagnostics
+/// were initialised — and on the `lint-captures` path they are not, so the
+/// warning went nowhere and a file whose every line was unreadable produced an
+/// empty report and a zero exit. But a subscriber would not have been the fix
+/// either: what is missing from the report is content, and a report says what
+/// it is missing in the report. That is the argument `hidden_severity` and
+/// `hidden_party` already carry — a filtered report and a clean one are
+/// indistinguishable unless one of them says so — reaching the one cause the
+/// reader cannot correct with a flag.
+#[derive(Debug, Default)]
+pub struct CaptureLoad {
+    /// The records the file yielded, in file order.
+    pub records: Vec<CaptureRecord>,
+    /// Lines that were not empty and did not parse as a record.
+    ///
+    /// Blank lines are not counted: a JSONL file ends with a newline, and a
+    /// trailing empty line is how it is written rather than something lost.
+    pub unread: usize,
+}
+
 /// Load every capture record from a JSONL file, in file order. Skips malformed
 /// lines with warnings. Missing file → empty (callers that require the file to
 /// exist check first).
 pub async fn load_capture_records<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<Vec<CaptureRecord>> {
-    load_capture_records_from(path, 0).await
+    Ok(load_capture_records_from(path, 0).await?.records)
 }
 
 /// Load the records appended at or after `offset` bytes.
@@ -474,7 +498,7 @@ pub async fn load_capture_records<P: AsRef<std::path::Path>>(
 pub async fn load_capture_records_from<P: AsRef<std::path::Path>>(
     path: P,
     offset: u64,
-) -> anyhow::Result<Vec<CaptureRecord>> {
+) -> anyhow::Result<CaptureLoad> {
     load_session_records(path, offset, None).await
 }
 
@@ -489,13 +513,13 @@ pub async fn load_session_records<P: AsRef<std::path::Path>>(
     path: P,
     offset: u64,
     session: Option<uuid::Uuid>,
-) -> anyhow::Result<Vec<CaptureRecord>> {
+) -> anyhow::Result<CaptureLoad> {
     use tokio::io::{AsyncBufReadExt, AsyncSeekExt};
 
     let path_ref = path.as_ref();
 
     if !tokio::fs::try_exists(path_ref).await.unwrap_or(false) {
-        return Ok(Vec::new());
+        return Ok(CaptureLoad::default());
     }
 
     let mut file = tokio::fs::File::open(path_ref).await?;
@@ -508,6 +532,7 @@ pub async fn load_session_records<P: AsRef<std::path::Path>>(
     let reader = tokio::io::BufReader::new(file);
     let mut lines = reader.lines();
     let mut records = Vec::new();
+    let mut unread = 0;
     let mut line_num = 0;
 
     while let Some(line) = lines.next_line().await? {
@@ -526,12 +551,13 @@ pub async fn load_session_records<P: AsRef<std::path::Path>>(
             Ok(envelope) if session.is_some() && envelope.session != session => {}
             Ok(envelope) => records.push(envelope.record),
             Err(e) => {
+                unread += 1;
                 tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
             }
         }
     }
 
-    Ok(records)
+    Ok(CaptureLoad { records, unread })
 }
 
 /// Load only the HTTP transactions from a JSONL capture file (other record
@@ -773,6 +799,58 @@ mod tests {
         assert_eq!(records[1].request.method, "POST");
 
         fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    /// The count is the whole point of returning a load rather than a vector:
+    /// the records alone cannot say that anything is missing from them, and the
+    /// `tracing::warn!` beside this skip reaches a reader only where a
+    /// subscriber was installed.
+    #[tokio::test]
+    async fn a_load_counts_the_lines_it_could_not_read() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_unread_count_test", "jsonl");
+
+        use crate::test_helpers::make_test_transaction;
+        let tx = make_test_transaction();
+        // Two unreadable lines, of three different kinds of unreadable: not
+        // JSON at all, and JSON that is not a record. Blank lines are between
+        // them and are *not* unread — a file ends in a newline.
+        let content = format!(
+            "{}\ninvalid json line\n\n{{\"not\":\"a capture\"}}\n",
+            tx_line(&tx)
+        );
+        fs::write(&tmp, content).await?;
+
+        let load = load_capture_records_from(&tmp, 0).await?;
+        assert_eq!(load.records.len(), 1);
+        assert_eq!(load.unread, 2, "the blank line is not an unread record");
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    /// A file of nothing but unreadable lines yields no records *and* says so.
+    /// Read through the records alone it is indistinguishable from a capture of
+    /// a session that saw no traffic, which is what let it pass as one.
+    #[tokio::test]
+    async fn a_wholly_unreadable_file_is_not_an_empty_one() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
+        let unreadable = temp.path("lint_all_unread_test", "jsonl");
+        let empty = temp.path("lint_no_lines_test", "jsonl");
+
+        fs::write(&unreadable, "{\"not\":\"a capture\"}\nnor this\n").await?;
+        fs::write(&empty, "").await?;
+
+        let bad = load_capture_records_from(&unreadable, 0).await?;
+        let nothing = load_capture_records_from(&empty, 0).await?;
+
+        assert!(bad.records.is_empty() && nothing.records.is_empty());
+        assert_eq!(bad.unread, 2);
+        assert_eq!(nothing.unread, 0);
+
+        fs::remove_file(&unreadable).await?;
+        fs::remove_file(&empty).await?;
         Ok(())
     }
 
