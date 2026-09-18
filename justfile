@@ -41,8 +41,20 @@ lint:
 # The docs build with no warnings — dead intra-doc links included. The comments
 # here are the design record, so this checks the artifact they render into.
 #
+# The output directory is emptied first, and that is not tidiness. Rustdoc
+# writes one content-hashed part per crate into `doc/search.index/` and prunes
+# nothing, then reads every part back to merge the index it ships. So the parts
+# accumulate across builds — 591 of them, 263 MB, in a tree that had been
+# documented all week — and each rustdoc process loads the whole pile. Three of
+# them run at once here, and measured against that directory they peaked at
+# 9.8 GB apiece and took the machine's memory with them; against an empty one,
+# 0.42 GB. The cost of starting clean is the HTML, not the compilation: the
+# artifacts this reuses live under `debug/`, so the run stays a couple of
+# seconds. `CARGO_TARGET_DIR` is honoured because CI sets it.
+#
 # Rustdoc builds clean, warnings as errors.
 doc:
+    rm -rf "${CARGO_TARGET_DIR:-target}/doc"
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features
 
 # Workspace tests with all features.
