@@ -483,7 +483,7 @@ mod tests {
     #[case("Alice <alice@example.com", "ends where the angle-addr has its \">\"")]
     #[case(
         "John Q. Public <jqp@example.com>",
-        "'.' where the mailbox has the \"<\""
+        "the display-name holds '.', which no atext admits"
     )]
     fn malformed_values_name_the_construct_that_stopped(
         #[case] from: &str,
@@ -554,7 +554,10 @@ mod tests {
     #[case("@example.com", "mailbox_atom_character_forbidden")]
     #[case("alice.@example.com", "mailbox_atom_empty")]
     #[case("Alice <alice@example.com", "mailbox_angle_addr_terminator_missing")]
-    #[case("John Q. Public <jqp@example.com>", "mailbox_angle_addr_missing")]
+    #[case("John Q. Public <jqp@example.com>", "mailbox_atom_character_forbidden")]
+    // A display-name beside a *bare* addr-spec: the "<" a `name-addr` wants is
+    // absent from the value, which is the reading the entry above is for.
+    #[case("Someone a@example.com", "mailbox_angle_addr_missing")]
     #[case("alice@exa mple.com", "mailbox_trailing_character_forbidden")]
     #[case("a@b.com (unclosed", "mailbox_comment_terminator_missing")]
     #[case("\"unclosed@example.com", "mailbox_quoted_string_terminator_missing")]

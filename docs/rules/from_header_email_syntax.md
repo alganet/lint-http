@@ -35,7 +35,7 @@ This rule measures the `From` request header against the one production RFC 9110
 - [mailbox_quoted_pair_malformed](../violations/mailbox_quoted_pair_malformed.md) — Mailbox escape is not a quoted-pair
 - [mailbox_quoted_string_character_forbidden](../violations/mailbox_quoted_string_character_forbidden.md) — Mailbox quoted-string holds a character outside qtext
 - [mailbox_quoted_string_terminator_missing](../violations/mailbox_quoted_string_terminator_missing.md) — Mailbox quoted-string is never closed
-- [mailbox_trailing_character_forbidden](../violations/mailbox_trailing_character_forbidden.md) — Mailbox is followed by something else
+- [mailbox_trailing_character_forbidden](../violations/mailbox_trailing_character_forbidden.md) — Mailbox production is followed by something else
 
 ## Specifications
 

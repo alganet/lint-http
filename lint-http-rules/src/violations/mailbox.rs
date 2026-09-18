@@ -299,9 +299,17 @@ defects! {
         strength: Strength::Grammar,
     }
 
-    /// Something between the display-name and the `angle-addr` that no `word`
-    /// admits — `John Q. Public <jqp@example.com>`, where the bare `.` is
-    /// `obs-phrase` and § 4 forbids generating it.
+    /// A value with a display-name and no `angle-addr` **anywhere in it**:
+    /// `Someone a@example.com`, a `phrase` beside a bare `addr-spec`, which
+    /// derives from neither alternative of `mailbox`.
+    ///
+    /// **The absence is checked rather than inferred.** A top-level `<` is
+    /// what chooses the `name-addr` alternative in the first place, so a
+    /// reading that stops before one *inside* that alternative has found
+    /// something else wrong and this is not what it reports. It used to be:
+    /// `John Q. Public <jqp@example.com>` — an `obs-phrase`'s bare dot, which
+    /// § 4 forbids generating — arrived here and denied an angle-addr two
+    /// words along. The dot is `mailbox_atom_character_forbidden` now.
     ///
     // cite(RFC 5322 § 3.4): "name-addr = [display-name] angle-addr"
     MAILBOX_ANGLE_ADDR_MISSING = {
@@ -313,8 +321,13 @@ defects! {
         strength: Strength::Grammar,
     }
 
-    /// An `angle-addr` opened and never closed — the `>` is missing, or
-    /// something else is where it must be.
+    /// An `angle-addr` opened and never closed: the value runs out, or holds
+    /// no `>` after the point the reading stopped at.
+    ///
+    /// **Not "something else is where the `>` must be"**, which is what this
+    /// used to be and what made it false of `<alice@e\\xample.com>` — a value
+    /// whose angle-addr closes and whose `domain` is what refused an octet.
+    /// The title is the sentence the entry has to be able to defend.
     ///
     // cite(RFC 5322 § 3.4): "angle-addr = [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr"
     MAILBOX_ANGLE_ADDR_TERMINATOR_MISSING = {
@@ -341,14 +354,21 @@ defects! {
         strength: Strength::Grammar,
     }
 
-    /// A complete `mailbox` with something after it that is not a comma. One
-    /// address is the whole production, so whatever follows derives from
-    /// nothing — a space inside a domain is the usual way to reach this.
+    /// A production that completed, with something after it that the value has
+    /// no room for and no comma to excuse. The whole `mailbox` at the top
+    /// level — one address is the production, so whatever follows derives from
+    /// nothing — and, inside an `angle-addr`, the part where the next part is
+    /// due: a `local-part` or an `addr-spec` with a word after it.
+    ///
+    /// A space inside a domain is the usual way to reach any of the three, and
+    /// the character named is the one after the space rather than the space
+    /// itself: `dot-atom` admits `CFWS` around what it reads, so the
+    /// whitespace is legal and the second atom is not.
     ///
     // cite(RFC 5322 § 3.4): "mailbox = name-addr / addr-spec"
     MAILBOX_TRAILING_CHARACTER_FORBIDDEN = {
         id: "mailbox_trailing_character_forbidden",
-        title: "Mailbox is followed by something else",
+        title: "Mailbox production is followed by something else",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_5322_3_4],
@@ -385,7 +405,7 @@ pub fn syntax_defect(defect: MailboxSyntaxDefect) -> &'static ViolationDef {
         MailboxSyntaxDefect::AngleAddrMissing(_) => &MAILBOX_ANGLE_ADDR_MISSING,
         MailboxSyntaxDefect::AngleAddrUnterminated(_) => &MAILBOX_ANGLE_ADDR_TERMINATOR_MISSING,
         MailboxSyntaxDefect::DisplayNameWordMissing(_) => &MAILBOX_DISPLAY_NAME_WORD_MISSING,
-        MailboxSyntaxDefect::TrailingCharacter(_) => &MAILBOX_TRAILING_CHARACTER_FORBIDDEN,
+        MailboxSyntaxDefect::TrailingCharacter { .. } => &MAILBOX_TRAILING_CHARACTER_FORBIDDEN,
     }
 }
 
@@ -459,7 +479,7 @@ mod tests {
                 "mailbox_domain_literal_terminator_missing",
             ),
             (
-                MailboxSyntaxDefect::AngleAddrMissing(Some('.')),
+                MailboxSyntaxDefect::AngleAddrMissing(Some('a')),
                 "mailbox_angle_addr_missing",
             ),
             (
@@ -471,7 +491,10 @@ mod tests {
                 "mailbox_display_name_word_missing",
             ),
             (
-                MailboxSyntaxDefect::TrailingCharacter('m'),
+                MailboxSyntaxDefect::TrailingCharacter {
+                    character: 'm',
+                    after: "mailbox",
+                },
                 "mailbox_trailing_character_forbidden",
             ),
         ] {
