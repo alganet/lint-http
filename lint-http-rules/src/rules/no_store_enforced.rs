@@ -62,7 +62,7 @@ impl RuleMeta for NoStoreEnforced {
     }
 
     fn description(&self) -> &'static str {
-        "The `no-store` cache-control directive (RFC 9111 §5.2.2.5) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.\n\nThis stateful rule observes the history of a particular client+resource and remembers which validator values (ETag or Last-Modified) were seen on responses that carried `Cache-Control: no-store`.  Only the most recent occurrence of each validator is kept; if the same value later appears on a non‑`no-store` response it is no longer considered forbidden.  When the current request carries a conditional header whose value matches one of those \"no-store\" validators, we infer that the response must have been stored at some point, and a violation is reported.\n\nThe check is scoped to resource histories (the engine filters transactions by URI) and therefore does not attempt to reason about unrelated traffic.  The rule does not flag unconditional requests, nor does it attempt to detect improper storage of requests (which is rarely visible from traffic capture)."
+        "The `no-store` cache-control directive (RFC 9111 §5.2.2.5) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.\n\nThis stateful rule observes the history of a particular client+resource and remembers which validator values (ETag or Last-Modified) were seen on responses that carried `Cache-Control: no-store`.  A validator counts as forbidden only if **no** exchange the client was allowed to store ever offered it. The most recent occurrence used to decide, and that read a `max-age=60` response handing over `ETag: \"a\"` and a later `no-store` response carrying the same tag as a client stealing what it had been licensed to keep: §5.2.2.5 forbids storing *that* response and evicts nothing already held. So the sets are subtracted rather than raced, and \"allowed to store\" counts the directive on the earlier request (§5.2.1.5) as well as the one on its response. `Last-Modified` values are subtracted by both spelling and instant, since the match below compares both.  When the current request carries a conditional header whose value matches one of those \"no-store\" validators, we infer that the response must have been stored at some point, and a violation is reported.\n\nThe check is scoped to resource histories (the engine filters transactions by URI) and therefore does not attempt to reason about unrelated traffic.  The rule does not flag unconditional requests, nor does it attempt to detect improper storage of requests (which is rarely visible from traffic capture)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -115,16 +115,27 @@ impl Rule for NoStoreEnforced {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // Which validators came from a no-store response, and which did not.
+            // Which validators the client could only have got by storing what
+            // it was told not to store.
             //
-            // The history yields entries newest first — the container asserts
-            // that invariant where it is built — so the *first* appearance of a
-            // validator is its most recent one, and that is the appearance that
-            // decides. The `seen` sets below are what make later (older)
-            // entries unable to overwrite it; the earlier reading of this rule
-            // also removed from the no-store sets on a non-no-store entry, which
-            // could never fire — nothing is inserted for a validator that was
-            // already seen — and said the same decision twice.
+            // **A validator any storable response handed over is not one of
+            // them, whichever response handed it over last.** This used to let
+            // the most recent appearance decide, on the reasoning that history
+            // arrives newest first — but a `no-store` response re-offering a
+            // tag does not unmake the store an earlier response licensed.
+            // § 5.2.2.5 forbids storing *that* response; nothing in it evicts
+            // an entry already held, and § 4.4's invalidation is about unsafe
+            // methods. So `max-age=60, ETag: "v1"` followed by `no-store,
+            // ETag: "v1"` and then `If-None-Match: "v1"` is a client
+            // revalidating exactly what it was allowed to keep, and it was
+            // reported for holding it.
+            //
+            // The answer is a subtraction rather than a race: a tag is
+            // evidence only if *no* response a cache could store ever offered
+            // it. `storage_allowed` is what "could store" means here, so the
+            // directive on the earlier request counts the same as the one on
+            // the response — the same reading the rules that reconstruct an
+            // entry from history apply.
             use std::collections::{HashMap, HashSet};
 
             // ETags compare with the weak prefix stripped; the raw text is kept
@@ -134,15 +145,27 @@ impl Rule for NoStoreEnforced {
             // the parse is done once here rather than per candidate below.
             let mut no_store_lastmod: HashMap<String, chrono::DateTime<chrono::Utc>> =
                 HashMap::new();
-            let mut seen_etags: HashSet<String> = HashSet::new();
-            let mut seen_lastmod: HashSet<String> = HashSet::new();
+            // The validators an exchange the client was allowed to store handed
+            // over. Everything in here leaves the sets above at the end.
+            let mut storable_etags: HashSet<String> = HashSet::new();
+            let mut storable_lastmod: HashSet<String> = HashSet::new();
+            // And the instants they name, because the matching below compares
+            // both spellings and instants: a licensed `...07:28:00 GMT` beside
+            // a `no-store` `...07:28:00 UTC` is one time, and subtracting only
+            // the string would leave the other key standing.
+            let mut storable_instants: HashSet<chrono::DateTime<chrono::Utc>> = HashSet::new();
 
-            for (_, resp) in history.responses() {
-                let is_no_store = header_has_no_store(&resp.headers);
+            for (prev_tx, resp) in history.responses() {
+                let stored = crate::helpers::stored_response::storage_allowed(
+                    &prev_tx.request.headers,
+                    &resp.headers,
+                );
 
                 if let Some(etag) = crate::helpers::headers::get_header_str(&resp.headers, "etag") {
                     let normalized = crate::helpers::validator::normalize_etag(etag);
-                    if seen_etags.insert(normalized.clone()) && is_no_store {
+                    if stored {
+                        storable_etags.insert(normalized);
+                    } else {
                         no_store_etags.insert(normalized);
                     }
                 }
@@ -151,15 +174,24 @@ impl Rule for NoStoreEnforced {
                     crate::helpers::headers::get_header_str(&resp.headers, "last-modified")
                 {
                     let val = lastmod.trim().to_string();
-                    // An unparseable date matches no candidate later, so it is
-                    // recorded as seen and nothing more.
-                    if seen_lastmod.insert(val.clone()) && is_no_store {
+                    if stored {
                         if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(&val) {
-                            no_store_lastmod.insert(val, dt);
+                            storable_instants.insert(dt);
                         }
+                        storable_lastmod.insert(val);
+                    } else if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(&val) {
+                        // An unparseable date matches no candidate later, so
+                        // there is nothing to record for it.
+                        no_store_lastmod.insert(val, dt);
                     }
                 }
             }
+
+            // The subtraction. A validator offered by both kinds of response is
+            // one the client held legitimately.
+            no_store_etags.retain(|e| !storable_etags.contains(e));
+            no_store_lastmod
+                .retain(|v, dt| !storable_lastmod.contains(v) && !storable_instants.contains(dt));
 
             // helper to check If-None-Match header members against bad etags.  RFC
             // dictates that multiple header fields are concatenated with commas, and
@@ -311,6 +343,118 @@ mod tests {
         assert_eq!(v.violation, "cache_control_no_store_ignored");
         assert_eq!(v.severity, crate::lint::Severity::Warn);
         assert!(v.message.contains("ETag"));
+    }
+
+    /// A validator a storable response handed over is not evidence of a
+    /// forbidden store, however the same value is spelled afterwards.
+    ///
+    /// `max-age=60, ETag: "a"` licenses the client to keep the tag. A later
+    /// `no-store` response carrying the same tag forbids storing *that*
+    /// response and evicts nothing, so the conditional request that follows is
+    /// the client revalidating exactly what it was allowed to keep. Reading the
+    /// most recent appearance as the one that decides reported it as theft.
+    #[rstest::rstest]
+    // Newest first, and the order is the point: whichever way round the two
+    // responses sit, one of them licensed the tag.
+    #[case(&["no-store", "max-age=60"], "if-none-match", "\"a\"", false)]
+    #[case(&["max-age=60", "no-store"], "if-none-match", "\"a\"", false)]
+    // Only ever offered by a response nothing stored: still the finding.
+    #[case(&["no-store", "no-store"], "if-none-match", "\"a\"", true)]
+    #[case(&["no-store"], "if-none-match", "\"a\"", true)]
+    fn a_validator_a_storable_response_offered_is_not_evidence_of_a_forbidden_store(
+        #[case] cache_controls: &[&str],
+        #[case] field: &str,
+        #[case] value: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = NoStoreEnforced;
+        let base = Utc::now();
+        let history = crate::transaction_history::TransactionHistory::from_transactions(
+            cache_controls
+                .iter()
+                .enumerate()
+                .map(|(i, cc)| {
+                    make_prev(
+                        &[("cache-control", cc)],
+                        &[("etag", value)],
+                        base - chrono::Duration::seconds(i as i64),
+                    )
+                })
+                .collect(),
+        );
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]),
+        );
+        assert_eq!(v.is_some(), expect_violation, "{:?}", v.map(|v| v.message));
+    }
+
+    /// The same subtraction on the date half, and the boundary beside it.
+    #[test]
+    fn a_last_modified_a_storable_response_offered_is_not_evidence_either() {
+        let rule = NoStoreEnforced;
+        let base = Utc::now();
+        let date = "Wed, 21 Oct 2015 07:28:00 GMT";
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-modified-since", date)]);
+
+        let licensed = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            make_prev(
+                &[("cache-control", "no-store")],
+                &[("last-modified", date)],
+                base,
+            ),
+            make_prev(
+                &[("cache-control", "max-age=60")],
+                &[("last-modified", date)],
+                base - chrono::Duration::seconds(1),
+            ),
+        ]);
+        assert!(crate::test_helpers::run_rule(&rule, &tx, &licensed, &cfg).is_none());
+
+        let never_licensed =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_prev(
+                &[("cache-control", "no-store")],
+                &[("last-modified", date)],
+                base,
+            )]);
+        assert!(crate::test_helpers::run_rule(&rule, &tx, &never_licensed, &cfg).is_some());
+    }
+
+    /// The directive on the earlier *request* keeps a cache from storing the
+    /// response to it, so a tag only such an exchange offered is the same
+    /// evidence the response-side directive is.
+    #[test]
+    fn a_request_that_forbade_storing_taints_the_tag_its_response_offered() {
+        let rule = NoStoreEnforced;
+        let mut prev = make_prev(&[], &[("etag", "\"a\"")], Utc::now());
+        prev.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("cache-control", "no-store")]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "cache_control_no_store_ignored");
     }
 
     #[test]

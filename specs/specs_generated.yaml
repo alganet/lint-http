@@ -10688,9 +10688,9 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 171
     - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 172
+      line: 204
     - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 196
+      line: 228
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 202
     - file: lint-http-rules/src/violations/cache_control.rs
