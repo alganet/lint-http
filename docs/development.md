@@ -476,6 +476,46 @@ complete; a *wrongly* cited one is worse than none, and
 `every_violation_declares_a_spec` ratchets the count upward so the direction only
 moves one way.
 
+#### Which documents may be cited
+
+**Any published specification, drafts included.** The catalogue already cites at
+every level of stability and always has: RFCs, WHATWG living standards (`Fetch`,
+`HTML`, `URL`), W3C working drafts (`CSP3`, `Permissions Policy`,
+`Server Timing`), an adopted IETF working-group draft
+(`draft-ietf-httpbis-rfc6265bis`, which is the document in force for `SameSite`
+because RFC 6265 predates the attribute), and one expired individual draft
+quoted for what it was (`draft-thomson-hybi-http-timeout-03`, the only thing
+`Keep-Alive` was ever written down in). A living standard is edited between one
+release of this linter and the next exactly as an Internet-Draft is, so a rule
+admitting the first and refusing the second would be drawing the line somewhere
+other than where the instability is.
+
+The line that *is* drawn is **published and quotable**: the document has a
+stable URL apysource can fetch, and the sentence is there to be found in it.
+`just quotes` re-verifies every quote against the live document on every run,
+so text that moves under an entry is caught rather than assumed away — which is
+what makes an unstable source usable at all, and is the same gate that catches
+an RFC's errata.
+
+Two conventions follow from that, and the two draft URLs above show both:
+
+- **Track the document, not the revision, while it is in force.** The
+  `rfc6265bis` reference names no `-NN`, so it resolves to the current revision
+  and the quote gate re-verifies against it. Pinning a revision would buy
+  silence by citing a document that has stopped being the one in force — the
+  same trade `Document supersession` warns about for a superseded RFC.
+- **Pin the revision once the document has stopped moving.** The `Keep-Alive`
+  reference pins `-03` and its `note` says outright that the draft was never
+  adopted and expired in 2013, because there the fixed text *is* the subject:
+  the entry reports what a field means to the deployments that implement it,
+  and no later revision exists to mean anything else.
+
+What a draft's status never licenses is a stronger obligation than its text
+carries. An entry's severity is read off the keyword as it binds the sender
+(above), and a `MUST` in a working-group draft is that draft's `MUST` — the
+paragraph above about leaving `spec` empty applies with more force, not less,
+where the sentence may still be edited.
+
 #### Two questions a rule answers about the halves of a transaction
 
 They look like one question and they are not, which is why they were one method
