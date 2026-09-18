@@ -79,7 +79,7 @@ impl RuleMeta for XContentTypeOptionsPresent {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-content_types = ["text/html", "application/javascript", "application/json"]
+content_types = ["text/html", "text/javascript", "application/javascript", "application/json"]
 "#
     }
 
