@@ -175,15 +175,17 @@ impl Rule for OriginIsolatedHeaderValid {
                 ));
             }
 
-            // `?1` is the structured-header boolean true value that requests an
-            // origin-keyed agent cluster. The spec *ignores* any other value; this
-            // rule is deliberately stricter and reports it, since a non-`?1` value
-            // (`?0`, `unsafe-none`, …) is almost always a server misconfiguration.
+            // `?1` is the boolean's true value and the one thing this field
+            // exists to say. What is left is `?0` — the check above admits no
+            // third string — so the entry below is about that value alone and
+            // carries its own sentence. The specification ignores it; this rule
+            // reports it as advice, because a header was written and requests
+            // nothing that omitting it would not.
             if val.eq("?1") {
                 return None;
             }
 
-            Some(ctx.report_with(&ORIGIN_AGENT_CLUSTER_INVALID, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", crate::helpers::shown::shown_in_finding(val))))
+            Some(ctx.report(&ORIGIN_AGENT_CLUSTER_INVALID))
         };
         Vec::from_iter(finding())
     }
@@ -333,8 +335,12 @@ mod tests {
         Ok(())
     }
 
+    /// The finding quotes the value back even though the catalogue holds the
+    /// sentence: `?0` is the only value that can reach this entry, so naming it
+    /// costs nothing at the site and an operator still reads which value
+    /// arrived.
     #[test]
-    fn invalid_value_includes_value_in_message() {
+    fn the_false_boolean_is_named_in_the_message() {
         let rule = OriginIsolatedHeaderValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -370,10 +376,10 @@ mod tests {
     }
 
     #[test]
-    fn origin_agent_cluster_invalid_is_flagged() {
+    fn the_shipped_field_name_is_the_one_that_is_read() {
         // The shipped header is `Origin-Agent-Cluster` (the `Origin-Isolation`
-        // proposal name never shipped). A malformed value on it must be flagged;
-        // before the retarget the rule watched the dead name and returned None.
+        // proposal name never shipped). A value on it must be answered; before
+        // the retarget the rule watched the dead name and returned None.
         let rule = OriginIsolatedHeaderValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -385,7 +391,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some(), "Origin-Agent-Cluster: ?0 should be flagged");
+        assert!(v.is_some(), "a value on Origin-Agent-Cluster is read");
     }
 
     #[test]
