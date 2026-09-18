@@ -77,11 +77,24 @@ defects! {
     /// kept because a stray separator is nearly always a directive that was
     /// deleted or never expanded, and a policy is small enough that the
     /// difference is worth showing.
+    ///
+    /// **`info`, where the entry above is `warn`, and the difference is what
+    /// each one stands in for.** An empty policy has no `max-age`, so that
+    /// entry speaks for a requirement that really is broken and reports at the
+    /// level a broken requirement earns. A stray separator breaks nothing: the
+    /// directives around it are present and valid, the value derives from the
+    /// grammar, and no sentence in § 6.1 obliges the sender either way — which
+    /// is what the empty `spec` above records. `info` is the level for a
+    /// finding worth saying about a message that is not wrong, and saying it at
+    /// `warn` put untidiness beside a declined `SHOULD`.
+    ///
+    /// Observed in the field on a policy reading `max-age=15552000;` — complete,
+    /// conformant, and reported at the same level as a real defect.
     STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY = {
         id: "strict_transport_security_directive_empty",
         title: "The policy holds a separator with no directive",
         message: "Empty directive in Strict-Transport-Security header",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Info,
         spec: &[],
     }
 

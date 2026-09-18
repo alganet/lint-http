@@ -21,7 +21,7 @@ Empty directive in Strict-Transport-Security header
 ```toml
 [violations.strict_transport_security_directive_empty]
 # The policy holds a separator with no directive
-severity = "warn"
+severity = "info"
 ```
 
 ## Reported By

@@ -3591,25 +3591,25 @@ sources:
     snippet: All directives MUST appear only once in an STS header field.
     cited_by:
     - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 108
+      line: 121
   - label: max-age is required
     section: § 6.1.1
     snippet: The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field, during which the UA regards the host (from whom the message was received) as a Known HSTS Host.
     cited_by:
     - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 93
+      line: 106
   - label: max-age carries a value
     section: § 6.1.1
     snippet: 'The syntax of the max-age directive''s REQUIRED value (after quoted-string unescaping, if necessary) is defined as:'
     cited_by:
     - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 124
+      line: 137
   - label: strict_transport_security (2)
     section: § 6.1.2
     snippet: The OPTIONAL "includeSubDomains" directive is a valueless directive which, if present (i.e., it is "asserted"), signals the UA that the HSTS Policy applies to this HSTS Host as well as any subdomains of the host's domain name.
     cited_by:
     - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 144
+      line: 157
   - label: strict_transport_security_valid
     section: § 6.1
     snippet: UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification.
