@@ -659,6 +659,7 @@ mod tests {
             ("for=x-foo", "node_malformed"),
             ("for=010.1.2.3", "node_ipv4_address_malformed"),
             ("for=\"[::1\"", "node_ipv6_closing_bracket_missing"),
+            ("for=\"[::1]x\"", "node_malformed"),
             ("for=\"[nope]\"", "node_ipv6_address_malformed"),
             ("for=\"192.0.2.1:123456\"", "node_port_malformed"),
             ("proto=9https", "uri_scheme_leading_letter_missing"),
