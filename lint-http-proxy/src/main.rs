@@ -753,6 +753,7 @@ async fn lint_app(
             &report.findings,
             report.transaction_count,
             report.websocket_count,
+            report.protocol_count,
         )
     };
     write_stdout(&render_lint_report(
@@ -769,6 +770,13 @@ struct LintReport {
     findings: Vec<FindingsBlock>,
     transaction_count: usize,
     websocket_count: usize,
+    /// Protocol events the report was built from. Kept apart from the
+    /// transaction count for the reason [`recorded_findings`] gives, and kept
+    /// *at all* because the alternative to a denominator of its own was no
+    /// denominator: a capture holding nothing but control-stream frames read
+    /// every one of them and then closed with `no findings in 0 transactions`,
+    /// which is the sentence an empty file gets.
+    protocol_count: usize,
     /// Findings `--min-severity` removed before the report existed.
     ///
     /// Counted rather than merely dropped, because a filtered report and a
@@ -969,6 +977,7 @@ fn recorded_findings(
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
     let mut ws_count = 0usize;
+    let mut pe_count = 0usize;
     let mut suppressed = 0usize;
     let mut hidden_party = 0usize;
     let mut unattributed = 0usize;
@@ -978,8 +987,9 @@ fn recorded_findings(
             capture::CaptureRecord::WebsocketSession(_) => ws_count += 1,
             // Not counted as a transaction: it is one frame on a connection,
             // and adding it to the denominator would make "N transactions"
-            // mean something different for an H3 capture than an H2 one.
-            capture::CaptureRecord::ProtocolEvent(_) => {}
+            // mean something different for an H3 capture than an H2 one. It
+            // gets its own count instead of none, which is what it had.
+            capture::CaptureRecord::ProtocolEvent(_) => pe_count += 1,
         }
         let gated = gated_block(record, min_severity, about);
         suppressed += gated.suppressed;
@@ -991,6 +1001,7 @@ fn recorded_findings(
         findings,
         transaction_count: tx_count,
         websocket_count: ws_count,
+        protocol_count: pe_count,
         suppressed,
         hidden_party,
         unattributed,
@@ -1024,6 +1035,7 @@ fn lint_records(
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
     let mut ws_count = 0usize;
+    let mut pe_count = 0usize;
     let mut removed = Removed::default();
     for record in records {
         match record {
@@ -1068,6 +1080,7 @@ fn lint_records(
             // The findings the live pass reached are on the record; this
             // reports those.
             capture::CaptureRecord::ProtocolEvent(record) => {
+                pe_count += 1;
                 let mut violations = record.violations.clone();
                 removed.add(retain_reportable(&mut violations, min_severity, about));
                 if violations.is_empty() {
@@ -1086,6 +1099,7 @@ fn lint_records(
         findings,
         transaction_count: tx_count,
         websocket_count: ws_count,
+        protocol_count: pe_count,
         suppressed: removed.suppressed,
         hidden_party: removed.hidden_party,
         unattributed: removed.unattributed,
@@ -2009,6 +2023,14 @@ struct Summary {
     by_severity: [usize; 3],
     transactions: usize,
     websockets: usize,
+    /// Protocol events the report was built from.
+    ///
+    /// A third denominator rather than a clause folded into one of the other
+    /// two, because it answers a different question: a control-stream frame is
+    /// neither a request nor a conversation. It was absent, and absence is the
+    /// only value that renders as nothing — so a capture of nothing but these
+    /// closed with the sentence a capture of nothing closes with.
+    protocols: usize,
     /// Distinct hosts the shown findings are about.
     hosts: usize,
     /// Findings the host scope kept out, and the transactions they were on.
@@ -2060,6 +2082,7 @@ impl Default for Summary {
             by_severity: [0; 3],
             transactions: 0,
             websockets: 0,
+            protocols: 0,
             hosts: 0,
             hidden_hosts: 0,
             hidden_host_transactions: 0,
@@ -2097,11 +2120,23 @@ impl Summary {
         summary
     }
 
-    /// The same counts, plus the two totals every caller has to hand.
-    fn counted(findings: &[FindingsBlock], transactions: usize, websockets: usize) -> Self {
+    /// The same counts, plus the per-kind totals every caller has to hand.
+    ///
+    /// **One parameter per capture record kind, and a fourth kind must add a
+    /// fourth.** These were two while there were three kinds, and the one left
+    /// out was the one that then rendered as nothing at all. A caller that
+    /// cannot say how many of a kind it saw is a caller whose closing line
+    /// cannot be read as a denominator.
+    fn counted(
+        findings: &[FindingsBlock],
+        transactions: usize,
+        websockets: usize,
+        protocols: usize,
+    ) -> Self {
         Self {
             transactions,
             websockets,
+            protocols,
             ..Self::of(findings)
         }
     }
@@ -2144,6 +2179,36 @@ fn severity_index(severity: lint::Severity) -> usize {
 /// the gate made of it. The severity breakdown is what turns a count into a
 /// verdict — `12 findings` says nothing about whether to look, and
 /// `12 findings (2 errors, …)` says it in the first four words.
+/// What the report was built from, as the closing line says it.
+///
+/// **Transactions are named even at zero and the other kinds only when there
+/// are some.** The first is the denominator a reader expects to divide a
+/// finding count by, and dropping it from a capture that happened to hold none
+/// would leave the count over nothing. The others are named on presence
+/// because a line reading `in 3 transactions, 0 websocket sessions and 0
+/// protocol events` is three answers to a question nobody asked — but a
+/// capture that *did* hold them and said so nowhere is a report of records it
+/// never admitted reading, and for protocol events that was the whole closing
+/// line: `no findings in 0 transactions`, which is also what an empty file
+/// prints.
+///
+/// `and` before the last of them, `,` between the rest, so two clauses read
+/// the way the single websocket clause always did.
+fn denominator(summary: &Summary) -> String {
+    let mut parts = vec![plural(summary.transactions, "transaction")];
+    if summary.websockets > 0 {
+        parts.push(plural(summary.websockets, "websocket session"));
+    }
+    if summary.protocols > 0 {
+        parts.push(plural(summary.protocols, "protocol event"));
+    }
+    let last = parts.pop().unwrap_or_default();
+    if parts.is_empty() {
+        return last;
+    }
+    format!("{} and {last}", parts.join(", "))
+}
+
 fn render_summary(summary: &Summary, opts: RenderOpts) -> String {
     use std::fmt::Write;
     let styles = opts.styles;
@@ -2165,7 +2230,7 @@ fn render_summary(summary: &Summary, opts: RenderOpts) -> String {
             out,
             "{}no findings in {}",
             glyph("✔", lint::Severity::Info),
-            plural(summary.transactions, "transaction")
+            denominator(summary)
         );
     } else {
         let worst = if summary.by_severity[2] > 0 {
@@ -2197,14 +2262,7 @@ fn render_summary(summary: &Summary, opts: RenderOpts) -> String {
             glyph(worst.1, worst.0),
             styles.paint(styles.name(), &plural(summary.total, "finding")),
             parts.join(", "),
-            plural(summary.transactions, "transaction")
-        );
-    }
-    if summary.websockets > 0 {
-        let _ = write!(
-            out,
-            " and {}",
-            plural(summary.websockets, "websocket session")
+            denominator(summary)
         );
     }
     if summary.hosts > 1 {
@@ -2377,7 +2435,12 @@ fn report_session(
 
     let (findings, elsewhere) = scope.apply(report.findings);
 
-    let mut summary = Summary::counted(&findings, in_scope_transactions, report.websocket_count);
+    let mut summary = Summary::counted(
+        &findings,
+        in_scope_transactions,
+        report.websocket_count,
+        report.protocol_count,
+    );
     summary.hidden_hosts = elsewhere;
     summary.hidden_host_transactions = report
         .transaction_count
@@ -3850,7 +3913,7 @@ enabled = true
         assert!(out.contains("GET http://example.test/0"), "{out}");
         assert!(out.contains("and 3 other targets"), "{out}");
         // And the tally still knows there were six.
-        let summary = Summary::counted(&findings, 6, 0);
+        let summary = Summary::counted(&findings, 6, 0, 0);
         assert!(
             render_summary(&summary, opts).contains("6 findings"),
             "{out}"
@@ -4047,7 +4110,7 @@ enabled = true
     /// and a tidy run both used to print.
     #[test]
     fn a_clean_report_says_what_it_looked_at() {
-        let summary = Summary::counted(&[], 12, 0);
+        let summary = Summary::counted(&[], 12, 0, 0);
         assert_eq!(
             render_summary(&summary, RenderOpts::plain()),
             "\nno findings in 12 transactions\n"
@@ -4065,7 +4128,7 @@ enabled = true
             hidden_host_transactions: 7,
             hidden_severity: 4,
             min_severity: lint::Severity::Warn,
-            ..Summary::counted(&findings, 6, 0)
+            ..Summary::counted(&findings, 6, 0, 0)
         };
         let out = render_summary(&summary, RenderOpts::plain());
         assert!(
@@ -4188,7 +4251,7 @@ enabled = true
                 party: Some(lint::Party::Client),
             },
             unattributed: 31,
-            ..Summary::counted(&findings, 6, 0)
+            ..Summary::counted(&findings, 6, 0, 0)
         };
         let out = render_summary(&summary, RenderOpts::plain());
         assert!(
@@ -4210,7 +4273,7 @@ enabled = true
     #[test]
     fn an_unnarrowed_report_mentions_neither_clause() {
         let findings = sample_findings();
-        let summary = Summary::counted(&findings, 1, 0);
+        let summary = Summary::counted(&findings, 1, 0, 0);
         let out = render_summary(&summary, RenderOpts::plain());
         assert!(!out.contains("--about"), "{out}");
         assert!(!out.contains("unattributed"), "{out}");
@@ -4230,13 +4293,13 @@ enabled = true
         })];
         let summary = Summary {
             fail_on: Some(lint::Severity::Warn),
-            ..Summary::counted(&findings, 1, 0)
+            ..Summary::counted(&findings, 1, 0, 0)
         };
         let out = render_summary(&summary, RenderOpts::plain());
         assert!(out.contains("failing: --fail-on warn matched 2"), "{out}");
 
         // And a gate nobody asked for says nothing at all.
-        let quiet = Summary::counted(&findings, 1, 0);
+        let quiet = Summary::counted(&findings, 1, 0, 0);
         assert!(
             !render_summary(&quiet, RenderOpts::plain()).contains("failing:"),
             "a report with no gate should not mention one"
@@ -4263,10 +4326,10 @@ enabled = true
                 violations: vec![sample_violation()],
             }),
         ];
-        let out = render_summary(&Summary::counted(&findings, 2, 0), RenderOpts::plain());
+        let out = render_summary(&Summary::counted(&findings, 2, 0, 0), RenderOpts::plain());
         assert!(out.contains("across 2 hosts"), "{out}");
         assert!(!render_summary(
-            &Summary::counted(&sample_findings(), 1, 0),
+            &Summary::counted(&sample_findings(), 1, 0, 0),
             RenderOpts::plain()
         )
         .contains("across"),);
@@ -4352,7 +4415,7 @@ enabled = true
     fn render_lint_report_json_mirrors_the_text_block() -> anyhow::Result<()> {
         let out = render_lint_report(
             &sample_findings(),
-            &Summary::counted(&sample_findings(), 3, 0),
+            &Summary::counted(&sample_findings(), 3, 0, 0),
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
@@ -4377,7 +4440,7 @@ enabled = true
         })];
         let out = render_lint_report(
             &findings,
-            &Summary::counted(&findings, 1, 0),
+            &Summary::counted(&findings, 1, 0, 0),
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
@@ -4403,7 +4466,7 @@ enabled = true
         })];
         let out = render_lint_report(
             &findings,
-            &Summary::counted(&findings, 1, 0),
+            &Summary::counted(&findings, 1, 0, 0),
             OutputFormat::Text,
             RenderOpts::plain(),
         )?;
@@ -4433,7 +4496,7 @@ enabled = true
         })];
         let out = render_lint_report(
             &findings,
-            &Summary::counted(&findings, 1, 0),
+            &Summary::counted(&findings, 1, 0, 0),
             OutputFormat::Text,
             RenderOpts::plain(),
         )?;
@@ -4454,7 +4517,7 @@ enabled = true
 
         let json = render_lint_report(
             &findings,
-            &Summary::counted(&findings, 1, 0),
+            &Summary::counted(&findings, 1, 0, 0),
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
@@ -4477,7 +4540,7 @@ enabled = true
         let summary = Summary {
             records_read: 3,
             records_unread: 2,
-            ..Summary::counted(&findings, 3, 0)
+            ..Summary::counted(&findings, 3, 0, 0)
         };
         let out = render_lint_report(&findings, &summary, OutputFormat::Json, RenderOpts::plain())?;
         let doc: serde_json::Value = serde_json::from_str(&out)?;
@@ -4492,7 +4555,7 @@ enabled = true
             &findings,
             &Summary {
                 records_read: 3,
-                ..Summary::counted(&findings, 3, 0)
+                ..Summary::counted(&findings, 3, 0, 0)
             },
             OutputFormat::Json,
             RenderOpts::plain(),
@@ -4513,7 +4576,7 @@ enabled = true
             &Summary {
                 records_read: 3,
                 records_unread: 2,
-                ..Summary::counted(&findings, 3, 0)
+                ..Summary::counted(&findings, 3, 0, 0)
             },
             OutputFormat::Text,
             RenderOpts::plain(),
@@ -4530,7 +4593,7 @@ enabled = true
             &findings,
             &Summary {
                 records_read: 3,
-                ..Summary::counted(&findings, 3, 0)
+                ..Summary::counted(&findings, 3, 0, 0)
             },
             OutputFormat::Text,
             RenderOpts::plain(),
@@ -4543,7 +4606,7 @@ enabled = true
     fn render_lint_report_text_has_summary_line() -> anyhow::Result<()> {
         let out = render_lint_report(
             &sample_findings(),
-            &Summary::counted(&sample_findings(), 3, 0),
+            &Summary::counted(&sample_findings(), 3, 0, 0),
             OutputFormat::Text,
             RenderOpts::plain(),
         )?;
@@ -4572,7 +4635,7 @@ enabled = true
 
         let text = render_lint_report(
             &findings,
-            &Summary::counted(&findings, 0, 2),
+            &Summary::counted(&findings, 0, 2, 0),
             OutputFormat::Text,
             RenderOpts::plain(),
         )?;
@@ -4586,7 +4649,7 @@ enabled = true
 
         let json = render_lint_report(
             &findings,
-            &Summary::counted(&findings, 0, 2),
+            &Summary::counted(&findings, 0, 2, 0),
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
@@ -4619,7 +4682,7 @@ enabled = true
 
         let text = render_lint_report(
             &findings,
-            &Summary::counted(&findings, 0, 0),
+            &Summary::counted(&findings, 0, 0, 1),
             OutputFormat::Text,
             RenderOpts::plain(),
         )?;
@@ -4627,10 +4690,16 @@ enabled = true
             text.contains(&format!("h3 SETTINGS on connection {connection_id}")),
             "{text}"
         );
+        // The denominator names the kind the finding came from. It read
+        // `in 0 transactions` while showing one.
+        assert!(
+            text.ends_with("1 finding (1 warning) in 0 transactions and 1 protocol event\n"),
+            "{text}"
+        );
 
         let json = render_lint_report(
             &findings,
-            &Summary::counted(&findings, 0, 0),
+            &Summary::counted(&findings, 0, 0, 1),
             OutputFormat::Json,
             RenderOpts::plain(),
         )?;
