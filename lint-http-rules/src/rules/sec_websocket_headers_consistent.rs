@@ -353,7 +353,7 @@ impl RuleMeta for SecWebsocketHeadersConsistent {
     }
 
     fn config_example(&self) -> &'static str {
-        r#"enabled = false
+        r#"enabled = true
 "#
     }
 

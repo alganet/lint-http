@@ -710,7 +710,7 @@ enabled = true
 enabled = true
 
 [rules.sec_websocket_headers_consistent]
-enabled = false
+enabled = true
 
 [rules.sec_websocket_version_advertised]
 enabled = true
