@@ -251,12 +251,32 @@ impl Rule for ResponseBodyLengthAccuracy {
             // comparison left to make and this declines. The sentence quoted at
             // the report is about a sender forwarding a length it knows to be
             // wrong; nothing here knows that.
-            if resp.body_interrupted {
-                return None;
-            }
-
+            //
+            // **Which holds in one direction only, and the flag alone does not
+            // say which.** An interruption stops the counting; it cannot add to
+            // it. So a count that fell *short* of the declaration is the
+            // undecidable case described above -- the missing octets may be
+            // ones the origin was still sending -- while a count that has
+            // already *passed* the declaration is decided by the octets it
+            // holds. Those arrived. Nothing that ends a transfer un-sends them,
+            // and a message whose body has already outrun its own framing is
+            // misdeclared whatever happens next.
+            //
+            // Declining on the flag alone gave that half away, and gave away
+            // the half § 8.6 is quoted for: a recipient that stops at the
+            // declared length reads the surplus as the beginning of the next
+            // message, which is where a length disagreement becomes a
+            // response-splitting bug. The two conditions are not independent
+            // either: overrunning a declared length is one of the ways a
+            // stream errors, and an errored stream is what sets the flag, so
+            // the guard was likeliest to engage on the very messages the
+            // finding is for.
             if let Some(body_len) = resp.body_length {
-                if declared != body_len as u128 {
+                let counted = u128::from(body_len);
+                if resp.body_interrupted && counted <= declared {
+                    return None;
+                }
+                if declared != counted {
                     return Some(ctx.report_with(
                         &CONTENT_LENGTH_CONFLICTING,
                         // The side is named, and it is not decoration: the
@@ -268,10 +288,25 @@ impl Rule for ResponseBodyLengthAccuracy {
                         // saying the identical thing about different halves of
                         // one exchange is a defect of this rule and not of
                         // whatever reads the output.
-                        format!(
-                            "Response Content-Length ({}) does not match captured body bytes ({})",
-                            declared, body_len
-                        ),
+                        //
+                        // An interrupted count is quoted as the lower bound it
+                        // is, because that is what carries the finding: the
+                        // report would otherwise offer a total the reading
+                        // never established, and an operator checking it
+                        // against the origin would find more octets than the
+                        // number here and read the finding as wrong.
+                        if resp.body_interrupted {
+                            format!(
+                                "Response Content-Length ({declared}) is shorter than the \
+                                 {counted} body octets that had already arrived when the \
+                                 transfer was interrupted"
+                            )
+                        } else {
+                            format!(
+                                "Response Content-Length ({declared}) does not match captured \
+                                 body bytes ({counted})"
+                            )
+                        },
                     ));
                 }
             }
@@ -469,6 +504,19 @@ mod tests {
             "a count that stopped where the reading stopped says nothing about \
              the sender's Content-Length"
         );
+    }
+
+    /// The other direction of the same flag, which the count's own reading
+    /// decides: an interruption stops the counting, it cannot add to it, so
+    /// octets already counted are octets that arrived.
+    #[test]
+    fn an_interrupted_reading_still_decides_an_overrun() {
+        let mut tx = resp_with(200, &[("content-length", "10")], Some(5000));
+        tx.response.as_mut().expect("response").body_interrupted = true;
+        let v = run(&tx).expect("a count past the declaration is decided");
+        assert_eq!(v.violation, "content_length_conflicting");
+        // The count is quoted as the lower bound it is, not as a total.
+        assert!(v.message.contains("already arrived"), "{}", v.message);
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<crate::lint::Violation> {
