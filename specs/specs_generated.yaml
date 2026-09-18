@@ -11780,7 +11780,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 72
     - file: lint-http-rules/src/published_examples.rs
-      line: 181
+      line: 187
   - label: lint-http-core/src/http_version.rs (2)
     section: § 8.3.1
     snippet: Individual HTTP/2 requests do not carry an explicit indicator of protocol version.
@@ -12083,7 +12083,7 @@ sources:
     - file: lint-http-proxy/src/proxy/http3.rs
       line: 399
     - file: lint-http-rules/src/published_examples.rs
-      line: 182
+      line: 188
   - label: lint-http-proxy/src/h3_instrument.rs
     section: § 6.2.1
     snippet: A control stream is indicated by a stream type of 0x00.
