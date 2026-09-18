@@ -2099,7 +2099,7 @@ sources:
     snippet: WSP            =  SP / HTAB ; white space
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 321
+      line: 322
 - label: RFC 5322
   url: https://www.rfc-editor.org/rfc/rfc5322.html
   fragments:
@@ -2114,7 +2114,7 @@ sources:
     snippet: quoted-pair = ("\" (VCHAR / WSP)) / obs-qp
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 305
+      line: 306
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 194
   - label: lint-http-rules/src/helpers/mailbox.rs (2)
@@ -2122,7 +2122,7 @@ sources:
     snippet: CFWS = (1*([FWS] comment) [FWS]) / FWS
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 380
+      line: 381
   - label: lint-http-rules/src/helpers/mailbox.rs (3)
     section: § 3.2.2
     snippet: FWS = ([*WSP CRLF] 1*WSP) / obs-FWS
@@ -2134,13 +2134,13 @@ sources:
     snippet: ccontent = ctext / quoted-pair / comment
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 394
+      line: 395
   - label: lint-http-rules/src/helpers/mailbox.rs (5)
     section: § 3.2.2
     snippet: comment = "(" *([FWS] ccontent) [FWS] ")"
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 393
+      line: 394
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 154
   - label: lint-http-rules/src/helpers/mailbox.rs (6)
@@ -2148,7 +2148,7 @@ sources:
     snippet: ctext = %d33-39 / ; Printable US-ASCII %d42-91 / ; characters not including %d93-126 / ; "(", ")", or "\" obs-ctext
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 291
+      line: 292
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 140
   - label: lint-http-rules/src/helpers/mailbox.rs (7)
@@ -2156,7 +2156,7 @@ sources:
     snippet: atext = ALPHA / DIGIT / ; Printable US-ASCII "!" / "#" / ; characters not including "$" / "%" / ; specials. Used for atoms. "&" / "'" / "*" / "+" / "-" / "/" / "=" / "?" / "^" / "_" / "`" / "{" / "|" / "}" / "~"
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 259
+      line: 260
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 210
   - label: lint-http-rules/src/helpers/mailbox.rs (8)
@@ -2164,19 +2164,19 @@ sources:
     snippet: atom = [CFWS] 1*atext [CFWS]
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 569
+      line: 618
   - label: lint-http-rules/src/helpers/mailbox.rs (9)
     section: § 3.2.3
     snippet: dot-atom = [CFWS] dot-atom-text [CFWS]
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 449
+      line: 450
   - label: lint-http-rules/src/helpers/mailbox.rs (10)
     section: § 3.2.3
     snippet: dot-atom-text = 1*atext *("." 1*atext)
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 450
+      line: 451
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 224
   - label: lint-http-rules/src/helpers/mailbox.rs (11)
@@ -2190,13 +2190,13 @@ sources:
     snippet: qcontent = qtext / quoted-pair
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 433
+      line: 434
   - label: lint-http-rules/src/helpers/mailbox.rs (13)
     section: § 3.2.4
     snippet: qtext = %d33 / ; Printable US-ASCII %d35-91 / ; characters not including %d93-126 / ; "\" or the quote character obs-qtext
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 285
+      line: 286
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 167
   - label: lint-http-rules/src/helpers/mailbox.rs (14)
@@ -2204,7 +2204,7 @@ sources:
     snippet: quoted-string = [CFWS] DQUOTE *([FWS] qcontent) [FWS] DQUOTE [CFWS]
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 432
+      line: 433
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 180
   - label: lint-http-rules/src/helpers/mailbox.rs (15)
@@ -2212,7 +2212,7 @@ sources:
     snippet: phrase = 1*word / obs-phrase
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 567
+      line: 616
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 334
   - label: lint-http-rules/src/helpers/mailbox.rs (16)
@@ -2220,7 +2220,7 @@ sources:
     snippet: word = atom / quoted-string
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 568
+      line: 617
   - label: lint-http-rules/src/helpers/mailbox.rs (17)
     section: § 3.4
     snippet: angle-addr = [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
@@ -2234,13 +2234,15 @@ sources:
     snippet: display-name = phrase
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 566
+      line: 615
   - label: lint-http-rules/src/helpers/mailbox.rs (19)
     section: § 3.4
     snippet: mailbox = name-addr / addr-spec
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
       line: 34
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 568
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 348
   - label: lint-http-rules/src/helpers/mailbox.rs (20)
@@ -2264,7 +2266,7 @@ sources:
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 520
+      line: 521
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 252
   - label: lint-http-rules/src/helpers/mailbox.rs (23)
@@ -2280,13 +2282,15 @@ sources:
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 510
+      line: 511
   - label: lint-http-rules/src/helpers/mailbox.rs (25)
     section: § 3.4.1
     snippet: addr-spec = local-part "@" domain
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 501
+      line: 502
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 567
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 112
   - label: lint-http-rules/src/helpers/mailbox.rs (26)
@@ -2294,7 +2298,7 @@ sources:
     snippet: domain = dot-atom / domain-literal / obs-domain
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 503
+      line: 504
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 264
   - label: lint-http-rules/src/helpers/mailbox.rs (27)
@@ -2302,7 +2306,7 @@ sources:
     snippet: domain-literal = [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 488
+      line: 489
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 292
   - label: lint-http-rules/src/helpers/mailbox.rs (28)
@@ -2310,7 +2314,7 @@ sources:
     snippet: dtext = %d33-90 / ; Printable US-ASCII %d94-126 / ; characters not including obs-dtext ; "[", "]", or "\"
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 297
+      line: 298
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 279
   - label: lint-http-rules/src/helpers/mailbox.rs (29)
@@ -2318,7 +2322,7 @@ sources:
     snippet: local-part = dot-atom / quoted-string / obs-local-part
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 502
+      line: 503
     - file: lint-http-rules/src/violations/mailbox.rs
       line: 238
   - label: lint-http-rules/src/helpers/mailbox.rs (30)
