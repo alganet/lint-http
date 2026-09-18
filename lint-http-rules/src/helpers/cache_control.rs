@@ -80,9 +80,25 @@ impl<'a> Directive<'a> {
     /// `delta-seconds` is not a value the grammar admits, and the rules that
     /// report *that* need to see it. Callers wanting only a lifetime filter for
     /// non-negative themselves.
+    ///
+    /// **Read in either form, because this crate reads as a recipient.** The
+    /// argument grammar offers `token / quoted-string`, and § 5.2 has a
+    /// recipient accept both even where a sender was told to write one — so
+    /// `max-age="60"` is sixty seconds here, exactly as it is in every cache
+    /// downstream. Reading it as no lifetime at all made the freshness rules
+    /// describe a response nobody else saw. Whether the sender should have
+    /// quoted it is `cache_control_directive_valid`'s question, not this one.
     // cite(RFC 9111 § 1.2.2, label: delta-seconds): "delta-seconds  = 1*DIGIT"
+    // cite(RFC 9111 § 5.2): "For the directives defined below that define arguments, recipients ought to accept both forms, even if a specific form is required for generation."
     pub fn delta_seconds(&self) -> Option<i64> {
-        self.argument?.parse::<i64>().ok()
+        let argument = self.argument?;
+        if argument.starts_with('"') {
+            return crate::helpers::quoted_string::unescape_quoted_string(argument)
+                .ok()?
+                .parse::<i64>()
+                .ok();
+        }
+        argument.parse::<i64>().ok()
     }
 }
 
@@ -522,6 +538,21 @@ mod tests {
         let lines = field_lines(&hm);
         let names: Vec<&str> = directives_in(&lines).map(|d| d.name).collect();
         assert_eq!(names, ["no-store", "\u{ff}"]);
+    }
+
+    /// A recipient reads both forms of the argument, so the lifetime a quoted
+    /// `max-age` states is the lifetime every cache downstream will use.
+    #[test]
+    fn a_quoted_delta_seconds_argument_is_read_as_a_recipient_reads_it() {
+        let hm = headers(&["max-age=\"60\", s-maxage=\"120\""]);
+        assert_eq!(delta_seconds(&hm, "max-age"), Some(60));
+        assert_eq!(delta_seconds(&hm, "s-maxage"), Some(120));
+        assert_eq!(get_cache_control_max_age(&hm), Some(60));
+        assert_eq!(
+            delta_seconds(&headers(&["max-age=\"abc\""]), "max-age"),
+            None
+        );
+        assert_eq!(delta_seconds(&headers(&["max-age=\"60"]), "max-age"), None);
     }
 
     #[test]
