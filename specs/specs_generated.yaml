@@ -8467,7 +8467,7 @@ sources:
     snippet: This specification defines caching semantics for GET, HEAD, and POST
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 45
+      line: 60
   - label: lint-http-rules/src/helpers/token.rs
     section: § 5.6.2
     snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
@@ -10700,13 +10700,13 @@ sources:
     snippet: the no-store cache directive is not present in the response
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 79
+      line: 94
   - label: lint-http-rules/src/helpers/stored_response.rs (2)
     section: § 4
     snippet: the request method associated with the stored response allows it to be used for the presented request
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 46
+      line: 61
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 137
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
@@ -10714,11 +10714,17 @@ sources:
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 154
   - label: lint-http-rules/src/helpers/stored_response.rs (3)
+    section: § 4.4
+    snippet: in need of a mandatory validation before they can be sent in response to a subsequent request
+    cited_by:
+    - file: lint-http-rules/src/helpers/stored_response.rs
+      line: 41
+  - label: lint-http-rules/src/helpers/stored_response.rs (4)
     section: § 5.2.1.5
     snippet: The no-store request directive indicates that a cache MUST NOT store any part of either this request or any response to it.
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
-      line: 80
+      line: 95
   - label: lint-http-rules/src/helpers/vary.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.

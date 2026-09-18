@@ -24,6 +24,21 @@
 //! presumes there is one. § 3 decides whether the earlier exchange left one at
 //! all, and a rule that skips it reports a reuse of an entry that never
 //! existed. [`storage_allowed`] is that question; [`method_allows`] is § 4's.
+//!
+//! **§ 4.4 is deliberately not a third question here, and the reason is in
+//! the definition rather than in the requirement.** A non-error response to an
+//! unsafe method makes a cache invalidate the target URI, so it is tempting to
+//! read a `POST` between the offer and the refusal as having taken the entry
+//! away. But § 4.4 defines "invalidate" as *either* removing the stored
+//! responses *or* marking them as needing mandatory validation before they can
+//! be sent — and a client holding a marked entry is holding the validator, and
+//! § 4.3.1 still asks it to send that validator when it revalidates. So a
+//! conforming client can act on the finding, which is the whole test these
+//! filters are applied under: `no-store` is filtered because *no* conforming
+//! client held anything, and an invalidated entry does not meet that bar.
+//! Written down because the question comes up on every reading of this module
+//! and the answer is not in the `MUST`.
+// cite(RFC 9111 § 4.4): "in need of a mandatory validation before they can be sent in response to a subsequent request"
 
 /// Whether a stored response recorded against `stored` may be used to answer a
 /// request that presents `presented`.
