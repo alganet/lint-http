@@ -6258,12 +6258,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 185
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 169
   - label: conditional_etag_syntax (2)
     section: § 13.1.2
     snippet: 'If-None-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 186
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 170
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 156
   - label: conditional_headers_consistent
@@ -6337,7 +6341,7 @@ sources:
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 198
+      line: 246
   - label: conditional_request_handling (2)
     section: § 13.1.2
     snippet: the 304 (Not Modified) status code if the request method is GET or HEAD
@@ -6349,13 +6353,13 @@ sources:
     snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 227
+      line: 275
   - label: conditional_request_handling (4)
     section: § 13.2.2
     snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 228
+      line: 276
   - label: connection_header_tokens_valid
     section: § 5.6.2
     snippet: Tokens are short textual identifiers that do not include whitespace or delimiters.
