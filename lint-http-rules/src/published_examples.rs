@@ -810,6 +810,277 @@ fn as_labelled(compliance: Compliance, verdicts: &Verdicts) -> bool {
     }
 }
 
+/// The entries no published example demonstrates.
+///
+/// A non-compliant example is judged only on whether it drew *something*, and
+/// a rule reports several entries, so an example goes on passing while the
+/// entry it was written for stops being reported: a sibling on the same value
+/// answers first and the verdict is not empty. Nothing said which entry was
+/// demonstrated, so nothing noticed when one stopped being.
+///
+/// This names it from the other side. Every entry a non-compliant example
+/// draws is demonstrated; the rest are listed here, and the list is exact.
+/// An entry that loses its last demonstration appears in it and the assertion
+/// below says so by name; an entry that gains one leaves it, and the same
+/// assertion asks for the row to go.
+///
+/// A row here is a catalogue entry whose documentation shows no instance of
+/// the traffic it flags. It is a work list, not a permission: shrinking it is
+/// the point, and it may not grow silently.
+const WITHOUT_EXAMPLE: &[&str] = &[
+    "access_control_allow_credentials_invalid",
+    "access_control_allow_credentials_redundant",
+    "access_control_allow_origin_empty",
+    "alpn_protocol_name_length_invalid",
+    "alt_svc_authority_character_forbidden",
+    "alt_svc_parameter_empty",
+    "alt_svc_parameter_equals_missing",
+    "alt_svc_parameter_value_empty",
+    "alt_svc_port_empty",
+    "alt_svc_port_invalid",
+    "auth_param_equals_missing",
+    "authority_empty",
+    "authority_tunnel_host_empty",
+    "authority_tunnel_missing",
+    "authority_tunnel_port_invalid",
+    "authority_tunnel_userinfo_forbidden",
+    "base64_character_forbidden",
+    "base64_pad_bits_invalid",
+    "base64_quantum_malformed",
+    "basic_credentials_control_character_forbidden",
+    "boundary_character_forbidden",
+    "cache_control_freshness_conflicting",
+    "cache_control_no_cache_argument_empty",
+    "cache_control_private_argument_empty",
+    "challenge_member_empty",
+    "challenge_parameter_name_character_forbidden",
+    "challenge_parameter_name_empty",
+    "challenge_parameter_value_character_forbidden",
+    "challenge_parameter_value_missing",
+    "charset_empty",
+    "comment_character_forbidden",
+    "conditional_date_conflicting",
+    "conditional_empty",
+    "content_coding_identity_forbidden",
+    "content_coding_wildcard_forbidden",
+    "content_disposition_name_empty",
+    "content_length_numeral_invalid",
+    "content_location_empty",
+    "content_md5_obsolete",
+    "content_range_complete_length_conflicting",
+    "content_range_empty",
+    "content_range_incl_range_malformed",
+    "content_range_length_conflicting",
+    "content_range_numeral_invalid",
+    "content_range_numeral_malformed",
+    "content_range_positions_conflicting",
+    "content_range_slash_missing",
+    "content_range_spec_missing",
+    "content_range_spec_whitespace_forbidden",
+    "content_range_unit_malformed",
+    "content_range_unsatisfied_range_malformed",
+    "content_security_policy_base64_value_empty",
+    "content_security_policy_base64_value_malformed",
+    "content_security_policy_directive_empty",
+    "content_security_policy_source_empty",
+    "cookie_domain_empty",
+    "cookie_domain_ipv6_literal_forbidden",
+    "cookie_expires_malformed",
+    "cookie_expires_missing",
+    "cookie_flag_value_forbidden",
+    "cookie_max_age_missing",
+    "cookie_pair_missing",
+    "cookie_path_control_character_forbidden",
+    "cookie_path_empty",
+    "cookie_path_missing",
+    "cookie_same_site_invalid",
+    "cookie_same_site_missing",
+    "credentials_control_character_forbidden",
+    "credentials_empty",
+    "date_missing",
+    "delta_seconds_empty",
+    "digest_credentials_nc_malformed",
+    "digest_credentials_parameter_empty",
+    "digest_equals_missing",
+    "digest_field_obsolete",
+    "digest_member_empty",
+    "digest_preference_invalid",
+    "digest_preference_malformed",
+    "digest_value_empty",
+    "domain_label_edge_hyphen_forbidden",
+    "domain_label_empty",
+    "domain_label_length_invalid",
+    "domain_name_length_invalid",
+    "domain_name_whitespace_or_control_forbidden",
+    "early_data_duplicated",
+    "early_data_invalid",
+    "etag_character_forbidden",
+    "etag_weak_indicator_invalid",
+    "expect_100_continue_invalid",
+    "expect_value_empty",
+    "forwarded_element_whitespace_forbidden",
+    "forwarded_pair_equals_missing",
+    "forwarded_pair_value_empty",
+    "forwarded_parameter_duplicated",
+    "forwarded_response_forbidden",
+    "host_missing",
+    "http_date_day_name_conflicting",
+    "http_date_empty",
+    "http_date_whitespace_forbidden",
+    "if_range_empty",
+    "keep_alive_parameter_name_missing",
+    "keep_alive_parameter_value_empty",
+    "language_tag_edge_hyphen_forbidden",
+    "language_tag_empty",
+    "language_tag_subtag_empty",
+    "language_tag_whitespace_or_control_forbidden",
+    "link_attribute_duplicated",
+    "link_member_malformed",
+    "link_param_empty",
+    "link_param_value_empty",
+    "link_rel_empty",
+    "link_rel_malformed",
+    "mailbox_angle_addr_missing",
+    "mailbox_atom_empty",
+    "mailbox_comment_character_forbidden",
+    "mailbox_comment_terminator_missing",
+    "mailbox_display_name_word_missing",
+    "mailbox_domain_literal_character_forbidden",
+    "mailbox_domain_literal_terminator_missing",
+    "mailbox_empty",
+    "mailbox_local_part_missing",
+    "mailbox_quoted_pair_malformed",
+    "mailbox_quoted_string_character_forbidden",
+    "mailbox_quoted_string_terminator_missing",
+    "mailbox_trailing_character_forbidden",
+    "media_type_empty",
+    "media_type_name_empty",
+    "method_head_content_forbidden",
+    "node_ipv6_address_malformed",
+    "node_ipv6_brackets_missing",
+    "node_ipv6_closing_bracket_missing",
+    "node_ipv6_representation_invalid",
+    "node_port_malformed",
+    "origin_agent_cluster_empty",
+    "parameter_equals_whitespace_forbidden",
+    "preference_applied_conflicting",
+    "preference_applied_value_empty",
+    "priority_incremental_malformed",
+    "problem_details_empty",
+    "quoted_pair_malformed",
+    "quoted_string_control_character_forbidden",
+    "quoted_string_quote_escape_missing",
+    "range_equals_missing",
+    "range_position_malformed",
+    "range_spec_character_forbidden",
+    "referer_empty",
+    "refresh_url_empty",
+    "refresh_url_malformed",
+    "request_target_empty",
+    "request_target_malformed",
+    "request_target_whitespace_forbidden",
+    "sec_fetch_value_malformed",
+    "sec_websocket_accept_missing",
+    "sec_websocket_extensions_parameter_missing",
+    "sec_websocket_extensions_parameter_value_empty",
+    "sec_websocket_extensions_unsolicited",
+    "sec_websocket_key_length_invalid",
+    "sec_websocket_protocol_empty",
+    "sec_websocket_version_empty",
+    "sec_websocket_version_list_empty",
+    "sec_websocket_version_missing",
+    "server_timing_param_empty",
+    "server_timing_param_value_empty",
+    "status_101_forbidden",
+    "status_206_multipart_forbidden",
+    "status_304_metadata_forbidden",
+    "status_304_missing",
+    "status_416_unsolicited",
+    "status_417_ignored",
+    "status_trailers_forbidden",
+    "strict_transport_security_directive_duplicated",
+    "strict_transport_security_directive_empty",
+    "strict_transport_security_directive_value_missing",
+    "strict_transport_security_empty",
+    "structured_field_character_forbidden",
+    "structured_field_empty",
+    "structured_field_inner_list_malformed",
+    "structured_field_member_empty",
+    "structured_field_value_empty",
+    "sunset_invalid",
+    "token68_body_empty",
+    "token68_padding_malformed",
+    "transfer_coding_parameter_missing",
+    "upgrade_101_empty",
+    "upgrade_101_invalid",
+    "upgrade_101_missing",
+    "uri_host_bracket_forbidden",
+    "uri_host_closing_bracket_missing",
+    "uri_host_ip_literal_malformed",
+    "uri_scheme_character_forbidden",
+    "uri_scheme_empty",
+    "via_comment_duplicated",
+    "via_member_malformed",
+    "warning_agent_missing",
+    "warning_member_malformed",
+    "warning_text_missing",
+    "weight_equals_whitespace_forbidden",
+    "x_content_type_options_invalid",
+];
+
+/// Every entry a non-compliant example draws, across the whole catalogue.
+fn entries_demonstrated() -> std::collections::BTreeSet<String> {
+    let mut drawn = std::collections::BTreeSet::new();
+    for rule in crate::rules::REGISTERED_RULES.iter() {
+        let rule: &dyn Rule = *rule;
+        for ex in rule.examples() {
+            if ex.compliance != Compliance::NonCompliant {
+                continue;
+            }
+            if let Ok(verdicts) = judge(rule, ex) {
+                drawn.extend(verdicts.into_iter().flatten());
+            }
+        }
+    }
+    drawn
+}
+
+#[test]
+fn every_entry_without_an_example_is_named() {
+    let drawn = entries_demonstrated();
+    let mut defined: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    for rule in crate::rules::REGISTERED_RULES.iter() {
+        let rule: &dyn Rule = *rule;
+        for def in rule.violations() {
+            defined.insert(def.id);
+        }
+    }
+    let undemonstrated: Vec<&str> = defined
+        .iter()
+        .copied()
+        .filter(|id| !drawn.contains(*id))
+        .collect();
+    let listed: std::collections::BTreeSet<&str> = WITHOUT_EXAMPLE.iter().copied().collect();
+    let measured: std::collections::BTreeSet<&str> = undemonstrated.iter().copied().collect();
+    let gained: Vec<&&str> = measured.difference(&listed).collect();
+    let lost: Vec<&&str> = listed.difference(&measured).collect();
+    assert!(
+        gained.is_empty(),
+        "{} entries lost their last published example: {gained:?}",
+        gained.len()
+    );
+    assert!(
+        lost.is_empty(),
+        "{} entries now have an example and may leave WITHOUT_EXAMPLE: {lost:?}",
+        lost.len()
+    );
+    assert_eq!(
+        listed.len(),
+        WITHOUT_EXAMPLE.len(),
+        "WITHOUT_EXAMPLE names an entry twice"
+    );
+}
+
 #[test]
 fn published_examples_are_judged_the_way_they_are_labelled() {
     use std::collections::BTreeMap;
