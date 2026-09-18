@@ -19,12 +19,14 @@ The origin header is only scanned for a `*` here; what its value may be is `acce
 ## Violations
 
 - [access_control_allow_credentials_conflicting](../violations/access_control_allow_credentials_conflicting.md) — Access-Control-Allow-Credentials claims `true` beside a wildcard origin
-- [access_control_allow_credentials_invalid](../violations/access_control_allow_credentials_invalid.md) — Access-Control-Allow-Credentials states a value that is not `true`
+- [access_control_allow_credentials_invalid](../violations/access_control_allow_credentials_invalid.md) — Access-Control-Allow-Credentials was written to share with credentials and shares nothing
+- [access_control_allow_credentials_redundant](../violations/access_control_allow_credentials_redundant.md) — Access-Control-Allow-Credentials states the `false` its own absence states
 
 ## Specifications
 
 - [MDN Access-Control-Allow-Credentials](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials): Access-Control-Allow-Credentials
 - [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
+- [Fetch §3.3.4](https://fetch.spec.whatwg.org/#http-new-header-syntax): `Access-Control-Allow-Credentials` value ABNF — one literal, byte case-sensitive, among the CORS header productions
 - [Fetch §4.10](https://fetch.spec.whatwg.org/#concept-cors-check): Fetch CORS check — `*` succeeds only for non-credentialed requests, so `*` paired with `Access-Control-Allow-Credentials: true` can never authorize a credentialed request (the two cited steps)
 
 ## Configuration

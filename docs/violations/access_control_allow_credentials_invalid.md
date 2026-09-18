@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # access_control_allow_credentials_invalid
 
-Access-Control-Allow-Credentials states a value that is not `true`
+Access-Control-Allow-Credentials was written to share with credentials and shares nothing
 
 ## Message
 
@@ -14,18 +14,20 @@ _Written where it is reported: this defect's message names the value that caused
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+**A value that does not derive from the ABNF production it cites.** The production states no keyword; what obliges it is RFC 9110 §2.2 — "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules" — which binds the sender, so a finding here reports at `error` by default.
 
 ## Specifications
 
+- [Fetch §3.3.4](https://fetch.spec.whatwg.org/#http-new-header-syntax): `Access-Control-Allow-Credentials` value ABNF — one literal, byte case-sensitive, among the CORS header productions
 - [Fetch §4.10](https://fetch.spec.whatwg.org/#concept-cors-check): Fetch CORS check — `*` succeeds only for non-credentialed requests, so `*` paired with `Access-Control-Allow-Credentials: true` can never authorize a credentialed request (the two cited steps)
 
 ## Configuration
 
 ```toml
 [violations.access_control_allow_credentials_invalid]
-# Access-Control-Allow-Credentials states a value that is not `true`
-severity = "warn"
+# Access-Control-Allow-Credentials was written to share with credentials and shares nothing
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 ```
 
 ## Reported By

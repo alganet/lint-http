@@ -907,8 +907,13 @@ severity = "info"
 severity = "warn"
 
 [violations.access_control_allow_credentials_invalid]
-# Access-Control-Allow-Credentials states a value that is not `true`
-severity = "warn"
+# Access-Control-Allow-Credentials was written to share with credentials and shares nothing
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
+
+[violations.access_control_allow_credentials_redundant]
+# Access-Control-Allow-Credentials states the `false` its own absence states
+severity = "info"
 
 [violations.access_control_allow_origin_conflicting]
 # Access-Control-Allow-Origin echoes an origin that did not ask

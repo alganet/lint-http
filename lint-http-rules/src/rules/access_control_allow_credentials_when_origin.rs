@@ -6,16 +6,18 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::access_control_allow_credentials::{
     ACCESS_CONTROL_ALLOW_CREDENTIALS_CONFLICTING, ACCESS_CONTROL_ALLOW_CREDENTIALS_INVALID,
-    FETCH_4_10,
+    ACCESS_CONTROL_ALLOW_CREDENTIALS_REDUNDANT, FETCH_3_3_4, FETCH_4_10,
 };
 use crate::violations::ViolationDef;
 
-/// Both findings are this field's: the value that shares nothing, and the
-/// `true` that is dead beside a wildcard origin. The origin field is scanned
-/// for a `*` and never reported on — what its value may be is
+/// All three findings are this field's: the value that meant to share and
+/// shares nothing, the `false` that states the default, and the `true` that is
+/// dead beside a wildcard origin. The origin field is scanned for a `*` and
+/// never reported on — what its value may be is
 /// `access_control_allow_origin_valid`'s.
 static DECLARED: &[&ViolationDef] = &[
     &ACCESS_CONTROL_ALLOW_CREDENTIALS_INVALID,
+    &ACCESS_CONTROL_ALLOW_CREDENTIALS_REDUNDANT,
     &ACCESS_CONTROL_ALLOW_CREDENTIALS_CONFLICTING,
 ];
 
@@ -59,6 +61,7 @@ impl RuleMeta for AccessControlAllowCredentialsWhenOrigin {
         &[
             MDN_ACCESS_CONTROL_ALLOW_CREDENTIALS,
             MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
+            FETCH_3_3_4,
             FETCH_4_10,
         ]
     }
@@ -156,15 +159,27 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             .expect("a field line, since the count above is non-zero");
             let acc_val = crate::helpers::headers::trim_ows(&acc_line);
 
-            // The field carries one value and the CORS check compares it as
-            // bytes: `true` returns success and everything else falls through to
-            // the failure at the end of the algorithm. So `TRUE`, `false`, `1`
-            // and an octet are all one finding — the header is present and
-            // shares nothing — and the rule that reads this field is the one to
-            // say so. **The comparison used to be case-insensitive**, which told
-            // an operator that `TRUE` had turned credentialed sharing on, and
-            // reported the `*` pairing for a combination no user agent ever
-            // reaches.
+            // The production generates one value and the CORS check compares
+            // against it as bytes, so `TRUE`, `false`, `1` and an octet all
+            // fall through to the failure at the end of the algorithm. They do
+            // not all mean the same thing, and the split here is what the
+            // sender still believes afterwards.
+            //
+            // `false` first, because it is the one value outside the grammar
+            // whose sender got what they asked for: no sharing, which is what
+            // omitting the field would also have given them. Nothing downstream
+            // differs and the repair is to delete the line, so it is reported
+            // as the redundancy it is and not as a header that failed.
+            if acc_val == "false" {
+                return Some(ctx.report(&ACCESS_CONTROL_ALLOW_CREDENTIALS_REDUNDANT));
+            }
+
+            // Everything else is a server that wrote the field to turn
+            // credentialed sharing on and missed the one value that does it.
+            // **The comparison used to be case-insensitive**, which told an
+            // operator that `TRUE` had worked, and reported the `*` pairing for
+            // a combination no user agent ever reaches.
+            // cite(Fetch § 3.3.4, label: the value the production generates): "Access-Control-Allow-Credentials = %s"true" ; case-sensitive"
             // cite(Fetch § 4.10, label: CORS check reads the field): "Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list."
             if acc_val != "true" {
                 return Some(ctx.report_with(
@@ -316,13 +331,26 @@ mod tests {
         );
     }
 
-    /// The two findings, and which field each one asks to change. A value that
-    /// is not `true` is the field's own; a `true` beside a wildcard origin is
-    /// the pairing, and it is reported on this field because deleting this
-    /// field is what makes the response correct again.
+    /// The three findings, and which field each one asks to change.
+    ///
+    /// A value that meant to enable sharing and did not is the field's own; a
+    /// `true` beside a wildcard origin is the pairing, and it is reported on
+    /// this field because deleting this field is what makes the response
+    /// correct again.
+    ///
+    /// **`false` is the row that pins the split.** It fails the same production
+    /// as `TRUE`, and it is the value real servers actually send — a
+    /// deployment that turned credentials off and said so. Reporting it as a
+    /// field that failed says a deployment is wrong about itself when it is
+    /// not, so it draws the redundancy and never `_invalid`. `FALSE` is not
+    /// that value: the comparison is byte-exact in both directions, so a sender
+    /// who meant `false` and shouted it missed the grammar like any other
+    /// miss, and lands back on `_invalid`.
     #[rstest]
-    #[case::not_true("false", "access_control_allow_credentials_invalid")]
+    #[case::states_the_default("false", "access_control_allow_credentials_redundant")]
+    #[case::case_folded_default("FALSE", "access_control_allow_credentials_invalid")]
     #[case::case_folded("TRUE", "access_control_allow_credentials_invalid")]
+    #[case::not_a_boolean("1", "access_control_allow_credentials_invalid")]
     #[case::blank("", "access_control_allow_credentials_invalid")]
     #[case::wildcard("true", "access_control_allow_credentials_conflicting")]
     fn each_finding_names_its_entry(#[case] value: &str, #[case] id: &str) {
