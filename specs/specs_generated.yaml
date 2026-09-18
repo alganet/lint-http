@@ -2109,7 +2109,7 @@ sources:
     - file: lint-http-rules/src/helpers/percent_encoding.rs
       line: 91
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 153
+      line: 162
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 263
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -6260,16 +6260,6 @@ sources:
       line: 185
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 169
-  - label: conditional_etag_syntax (2)
-    section: § 13.1.2
-    snippet: 'If-None-Match = "*" / #entity-tag'
-    cited_by:
-    - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
-      line: 186
-    - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 170
-    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
-      line: 156
   - label: conditional_headers_consistent
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -8503,13 +8493,25 @@ sources:
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 31
+      line: 40
   - label: lint-http-rules/src/helpers/validator.rs
+    section: § 13.1.2
+    snippet: 'If-None-Match = "*" / #entity-tag'
+    cited_by:
+    - file: lint-http-rules/src/helpers/validator.rs
+      line: 36
+    - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
+      line: 186
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 170
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
+      line: 156
+  - label: lint-http-rules/src/helpers/validator.rs (2)
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 140
+      line: 149
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 187
     - file: lint-http-rules/src/rules/etag_syntax.rs
@@ -8521,23 +8523,23 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 142
-  - label: lint-http-rules/src/helpers/validator.rs (2)
+      line: 151
+  - label: lint-http-rules/src/helpers/validator.rs (3)
     section: § 8.8.3
     snippet: etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 185
+      line: 194
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 210
     - file: lint-http-rules/src/violations/etag.rs
       line: 85
-  - label: lint-http-rules/src/helpers/validator.rs (3)
+  - label: lint-http-rules/src/helpers/validator.rs (4)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 117
+      line: 126
   - label: Vary grammar
     section: § 12.5.5
     snippet: 'Vary = #( "*" / field-name )'
