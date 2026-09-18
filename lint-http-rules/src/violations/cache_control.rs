@@ -480,6 +480,14 @@ defects! {
     /// `info`, and for the plainest of reasons: not being cached is a perfectly
     /// good outcome, and the finding says only that it was not chosen.
     ///
+    /// **Only a final status is asked.** Storability is a conjunction and a
+    /// final status code is the condition § 3 states before this one, so an
+    /// interim response fails the earlier test and no freshness it states could
+    /// carry it. The entry names a lifetime the sender could have given; on a
+    /// `1xx` there is no such lifetime, which makes the finding advice about a
+    /// response no cache was going to hold. A `5xx` is not in that position —
+    /// it is final, and stating its own freshness does make it storable.
+    ///
     // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
     CACHE_CONTROL_FRESHNESS_MISSING = {
         id: "cache_control_freshness_missing",

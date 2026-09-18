@@ -9869,9 +9869,9 @@ sources:
     snippet: Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 103
+      line: 116
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 483
+      line: 491
   - label: status_code_semantics
     section: § 11.6.1
     snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
@@ -10728,7 +10728,7 @@ sources:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
       line: 172
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 115
+      line: 128
   - label: must_revalidate_enforced
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
@@ -10814,19 +10814,25 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 57
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 127
+      line: 140
   - label: status_and_caching_semantics
     section: § 3
     snippet: A cache MUST NOT store a response to a request unless
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 138
+      line: 151
   - label: status_and_caching_semantics (2)
+    section: § 3
+    snippet: the response status code is final
+    cited_by:
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 108
+  - label: status_and_caching_semantics (3)
     section: § 5.2.2.10
     snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 116
+      line: 129
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.html
   fragments:

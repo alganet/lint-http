@@ -97,6 +97,19 @@ impl Rule for StatusAndCachingSemantics {
 
             let status = resp.status;
 
+            // An interim response is not stored at any freshness it states.
+            // Storability is a conjunction, and § 3 puts a final status code
+            // ahead of the freshness condition this rule reads: a 1xx fails the
+            // earlier one, so no `max-age` a sender could add would make a cache
+            // hold it. Asking it for freshness names a fix that does not exist
+            // — every WebSocket handshake in the corpus drew this finding, and
+            // the 101 it drew it on is the one response no cache was ever going
+            // to store.
+            // cite(RFC 9111 § 3): "the response status code is final"
+            if (100..200).contains(&status) {
+                return None;
+            }
+
             // The heuristically cacheable status codes (RFC 9111 §4.2.2 calls the older name
             // "cacheable by default"), enumerated in RFC 9110 §15.1. Such a response can be reused
             // with heuristic expiration, so it needs no explicit freshness.
@@ -164,7 +177,19 @@ mod tests {
     #[case(503, vec![("expires", "Wed, 21 Oct 2015 07:28:00 GMT")], false)]
     #[case(503, vec![("expires", "not-a-date")], true)]
     #[case(200, vec![], false)] // 200 is cacheable by default
-    #[case(308, vec![], false)] // 308 is heuristically cacheable (RFC 9110 §15.1), no freshness needed
+    #[case(308, vec![], false)]
+    // 308 is heuristically cacheable (RFC 9110 §15.1), no freshness needed
+    // An interim response is never stored, so the freshness question does not
+    // apply to it — not even when it states freshness, which is why the 101
+    // carrying `max-age` is here beside the one that carries nothing.
+    #[case(101, vec![], false)]
+    #[case(101, vec![("cache-control", "max-age=60")], false)]
+    #[case(100, vec![], false)]
+    #[case(103, vec![], false)]
+    // The neighbouring class stays asked: a 5xx is final, and § 3 lets a cache
+    // store one that states its own freshness. The rule's own compliant example
+    // is a 503 with an `Expires`.
+    #[case(503, vec![], true)]
     fn caching_cases(
         #[case] status: u16,
         #[case] hdrs: Vec<(&str, &str)>,
