@@ -39,7 +39,7 @@ impl RuleMeta for CachedValidatorsReused {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if the client correctly uses conditional headers (`If-None-Match` or `If-Modified-Since`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time."
+        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -136,6 +136,19 @@ impl Rule for CachedValidatorsReused {
             let has_if_none_match = tx.request.headers.contains_key("if-none-match");
             let has_if_modified_since = tx.request.headers.contains_key("if-modified-since");
 
+            // `If-Range` is the third field a stored entity tag goes back in, and on a
+            // range request it is the only one that can carry it: RFC 9110 §13.1.5 bars
+            // the field from a request with no `Range`, and `If-None-Match` on a range
+            // request asks for a `304` instead of the bytes, which is not what a client
+            // resuming a download is asking for. So a resumed download conditioned on
+            // the validator it was given spells that with `If-Range` and cannot spell it
+            // any other way. This rule read only the two cache-revalidation fields and
+            // called that request unconditional, which named a client that used the
+            // validator as one that declined it -- the same reasoning the method gate
+            // above already makes for `If-Match`/`If-Unmodified-Since`, one axis over.
+            // cite(RFC 9111 § 4.3.1): "MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated."
+            let has_if_range = tx.request.headers.contains_key("if-range");
+
             // The governing SHOULD, on the ETag/GET path. The Last-Modified-only case is
             // an efficiency heuristic rather than a SHOULD: §13.1.3 describes
             // If-Modified-Since as "typically used" to allow efficient cache updates but
@@ -144,7 +157,7 @@ impl Rule for CachedValidatorsReused {
             // literal "GET request".
             // cite(RFC 9110 § 13.1.2): "When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request"
             // cite(RFC 9110 § 13.1.3): "If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag"
-            if !has_if_none_match && !has_if_modified_since {
+            if !has_if_none_match && !has_if_modified_since && !has_if_range {
                 Some(ctx.report_with(
                     &CONDITIONAL_MISSING,
                     format!(
@@ -194,6 +207,23 @@ mod tests {
     #[case(Some(vec![("etag", "\"abc123\"")]), vec![], true)]
     #[case(Some(vec![("last-modified", "Mon, 01 Jan 2020 00:00:00 GMT")]), vec![], true)]
     #[case(Some(vec![]), vec![], false)]
+    // A resumed download conditioned on the entity tag it was given. `If-Range`
+    // is the only field that can carry it here, so this is the conditional
+    // request the entry asks for and not the omission it names.
+    #[case(
+        Some(vec![("etag", "\"abc123\"")]),
+        vec![("range", "bytes=100-199"), ("if-range", "\"abc123\"")],
+        false
+    )]
+    // The same request with the validator left off is still the omission: what
+    // the gate above turns on is the precondition, never the `Range` beside it.
+    #[case(Some(vec![("etag", "\"abc123\"")]), vec![("range", "bytes=100-199")], true)]
+    // `If-Range` carrying a date, the other half of `entity-tag / HTTP-date`.
+    #[case(
+        Some(vec![("last-modified", "Mon, 01 Jan 2020 00:00:00 GMT")]),
+        vec![("range", "bytes=0-99"), ("if-range", "Mon, 01 Jan 2020 00:00:00 GMT")],
+        false
+    )]
     fn check_request_cases(
         #[case] prev_resp_headers: Option<Vec<(&str, &str)>>,
         #[case] req_headers_pairs: Vec<(&str, &str)>,
