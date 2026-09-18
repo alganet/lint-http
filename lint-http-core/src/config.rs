@@ -69,10 +69,18 @@ impl Config {
 
     /// The `[violations.<id>]` table, when the configuration wrote one.
     ///
-    /// There is no `is_enabled` twin: a defect cannot be switched off on its
-    /// own, because most rules return their first finding and stop, so
-    /// silencing one defect would silence whatever the same branch would have
-    /// reported after it. Severity is the whole of what this table decides.
+    /// Severity is not the whole of what it decides: `enabled = false` switches
+    /// off a single defect while the rest of its rule keeps working. Neither
+    /// key is read here, though, which is why this returns the table rather
+    /// than answering a question about it — the rules crate resolves both once
+    /// per configuration, and the drop happens after a rule has made its
+    /// finding rather than before, so a rule that returns its first finding and
+    /// stops is unaffected by what a later defect is configured to do.
+    ///
+    /// There is deliberately no `is_enabled` twin to match [`Self::is_enabled`]
+    /// for rules. That one answers for a whole rule and decides whether it is
+    /// dispatched at all; this table is consulted per finding, and the two live
+    /// at different ends of the engine.
     pub fn get_violation_config(&self, violation: &str) -> Option<&toml::Value> {
         self.violations.get(violation)
     }
