@@ -19,9 +19,10 @@ use crate::rules::{Rule, RuleMeta};
 /// of which headers the pair of responses carried rather than of the traffic,
 /// for the reason the private `Clock` type records.  Only a GET or HEAD
 /// response that carries the resource is read at all — see
-/// `dates_the_resource`.  It
-/// examines neither validators such as `ETag` nor the Vary
-/// secondary key, so URI identity is itself an approximation of the cache key.
+/// `dates_the_resource`.  The engine keys the history it hands this rule on the
+/// client and the request target, and the method is now read off each entry, so
+/// what the cache key still misses is the Vary secondary key and validators
+/// such as `ETag`.
 pub struct CacheCoherence;
 
 /// Which of two clocks a representation time was read off.
@@ -270,14 +271,15 @@ impl Rule for CacheCoherence {
             // means anything: see `Clock`.
             let mut max_prev: Option<chrono::DateTime<chrono::Utc>> = None;
             for (prev, prev_resp) in history.responses() {
-                // URI identity stands in for the cache key. This is an
-                // approximation: a real key also folds in the request method and
-                // the Vary secondary key (RFC 9111 §4.1), neither of which is consulted
-                // here, so two responses varying legitimately on, e.g., Accept can
-                // be compared as if they were the same representation.
-                if prev.request.uri != tx.request.uri {
-                    continue;
-                }
+                // The URI half of the cache key is the engine's: this rule is
+                // registered `ByResource`, so every entry here already has this
+                // client and this request target. The rule used to test it again,
+                // which was a test that could not be false.
+                //
+                // What the key still misses is the Vary secondary key
+                // (RFC 9111 §4.1): two responses selected on different `Accept-
+                // Encoding` values are two stored entries, and neither is stale
+                // against the other.
                 if !dates_the_resource(&prev.request.method, prev_resp.status) {
                     continue;
                 }
@@ -672,6 +674,18 @@ mod tests {
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(crate::test_helpers::run_rule(&rule, &curr, &history, &cfg,).is_none());
+    }
+
+    /// The rule reads `history` without re-testing the request target, because
+    /// the engine has already keyed it. This is the registration that makes that
+    /// true; if it ever changed, the rule would start comparing one resource's
+    /// timeline against another's and say nothing about it.
+    #[test]
+    fn history_is_keyed_on_the_request_target() {
+        assert_eq!(
+            crate::rules::query_type_for(CacheCoherence.id()),
+            Some(crate::queries::QueryType::ByResource)
+        );
     }
 
     #[test]
