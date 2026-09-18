@@ -2255,6 +2255,11 @@ severity = "warn"
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.method_head_content_length_conflicting]
+# A HEAD response states a length the GET would not have sent
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.method_options_capabilities_missing]
 # A successful OPTIONS answers with none of the capabilities it was asked for
 # SHOULD obliges the sender, so this defaults to warn.

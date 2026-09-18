@@ -4,11 +4,19 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::method::{METHOD_HEAD_CONFLICTING, RFC_9110_9_3_2};
+use crate::violations::method::{
+    METHOD_HEAD_CONFLICTING, METHOD_HEAD_CONTENT_LENGTH_CONFLICTING, RFC_9110_8_6, RFC_9110_9_3_2,
+};
 use crate::violations::ViolationDef;
 
-/// One entry: two answers about one resource that do not agree.
-static DECLARED: &[&ViolationDef] = &[&METHOD_HEAD_CONFLICTING];
+/// Two entries, because the section asks for two different things. § 9.3.2
+/// advises which fields a `HEAD` response carries; § 8.6 requires what one of
+/// those fields, once carried, says. A single entry gave the second the first
+/// one's modal.
+static DECLARED: &[&ViolationDef] = &[
+    &METHOD_HEAD_CONFLICTING,
+    &METHOD_HEAD_CONTENT_LENGTH_CONFLICTING,
+];
 
 /// Whether a difference in *presence* of this field between the two responses
 /// is licensed, in either direction.
@@ -219,12 +227,6 @@ pub struct HeadResponseHeadersMatchGet;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-    note: "Content-Length is the one requirement here that is not a SHOULD: \"a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method\". The same sentence opens with the MAY that lets a HEAD response omit it",
-};
 const RFC_9110_8_8: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("8.8"),
@@ -461,9 +463,14 @@ impl Rule for HeadResponseHeadersMatchGet {
                 // presence comparison below: its absence from either response is
                 // permitted, and its *value* is governed whenever the HEAD carries
                 // one — including when the GET declared none at all.
+                // ...and reported as its own entry, because § 8.6 states it as a
+                // MUST NOT. Sharing `METHOD_HEAD_CONFLICTING` handed this
+                // finding § 9.3.2's SHOULD, so a broken requirement arrived as
+                // declined advice — a `warn` an operator filtering for `error`
+                // never saw, citing a sentence that does not state it.
                 if name_str == "content-length" {
                     if let Some(m) = content_length_finding(prev_resp, resp) {
-                        return report(m);
+                        return Some(ctx.report_with(&METHOD_HEAD_CONTENT_LENGTH_CONFLICTING, m));
                     }
                     continue;
                 }
@@ -695,8 +702,14 @@ mod tests {
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Content-Length"));
+        // § 8.6's MUST NOT, and not § 9.3.2's SHOULD that the sibling entry
+        // carries. The two were one entry once, and every real-traffic finding
+        // this rule produced was this one arriving as a `warn` an operator
+        // filtering for `error` never saw.
+        let found = v.expect("a finding");
+        assert_eq!(found.violation, "method_head_content_length_conflicting");
+        assert_eq!(found.severity, crate::lint::Severity::Error);
+        assert!(found.message.contains("Content-Length"));
     }
 
     #[test]
