@@ -158,10 +158,21 @@ impl Drop for TeeBody {
     fn drop(&mut self) {
         // Covers early client disconnect: the body is dropped before reaching
         // end-of-stream, but we still record whatever prefix was forwarded.
-        // Reaching here with the sender still in hand *is* the evidence that
-        // end-of-stream was never reached -- a completed body took it already --
-        // so this exit can only report an incomplete count.
-        self.finalize(false);
+        //
+        // Reaching here with the sender still in hand does *not* mean the body
+        // was cut short, and reading it that way was wrong on the most ordinary
+        // response there is. A body of declared length is finished when its last
+        // octet arrives, and hyper knows it: it stops polling rather than asking
+        // once more to be told `None`. So the common case -- a complete
+        // `Content-Length` body -- arrives here having delivered everything it
+        // had, and calling that an interruption suppressed findings on traffic
+        // where nothing went wrong at all.
+        //
+        // The inner body is the one that knows, and it is asked. `is_end_stream`
+        // is true exactly when there are no more frames to come, which is the
+        // question, and false for the reading that genuinely stopped early.
+        let complete = self.inner.is_end_stream();
+        self.finalize(complete);
     }
 }
 
@@ -223,22 +234,47 @@ mod tests {
         assert!(!captured.complete);
     }
 
-    /// The case a declared length is read against, and the one that makes the
-    /// flag worth carrying: octets *were* counted, and the count is still not the
-    /// body. A capture that says only `total: 6` cannot be told from a body that
-    /// was six octets long.
+    /// The ordinary case, and the one that says why `Drop` cannot assume the
+    /// worst. A body of declared length is finished when its last octet arrives;
+    /// nothing polls it again just to be told so, and it is dropped having
+    /// delivered everything it had. Calling that an interruption would suppress
+    /// findings on the most common response there is.
     #[tokio::test]
-    async fn dropping_after_some_octets_counts_them_and_says_the_count_is_partial() {
+    async fn dropping_a_body_that_had_nothing_left_is_not_an_interruption() {
         let (tx, rx) = oneshot::channel();
         let mut tee = TeeBody::new(boxed(b"abcdef"), 1024, tx);
 
-        // One frame arrives and is counted; end-of-stream is never polled for.
+        // The whole body arrives in one frame; end-of-stream is never polled for.
         let frame = tee.frame().await.unwrap().unwrap();
         assert_eq!(frame.into_data().unwrap(), Bytes::from_static(b"abcdef"));
         drop(tee);
 
         let captured = rx.await.unwrap();
         assert_eq!(captured.total, 6);
+        assert!(captured.complete, "the body had no more frames to give");
+    }
+
+    /// The case a declared length is read against, and the one that makes the
+    /// flag worth carrying: octets *were* counted, more were still coming, and
+    /// the count is not the body. A capture that says only `total: 3` cannot be
+    /// told from a body that was three octets long.
+    #[tokio::test]
+    async fn dropping_with_frames_still_to_come_says_the_count_is_partial() {
+        use futures_util::stream;
+        let (tx, rx) = oneshot::channel();
+        let inner = http_body_util::StreamBody::new(stream::iter([
+            Ok::<_, BoxError>(Frame::data(Bytes::from_static(b"abc"))),
+            Ok(Frame::data(Bytes::from_static(b"def"))),
+        ]))
+        .boxed_unsync();
+        let mut tee = TeeBody::new(inner, 1024, tx);
+
+        let frame = tee.frame().await.unwrap().unwrap();
+        assert_eq!(frame.into_data().unwrap(), Bytes::from_static(b"abc"));
+        drop(tee);
+
+        let captured = rx.await.unwrap();
+        assert_eq!(captured.total, 3);
         assert!(!captured.complete);
     }
 
