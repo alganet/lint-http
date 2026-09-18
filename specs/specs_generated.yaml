@@ -3692,12 +3692,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/strict_transport_security.rs
       line: 106
-  - label: max-age carries a value
-    section: § 6.1.1
-    snippet: 'The syntax of the max-age directive''s REQUIRED value (after quoted-string unescaping, if necessary) is defined as:'
-    cited_by:
-    - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 137
   - label: strict_transport_security (2)
     section: § 6.1.2
     snippet: The OPTIONAL "includeSubDomains" directive is a valueless directive which, if present (i.e., it is "asserted"), signals the UA that the HSTS Policy applies to this HSTS Host as well as any subdomains of the host's domain name.
@@ -3709,19 +3703,29 @@ sources:
     snippet: UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification.
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 161
+      line: 166
   - label: strict_transport_security_valid (2)
     section: § 6.1
     snippet: directive-name            = token
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 222
+      line: 227
   - label: strict_transport_security_valid (3)
     section: § 6.1
     snippet: directive-value           = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 290
+      line: 256
+    - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
+      line: 319
+  - label: max-age carries a value
+    section: § 6.1.1
+    snippet: 'The syntax of the max-age directive''s REQUIRED value (after quoted-string unescaping, if necessary) is defined as:'
+    cited_by:
+    - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
+      line: 257
+    - file: lint-http-rules/src/violations/strict_transport_security.rs
+      line: 137
 - label: RFC 6838
   url: https://www.rfc-editor.org/rfc/rfc6838.html
   fragments:

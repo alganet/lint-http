@@ -121,6 +121,11 @@ impl RuleMeta for StrictTransportSecurityValid {
                 snippet: "Strict-Transport-Security: max-age=0",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— the quoted-string form § 6.1.1 unescapes before reading"),
+                snippet: "Strict-Transport-Security: max-age=\"63072000\"",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— missing `max-age`"),
                 snippet: "Strict-Transport-Security: includeSubDomains",
@@ -232,11 +237,36 @@ impl Rule for StrictTransportSecurityValid {
                             max_age_count += 1;
                             saw_max_age = true;
                             // must have a value
-                            if let Some(vpart) = kv.next() {
-                                let vpart = crate::helpers::headers::trim_ows(vpart);
-                                if vpart.is_empty() {
-                                    return Some(ctx.report_with(&DELTA_SECONDS_EMPTY, "Strict-Transport-Security 'max-age' must have a numeric value".into()));
+                            let Some(vpart) = kv.next() else {
+                                return Some(ctx.report_with(
+                                    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
+                                    "Strict-Transport-Security 'max-age' must have a value".into(),
+                                ));
+                            };
+                            let vpart = crate::helpers::headers::trim_ows(vpart);
+                            // Either alternative of `directive-value`, and the
+                            // digits are asked of what the alternative carries.
+                            // § 6.1.1 defines the value "after quoted-string
+                            // unescaping, if necessary", so `max-age="31536000"`
+                            // is the policy `max-age=31536000` is: the quote is
+                            // the form's delimiter and not a character in the
+                            // count, and a reader that measured it against
+                            // `tchar` reported a conforming policy for how it
+                            // was spelled.
+                            // cite(RFC 6797 § 6.1): "directive-value           = token | quoted-string"
+                            // cite(RFC 6797 § 6.1.1): "The syntax of the max-age directive's REQUIRED value (after quoted-string unescaping, if necessary) is defined as:"
+                            let unquoted: String;
+                            let digits: &str = if vpart.starts_with('"') {
+                                match crate::helpers::quoted_string::unescape_quoted_string(vpart) {
+                                    Ok(inner) => {
+                                        unquoted = inner;
+                                        unquoted.as_str()
+                                    }
+                                    Err(defect) => {
+                                        return Some(ctx.report_with(quoted_string_defect(defect), format!("Invalid quoted-string in Strict-Transport-Security 'max-age' value: {}", defect.message(vpart))));
+                                    }
                                 }
+                            } else {
                                 // Asked before the digits, and answered by the
                                 // catalogue: a `directive-value` is a `token` or
                                 // a `quoted-string` whatever the directive means
@@ -247,27 +277,26 @@ impl Rule for StrictTransportSecurityValid {
                                 {
                                     return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security 'max-age' contains invalid character: {}", crate::helpers::shown::describe_char(c))));
                                 }
-                                // The sign of `-1` and the point of `1.5` are the
-                                // production's defect and answer under its id,
-                                // whichever field imported it.
-                                if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
-                                    return Some(ctx.report_with(&DELTA_SECONDS_CHARACTER_FORBIDDEN, "Strict-Transport-Security 'max-age' must be a non-negative integer".into()));
-                                }
-                                // A run of digits too long for a `u64` used to be
-                                // reported here as "not a valid integer", and it is
-                                // not a defect at all: `delta-seconds` sets no
-                                // ceiling and a recipient meeting a value it cannot
-                                // hold is told to clamp it, so such a policy is
-                                // conforming and what could not hold it was this
-                                // reader. The `delta_seconds` subject records the
-                                // same reading, and refuses the entry for the same
-                                // reason.
-                            } else {
-                                return Some(ctx.report_with(
-                                    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
-                                    "Strict-Transport-Security 'max-age' must have a value".into(),
-                                ));
+                                vpart
+                            };
+                            if digits.is_empty() {
+                                return Some(ctx.report_with(&DELTA_SECONDS_EMPTY, "Strict-Transport-Security 'max-age' must have a numeric value".into()));
                             }
+                            // The sign of `-1` and the point of `1.5` are the
+                            // production's defect and answer under its id,
+                            // whichever field imported it.
+                            if digits.chars().any(|ch| !ch.is_ascii_digit()) {
+                                return Some(ctx.report_with(&DELTA_SECONDS_CHARACTER_FORBIDDEN, "Strict-Transport-Security 'max-age' must be a non-negative integer".into()));
+                            }
+                            // A run of digits too long for a `u64` used to be
+                            // reported here as "not a valid integer", and it is
+                            // not a defect at all: `delta-seconds` sets no
+                            // ceiling and a recipient meeting a value it cannot
+                            // hold is told to clamp it, so such a policy is
+                            // conforming and what could not hold it was this
+                            // reader. The `delta_seconds` subject records the
+                            // same reading, and refuses the entry for the same
+                            // reason.
                         }
                         "includesubdomains" => {
                             // canonical name is includeSubDomains, but accept case-insensitively
@@ -367,8 +396,13 @@ mod tests {
     #[case("max-age=63072000", false)]
     #[case("max-age=0", false)]
     #[case("max-age=63072000; includeSubDomains; preload", false)]
+    #[case("max-age=\"63072000\"", false)]
+    #[case("max-age=\"63072000\"; includeSubDomains; preload", false)]
     #[case("includeSubDomains", true)]
     #[case("max-age=abc", true)]
+    #[case("max-age=\"abc\"", true)]
+    #[case("max-age=\"\"", true)]
+    #[case("max-age=\"63072000", true)]
     #[case("max-age=63072000; includeSubDomains=1", true)]
     #[case("max-age=63072000; preload=1", true)]
     #[case("max-age=63072000; max-age=1", true)]
@@ -419,6 +453,21 @@ mod tests {
         "delta_seconds_character_forbidden"
     )]
     #[case::max_age_empty("max-age=", "must have a numeric value", "delta_seconds_empty")]
+    #[case::max_age_quoted_empty(
+        "max-age=\"\"",
+        "must have a numeric value",
+        "delta_seconds_empty"
+    )]
+    #[case::max_age_quoted_not_a_number(
+        "max-age=\"1.5\"",
+        "non-negative integer",
+        "delta_seconds_character_forbidden"
+    )]
+    #[case::max_age_quoted_unterminated(
+        "max-age=\"63072000",
+        "'max-age' value",
+        "quoted_string_delimiter_missing"
+    )]
     #[case::max_age_valueless(
         "max-age",
         "must have a value",
@@ -728,20 +777,24 @@ mod tests {
         .is_some());
     }
 
+    /// `directive-value = token | quoted-string`, and § 6.1.1 reads `max-age`'s
+    /// value after unescaping the quoted form. The quote is the alternative's
+    /// delimiter, so a policy spelled this way is the same policy, and a test
+    /// here used to hold the opposite.
     #[test]
-    fn max_age_quoted_is_violation() {
+    fn max_age_quoted_is_the_same_policy() {
         let rule = StrictTransportSecurityValid;
         let tx = make_resp("max-age=\"3600\"");
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
         ]);
-        assert!(crate::test_helpers::run_rule(
+        let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-        )
-        .is_some());
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]
