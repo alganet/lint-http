@@ -6,11 +6,11 @@ SPDX-License-Identifier: ISC
 
 # origin_agent_cluster_invalid
 
-Origin-Agent-Cluster states a value that is not `?1`
+Origin-Agent-Cluster states the boolean's false value
 
 ## Message
 
-_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
+Origin-Agent-Cluster is `?0`, the false value of the boolean it carries: well-formed, and requesting what an absent header already gives, since only `?1` asks for an origin-keyed agent cluster
 
 ## Obligation
 
@@ -24,8 +24,8 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.origin_agent_cluster_invalid]
-# Origin-Agent-Cluster states a value that is not `?1`
-severity = "warn"
+# Origin-Agent-Cluster states the boolean's false value
+severity = "info"
 ```
 
 ## Reported By

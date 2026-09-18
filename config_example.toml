@@ -2343,8 +2343,8 @@ severity = "warn"
 severity = "warn"
 
 [violations.origin_agent_cluster_invalid]
-# Origin-Agent-Cluster states a value that is not `?1`
-severity = "warn"
+# Origin-Agent-Cluster states the boolean's false value
+severity = "info"
 
 [violations.origin_agent_cluster_malformed]
 # Origin-Agent-Cluster carries something that is not a boolean

@@ -101,17 +101,31 @@ defects! {
     /// already gives.
     ///
     /// **The document ignores it and this catalogue reports it**, which is a
-    /// deliberate step past what is quoted below: nothing is broken for the
-    /// recipient, since ignoring is exactly what it is told to do. What is
-    /// broken is the sender's intent — the header has one use, and a value that
-    /// is not `?1` puts it to none.
+    /// deliberate step past what is quoted below, and the finding says so
+    /// rather than calling the value invalid. It is not invalid: § 4.2.8 of RFC
+    /// 9651 admits `?0` beside `?1`, and three hosts in a corpus of real
+    /// traffic send it — one of them on every response. What can be said is
+    /// narrower and is all this entry claims: a header was written and, having
+    /// been written, requests nothing that leaving it out would not.
+    ///
+    /// `info`, and not the `warn` this shipped as, for the same reason. A
+    /// severity is what a reader is asked to do about a finding, and there is
+    /// nothing to do here that is not a matter of taste — the message is
+    /// legible, the recipient's behaviour is exactly the specified one, and no
+    /// requirement in any document is unmet. The two entries above stay at
+    /// `warn`: a field a recipient cannot read is a different thing.
+    ///
+    /// The message is the catalogue's rather than the site's, which reverses
+    /// what this entry did before. The site formatted the value in because the
+    /// entry covered four of them; one boolean is left that can reach it, so
+    /// the sentence is known where the entry is written.
     ///
     // cite(HTML § 7.1.2): "values that are not the structured header boolean true value (i.e., `?1`) will be ignored."
     ORIGIN_AGENT_CLUSTER_INVALID = {
         id: "origin_agent_cluster_invalid",
-        title: "Origin-Agent-Cluster states a value that is not `?1`",
-        message: "",
-        default_severity: Severity::Warn,
+        title: "Origin-Agent-Cluster states the boolean's false value",
+        message: "Origin-Agent-Cluster is `?0`, the false value of the boolean it carries: well-formed, and requesting what an absent header already gives, since only `?1` asks for an origin-keyed agent cluster",
+        default_severity: Severity::Info,
         spec: &[HTML_7_1_2],
     }
 }
@@ -143,15 +157,29 @@ mod tests {
         }
     }
 
-    /// An entry whose finding names the value it fired on leaves its message to
-    /// the site; the one whose value is always the same octets keeps its own.
-    /// `_empty` is that one — there is nothing to quote back — while `_invalid`
-    /// and `_malformed` are both answered with the value in hand, because the
-    /// operator's next question is which value arrived.
+    /// An entry leaves its message to the site exactly when the value that
+    /// reaches it is not known here. `_malformed` is that one — a list or a
+    /// token, and the operator's next question is which — while `_empty` has
+    /// nothing to quote back and `_invalid` has one boolean that can reach it.
     #[test]
-    fn an_entry_whose_finding_names_a_value_leaves_its_message_to_the_site() {
+    fn an_entry_leaves_its_message_to_the_site_when_the_value_is_not_known_here() {
         assert!(!ORIGIN_AGENT_CLUSTER_EMPTY.message.is_empty());
         assert!(ORIGIN_AGENT_CLUSTER_MALFORMED.message.is_empty());
-        assert!(ORIGIN_AGENT_CLUSTER_INVALID.message.is_empty());
+        assert!(!ORIGIN_AGENT_CLUSTER_INVALID.message.is_empty());
+    }
+
+    /// The two entries about a field a recipient cannot read outrank the one
+    /// about a field it reads and is told to ignore.
+    #[test]
+    fn a_legible_value_is_advice_and_an_illegible_one_is_a_defect() {
+        assert_eq!(
+            ORIGIN_AGENT_CLUSTER_INVALID.default_severity,
+            Severity::Info
+        );
+        assert_eq!(ORIGIN_AGENT_CLUSTER_EMPTY.default_severity, Severity::Warn);
+        assert_eq!(
+            ORIGIN_AGENT_CLUSTER_MALFORMED.default_severity,
+            Severity::Warn
+        );
     }
 }

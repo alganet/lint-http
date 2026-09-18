@@ -16,7 +16,7 @@ Checks the `Origin-Agent-Cluster` response header, whose value is one structured
 
 - [field_line_duplicated](../violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
 - [origin_agent_cluster_empty](../violations/origin_agent_cluster_empty.md) — Origin-Agent-Cluster is written with no boolean on it
-- [origin_agent_cluster_invalid](../violations/origin_agent_cluster_invalid.md) — Origin-Agent-Cluster states a value that is not `?1`
+- [origin_agent_cluster_invalid](../violations/origin_agent_cluster_invalid.md) — Origin-Agent-Cluster states the boolean's false value
 - [origin_agent_cluster_malformed](../violations/origin_agent_cluster_malformed.md) — Origin-Agent-Cluster carries something that is not a boolean
 
 ## Specifications

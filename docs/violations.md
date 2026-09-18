@@ -337,7 +337,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [oauth2_request_state_missing](violations/oauth2_request_state_missing.md) — An authorization request carries no state to bind against
 - [oauth2_state_conflicting](violations/oauth2_state_conflicting.md) — A callback's state matches no request that was seen
 - [origin_agent_cluster_empty](violations/origin_agent_cluster_empty.md) — Origin-Agent-Cluster is written with no boolean on it
-- [origin_agent_cluster_invalid](violations/origin_agent_cluster_invalid.md) — Origin-Agent-Cluster states a value that is not `?1`
+- [origin_agent_cluster_invalid](violations/origin_agent_cluster_invalid.md) — Origin-Agent-Cluster states the boolean's false value
 - [origin_agent_cluster_malformed](violations/origin_agent_cluster_malformed.md) — Origin-Agent-Cluster carries something that is not a boolean
 - [origin_malformed](violations/origin_malformed.md) — An Origin derives from neither null nor a serialized origin
 - [origin_missing](violations/origin_missing.md) — A request that must say where it came from carries no Origin
