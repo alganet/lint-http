@@ -5,8 +5,9 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cache_control::{
-    CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY, CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY, RFC_9111_5_2_2_4,
-    RFC_9111_5_2_2_7,
+    CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN, CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
+    CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY, RFC_9111_5_2_1_1, RFC_9111_5_2_1_2, RFC_9111_5_2_1_3,
+    RFC_9111_5_2_2_1, RFC_9111_5_2_2_10, RFC_9111_5_2_2_4, RFC_9111_5_2_2_7,
 };
 use crate::violations::delta_seconds::{DELTA_SECONDS_CHARACTER_FORBIDDEN, RFC_9111_1_2_2};
 use crate::violations::list::{cache_directive_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
@@ -39,12 +40,19 @@ pub struct CacheControlDirectiveValid;
 /// `delta-seconds`, so the name commits the value to a second production and
 /// the value failed it.
 ///
-/// The last two are the sentences with no production behind them at all: a
+/// The next two are the sentences with no production behind them at all: a
 /// qualified directive whose argument lists no field, written once in
 /// `no-cache`'s subsection and once in `private`'s. They are the
 /// [`cache_control`](crate::violations::cache_control) subject — the layer above
 /// this field's grammar, where a directive's own definition says what its
 /// argument must say.
+///
+/// The last is that subject's third entry, and it is about the *form* of a
+/// `delta-seconds` argument rather than its value: `max-age="60"` is the
+/// `quoted-string` alternative the `cache-directive` grammar admits and the
+/// directive's subsection tells a sender not to write. It used to report as
+/// `token_character_forbidden` on the closing quote, which named a production
+/// the value does not break.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -57,6 +65,7 @@ static DECLARED: &[&ViolationDef] = &[
     &DELTA_SECONDS_CHARACTER_FORBIDDEN,
     &CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
     &CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY,
+    &CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -116,7 +125,7 @@ impl CacheControlDirectiveValid {
         let value =
             crate::helpers::headers::combined_field_value_as_written(headers, "cache-control")?;
         for member in crate::helpers::cache_control::members_of(&value) {
-            if let Some(defect) = member_defect(member) {
+            if let Some(defect) = member_defect(member, side) {
                 let message = format!(
                     "Invalid Cache-Control header in {}: {}",
                     side, defect.message
@@ -139,7 +148,7 @@ impl RuleMeta for CacheControlDirectiveValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Cache-Control` directive names and argument formats for common correctness issues. This rule enforces directive-specific semantics such as:\n\n- `max-age` and `s-maxage` must have non-negative integer values (delta-seconds).\n- `private` and `no-cache` when carrying a field-name-list must provide a comma-separated list of field-names (tokens) either as an unquoted list or inside a quoted-string.\n- Unquoted directive values must follow the `token` grammar and quoted values must be valid `quoted-string`s.\n\nThis rule complements `cache_control_token_valid` which enforces general token/quoted-string syntax."
+        "Validate `Cache-Control` directive names and argument formats for common correctness issues. This rule enforces directive-specific semantics such as:\n\n- `max-age`, `s-maxage`, `max-stale`, `min-fresh`, `stale-while-revalidate` and `stale-if-error` must have non-negative integer values (delta-seconds), and RFC 9111 has a sender write that argument in the token form: `max-age=\"60\"` is a well-formed `quoted-string` every recipient reads, and a form the directive's own section says a sender MUST NOT generate.\n- `private` and `no-cache` when carrying a field-name-list must provide a comma-separated list of field-names (tokens) either as an unquoted list or inside a quoted-string.\n- Unquoted directive values must follow the `token` grammar and quoted values must be valid `quoted-string`s.\n\nThis rule complements `cache_control_token_valid` which enforces general token/quoted-string syntax."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -152,6 +161,11 @@ impl RuleMeta for CacheControlDirectiveValid {
             RFC_9111_1_2_2,
             RFC_9111_5_2_2_4,
             RFC_9111_5_2_2_7,
+            RFC_9111_5_2_2_1,
+            RFC_9111_5_2_1_1,
+            RFC_9111_5_2_1_2,
+            RFC_9111_5_2_1_3,
+            RFC_9111_5_2_2_10,
         ]
     }
 
@@ -179,7 +193,7 @@ impl RuleMeta for CacheControlDirectiveValid {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Cache-Control: max-age=abc     # non-numeric max-age\nCache-Control: max-age=-1      # negative values not allowed\nCache-Control: s-maxage=1.5    # fractional values invalid\nCache-Control: private=Set Cookie  # space in token\nCache-Control: private=\"Set Cookie\" # quoted content contains space-separated token",
+                snippet: "Cache-Control: max-age=abc     # non-numeric max-age\nCache-Control: max-age=-1      # negative values not allowed\nCache-Control: s-maxage=1.5    # fractional values invalid\nCache-Control: max-age=\"60\"    # the quoted-string form a sender must not generate\nCache-Control: private=Set Cookie  # space in token\nCache-Control: private=\"Set Cookie\" # quoted content contains space-separated token",
             },
         ]
     }
@@ -220,7 +234,7 @@ impl Rule for CacheControlDirectiveValid {
 /// the two Cache-Control syntax rules report identically. What this rule adds is
 /// the part that is its own: what each *named* directive's argument may say.
 // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
-fn member_defect(member: &str) -> Option<Defect> {
+fn member_defect(member: &str, side: &str) -> Option<Defect> {
     let directive = match crate::helpers::cache_control::read_member(member) {
         Ok(directive) => directive,
         // The three defects the reader names are the list's and the token's,
@@ -240,52 +254,17 @@ fn member_defect(member: &str) -> Option<Defect> {
     let argument = directive.argument.filter(|a| !a.is_empty())?;
 
     match name.to_ascii_lowercase().as_str() {
-        "max-age" | "s-maxage" => {
-            // Both take a delta-seconds argument, which is why a sign, a
-            // decimal point or any non-digit is rejected here.
-            // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
-            if let Some(c) = crate::helpers::token::find_invalid_token_char(argument) {
-                // Asked before the digits, and answered by the catalogue: an
-                // argument holding a character no `tchar` admits is not a
-                // `cache-directive`'s unquoted argument at all, which is a
-                // defect of the production every directive's argument is
-                // written in rather than of what *this* directive counts.
-                return Some(Defect::named(
-                    token_character(c),
-                    format!("{} value contains invalid character: '{}'", name, c),
-                ));
-            }
-            if let Some(c) = argument.chars().find(|ch| !ch.is_ascii_digit()) {
-                // A well-formed token that is not a number, which used to be
-                // read as this rule's own finding on the reasoning that no
-                // shared production is broken by `-1` — both it and `1.5` are
-                // tokens. What that reasoning missed is that the *name* commits
-                // the argument to a second production: § 5.2.2.1 gives
-                // `max-age` the argument syntax `delta-seconds`, so the value
-                // has said which grammar it meant and failed that one.
-                // cite(RFC 9111 § 5.2.2.1, label: max-age argument syntax): "delta-seconds (see Section 1.2.2)"
-                return Some(Defect::named(
-                    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
-                    format!(
-                        "{} must be a non-negative integer: {} is no `DIGIT`",
-                        name,
-                        crate::helpers::shown::describe_char(c),
-                    ),
-                ));
-            }
-            // A digit run too large for any particular integer type is still
-            // syntactically valid `1*DIGIT`, and the spec says what to do about
-            // it — clamp, not reject — so there is nothing here to report. The
-            // value's magnitude is the recipient's problem, not the sender's.
-            // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
-            // cite(RFC 9111 § 1.2.2): "or the greatest positive integer it can conveniently represent."
-            None
-        }
-        // Both take the same optional argument: a `#field-name` list, which is
-        // what this branch validates (as a quoted-string or, leniently, as a
-        // bare comma-separated list). The sentence below is stated for private;
-        // no-cache's qualified form (§5.2.2.4) has the same shape.
-        // cite(RFC 9111 § 5.2.2.7): "If a qualified private response directive is present, with an argument that lists one or more field names"
+        // Every directive whose subsection gives the argument the syntax
+        // `delta-seconds`. The four RFC 9111 defines are read against their own
+        // sentences below; the two RFC 5861 defines print `"=" delta-seconds`
+        // and no other form, and that document is not in this crate's citation
+        // store, so their digits are asked under the production alone.
+        "max-age"
+        | "s-maxage"
+        | "max-stale"
+        | "min-fresh"
+        | "stale-while-revalidate"
+        | "stale-if-error" => delta_seconds_defect(name, argument, side),
         "private" | "no-cache" => field_name_list_defect(name, argument),
         _ => {
             // For other directives, accept token or quoted-string and ensure token syntax if unquoted
@@ -329,6 +308,90 @@ fn member_defect(member: &str) -> Option<Defect> {
 ///
 /// cite(RFC 9111 § 5.2.2.7, label: private argument syntax): "This directive uses the quoted-string form of the argument syntax."
 /// cite(RFC 9110 § 5.1): "A field name labels the corresponding field value as having the semantics defined by that name."
+/// A `delta-seconds` argument, read in whichever of the two `cache-directive`
+/// forms the sender wrote it, and the two things that can be wrong with it.
+///
+/// **The form first decides how the digits are found, and last decides whether
+/// the form itself is the finding.** `cache-directive = token [ "=" ( token /
+/// quoted-string ) ]`, so `max-age="60"` derives; § 5.2 has a recipient accept
+/// both forms; and the directive's own subsection then says the sender was to
+/// write the token form. The closing quote is the delimiter of an alternative
+/// the grammar offers, not a character the `token` production refuses — which
+/// is what this used to report, on a production the value satisfies.
+///
+/// **The digits are asked of what the form carries, and they are asked
+/// first.** `max-age="abc"` is unreadable however it is spelled, and the
+/// production it fails is the one that matters to every cache; the form is
+/// what is left to say about an argument that *does* read.
+// cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
+// cite(RFC 9111 § 5.2): "For the directives defined below that define arguments, recipients ought to accept both forms, even if a specific form is required for generation."
+// cite(RFC 9111 § 5.2.2.1): "This directive uses the token form of the argument syntax: e.g., 'max-age=5' not 'max-age="5"'. A sender MUST NOT generate the quoted-string form."
+fn delta_seconds_defect(name: &str, argument: &str, side: &str) -> Option<Defect> {
+    let unquoted: String;
+    let (digits, quoted): (&str, bool) = if argument.starts_with('"') {
+        match crate::helpers::quoted_string::unescape_quoted_string(argument) {
+            Ok(inner) => {
+                unquoted = inner;
+                (unquoted.as_str(), true)
+            }
+            Err(defect) => {
+                return Some(Defect::named(
+                    quoted_string_defect(defect),
+                    format!(
+                        "Invalid quoted-string in {} value: {}",
+                        name,
+                        defect.message(argument)
+                    ),
+                ))
+            }
+        }
+    } else {
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(argument) {
+            return Some(Defect::named(
+                token_character(c),
+                format!("{} value contains invalid character: '{}'", name, c),
+            ));
+        }
+        (argument, false)
+    };
+    // cite(RFC 9111 § 1.2.2, label: delta-seconds): "delta-seconds  = 1*DIGIT"
+    if let Some(c) = digits.chars().find(|ch| !ch.is_ascii_digit()) {
+        return Some(Defect::named(
+            &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+            format!(
+                "{} must be a non-negative integer: {} is no `DIGIT`",
+                name,
+                crate::helpers::shown::describe_char(c),
+            ),
+        ));
+    }
+    if !quoted {
+        return None;
+    }
+    // Which subsection said so, for the directive in front of us. `max-age` is
+    // defined once per side; the other three once each. RFC 5861's two say
+    // nothing about the form, and so nothing is said about theirs.
+    let section = match (name.to_ascii_lowercase().as_str(), side) {
+        ("max-age", "request") => "5.2.1.1",
+        ("max-age", _) => "5.2.2.1",
+        ("max-stale", _) => "5.2.1.2",
+        ("min-fresh", _) => "5.2.1.3",
+        ("s-maxage", _) => "5.2.2.10",
+        _ => return None,
+    };
+    let token_form = match digits.is_empty() {
+        true => String::new(),
+        false => format!(", {name}={digits}"),
+    };
+    Some(Defect::named(
+        &CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN,
+        format!(
+            "{name}={argument} writes the {name} argument in the quoted-string form; \
+             RFC 9111 § {section} has a sender generate the token form{token_form}"
+        ),
+    ))
+}
+
 fn field_name_list_defect(name: &str, argument: &str) -> Option<Defect> {
     let list = if argument.starts_with('"') {
         match crate::helpers::quoted_string::unescape_quoted_string(argument) {
@@ -424,11 +487,20 @@ mod tests {
     #[case("no-cache=\"field1, field2\"", false)]
     #[case("public, max-age=60", false)]
     #[case("foo=bar", false)]
+    #[case("max-stale", false)]
+    #[case("max-stale=10, min-fresh=5", false)]
+    #[case("stale-if-error=60", false)]
     #[case("max-age=abc", true)]
     #[case("max-age=-1", true)]
     #[case("max-age=1.5", true)]
     #[case("s-maxage=1.5", true)]
+    #[case("max-stale=abc", true)]
+    #[case("min-fresh=1.5", true)]
+    #[case("stale-if-error=soon", true)]
     #[case("max-age=\"3600\"", true)]
+    #[case("max-stale=\"10\"", true)]
+    #[case("min-fresh=\"5\"", true)]
+    #[case("max-age=\"\"", true)]
     #[case("max-age=1!", true)]
     #[case("private=Set Cookie", true)]
     #[case("private=\"Set Cookie\"", true)]
@@ -461,8 +533,13 @@ mod tests {
     #[case("private=\"Set-Cookie, X-Foo\"", false)]
     #[case("private=", false)]
     #[case("foo=bar", false)]
+    #[case("max-age=60, stale-while-revalidate=30, stale-if-error=60", false)]
+    #[case("max-age=60, stale-while-revalidate=\"30\"", false)]
     #[case("max-age=abc", true)]
+    #[case("stale-while-revalidate=soon", true)]
     #[case("max-age=\"3600\"", true)]
+    #[case("s-maxage=\"60\"", true)]
+    #[case("max-age=\"abc", true)]
     #[case("custom=\"unterminated", true)]
     #[case("max-age=1!", true)]
     #[case("private=,", true)]
@@ -891,11 +968,72 @@ mod tests {
     #[case("max-age=1.5")]
     #[case("s-maxage=1.5")]
     #[case("max-age=abc")]
+    #[case("max-stale=abc")]
+    #[case("min-fresh=1.5")]
+    #[case("stale-while-revalidate=soon")]
+    #[case("stale-if-error=-1")]
+    #[case("max-age=\"abc\"")]
+    #[case("max-age=\" 5\"")]
     fn a_directives_argument_syntax_is_a_production_the_name_commits_it_to(#[case] value: &str) {
         assert_eq!(
             judge(value).violation,
             "delta_seconds_character_forbidden",
             "{value}"
+        );
+    }
+
+    /// A well-formed `quoted-string` is the other alternative of the argument
+    /// grammar, not a `token` with a bad character in it. What refuses
+    /// `max-age="60"` is the directive's own subsection, which has a sender
+    /// write the token form — so the id is the subject's, the message names the
+    /// section the directive in front of it was read against, and it names the
+    /// spelling that would have satisfied it.
+    #[rstest]
+    #[case::request_max_age("max-age=\"5\"", true, "5.2.1.1", "max-age=5")]
+    #[case::max_stale("max-stale=\"10\"", true, "5.2.1.2", "max-stale=10")]
+    #[case::min_fresh("min-fresh=\"20\"", true, "5.2.1.3", "min-fresh=20")]
+    #[case::response_max_age("max-age=\"5\"", false, "5.2.2.1", "max-age=5")]
+    #[case::s_maxage("s-maxage=\"10\"", false, "5.2.2.10", "s-maxage=10")]
+    #[case::case_of_the_name("Max-Age=\"5\"", false, "5.2.2.1", "Max-Age=5")]
+    fn a_quoted_delta_seconds_argument_is_a_form_the_directive_refuses(
+        #[case] value: &str,
+        #[case] request: bool,
+        #[case] section: &str,
+        #[case] token_form: &str,
+    ) {
+        let v = match request {
+            true => judge(value),
+            false => judge_response(value),
+        };
+        assert_eq!(
+            v.violation, "cache_control_argument_quoted_form_forbidden",
+            "{value}"
+        );
+        assert!(v.message.contains(value), "{}", v.message);
+        assert!(v.message.contains(section), "{}", v.message);
+        assert!(v.message.contains(token_form), "{}", v.message);
+        assert!(!v.message.contains("invalid character"), "{}", v.message);
+    }
+
+    /// RFC 5861 prints `"=" delta-seconds` and says nothing about a
+    /// quoted-string form, so nothing is said about it here: the digits are
+    /// still asked, and a well-formed quoted argument that carries them is left
+    /// alone rather than charged under a sentence another document wrote about
+    /// other directives.
+    #[test]
+    fn the_extension_directives_are_asked_their_digits_and_not_their_form() {
+        let rule = CacheControlDirectiveValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let quiet = crate::test_helpers::run_rule(
+            &rule,
+            &make_resp("max-age=60, stale-while-revalidate=\"30\", stale-if-error=\"60\""),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(quiet.is_none(), "{quiet:?}");
+        assert_eq!(
+            judge_response("stale-while-revalidate=\"soon\"").violation,
+            "delta_seconds_character_forbidden"
         );
     }
 
@@ -936,6 +1074,19 @@ mod tests {
         crate::test_helpers::run_rule(
             &rule,
             &make_req(value),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for '{value}'"))
+    }
+
+    /// The same reading of a response's field, for the directives defined on
+    /// that side.
+    fn judge_response(value: &str) -> Violation {
+        let rule = CacheControlDirectiveValid;
+        crate::test_helpers::run_rule(
+            &rule,
+            &make_resp(value),
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
