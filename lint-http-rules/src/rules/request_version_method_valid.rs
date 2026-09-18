@@ -43,7 +43,12 @@ pub struct RequestVersionMethodValid;
 // is § 6.4's octet stream, measured once for every rule that asks this
 // question — `trace_method_echo` asks it of the same paragraph family.
 fn request_carries_content(req: &crate::http_transaction::RequestInfo) -> bool {
-    crate::helpers::content_length::content_evidence(&req.headers, req.body_length).is_some()
+    crate::helpers::content_length::content_evidence(
+        &req.headers,
+        req.body_length,
+        req.body_interrupted,
+    )
+    .is_some()
 }
 
 /// Whether the request message declares content in its header section.

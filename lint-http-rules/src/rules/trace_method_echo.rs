@@ -192,6 +192,7 @@ impl Rule for TraceMethodEcho {
         if let Some(evidence) = crate::helpers::content_length::content_evidence(
             &tx.request.headers,
             tx.request.body_length,
+            tx.request.body_interrupted,
         ) {
             out.push(ctx.report_with(&METHOD_TRACE_CONTENT_FORBIDDEN, format!(
                         "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"

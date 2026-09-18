@@ -49,7 +49,7 @@ impl RuleMeta for ContentTypePresent {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a response that carries content without a `Content-Type` describing it.\n\n**This is a SHOULD, and it has a stated exception.** RFC 9110 §8.3: \"A sender that generates a message containing content SHOULD generate a Content-Type header field in that message *unless the intended media type of the enclosed representation is unknown to the sender*.\" Nothing on the wire separates a sender that did not know from one that did not bother, so both are reported — the finding is that the recipient was left to guess, not that a rule was broken.\n\n**Why the guess matters.** §8.3 gives a recipient two ways to proceed without the field: assume `application/octet-stream`, or examine the data. The second is content sniffing, and §8.3 spends a paragraph on it — it \"risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., \\\"privilege escalation\\\")\".\n\n**Content, not headers.** The condition is that the message *contains content*, so the recorded body length decides it wherever one was captured. Only where nothing was captured does the rule fall back to header evidence, and then only to signals that assert content — a non-zero `Content-Length` or a `Transfer-Encoding`. A 2xx that merely omits `Content-Length` is not evidence of a body; that is what an empty HTTP/2 response looks like.\n\n**Responses with nothing to describe are skipped**: `1xx`, `204`, `304` (RFC 9112 §6.3), `205` (RFC 9110 §15.3.6's MUST NOT), any response to `HEAD` (§9.3.2), and a `2xx` to `CONNECT`, whose trailing octets are a tunnel rather than content. Whether a HEAD response should still carry the `Content-Type` a `GET` would have sent is §9.3.2's same-header-fields SHOULD, which `head_response_headers_match_get` checks against the actual `GET`."
+        "Reports a response that carries content without a `Content-Type` describing it.\n\n**This is a SHOULD, and it has a stated exception.** RFC 9110 §8.3: \"A sender that generates a message containing content SHOULD generate a Content-Type header field in that message *unless the intended media type of the enclosed representation is unknown to the sender*.\" Nothing on the wire separates a sender that did not know from one that did not bother, so both are reported — the finding is that the recipient was left to guess, not that a rule was broken.\n\n**Why the guess matters.** §8.3 gives a recipient two ways to proceed without the field: assume `application/octet-stream`, or examine the data. The second is content sniffing, and §8.3 spends a paragraph on it — it \"risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., \\\"privilege escalation\\\")\".\n\n**Content, not headers.** The condition is that the message *contains content*, so the recorded body length decides it wherever one was captured. Only where nothing was captured does the rule fall back to header evidence, and then only to signals that assert content — a non-zero `Content-Length` or a `Transfer-Encoding`. A body whose reading stopped before its end takes that same fallback when it counted zero: the count is then a lower bound, which can assert content but cannot deny it. A 2xx that merely omits `Content-Length` is not evidence of a body; that is what an empty HTTP/2 response looks like.\n\n**Responses with nothing to describe are skipped**: `1xx`, `204`, `304` (RFC 9112 §6.3), `205` (RFC 9110 §15.3.6's MUST NOT), any response to `HEAD` (§9.3.2), and a `2xx` to `CONNECT`, whose trailing octets are a tunnel rather than content. Whether a HEAD response should still carry the `Content-Type` a `GET` would have sent is §9.3.2's same-header-fields SHOULD, which `head_response_headers_match_get` checks against the actual `GET`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -164,9 +164,15 @@ impl Rule for ContentTypePresent {
             // only on the paths that never captured a body, and there the header
             // evidence is all there is -- but only the two signals that *assert*
             // content, never the absence of one.
+            //
+            // A count that stopped where the reading stopped is a lower bound, so
+            // it can assert content and cannot deny it: above zero it settles the
+            // question either way, and at zero it is no more informative than the
+            // uncaptured case, which is where it goes.
             let has_content = match resp.body_length {
-                Some(n) => n > 0,
-                None => {
+                Some(n) if n > 0 => true,
+                Some(_) if !resp.body_interrupted => false,
+                _ => {
                     let declared =
                         crate::helpers::content_length::validate_content_length(&resp.headers)
                             .ok()
@@ -282,6 +288,23 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    /// A response whose reading stopped before the first octet arrived counted
+    /// zero, and a zero that is only where the reading stopped cannot say the
+    /// message carried no content. The sender's declaration answers instead, so
+    /// the missing `Content-Type` is still reported.
+    #[test]
+    fn an_interrupted_zero_does_not_excuse_a_missing_content_type() {
+        let mut tx = resp(200, &[("content-length", "4000")], Some(0));
+
+        // Read to the end, zero octets is an empty body and there is no
+        // representation whose type could be missing.
+        assert!(run(&tx).is_none());
+
+        tx.response.as_mut().expect("response").body_interrupted = true;
+        let v = run(&tx).expect("the declaration says content was there to type");
+        assert_eq!(v.violation, "content_type_missing");
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<crate::lint::Violation> {

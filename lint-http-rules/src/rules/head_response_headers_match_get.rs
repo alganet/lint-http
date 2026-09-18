@@ -110,7 +110,16 @@ fn content_length_finding(
     // the HEAD is asking about; a 304 declares the length of a 200 it did not
     // send, so its captured zero says nothing.
     // cite(RFC 9110 § 15.3.1): "The content sent in a 200 response depends on the request method."
-    let captured = (prev_resp.status == 200)
+    //
+    // And only where that response was read to its end. A GET the client
+    // abandoned delivered every octet the origin sent and was counted for as
+    // many as arrived, so measuring a later HEAD's honest `Content-Length`
+    // against that count reports the HEAD for the earlier reading's shortfall.
+    // `response_body_length_accuracy` declines on the same evidence for the same
+    // reason, and the sentence above hands this requirement here precisely
+    // because this rule has the second transaction -- which is no help when the
+    // first one was never finished.
+    let captured = (prev_resp.status == 200 && !prev_resp.body_interrupted)
         .then_some(prev_resp.body_length)
         .flatten()?;
     (u128::from(captured) != cur_len).then(|| {
@@ -181,7 +190,7 @@ headers = ["etag", "content-type", "content-length"]
     }
 
     fn description(&self) -> &'static str {
-        "Ensure responses to `HEAD` carry the header fields the server would have sent for a `GET` on the same resource. RFC 9110 §9.3.2 asks this with a SHOULD, and the configured `headers` array names the fields to compare; `Content-Length` is the exception, governed by §8.6's MUST NOT unless its value equals the octet count a `GET` would have delivered.\n\n**The comparison is evidence, not the sentence.** §9.3.2 is about the response the server *would have sent* for a `GET` at that moment, and what this rule has is a `GET` it observed earlier. It therefore declines whenever the two responses say they describe different things — a different status code, or a different `ETag` or `Last-Modified`. What it cannot see is a representation that changed with no validator to show it, so every finding assumes the resource held still between the two exchanges.\n\n**The exceptions are an open class.** §9.3.2 permits a server to omit any header field whose value is determined only while generating the content, and no field announces its membership — so the rule can only excuse the ones a specification names: `Content-Length` (§8.6), `Vary` (§9.3.2's own example) and `Transfer-Encoding` (RFC 9112 §6.1, which also makes its value incomparable). A field outside that set which the server legitimately omitted is still reported; configure `headers` accordingly."
+        "Ensure responses to `HEAD` carry the header fields the server would have sent for a `GET` on the same resource. RFC 9110 §9.3.2 asks this with a SHOULD, and the configured `headers` array names the fields to compare; `Content-Length` is the exception, governed by §8.6's MUST NOT unless its value equals the octet count a `GET` would have delivered.\n\n**The comparison is evidence, not the sentence.** §9.3.2 is about the response the server *would have sent* for a `GET` at that moment, and what this rule has is a `GET` it observed earlier. It therefore declines whenever the two responses say they describe different things — a different status code, or a different `ETag` or `Last-Modified`. What it cannot see is a representation that changed with no validator to show it, so every finding assumes the resource held still between the two exchanges. Where the `GET`'s own reading did not reach the end of its body, the octets it was counted for measure the reading and not the representation, and the `Content-Length` comparison declines rather than convict the later `HEAD` of an earlier client's disconnect.\n\n**The exceptions are an open class.** §9.3.2 permits a server to omit any header field whose value is determined only while generating the content, and no field announces its membership — so the rule can only excuse the ones a specification names: `Content-Length` (§8.6), `Vary` (§9.3.2's own example) and `Transfer-Encoding` (RFC 9112 §6.1, which also makes its value incomparable). A field outside that set which the server legitimately omitted is still reported; configure `headers` accordingly."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -485,6 +494,43 @@ mod tests {
             &make_cfg_with_headers(vec!["etag", "content-type", "content-length"]),
         );
         assert!(v.is_none());
+    }
+
+    /// The cross-transaction shape of the same mistake. The GET declared no
+    /// length -- it was chunked -- so the octets it delivered are the only measure
+    /// of the representation, and a reading that stopped early measures the
+    /// reading. A HEAD stating the resource's real length is then reported for the
+    /// earlier client's disconnect.
+    #[test]
+    fn a_get_the_client_abandoned_does_not_convict_a_later_head() {
+        let rule = HeadResponseHeadersMatchGet;
+        let mut prev = make_prev_with_headers(&[("transfer-encoding", "chunked")]);
+        prev.response.as_mut().expect("response").body_length = Some(1700);
+
+        let mut head = make_head_with_headers(&[("content-length", "4000")]);
+        head.request.uri = prev.request.uri.clone();
+
+        let run = |prev: crate::http_transaction::HttpTransaction| {
+            crate::test_helpers::run_rule(
+                &rule,
+                &head,
+                &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+                &make_cfg_with_headers(vec!["content-length"]),
+            )
+        };
+
+        // The GET was read to its end, so 1700 octets is what the representation
+        // was, and a HEAD claiming 4000 contradicts it.
+        assert!(
+            run(prev.clone()).is_some(),
+            "a completed GET's delivery is a measure the HEAD must match"
+        );
+
+        prev.response.as_mut().expect("response").body_interrupted = true;
+        assert!(
+            run(prev).is_none(),
+            "octets counted before the client left are not the representation's length"
+        );
     }
 
     #[test]
