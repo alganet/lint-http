@@ -12,7 +12,7 @@ Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that
 
 **A request carrying content must say what it is.** §9.3.7: "A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type." Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does, which leaves a chunked request whose octets were not captured unmeasurable. Only the field's *absence* is reported here: a `Content-Type` that is empty or is not a media type is `content_type_valid`'s finding. The section adds that "this specification does not define any use for such content", so the requirement is about labelling what was sent, not about sending it.
 
-**A successful response should advertise something.** §9.3.7: "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification." That names a class, not a field, so this rule does not ask for `Allow` — §10.2.1 makes `Allow` a **MAY** on every response other than a 405, and the 405 that requires it is `status_405_allow_valid`'s. The finding is a successful response carrying none of the three fields a specification names as advertising an optional feature applicable to the target resource: `Allow` (§10.2.1), `Accept-Ranges` (§14.3), and `Accept-Patch` (RFC 5789 §3.1, which asks for it in an OPTIONS response by name). Presence is the whole test — §10.2.1 gives an empty `Allow` value the meaning "the resource allows no methods", which is an answer. `Accept-Ranges` also counts when it arrives in the trailer section, because §14.3 says it MAY be sent there; the other two are read from the header section only, since §6.5.1 forbids a trailer field unless the field's own definition permits it and neither definition does.
+**A successful response should advertise something.** §9.3.7: "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification." That names a class, not a field, so this rule does not ask for `Allow` — §10.2.1 makes `Allow` a **MAY** on every response other than a 405, and the 405 that requires it is `status_405_allow_valid`'s. The finding is a successful response carrying none of the five fields a specification names as advertising an optional feature applicable to the target resource: `Allow` (§10.2.1), `Accept-Ranges` (§14.3), `Accept-Patch` (RFC 5789 §3.1, which asks for it in an OPTIONS response by name), and the two Fetch §3.3.3 names as what a CORS-preflight response carries — `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers`, which say which methods and which request headers the target resource supports for that protocol. A preflight *is* an OPTIONS request, so these are the "potential extensions not defined by this specification" the sentence includes, and Fetch adds that `Allow` "is not relevant for the purposes of the CORS protocol": a preflight answered with them and no `Allow` has advertised exactly what it was asked. `Access-Control-Allow-Origin` on its own does not count: Fetch lists it for any CORS response rather than the preflight's, and it says whether the response may be shared, not what the target resource supports — a server stamping it on every response has not answered an OPTIONS. Presence is the whole test — §10.2.1 gives an empty `Allow` value the meaning "the resource allows no methods", which is an answer. `Accept-Ranges` also counts when it arrives in the trailer section, because §14.3 says it MAY be sent there; the other four are read from the header section only, since §6.5.1 forbids a trailer field unless the field's own definition permits it and neither definition does.
 
 **The limit of that finding.** The sentence ends by including "potential extensions not defined by this specification", so the class is open and no list can close it. A server advertising a capability under a field name this rule does not know reads here exactly like a server advertising nothing. Read the finding as "nothing recognizable was advertised", not as a violation of the SHOULD.
 
@@ -34,6 +34,7 @@ Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that
 - [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): `Allow` advertises the target resource's methods, is a `MAY` on any response other than a 405 — so it is not asked for by name — and an empty value of it means the resource allows no methods
 - [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges` advertises range-request support for the target resource — a second member of the class §9.3.7 asks for
 - [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): `Accept-Patch` advertises the patch formats a resource accepts, and this section asks for it in an OPTIONS response by name
+- [Fetch §3.3.3](https://fetch.spec.whatwg.org/#http-responses): `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers` are what a CORS-preflight response carries to say which methods and request headers the target resource supports for that protocol — the extension §9.3.7's clause anticipates, in the response to an OPTIONS request — and the same section says `Allow` is not relevant to it
 
 ## Configuration
 
@@ -62,6 +63,20 @@ Host: example.com
 
 HTTP/1.1 200 OK
 Accept-Patch: application/json-patch+json
+```
+
+### ✅ Good A CORS preflight, answered with the CORS protocol's own advertisement — Fetch says `Allow` is not relevant to it
+
+```http
+OPTIONS /resource HTTP/1.1
+Host: example.com
+Origin: https://app.example
+Access-Control-Request-Method: PUT
+
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: https://app.example
+Access-Control-Allow-Methods: GET, PUT, DELETE
+Access-Control-Allow-Headers: Content-Type
 ```
 
 ### ✅ Good An asterisk target names no resource, so nothing is asked of the response

@@ -43,17 +43,27 @@ pub struct OptionsMethodCapabilities;
 /// response advertising an extension field reads here exactly like a response
 /// advertising nothing.
 ///
+/// Two of the sentences are Fetch's, and they are the extension the clause
+/// anticipates: a CORS preflight is an OPTIONS request, and Fetch § 3.3.3 names
+/// `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers` as what
+/// its response carries to say which methods and which request headers the
+/// target resource supports for that protocol. They advertise the same kind of
+/// thing `Allow` does, for a different recipient — and Fetch says in the same
+/// breath that `Allow` itself is not relevant to it, so a preflight answered
+/// with these two and no `Allow` has advertised exactly what it was asked.
+///
 /// Presence is the whole test, for `Allow` by name: § 10.2.1 gives an empty
 /// value a meaning — the resource allows no methods — so a server that sends
 /// one has answered the question rather than declined it.
 ///
 /// The third element is which field *sections* to look in, and it is per field
 /// definition rather than per category: § 6.5.1 forbids a trailer field unless
-/// the field's own definition permits it, and of these three only § 14.3 does.
+/// the field's own definition permits it, and of these five only § 14.3 does.
 // cite(RFC 9110 § 9.3.7): "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification."
 // cite(RFC 9110 § 10.2.1): "An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration."
 // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-const ADVERTISED_CAPABILITIES: [(&str, &str, bool); 3] = [
+// cite(Fetch § 3.3.3): "The `Allow` header is not relevant for the purposes of the CORS protocol."
+const ADVERTISED_CAPABILITIES: [(&str, &str, bool); 5] = [
     // cite(RFC 9110 § 10.2.1): "The "Allow" header field lists the set of methods advertised as supported by the target resource."
     ("allow", "Allow", false),
     // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
@@ -61,6 +71,19 @@ const ADVERTISED_CAPABILITIES: [(&str, &str, bool); 3] = [
     ("accept-ranges", "Accept-Ranges", true),
     // cite(RFC 5789 § 3.1): "Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method."
     ("accept-patch", "Accept-Patch", false),
+    // cite(Fetch § 3.3.3): "An HTTP response to a CORS-preflight request can include the following headers:"
+    // cite(Fetch § 3.3.3): "`Access-Control-Allow-Methods` Indicates which methods are supported by the response’s URL for the purposes of the CORS protocol."
+    (
+        "access-control-allow-methods",
+        "Access-Control-Allow-Methods",
+        false,
+    ),
+    // cite(Fetch § 3.3.3): "`Access-Control-Allow-Headers` Indicates which headers are supported by the response’s URL for the purposes of the CORS protocol."
+    (
+        "access-control-allow-headers",
+        "Access-Control-Allow-Headers",
+        false,
+    ),
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -102,6 +125,12 @@ const RFC_5789_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
     note: "`Accept-Patch` advertises the patch formats a resource accepts, and this section asks for it in an OPTIONS response by name",
 };
+const FETCH_3_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("3.3.3"),
+    url: "https://fetch.spec.whatwg.org/#http-responses",
+    note: "`Access-Control-Allow-Methods` and `Access-Control-Allow-Headers` are what a CORS-preflight response carries to say which methods and request headers the target resource supports for that protocol — the extension §9.3.7's clause anticipates, in the response to an OPTIONS request — and the same section says `Allow` is not relevant to it",
+};
 
 impl RuleMeta for OptionsMethodCapabilities {
     fn id(&self) -> &'static str {
@@ -118,7 +147,7 @@ impl RuleMeta for OptionsMethodCapabilities {
     }
 
     fn description(&self) -> &'static str {
-        "Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that a captured message can answer. An OPTIONS request asks \"about the communication options available for the target resource\", so what the exchange is for is the advertisement in the response.\n\n**A request carrying content must say what it is.** §9.3.7: \"A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does, which leaves a chunked request whose octets were not captured unmeasurable. Only the field's *absence* is reported here: a `Content-Type` that is empty or is not a media type is `content_type_valid`'s finding. The section adds that \"this specification does not define any use for such content\", so the requirement is about labelling what was sent, not about sending it.\n\n**A successful response should advertise something.** §9.3.7: \"A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.\" That names a class, not a field, so this rule does not ask for `Allow` — §10.2.1 makes `Allow` a **MAY** on every response other than a 405, and the 405 that requires it is `status_405_allow_valid`'s. The finding is a successful response carrying none of the three fields a specification names as advertising an optional feature applicable to the target resource: `Allow` (§10.2.1), `Accept-Ranges` (§14.3), and `Accept-Patch` (RFC 5789 §3.1, which asks for it in an OPTIONS response by name). Presence is the whole test — §10.2.1 gives an empty `Allow` value the meaning \"the resource allows no methods\", which is an answer. `Accept-Ranges` also counts when it arrives in the trailer section, because §14.3 says it MAY be sent there; the other two are read from the header section only, since §6.5.1 forbids a trailer field unless the field's own definition permits it and neither definition does.\n\n**The limit of that finding.** The sentence ends by including \"potential extensions not defined by this specification\", so the class is open and no list can close it. A server advertising a capability under a field name this rule does not know reads here exactly like a server advertising nothing. Read the finding as \"nothing recognizable was advertised\", not as a violation of the SHOULD.\n\n**Not checked: an asterisk target.** §9.3.7 says an OPTIONS request with `*` as the request target \"applies to the server in general rather than to a specific resource\", and the SHOULD asks for headers applicable to the target resource. Such a response is not measured — **over HTTP/1.1**. Over HTTP/3 the capture does not keep the form: the request target is recorded as the string form of a URI rebuilt from `:scheme`, `:authority` and `:path`, so a `:path` of `*` arrives as `https://example.com*` and the asterisk is no longer distinguishable from part of the authority. An `OPTIONS *` over HTTP/3 is therefore measured, and may be reported for advertising nothing when there was nothing to advertise.\n\n**Not checked: where `Max-Forwards` came from.** §9.3.7's \"A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field\" is about who wrote a field, and no field of a message records its author. A capture cannot distinguish a client's `Max-Forwards` from one an intermediary invented."
+        "Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that a captured message can answer. An OPTIONS request asks \"about the communication options available for the target resource\", so what the exchange is for is the advertisement in the response.\n\n**A request carrying content must say what it is.** §9.3.7: \"A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does, which leaves a chunked request whose octets were not captured unmeasurable. Only the field's *absence* is reported here: a `Content-Type` that is empty or is not a media type is `content_type_valid`'s finding. The section adds that \"this specification does not define any use for such content\", so the requirement is about labelling what was sent, not about sending it.\n\n**A successful response should advertise something.** §9.3.7: \"A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.\" That names a class, not a field, so this rule does not ask for `Allow` — §10.2.1 makes `Allow` a **MAY** on every response other than a 405, and the 405 that requires it is `status_405_allow_valid`'s. The finding is a successful response carrying none of the five fields a specification names as advertising an optional feature applicable to the target resource: `Allow` (§10.2.1), `Accept-Ranges` (§14.3), `Accept-Patch` (RFC 5789 §3.1, which asks for it in an OPTIONS response by name), and the two Fetch §3.3.3 names as what a CORS-preflight response carries — `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers`, which say which methods and which request headers the target resource supports for that protocol. A preflight *is* an OPTIONS request, so these are the \"potential extensions not defined by this specification\" the sentence includes, and Fetch adds that `Allow` \"is not relevant for the purposes of the CORS protocol\": a preflight answered with them and no `Allow` has advertised exactly what it was asked. `Access-Control-Allow-Origin` on its own does not count: Fetch lists it for any CORS response rather than the preflight's, and it says whether the response may be shared, not what the target resource supports — a server stamping it on every response has not answered an OPTIONS. Presence is the whole test — §10.2.1 gives an empty `Allow` value the meaning \"the resource allows no methods\", which is an answer. `Accept-Ranges` also counts when it arrives in the trailer section, because §14.3 says it MAY be sent there; the other four are read from the header section only, since §6.5.1 forbids a trailer field unless the field's own definition permits it and neither definition does.\n\n**The limit of that finding.** The sentence ends by including \"potential extensions not defined by this specification\", so the class is open and no list can close it. A server advertising a capability under a field name this rule does not know reads here exactly like a server advertising nothing. Read the finding as \"nothing recognizable was advertised\", not as a violation of the SHOULD.\n\n**Not checked: an asterisk target.** §9.3.7 says an OPTIONS request with `*` as the request target \"applies to the server in general rather than to a specific resource\", and the SHOULD asks for headers applicable to the target resource. Such a response is not measured — **over HTTP/1.1**. Over HTTP/3 the capture does not keep the form: the request target is recorded as the string form of a URI rebuilt from `:scheme`, `:authority` and `:path`, so a `:path` of `*` arrives as `https://example.com*` and the asterisk is no longer distinguishable from part of the authority. An `OPTIONS *` over HTTP/3 is therefore measured, and may be reported for advertising nothing when there was nothing to advertise.\n\n**Not checked: where `Max-Forwards` came from.** §9.3.7's \"A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field\" is about who wrote a field, and no field of a message records its author. A capture cannot distinguish a client's `Max-Forwards` from one an intermediary invented."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -130,6 +159,7 @@ impl RuleMeta for OptionsMethodCapabilities {
             RFC_9110_10_2_1,
             RFC_9110_14_3,
             RFC_5789_3_1,
+            FETCH_3_3_3,
         ]
     }
 
@@ -165,6 +195,11 @@ impl RuleMeta for OptionsMethodCapabilities {
                 compliance: Compliance::Compliant,
                 label: Some("A capability other than the method set — the class is what the SHOULD names"),
                 snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAccept-Patch: application/json-patch+json",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("A CORS preflight, answered with the CORS protocol's own advertisement — Fetch says `Allow` is not relevant to it"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nOrigin: https://app.example\nAccess-Control-Request-Method: PUT\n\nHTTP/1.1 204 No Content\nAccess-Control-Allow-Origin: https://app.example\nAccess-Control-Allow-Methods: GET, PUT, DELETE\nAccess-Control-Allow-Headers: Content-Type",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -415,6 +450,9 @@ mod tests {
     #[case(200, &[("allow", "GET, HEAD")][..], false)]
     #[case(200, &[("accept-ranges", "bytes")][..], false)]
     #[case(200, &[("accept-patch", "application/json-patch+json")][..], false)]
+    #[case(204, &[("access-control-allow-methods", "GET, PUT, DELETE")][..], false)]
+    #[case(204, &[("access-control-allow-headers", "Content-Type")][..], false)]
+    #[case(204, &[("access-control-allow-origin", "*")][..], true)]
     #[case(204, &[][..], true)]
     #[case(201, &[("allow", "POST")][..], false)]
     #[case(404, &[][..], false)]
@@ -460,6 +498,8 @@ mod tests {
     #[case("accept-ranges", false)]
     #[case("allow", true)]
     #[case("accept-patch", true)]
+    #[case("access-control-allow-methods", true)]
+    #[case("access-control-allow-headers", true)]
     fn a_trailer_advertises_only_where_the_field_definition_permits_it(
         #[case] field: &str,
         #[case] expect_violation: bool,
@@ -488,6 +528,37 @@ mod tests {
             &[("host", "example.com")],
             None,
             Some((200, &[("accept-patch", "text/example")])),
+        );
+        assert!(run(&tx).is_none());
+    }
+
+    /// The shape every CORS-capable origin answers a preflight with: the
+    /// methods and request headers it supports, under the names Fetch § 3.3.3
+    /// gives them, and no `Allow` — which Fetch says is not relevant to the
+    /// protocol. This response was reported as advertising none of the
+    /// capabilities it was asked for, when it had answered the request's own
+    /// `Access-Control-Request-Method` by name.
+    #[test]
+    fn a_preflight_answered_in_the_cors_protocols_own_fields_is_not_a_finding() {
+        let tx = make_tx(
+            "OPTIONS",
+            "/r",
+            &[
+                ("host", "example.com"),
+                ("origin", "https://app.example"),
+                ("access-control-request-method", "PUT"),
+                ("access-control-request-headers", "content-type"),
+            ],
+            None,
+            Some((
+                204,
+                &[
+                    ("access-control-allow-origin", "https://app.example"),
+                    ("access-control-allow-methods", "GET, PUT, DELETE"),
+                    ("access-control-allow-headers", "Content-Type"),
+                    ("access-control-max-age", "86400"),
+                ],
+            )),
         );
         assert!(run(&tx).is_none());
     }
