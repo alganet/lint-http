@@ -131,11 +131,14 @@ impl Rule for NoStoreEnforced {
             // reported for holding it.
             //
             // The answer is a subtraction rather than a race: a tag is
-            // evidence only if *no* response a cache could store ever offered
-            // it. `storage_allowed` is what "could store" means here, so the
+            // evidence only if *no* response free of `no-store` ever offered
+            // it. `no_store_forbids` is the term, read on both messages so the
             // directive on the earlier request counts the same as the one on
-            // the response — the same reading the rules that reconstruct an
-            // entry from history apply.
+            // the response. It is deliberately not `storage_allowed`, § 3's
+            // whole conjunction: a `302` carrying an `ETag` and no
+            // Cache-Control is not storable, but nothing about it is
+            // `no-store`, and this entry's claim is that the tag came from a
+            // `no-store` response — which, read the wider way, it did not.
             use std::collections::{HashMap, HashSet};
 
             // ETags compare with the weak prefix stripped; the raw text is kept
@@ -156,7 +159,7 @@ impl Rule for NoStoreEnforced {
             let mut storable_instants: HashSet<chrono::DateTime<chrono::Utc>> = HashSet::new();
 
             for (prev_tx, resp) in history.responses() {
-                let stored = crate::helpers::stored_response::storage_allowed(
+                let stored = !crate::helpers::stored_response::no_store_forbids(
                     &prev_tx.request.headers,
                     &resp.headers,
                 );
@@ -278,6 +281,31 @@ mod tests {
             prev.response.as_mut().unwrap().headers.append(name_hdr, hv);
         }
         prev
+    }
+
+    /// A `302` carrying an `ETag`, a `Location` and no Cache-Control at all is
+    /// no storable response, and it is no `no-store` response either. The tag
+    /// a client revalidates with was taken from nowhere this entry names.
+    #[test]
+    fn a_tag_from_a_response_nothing_forbade_storing_is_not_from_a_no_store_one() {
+        let rule = NoStoreEnforced;
+        let mut redirect = crate::test_helpers::make_test_transaction_with_response(
+            302,
+            &[("etag", "\"v1\""), ("location", "https://example.test/")],
+        );
+        redirect.request.method = "GET".to_string();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = redirect.timestamp + chrono::Duration::seconds(5);
+        tx.request.method = "GET".to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v1\"")]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![redirect]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]),
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]
