@@ -62,7 +62,7 @@ Content-Disposition: attachment; filename=example.txt; size=12345
 ### ❌ Bad
 
 ```http
-Content-Disposition: attachment; filename=unclosed
+Content-Disposition: attachment; filename="unclosed   # the quoted-string never closes
 Content-Disposition: attachment; filename*=UTF-8'%e2%82%ac   ;  # missing second quote
 Content-Disposition: attachment; size=12a
 Content-Disposition: attachment; filename=foo; filename=bar  # duplicate parameter name

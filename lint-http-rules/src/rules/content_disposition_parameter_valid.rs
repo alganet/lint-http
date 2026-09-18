@@ -125,7 +125,7 @@ impl RuleMeta for ContentDispositionParameterValid {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Content-Disposition: attachment; filename=unclosed\nContent-Disposition: attachment; filename*=UTF-8'%e2%82%ac   ;  # missing second quote\nContent-Disposition: attachment; size=12a\nContent-Disposition: attachment; filename=foo; filename=bar  # duplicate parameter name",
+                snippet: "Content-Disposition: attachment; filename=\"unclosed   # the quoted-string never closes\nContent-Disposition: attachment; filename*=UTF-8'%e2%82%ac   ;  # missing second quote\nContent-Disposition: attachment; size=12a\nContent-Disposition: attachment; filename=foo; filename=bar  # duplicate parameter name",
             },
         ]
     }
