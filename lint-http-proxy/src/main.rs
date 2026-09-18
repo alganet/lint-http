@@ -2826,19 +2826,38 @@ async fn live_reporter(
     }
 }
 
+/// Whether a command has diagnostics worth hearing, and so installs the
+/// subscriber [`init_diagnostics`] provides.
+///
+/// **The question is whether the command handles a stream of messages it can
+/// fail to read, not whether it stands a proxy up.** Three of these do stand one
+/// up, and that framing is why the fourth was missing: `lint-captures` runs no
+/// proxy, so it was never added — while being the one command whose entire input
+/// is a file another process wrote, and therefore the one most able to be handed
+/// a record it cannot parse. `load_session_records` names the line and the
+/// reason on every such record, in a `tracing::warn!` that had no subscriber to
+/// reach. An operator saw `unread: 1 of 3 capture records could not be parsed`
+/// and had no way, `RUST_LOG` included, to learn which line or why.
+///
+/// The catalogue and config printers stay out, and the reason is *their stdout*:
+/// it is what a pipe reads, and it is the whole of what they produce. That
+/// reason never covered `lint-captures`, whose report is on stdout and whose
+/// diagnostics — like `run`'s and `use`'s — go to stderr, so nothing a pipe
+/// reads changes by hearing them.
+fn wants_diagnostics(command: &Command) -> bool {
+    match command {
+        Command::Run(_) | Command::Use(_) | Command::ProxyStart | Command::LintCaptures(_) => true,
+        Command::Rules(_) | Command::Config(_) => false,
+    }
+}
+
 /// Run the selected subcommand and return the process exit code (`0` success,
 /// `1` lint findings). Real errors propagate as `Err` (anyhow maps them to exit
 /// 1 with a message). Split from `main` so the dispatch is unit-testable without
 /// spawning the process.
 async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
     let global = cli.global;
-    // The three commands that stand a proxy up, and therefore the three that
-    // have diagnostics worth hearing. The catalogue and config printers are
-    // left alone so their stdout stays exactly what a pipe expects.
-    if matches!(
-        cli.command,
-        Some(Command::Run(_) | Command::Use(_) | Command::ProxyStart)
-    ) {
+    if cli.command.as_ref().is_some_and(wants_diagnostics) {
         init_diagnostics();
     }
     match cli.command {
@@ -2895,6 +2914,7 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
 mod tests {
     use super::*;
     use clap::{CommandFactory, Parser};
+    use rstest::rstest;
     use tokio::fs;
     use uuid::Uuid;
 
@@ -2943,6 +2963,32 @@ mod tests {
         assert!(matches!(global.format(), OutputFormat::Text));
         assert_eq!(global.min_severity(), lint::Severity::Info);
         assert!(global.captures_path().is_none());
+    }
+
+    /// Every command that reads or writes a stream of messages hears about the
+    /// ones it could not read. `lint-captures` is in the list because a capture
+    /// file is written by another process and can hold a line this tool cannot
+    /// parse; the printers are out because stdout is the whole of what they
+    /// produce.
+    #[rstest]
+    #[case(&["lint-http", "run", "--", "true"], true)]
+    #[case(&["lint-http", "use", "curl", "--", "http://x"], true)]
+    #[case(&["lint-http", "proxy-start"], true)]
+    #[case(&["lint-http", "lint-captures", "caps.jsonl"], true)]
+    #[case(&["lint-http", "rules", "list"], false)]
+    #[case(&["lint-http", "config", "export"], false)]
+    fn diagnostics_follow_the_commands_that_read_messages(
+        #[case] argv: &[&str],
+        #[case] expected: bool,
+    ) {
+        let cli = Cli::parse_from(argv);
+        let command = cli.command.expect("argv names a command");
+        assert_eq!(
+            wants_diagnostics(&command),
+            expected,
+            "{argv:?} should {}install the subscriber",
+            if expected { "" } else { "not " }
+        );
     }
 
     #[test]
