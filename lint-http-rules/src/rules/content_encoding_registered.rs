@@ -8,6 +8,7 @@ use crate::violations::content_coding::{
     CONTENT_CODING_IDENTITY_FORBIDDEN, CONTENT_CODING_UNREGISTERED,
     CONTENT_CODING_WILDCARD_FORBIDDEN, RFC_9110_12_5_3, RFC_9110_8_4, RFC_9110_8_4_1,
 };
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -29,6 +30,7 @@ pub struct ContentEncodingRegistered;
 /// about which names exist rather than about how one is spelled, and the second
 /// is a SHOULD NOT that has no business sharing a level with a mangled octet.
 static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &CONTENT_CODING_WILDCARD_FORBIDDEN,
@@ -75,7 +77,7 @@ allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip"
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Encoding` and `Accept-Encoding` header values: each content-coding must be a valid `token` and must appear in the `allowed` array you configure.\n\n**It does not consult the IANA registry**, despite the rule's name. RFC 9110 says content codings *ought to* be registered, which is the motivation, but a coding is recognised here exactly when your `allowed` array covers it. Comparisons are case-insensitive.\n\nThe two headers do not share a vocabulary. `Accept-Encoding` additionally admits `*` (matching any coding not listed) and `identity` (meaning no encoding); both are preference vocabulary and neither is a content-coding, so in `Content-Encoding` they are flagged — `identity` explicitly so, since RFC 9110 §8.4 reserves it for its Accept-Encoding role and says it SHOULD NOT be included.\n\n**Both fields are read as octets and over the whole field section.** A coding name holding an octet outside visible US-ASCII is not a `token` and is reported as that; the reader this replaces refused such a value outright, so the field went unread and unreported. It also took only the first field line, where `#content-coding` makes every line of a section one list."
+        "Validate `Content-Encoding` and `Accept-Encoding` header values: each content-coding must be a valid `token` and must appear in the `allowed` array you configure.\n\n**It does not consult the IANA registry**, despite the rule's name. RFC 9110 says content codings *ought to* be registered, which is the motivation, but a coding is recognised here exactly when your `allowed` array covers it. Comparisons are case-insensitive.\n\nThe two headers do not share a vocabulary. `Accept-Encoding` additionally admits `*` (matching any coding not listed) and `identity` (meaning no encoding); both are preference vocabulary and neither is a content-coding, so in `Content-Encoding` they are flagged — `identity` explicitly so, since RFC 9110 §8.4 reserves it for its Accept-Encoding role and says it SHOULD NOT be included.\n\n**Both fields are read as octets and over the whole field section.** A coding name holding an octet outside visible US-ASCII is not a `token` and is reported as that; the reader this replaces refused such a value outright, so the field went unread and unreported. It also took only the first field line, where `#content-coding` makes every line of a section one list.\n\n**An empty `Content-Encoding` list element is reported, and a field line holding no element at all is not.** §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits; §5.6.1.1 expands the same construct for a sender with nothing bracketed and forbids generating one. So `gzip,,br` is a comma the sender may not write, while a bare `Content-Encoding:` is the zero-element list the construct generates. That check is per field line rather than over the joined value, because a line holding no element becomes an empty element only in the join, which is a claim about the join. `Accept-Encoding`'s stray comma is `accept_encoding_parameter_valid`'s finding, not this rule's."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -85,6 +87,7 @@ allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip"
             RFC_9110_12_5_3,
             IANA_HTTP_PARAMETERS,
             RFC_9110_5_6_2,
+            RFC_9110_5_6_1_1,
         ]
     }
 
@@ -199,6 +202,46 @@ impl Rule for ContentEncodingRegistered {
                 }
                 None
             };
+
+            // The empty member is the sender's, and it is read per field line
+            // rather than off the combined value below. A `#` list spread over
+            // two lines is one list to a recipient that joins them, so a line
+            // holding no element at all would arrive in the join as an empty
+            // element — and that is a claim about the *join*, not about a comma
+            // this sender wrote. Per line, the finding names the value it can
+            // point at.
+            //
+            // Only `Content-Encoding` is walked here. `Accept-Encoding`'s member
+            // list is `accept_encoding_parameter_valid`'s — that rule owns the
+            // field's syntax and reports the same comma, and reporting it twice
+            // would make one stray comma two findings.
+            //
+            // A field line holding no element at all is skipped: `#content-coding`
+            // generates the zero-element list, and an absent list is not an
+            // element the sender left blank.
+            // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
+            // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+            if let Some(resp) = &tx.response {
+                for line in crate::helpers::headers::field_lines_as_written(
+                    &resp.headers,
+                    "content-encoding",
+                ) {
+                    let val = line.as_str();
+                    if crate::helpers::headers::trim_ows(val).is_empty() {
+                        continue;
+                    }
+                    if crate::helpers::list::sender_list_members(val).any(str::is_empty) {
+                        return Some(ctx.by(crate::lint::Party::Server).report_with(
+                            &LIST_MEMBER_EMPTY,
+                            format!(
+                                "Content-Encoding holds an empty list element; the field line reads '{val}'. Every position in `#content-coding` holds a coding, and a comma with nothing beside it holds none"
+                            ),
+                        ));
+                    }
+                }
+            }
 
             // Both fields are read as octets and over the whole section. The
             // reader this replaces took the first field line and refused every
@@ -722,8 +765,19 @@ mod tests {
         Ok(())
     }
 
+    /// A trailing comma is not whitespace, and this test used to say it was:
+    /// it asserted that `Content-Encoding: gzip, ` drew nothing, which was true
+    /// only because the recipient's list walk had already dropped the element
+    /// the comma introduced. §5.6.1.1 forbids the sender to write it, so the
+    /// value now draws `list_member_empty` and the trimming this was really
+    /// about is asserted on the coding itself.
+    ///
+    /// The `Accept-Encoding` half stays a silence, and it is an ownership claim
+    /// rather than a verdict on the value: that field's stray comma is
+    /// `accept_encoding_parameter_valid`'s finding, and one comma reported by
+    /// two rules would be two findings.
     #[test]
-    fn trailing_commas_and_whitespace_are_ignored() -> anyhow::Result<()> {
+    fn a_trailing_comma_is_an_element_and_the_space_beside_it_is_not() -> anyhow::Result<()> {
         let rule = ContentEncodingRegistered;
         let cfg = make_cfg();
 
@@ -737,7 +791,22 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_none());
+        assert_eq!(
+            v.map(|v| v.violation),
+            Some("list_member_empty".to_string())
+        );
+
+        // The `OWS` the list construct prints around its commas is still
+        // trimmed off the coding, which is what this test was named for.
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-encoding", " gzip , br ")]);
+        let trimmed = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(trimmed.is_none(), "the OWS is not part of the coding");
 
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.headers =
@@ -748,7 +817,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v2.is_none());
+        assert!(
+            v2.is_none(),
+            "Accept-Encoding's stray comma is not this rule's"
+        );
         Ok(())
     }
 
@@ -954,5 +1026,52 @@ mod tests {
         let v = v.unwrap();
         assert_eq!(v.message, "Invalid token '@' in Content-Encoding header");
         Ok(())
+    }
+
+    /// `Content-Encoding = #content-coding`, so the empty value is a list with
+    /// no element in it and a comma with nothing beside it is an element the
+    /// sender left blank. Reading the field through the recipient's list walk
+    /// dropped the second before any check could see it, and the two look the
+    /// same only after the drop.
+    ///
+    /// Two field lines each holding a coding are one list and no finding: the
+    /// empty element is looked for inside a line, not across the join.
+    #[rstest]
+    #[case(&["gzip,,br"], Some("list_member_empty"))]
+    #[case(&["gzip, , br"], Some("list_member_empty"))]
+    #[case(&["gzip,"], Some("list_member_empty"))]
+    #[case(&[",gzip"], Some("list_member_empty"))]
+    #[case(&[","], Some("list_member_empty"))]
+    #[case(&[""], None)]
+    #[case(&["  "], None)]
+    #[case(&["gzip"], None)]
+    #[case(&["gzip", "br"], None)]
+    fn an_empty_content_encoding_element_is_not_an_empty_content_encoding(
+        #[case] lines: &[&str],
+        #[case] expected: Option<&str>,
+    ) {
+        let rule = ContentEncodingRegistered;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let headers = tx.response.as_mut().unwrap();
+        headers.headers = hyper::HeaderMap::new();
+        for line in lines {
+            headers.headers.append(
+                hyper::header::HeaderName::from_static("content-encoding"),
+                HeaderValue::from_str(line).expect("a header value"),
+            );
+        }
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        match expected {
+            Some(id) => assert_eq!(v.map(|v| v.violation), Some(id.to_string()), "{lines:?}"),
+            None => assert!(v.is_none(), "{lines:?} drew {v:?}"),
+        }
     }
 }

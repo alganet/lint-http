@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::qvalue::{
     QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
     WEIGHT_MALFORMED, WEIGHT_MISSING,
@@ -44,6 +45,7 @@ pub struct AcceptEncodingParameterValid;
 /// and this field's `description()` called it a known leniency while
 /// `te_header_valid` reported it against the identical production.
 static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -73,7 +75,7 @@ const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.6.1.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
-    note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
+    note: "Recipient Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore, and the meaning of a field value that holds no element at all",
 };
 
 impl RuleMeta for AcceptEncodingParameterValid {
@@ -91,7 +93,7 @@ impl RuleMeta for AcceptEncodingParameterValid {
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**Whitespace beside the weight's `=` is reported.** The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, and both `OWS` it prints stand before that literal — so there is no room in it for the space at all, and `gzip;q =0.5` is characters the construct does not generate rather than whitespace a recipient parses out. The value is still trimmed before the number is read, because that is what a recipient does; reporting it is what the *sender* is told.\n\n**The value is read as the octets the sender wrote**, and each is reported by the production it landed in. There are no quoted-strings in this field — a member is a `token`, one of two literals, and the weight's fixed text — so no octet outside visible US-ASCII is legal anywhere in it: one in a coding name is the `token`'s defect, one in a weight fails the `q` name or the `qvalue`. Refusing to decode the line named the octet and put every other defect written beside it out of reach."
+        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported, and an empty list element is.** §12.5.3 gives the empty value a meaning of its own — the user agent wants no content coding at all — and the `#` construct generates it. An empty *element* is a different value: §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits, while §5.6.1.1 expands the same construct for a sender with nothing bracketed and forbids generating one. So `gzip,,br` and `gzip,` are commas the sender may not write, and this rule used to read the field through the recipient's walk, which dropped them before any check could see them.\n\n**Whitespace beside the weight's `=` is reported.** The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, and both `OWS` it prints stand before that literal — so there is no room in it for the space at all, and `gzip;q =0.5` is characters the construct does not generate rather than whitespace a recipient parses out. The value is still trimmed before the number is read, because that is what a recipient does; reporting it is what the *sender* is told.\n\n**The value is read as the octets the sender wrote**, and each is reported by the production it landed in. There are no quoted-strings in this field — a member is a `token`, one of two literals, and the weight's fixed text — so no octet outside visible US-ASCII is legal anywhere in it: one in a coding name is the `token`'s defect, one in a weight fails the `q` name or the `qvalue`. Refusing to decode the line named the octet and put every other defect written beside it out of reach."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -99,6 +101,7 @@ impl RuleMeta for AcceptEncodingParameterValid {
             RFC_9110_12_5_3,
             RFC_9110_12_4_2,
             RFC_9110_8_4_1,
+            RFC_9110_5_6_1_1,
             RFC_9110_5_6_1_2,
             RFC_9110_5_6_2,
         ]
@@ -208,15 +211,43 @@ impl Rule for AcceptEncodingParameterValid {
                     crate::helpers::headers::field_lines_as_written(headers, "accept-encoding")
                 {
                     let val = line.as_str();
+                    // An empty field value is not an empty element, and §12.5.3
+                    // gives it a meaning of its own: the user agent wants no
+                    // content coding at all. The `#` construct generates that
+                    // value, so the line is passed over rather than read as one
+                    // member the sender left blank.
+                    // cite(RFC 9110 § 12.5.3): "An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response."
+                    // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                    if crate::helpers::headers::trim_ows(val).is_empty() {
+                        continue;
+                    }
                     // A comma split with no regard for quoting, which is
                     // correct here rather than merely tolerable: nothing in
                     // this field's grammar is a quoted-string, so there is no
-                    // quoted comma for a quote-aware splitter to protect. An
-                    // empty field value yields no members and no finding, which
-                    // is right — §12.5.3 gives that value a meaning of its own.
-                    // cite(RFC 9110 § 12.5.3): "An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response."
-                    // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
-                    for part in crate::helpers::list::list_members(val) {
+                    // quoted comma for a quote-aware splitter to protect.
+                    //
+                    // The walk keeps the empty member, and that is the whole
+                    // difference between the two sentences the `#` construct
+                    // carries. §5.6.1.2's expansion brackets every position and
+                    // tells a *recipient* to ignore what that admits; §5.6.1.1
+                    // expands the same construct for the sender with nothing
+                    // bracketed, and forbids generating the element. Reading
+                    // this field through the recipient's walk dropped the comma
+                    // before any check could see it, so `gzip,,br` — the value
+                    // the catalogue's list subject prints first among the ones
+                    // this defect is named for — reported nothing.
+                    // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+                    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                    for part in crate::helpers::list::sender_list_members(val) {
+                        if part.is_empty() {
+                            return Some(ctx.report_with(
+                                &LIST_MEMBER_EMPTY,
+                                format!(
+                                    "Accept-Encoding holds an empty list element; the field line reads '{val}'. Every position in `#( codings [ weight ] )` holds a coding, and a comma with nothing beside it holds none"
+                                ),
+                            ));
+                        }
                         // Split into token and optional params
                         let mut iter =
                             crate::helpers::list::split_semicolons_respecting_quotes(part)
@@ -628,8 +659,17 @@ mod tests {
     #[case(Some("gzip;q=1.0, identity; q=0.5, *;q=0"), false)]
     #[case(Some("*"), false)]
     // An empty field value is legal, and §12.5.3 gives it a meaning: no content
-    // coding is wanted at all.
+    // coding is wanted at all. An empty *element* is a comma the sender wrote
+    // with nothing beside it, which §5.6.1.1 forbids outright — the walk this
+    // rule used to read the field with dropped it, on §5.6.1.2's instruction to
+    // a recipient.
     #[case(Some(""), false)]
+    #[case(Some("   "), false)]
+    #[case(Some("gzip,,br"), true)]
+    #[case(Some("gzip, , br"), true)]
+    #[case(Some("gzip,"), true)]
+    #[case(Some(",gzip"), true)]
+    #[case(Some(","), true)]
     fn check_additional_parameter_cases(#[case] ae: Option<&str>, #[case] expect_violation: bool) {
         let rule = AcceptEncodingParameterValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[

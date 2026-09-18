@@ -16,11 +16,14 @@ The two headers do not share a vocabulary. `Accept-Encoding` additionally admits
 
 **Both fields are read as octets and over the whole field section.** A coding name holding an octet outside visible US-ASCII is not a `token` and is reported as that; the reader this replaces refused such a value outright, so the field went unread and unreported. It also took only the first field line, where `#content-coding` makes every line of a section one list.
 
+**An empty `Content-Encoding` list element is reported, and a field line holding no element at all is not.** §5.6.1.2 expands `#element` with every position bracketed and tells a recipient to ignore what that admits; §5.6.1.1 expands the same construct for a sender with nothing bracketed and forbids generating one. So `gzip,,br` is a comma the sender may not write, while a bare `Content-Encoding:` is the zero-element list the construct generates. That check is per field line rather than over the joined value, because a line holding no element becomes an empty element only in the join, which is a claim about the join. `Accept-Encoding`'s stray comma is `accept_encoding_parameter_valid`'s finding, not this rule's.
+
 ## Violations
 
 - [content_coding_identity_forbidden](../violations/content_coding_identity_forbidden.md) — The identity coding is named where a coding belongs
 - [content_coding_unregistered](../violations/content_coding_unregistered.md) — Content coding is not one the deployment recognises
 - [content_coding_wildcard_forbidden](../violations/content_coding_wildcard_forbidden.md) — The Accept-Encoding wildcard is written where a coding belongs
+- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
 
@@ -31,6 +34,7 @@ The two headers do not share a vocabulary. `Accept-Encoding` additionally admits
 - [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): The wider Accept-Encoding grammar (`codings = content-coding / "identity" / "*"`), which is why the two headers are checked against different vocabularies
 - [IANA HTTP Parameters](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding): The registry this rule is named after but does not read; the configured `allowed` array stands in for it
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 
 ## Configuration
 
