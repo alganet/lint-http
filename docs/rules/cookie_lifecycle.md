@@ -107,6 +107,21 @@ enabled = true
 > Cookie: id=1               # old value should have been replaced
 ```
 
+### ❌ Bad — two cookies, two separate mistakes
+
+```http
+> GET /login HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Set-Cookie: sid=abc; Secure; Path=/
+< Set-Cookie: theme=dark; Path=/
+
+> GET /dashboard HTTP/1.1
+> Host: example.com
+> Cookie: sid=abc; theme=light   # a leaked Secure cookie and a stale value, reported separately
+```
+
 ### ❌ Bad — secure cookie over HTTP
 
 ```http

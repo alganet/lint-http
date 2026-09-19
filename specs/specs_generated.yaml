@@ -2703,31 +2703,33 @@ sources:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
       line: 131
   - label: cookie_lifecycle (2)
+    section: § 4.2.1
+    snippet: cookie-string = cookie-pair *( ";" SP cookie-pair )
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_lifecycle.rs
+      line: 255
+    - file: lint-http-rules/src/rules/cookie_pair_valid.rs
+      line: 137
+  - label: cookie_lifecycle (3)
     section: § 5.3
     snippet: The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
-      line: 280
+      line: 299
     - file: lint-http-rules/src/violations/cookie.rs
       line: 607
-  - label: cookie_lifecycle (3)
+  - label: cookie_lifecycle (4)
     section: § 5.4
     snippet: Cookies with longer paths are listed before cookies with shorter paths.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
-      line: 257
-  - label: cookie_lifecycle (4)
+      line: 273
+  - label: cookie_lifecycle (5)
     section: § 5.4
     snippet: 'The user agent MUST use an algorithm equivalent to the following algorithm to compute the "cookie-string" from a cookie store and a request-uri:'
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
       line: 71
-  - label: cookie_pair_valid
-    section: § 4.2.1
-    snippet: cookie-string = cookie-pair *( ";" SP cookie-pair )
-    cited_by:
-    - file: lint-http-rules/src/rules/cookie_pair_valid.rs
-      line: 137
   - label: cookie_path_valid
     section: § 5.2
     snippet: If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows.

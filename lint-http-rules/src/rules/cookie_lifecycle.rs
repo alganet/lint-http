@@ -147,15 +147,16 @@ impl CookieLifecycle {
                 && c.domain_matches(&request.host)
                 && c.path_matches(&request.path)
         });
-        sent_a_secure_cookie.then(|| {
-            ctx.report_with(
-                &COOKIE_SECURE_IGNORED,
-                format!(
-                    "Secure cookie '{}' sent over insecure transport; RFC 6265 \u{a7}5.4 excludes it from the cookie-string on a scheme that is not secure",
-                    name
-                ),
-            )
-        })
+        if !sent_a_secure_cookie {
+            return None;
+        }
+        Some(ctx.report_with(
+            &COOKIE_SECURE_IGNORED,
+            format!(
+                "Secure cookie '{}' sent over insecure transport; RFC 6265 \u{a7}5.4 excludes it from the cookie-string on a scheme that is not secure",
+                name
+            ),
+        ))
     }
 }
 
@@ -212,6 +213,11 @@ impl RuleMeta for CookieLifecycle {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— two cookies, two separate mistakes"),
+                snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=abc; Secure; Path=/\n< Set-Cookie: theme=dark; Path=/\n\n> GET /dashboard HTTP/1.1\n> Host: example.com\n> Cookie: sid=abc; theme=light   # a leaked Secure cookie and a stale value, reported separately",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("— secure cookie over HTTP"),
                 snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Secure\n\n> GET /dashboard HTTP/1.1\n> Host: example.com\n> Cookie: sid=123            # insecure transport",
             },
@@ -226,81 +232,90 @@ impl Rule for CookieLifecycle {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Only requests that carry cookies say anything about the store.
-            let sent: Vec<(String, String)> =
-                crate::helpers::headers::field_lines(&tx.request.headers, "cookie")
-                    .flat_map(crate::helpers::cookie::parse_cookie_header)
-                    .collect();
-            if sent.is_empty() {
-                return None;
+        // Only requests that carry cookies say anything about the store.
+        let sent: Vec<(String, String)> =
+            crate::helpers::headers::field_lines(&tx.request.headers, "cookie")
+                .flat_map(crate::helpers::cookie::parse_cookie_header)
+                .collect();
+        if sent.is_empty() {
+            return Vec::new();
+        }
+
+        let request = RequestScope::of(&tx.request.uri);
+        // Already filtered to what is unexpired at this request's time.
+        let live = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
+
+        // The pair is the unit, not the request. § 4.2.1 writes the field as
+        // `cookie-pair *( ";" SP cookie-pair )`, so the pairs share a line and
+        // no comma separates them; each one is a cookie the user agent decided
+        // to send on its own terms, and every sentence below names the cookie it
+        // is about. A request carrying ten cookies of which three are stale is
+        // three things for the operator to correct, so the walk states all three
+        // rather than ending at the first.
+        // cite(RFC 6265 § 4.2.1): "cookie-string = cookie-pair *( ";" SP cookie-pair )"
+        let mut out = Vec::new();
+        for (name, value) in sent {
+            // Within one pair the checks stay a chain: a value that matched a
+            // stored Secure cookie exactly is not also a value the store
+            // replaced, and the two sentences would be one mistake described
+            // twice.
+            if let Some(v) = self.secure_cookie_stayed_on_https(&live, &request, &name, &value, ctx)
+            {
+                out.push(v);
+                continue;
             }
 
-            let request = RequestScope::of(&tx.request.uri);
-            // Already filtered to what is unexpired at this request's time.
-            let live = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
+            // The Cookie header carries no domain or path, so which stored
+            // cookie a bare `name=value` pair *is* has to be decided: §5.4's
+            // cookie-string ordering lists the most specific first, and that
+            // ordering is borrowed here to pick the authoritative value —
+            // longest path, then longest domain.
+            // cite(RFC 6265 § 5.4): "Cookies with longer paths are listed before cookies with shorter paths."
+            let applicable = live
+                .iter()
+                .filter(|c| request.applies(c) && c.name == name)
+                // `min_by_key` on the reversed key keeps the *first* of
+                // equally specific candidates, which is the order the store
+                // was built in.
+                .min_by_key(|c| std::cmp::Reverse((c.path.len(), c.domain.len())));
 
-            for (name, value) in sent {
-                if let Some(v) =
-                    self.secure_cookie_stayed_on_https(&live, &request, &name, &value, ctx)
-                {
-                    return Some(v);
+            if let Some(applicable) = applicable {
+                if applicable.value != value {
+                    out.push(ctx.report_with(
+                        &COOKIE_VALUE_CONFLICTING,
+                        format!(
+                            "Cookie '{}' value '{}' does not match stored value '{}', likely stale",
+                            name, value, applicable.value
+                        ),
+                    ));
                 }
-
-                // The Cookie header carries no domain or path, so which stored
-                // cookie a bare `name=value` pair *is* has to be decided: §5.4's
-                // cookie-string ordering lists the most specific first, and that
-                // ordering is borrowed here to pick the authoritative value —
-                // longest path, then longest domain.
-                // cite(RFC 6265 § 5.4): "Cookies with longer paths are listed before cookies with shorter paths."
-                let applicable = live
-                    .iter()
-                    .filter(|c| request.applies(c) && c.name == name)
-                    // `min_by_key` on the reversed key keeps the *first* of
-                    // equally specific candidates, which is the order the store
-                    // was built in.
-                    .min_by_key(|c| std::cmp::Reverse((c.path.len(), c.domain.len())));
-
-                if let Some(applicable) = applicable {
-                    if applicable.value != value {
-                        return Some(ctx.report_with(&COOKIE_VALUE_CONFLICTING, format!(
-                                "Cookie '{}' value '{}' does not match stored value '{}', likely stale",
-                                name, value, applicable.value
-                            )));
-                    }
-                    continue;
-                }
-
-                // Nothing live by that name. Why not?
-                match previously_set(history, &name, &request) {
-                    // It was live once and is not now, so the client is holding
-                    // a store the user agent was required to have emptied.
-                    // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
-                    PreviouslySet::AndApplicable => {
-                        return Some(ctx.report_with(&COOKIE_SCOPE_IGNORED, format!(
-                                "Cookie '{}' was previously set but is expired or removed and should not be sent; RFC 6265 \u{a7}5.3 has a user agent evict it from the store",
-                                name
-                            )))
-                    }
-                    PreviouslySet::ForAnotherPath => {
-                        return Some(ctx.report_with(
-                            &COOKIE_SCOPE_IGNORED,
-                            format!(
-                                "Cookie '{}' is not valid for path '{}' and should not be sent; RFC 6265 \u{a7}5.4 excludes a cookie whose path does not path-match the request",
-                                name, request.path
-                            ),
-                        ))
-                    }
-                    // The cookie may predate the capture; assume it is legitimate.
-                    PreviouslySet::Never => {}
-                }
+                continue;
             }
 
-            None
-        };
-        Vec::from_iter(finding())
+            // Nothing live by that name. Why not?
+            match previously_set(history, &name, &request) {
+                // It was live once and is not now, so the client is holding
+                // a store the user agent was required to have emptied.
+                // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
+                PreviouslySet::AndApplicable => out.push(ctx.report_with(
+                    &COOKIE_SCOPE_IGNORED,
+                    format!(
+                        "Cookie '{}' was previously set but is expired or removed and should not be sent; RFC 6265 \u{a7}5.3 has a user agent evict it from the store",
+                        name
+                    ),
+                )),
+                PreviouslySet::ForAnotherPath => out.push(ctx.report_with(
+                    &COOKIE_SCOPE_IGNORED,
+                    format!(
+                        "Cookie '{}' is not valid for path '{}' and should not be sent; RFC 6265 \u{a7}5.4 excludes a cookie whose path does not path-match the request",
+                        name, request.path
+                    ),
+                )),
+                // The cookie may predate the capture; assume it is legitimate.
+                PreviouslySet::Never => {}
+            }
+        }
+        out
     }
 }
 
@@ -640,6 +655,121 @@ mod tests {
             v.is_none(),
             "cookie from different domain should be ignored"
         );
+    }
+
+    /// Three pairs on one `Cookie` line, each defective in a different way, and
+    /// each drawing its own entry. `cookie-string = cookie-pair *( ";" SP
+    /// cookie-pair )` puts them on one line with no comma between them, so a
+    /// reading that ends at the first pair it has something to say about tells
+    /// an operator to fix one of three cookies and stay silent about the rest.
+    #[test]
+    fn every_defective_pair_is_reported() {
+        let ts = Utc::now();
+        let mut prev = make_resp_tx(
+            "https://example.com/",
+            Some("a=1; Secure; Path=/"),
+            Some(ts),
+        );
+        for extra in ["b=1; Path=/", "c=1; Path=/private"] {
+            prev.response.as_mut().unwrap().headers.append(
+                "set-cookie",
+                hyper::header::HeaderValue::from_str(extra).unwrap(),
+            );
+        }
+        let mut tx = make_tx_with_req("http://example.com/public", Some("a=1; b=2; c=1"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieLifecycle,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "cookie_secure_ignored",
+                "cookie_value_conflicting",
+                "cookie_scope_ignored"
+            ],
+            "one finding per defective pair, in the order the pairs were sent"
+        );
+        // Each names the cookie it is about, which is what makes the pair the
+        // unit rather than the request.
+        assert!(found[0].message.contains("'a'"));
+        assert!(found[1].message.contains("'b'"));
+        assert!(found[2].message.contains("'c'"));
+    }
+
+    /// The other direction: pairs the store agrees with are walked past rather
+    /// than ending the reading, so a defective pair behind two sound ones is
+    /// still reported.
+    #[test]
+    fn sound_pairs_do_not_end_the_walk() {
+        let ts = Utc::now();
+        let mut prev = make_resp_tx("https://example.com/", Some("a=1; Path=/"), Some(ts));
+        prev.response.as_mut().unwrap().headers.append(
+            "set-cookie",
+            hyper::header::HeaderValue::from_str("b=1; Path=/").unwrap(),
+        );
+        let mut tx = make_tx_with_req("https://example.com/public", Some("a=1; b=1; c=9"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
+        // `c` was never set at all, so it may predate the capture and is not a
+        // finding; nothing is reported.
+        assert!(crate::test_helpers::run_rule_all(
+            &CookieLifecycle,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        )
+        .is_empty());
+
+        // Same two sound pairs, and a third the store says was replaced.
+        let mut tx = make_tx_with_req("https://example.com/public", Some("a=1; b=2"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieLifecycle,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].violation, "cookie_value_conflicting");
+        assert!(found[0].message.contains("'b'"));
+    }
+
+    /// One pair states one thing. `a=1` matches a stored `Secure` cookie
+    /// exactly, and a *different* non-secure `a` is what the store would
+    /// otherwise offer for this path — so both checks have something to say and
+    /// the pair still draws one finding. The checks within a pair stay a chain;
+    /// only the walk across pairs was ever the masking.
+    #[test]
+    fn one_pair_draws_one_finding() {
+        let ts = Utc::now();
+        let mut prev = make_resp_tx(
+            "https://example.com/",
+            Some("a=1; Secure; Path=/"),
+            Some(ts),
+        );
+        prev.response.as_mut().unwrap().headers.append(
+            "set-cookie",
+            hyper::header::HeaderValue::from_str("a=2; Path=/public").unwrap(),
+        );
+        let mut tx = make_tx_with_req("http://example.com/public", Some("a=1"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieLifecycle,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].violation, "cookie_secure_ignored");
     }
 
     #[test]
