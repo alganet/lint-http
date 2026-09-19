@@ -344,9 +344,12 @@ impl Rule for AltSvcProtocolRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per alternative. `1#alt-value` advertises one alternative
+        // service per position, each with its own protocol identifier and
+        // authority -- so a value advertising three a client cannot negotiate is
+        // three alternatives the operator has to correct, and a walk that
+        // returned at the first named one.
+        let findings = || -> Vec<Violation> {
             // No status gate: the section says in one sentence that there is no
             // status this field may not ride on. § 6's *"An Alt-Svc header field in
             // a 421 (Misdirected Request) response MUST be ignored."* would look
@@ -354,7 +357,9 @@ impl Rule for AltSvcProtocolRegistered {
             // and a server that advertises an alternative nobody can negotiate has
             // written the same defect whatever the status line says.
             // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
-            let resp = tx.response.as_ref()?;
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
             let config: &AltSvcProtocolConfig = ctx.state();
 
             // One `char` per octet. `to_str` folds a field carrying `obs-text` into
@@ -364,7 +369,9 @@ impl Rule for AltSvcProtocolRegistered {
             // The join writes a bare comma where the sentence names a comma and
             // optional whitespace, which is why the members below are `OWS`-trimmed.
             // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
-            let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
+            let Some(value) = combined_field_value_as_written(&resp.headers, "alt-svc") else {
+                return Vec::new();
+            };
             let value = trim_ows(&value);
 
             // The keyword is the field's other alternative and nominates nothing,
@@ -374,7 +381,7 @@ impl Rule for AltSvcProtocolRegistered {
             // below hands to the rule that owns the grammar.
             // cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
             if value == CLEAR {
-                return None;
+                return Vec::new();
             }
 
             // A DQUOTE that never closes makes every separator after it a guess, so
@@ -382,9 +389,10 @@ impl Rule for AltSvcProtocolRegistered {
             // `alt_svc_header_syntax` reads this field's grammar and reports
             // it, under the same scope and with no gate this one does not have.
             if !quoting_is_balanced(value) {
-                return None;
+                return Vec::new();
             }
 
+            let mut out = Vec::new();
             for member in list_members_as_written(value) {
                 // An empty member is `1#alt-value`'s floor or a sender's empty list
                 // element; both are the grammar's question and are reported there.
@@ -431,7 +439,7 @@ impl Rule for AltSvcProtocolRegistered {
                 // on the wire, so no list has to be consulted to know it names
                 // nothing.
                 if name.len() > MAX_ALPN_PROTOCOL_NAME_OCTETS {
-                    return Some(ctx.report_with(
+                    out.push(ctx.report_with(
                         &ALPN_PROTOCOL_NAME_LENGTH_INVALID,
                         format!(
                             "Alt-Svc protocol-id '{}' decodes to an ALPN protocol name of {} octets. A `ProtocolName` carries at most {}, so this alternative is named by something no ClientHello or ServerHello can express",
@@ -440,6 +448,7 @@ impl Rule for AltSvcProtocolRegistered {
                             MAX_ALPN_PROTOCOL_NAME_OCTETS
                         ),
                     ));
+                    continue;
                 }
 
                 // A draft HTTP/3 token is `alt_svc_h3_advertisement_valid`'s
@@ -486,7 +495,7 @@ impl Rule for AltSvcProtocolRegistered {
                     .iter()
                     .any(|allowed| allowed.as_bytes() == name.as_slice())
                 {
-                    return Some(ctx.report_with(
+                    out.push(ctx.report_with(
                         &ALPN_PROTOCOL_NAME_UNREGISTERED,
                         format!(
                             "Alt-Svc protocol-id '{}' names the ALPN protocol {}, which is not one this deployment lists as an alternative service it offers. A client taking this alternative negotiates that name in TLS and is required to treat the connection as failed when it is not the one selected",
@@ -497,9 +506,9 @@ impl Rule for AltSvcProtocolRegistered {
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -514,6 +523,33 @@ mod tests {
 
     fn make_cfg() -> crate::config::Config {
         allowing(&["h2", "h3", "h2c", "http/1.1"])
+    }
+
+    /// **Every alternative the response advertised is answered.**
+    /// `1#alt-value` advertises one alternative service per position, so a value
+    /// advertising two a client cannot negotiate is two alternatives the
+    /// operator has to correct — and a walk that returned at the first named one.
+    #[test]
+    fn every_defective_alternative_is_reported() {
+        let rule = AltSvcProtocolRegistered;
+        let long = format!("h3-{}", "z".repeat(300));
+        let value = format!("{long}=\"a:1\", zzz=\"a:1\", h2=\"a:1\"");
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("alt-svc", value.as_str())],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(
+            ids.contains(&"alpn_protocol_name_length_invalid"),
+            "{ids:?}"
+        );
+        assert!(ids.contains(&"alpn_protocol_name_unregistered"), "{ids:?}");
     }
 
     fn allowing(allowed: &[&str]) -> crate::config::Config {

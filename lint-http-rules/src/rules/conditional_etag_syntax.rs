@@ -156,7 +156,7 @@ impl ConditionalEtagSyntax {
         ctx: &crate::rules::RuleContext<'_>,
         lowercase: &str,
         shown: &str,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         // Only applies to requests. **One value, however many field lines carry
         // it**: `#entity-tag` is a list, so § 5.2 combines the lines with a
         // comma before the members are counted -- and the alternation above the
@@ -165,10 +165,12 @@ impl ConditionalEtagSyntax {
         // measure and `to_str` would fold it into "no such field here".
         //
         // cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
-        let value = crate::helpers::headers::combined_field_value_as_written(
+        let Some(value) = crate::helpers::headers::combined_field_value_as_written(
             &tx.request.headers,
             lowercase,
-        )?;
+        ) else {
+            return Vec::new();
+        };
         let value = crate::helpers::headers::trim_ows(&value);
 
         // The field is `*` **or** a comma-separated list of entity-tags, and the
@@ -186,7 +188,7 @@ impl ConditionalEtagSyntax {
         // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
         // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
         if value == "*" {
-            return None;
+            return Vec::new();
         }
 
         // Before the members, because there are none: `#entity-tag` with no
@@ -196,11 +198,23 @@ impl ConditionalEtagSyntax {
         // `seen_any` flag asked it of a walk that silently dropped every empty
         // member.
         if value.is_empty() {
-            return Some(ctx.report_with(
+            return vec![ctx.report_with(
                 &CONDITIONAL_EMPTY,
                 format!("{shown} header is empty or contains only whitespace"),
-            ));
+            )];
         }
+
+        // One finding per member. `#entity-tag` names one validator per
+        // position -- each a version of the resource the client will accept an
+        // answer about -- so a value naming three tags that derive from no
+        // `entity-tag` is three validators to correct, and a walk that returned
+        // at the first named one.
+        //
+        // The gap stays one finding for the value: § 5.6.1.1 forbids generating
+        // an empty *element*, and a value written with three of them is one list
+        // with gaps in it, which is why that message names no member.
+        let mut out = Vec::new();
+        let mut saw_an_empty_member = false;
 
         // The walk is quote-aware, and that is a fix rather than a preference:
         // `etagc` admits the comma, so `"a,b"` is **one** entity-tag, and the
@@ -214,13 +228,11 @@ impl ConditionalEtagSyntax {
             // about the list and not about a quoted-string that is not there.
             // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
             if member.is_empty() {
-                return Some(ctx.report_with(
-                    &LIST_MEMBER_EMPTY,
-                    format!("{shown} header contains an empty list element"),
-                ));
+                saw_an_empty_member = true;
+                continue;
             }
             if let Err(defect) = crate::helpers::validator::check_entity_tag(member) {
-                return Some(ctx.report_with(
+                out.push(ctx.report_with(
                     entity_tag_defect(defect),
                     format!(
                         "{shown} header has invalid member '{}': {}",
@@ -231,7 +243,14 @@ impl ConditionalEtagSyntax {
             }
         }
 
-        None
+        if saw_an_empty_member {
+            out.push(ctx.report_with(
+                &LIST_MEMBER_EMPTY,
+                format!("{shown} header contains an empty list element"),
+            ));
+        }
+
+        out
     }
 }
 
@@ -244,7 +263,7 @@ impl Rule for ConditionalEtagSyntax {
     ) -> Vec<Violation> {
         FIELDS
             .iter()
-            .filter_map(|(lowercase, shown)| self.field_finding(tx, ctx, lowercase, shown))
+            .flat_map(|(lowercase, shown)| self.field_finding(tx, ctx, lowercase, shown))
             .collect()
     }
 }
@@ -257,6 +276,36 @@ static REGISTRATION: &dyn crate::rules::Rule = &ConditionalEtagSyntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **Every validator the client offered is answered.** `#entity-tag` names
+    /// one version per position, so a value naming two that derive from no
+    /// `entity-tag` is two validators to correct — and the gap beside them is
+    /// the list's own defect, counted once.
+    #[test]
+    fn every_defective_tag_is_reported_beside_the_gap() {
+        let rule = ConditionalEtagSyntax;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["conditional_etag_syntax"]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "if-none-match",
+            "\"a\"x,,w/\"b\",,\"c\"",
+        )]);
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"etag_delimiter_missing"), "{ids:?}");
+        assert!(ids.contains(&"etag_weak_indicator_invalid"), "{ids:?}");
+        assert_eq!(
+            ids.iter().filter(|i| **i == "list_member_empty").count(),
+            1,
+            "the gaps are one list defect: {ids:?}"
+        );
+    }
 
     /// Every case is asked of both fields, because the point of the merge is
     /// that there is one answer: two rules used to hold two copies of this

@@ -112,9 +112,13 @@ impl Rule for NoStoreEnforced {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per validator the client offered. Each member of an
+        // `If-None-Match` names a different stored response, so a request
+        // listing three tags that could only have come from `no-store`
+        // responses is evidence about three responses the client kept -- and a
+        // walk that returned at the first named one of them.
+        let findings = || -> Vec<Violation> {
+            let mut out = Vec::new();
             // Which validators the client could only have got by storing what
             // it was told not to store.
             //
@@ -206,7 +210,7 @@ impl Rule for NoStoreEnforced {
                     // stored the thing it was told not to store.
                     // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
                     if no_store_etags.contains(&normalized) {
-                        return Some(ctx.report_with(
+                        out.push(ctx.report_with(
                             &CACHE_CONTROL_NO_STORE_IGNORED,
                             format!(
                                 "Conditional request uses ETag '{}' from a no-store response",
@@ -235,7 +239,7 @@ impl Rule for NoStoreEnforced {
                             .values()
                             .any(|lm_dt| lm_dt == &candidate_dt.unwrap()))
                 {
-                    return Some(ctx.report_with(
+                    out.push(ctx.report_with(
                         &CACHE_CONTROL_NO_STORE_IGNORED,
                         format!(
                             "Conditional request uses Last-Modified '{}' from a no-store response",
@@ -245,9 +249,9 @@ impl Rule for NoStoreEnforced {
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -306,6 +310,45 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]),
         );
         assert!(v.is_none(), "{v:?}");
+    }
+
+    /// **Every validator the client offered is answered.** Each member of an
+    /// `If-None-Match` names a different stored response, so a request listing
+    /// two tags that could only have come from `no-store` responses is evidence
+    /// about two responses the client kept — and a walk that returned at the
+    /// first named one of them.
+    #[test]
+    fn every_tag_from_a_no_store_response_is_reported() {
+        let rule = NoStoreEnforced;
+        let ts = Utc::now();
+        // Two prior responses, because one response carries one `ETag`: the
+        // client held two validators only by storing two responses it was told
+        // not to store, and each is its own piece of evidence.
+        let first = make_prev(&[("cache-control", "no-store")], &[("etag", "\"a\"")], ts);
+        let second = make_prev(
+            &[("cache-control", "no-store")],
+            &[("etag", "\"b\"")],
+            ts + chrono::Duration::seconds(1),
+        );
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.method = "GET".to_string();
+        tx.request.uri = "/resource".to_string();
+        tx.timestamp = ts + chrono::Duration::seconds(5);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\", \"b\"")]);
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![second, first]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]),
+        );
+        assert_eq!(
+            found.len(),
+            2,
+            "each stored response is its own evidence: {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 
     #[test]

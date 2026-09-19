@@ -103,7 +103,12 @@ impl AcceptPatchHeaderValid {
     ///
     /// cite(RFC 5789 § 3.1, label: Accept-Patch grammar): "Accept-Patch = "Accept-Patch" ":" 1#media-type"
     /// cite(RFC 5789 § 3.1): "The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7."
-    fn check_value(&self, value: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+    fn check_value(&self, value: &str, ctx: &crate::rules::RuleContext<'_>) -> Vec<Violation> {
+        // One finding per member. `1#media-type` names one patch document format
+        // per position, so a value naming three that derive from no `media-type`
+        // is three formats the operator has to correct -- and a walk that
+        // returned at the first named one.
+        let mut out = Vec::new();
         let mut saw_an_empty_element = false;
         let mut members_present = 0usize;
 
@@ -163,10 +168,11 @@ impl AcceptPatchHeaderValid {
             let parsed = match parse_media_type(member) {
                 Ok(parsed) => parsed,
                 Err(defect) => {
-                    return Some(ctx.report_with(media_type_error(defect), format!(
+                    out.push(ctx.report_with(media_type_error(defect), format!(
                         "Accept-Patch member '{}' derives from no media-type: the production is a type and a subtype separated by '/', and neither may be empty",
                         shown_in_finding(member)
-                    )))
+                    )));
+                    continue;
                 }
             };
 
@@ -183,7 +189,7 @@ impl AcceptPatchHeaderValid {
             // was not, so `describe_octet` would be claiming more than the helper
             // knows.
             if let Some(defect) = media_type_parts_defect(&parsed) {
-                return Some(ctx.report_with(
+                out.push(ctx.report_with(
                     media_type_defect(defect),
                     format!(
                         "Accept-Patch member '{}' derives from no media-type: {}",
@@ -191,6 +197,7 @@ impl AcceptPatchHeaderValid {
                         defect.message()
                     ),
                 ));
+                continue;
             }
 
             // Not reported: an asterisk. `*` is a `tchar`, so `*/*` derives from
@@ -215,26 +222,33 @@ impl AcceptPatchHeaderValid {
         // omit here would have contradicted that reading in the same file.
         // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
         if members_present == 0 {
-            return Some(ctx.report_with(&LIST_MEMBER_MISSING, format!(
+            out.push(ctx.report_with(&LIST_MEMBER_MISSING, format!(
                 "Accept-Patch is `1#media-type` and names no patch document format; the response's field lines combine to '{}'",
                 shown_in_finding(value)
             )));
         }
-
-        if saw_an_empty_element {
+        // Only beside a member that *is* there, and the `else` is the whole
+        // reading rather than a tidy-up. An empty element is a position the
+        // sender wrote a comma for and then left blank, so it needs a neighbour
+        // to be a gap between; a value holding nothing else has not written a
+        // member badly, it has written none -- which is the `1#` floor above,
+        // saying the same defect once. The one real `Accept-Patch:` in reach is
+        // empty, and reporting both told its operator that two things were
+        // wrong with one field.
+        else if saw_an_empty_element {
             // The value is quoted as the section's *combined* value and the
             // message says so, because for the case this branch exists to catch
             // it is not a string the sender wrote: an `Accept-Patch:` line beside
             // an `Accept-Patch: text/example` line combines to `text/example,`,
             // whose comma is the join's. An operator grepping a capture for the
             // quoted text would otherwise find nothing.
-            return Some(ctx.report_with(&LIST_MEMBER_EMPTY, format!(
+            out.push(ctx.report_with(&LIST_MEMBER_EMPTY, format!(
                 "Accept-Patch holds an empty list element; the response's field lines combine to '{}'. Every position in `1#media-type` holds a media type, and a comma with nothing beside it holds none",
                 shown_in_finding(value)
             )));
         }
 
-        None
+        out
     }
 }
 
@@ -385,10 +399,12 @@ impl Rule for AcceptPatchHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
+        // One finding per member where the field is present, and one finding
+        // for the field's absence where a response's own method asks for it.
+        let findings = || -> Vec<Violation> {
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
 
             // The field is read first and on every response, whatever method drew
             // it: § 3.1 defines it as a response header and describes its presence
@@ -425,10 +441,10 @@ impl Rule for AcceptPatchHeaderValid {
                 // cite(RFC 9110 § 15.5.16): "The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly."
                 // cite(RFC 9110 § 15.5.16): "If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used"
                 if resp.status == 415 && !resp.headers.contains_key("accept-encoding") {
-                    return Some(ctx.report_with(&ACCEPT_PATCH_MISSING, "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into()));
+                    return vec![ctx.report_with(&ACCEPT_PATCH_MISSING, "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into())];
                 }
 
-                return None;
+                return Vec::new();
             }
 
             if tx.request.method == "OPTIONS" {
@@ -464,16 +480,16 @@ impl Rule for AcceptPatchHeaderValid {
                 // cite(RFC 5789 § 3): "The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised."
                 // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
                 if tx.request.uri != "*" && allow_names_patch(&resp.headers) {
-                    return Some(ctx.report_with(&ACCEPT_PATCH_MISSING, format!(
+                    return vec![ctx.report_with(&ACCEPT_PATCH_MISSING, format!(
                             "OPTIONS response ({}) advertises PATCH in Allow and carries no Accept-Patch; RFC 5789 § 3.1 says Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method. § 3 leaves the Allow listing conforming without it and names what is lost: the list of allowed patch documents is not advertised",
                             resp.status
-                        )));
+                        ))];
                 }
             }
 
-            None
+            Vec::new()
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -489,6 +505,64 @@ mod tests {
     use hyper::header::HeaderValue;
     use hyper::HeaderMap;
     use rstest::rstest;
+
+    /// **Every format the response advertised is answered.** `1#media-type`
+    /// names one patch document format per position, so a value naming two that
+    /// derive from no `media-type` is two formats to correct — and a walk that
+    /// returned at the first named one.
+    #[test]
+    fn every_defective_member_is_reported() {
+        let rule = AcceptPatchHeaderValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "accept_patch_header_valid",
+        ]);
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("accept-patch", "text/, text/pl@in, application/json")],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"media_type_malformed"), "{ids:?}");
+        assert!(ids.contains(&"token_character_forbidden"), "{ids:?}");
+    }
+
+    /// **A field naming no format has one defect, not two.** An empty element is
+    /// a position the sender wrote a comma for and left blank, so it needs a
+    /// neighbour to be a gap between. `Accept-Patch:` carries no member at all
+    /// and the `1#` floor is the whole story — the real one in reach is exactly
+    /// this value, and it drew both sentences until the branches were made
+    /// exclusive.
+    #[rstest]
+    #[case("")]
+    #[case("   ")]
+    #[case(",")]
+    fn a_value_naming_no_format_is_one_finding(#[case] value: &str) {
+        let rule = AcceptPatchHeaderValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "accept_patch_header_valid",
+        ]);
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("accept-patch", value)],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"list_member_missing"), "{ids:?}");
+        assert!(
+            !ids.contains(&"list_member_empty"),
+            "the floor already said it: {ids:?}"
+        );
+    }
 
     /// Run the rule over a transaction whose request carries `method` and whose
     /// response carries `status` plus the given response field lines.

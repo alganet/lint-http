@@ -142,7 +142,7 @@ sources:
     snippet: origin-or-null = serialized-origin / %s"null" ; case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 230
+      line: 245
   - label: x_content_type_options_present
     section: § 3.6
     snippet: If values[0] is an ASCII case-insensitive match for "nosniff", then return true.
@@ -679,31 +679,31 @@ sources:
     snippet: Timing-Allow-Origin = 1#( origin-or-null / wildcard )
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 193
+      line: 200
   - label: timing_allow_origin_valid (2)
     section: § 3.5.2
     snippet: Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions.
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 167
+      line: 170
   - label: timing_allow_origin_valid (3)
     section: § 3.5.2
     snippet: 'The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):'
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 204
+      line: 212
   - label: timing_allow_origin_valid (4)
     section: § 3.5.2
     snippet: The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma.
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 181
+      line: 188
   - label: timing_allow_origin_valid (5)
     section: § 3.5.2
     snippet: The sender MAY generate multiple Timing-Allow-Origin header fields.
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 180
+      line: 187
 - label: Server Timing
   url: https://www.w3.org/TR/server-timing/
   type: text/html
@@ -713,7 +713,7 @@ sources:
     snippet: '*( OWS ";" OWS server-timing-param ) metric-name = token'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 502
+      line: 521
   - label: server_timing_header_syntax
     section: § 2
     snippet: A user agent that does not recognize particular server-timing-param-name in the Server-Timing header field of a response MUST ignore those tokens and continue processing instead of signaling an error.
@@ -725,25 +725,25 @@ sources:
     snippet: All subsequent occurrences MUST be ignored without signaling an error or otherwise altering the processing of the server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 662
+      line: 681
   - label: server_timing_header_syntax (3)
     section: § 2
     snippet: If any server-timing-param-name is specified more than once, only the first instance is to be considered, even if the server-timing-param is incomplete or invalid.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 661
+      line: 680
   - label: server_timing_header_syntax (4)
     section: § 2
     snippet: 'See [RFC7230] for definitions of #, *, OWS, token, and quoted-string.'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 470
+      line: 486
   - label: Server-Timing grammar
     section: § 2
     snippet: 'Server-Timing = #server-timing-metric'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 469
+      line: 485
   - label: server_timing_header_syntax (5)
     section: § 2
     snippet: The Server-Timing header field is used to communicate one or more metrics and descriptions for the given request-response cycle.
@@ -761,7 +761,7 @@ sources:
     snippet: To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 660
+      line: 679
     - file: lint-http-rules/src/violations/server_timing.rs
       line: 241
   - label: server_timing_header_syntax (8)
@@ -769,13 +769,13 @@ sources:
     snippet: User agents MUST ignore extraneous characters found after a server-timing-param-value but before the next server-timing-param and before the end of the current server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 689
+      line: 708
   - label: server-timing-metric grammar
     section: § 2
     snippet: server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 501
+      line: 520
     - file: lint-http-rules/src/violations/server_timing.rs
       line: 53
     - file: lint-http-rules/src/violations/server_timing.rs
@@ -785,7 +785,7 @@ sources:
     snippet: server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 580
+      line: 599
     - file: lint-http-rules/src/violations/server_timing.rs
       line: 113
   - label: server-timing-param-name grammar
@@ -793,13 +793,13 @@ sources:
     snippet: server-timing-param-name = token
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 581
+      line: 600
   - label: server-timing-param-value grammar
     section: § 2
     snippet: server-timing-param-value = token / quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 727
+      line: 746
     - file: lint-http-rules/src/violations/server_timing.rs
       line: 139
     - file: lint-http-rules/src/violations/server_timing.rs
@@ -809,19 +809,19 @@ sources:
     snippet: If dur is an error, return 0; Otherwise return dur.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 812
+      line: 831
   - label: server_timing_header_syntax (10)
     section: § 3.2
     snippet: Let dur be the result of parsing this’s params["dur"] using the rules for parsing floating-point number values.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 811
+      line: 830
   - label: server_timing_header_syntax (11)
     section: § 3.3
     snippet: The description getter steps are to return this’s params["desc"] if it exists, otherwise the empty string.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 792
+      line: 811
 - label: Permissions Policy
   url: https://w3c.github.io/webappsec-permissions-policy/
   type: text/html
@@ -2079,7 +2079,7 @@ sources:
     - file: lint-http-rules/src/helpers/language.rs
       line: 123
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 305
+      line: 322
 - label: RFC 4648
   url: https://www.rfc-editor.org/rfc/rfc4648.html
   fragments:
@@ -2468,7 +2468,7 @@ sources:
     snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 424
+      line: 440
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 298
     - file: lint-http-rules/src/rules/patch_partial_update.rs
@@ -2478,13 +2478,13 @@ sources:
     snippet: A server can advertise its support for the PATCH method by adding it to the listing of allowed methods in the "Allow" OPTIONS response header defined in HTTP/1.1.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 249
+      line: 263
   - label: accept_patch_header_valid (3)
     section: § 3
     snippet: The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 464
+      line: 480
   - label: Accept-Patch grammar
     section: § 3.1
     snippet: Accept-Patch = "Accept-Patch" ":" 1#media-type
@@ -2506,7 +2506,7 @@ sources:
     snippet: The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 404
+      line: 420
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 259
   - label: accept_patch_header_valid (6)
@@ -2514,7 +2514,7 @@ sources:
     snippet: This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 377
+      line: 391
   - label: options_method_capabilities
     section: § 3.1
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
@@ -3976,7 +3976,7 @@ sources:
     snippet: This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 374
+      line: 370
     - file: lint-http-rules/src/violations/forwarded.rs
       line: 28
   - label: forwarded_header_valid (2)
@@ -3992,7 +3992,7 @@ sources:
     snippet: Forwarded   = 1#forwarded-element
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 375
+      line: 371
   - label: forwarded_header_valid (3)
     section: § 4
     snippet: Note that as ":" and "[]" are not valid characters in "token", IPv6 addresses are written as "quoted-string".
@@ -4052,7 +4052,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 201
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 529
+      line: 538
   - label: forwarded_header_valid (12)
     section: § 9
     snippet: New parameters and their values MUST conform with the forwarded-pair as defined in ABNF in Section 4.
@@ -4430,7 +4430,7 @@ sources:
     snippet: In the event that the server supports no protocols that the client advertises, then the server SHALL respond with a fatal "no_application_protocol" alert.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 482
+      line: 491
   - label: alt_svc_protocol_registered (3)
     section: § 6
     snippet: 'Identification Sequence: The precise set of octet values that identifies the protocol.'
@@ -4687,7 +4687,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 571
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 375
+      line: 382
   - label: alt_svc_h3_advertisement_valid (6)
     section: § 3
     snippet: parameter     = token "=" ( token / quoted-string )
@@ -4729,7 +4729,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 749
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 356
+      line: 359
   - label: alt_svc_header_syntax (4)
     section: § 3
     snippet: Consequently, the octet representing the percent character "%" (hex 25) MUST be percent-encoded as well.
@@ -4795,7 +4795,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 167
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 396
+      line: 404
     - file: lint-http-rules/src/violations/alt_svc.rs
       line: 217
     - file: lint-http-rules/src/violations/alt_svc.rs
@@ -4807,7 +4807,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 562
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 407
+      line: 415
     - file: lint-http-rules/src/violations/alt_svc.rs
       line: 151
   - label: alt_svc_header_syntax (14)
@@ -4829,13 +4829,13 @@ sources:
     snippet: An Application Layer Protocol Negotiation (ALPN) protocol name, as per [RFC7301]
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 481
+      line: 490
   - label: alt_svc_protocol_registered (2)
     section: § 2.4
     snippet: If the connection to the alternative service does not negotiate the expected protocol (for example, ALPN fails to negotiate h2, or an Upgrade request to h2c is not accepted), the connection to the alternative service MUST be considered to have failed.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 483
+      line: 492
   - label: alt_svc_protocol_registered (3)
     section: § 3
     snippet: ALPN protocol names are octet sequences with no additional constraints on format.
@@ -5641,7 +5641,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 167
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 296
+      line: 313
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 143
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -5811,7 +5811,7 @@ sources:
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 250
+      line: 264
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 53
     - file: lint-http-rules/src/rules/context_fields_direction.rs
@@ -5825,19 +5825,19 @@ sources:
     snippet: If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 426
+      line: 442
   - label: accept_patch_header_valid (3)
     section: § 15.5.16
     snippet: The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 425
+      line: 441
   - label: accept_patch_header_valid (4)
     section: § 5.6.1.2
     snippet: 'Empty elements do not contribute to the count of elements present.  A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism.'
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 140
+      line: 145
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 107
   - label: accept_patch_header_valid (5)
@@ -5845,7 +5845,7 @@ sources:
     snippet: 'In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:'
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 216
+      line: 223
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 325
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -5859,9 +5859,9 @@ sources:
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 251
+      line: 265
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 413
+      line: 429
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 92
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
@@ -5907,7 +5907,7 @@ sources:
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 465
+      line: 481
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 294
   - label: accept_ranges_and_206_consistent
@@ -6427,7 +6427,7 @@ sources:
     snippet: 'If-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
-      line: 185
+      line: 187
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 404
   - label: conditional_headers_consistent
@@ -7387,11 +7387,11 @@ sources:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 240
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 297
+      line: 314
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 331
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 626
+      line: 645
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 259
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -7671,7 +7671,7 @@ sources:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
       line: 131
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 393
+      line: 395
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 475
     - file: lint-http-rules/src/rules/status_code_semantics.rs
@@ -7787,7 +7787,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 543
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 128
+      line: 133
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 340
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
@@ -7823,7 +7823,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 183
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 139
+      line: 144
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 344
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
@@ -7833,7 +7833,7 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 137
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
-      line: 215
+      line: 229
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 92
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
@@ -7841,13 +7841,13 @@ sources:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 226
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 376
+      line: 372
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 238
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 653
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 190
+      line: 200
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 338
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -7855,9 +7855,9 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 339
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 481
+      line: 497
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 210
+      line: 222
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 96
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -8117,7 +8117,7 @@ sources:
     - file: lint-http-rules/src/rules/refresh_header_syntax.rs
       line: 349
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 464
+      line: 469
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 57
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -8163,7 +8163,7 @@ sources:
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
       line: 170
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 400
+      line: 405
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 247
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
@@ -8285,7 +8285,7 @@ sources:
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
       line: 184
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 411
+      line: 416
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 193
   - label: lint-http-rules/src/helpers/headers.rs (6)
@@ -8387,7 +8387,7 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 208
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 576
+      line: 583
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 726
     - file: lint-http-rules/src/violations/quoted_pair.rs
@@ -8411,7 +8411,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 261
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 440
+      line: 445
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 481
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -8435,7 +8435,7 @@ sources:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 248
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 129
+      line: 134
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 81
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -8567,7 +8567,7 @@ sources:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 88
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 155
+      line: 160
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 187
     - file: lint-http-rules/src/violations/media_type.rs
@@ -8777,13 +8777,13 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 564
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 414
+      line: 422
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 201
+      line: 209
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 255
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 517
+      line: 536
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 329
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -8805,7 +8805,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 36
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
-      line: 186
+      line: 188
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 405
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
@@ -8817,7 +8817,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 149
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
-      line: 187
+      line: 189
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 142
     - file: lint-http-rules/src/violations/etag.rs
@@ -8835,7 +8835,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 194
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
-      line: 210
+      line: 224
     - file: lint-http-rules/src/violations/etag.rs
       line: 85
   - label: lint-http-rules/src/helpers/validator.rs (4)
@@ -8863,9 +8863,9 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 765
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 366
+      line: 371
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 410
+      line: 415
   - label: lint-http-rules/src/helpers/word.rs
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
@@ -9959,7 +9959,7 @@ sources:
     snippet: '#element => [ 1#element ]'
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 463
+      line: 468
   - label: singleton_fields_not_repeated
     section: § 10.1.5
     snippet: User-Agent = product *( RWS ( product / comment ) )
@@ -10353,7 +10353,7 @@ sources:
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 223
+      line: 232
   - label: token68
     section: § 11.2
     snippet: token68        = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
@@ -10762,7 +10762,7 @@ sources:
     snippet: However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
-      line: 118
+      line: 124
     - file: lint-http-rules/src/violations/pragma.rs
       line: 41
   - label: cache_control_and_pragma_consistent (2)
@@ -10772,7 +10772,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
       line: 92
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 133
+      line: 135
     - file: lint-http-rules/src/violations/pragma.rs
       line: 64
   - label: cache_control_directive_valid
@@ -11088,9 +11088,9 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 187
     - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 207
+      line: 211
     - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 231
+      line: 235
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 301
     - file: lint-http-rules/src/violations/cache_control.rs

@@ -376,10 +376,15 @@ impl Rule for ServerTimingHeaderSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
+        // One finding per metric, and both field sections read. A defective
+        // metric in the header section used to end the body before the trailer
+        // section -- the one the specification's own worked exchange uses -- was
+        // looked at.
+        let findings = || -> Vec<Violation> {
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
+            let mut out = Vec::new();
 
             // Both field sections, because the specification's own worked exchange
             // uses both: § 6 announces `Trailer: Server-Timing` and then writes
@@ -416,21 +421,21 @@ impl Rule for ServerTimingHeaderSyntax {
                 // in a parenthesis at the back: several of these findings already
                 // end in an `(advice: …)` clause, and a second parenthetical after
                 // it reads as an afterthought about the first.
-                if let Some(defect) = check_field_value(&value) {
+                out.extend(check_field_value(&value).into_iter().map(|defect| {
                     let defect = defect
                         .in_context(|message| format!("In the response {section}: {message}"));
-                    return Some(ctx.report_with(defect.def, defect.message));
-                }
+                    ctx.report_with(defect.def, defect.message)
+                }));
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
 /// One field section's combined value, measured against `#server-timing-metric`.
-fn check_field_value(value: &str) -> Option<Defect> {
+fn check_field_value(value: &str) -> Vec<Defect> {
     // Asked before anything is split, because a DQUOTE that never closes makes
     // every separator after it a guess: the splitters collapse the rest of the
     // value into one member, so a claim about how many metrics there are, or
@@ -442,13 +447,13 @@ fn check_field_value(value: &str) -> Option<Defect> {
         // The production is its two delimiters and what they enclose, so the
         // one missing DQUOTE is the whole defect — which is what the def says,
         // and it is reached here rather than from the interior walk below.
-        return Some(Defect::named(
+        return vec![Defect::named(
             &QUOTED_STRING_DELIMITER_MISSING,
             format!(
                 "Server-Timing '{}' opens a quoted-string that never closes, so the rest of the value cannot be read as metrics: a server-timing-param-value that is a quoted-string is DQUOTE-delimited at both ends",
                 shown_in_finding(value)
             ),
-        ));
+        )];
     }
 
     // `#element => [ 1#element ]`: the whole list is optional, so a field value
@@ -463,8 +468,19 @@ fn check_field_value(value: &str) -> Option<Defect> {
     // cite(RFC 9110 § 5.6.1, label: hash rule expansion): "#element => [ 1#element ]"
     // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
     if trim_ows(value).is_empty() {
-        return None;
+        return Vec::new();
     }
+
+    // One finding per metric. `#server-timing-metric` names one measurement per
+    // position, each with its own name, duration and description -- so a value
+    // carrying three metrics the client cannot read is three measurements the
+    // operator has to correct, and a walk that returned at the first named one.
+    //
+    // The gap stays one finding for the value: § 5.6.1.1 forbids generating an
+    // empty *element*, and a value written with three of them is one list with
+    // gaps in it, which is why that message quotes the value and not a member.
+    let mut out = Vec::new();
+    let mut saw_an_empty_member = false;
 
     // cite(Server Timing § 2, label: Server-Timing grammar): "Server-Timing = #server-timing-metric"
     // cite(Server Timing § 2): "See [RFC7230] for definitions of #, *, OWS, token, and quoted-string."
@@ -480,21 +496,24 @@ fn check_field_value(value: &str) -> Option<Defect> {
         //
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if metric.is_empty() {
-            return Some(Defect::named(
-                &LIST_MEMBER_EMPTY,
-                format!(
-                    "Server-Timing '{}' holds an empty list element, which no sender may generate: two commas with nothing between them, or a comma at either end of the value",
-                    shown_in_finding(value)
-                ),
-            ));
+            saw_an_empty_member = true;
+            continue;
         }
 
-        if let Some(defect) = check_metric(metric) {
-            return Some(defect);
-        }
+        out.extend(check_metric(metric));
     }
 
-    None
+    if saw_an_empty_member {
+        out.push(Defect::named(
+            &LIST_MEMBER_EMPTY,
+            format!(
+                "Server-Timing '{}' holds an empty list element, which no sender may generate: two commas with nothing between them, or a comma at either end of the value",
+                shown_in_finding(value)
+            ),
+        ));
+    }
+
+    out
 }
 
 /// One `server-timing-metric`.
@@ -834,6 +853,36 @@ mod tests {
     use hyper::header::HeaderValue;
     use hyper::HeaderMap;
     use rstest::rstest;
+
+    /// **Every metric the response reported is answered.**
+    /// `#server-timing-metric` names one measurement per position, so a value
+    /// carrying two the client cannot read is two measurements to correct — and
+    /// the gap beside them is the list's own defect, counted once.
+    #[test]
+    fn every_defective_metric_is_reported_beside_the_gap() {
+        let rule = ServerTimingHeaderSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "server_timing_header_syntax",
+        ]);
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("server-timing", "m;dur=x,,n@me,,ok;dur=1")],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"server_timing_dur_invalid"), "{ids:?}");
+        assert!(ids.contains(&"token_character_forbidden"), "{ids:?}");
+        assert_eq!(
+            ids.iter().filter(|i| **i == "list_member_empty").count(),
+            1,
+            "the gaps are one list defect: {ids:?}"
+        );
+    }
 
     fn section(lines: &[&[u8]]) -> HeaderMap {
         let mut hm = HeaderMap::new();

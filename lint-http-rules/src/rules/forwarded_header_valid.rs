@@ -353,11 +353,7 @@ impl ForwardedHeaderValid {
     }
 
     /// One `Forwarded` field line.
-    fn check_field_line(
-        &self,
-        line: &str,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    fn check_field_line(&self, line: &str, ctx: &crate::rules::RuleContext<'_>) -> Vec<Violation> {
         // Quote-aware, because a comma inside a quoted-string is `qdtext` and
         // not a member separator: the recipient's list reader used here before
         // cut `foo="a,b"` in two and reported both halves of a conforming value.
@@ -374,6 +370,12 @@ impl ForwardedHeaderValid {
         // cite(RFC 7239 § 3): "This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230]."
         // cite(RFC 7239 § 4, label: Forwarded grammar): "Forwarded   = 1#forwarded-element"
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+        // One finding per element. `1#forwarded-element` names one proxy per
+        // position -- each hop stating its own `for`, `by`, `host` and `proto`
+        // -- so a line naming three elements that derive from no
+        // `forwarded-element` is three hops the operator has to correct, and a
+        // walk that returned at the first named one.
+        let mut out = Vec::new();
         let mut carried_an_element = false;
         let mut saw_an_empty_element = false;
 
@@ -395,25 +397,30 @@ impl ForwardedHeaderValid {
                 continue;
             }
             carried_an_element = true;
-            if let Some(v) = self.check_element(elem, ctx) {
-                return Some(v);
-            }
+            out.extend(self.check_element(elem, ctx));
         }
 
         if !carried_an_element {
-            return Some(ctx.by_client().report_with(
+            out.push(ctx.by_client().report_with(
                 &LIST_MEMBER_MISSING,
                 "Forwarded field line carries no forwarded-element, and the field is a list of at least one".into(),
             ));
         }
-        if saw_an_empty_element {
-            return Some(ctx.by_client().report_with(
+        // Only beside an element that *is* there, and the `else` is the whole
+        // reading rather than a tidy-up. An empty element is a position the
+        // sender wrote a delimiter for and then left blank, so it needs a
+        // neighbour to be a gap between; a line holding nothing else has not
+        // written an element badly, it has written none -- which is the `1#`
+        // floor above, saying the same defect once. Reporting both told an
+        // operator with one empty field that two things were wrong with it.
+        else if saw_an_empty_element {
+            out.push(ctx.by_client().report_with(
                 &LIST_MEMBER_EMPTY,
                 format!("Forwarded field line holds an empty element: '{}'", line),
             ));
         }
 
-        None
+        out
     }
 }
 
@@ -512,9 +519,11 @@ impl Rule for ForwardedHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per element, and every field line read. A list may be
+        // split over several lines, so a defective element on the first no
+        // longer ends the reading of the rest.
+        let findings = || -> Vec<Violation> {
+            let mut out = Vec::new();
             // Every field line of the request's header section. A list may be split
             // over several of them and each holds whole elements — a comma is what
             // separates members, and joining the lines would put one there — so each
@@ -528,9 +537,7 @@ impl Rule for ForwardedHeaderValid {
             //
             // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
             for hv in tx.request.headers.get_all("forwarded").iter() {
-                if let Some(v) = self.check_field_line(&field_line(hv.as_bytes()), ctx) {
-                    return Some(v);
-                }
+                out.extend(self.check_field_line(&field_line(hv.as_bytes()), ctx));
             }
 
             // The field is a request field, and this is not a scope note: §4 says so
@@ -549,7 +556,7 @@ impl Rule for ForwardedHeaderValid {
                     .as_ref()
                     .is_some_and(|t| t.contains_key("forwarded"));
                 if resp.headers.contains_key("forwarded") || in_trailers {
-                    return Some(ctx.by_server().report_with(
+                    out.push(ctx.by_server().report_with(
                         &FORWARDED_RESPONSE_FORBIDDEN,
                         format!(
                             "Response carries a Forwarded field in its {} section: the field is only for use in HTTP requests, and copying it into a response reveals the proxy chain to the client",
@@ -562,9 +569,9 @@ impl Rule for ForwardedHeaderValid {
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -600,6 +607,7 @@ static REGISTRATION: &dyn crate::rules::Rule = &ForwardedHeaderValid;
 mod tests {
     use super::*;
     use hyper::header::HeaderValue;
+    use rstest::rstest;
 
     /// The rule's verdict on one request carrying these `Forwarded` field lines.
     fn judge(values: &[&str]) -> Option<String> {
@@ -623,6 +631,59 @@ mod tests {
     /// One field line, which is what all but a couple of the cases below need.
     fn judge_one(value: &str) -> Option<String> {
         judge(&[value])
+    }
+
+    /// Every finding on one request's `Forwarded` field lines, not the first.
+    fn judge_all(values: &[&str]) -> Vec<Violation> {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        for value in values {
+            tx.request.headers.append(
+                "forwarded",
+                HeaderValue::from_bytes(value.as_bytes()).expect("a field value"),
+            );
+        }
+        crate::test_helpers::run_rule_all(
+            &ForwardedHeaderValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["forwarded_header_valid"]),
+        )
+    }
+
+    /// **Every element the sender wrote is answered, on every line.**
+    /// `1#forwarded-element` names one proxy per position, each stating its own
+    /// pairs, so three defective elements are three hops to correct — and a walk
+    /// that returned at the first element of the first line named one.
+    #[test]
+    fn every_defective_element_is_reported_on_every_line() {
+        let found = judge_all(&["for=, by=@", "host=\"unterminated"]);
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"forwarded_pair_value_empty"), "{ids:?}");
+        assert!(ids.contains(&"token_character_forbidden"), "{ids:?}");
+        assert!(
+            found.len() >= 3,
+            "the second field line is read too: {ids:?}"
+        );
+    }
+
+    /// **A line carrying no element has one defect, not two.** An empty element
+    /// is a position the sender wrote a delimiter for and left blank, so it
+    /// needs a neighbour to be a gap between; a line holding nothing else has
+    /// written no element rather than a blank one, which is the `1#` floor.
+    #[rstest]
+    #[case("")]
+    #[case("   ")]
+    #[case(",")]
+    #[case(", ,")]
+    fn a_line_carrying_no_element_is_one_finding(#[case] value: &str) {
+        let found = judge_all(&[value]);
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"list_member_missing"), "{ids:?}");
+        assert!(
+            !ids.contains(&"list_member_empty"),
+            "the floor already said it: {ids:?}"
+        );
     }
 
     /// The same field line, judged for the defect it reports rather than for
