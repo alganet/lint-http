@@ -1445,6 +1445,7 @@ mod tests {
         "status_301_ambiguous",
         "status_302_ambiguous",
         "status_401_ignored",
+        "status_412_ambiguous",
         "status_invalid",
         "strict_transport_security_directive_value_forbidden",
         "structured_field_malformed",

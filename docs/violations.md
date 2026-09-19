@@ -452,6 +452,8 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [status_405_allow_conflicting](violations/status_405_allow_conflicting.md) — A 405 advertises the method it refuses
 - [status_405_allow_missing](violations/status_405_allow_missing.md) — A 405 answers without the Allow field it must generate
 - [status_407_challenge_missing](violations/status_407_challenge_missing.md) — A 407 presents no challenge to authenticate against
+- [status_412_ambiguous](violations/status_412_ambiguous.md) — A false precondition is answered with success, and nothing shows whether the change was already in place
+- [status_412_missing](violations/status_412_missing.md) — A false precondition on a state-changing request is answered with success rather than 412
 - [status_416_unsolicited](violations/status_416_unsolicited.md) — 416 Range Not Satisfiable answers a request that named no range
 - [status_417_ignored](violations/status_417_ignored.md) — A request repeats an expectation a 417 already refused
 - [status_content_forbidden](violations/status_content_forbidden.md) — A status that cannot carry content carries some

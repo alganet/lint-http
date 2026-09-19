@@ -161,6 +161,16 @@ pub const RFC_9110_15_5_8: SpecRef = SpecRef {
     note: "407 (Proxy Authentication Required) — the proxy generating one MUST send a `Proxy-Authenticate` containing a challenge applicable to that proxy for the request",
 };
 
+/// `If-Match`: the MUST NOT that keeps an origin server from performing a
+/// method whose condition evaluated false, the MAY that answers it with `412`,
+/// and the second MAY that answers a change already applied with `2xx`.
+pub const RFC_9110_13_1_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.1",
+    note: "`If-Match`: an origin server MUST NOT perform the method when the condition is false, MAY answer 412, and MAY answer 2xx where the state-changing request appears to have already been applied",
+};
+
 pub const RFC_9110_13_1_2: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("13.1.2"),
@@ -618,6 +628,96 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9110_13_1_2, crate::violations::conditional::RFC_9110_13_1_3],
+    }
+
+    /// A state-changing request whose precondition evaluated false, answered
+    /// with success: the method was performed, and the lost update the
+    /// precondition existed to prevent went through.
+    ///
+    /// **Three preconditions, one sentence each, and one entry, for the reason
+    /// [`STATUS_304_MISSING`] gives.** § 13.1.2 says an origin server MUST NOT
+    /// perform a method whose `If-None-Match` evaluated false and MUST answer
+    /// `412` for any method but `GET` and `HEAD`; § 13.1.1 and § 13.1.4 say
+    /// the same MUST NOT of `If-Match` and `If-Unmodified-Since`, and make the
+    /// `412` a MAY beside a second MAY — a `2xx` where the state-changing
+    /// request "appears to have already been applied". One sender, one repair
+    /// (evaluate the precondition before acting) and one loss, which is the
+    /// overwrite the client conditioned against. The message names the field
+    /// it was read from and the sentence that governs it.
+    ///
+    /// **What is reported is a method performed, and the evidence has to show
+    /// it.** For `If-None-Match` the `2xx` is the evidence on its own, since
+    /// no sentence permits one. For the other two the response has to carry a
+    /// validator that differs from the one the resource was last seen with:
+    /// the change went through, and the `2xx` § 13.1.1 allows for a change
+    /// already in place would have left the tag where it was. A `2xx` that
+    /// carries no validator is [`STATUS_412_AMBIGUOUS`]; one whose validator
+    /// is unchanged is the permitted answer and draws nothing.
+    ///
+    /// **`GET` and `HEAD` are outside it, on two sentences.** A false
+    /// `If-None-Match` there owes a `304` and is [`STATUS_304_MISSING`]'s. A
+    /// false `If-Match` on a `GET` is a case § 13.1.1 calls "only useful in
+    /// range requests" and lets "a cache or intermediary" ignore, so a `200`
+    /// gives no way to tell an origin that performed the method from a cache
+    /// that answered in its place, and neither may be named. `CONNECT`,
+    /// `OPTIONS` and `TRACE` are outside it because § 13.2.1 has a server
+    /// ignore every precondition on them.
+    ///
+    /// **The resource's validators come from the exchange's history**, which
+    /// is what the precondition is evaluated against: the newest earlier
+    /// response for the resource that carried them. A resource the history
+    /// never saw a validator on is one this entry cannot evaluate, and it
+    /// declines rather than guess; `If-Match: *` is declined for the same
+    /// reason, since existence is not a validator a response hands out.
+    ///
+    /// **`error`, and the strength is the sentence's.** The MUST NOT binds the
+    /// origin server, the evidence here is a method that was performed, and
+    /// what it cost is the overwrite the whole mechanism exists to refuse.
+    ///
+    // cite(RFC 9110 § 13.1.2): "An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods."
+    // cite(RFC 9110 § 13.1.1): "An origin server that evaluates an If-Match condition MUST NOT perform the requested method if the condition evaluates to false."
+    // cite(RFC 9110 § 13.1.4): "An origin server that evaluates an If-Unmodified-Since condition MUST NOT perform the requested method if the condition evaluates to false."
+    // cite(RFC 9110 § 13.1.1): "Alternatively, if the request is a state-changing operation that appears to have already been applied to the selected representation, the origin server MAY respond with a 2xx (Successful) status code"
+    STATUS_412_MISSING = {
+        id: "status_412_missing",
+        title: "A false precondition on a state-changing request is answered with success rather than 412",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_13_1_1, RFC_9110_13_1_2, crate::violations::conditional::RFC_9110_13_1_4],
+        strength: Strength::Must,
+    }
+
+    /// A state-changing request whose `If-Match` or `If-Unmodified-Since`
+    /// evaluated false, answered with a `2xx` that carries no validator.
+    ///
+    /// **`_ambiguous`, because the defect is undetermined rather than
+    /// absent.** § 13.1.1 and § 13.1.4 say the origin MUST NOT perform the
+    /// method, and in the same breath allow a `2xx` where the change "appears
+    /// to have already been applied". A response carrying a validator tells
+    /// the two apart — [`STATUS_412_MISSING`] is the one whose validator moved
+    /// — and a `204` carrying none leaves nothing to read: either a method was
+    /// performed that the sentence forbids, or a change already in place was
+    /// acknowledged as the sentence permits.
+    ///
+    /// **`warn` and [`Strength::Unstated`], for the reason
+    /// [`crate::violations::method::METHOD_HEAD_CONTENT_LENGTH_AMBIGUOUS`]
+    /// gives.** The MUST NOT is quoted because it is the sentence the exchange
+    /// would offend if the method was performed; reporting at `error` would
+    /// state as settled the one thing the response withholds. What an
+    /// operator is told is that a precondition failed and the answer was not
+    /// `412`, which is worth knowing on every resource that hands out
+    /// validators for this purpose.
+    ///
+    /// Not a reading of `If-None-Match`: no sentence permits a `2xx` to a
+    /// false one, so a bare `2xx` there has nothing to be ambiguous between.
+    // cite(RFC 9110 § 13.1.1): "An origin server that evaluates an If-Match condition MUST NOT perform the requested method if the condition evaluates to false."
+    // cite(RFC 9110 § 13.1.1): "Alternatively, if the request is a state-changing operation that appears to have already been applied to the selected representation, the origin server MAY respond with a 2xx (Successful) status code"
+    STATUS_412_AMBIGUOUS = {
+        id: "status_412_ambiguous",
+        title: "A false precondition is answered with success, and nothing shows whether the change was already in place",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_13_1_1, crate::violations::conditional::RFC_9110_13_1_4],
     }
 
     /// A `401 (Unauthorized)` that presents no challenge: no
