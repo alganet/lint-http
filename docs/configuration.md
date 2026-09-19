@@ -184,9 +184,10 @@ lint-http run --fail-on error --captures run.jsonl -- pytest
   as soon as the wrapped command reaches more than one origin.
 - **The report is what the proxy found, not a second pass over the capture.**
   The rules ran on each transaction as it crossed, with its body in hand, and
-  the finding was written onto the record; the report reads it back. That is why
-  the rules that read a body appear here and not in `lint-captures`, which
-  replays from a file no body survives into.
+  the finding was written onto the record; the report reads it back. What comes
+  back is the finding exactly as the live pass made it, under the configuration
+  that pass ran with — which is by construction the one this command was handed.
+  It is also cheaper, since nothing is parsed or linted twice.
 
 The variables and the clients that read them are a table in
 `lint-http-proxy/src/client_env.rs`, where each row quotes the documentation that

@@ -953,12 +953,14 @@ struct Gated {
 /// hand, and wrote the result into the record; this reads it back.
 ///
 /// **Replaying instead is how this tool reported a malformed body as clean.**
-/// `HttpTransaction::request_body` and `response_body` are `#[serde(skip)]`, so
-/// no body survives the capture file — and the seven rules that read one could
-/// therefore never fire in a `run` report, however loudly the live pass had
-/// found them. `lint-http run --fail-on error -- curl https://api/thing`
-/// returned a green gate for an `application/problem+json` document the proxy
-/// had already rejected.
+/// `HttpTransaction::request_body` and `response_body` are `#[serde(skip)]`,
+/// and for as long as nothing put the written bodies back on read, no body
+/// survived the capture file — so the rules that read one could never fire in a
+/// `run` report, however loudly the live pass had found them.
+/// `lint-http run --fail-on error -- curl https://api/thing` returned a green
+/// gate for an `application/problem+json` document the proxy had already
+/// rejected. A capture file's bodies are read back now, so a replay would no
+/// longer be blind here; the reasons below are why this still does not replay.
 ///
 /// Nothing is given up by trusting the record. `Violation` serializes whole —
 /// severity, defect id and specification citation included — so what comes back
@@ -3695,17 +3697,23 @@ enabled = false
         assert_eq!(cli.global.min_severity(), lint::Severity::Info);
     }
 
-    /// A driven session reports what its own proxy found, and a body rule is
-    /// the proof.
+    /// A body rule survives the round trip through a capture file, and both
+    /// ways of reporting it agree.
     ///
     /// `problem_details_structure_valid` reads `response_body`, which is
-    /// `#[serde(skip)]` — it never comes back out of a capture file. Replaying
-    /// that record under the very config the run used, with the rule enabled,
-    /// therefore finds nothing; and for as long as `run` reported by replaying,
-    /// a malformed problem document walked through a `--fail-on error` gate the
-    /// proxy had already tripped.
+    /// `#[serde(skip)]`. That was read as "no body comes back out of a capture
+    /// file", and this test asserted the replay found nothing — which it did,
+    /// but only because the fixture wrote the record with bare serde and so
+    /// never put a body in the file at all. Written the way the proxy writes
+    /// one, the body is there and the replay reads it.
+    ///
+    /// Both halves are asserted because they answer different questions. The
+    /// recorded finding is what `run` reports and must survive whatever the
+    /// reader does; the replayed one is what `lint-captures` reports, and for
+    /// as long as it was zero a malformed problem document walked through a
+    /// `--fail-on error` gate the proxy had already tripped.
     #[tokio::test]
-    async fn a_body_rule_reaches_the_report_a_replay_cannot_reproduce() -> anyhow::Result<()> {
+    async fn a_body_rule_survives_the_capture_file() -> anyhow::Result<()> {
         use lint_http_core::test_helpers::make_test_transaction_with_response;
 
         let mut temp = crate::temp_files::TempFiles::new();
@@ -3725,9 +3733,22 @@ enabled = false
             "problem detail body is not a JSON object",
         )];
 
-        // Through the file, which is where the body is lost and the finding is not.
-        let captures = write_capture_file(&[tx], &mut temp).await?;
-        let records = capture::load_capture_records(captures.to_str().unwrap()).await?;
+        // Through the file the way the proxy writes one: a writer configured to
+        // keep bodies, which is the only shape in which this question means
+        // anything. `write_capture_file` serializes with bare serde and would
+        // drop the body before the reader ever saw it.
+        let path = temp.path("lint_body_roundtrip", "jsonl");
+        let writer = capture::CaptureWriter::new(
+            path.to_str()
+                .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+                .to_string(),
+            true,
+        )
+        .await?;
+        writer.write_transaction(tx).await?;
+        writer.flush().await?;
+
+        let records = capture::load_capture_records(path.to_str().unwrap()).await?;
 
         let reported = recorded_findings(&records, lint::Severity::Info, AboutScope::all());
         assert_eq!(reported.total(), 1, "the recorded finding must be reported");
@@ -3735,8 +3756,8 @@ enabled = false
         let replayed = lint_records(&cfg, records, lint::Severity::Info, AboutScope::all())?;
         assert_eq!(
             replayed.total(),
-            0,
-            "the replay is expected to miss it — that is the defect this reports around"
+            1,
+            "the body is in the file, so the replay must reach the rule that reads it"
         );
         Ok(())
     }

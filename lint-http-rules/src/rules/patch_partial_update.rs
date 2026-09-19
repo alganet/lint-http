@@ -359,9 +359,14 @@ mod tests {
     }
 
     /// Where nothing was captured, the sender's own declaration is what is
-    /// left. This is the `lint-captures` subcommand's shape: `request_body` is
-    /// `#[serde(skip)]`, so a capture file carries neither the octets nor,
-    /// where the proxy rejected an over-limit body, a length.
+    /// left — a proxy configured not to keep bodies, or one that rejected an
+    /// over-limit body and so has neither the octets nor a length.
+    ///
+    /// **This was written as the `lint-captures` subcommand's shape, and it was
+    /// not.** `request_body` is `#[serde(skip)]`, which was read as "a capture
+    /// file carries no octets"; the capture writer injects them, and only the
+    /// reader was missing. A capture gathered with `captures_include_body` puts
+    /// the body in front of this rule like any live message does.
     #[test]
     fn declared_length_without_a_capture_is_reported() {
         let rule = PatchPartialUpdate;
