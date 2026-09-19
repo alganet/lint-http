@@ -7,7 +7,7 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::{
     domain_defect, COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_IPV4_ADDRESS_FORBIDDEN,
     COOKIE_DOMAIN_IPV6_LITERAL_FORBIDDEN, COOKIE_DOMAIN_LEADING_DOT_OBSOLETE,
-    COOKIE_DOMAIN_MISSING, RFC_6265_5_1_3, RFC_6265_5_2_3,
+    COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING, RFC_6265_5_1_3, RFC_6265_5_2_3,
 };
 use crate::violations::domain::{
     DOMAIN_LABEL_CHARACTER_FORBIDDEN, DOMAIN_LABEL_EDGE_HYPHEN_FORBIDDEN, DOMAIN_LABEL_EMPTY,
@@ -115,63 +115,88 @@ impl Rule for CookieDomainValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
-
-            for hv in resp.headers.get_all("set-cookie").iter() {
+        let Some(resp) = tx.response.as_ref() else {
+            return Vec::new();
+        };
+        // One finding per cookie, not one per response. A response setting ten
+        // cookies is answering this rule's question ten times, and a walk that
+        // stopped at the first bad `Domain` told an operator about one of them
+        // -- with a sentence that could not say which, since a `Set-Cookie`
+        // line is identified by the cookie-name it opens with and nothing here
+        // was reading it.
+        resp.headers
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|hv| {
                 // Read as octets, one field line at a time. `Set-Cookie` is
                 // not a list -- § 5.3's recombination does not apply to it, so
                 // the lines are never joined -- and § 4.1.1's grammar stops at
                 // `CHAR`, %x01-7F, so an octet above that is a character the
                 // production does not admit rather than a verdict about the
                 // field's encoding. The readers below have an entry for it.
-                let s = crate::helpers::headers::field_line_as_written(hv);
-                let s = s.as_str();
+                self.line_defect(
+                    crate::helpers::headers::field_line_as_written(hv).as_str(),
+                    ctx,
+                )
+            })
+            .collect()
+    }
+}
 
-                // Split into cookie-pair and attributes — § 5.2's own parsing
-                // algorithm, which is the reading this rule does before any
-                // defect exists. The defects' sentences are on their defs.
-                //
-                // cite(RFC 6265 § 5.2): "Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character."
-                let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
-                for attr in parts.iter().skip(1) {
-                    if attr.is_empty() {
-                        continue;
+impl CookieDomainValid {
+    /// What is wrong with the `Domain` of one cookie, if anything.
+    fn line_defect(&self, s: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+        let cookie = crate::helpers::cookie::set_cookie_name(s);
+        let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
+
+        // Split into cookie-pair and attributes — § 5.2's own parsing
+        // algorithm, which is the reading this rule does before any
+        // defect exists. The defects' sentences are at the sites below,
+        // because each has to name the cookie it is about.
+        //
+        // cite(RFC 6265 § 5.2): "Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character."
+        let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
+        for attr in parts.iter().skip(1) {
+            if attr.is_empty() {
+                continue;
+            }
+            let mut av = attr.splitn(2, '=');
+            let key = av.next().unwrap().trim();
+            let val = av.next().map(|v| v.trim()).unwrap_or("");
+            // cite(RFC 6265 § 5.2.3): "If the attribute-name case-insensitively matches the string "Domain", the user agent MUST process the cookie-av as follows."
+            if key.eq_ignore_ascii_case("domain") {
+                if val.is_empty() {
+                    return Some(ctx.report_with(
+                        &COOKIE_DOMAIN_MISSING,
+                        about(COOKIE_DOMAIN_MISSING_WORDING),
+                    ));
+                }
+                match crate::helpers::domain::validate_cookie_domain(val) {
+                    Ok(()) => {
+                        if val.starts_with('.') {
+                            return Some(ctx.report_with(
+                                &COOKIE_DOMAIN_LEADING_DOT_OBSOLETE,
+                                about(
+                                    "Set-Cookie 'Domain' attribute uses a leading '.' which is \
+                                     deprecated; prefer the registry form without leading dot",
+                                ),
+                            ));
+                        }
                     }
-                    let mut av = attr.splitn(2, '=');
-                    let key = av.next().unwrap().trim();
-                    let val = av.next().map(|v| v.trim()).unwrap_or("");
-                    // cite(RFC 6265 § 5.2.3): "If the attribute-name case-insensitively matches the string "Domain", the user agent MUST process the cookie-av as follows."
-                    if key.eq_ignore_ascii_case("domain") {
-                        if val.is_empty() {
-                            return Some(ctx.report(&COOKIE_DOMAIN_MISSING));
-                        }
-                        match crate::helpers::domain::validate_cookie_domain(val) {
-                            Ok(()) => {
-                                if val.starts_with('.') {
-                                    return Some(ctx.report(&COOKIE_DOMAIN_LEADING_DOT_OBSOLETE));
-                                }
-                            }
-                            Err(e) => {
-                                return Some(ctx.report_with(
-                                    domain_defect(e),
-                                    format!(
-                                        "Invalid Set-Cookie Domain attribute '{}': {}",
-                                        val,
-                                        e.message()
-                                    ),
-                                ));
-                            }
-                        }
+                    Err(e) => {
+                        return Some(ctx.report_with(
+                            domain_defect(e),
+                            about(&format!(
+                                "Invalid Set-Cookie Domain attribute '{}': {}",
+                                val,
+                                e.message()
+                            )),
+                        ));
                     }
                 }
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        None
     }
 }
 
@@ -252,6 +277,74 @@ mod tests {
         assert_eq!(v.rule, "cookie_domain_valid");
         assert_eq!(v.violation, violation);
         assert_eq!(v.severity, severity);
+    }
+
+    /// A response is allowed to set many cookies, and this rule answers for
+    /// each of them.
+    ///
+    /// The walk used to stop at the first `Domain` it had something to say
+    /// about, so the second line here — an IP address, which is the whole of
+    /// what `cookie_domain_ipv4_address_forbidden` is for — was reported
+    /// nowhere as long as the first line had a leading dot. Ten `Set-Cookie`
+    /// lines is an ordinary response; one of the corpus's carries exactly ten.
+    #[test]
+    fn every_cookie_on_the_response_is_answered_for() {
+        use crate::test_helpers::make_test_transaction_with_response;
+        let tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("set-cookie", "a=1; Domain=.example.com"),
+                ("set-cookie", "b=2; Domain=192.168.0.1"),
+            ],
+        );
+        let rule = CookieDomainValid;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "cookie_domain_leading_dot_obsolete",
+                "cookie_domain_ipv4_address_forbidden"
+            ]
+        );
+    }
+
+    /// And each of them says which cookie it is about, because two findings of
+    /// one entry on one response are otherwise the same sentence twice.
+    #[test]
+    fn a_finding_names_the_cookie_it_is_about() {
+        use crate::test_helpers::make_test_transaction_with_response;
+        let tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("set-cookie", "session=1; Domain=.example.com"),
+                ("set-cookie", "tracker=2; Domain=.example.com"),
+            ],
+        );
+        let rule = CookieDomainValid;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(found.len(), 2);
+        assert!(
+            found[0].message.ends_with("(cookie 'session')"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.ends_with("(cookie 'tracker')"),
+            "{:?}",
+            found[1].message
+        );
+        assert_ne!(found[0].message, found[1].message);
     }
 
     /// The leading dot costs nothing at run time and is `info` because of it —

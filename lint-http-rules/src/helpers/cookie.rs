@@ -234,6 +234,42 @@ impl Attribute<'_> {
     }
 }
 
+/// The cookie one `Set-Cookie` field line is about, named as a finding names it.
+///
+/// A response is allowed to set many cookies and does — RFC 6265 § 3 tells an
+/// origin server not to fold them onto one line ("Origin servers SHOULD NOT
+/// fold multiple Set-Cookie header fields into a single header field"), so each
+/// line is a separate cookie with its own name, value and attributes. A rule
+/// reading the field therefore answers once per cookie, and two of its findings
+/// carry the same sentence unless each says which cookie it is about.
+///
+/// The cookie-name is what tells them apart: § 4.1.1 puts it first on the line,
+/// before the `=`. A line that wrote no `=` has no name to give, and the empty
+/// string is how this says so — [`about_cookie`] then leaves the sentence
+/// alone, because a finding naming `cookie ''` names nothing.
+// cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
+pub fn set_cookie_name(line: &str) -> &str {
+    let (pair, _) = split_set_cookie(line);
+    match pair.split_once('=') {
+        Some((name, _)) => crate::helpers::headers::trim_ows(name),
+        None => "",
+    }
+}
+
+/// What a finding claims, and then which cookie it claims it of.
+///
+/// The name goes after the sentence rather than into it: what is wrong is what
+/// an operator reads first, and which of ten cookies it is wrong about is what
+/// they read next to find the line. Written once here so that the rules reading
+/// `Set-Cookie` cannot say it three different ways.
+pub fn about_cookie(name: &str, sentence: impl std::fmt::Display) -> String {
+    if name.is_empty() {
+        sentence.to_string()
+    } else {
+        format!("{sentence} (cookie '{name}')")
+    }
+}
+
 /// Split one `Set-Cookie` field line into its cookie-pair and its attributes.
 ///
 /// The parser below and the rule that reports attribute defects were each

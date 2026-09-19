@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::{
     path_defect, COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN, COOKIE_PATH_EMPTY,
-    COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
+    COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING, COOKIE_PATH_MISSING_WORDING,
     COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN, COOKIE_PATH_WHITESPACE_INVALID, RFC_6265_4_1_1,
     RFC_6265_5_2_4,
 };
@@ -136,67 +136,76 @@ impl Rule for CookiePathValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
-
-            for hv in resp.headers.get_all("set-cookie").iter() {
+        let Some(resp) = tx.response.as_ref() else {
+            return Vec::new();
+        };
+        // One finding per cookie, not one per response: each `Set-Cookie` line
+        // is a separate cookie with a `Path` of its own, and a walk that
+        // stopped at the first bad one answered for a response about a cookie
+        // it could not name.
+        resp.headers
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|hv| {
                 // Read as octets, one field line at a time. `Set-Cookie` is
                 // not a list -- § 5.3's recombination does not apply to it, so
                 // the lines are never joined -- and § 4.1.1's grammar stops at
                 // `CHAR`, %x01-7F, so an octet above that is a character the
                 // production does not admit rather than a verdict about the
                 // field's encoding. The readers below have an entry for it.
-                let s = crate::helpers::headers::field_line_as_written(hv);
-                let s = s.as_str();
+                self.line_defect(
+                    crate::helpers::headers::field_line_as_written(hv).as_str(),
+                    ctx,
+                )
+            })
+            .collect()
+    }
+}
 
-                // Split into cookie-pair and attribute segments. The `;` and
-                // the trim are § 5.2's own parsing algorithm, which is what
-                // this rule enforces of its own accord — the defects it
-                // reports are elsewhere, and so are their sentences.
-                //
-                // cite(RFC 6265 § 5.2): "Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character."
-                let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
-                if parts.is_empty() {
-                    // No segments at all; nothing to validate here
-                    continue;
-                }
+impl CookiePathValid {
+    /// What is wrong with the `Path` of one cookie, if anything.
+    fn line_defect(&self, s: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+        let cookie = crate::helpers::cookie::set_cookie_name(s);
+        let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
 
-                for attr in parts.iter().skip(1) {
-                    if attr.is_empty() {
-                        continue;
-                    }
-                    let mut av = attr.splitn(2, '=');
-                    let key = av.next().unwrap().trim();
-                    let val_opt = av.next().map(|v| v.trim());
+        // Split into cookie-pair and attribute segments. The `;` and
+        // the trim are § 5.2's own parsing algorithm, which is what
+        // this rule enforces of its own accord — the defects it
+        // reports are elsewhere, and so are their sentences.
+        //
+        // cite(RFC 6265 § 5.2): "Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character."
+        let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
+        for attr in parts.iter().skip(1) {
+            if attr.is_empty() {
+                continue;
+            }
+            let mut av = attr.splitn(2, '=');
+            let key = av.next().unwrap().trim();
+            let val_opt = av.next().map(|v| v.trim());
 
-                    // cite(RFC 6265 § 5.2): "If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows."
-                    if key.eq_ignore_ascii_case("path") {
-                        let v = match val_opt {
-                            Some(v) => v,
-                            None => return Some(ctx.report(&COOKIE_PATH_MISSING)),
-                        };
+            // cite(RFC 6265 § 5.2): "If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows."
+            if key.eq_ignore_ascii_case("path") {
+                let Some(v) = val_opt else {
+                    return Some(
+                        ctx.report_with(&COOKIE_PATH_MISSING, about(COOKIE_PATH_MISSING_WORDING)),
+                    );
+                };
 
-                        if let Err(defect) = crate::helpers::cookie::validate_cookie_path(v) {
-                            // The message stays here, where its argument is;
-                            // which defect it is comes from the helper's own
-                            // answer, named in `violations::cookie`.
-                            return Some(ctx.report_with(
-                                path_defect(&defect),
-                                format!(
-                                    "Set-Cookie attribute 'Path' invalid: {}",
-                                    defect.message()
-                                ),
-                            ));
-                        }
-                    }
+                if let Err(defect) = crate::helpers::cookie::validate_cookie_path(v) {
+                    // The message stays here, where its argument is;
+                    // which defect it is comes from the helper's own
+                    // answer, named in `violations::cookie`.
+                    return Some(ctx.report_with(
+                        path_defect(&defect),
+                        about(&format!(
+                            "Set-Cookie attribute 'Path' invalid: {}",
+                            defect.message()
+                        )),
+                    ));
                 }
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        None
     }
 }
 
@@ -218,6 +227,49 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// A response is allowed to set many cookies, and this rule answers for
+    /// each of them, naming which.
+    ///
+    /// The walk used to stop at the first bad `Path`, so the second cookie's
+    /// control character was reported nowhere while the first cookie's
+    /// relative path stood in front of it.
+    #[test]
+    fn every_cookie_on_the_response_is_answered_for() {
+        use crate::test_helpers::make_test_transaction_with_response;
+        let tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("set-cookie", "a=1; Path=login"),
+                ("set-cookie", "b=2; Path=/a b"),
+            ],
+        );
+        let rule = CookiePathValid;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "cookie_path_leading_slash_missing",
+                "cookie_path_whitespace_invalid"
+            ]
+        );
+        assert!(
+            found[0].message.ends_with("(cookie 'a')"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.ends_with("(cookie 'b')"),
+            "{:?}",
+            found[1].message
+        );
     }
 
     #[test]

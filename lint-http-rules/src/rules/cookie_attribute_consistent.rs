@@ -7,12 +7,13 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::DRAFT_IETF_HTTPBIS_RFC6265BIS;
 use crate::violations::cookie::{
-    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_EXPIRES_MALFORMED, COOKIE_EXPIRES_MISSING,
-    COOKIE_FLAG_VALUE_FORBIDDEN, COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING,
-    COOKIE_PAIR_EQUALS_MISSING, COOKIE_PAIR_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING,
-    COOKIE_PATH_MISSING, COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, COOKIE_SECURE_MISSING,
-    COOKIE_VALUE_CHARACTER_FORBIDDEN, RFC_6265_4_1_1, RFC_6265_5_1_1, RFC_6265_5_2_2,
-    RFC_6265_5_2_3, RFC_6265_5_2_4,
+    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING,
+    COOKIE_EXPIRES_MALFORMED, COOKIE_EXPIRES_MISSING, COOKIE_FLAG_VALUE_FORBIDDEN,
+    COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING, COOKIE_PAIR_EQUALS_MISSING,
+    COOKIE_PAIR_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
+    COOKIE_PATH_MISSING_WORDING, COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING,
+    COOKIE_SECURE_MISSING, COOKIE_VALUE_CHARACTER_FORBIDDEN, RFC_6265_4_1_1, RFC_6265_5_1_1,
+    RFC_6265_5_2_2, RFC_6265_5_2_3, RFC_6265_5_2_4,
 };
 use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
@@ -90,8 +91,18 @@ impl CookieAttributeConsistent {
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let (pair, attributes) = crate::helpers::cookie::split_set_cookie(line);
+        // Which cookie every sentence below is about. A response sets many,
+        // and until each finding said which one it was for, two of them read
+        // as one repeated. The name is empty exactly where the line wrote no
+        // `=` to put one before, and `about_cookie` then leaves the sentence
+        // alone rather than naming a cookie called nothing.
+        let cookie = crate::helpers::cookie::set_cookie_name(line);
+        let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
         if pair.is_empty() {
-            return Some(ctx.report(&COOKIE_PAIR_MISSING));
+            return Some(ctx.report_with(
+                &COOKIE_PAIR_MISSING,
+                about("Set-Cookie header missing cookie-pair"),
+            ));
         }
 
         // `cookie-pair = cookie-name "=" cookie-value` requires the `=`
@@ -104,7 +115,7 @@ impl CookieAttributeConsistent {
         let Some((name, value)) = pair.split_once('=') else {
             return Some(ctx.report_with(
                 &COOKIE_PAIR_EQUALS_MISSING,
-                format!("Set-Cookie pair '{pair}' has no '=': `cookie-pair = cookie-name \"=\" cookie-value` requires one"),
+                about(&format!("Set-Cookie pair '{pair}' has no '=': `cookie-pair = cookie-name \"=\" cookie-value` requires one")),
             ));
         };
 
@@ -113,12 +124,15 @@ impl CookieAttributeConsistent {
         // document -- so both of its defects are that production's.
         let name = name.trim();
         if name.is_empty() {
-            return Some(ctx.report_with(&TOKEN_EMPTY, "Set-Cookie cookie name is empty".into()));
+            return Some(ctx.report_with(&TOKEN_EMPTY, about("Set-Cookie cookie name is empty")));
         }
         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
             return Some(ctx.report_with(
                 token_character(c),
-                format!("Set-Cookie cookie-name contains invalid character: '{}'", c),
+                about(&format!(
+                    "Set-Cookie cookie-name contains invalid character: '{}'",
+                    c
+                )),
             ));
         }
 
@@ -132,16 +146,16 @@ impl CookieAttributeConsistent {
         if let Some(c) = find_invalid_cookie_octet(value) {
             return Some(ctx.report_with(
                 &COOKIE_VALUE_CHARACTER_FORBIDDEN,
-                format!(
+                about(&format!(
                     "Set-Cookie value '{value}' contains a character outside cookie-octet: '{c}'"
-                ),
+                )),
             ));
         }
 
         let mut secure_present = false;
         let mut same_site: Option<String> = None;
         for attribute in attributes {
-            if let Some(defect) = self.attribute_defect(&attribute, ctx) {
+            if let Some(defect) = self.attribute_defect(&attribute, cookie, ctx) {
                 return Some(defect);
             }
             // Past the defect check the values are known good, so what is
@@ -158,7 +172,10 @@ impl CookieAttributeConsistent {
         // a suggestion.
         // cite(draft-ietf-httpbis-rfc6265bis § 5.7): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
         if same_site.as_deref() == Some("none") && !secure_present {
-            return Some(ctx.report(&COOKIE_SECURE_MISSING));
+            return Some(ctx.report_with(
+                &COOKIE_SECURE_MISSING,
+                about("Set-Cookie with 'SameSite=None' must also set 'Secure'"),
+            ));
         }
         None
     }
@@ -171,8 +188,10 @@ impl CookieAttributeConsistent {
     fn attribute_defect(
         &self,
         attribute: &crate::helpers::cookie::Attribute<'_>,
+        cookie: &str,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
+        let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
         // The two flag attributes: the grammar admits no "=", so the attribute
         // is its own presence and a value written after it is a defect.
         // cite(RFC 6265 § 4.1.1): "secure-av         = "Secure""
@@ -182,7 +201,10 @@ impl CookieAttributeConsistent {
                 return attribute.has_value().then(|| {
                     ctx.report_with(
                         &COOKIE_FLAG_VALUE_FORBIDDEN,
-                        format!("Set-Cookie attribute '{}' must not have a value", flag),
+                        about(&format!(
+                            "Set-Cookie attribute '{}' must not have a value",
+                            flag
+                        )),
                     )
                 });
             }
@@ -190,7 +212,10 @@ impl CookieAttributeConsistent {
 
         if attribute.is("SameSite") {
             let Some(value) = attribute.value else {
-                return Some(ctx.report(&COOKIE_SAME_SITE_MISSING));
+                return Some(ctx.report_with(
+                    &COOKIE_SAME_SITE_MISSING,
+                    about("Set-Cookie attribute 'SameSite' requires a value"),
+                ));
             };
             let known = ["strict", "lax", "none"]
                 .iter()
@@ -198,17 +223,20 @@ impl CookieAttributeConsistent {
             return (!known).then(|| {
                 ctx.report_with(
                     &COOKIE_SAME_SITE_INVALID,
-                    format!(
+                    about(&format!(
                         "Set-Cookie attribute 'SameSite' has invalid value: '{}'",
                         value
-                    ),
+                    )),
                 )
             });
         }
 
         if attribute.is("Max-Age") {
             let Some(value) = attribute.value else {
-                return Some(ctx.report(&COOKIE_MAX_AGE_MISSING));
+                return Some(ctx.report_with(
+                    &COOKIE_MAX_AGE_MISSING,
+                    about("Set-Cookie attribute 'Max-Age' requires a numeric value"),
+                ));
             };
             // A leading "-" is accepted on purpose: the ABNF says non-zero-digit
             // *DIGIT, but the parsing algorithm the ABNF is a summary of admits a
@@ -219,17 +247,20 @@ impl CookieAttributeConsistent {
             return value.parse::<i64>().is_err().then(|| {
                 ctx.report_with(
                     &COOKIE_MAX_AGE_MALFORMED,
-                    format!(
+                    about(&format!(
                         "Set-Cookie attribute 'Max-Age' is not a valid integer: '{}'",
                         value
-                    ),
+                    )),
                 )
             });
         }
 
         if attribute.is("Expires") {
             let Some(value) = attribute.value else {
-                return Some(ctx.report(&COOKIE_EXPIRES_MISSING));
+                return Some(ctx.report_with(
+                    &COOKIE_EXPIRES_MISSING,
+                    about("Set-Cookie attribute 'Expires' requires a HTTP-date value"),
+                ));
             };
             // Two questions, and this used to ask only the first. § 4.1.1 writes
             // `sane-cookie-date` as `rfc1123-date`, so § 5.6.7's parse answers
@@ -249,18 +280,18 @@ impl CookieAttributeConsistent {
             return Some(if crate::helpers::cookie::cookie_date_is_readable(value) {
                 ctx.report_with(
                     &COOKIE_EXPIRES_MALFORMED,
-                    format!(
+                    about(&format!(
                         "Set-Cookie attribute 'Expires' is not an rfc1123-date, though § 5.1.1 reads it: '{}'",
                         value
-                    ),
+                    )),
                 )
             } else {
                 ctx.report_with(
                     &HTTP_DATE_MALFORMED,
-                    format!(
+                    about(&format!(
                         "Set-Cookie attribute 'Expires' is not a valid HTTP-date: '{}'",
                         value
-                    ),
+                    )),
                 )
             });
         }
@@ -272,27 +303,31 @@ impl CookieAttributeConsistent {
         // it first.
         if attribute.is("Path") {
             let Some(value) = attribute.value else {
-                return Some(ctx.report(&COOKIE_PATH_MISSING));
+                return Some(
+                    ctx.report_with(&COOKIE_PATH_MISSING, about(COOKIE_PATH_MISSING_WORDING)),
+                );
             };
             return (!value.starts_with('/')).then(|| {
                 ctx.report_with(
                     &COOKIE_PATH_LEADING_SLASH_MISSING,
-                    format!(
+                    about(&format!(
                         "Set-Cookie attribute 'Path' should start with '/': '{}'",
                         value
-                    ),
+                    )),
                 )
             });
         }
 
         if attribute.is("Domain") {
             let Some(value) = attribute.value else {
-                return Some(ctx.report(&COOKIE_DOMAIN_MISSING));
+                return Some(
+                    ctx.report_with(&COOKIE_DOMAIN_MISSING, about(COOKIE_DOMAIN_MISSING_WORDING)),
+                );
             };
             if value.is_empty() {
                 return Some(ctx.report_with(
                     &COOKIE_DOMAIN_EMPTY,
-                    "Set-Cookie attribute 'Domain' must not be empty".into(),
+                    about("Set-Cookie attribute 'Domain' must not be empty"),
                 ));
             }
             // A space inside a host name is the *name's* defect and not the
@@ -301,10 +336,10 @@ impl CookieAttributeConsistent {
             return value.contains(' ').then(|| {
                 ctx.report_with(
                     &DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN,
-                    format!(
+                    about(&format!(
                         "Set-Cookie attribute 'Domain' must not contain spaces: '{}'",
                         value
-                    ),
+                    )),
                 )
             });
         }
@@ -411,25 +446,26 @@ impl Rule for CookieAttributeConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
-            resp.headers
-                .get_all("set-cookie")
-                .iter()
-                // Read as octets, one field line at a time: `Set-Cookie` is
-                // not a list, and § 4.1.1's grammar stops at `CHAR`, so an
-                // octet above %x7F is the attribute reader's finding rather
-                // than a verdict about the field's encoding.
-                .find_map(|line| {
-                    self.set_cookie_defect(
-                        &crate::helpers::headers::field_line_as_written(line),
-                        ctx,
-                    )
-                })
+        let Some(resp) = tx.response.as_ref() else {
+            return Vec::new();
         };
-        Vec::from_iter(finding())
+        // One finding per cookie, not one per response. `find_map` stood here
+        // and stopped at the first line with anything wrong with it, so a
+        // response setting a cookie with a malformed `Max-Age` beside one with
+        // an unknown `SameSite` reported the first and was silent about the
+        // second — a cookie the operator never learned about, under a rule that
+        // had read it.
+        resp.headers
+            .get_all("set-cookie")
+            .iter()
+            // Read as octets, one field line at a time: `Set-Cookie` is
+            // not a list, and § 4.1.1's grammar stops at `CHAR`, so an
+            // octet above %x7F is the attribute reader's finding rather
+            // than a verdict about the field's encoding.
+            .filter_map(|line| {
+                self.set_cookie_defect(&crate::helpers::headers::field_line_as_written(line), ctx)
+            })
+            .collect()
     }
 }
 
@@ -452,6 +488,93 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// A response is allowed to set many cookies, and this rule answers for
+    /// each of them.
+    ///
+    /// `find_map` stood in the walk and stopped at the first line with
+    /// anything wrong with it, so a malformed `Max-Age` on one cookie hid an
+    /// unrecognised `SameSite` on the next — two different defects on two
+    /// different cookies, one of them reported nowhere. Ten `Set-Cookie` lines
+    /// is an ordinary response.
+    #[test]
+    fn every_cookie_on_the_response_is_answered_for() {
+        use crate::test_helpers::make_test_transaction_with_response;
+        let tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("set-cookie", "a=1; Max-Age=soon"),
+                ("set-cookie", "b=2; SameSite=maybe"),
+            ],
+        );
+        let rule = CookieAttributeConsistent;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["cookie_max_age_malformed", "cookie_same_site_invalid"]
+        );
+        assert!(
+            found[0].message.ends_with("(cookie 'a')"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.ends_with("(cookie 'b')"),
+            "{:?}",
+            found[1].message
+        );
+    }
+
+    /// The same entry twice on one response, which is what a repeated field
+    /// makes ordinary: without the cookie's name the two findings are one
+    /// sentence written twice, and an operator reading them cannot tell how
+    /// many cookies they have to fix or which.
+    #[test]
+    fn two_findings_of_one_entry_are_told_apart_by_the_cookie() {
+        use crate::test_helpers::make_test_transaction_with_response;
+        let tx = make_test_transaction_with_response(
+            200,
+            &[
+                ("set-cookie", "session=1; SameSite=None"),
+                ("set-cookie", "tracker=2; SameSite=None"),
+            ],
+        );
+        let rule = CookieAttributeConsistent;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(found.len(), 2);
+        assert!(found.iter().all(|v| v.violation == "cookie_secure_missing"));
+        assert_ne!(found[0].message, found[1].message);
+        assert!(
+            found[0].message.ends_with("(cookie 'session')"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.ends_with("(cookie 'tracker')"),
+            "{:?}",
+            found[1].message
+        );
+    }
+
+    /// A line with no `=` has no cookie-name to be named by, and the sentence
+    /// is left as it is rather than naming a cookie called nothing.
+    #[test]
+    fn a_line_with_no_name_is_not_named() {
+        let v = check_set_cookie("SID").expect("a finding");
+        assert_eq!(v.violation, "cookie_pair_equals_missing");
+        assert!(!v.message.contains("(cookie"), "{:?}", v.message);
     }
 
     #[rstest]
@@ -604,10 +727,16 @@ mod tests {
         // now: § 4.1.1 writes the name as a `token`, so an octet above %x7F is
         // a character it does not admit. The verdict this replaces named the
         // field's encoding and stopped before the name was read.
+        //
+        // The name is also what the finding is about, so it is named twice —
+        // once as the character that is wrong and once as the cookie the wrong
+        // character belongs to. That reads oddly for a one-octet name and is
+        // exactly right beside a second cookie on the same response, which is
+        // the case the suffix exists for.
         let v = v.expect("a finding");
         assert_eq!(
             v.message,
-            "Set-Cookie cookie-name contains invalid character: '\u{ff}'"
+            "Set-Cookie cookie-name contains invalid character: '\u{ff}' (cookie '\u{ff}')"
         );
         Ok(())
     }

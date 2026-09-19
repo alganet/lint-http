@@ -10,7 +10,7 @@ A SameSite=None cookie is not Secure
 
 ## Message
 
-Set-Cookie with 'SameSite=None' must also set 'Secure'
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
