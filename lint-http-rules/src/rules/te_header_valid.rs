@@ -82,7 +82,7 @@ impl TeHeaderValid {
     ///
     /// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
     /// cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
-    fn check_members(&self, value: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+    fn check_members(&self, value: &str, ctx: &crate::rules::RuleContext<'_>) -> Vec<Violation> {
         // The field's list construct, expanded for a sender. The outer brackets are
         // why a `TE:` carrying nothing is not reported: `#t-codings` is not
         // `1#t-codings`, so a list of no members is a list this production generates.
@@ -98,9 +98,15 @@ impl TeHeaderValid {
         // cite(RFC 9112 § 7.4): "If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked."
         // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
         if trim_ows(value).is_empty() {
-            return None;
+            return Vec::new();
         }
 
+        // One finding per member. Every position in `#t-codings` names one
+        // transfer coding the client will accept, on its own terms and with its
+        // own parameters -- so a value naming two the sender wrote wrongly is
+        // two preferences to correct, and the labelled `continue` below moves to
+        // the next member once this one has been answered.
+        let mut out = Vec::new();
         let mut saw_an_empty_element = false;
 
         // `list_members_as_written` and not `list_members`, the recipient's walk.
@@ -113,7 +119,7 @@ impl TeHeaderValid {
         // naive split instead.
         //
         // cite(RFC 9110 § A): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-        for member in list_members_as_written(value) {
+        'member: for member in list_members_as_written(value) {
             if member.is_empty() {
                 // Reported after the members that are present, and reported as the
                 // list's defect rather than the element's: there is no empty
@@ -137,13 +143,14 @@ impl TeHeaderValid {
             // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
             for segment in segments.iter().skip(1) {
                 if segment.is_empty() {
-                    return Some(ctx.by_client().report_with(
+                    out.push(ctx.by_client().report_with(
                         &TRANSFER_CODING_PARAMETER_MISSING,
                         format!(
                             "TE member '{}' holds a ';' with no parameter after it",
                             member.escape_debug()
                         ),
                     ));
+                    continue 'member;
                 }
             }
 
@@ -157,7 +164,7 @@ impl TeHeaderValid {
             // cite(RFC 9110 § A): "t-codings = "trailers" / ( transfer-coding [ weight ] )"
             if primary.eq_ignore_ascii_case("trailers") {
                 if let Some(extra) = segments.get(1) {
-                    return Some(ctx.by_client().report_with(&TE_TRAILERS_PARAMETER_FORBIDDEN, format!(
+                    out.push(ctx.by_client().report_with(&TE_TRAILERS_PARAMETER_FORBIDDEN, format!(
                         "TE member '{}' hangs '{}' off the 'trailers' keyword; the t-codings alternative that admits a parameter or a weight is the transfer-coding one",
                         member.escape_debug(),
                         extra.escape_debug()
@@ -180,13 +187,14 @@ impl TeHeaderValid {
             // cite(RFC 9110 § A): "transfer-coding = token *( OWS ";" OWS transfer-parameter )"
             for parameter in segments.iter().skip(1) {
                 if let Some(v) = self.check_parameter(member, parameter, ctx) {
-                    return Some(v);
+                    out.push(v);
+                    continue 'member;
                 }
             }
         }
 
         if saw_an_empty_element {
-            return Some(ctx.by_client().report_with(
+            out.push(ctx.by_client().report_with(
                 &LIST_MEMBER_EMPTY,
                 format!(
                     "TE header holds an empty member: '{}'",
@@ -195,7 +203,7 @@ impl TeHeaderValid {
             ));
         }
 
-        None
+        out
     }
 
     /// The connection option § 10.1.4 requires beside the field — on the versions of
@@ -548,9 +556,12 @@ impl Rule for TeHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Every finding this rule has to give. The three questions it asks are
+        // independent -- a `TE` in a response, a malformed member, and the
+        // connection option § 10.1.4 requires beside the field -- and answering
+        // the first used to end the body before the others were asked.
+        let findings = || -> Vec<Violation> {
+            let mut out = Vec::new();
             if let Some(resp) = &tx.response {
                 // The field is defined in § 10.1, whose subject is stated in its first
                 // sentence, and § 10.1.4 defines this one as describing the *client*.
@@ -585,22 +596,22 @@ impl Rule for TeHeaderValid {
                 {
                     let value =
                         combined_field_value_as_written(&resp.headers, "te").unwrap_or_default();
-                    return Some(ctx.by_server().report_with(&FIELD_REQUEST_CONTEXT_MISDIRECTED, format!(
+                    out.push(ctx.by_server().report_with(&FIELD_REQUEST_CONTEXT_MISDIRECTED, format!(
                             "Response carries a TE header field: '{}'; TE is a request context field describing the client's capabilities, and RFC 9110 gives it no meaning in a response",
                             value.escape_debug()
                         )));
                 }
             }
 
-            let value = combined_field_value_as_written(&tx.request.headers, "te")?;
+            let Some(value) = combined_field_value_as_written(&tx.request.headers, "te") else {
+                return out;
+            };
 
-            if let Some(v) = self.check_members(&value, ctx) {
-                return Some(v);
-            }
-
-            self.check_connection_option(tx, ctx)
+            out.extend(self.check_members(&value, ctx));
+            out.extend(self.check_connection_option(tx, ctx));
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -614,6 +625,39 @@ mod tests {
 
     use hyper::header::HeaderValue;
     use rstest::rstest;
+
+    /// **Every coding the client offered is answered, and so is the connection
+    /// option.** The three questions this rule asks are independent: a `TE` in a
+    /// response, a malformed member, and the `Connection: TE` § 10.1.4 requires
+    /// beside the field. Answering the first used to end the body.
+    #[test]
+    fn every_defective_member_is_reported_and_so_is_the_missing_connection_option() {
+        let rule = TeHeaderValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["te_header_valid"]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.version = "HTTP/1.1".into();
+        tx.request.headers.insert(
+            "te",
+            HeaderValue::from_static("chunked;, gzip;q=x, trailers;a=1"),
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(
+            ids.contains(&"transfer_coding_parameter_missing"),
+            "{ids:?}"
+        );
+        assert!(ids.contains(&"qvalue_malformed"), "{ids:?}");
+        assert!(ids.contains(&"te_trailers_parameter_forbidden"), "{ids:?}");
+        assert!(
+            ids.contains(&"te_connection_option_missing"),
+            "the connection option is asked even when a member was defective: {ids:?}"
+        );
+    }
 
     /// Every request fixture in this module is built here, from raw octets.
     ///
