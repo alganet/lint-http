@@ -353,6 +353,9 @@ enabled = true
 [rules.cookie_lifecycle]
 enabled = true
 
+[rules.cookie_pair_valid]
+enabled = true
+
 [rules.cookie_path_valid]
 enabled = true
 
@@ -1541,6 +1544,11 @@ severity = "warn"
 # SHOULD obliges the sender, so this defaults to warn.
 severity = "warn"
 
+[violations.cookie_pair_equals_missing]
+# A Cookie pair is written without its '='
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.cookie_pair_missing]
 # Set-Cookie carries no cookie-pair
 # SHOULD obliges the sender, so this defaults to warn.
@@ -1599,6 +1607,11 @@ severity = "warn"
 
 [violations.cookie_secure_missing]
 # A SameSite=None cookie is not Secure
+severity = "error"
+
+[violations.cookie_value_character_forbidden]
+# Cookie value holds a character outside cookie-octet
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.cookie_value_conflicting]

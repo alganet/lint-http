@@ -46,6 +46,7 @@ severity = "warn"
 - [content_encoding_registered](../rules/content_encoding_registered.md)
 - [content_type_valid](../rules/content_type_valid.md)
 - [cookie_attribute_consistent](../rules/cookie_attribute_consistent.md)
+- [cookie_pair_valid](../rules/cookie_pair_valid.md)
 - [digest_auth_valid](../rules/digest_auth_valid.md)
 - [digest_header_syntax](../rules/digest_header_syntax.md)
 - [expect_header_valid](../rules/expect_header_valid.md)

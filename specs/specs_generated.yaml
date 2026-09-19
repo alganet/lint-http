@@ -883,9 +883,9 @@ sources:
     snippet: samesite-value = "Strict" / "Lax" / "None"
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 287
+      line: 311
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 308
+      line: 332
   - label: cookie_attribute_consistent
     section: § 5.7
     snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
@@ -893,7 +893,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 121
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 409
+      line: 469
   - label: cookie_same_site_enforced
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
@@ -901,7 +901,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
       line: 206
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 585
+      line: 645
   - label: cookie_same_site_enforced (2)
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
@@ -2564,76 +2564,92 @@ sources:
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
+  - label: cookie
+    section: § 4.1.1
+    snippet: cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 427
+  - label: cookie (2)
+    section: § 4.1.1
+    snippet: cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 426
   - label: cookie-av alternatives
     section: § 4.1.1
     snippet: max-age-av        = "Max-Age=" non-zero-digit *DIGIT
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 321
+      line: 345
   - label: the flag attributes
     section: § 4.1.1
     snippet: secure-av         = "Secure" httponly-av       = "HttpOnly"
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 386
+      line: 446
   - label: set-cookie-string
     section: § 4.1.1
     snippet: set-cookie-header = "Set-Cookie:" SP set-cookie-string set-cookie-string = cookie-pair *( ";" SP cookie-av )
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 361
-  - label: cookie
+      line: 385
+  - label: cookie (3)
     section: § 5.1.1
     snippet: The user agent MUST use an algorithm equivalent to
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 457
-  - label: cookie (2)
+      line: 517
+  - label: cookie (4)
     section: § 5.1.3
     snippet: The string is a host name (i.e., not an IP address).
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 260
+      line: 284
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 273
-  - label: cookie (3)
+      line: 297
+  - label: cookie (5)
     section: § 5.2.2
     snippet: If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 344
-  - label: cookie (4)
+      line: 368
+  - label: cookie (6)
     section: § 5.2.3
     snippet: If the attribute-value is empty, the behavior is undefined.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 216
-  - label: cookie (5)
+      line: 240
+  - label: cookie (7)
     section: § 5.2.3
     snippet: Let cookie-domain be the attribute-value without the leading %x2E (".") character.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 231
+      line: 255
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 246
-  - label: cookie (6)
+      line: 270
+  - label: cookie (8)
     section: § 5.4
     snippet: If the cookie's secure-only-flag is true, then the request-uri's scheme must denote a "secure" protocol (as defined by the user agent).
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 490
-  - label: cookie (7)
+      line: 550
+  - label: cookie (9)
     section: § 5.4
     snippet: The request-uri's path path-matches the cookie's path.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 528
+      line: 588
   - label: cookie_attribute_consistent
     section: § 4.1.1
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 91
+    - file: lint-http-rules/src/rules/cookie_pair_valid.rs
+      line: 154
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 409
   - label: expires-av
     section: § 4.1.1
     snippet: expires-av        = "Expires=" sane-cookie-date
@@ -2641,9 +2657,9 @@ sources:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 207
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 423
+      line: 483
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 455
+      line: 515
   - label: cookie_attribute_consistent (2)
     section: § 4.1.1
     snippet: extension-av      = <any CHAR except CTLs or ";">
@@ -2701,7 +2717,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
       line: 280
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 527
+      line: 587
   - label: cookie_lifecycle (3)
     section: § 5.4
     snippet: Cookies with longer paths are listed before cookies with shorter paths.
@@ -2714,6 +2730,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
       line: 71
+  - label: cookie_pair_valid
+    section: § 4.2.1
+    snippet: cookie-string = cookie-pair *( ";" SP cookie-pair )
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_pair_valid.rs
+      line: 137
   - label: cookie_path_valid
     section: § 5.2
     snippet: If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows.
@@ -2727,23 +2749,23 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 99
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 166
+      line: 190
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 180
+      line: 204
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 288
+      line: 312
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 309
+      line: 333
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 322
+      line: 346
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 362
+      line: 386
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 387
+      line: 447
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 424
+      line: 484
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 456
+      line: 516
   - label: lint-http-rules/src/helpers/cookie.rs (2)
     section: § 4.1.1
     snippet: cookie-av         = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av
@@ -2752,58 +2774,64 @@ sources:
       line: 218
   - label: lint-http-rules/src/helpers/cookie.rs (3)
     section: § 4.1.1
+    snippet: cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE ) cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 425
+  - label: lint-http-rules/src/helpers/cookie.rs (4)
+    section: § 4.1.1
     snippet: set-cookie-string = cookie-pair *( ";" SP cookie-av )
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 244
-  - label: lint-http-rules/src/helpers/cookie.rs (4)
+  - label: lint-http-rules/src/helpers/cookie.rs (5)
     section: § 5.1.1
     snippet: If the year-value is greater than or equal to 70 and less than or
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 571
-  - label: lint-http-rules/src/helpers/cookie.rs (5)
+      line: 591
+  - label: lint-http-rules/src/helpers/cookie.rs (6)
     section: § 5.1.1
     snippet: The user agent MUST use an algorithm equivalent to the following algorithm to parse a cookie-date.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 490
-  - label: lint-http-rules/src/helpers/cookie.rs (6)
+      line: 510
+  - label: lint-http-rules/src/helpers/cookie.rs (7)
     section: § 5.1.1
     snippet: day-of-month    = 1*2DIGIT ( non-digit *OCTET )
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 538
-  - label: lint-http-rules/src/helpers/cookie.rs (7)
+      line: 558
+  - label: lint-http-rules/src/helpers/cookie.rs (8)
     section: § 5.1.1
     snippet: delimiter       = %x09 / %x20-2F / %x3B-40 / %x5B-60 / %x7B-7E
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 493
-  - label: lint-http-rules/src/helpers/cookie.rs (8)
+      line: 513
+  - label: lint-http-rules/src/helpers/cookie.rs (9)
     section: § 5.1.1
     snippet: hms-time        = time-field ":" time-field ":" time-field
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 531
-  - label: lint-http-rules/src/helpers/cookie.rs (9)
+      line: 551
+  - label: lint-http-rules/src/helpers/cookie.rs (10)
     section: § 5.1.1
     snippet: month           = ( "jan" / "feb" / "mar" / "apr" /
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 545
-  - label: lint-http-rules/src/helpers/cookie.rs (10)
+      line: 565
+  - label: lint-http-rules/src/helpers/cookie.rs (11)
     section: § 5.1.1
     snippet: the day-of-month-value is less than 1 or greater than 31,
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 578
-  - label: lint-http-rules/src/helpers/cookie.rs (11)
+      line: 598
+  - label: lint-http-rules/src/helpers/cookie.rs (12)
     section: § 5.1.1
     snippet: year            = 2*4DIGIT ( non-digit *OCTET )
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 555
+      line: 575
   - label: cookie domain-match
     section: § 5.1.3
     snippet: A string domain-matches a given domain string if at least one of the following conditions hold
@@ -2816,31 +2844,31 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 189
-  - label: lint-http-rules/src/helpers/cookie.rs (12)
+  - label: lint-http-rules/src/helpers/cookie.rs (13)
     section: § 5.1.4
     snippet: If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 299
-  - label: lint-http-rules/src/helpers/cookie.rs (13)
+  - label: lint-http-rules/src/helpers/cookie.rs (14)
     section: § 5.1.4
     snippet: Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/").
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 303
-  - label: lint-http-rules/src/helpers/cookie.rs (14)
+  - label: lint-http-rules/src/helpers/cookie.rs (15)
     section: § 5.1.4
     snippet: 'The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 286
-  - label: lint-http-rules/src/helpers/cookie.rs (15)
+  - label: lint-http-rules/src/helpers/cookie.rs (16)
     section: § 5.1.4
     snippet: output %x2F ("/") and skip the remaining steps.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 295
-  - label: lint-http-rules/src/helpers/cookie.rs (16)
+  - label: lint-http-rules/src/helpers/cookie.rs (17)
     section: § 5.2.1
     snippet: If the attribute-name case-insensitively matches the string "Expires", the user agent MUST process the cookie-av as follows.
     cited_by:
@@ -2853,12 +2881,12 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 349
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 130
-    - file: lint-http-rules/src/violations/cookie.rs
-      line: 141
-    - file: lint-http-rules/src/violations/cookie.rs
       line: 154
-  - label: lint-http-rules/src/helpers/cookie.rs (17)
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 165
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 178
+  - label: lint-http-rules/src/helpers/cookie.rs (18)
     section: § 5.3
     snippet: Set the cookie's host-only-flag to true.
     cited_by:
@@ -2866,7 +2894,7 @@ sources:
       line: 268
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 388
-  - label: lint-http-rules/src/helpers/cookie.rs (18)
+  - label: lint-http-rules/src/helpers/cookie.rs (19)
     section: § 5.4
     snippet: The cookie's host-only-flag is true and the canonicalized request-host is identical to the cookie's domain.
     cited_by:
