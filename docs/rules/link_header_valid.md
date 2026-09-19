@@ -36,6 +36,7 @@ Parses the `Link` field of a request and of a response — every field line of o
 ## Violations
 
 - [bws_forbidden](../violations/bws_forbidden.md) — Whitespace written where the grammar admits BWS
+- [ext_value_malformed](../violations/ext_value_malformed.md) — An extended parameter value is no ext-value
 - [language_tag_character_forbidden](../violations/language_tag_character_forbidden.md) — Language tag holds a character outside letters, digits and hyphen
 - [language_tag_edge_hyphen_forbidden](../violations/language_tag_edge_hyphen_forbidden.md) — Language tag starts or ends with a hyphen
 - [language_tag_empty](../violations/language_tag_empty.md) — Language tag is empty
@@ -75,6 +76,9 @@ Parses the `Link` field of a request and of a response — every field line of o
 - [RFC 8288 §3.1](https://www.rfc-editor.org/rfc/rfc8288.html#section-3.1): The link target: one IRI converted to a `URI-Reference` and written inside angle brackets. The conversion is why an octet no URI admits is a finding rather than an encoding question
 - [RFC 8288 §3.3](https://www.rfc-editor.org/rfc/rfc8288.html#section-3.3): `rel` MUST be present and MUST NOT appear more than once; its value is `relation-type *( 1*SP relation-type )`; `relation-type = reg-rel-type / ext-rel-type` with `ext-rel-type = URI`, required to be absolute. The section that makes a URI-shaped relation type conforming and a capital letter in a registered one not
 - [RFC 8288 §3.4.1](https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.1): The four serialisation-defined attributes this document bounds to one occurrence — `media`, `title`, `title*`, `type` — each in its own MUST NOT. `hreflang` is the one it deliberately leaves unbounded, saying that repeating it means several languages are available. Also the per-attribute value ABNFs: `Language-Tag` for `hreflang`, `type-name "/" subtype-name` for `type`, and `media-query-list` for `media` — the first two measured here, the third declined for the reasons the description gives
+- [RFC 8288 §3.4.2](https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.2): Every other `link-param` is an extension target attribute, and such an attribute may be defined in the RFC 8187 encoding — the section names `example` and `example*` as the pair. What says the asterisk reading is not a `title*` special case
+- [RFC 8288 §B.3](https://www.rfc-editor.org/rfc/rfc8288.html#appendix-B.3): The field's own parameter-parsing algorithm, whose step 7.5 decodes the value of any parameter whose name ends in an asterisk according to RFC 8187. The sentence that makes the `ext-value` this field's reading of the name rather than a convention
+- [RFC 8187 §3.2.1](https://www.rfc-editor.org/rfc/rfc8187.html#section-3.2.1): `ext-value = charset "'" [ language ] "'" value-chars` — the charset that may not be empty, the language that may be, and the `value-chars` made of `pct-encoded` and `attr-char`. Obsoletes RFC 5987, which older references named; the production is unchanged
 - [RFC 8288 §2.1.1](https://www.rfc-editor.org/rfc/rfc8288.html#section-2.1.1): Registered relation type names conform to `reg-rel-type` and are compared case-insensitively — the sentence behind folding case when asking whether a relation type is `preload`
 - [RFC 8288 §2.1.2](https://www.rfc-editor.org/rfc/rfc8288.html#section-2.1.2): Extension relation types are URIs that uniquely identify the relation, compared as strings. Why a value matching no registered spelling is measured as a URI rather than reported
 - [RFC 8288 §2.2](https://www.rfc-editor.org/rfc/rfc8288.html#section-2.2): Target attribute names are compared case-insensitively — the MUST behind recognising `rel`, `as` and the bounded four whatever case they were written in. Its `SHOULD NOT include "%", "'", or "*"` is advice about portability across serialisations and is not enforced here: §3.4.1 of this same document defines `title*`
@@ -217,4 +221,25 @@ Link: <https://example.com/>; rel=alternate; hreflang=en_US
 ```http
 HTTP/1.1 200 OK
 Link: <https://example.com/>; rel=alternate; type=text
+```
+
+### ✅ Good (§3.5's own ext-value: a charset, a language and percent-encoded UTF-8)
+
+```http
+HTTP/1.1 200 OK
+Link: </TheBook/chapter2>; rel="previous"; title*=UTF-8'de'letztes%20Kapitel
+```
+
+### ❌ Bad (a title* whose percent-escape is not hexadecimal)
+
+```http
+HTTP/1.1 200 OK
+Link: </a>; rel=next; title*=UTF-8''%zz
+```
+
+### ❌ Bad (any name ending in '*' owes an ext-value, not just title*)
+
+```http
+HTTP/1.1 200 OK
+Link: </a>; rel=next; example*=UTF-8x
 ```

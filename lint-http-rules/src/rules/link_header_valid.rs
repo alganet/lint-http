@@ -11,6 +11,7 @@ use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
+use crate::violations::ext_value::{EXT_VALUE_MALFORMED, RFC_8187_3_2_1};
 use crate::violations::language::{
     tag_defect, LANGUAGE_TAG_CHARACTER_FORBIDDEN, LANGUAGE_TAG_EDGE_HYPHEN_FORBIDDEN,
     LANGUAGE_TAG_EMPTY, LANGUAGE_TAG_LEADING_LETTER_MISSING, LANGUAGE_TAG_SUBTAG_EMPTY,
@@ -115,6 +116,7 @@ static DECLARED: &[&ViolationDef] = &[
     &LANGUAGE_TAG_LEADING_LETTER_MISSING,
     &LANGUAGE_TAG_SUBTAG_EMPTY,
     &LANGUAGE_TAG_SUBTAG_LENGTH_INVALID,
+    &EXT_VALUE_MALFORMED,
 ];
 
 /// One finding from the reading, and the entry it reports as.
@@ -202,6 +204,24 @@ const RFC_8288_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The bridge to a modal: this document states no requirement of its own that \
            a value match its ABNF, it adopts the core specification's conformance \
            section — which is RFC 9110 §2.2 in the document now in force",
+};
+const RFC_8288_3_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("3.4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.2",
+    note: "Every other `link-param` is an extension target attribute, and such an \
+           attribute may be defined in the RFC 8187 encoding — the section names \
+           `example` and `example*` as the pair. What says the asterisk reading is \
+           not a `title*` special case",
+};
+const RFC_8288_B_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("B.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#appendix-B.3",
+    note: "The field's own parameter-parsing algorithm, whose step 7.5 decodes the \
+           value of any parameter whose name ends in an asterisk according to \
+           RFC 8187. The sentence that makes the `ext-value` this field's reading \
+           of the name rather than a convention",
 };
 const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -379,6 +399,9 @@ impl RuleMeta for LinkHeaderValid {
             RFC_8288_3_1,
             RFC_8288_3_3,
             RFC_8288_3_4_1,
+            RFC_8288_3_4_2,
+            RFC_8288_B_3,
+            RFC_8187_3_2_1,
             RFC_8288_2_1_1,
             RFC_8288_2_1_2,
             RFC_8288_2_2,
@@ -513,6 +536,21 @@ impl RuleMeta for LinkHeaderValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(a type value with no subtype-name after a '/')"),
                 snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/>; rel=alternate; type=text",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(§3.5's own ext-value: a charset, a language and percent-encoded UTF-8)"),
+                snippet: "HTTP/1.1 200 OK\nLink: </TheBook/chapter2>; rel=\"previous\"; title*=UTF-8'de'letztes%20Kapitel",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a title* whose percent-escape is not hexadecimal)"),
+                snippet: "HTTP/1.1 200 OK\nLink: </a>; rel=next; title*=UTF-8''%zz",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(any name ending in '*' owes an ext-value, not just title*)"),
+                snippet: "HTTP/1.1 200 OK\nLink: </a>; rel=next; example*=UTF-8x",
             },
         ]
     }
@@ -867,6 +905,50 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
                 ),
             ));
         }
+        // A parameter name ending in an asterisk is this field's own way of
+        // saying its value is an RFC 8187 `ext-value`, and the sentence saying
+        // so is the parsing algorithm rather than any one attribute's
+        // paragraph: Appendix B.3 step 7.5 decodes the value of *any* such
+        // parameter, and § 3.4.2 illustrates an extension target attribute
+        // defined in both forms. So `title*` is the spelling § 3.4.1 happens to
+        // name and not the extent of the reading -- an `example*` owes the same
+        // production. This runs before the per-attribute arms below because the
+        // asterisk is part of the name they match on: `title*` is not `title`,
+        // and no arm claims it.
+        //
+        // A valueless `example*` is not read: the optional group makes the `=`
+        // optional, so the parameter states no value and there is nothing for
+        // the production to refuse. `ext-value` derives the empty string once
+        // its two separators are there, which is a different value from none.
+        //
+        // **What reaches here unquoted is narrower than `ext-value` is**, and
+        // the two productions are why: a value written without quotes has
+        // already been read as a `token`, so an octet outside `tchar` was
+        // refused one block up as the `link-param` defect it also is. The
+        // octets this reader can be the first to see in an unquoted value are
+        // exactly the three `tchar` admits and `attr-char` does not — `*`, `'`
+        // and `%` — and every other malformed spelling arrives inside a
+        // quoted-string, which is where `#z` and `a@b` are read. Both spellings
+        // are one value after unquoting, which is § 3's own sentence.
+        //
+        // cite(RFC 8288 § B.3): "If the last character of parameter_name is an asterisk ("*"), decode parameter_value according to [RFC8187]."
+        // cite(RFC 8288 § 3.4.2): "Such target attributes MAY be defined to use the encoding in [RFC8187] (e.g., "example" and "example*")."
+        // cite(RFC 8288 § 3.4.1): "The "title*" link-param can be used to encode this attribute in a different character set and/or contain language information as per [RFC8187]."
+        if name.ends_with('*') {
+            if let Some(value) = parsed.value.as_deref() {
+                if let Err(why) = crate::helpers::parameter::validate_ext_value(value) {
+                    return Err(Defect::named(
+                        &EXT_VALUE_MALFORMED,
+                        format!(
+                            "writes {}='{}', which does not derive from ext-value: {why}",
+                            parsed.name,
+                            shown_in_finding(value)
+                        ),
+                    ));
+                }
+            }
+        }
+
         match name.as_str() {
             "rel" => {
                 // A `rel` with no `=` and a `rel=""` are the same statement
@@ -1326,6 +1408,11 @@ mod tests {
     // %xE9 inside a quoted-string is `qdtext`, and reading the field through
     // `to_str` used to report the whole message for it.
     #[case(b"<https://example.com/>; rel=next; title=\"caf\xe9\"")]
+    // The asterisk reading's own conforming half: `ext-value` derives the
+    // empty `value-chars` once its two separators are there, and a parameter
+    // with no `=` states no value for the production to refuse.
+    #[case(b"<https://example.com/>; rel=next; title*=UTF-8''")]
+    #[case(b"<https://example.com/>; rel=next; example*")]
     fn conforming_values_draw_nothing(#[case] value: &[u8]) {
         assert_eq!(
             judge_response(200, value),
@@ -1573,6 +1660,20 @@ mod tests {
     #[case(b"</a>; rel=alternate; type=text", "link_type_malformed")]
     #[case(b"</a>; rel=preload", "link_preload_as_missing")]
     #[case(b"</a>; rel=preload; as=document", "link_preload_as_invalid")]
+    // The asterisk reading: the two spellings `Content-Disposition` already
+    // refuses, and an extension attribute to say the reading is Appendix B.3's
+    // rather than `title*`'s.
+    //
+    // The unquoted row's `*` is deliberate. An `ext-value` written without
+    // quotes has to get past `link-param`'s own `token` first, so the octets
+    // this reader can be the first to refuse are the ones `token` admits and
+    // `attr-char` does not — `*`, `'` and `%` — and everything else arrives
+    // quoted. `example*="UTF-8''a@b"` is the same defect in the form that
+    // reaches here whatever the octet, which is why both spellings are rows.
+    #[case(b"</a>; rel=next; title*=UTF-8''%zz", "ext_value_malformed")]
+    #[case(b"</a>; rel=next; title*=UTF-8x", "ext_value_malformed")]
+    #[case(b"</a>; rel=next; example*=UTF-8''a*b", "ext_value_malformed")]
+    #[case(b"</a>; rel=next; example*=\"UTF-8''a@b\"", "ext_value_malformed")]
     fn a_link_value_borrows_every_production_it_is_made_of(#[case] value: &[u8], #[case] id: &str) {
         let headers = crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]);
         let defect = judge(&headers, "Response", true).expect("a finding");

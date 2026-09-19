@@ -2583,10 +2583,20 @@ enabled = "true"
     /// are the `quoted_string_*` family and the scheme's own defect, which
     /// several rules already shared. The seams an operator can be shown each
     /// defect from went up by one, and the number says so.
+    ///
+    /// **113, and it is the same shape one document further out.** RFC 8187's
+    /// `ext-value` is the value of any parameter whose name ends in an
+    /// asterisk, and `ext_value_malformed` had one declarer: the
+    /// `Content-Disposition` rule. RFC 8288 Appendix B.3 step 7.5 is the `Link`
+    /// field's own parsing algorithm and decodes such a value the same way, so
+    /// `title*=UTF-8''%zz` drew nothing where `filename*=UTF-8''%zz` was an
+    /// `error`. `link_header_valid` declares it now. One declarer became two,
+    /// and the production did not move — which is the whole test of whether a
+    /// second declarer is a seam or a duplication.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 112;
+        const CEILING: usize = 113;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();
