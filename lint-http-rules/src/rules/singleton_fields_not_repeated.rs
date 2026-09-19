@@ -37,11 +37,13 @@ pub struct SingletonFieldsNotRepeated;
 /// The field's own rule keeps the report, because it says more: that recipients
 /// differ over which `Content-Type` member wins, that a combined
 /// `If-Modified-Since` is a list of dates the recipient must ignore. **What that
-/// costs is the cross-section count.** This rule counts headers plus trailers
-/// and those five rules count headers only, so one line of them in each section
-/// no longer draws this entry — `trailer_fields_valid` reports the trailer line
-/// itself, and § 6.5.1 forbids all five there outright, which is why the cost
-/// is worth the single report.
+/// costs is the cross-section count, for four of the five.** This rule counts
+/// headers plus trailers, and so does `content_type_valid`; `etag_syntax`,
+/// `retry_after_date_or_delay` and `conditional_headers_consistent` count header
+/// lines only, so one line of those four in each section no longer draws this
+/// entry — `trailer_fields_valid` reports the trailer line itself, and § 6.5.1
+/// forbids them there outright, which is why the cost is worth the single
+/// report.
 ///
 /// Three productions here are too short to quote: `Date = HTTP-date`,
 /// `Age = delta-seconds` and `Expires = HTTP-date` all fall under the

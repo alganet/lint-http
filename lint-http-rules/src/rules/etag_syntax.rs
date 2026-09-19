@@ -173,8 +173,13 @@ impl Rule for EtagSyntax {
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if count > 1 {
                 return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
-                        "Multiple ETag header fields present ({}); ETag must be a single entity-tag",
-                        count
+                        "{}. The comma a recipient joins them with is no part of `entity-tag`, so the combined value is a tag for no representation at all",
+                        crate::helpers::headers::singleton_field_preamble(
+                            "ETag",
+                            count,
+                            &crate::helpers::headers::joined_field_lines_shown(&resp.headers, "etag"),
+                            "`ETag = entity-tag` has no comma-separated-list alternative",
+                        )
                     )));
             }
 

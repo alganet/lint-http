@@ -292,10 +292,19 @@ impl Rule for ConditionalHeadersConsistent {
                 ("if-modified-since", "If-Modified-Since"),
                 ("if-unmodified-since", "If-Unmodified-Since"),
             ] {
-                if req.headers.get_all(name).iter().count() > 1 {
+                let lines = req.headers.get_all(name).iter().count();
+                if lines > 1 {
                     return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
-                            "Multiple {} header fields present; the combined value is a list of dates, which the recipient MUST ignore",
-                            label
+                            "{}. The combined value is a list of dates, which the recipient MUST ignore — so the request is conditional on nothing",
+                            crate::helpers::headers::singleton_field_preamble(
+                                label,
+                                lines,
+                                &crate::helpers::headers::joined_field_lines_shown(
+                                    &req.headers,
+                                    name,
+                                ),
+                                "the field is one HTTP-date and has no comma-separated-list alternative",
+                            )
                         )));
                 }
             }

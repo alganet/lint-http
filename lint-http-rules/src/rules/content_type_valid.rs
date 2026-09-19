@@ -227,9 +227,24 @@ impl Rule for ContentTypeValid {
                 // one would imply the recipient reads it, which is the thing §8.3
                 // says cannot be assumed.
                 if vals.len() > 1 {
+                    // Built from `vals` rather than from one header map: this is
+                    // the one duplication site that counts the trailer section
+                    // too, so the joined value has to be the message's lines and
+                    // not the header section's.
+                    let joined = vals
+                        .iter()
+                        .map(|hv| {
+                            crate::helpers::shown::shown_in_finding(
+                                crate::helpers::headers::trim_ows(
+                                    &crate::helpers::headers::field_line_as_written(hv),
+                                ),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     return Some(ctx.by(party).report_with(&FIELD_LINE_DUPLICATED, format!(
-                            "Multiple Content-Type field lines in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
-                            which
+                            "The {} writes {} Content-Type field lines, which recombine into the one value '{}'; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
+                            which, vals.len(), joined
                         )));
                 }
 
@@ -527,8 +542,10 @@ mod tests {
             &cfg,
         );
         let msg = v.expect("must be reported").message;
-        // "field lines", not "header fields": one of the two is a trailer.
-        assert!(msg.contains("Multiple Content-Type field lines"), "{msg}");
+        // "field lines", not "header fields": one of the two is a trailer, and
+        // the joined value has to be the message's lines rather than one
+        // section's — this is the only duplication site that counts both.
+        assert!(msg.contains("writes 2 Content-Type field lines"), "{msg}");
     }
 
     #[rstest]
@@ -589,7 +606,7 @@ mod tests {
         .expect("must be reported")
         .message;
         assert!(
-            msg.contains("Multiple Content-Type field lines in the request"),
+            msg.contains("The request writes 2 Content-Type field lines"),
             "{msg}"
         );
         assert!(!msg.contains("wildcard"), "{msg}");
