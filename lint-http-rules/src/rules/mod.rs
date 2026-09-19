@@ -2571,10 +2571,22 @@ enabled = "true"
     /// wrong. Moving the question into the shared reader gave the id four more
     /// declarers, and the number counts them because an operator can now be
     /// shown that defect from five seams — which is what is true.
+    ///
+    /// **112, and this one is a second reader rather than a split verdict.**
+    /// § 11.3's `challenge` is the production of two fields, and only one of
+    /// them was read: `Proxy-Authenticate: Basic realm="unfinished` on a `407`
+    /// drew nothing where the identical value in a `WWW-Authenticate` was an
+    /// `error`. `proxy_authenticate_challenge_syntax` closes that, and it
+    /// declares the same thirteen its twin does, because a defect list that
+    /// differed between the two fields would be claiming the grammar does.
+    /// Seven of the thirteen had one declarer and now have two; the other six
+    /// are the `quoted_string_*` family and the scheme's own defect, which
+    /// several rules already shared. The seams an operator can be shown each
+    /// defect from went up by one, and the number says so.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 105;
+        const CEILING: usize = 112;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();
@@ -2641,6 +2653,17 @@ enabled = "true"
     /// would put a client-side reading and a server-side one behind one
     /// `enabled` flag. The equality is exact; the conclusion is still not a
     /// merge.
+    ///
+    /// **The fifth is the same shape as the three, and the most explicit of
+    /// them.** `www_authenticate_challenge_syntax` and
+    /// `proxy_authenticate_challenge_syntax` read § 11.3's `challenge` over
+    /// the two fields defined as a list of it — § 11.7.1 defines the second in
+    /// § 11.6.1's terms and differs only in who the challenge addresses.
+    /// Merging them would put two fields under one `enabled` flag, and these
+    /// two more than most: § 11.7.1 limits its field to a single hop, so a
+    /// deployment reading proxy legs it does not own has a reason to silence
+    /// one grammar and not the other. The equality is exact; the conclusion is
+    /// again not a merge.
     #[test]
     fn no_two_rules_declare_the_same_defects() {
         /// **The four it permits are the four that are not merges**, read
@@ -2648,7 +2671,7 @@ enabled = "true"
         /// what a finished ratchet looks like: it holds against a further pair
         /// appearing and asserts nothing else. Read from what the assertion
         /// prints, never incremented.
-        const CEILING: usize = 4;
+        const CEILING: usize = 5;
 
         let declared: std::collections::BTreeMap<&str, std::collections::BTreeSet<&str>> =
             all_rules()

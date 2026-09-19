@@ -32,4 +32,5 @@ severity = "error"
 ## Reported By
 
 - [bearer_token_syntax](../rules/bearer_token_syntax.md)
+- [proxy_authenticate_challenge_syntax](../rules/proxy_authenticate_challenge_syntax.md)
 - [www_authenticate_challenge_syntax](../rules/www_authenticate_challenge_syntax.md)

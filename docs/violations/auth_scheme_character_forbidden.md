@@ -31,4 +31,5 @@ severity = "warn"
 ## Reported By
 
 - [authorization_credentials_valid](../rules/authorization_credentials_valid.md)
+- [proxy_authenticate_challenge_syntax](../rules/proxy_authenticate_challenge_syntax.md)
 - [www_authenticate_challenge_syntax](../rules/www_authenticate_challenge_syntax.md)
