@@ -214,13 +214,14 @@ defects! {
     /// the `=`.
     ///
     // cite(RFC 7838 § 3): "Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value."
+    // cite(RFC 7838 § 3): "alt-value     = alternative *( OWS ";" OWS parameter )"
     ALT_SVC_PARAMETER_EMPTY = {
         id: "alt_svc_parameter_empty",
         title: "Alt-Svc writes a semicolon with no parameter behind it",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_7838_3],
-        strength: Strength::Unstated,
+        strength: Strength::Grammar,
     }
 
     /// An `=` with nothing after it: `ma=`.
