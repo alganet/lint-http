@@ -1156,13 +1156,12 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
         return out;
     };
 
-    let relation_types = match validate_rel_value(&rel_value) {
-        Ok(types) => types,
-        Err(defect) => {
-            out.push(defect);
-            return out;
-        }
-    };
+    // The types that were read are still the evidence for the preload pair
+    // below, and a type the production refuses is not `preload`: a member whose
+    // second relation type is malformed and whose first asks for a preload with
+    // no `as` has both to fix.
+    let (relation_types, rel_defects) = validate_rel_value(&rel_value);
+    out.extend(rel_defects);
 
     // The fold cannot change an answer today, and that is worth saying rather
     // than leaving for a reader to trace: every relation type reaching here
@@ -1258,7 +1257,7 @@ fn missing_rel(member: &str) -> Defect {
     )
 }
 
-/// Split a `rel` value into its relation types and judge each one.
+/// Split a `rel` value into its relation types and judge every one of them.
 ///
 /// The separator is `1*SP` and nothing else: a `split_whitespace` here would
 /// take a HTAB inside a `quoted-string` for a separator, and HTAB is `qdtext` a
@@ -1267,28 +1266,44 @@ fn missing_rel(member: &str) -> Defect {
 /// all, because the production opens and closes on a `relation-type`.
 // cite(RFC 8288 § 3.3): "relation-type *( 1*SP relation-type )"
 // cite(RFC 8288 § 3.3): "The rel parameter can, however, contain multiple link relation types."
-fn validate_rel_value(value: &str) -> Result<Vec<&str>, Defect> {
+fn validate_rel_value(value: &str) -> (Vec<&str>, Vec<Defect>) {
+    // The two verdicts on the value as a whole, and neither leaves a list to
+    // walk: there are no relation types in a `rel` that states none, and a
+    // value opening or closing on a space has not written one of them badly.
     if value.is_empty() {
-        return Err(Defect::named(
-            &LINK_REL_EMPTY,
-            "writes 'rel' with no value, where §3.3 asks it for one or more relation types".into(),
-        ));
+        return (
+            Vec::new(),
+            vec![Defect::named(
+                &LINK_REL_EMPTY,
+                "writes 'rel' with no value, where §3.3 asks it for one or more relation types"
+                    .into(),
+            )],
+        );
     }
     if value.starts_with(' ') || value.ends_with(' ') {
-        return Err(Defect::named(
-            &LINK_REL_MALFORMED,
-            format!(
-                "writes rel='{}', which opens or closes on a space the production does not admit",
-                shown_in_finding(value)
-            ),
-        ));
+        return (
+            Vec::new(),
+            vec![Defect::named(
+                &LINK_REL_MALFORMED,
+                format!(
+                    "writes rel='{}', which opens or closes on a space the production does not admit",
+                    shown_in_finding(value)
+                ),
+            )],
+        );
     }
 
+    // **Each relation type is a relation the sender named on its own terms**,
+    // so `rel="fo^o ba^r"` is two of them to fix. The walk used to `?` out at
+    // the first, which is the same masking the members and the parameters above
+    // it carried. Every message here already names the type it is about, so the
+    // findings do not read as one sentence written twice.
     let types: Vec<&str> = value.split(' ').filter(|t| !t.is_empty()).collect();
-    for t in &types {
-        relation_type_defect(t)?;
-    }
-    Ok(types)
+    let defects = types
+        .iter()
+        .filter_map(|t| relation_type_defect(t).err())
+        .collect();
+    (types, defects)
 }
 
 /// Whether one relation type derives from either of the two alternatives.
@@ -1991,6 +2006,54 @@ mod tests {
         assert_eq!(
             ids,
             want,
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// `rel` carries `relation-type *( 1*SP relation-type )`, so a member
+    /// naming three relations, two of them malformed, has two to fix -- and
+    /// each message names the type it is about.
+    #[test]
+    fn every_defective_relation_type_is_answered_about() {
+        let found = judge(
+            &crate::test_helpers::make_headers_from_octet_pairs(&[(
+                "Link",
+                b"</a>; rel=\"next Fo.o https://ok/r ba^r\"",
+            )]),
+            "Response",
+            true,
+        );
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "link_relation_type_malformed",
+                "link_relation_type_malformed"
+            ],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+        assert!(found[0].message.contains("'Fo.o'"), "{}", found[0].message);
+        assert!(found[1].message.contains("'ba^r'"), "{}", found[1].message);
+    }
+
+    /// A relation type the production refuses is not `preload`, so the pair
+    /// that check reads is still answerable beside it.
+    #[test]
+    fn a_bad_relation_type_does_not_hide_the_preload_pair() {
+        let found = judge(
+            &crate::test_helpers::make_headers_from_octet_pairs(&[(
+                "Link",
+                b"</a>; rel=\"preload Fo.o\"",
+            )]),
+            "Response",
+            true,
+        );
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec!["link_relation_type_malformed", "link_preload_as_missing"],
             "{:?}",
             found.iter().map(|d| &d.message).collect::<Vec<_>>()
         );
