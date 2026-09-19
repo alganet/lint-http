@@ -119,6 +119,30 @@ pub const RFC_6265_5_1_3: SpecRef = SpecRef {
     note: "Domain matching — a cookie-domain that is not a host name matches only the identical string, so an IP address scopes the cookie to nothing it can be sent for",
 };
 
+/// The `Cookie` request field's own grammar: `cookie-header` and
+/// `cookie-string = cookie-pair *( ";" SP cookie-pair )`. `cookie-pair` itself
+/// is not defined here — § 4.2.1 imports it by name from `Set-Cookie`'s
+/// § 4.1.1, which is where the two entries below cite `cookie-pair`,
+/// `cookie-value` and `cookie-octet` from. `cookie-name = token` is not its
+/// own entry either: a name that fails it reports as
+/// [`crate::violations::token`]'s shared `token_empty` /
+/// `token_character_forbidden`, the same two ids `Set-Cookie`'s cookie-name
+/// already reports under.
+///
+/// **No keyword of this section's own binds an arbitrary sender.** § 4.2.1
+/// only describes what a user agent sends *given* that the server (§ 4.1) and
+/// the user agent (§ 5) already conform — "the user agent will send a Cookie
+/// header that conforms to the following grammar" — so what makes a
+/// non-conforming value reportable is RFC 9110 § 2.2's blanket MUST NOT on any
+/// sender generating a protocol element outside its grammar, cited on the
+/// rule rather than on each entry here.
+pub const RFC_6265_4_2_1: SpecRef = SpecRef {
+    spec: "RFC 6265",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.2.1",
+    note: "Cookie request header syntax — cookie-header and cookie-string; cookie-pair itself is imported from § 4.1.1",
+};
+
 defects! {
     /// `Path` written as a bare attribute, with no `=` and nothing after it.
     ///
@@ -372,6 +396,42 @@ defects! {
             not an attribute but the cookie: a server that wrote this believes \
             it stored state and stored none, and no reading of the line \
             recovers what the pair would have said.",
+    }
+
+    /// A `Cookie` request field carries one or more `cookie-pair`s, and this is
+    /// the segment between `;`s that is not one: no `=` anywhere in it.
+    /// `cookie-pair` is not this field's own production — § 4.2.1's grammar
+    /// imports it from `Set-Cookie`'s § 4.1.1 by name — and neither section
+    /// states a keyword about the value a sender constructs, so what makes
+    /// this reportable is RFC 9110 § 2.2's MUST NOT on generating a protocol
+    /// element outside its grammar.
+    ///
+    // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
+    COOKIE_PAIR_EQUALS_MISSING = {
+        id: "cookie_pair_equals_missing",
+        title: "A Cookie pair is written without its '='",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_6265_4_1_1],
+        strength: Strength::Grammar,
+    }
+
+    /// A `cookie-value` octet outside `cookie-octet`: a comma, a semicolon, a
+    /// backslash, a bare double-quote, whitespace, a control character, or
+    /// anything above %x7E. `cookie-octet` is the same alphabet `Set-Cookie`
+    /// writes and `Cookie` echoes back — both fields import it from § 4.1.1 —
+    /// but nothing before this reader asked the question of the value a
+    /// client actually sent.
+    ///
+    // cite(RFC 6265 § 4.1.1): "cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )"
+    // cite(RFC 6265 § 4.1.1): "cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E"
+    COOKIE_VALUE_CHARACTER_FORBIDDEN = {
+        id: "cookie_value_character_forbidden",
+        title: "Cookie value holds a character outside cookie-octet",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_6265_4_1_1],
+        strength: Strength::Grammar,
     }
 
     /// A value written on `Secure` or `HttpOnly`. Both attributes are their own

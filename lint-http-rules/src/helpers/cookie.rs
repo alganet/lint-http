@@ -415,6 +415,26 @@ pub fn parse_set_cookie(
     })
 }
 
+/// The first character in a `cookie-value` that is not a `cookie-octet`.
+///
+/// `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )` — a value
+/// wrapped in a matching pair of outer `DQUOTE`s is unwrapped first, so what
+/// is scanned is always the bare `*cookie-octet` alternative. A single stray
+/// `"` (length 1) does not match the wrapped form and is scanned as written,
+/// which correctly reports it: `cookie-octet` excludes `"` in both forms.
+// cite(RFC 6265 § 4.1.1): "cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE ) cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E"
+pub fn find_invalid_cookie_octet(value: &str) -> Option<char> {
+    let inner = if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    };
+    fn is_cookie_octet(c: char) -> bool {
+        matches!(c as u32, 0x21 | 0x23..=0x2B | 0x2D..=0x3A | 0x3C..=0x5B | 0x5D..=0x7E)
+    }
+    inner.chars().find(|&c| !is_cookie_octet(c))
+}
+
 /// Parse a `Cookie` request header value into name/value pairs.
 /// Does not attempt to enforce stronger syntax rules; caller should trim.
 pub fn parse_cookie_header(s: &str) -> Vec<(String, String)> {
