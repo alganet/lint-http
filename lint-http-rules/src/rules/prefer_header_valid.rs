@@ -288,12 +288,9 @@ impl Rule for PreferHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let violation =
-                |def: &'static ViolationDef, message: String| Some(ctx.report_with(def, message));
-
+        // The two verdicts about the field as a whole end the reading; the walk
+        // below them answers per member and collects.
+        let finding = || -> Vec<Violation> {
             // Read as octets, one `char` each, and joined across the field's lines.
             // Both halves are load-bearing here. A `word` may be a `quoted-string`,
             // `qdtext` admits `obs-text`, and `HeaderValue::to_str` refuses every
@@ -305,7 +302,9 @@ impl Rule for PreferHeaderValid {
             //
             // cite(RFC 7240 § 2): "A client MAY use multiple instances of the Prefer header field in a single message, or it MAY use a single Prefer header field with multiple comma-separated preference tokens."
             // cite(RFC 7240 § 2): "If multiple Prefer header fields are used, it is equivalent to a single Prefer header field with the comma-separated concatenation of all of the tokens."
-            let value = combined_field_value_as_written(&tx.request.headers, "prefer")?;
+            let Some(value) = combined_field_value_as_written(&tx.request.headers, "prefer") else {
+                return Vec::new();
+            };
 
             // The `,` inside a `quoted-string` is `qdtext` and not a separator,
             // which is why the split is quote-aware: `foo="a,b"` is one member
@@ -324,11 +323,13 @@ impl Rule for PreferHeaderValid {
             // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
             // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
             if members.iter().all(|m| m.is_empty()) {
-                return Some(ctx.report_with(
+                return vec![ctx.report_with(
                     &LIST_MEMBER_MISSING,
                     "Prefer header states no preference; its value is 1#preference, which requires at least one non-empty member".into(),
-                ));
+                )];
             }
+
+            let mut out = Vec::new();
 
             // An empty element beside a real one is the other half of the same
             // grammar and a different requirement: § 5.6.1.2 makes a recipient
@@ -337,7 +338,7 @@ impl Rule for PreferHeaderValid {
             //
             // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
             if members.iter().any(|m| m.is_empty()) {
-                return Some(ctx.report_with(
+                out.push(ctx.report_with(
                     &LIST_MEMBER_EMPTY,
                     format!(
                         "Prefer header contains an empty list element: '{}'",
@@ -350,10 +351,16 @@ impl Rule for PreferHeaderValid {
             // client wrote them.
             let mut seen: Vec<String> = Vec::new();
 
-            // No member below is empty: the two checks above return on an empty list
-            // and on an empty element, so a filter here would be an arm no input can
-            // reach. The neighbouring `Preference-Applied` rule still carries one.
-            for member in members.iter() {
+            // The empty element is the list's defect and is stated once above,
+            // and the walk skips the members it counted. That filter used to be
+            // unreachable — the check above it returned — and the moment this
+            // walk stopped ending at its first finding it became the arm that
+            // keeps a gap from being read as a preference.
+            //
+            // `1#preference` is a list, and a client writing `respond-async,
+            // wait=100` writes its two preferences independently. Each one that
+            // is wrong is its own correction.
+            for member in members.iter().filter(|m| !m.is_empty()) {
                 // A preference is a name-and-value followed by any number of
                 // parameters, so only the part before the first top-level `;` is the
                 // preference itself. A `;` inside the `word`'s quoted-string is
@@ -373,16 +380,20 @@ impl Rule for PreferHeaderValid {
                     // `word` half is *empty* the catalogue answers nothing —
                     // six fields settled that verdict four different ways — and
                     // the finding stays at the rule's severity.
+                    // A member that is not a `preference` has no name to read a
+                    // value against and no name to count as a repetition, so
+                    // this ends the member — and only the member.
                     Err(defect) => {
                         let message = format!(
                             "Prefer member '{}' does not match preference: {}",
                             shown_in_finding(member),
                             defect.message(first)
                         );
-                        return Some(match token_bws_word_defect(&defect) {
+                        out.push(match token_bws_word_defect(&defect) {
                             Some(def) => ctx.report_with(def, message),
                             None => ctx.report_with(&PREFER_VALUE_EMPTY, message),
                         });
+                        continue;
                     }
                 };
 
@@ -394,7 +405,7 @@ impl Rule for PreferHeaderValid {
                 // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
                 // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
                 if parsed.bws {
-                    return Some(ctx.report_with(&BWS_FORBIDDEN, format!(
+                    out.push(ctx.report_with(&BWS_FORBIDDEN, format!(
                         "Prefer member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
                         shown_in_finding(member)
                     )));
@@ -425,13 +436,13 @@ impl Rule for PreferHeaderValid {
                 // `word`'s content has no such guarantee — `qdtext` admits HTAB and
                 // `obs-text`.
                 if let Some(defect) = defined_value_defect(&name, value_of) {
-                    return violation(
+                    out.push(ctx.report_with(
                         &PREFER_PREFERENCE_INVALID,
                         format!(
                             "Prefer names the '{}' preference, which {}",
                             parsed.name, defect
                         ),
-                    );
+                    ));
                 }
 
                 // Parameters carry the same production as the preference itself, and
@@ -455,10 +466,11 @@ impl Rule for PreferHeaderValid {
                                 shown_in_finding(member),
                                 defect.message(param)
                             );
-                            return Some(match token_bws_word_defect(&defect) {
+                            out.push(match token_bws_word_defect(&defect) {
                                 Some(def) => ctx.report_with(def, message),
                                 None => ctx.report_with(&PREFER_VALUE_EMPTY, message),
                             });
+                            continue;
                         }
                     };
                     // The same pair of sentences at the same construct: the trim is
@@ -467,7 +479,7 @@ impl Rule for PreferHeaderValid {
                     // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
                     // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
                     if parsed_param.bws {
-                        return Some(ctx.report_with(&BWS_FORBIDDEN, format!(
+                        out.push(ctx.report_with(&BWS_FORBIDDEN, format!(
                             "Prefer parameter '{}' in member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
                             shown_in_finding(param),
                             shown_in_finding(member)
@@ -486,17 +498,17 @@ impl Rule for PreferHeaderValid {
                 // cite(RFC 7240 § 4.2): "The "return=minimal" and "return=representation" preferences are mutually exclusive directives."
                 // cite(RFC 7240 § 4.4): "The "handling=strict" and "handling=lenient" preferences are mutually exclusive directives."
                 if seen.contains(&name) {
-                    return violation(&PREFER_PREFERENCE_DUPLICATED, format!(
+                    out.push(ctx.report_with(&PREFER_PREFERENCE_DUPLICATED, format!(
                         "Prefer names the '{}' preference more than once; only the first instance is considered",
                         parsed.name
-                    ));
+                    )));
                 }
                 seen.push(name);
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        finding()
     }
 }
 
@@ -524,14 +536,27 @@ mod tests {
         tx
     }
 
-    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+    fn check_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
         let rule = PreferHeaderValid;
-        crate::test_helpers::run_rule(
+        crate::test_helpers::run_rule_all(
             &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The cases below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported: a fixture that
+    /// silently drops a second finding cannot see this walk regress.
+    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let mut found = check_all(tx);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
     }
 
     fn check_value(value: &str) -> Option<Violation> {
@@ -728,5 +753,54 @@ mod tests {
 
         rule.prepare(&cfg)?;
         Ok(())
+    }
+
+    /// `Prefer = 1#preference`, and `respond-async, wait=100` is the field's
+    /// ordinary spelling: two preferences a client stated independently, so two
+    /// that are wrong are two corrections.
+    #[test]
+    fn a_value_with_two_bad_preferences_answers_about_both() {
+        let found = check_all(&tx_with(&[b"respond-async=x, wait = 100"]));
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["prefer_preference_invalid", "bws_forbidden"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The same masking one construct down: `*( OWS ";" [ OWS parameter ] )`
+    /// repeats a parameter, and a member naming two of them badly names two
+    /// things to fix.
+    #[test]
+    fn a_member_with_two_bad_parameters_answers_about_both() {
+        let found = check_all(&tx_with(&[b"foo; a=; b = 1"]));
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["prefer_value_empty", "bws_forbidden"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The empty element is the list's defect, so it is stated once however
+    /// many gaps the value carries — and it no longer ends the reading, which
+    /// is what used to make the walk's own filter an arm no input could reach.
+    #[test]
+    fn a_gap_is_stated_once_and_does_not_end_the_reading() {
+        let found = check_all(&tx_with(&[b"respond-async=x, , , wait = 100"]));
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "list_member_empty",
+                "prefer_preference_invalid",
+                "bws_forbidden"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 }

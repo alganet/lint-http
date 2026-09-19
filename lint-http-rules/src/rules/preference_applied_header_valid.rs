@@ -257,13 +257,12 @@ impl Rule for PreferenceAppliedHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
-
-            let violation =
-                |def: &'static ViolationDef, message: String| Some(ctx.report_with(def, message));
+        // The verdict about the field as a whole ends the reading; the walk
+        // below it answers per member and collects.
+        let finding = || -> Vec<Violation> {
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
 
             // Read as octets, one `char` each, and joined across the field's lines.
             // A `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and
@@ -273,7 +272,11 @@ impl Rule for PreferenceAppliedHeaderValid {
             // twice over. The same call answers the field's other structural
             // question: several lines are one value, so a member written across a
             // line boundary is a member.
-            let applied = combined_field_value_as_written(&resp.headers, "preference-applied")?;
+            let Some(applied) =
+                combined_field_value_as_written(&resp.headers, "preference-applied")
+            else {
+                return Vec::new();
+            };
 
             // cite(RFC 7240 § 3): "Preference-Applied = "Preference-Applied" ":" 1#applied-pref"
             let members = list_members_as_written(&applied);
@@ -288,11 +291,13 @@ impl Rule for PreferenceAppliedHeaderValid {
             // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
             // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
             if members.iter().all(|m| m.is_empty()) {
-                return Some(ctx.report_with(
+                return vec![ctx.report_with(
                     &LIST_MEMBER_MISSING,
                     "Preference-Applied header carries no applied preference; its value is 1#applied-pref, which requires at least one non-empty member".into(),
-                ));
+                )];
             }
+
+            let mut out = Vec::new();
 
             // An empty element beside a real one is the other half of the same
             // grammar, and a different requirement: § 5.6.1.2 makes a recipient
@@ -301,7 +306,7 @@ impl Rule for PreferenceAppliedHeaderValid {
             //
             // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
             if members.iter().any(|m| m.is_empty()) {
-                return Some(ctx.report_with(
+                out.push(ctx.report_with(
                     &LIST_MEMBER_EMPTY,
                     format!(
                         "Preference-Applied header contains an empty list element: '{}'",
@@ -312,6 +317,10 @@ impl Rule for PreferenceAppliedHeaderValid {
 
             let prefer = read_prefer(&tx.request.headers);
 
+            // The empty element is the list's defect and is stated once above;
+            // the walk skips the members it counted. `1#applied-pref` is a list,
+            // and a server reporting two preferences honored reports them
+            // independently.
             for member in members.iter().filter(|m| !m.is_empty()) {
                 // The two fields share a production and differ by exactly this, and
                 // the document says so rather than leaving it to be inferred from
@@ -320,11 +329,20 @@ impl Rule for PreferenceAppliedHeaderValid {
                 // quote-aware.
                 //
                 // cite(RFC 7240 § 3): "The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included."
+                //
+                // This ends the member, and the reason is the sentence itself.
+                // `applied-pref` is `token [ BWS "=" BWS word ]` and a `;` is no
+                // `tchar`, so parsing a member that carries parameters as an
+                // `applied-pref` fails on the very semicolon just reported —
+                // two sentences about one mistake. The member has been judged
+                // not to be an `applied-pref`; there is nothing further in it to
+                // read that is not this finding said again.
                 if split_semicolons_respecting_quotes(member).len() > 1 {
-                    return violation(&PREFERENCE_APPLIED_PARAMETER_FORBIDDEN, format!(
+                    out.push(ctx.report_with(&PREFERENCE_APPLIED_PARAMETER_FORBIDDEN, format!(
                         "Preference-Applied member '{}' carries parameters, which its grammar does not include",
                         shown_in_finding(member)
-                    ));
+                    )));
+                    continue;
                 }
 
                 // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
@@ -339,10 +357,11 @@ impl Rule for PreferenceAppliedHeaderValid {
                             shown_in_finding(member),
                             defect.message(member)
                         );
-                        return Some(match token_bws_word_defect(&defect) {
+                        out.push(match token_bws_word_defect(&defect) {
                             Some(def) => ctx.report_with(def, message),
                             None => ctx.report_with(&PREFERENCE_APPLIED_VALUE_EMPTY, message),
                         });
+                        continue;
                     }
                 };
 
@@ -354,7 +373,7 @@ impl Rule for PreferenceAppliedHeaderValid {
                 // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
                 // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
                 if parsed.bws {
-                    return Some(ctx.report_with(&BWS_FORBIDDEN, format!(
+                    out.push(ctx.report_with(&BWS_FORBIDDEN, format!(
                         "Preference-Applied member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
                         shown_in_finding(member)
                     )));
@@ -388,10 +407,11 @@ impl Rule for PreferenceAppliedHeaderValid {
                 // guarantee — `qdtext` admits HTAB and `obs-text` — so the two
                 // values below go through [`shown_in_finding`] and the name does not.
                 let Some(requested) = prefer.prefs.get(&name) else {
-                    return violation(&PREFERENCE_APPLIED_UNSOLICITED, format!(
+                    out.push(ctx.report_with(&PREFERENCE_APPLIED_UNSOLICITED, format!(
                         "Preference-Applied names '{}', which the request's Prefer header did not ask for",
                         parsed.name
-                    ));
+                    )));
+                    continue;
                 };
 
                 // Both sides carry the `word`'s content rather than its written
@@ -401,19 +421,19 @@ impl Rule for PreferenceAppliedHeaderValid {
                 // token or quoted-string values are used".
                 if let (Some(applied_value), Some(requested_value)) = (&value, requested) {
                     if applied_value != requested_value {
-                        return violation(&PREFERENCE_APPLIED_CONFLICTING, format!(
+                        out.push(ctx.report_with(&PREFERENCE_APPLIED_CONFLICTING, format!(
                             "Preference-Applied reports '{}' applied with value '{}', where the request asked for '{}'",
                             parsed.name,
                             shown_in_finding(applied_value),
                             shown_in_finding(requested_value)
-                        ));
+                        )));
                     }
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        finding()
     }
 }
 
@@ -450,14 +470,27 @@ mod tests {
         tx
     }
 
-    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+    fn check_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
         let rule = PreferenceAppliedHeaderValid;
-        crate::test_helpers::run_rule(
+        crate::test_helpers::run_rule_all(
             &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The cases below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported: a fixture that
+    /// silently drops a second finding cannot see this walk regress.
+    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let mut found = check_all(tx);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
     }
 
     #[test]
@@ -657,6 +690,64 @@ mod tests {
         assert!(
             crate::test_helpers::run_rule(*neighbour, &tx, &hist, &cfg).is_some(),
             "the Prefer rule reports the member this one declines to read"
+        );
+    }
+
+    /// `Preference-Applied = 1#applied-pref`. A server reporting two
+    /// preferences honored reports them independently, so two members written
+    /// badly are two corrections.
+    #[test]
+    fn a_value_with_two_bad_members_answers_about_both() {
+        let found = check_all(&tx_with(&[], &[b"foo; bar, wait = 100"]));
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "preference_applied_parameter_forbidden",
+                "bws_forbidden",
+                "preference_applied_unsolicited"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// A member the request never asked for does not end the reading of the
+    /// members beside it: two unsolicited preferences are two things the
+    /// response claims and the request did not.
+    #[test]
+    fn two_unsolicited_members_are_each_named() {
+        let found = check_all(&tx_with(&[b"wait=1"], &[b"foo, bar"]));
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "preference_applied_unsolicited",
+                "preference_applied_unsolicited"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(found[0].message.contains("'foo'"), "{}", found[0].message);
+        assert!(found[1].message.contains("'bar'"), "{}", found[1].message);
+    }
+
+    /// The empty element is the list's defect, stated once however many gaps
+    /// are written, and it no longer ends the reading of the members beside it.
+    #[test]
+    fn a_gap_is_stated_once_and_does_not_end_the_reading() {
+        let found = check_all(&tx_with(&[], &[b"foo; bar, , , wait = 100"]));
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "list_member_empty",
+                "preference_applied_parameter_forbidden",
+                "bws_forbidden",
+                "preference_applied_unsolicited"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
         );
     }
 }
