@@ -65,40 +65,144 @@ pub struct SingletonFieldsNotRepeated;
 // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server."
 // cite(RFC 9111 § 5.1): "Although it is defined as a singleton header field, a cache encountering a message with a list-based Age field value SHOULD use the first member of the field value, discarding subsequent ones."
 // cite(RFC 9111 § 5.3): "The "Expires" response header field gives the date/time after which the response is considered stale."
-const SINGLETON_FIELDS: &[(&str, &str)] = &[
+const SINGLETON_FIELDS: &[(&str, &str, Split)] = &[
     (
         "server",
         "`Server = product *( RWS ( product / comment ) )` (RFC 9110 §10.2.4)",
+        Split::Forbidden,
     ),
     (
         "user-agent",
         "`User-Agent = product *( RWS ( product / comment ) )` (RFC 9110 §10.1.5)",
+        Split::Forbidden,
     ),
-    ("date", "`Date = HTTP-date` (RFC 9110 §6.6.1)"),
+    (
+        "date",
+        "`Date = HTTP-date` (RFC 9110 §6.6.1)",
+        Split::Forbidden,
+    ),
     (
         "last-modified",
         "`Last-Modified = HTTP-date` (RFC 9110 §8.8.2)",
+        Split::Forbidden,
     ),
     (
         "content-range",
         "`Content-Range = range-unit SP ( range-resp / unsatisfied-range )` (RFC 9110 §14.4)",
+        Split::Forbidden,
     ),
-    ("range", "`Range = ranges-specifier` (RFC 9110 §14.2)"),
+    (
+        "range",
+        "`Range = ranges-specifier` (RFC 9110 §14.2)",
+        Split::Forbidden,
+    ),
     (
         "if-range",
         "`If-Range = entity-tag / HTTP-date` (RFC 9110 §13.1.5)",
+        Split::Forbidden,
     ),
     (
         "authorization",
         "`Authorization = credentials` (RFC 9110 §11.6.2)",
+        Split::Forbidden,
     ),
     (
         "proxy-authorization",
         "`Proxy-Authorization = credentials` (RFC 9110 §11.7.2)",
+        Split::Forbidden,
     ),
-    ("age", "`Age = delta-seconds` (RFC 9111 §5.1)"),
-    ("expires", "`Expires = HTTP-date` (RFC 9111 §5.3)"),
+    (
+        "age",
+        "`Age = delta-seconds` (RFC 9111 §5.1)",
+        Split::Forbidden,
+    ),
+    (
+        "expires",
+        "`Expires = HTTP-date` (RFC 9111 §5.3)",
+        Split::Forbidden,
+    ),
+    (
+        "cookie",
+        "`Cookie = cookie-string` where `cookie-string = cookie-pair *( \";\" SP cookie-pair )` \
+         (RFC 6265 §4.2.1)",
+        Split::PermittedOverHttp2And3,
+    ),
 ];
+
+/// Whether a version's own document restores the split this rule reports.
+///
+/// **Eleven of the twelve rows can only be [`Forbidden`](Self::Forbidden)**,
+/// and that is not an accident of which fields have been read: § 5.3's
+/// exception turns on the field's *definition*, and no version rewrites a
+/// definition. A protocol document that wanted the split back would have to
+/// say so about the field by name, and for one field two of them do.
+///
+/// **`Cookie` is that field, and the licence is not a curiosity.** Its pairs
+/// are delimited by a semicolon, so § 5.2's comma cannot recombine them — which
+/// RFC 9113 § 8.2.3 states as the reason the field is stuck on one line, in the
+/// paragraph before it hands HPACK the exception. Splitting a cookie across
+/// field lines is what a compressing sender *should* do, and the concatenation
+/// both documents then require is what makes the two spellings the same value.
+/// A reading of this field that does not read the version is wrong in one
+/// direction or the other: it either reports every HTTP/2 browser request that
+/// carries more than one cookie, or it reports no split at all.
+///
+// cite(RFC 9113 § 8.2.3): "This header field contains multiple values, but does not use a COMMA (",") as a separator, thereby preventing cookie-pairs from being sent on multiple field lines (see Section 5.2 of [HTTP])."
+// cite(RFC 9113 § 8.2.3): "To allow for better compression efficiency, the Cookie header field MAY be split into separate header fields, each with one or more cookie-pairs."
+// cite(RFC 9114 § 4.2.1): "To allow for better compression efficiency, the Cookie header field ([COOKIES]) MAY be split into separate field lines, each with one or more cookie-pairs, before compression."
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Split {
+    /// No document restores it, which is every row but one.
+    Forbidden,
+    /// RFC 9113 § 8.2.3 and RFC 9114 § 4.2.1 permit it for compression, and
+    /// require the lines rejoined with `"; "` before the message is passed
+    /// anywhere else.
+    PermittedOverHttp2And3,
+}
+
+impl Split {
+    /// Whether the version *this field section* arrived on restores the split.
+    ///
+    /// Per section rather than per transaction, for the reason
+    /// `no_connection_specific_fields` states at greater length: a proxy may
+    /// have received the request over one version and the response over
+    /// another, so the request's version decides nothing about the response's
+    /// field lines. A value naming no messaging syntax restores nothing —
+    /// that is `http_version_syntax`'s finding, not this rule's.
+    ///
+    // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
+    fn permitted_on(self, version: &str) -> bool {
+        match self {
+            Self::Forbidden => false,
+            Self::PermittedOverHttp2And3 => {
+                matches!(crate::http_version::major(version), Some(2 | 3))
+            }
+        }
+    }
+
+    /// What a finding adds when the version was the half that decided it.
+    ///
+    /// Written on every finding about such a field rather than only where a
+    /// reader might doubt it, because the operator's repair is in it: the
+    /// delimiter to join the pairs with is the one the exception's own
+    /// documents rejoin them with, and an operator told only that the field is
+    /// a singleton would reach for § 5.2's comma, which is the octet that
+    /// cannot appear here.
+    ///
+    // cite(RFC 6265 § 5.4): "When the user agent generates an HTTP request, the user agent MUST NOT attach more than one Cookie header field."
+    fn caveat(self) -> &'static str {
+        match self {
+            Self::Forbidden => "",
+            Self::PermittedOverHttp2And3 => {
+                ". RFC 6265 §5.4 says it of this field in its own words — a user agent must not \
+                 attach more than one Cookie header field — and the split RFC 9113 §8.2.3 and \
+                 RFC 9114 §4.2.1 permit for compression belongs to HTTP/2 and HTTP/3 alone: on \
+                 this version the pairs belong on one line, joined by the '; ' those documents \
+                 rejoin them with"
+            }
+        }
+    }
+}
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -117,6 +221,34 @@ const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Lists: the `#rule` extension — the shape a field's definition has when \
            §5.3's exception applies to it, and the shape none of the eleven \
            grammars in this rule's table has",
+};
+/// The prohibition stated for `Cookie` in its own document, addressed to the
+/// user agent that writes the field.
+const RFC_6265_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4",
+    note: "The Cookie Header — a user agent MUST NOT attach more than one Cookie \
+           header field to a request it generates",
+};
+/// HTTP/2's licence to split that field anyway, and the paragraph before it
+/// saying why the field is otherwise stuck on one line.
+const RFC_9113_8_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.3",
+    note: "Compressing the Cookie Header Field — the semicolon that keeps §5.2 from \
+           recombining the field, and the compression exception that permits the split \
+           anyway, rejoined with \"; \"",
+};
+/// The same licence in HTTP/3's own words, which is why this is two references
+/// and not one.
+const RFC_9114_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2.1",
+    note: "Field Compression — HTTP/3's statement of the same exception, before \
+           compression rather than after it",
 };
 const RFC_9111_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
@@ -144,7 +276,7 @@ enabled = true
         "Reports a message writing more than one field line of a singleton field. RFC 9110 §5.3: \
          a sender MUST NOT generate multiple field lines with the same name in a message — \
          *whether in the headers or trailers* — unless at least one alternative of the field's \
-         definition allows a comma-separated list, and no definition of the eleven fields this \
+         definition allows a comma-separated list, and no definition of the twelve fields this \
          rule counts has one. §5.5 is why the check is worth making at all: it asks senders to \
          anticipate recombination *\"since a singleton field might be erroneously sent with \
          multiple members and detecting such errors improves interoperability\"*.\
@@ -159,10 +291,22 @@ enabled = true
          **A field absent from the table draws nothing.** The exception clause turns on the \
          field's *definition*, which a linter cannot read off the wire — so only fields whose \
          grammars this catalogue has read and cited are counted, and an unknown field name is \
-         never assumed to be a singleton. The eleven are: `Server`, `User-Agent`, `Date`, \
+         never assumed to be a singleton. The twelve are: `Server`, `User-Agent`, `Date`, \
          `Last-Modified`, `Content-Range`, `Range`, `If-Range`, `Authorization`, \
-         `Proxy-Authorization`, `Age` and `Expires` — for `Age`, RFC 9111 §5.1 says the word \
-         *singleton* outright.\
+         `Proxy-Authorization`, `Age`, `Expires` and `Cookie` — for `Age`, RFC 9111 §5.1 says \
+         the word *singleton* outright, and for `Cookie` RFC 6265 §5.4 states the prohibition \
+         in as many words.\
+         \n\n\
+         **`Cookie` is the one row a protocol version can excuse, and it is excused on two of \
+         them.** RFC 6265 §4.2.1 delimits `cookie-pair`s with a semicolon, so §5.2's comma \
+         cannot recombine the lines — RFC 9113 §8.2.3 says exactly that — and RFC 9113 §8.2.3 \
+         and RFC 9114 §4.2.1 then permit the split anyway, for compression, requiring the lines \
+         rejoined with `\"; \"` before the message is passed anywhere else. So a `Cookie` on \
+         several field lines is a defect over HTTP/1.1 and the recommended spelling over HTTP/2 \
+         and HTTP/3, and this rule reads the version **the field section itself arrived on** — \
+         a request received over one version and a response sent over another are judged \
+         separately. No other field in the table has such an exception, and both documents \
+         grant it by name.\
          \n\n\
          **Thirteen singleton fields are deliberately not here**, because their repetition is \
          already reported where their values are read, with the joined value in the finding: \
@@ -185,7 +329,15 @@ enabled = true
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_5_3, RFC_9110_5_5, RFC_9110_5_6_1, RFC_9111_5_1]
+        &[
+            RFC_9110_5_3,
+            RFC_9110_5_5,
+            RFC_9110_5_6_1,
+            RFC_9111_5_1,
+            RFC_6265_5_4,
+            RFC_9113_8_2_3,
+            RFC_9114_4_2_1,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -223,6 +375,22 @@ enabled = true
                 label: Some("(two Age field lines — RFC 9111 §5.1 calls the field a singleton)"),
                 snippet: "HTTP/1.1 200 OK\nAge: 60\nAge: 120",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "(two Cookie field lines over HTTP/1.1 — the pairs belong on one line, \
+                     joined with `; `)",
+                ),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nCookie: a=1\nCookie: b=2",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(the same two lines over HTTP/2 — RFC 9113 §8.2.3 splits Cookie for \
+                     compression, and RFC 9114 §4.2.1 says the same of HTTP/3)",
+                ),
+                snippet: "GET / HTTP/2.0\nHost: example.com\nCookie: a=1\nCookie: b=2",
+            },
         ]
     }
 }
@@ -239,15 +407,24 @@ impl Rule for SingletonFieldsNotRepeated {
         let finding = || -> Option<Violation> {
             // The half that produced the judgement travels with it: the one
             // reporting site below cannot tell afterwards which call answered.
-            let (party, message) =
-                judge(&tx.request.headers, tx.request.trailers.as_ref(), "Request")
-                    .map(|message| (crate::lint::Party::Client, message))
-                    .or_else(|| {
-                        tx.response.as_ref().and_then(|resp| {
-                            judge(&resp.headers, resp.trailers.as_ref(), "Response")
-                                .map(|message| (crate::lint::Party::Server, message))
-                        })
-                    })?;
+            let (party, message) = judge(
+                &tx.request.headers,
+                tx.request.trailers.as_ref(),
+                "Request",
+                &tx.request.version,
+            )
+            .map(|message| (crate::lint::Party::Client, message))
+            .or_else(|| {
+                tx.response.as_ref().and_then(|resp| {
+                    judge(
+                        &resp.headers,
+                        resp.trailers.as_ref(),
+                        "Response",
+                        &resp.version,
+                    )
+                    .map(|message| (crate::lint::Party::Server, message))
+                })
+            })?;
 
             Some(ctx.by(party).report_with(&FIELD_LINE_DUPLICATED, message))
         };
@@ -278,8 +455,15 @@ fn judge(
     headers: &hyper::HeaderMap,
     trailers: Option<&hyper::HeaderMap>,
     side: &str,
+    version: &str,
 ) -> Option<String> {
-    for (name, grammar) in SINGLETON_FIELDS {
+    for (name, grammar, split) in SINGLETON_FIELDS {
+        // The version is read before the lines are counted, because for the one
+        // row it can answer, a permitted split is not a defect a recipient
+        // recovers from — it is the spelling the sender was asked for.
+        if split.permitted_on(version) {
+            continue;
+        }
         let header_lines = headers.get_all(*name).iter().count();
         let trailer_lines = trailers.map_or(0, |t| t.get_all(*name).iter().count());
         let lines = header_lines + trailer_lines;
@@ -291,11 +475,12 @@ fn judge(
             } else {
                 ""
             };
+            let caveat = split.caveat();
             return Some(format!(
                 "{side} writes {lines} field lines of '{name}'{where_written}; the field is a \
                  singleton — {grammar} has no comma-separated-list alternative — so a sender \
                  must not generate more than one in a message, whether in the headers or \
-                 trailers (RFC 9110 §5.3)"
+                 trailers (RFC 9110 §5.3){caveat}"
             ));
         }
     }
@@ -332,6 +517,92 @@ mod tests {
             );
         }
         tx
+    }
+
+    /// Two `Cookie` field lines, and the version is the whole verdict.
+    ///
+    /// RFC 9113 § 8.2.3 and RFC 9114 § 4.2.1 permit the split for compression;
+    /// no other version does, and RFC 6265 § 5.4 forbids it in as many words.
+    /// **Both directions are asserted from one value**, because a reading that
+    /// gets either half alone is the shape this case exists to refuse: silent
+    /// everywhere is a false negative on every HTTP/1.1 sender, and loud
+    /// everywhere reports the ordinary spelling of a cookie in a browser's
+    /// HTTP/2 request.
+    #[rstest]
+    #[case("HTTP/1.1", true)]
+    #[case("HTTP/1.0", true)]
+    #[case("HTTP/2.0", false)]
+    #[case("HTTP/3.0", false)]
+    // A version naming no messaging syntax restores nothing: what it is, is
+    // `http_version_syntax`'s finding, and it is not a licence here.
+    #[case("nonsense", true)]
+    fn a_split_cookie_is_read_against_the_version_that_carried_it(
+        #[case] version: &str,
+        #[case] reported: bool,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut headers = hyper::HeaderMap::new();
+        headers.append("cookie", HeaderValue::from_static("a=1"));
+        headers.append("cookie", HeaderValue::from_static("b=2"));
+        tx.request.headers = headers;
+        tx.request.version = version.to_string();
+        assert_eq!(run(&tx).is_some(), reported, "{version}");
+    }
+
+    /// The exact sentence, once: the operator is told the delimiter to join the
+    /// pairs with, and told that the two versions which permit the split are
+    /// not this one.
+    #[test]
+    fn a_split_cookie_names_the_delimiter_that_rejoins_it() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut headers = hyper::HeaderMap::new();
+        headers.append("cookie", HeaderValue::from_static("a=1"));
+        headers.append("cookie", HeaderValue::from_static("b=2"));
+        tx.request.headers = headers;
+        assert_eq!(
+            run(&tx).expect("reported"),
+            "Request writes 2 field lines of 'cookie'; the field is a singleton — `Cookie = \
+             cookie-string` where `cookie-string = cookie-pair *( \";\" SP cookie-pair )` (RFC \
+             6265 §4.2.1) has no comma-separated-list alternative — so a sender must not \
+             generate more than one in a message, whether in the headers or trailers (RFC 9110 \
+             §5.3). RFC 6265 §5.4 says it of this field in its own words — a user agent must \
+             not attach more than one Cookie header field — and the split RFC 9113 §8.2.3 and \
+             RFC 9114 §4.2.1 permit for compression belongs to HTTP/2 and HTTP/3 alone: on this \
+             version the pairs belong on one line, joined by the '; ' those documents rejoin \
+             them with"
+        );
+    }
+
+    /// The licence is the field section's own, not the transaction's.
+    ///
+    /// A proxy may receive a request over HTTP/2 and send its response over
+    /// HTTP/1.1 — the corpus this was found in carries exactly that record — so
+    /// reading both halves against one version excuses a section no document
+    /// excused. Here the request's split is permitted and the response's is
+    /// not, and the finding that comes back is the response's.
+    #[test]
+    fn each_field_section_is_judged_by_the_version_it_arrived_on() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut request_headers = hyper::HeaderMap::new();
+        request_headers.append("cookie", HeaderValue::from_static("a=1"));
+        request_headers.append("cookie", HeaderValue::from_static("b=2"));
+        tx.request.headers = request_headers;
+        tx.request.version = "HTTP/2.0".to_string();
+
+        let response = tx.response.as_mut().expect("a response");
+        response.version = "HTTP/1.1".to_string();
+        response
+            .headers
+            .append("cookie", HeaderValue::from_static("a=1"));
+        response
+            .headers
+            .append("cookie", HeaderValue::from_static("b=2"));
+
+        let message = run(&tx).expect("the response's split is reported");
+        assert!(
+            message.starts_with("Response writes 2 field lines of 'cookie'"),
+            "{message}"
+        );
     }
 
     /// One line of a singleton draws nothing, and neither does a list field on
@@ -380,6 +651,10 @@ mod tests {
     #[case("proxy-authorization", "Basic dGVzdA==")]
     #[case("age", "60")]
     #[case("expires", "Tue, 15 Nov 1994 08:12:31 GMT")]
+    // The twelfth row, on the version its two documents do not excuse. The
+    // helpers build HTTP/1.1 messages, which is what makes this an ordinary row
+    // here and what the version cases below say out loud.
+    #[case("cookie", "a=1")]
     fn every_table_row_fires_on_its_second_line(#[case] name: &str, #[case] value: &str) {
         let tx = response_with_lines(&[(name, value), (name, value)]);
         let msg = run(&tx).unwrap_or_else(|| panic!("{name} not reported in response"));
