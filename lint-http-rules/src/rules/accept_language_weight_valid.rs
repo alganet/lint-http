@@ -155,8 +155,6 @@ impl Rule for AcceptLanguageWeightValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
         // One finding per member. `#( language-range [ weight ] )` states one
         // preference per position, so two members carrying malformed weights
         // are two preferences the operator has to correct.

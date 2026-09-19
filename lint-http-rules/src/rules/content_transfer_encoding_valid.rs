@@ -96,9 +96,7 @@ impl Rule for ContentTransferEncodingValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        let findings = || -> Vec<Violation> {
             // The five named mechanisms. The grammar admits two more alternatives —
             // `ietf-token` and `x-token` — so this list is not the whole of it; see the
             // x-token branch below.
@@ -184,14 +182,25 @@ impl Rule for ContentTransferEncodingValid {
                     )))
             };
 
+            // One finding per section. The field's presence is the finding, and a
+            // gateway that failed to strip it from the response is not the same
+            // sender as a client that wrote one into its request.
+            let mut out = Vec::new();
             if let Some(resp) = &tx.response {
-                if let Some(v) = report("response", &resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
+                out.extend(report(
+                    "response",
+                    &resp.headers,
+                    crate::lint::Party::Server,
+                ));
             }
-            report("request", &tx.request.headers, crate::lint::Party::Client)
+            out.extend(report(
+                "request",
+                &tx.request.headers,
+                crate::lint::Party::Client,
+            ));
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 

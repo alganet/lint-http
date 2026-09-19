@@ -1531,11 +1531,14 @@ enabled = "true"
     /// afterwards, because `extension_headers_registered` ships off and its
     /// shipped state is not what this asks about.
     ///
-    /// Three fixed rules are held elsewhere rather than here, because a header
-    /// pair cannot express them: `trailer_fields_valid` needs two trailer
+    /// Four fixed rules are held elsewhere rather than here, because this
+    /// fixture cannot express them: `trailer_fields_valid` needs two trailer
     /// sections, `multipart_content_type_and_body_consistent` needs two bodies,
-    /// and `header_field_names_token_valid` needs a field *name* no `HeaderMap`
-    /// will hold.
+    /// `header_field_names_token_valid` needs a field *name* no `HeaderMap` will
+    /// hold, and `no_connection_specific_fields` needs both halves carried by
+    /// HTTP/2 or HTTP/3 — at the HTTP/1.1 this fixture builds, there is nothing
+    /// for it to report in either section. That one is held by
+    /// `a_field_in_each_section_is_reported_in_each_section` beside the rule.
     #[test]
     fn a_rule_reading_both_sections_reports_both() {
         /// One row: the rule, the request's field lines, the response's.
@@ -1651,6 +1654,72 @@ enabled = "true"
                 "transfer_coding_registered",
                 &[("transfer-encoding", "x-custom")],
                 &[("transfer-encoding", "x-custom")],
+            ),
+            both(
+                "cache_control_directive_valid",
+                &[("cache-control", "max-age=abc")],
+                &[("cache-control", "s-maxage=1.5")],
+            ),
+            both(
+                "cache_control_token_valid",
+                &[("cache-control", "=abc")],
+                &[("cache-control", "private=bad@val")],
+            ),
+            both(
+                "context_fields_direction",
+                &[("server", "httpd/2.4")],
+                &[("user-agent", "curl/8.0")],
+            ),
+            both(
+                "date_and_time_headers_consistent",
+                &[("date", "not-a-date")],
+                &[("date", "not-a-date")],
+            ),
+            both(
+                "keep_alive_header_valid",
+                &[("connection", "keep-alive"), ("keep-alive", "timeout=+30")],
+                &[("connection", "keep-alive"), ("keep-alive", "timeout=+30")],
+            ),
+            both(
+                "link_header_valid",
+                &[("link", "<https://example.com/>; rel=next; rel=prev")],
+                &[("link", "<https://example.com/>; rel=next; rel=prev")],
+            ),
+            both(
+                "sec_websocket_extensions_syntax",
+                &[("sec-websocket-extensions", "foo/bar")],
+                &[("sec-websocket-extensions", "foo/bar")],
+            ),
+            both(
+                "singleton_fields_not_repeated",
+                &[("age", "60"), ("age", "120")],
+                &[("age", "60"), ("age", "120")],
+            ),
+            both(
+                "upgrade_and_connection_consistent",
+                &[("connection", "keep-alive"), ("upgrade", "websocket")],
+                &[("connection", "keep-alive"), ("upgrade", "websocket")],
+            ),
+            both("via_header_syntax", &[("via", "1.1")], &[("via", "1.1")]),
+            both(
+                "warning_header_syntax",
+                &[("warning", "21a host \"text\"")],
+                &[("warning", "21a host \"text\"")],
+            ),
+            both(
+                "cache_control_and_pragma_consistent",
+                &[("pragma", "no-cache"), ("cache-control", "only-if-cached")],
+                &[("pragma", "no-cache")],
+            ),
+            both(
+                "content_transfer_encoding_valid",
+                &[("content-transfer-encoding", "base64")],
+                &[("content-transfer-encoding", "base64")],
+            ),
+            both(
+                "early_data_header_safe_method",
+                &[("early-data", "1"), ("connection", "early-data")],
+                &[("early-data", "1")],
             ),
         ];
 

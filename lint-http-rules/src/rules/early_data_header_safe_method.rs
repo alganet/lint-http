@@ -104,9 +104,13 @@ impl EarlyDataHeaderSafeMethod {
     /// The field lines are joined first: `Connection = #connection-option`, so a member
     /// may be written on a line of its own, and the shared reader is the one that knows
     /// what a message's connection-options are.
+    /// Run over both sections, so it is handed the `Party` as a value rather
+    /// than an already-attributed context: the section this reads is the one
+    /// whose sender wrote the `Connection` field it is about.
     fn connection_names_early_data(
         &self,
         ctx: &crate::rules::RuleContext<'_>,
+        party: crate::lint::Party,
         section: &str,
         headers: &hyper::HeaderMap,
     ) -> Option<Violation> {
@@ -115,7 +119,7 @@ impl EarlyDataHeaderSafeMethod {
         if !crate::helpers::field_placement::is_nominated_by_connection(FIELD, Some(&connection)) {
             return None;
         }
-        Some(ctx.report_with(
+        Some(ctx.by(party).report_with(
             &EARLY_DATA_FORBIDDEN,
             format!(
                 "The {section} names Early-Data as a connection-option in its Connection header field, so every intermediary removes the field before forwarding — which is what RFC 8470 §5.1 forbids an intermediary to do to it"
@@ -202,9 +206,16 @@ safe_methods = [
     /// The field is a request header field, and one of the sentences that
     /// govern it names a response as a place it MUST NOT be — so the response
     /// half is read too, without the rule needing one to run.
+    ///
+    /// **Which is why no party can be presumed.** A response carrying the field,
+    /// or naming it as a connection-option, was written by the origin; the
+    /// method that entered early data and the second field line are the
+    /// request's. The rule presumed the client and reported both, so a field the
+    /// origin wrote was answered for by the peer that did not write it, and
+    /// `--about server` was silent about it.
     /// cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
     fn party(&self) -> crate::rules::RuleParty {
-        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+        crate::rules::RuleParty::PerSite
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -256,9 +267,10 @@ impl Rule for EarlyDataHeaderSafeMethod {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // The request's own readings, behind an Option: each is measured against
+        // the field's presence in this section, and the first to answer ends
+        // them. The response's are asked separately below.
+        let request_side = || -> Option<Violation> {
             let config: &EarlyDataConfig = ctx.state();
 
             // A count, not a value: the field is a singleton whose whole grammar is one
@@ -290,7 +302,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 // cite(RFC 8470 § 4): "Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data."
                 // cite(RFC 9110 § 9.2.1): "Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource."
                 if !config.safe_methods.iter().any(|m| m == &tx.request.method) {
-                    return Some(ctx.report_with(
+                    return Some(ctx.by_client().report_with(
                         &EARLY_DATA_METHOD_FORBIDDEN,
                         format!(
                             "Request carrying an Early-Data header field was conveyed in TLS early data on a previous hop (RFC 8470 §5.1), and its method '{}' is not one this deployment lists as safe; RFC 8470 §4 has a client send only safe methods in early data, because a replayed unsafe request takes effect twice",
@@ -303,7 +315,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 // has an intermediary write the field: it adds one only where there is none.
                 // cite(RFC 8470 § 5.1): "An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request)."
                 if instances > 1 {
-                    return Some(ctx.report_with(&EARLY_DATA_DUPLICATED,
+                    return Some(ctx.by_client().report_with(&EARLY_DATA_DUPLICATED,
                         format!(
                             "Request carries {instances} Early-Data header field lines, and a client may send at most one — the field holds a single bit. A server reads them as one instance with the value 1, so the extra lines change nothing about the request; an intermediary marking early data adds the field only when it is not already there"
                         ),
@@ -319,7 +331,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 if let Some(hv) = tx.request.headers.get(FIELD) {
                     let written = hv.as_bytes();
                     if written != b"1" {
-                        return Some(ctx.report_with(&EARLY_DATA_INVALID,
+                        return Some(ctx.by_client().report_with(&EARLY_DATA_INVALID,
                             format!(
                                 "Early-Data header field carries {}, and the field has exactly one valid value, \"1\". A server treats an invalid instance as though it said 1, so the request is marked as early data all the same — the value is simply wrong",
                                 describe_value(written)
@@ -337,25 +349,36 @@ impl Rule for EarlyDataHeaderSafeMethod {
             // before this one forbids removing it.
             // cite(RFC 8470 § 5.1): "An intermediary MUST NOT remove this header field if it is present in a request."
             // cite(RFC 8470 § 5.1): "Early-Data MUST NOT appear in a Connection header field."
-            if let Some(v) = self.connection_names_early_data(ctx, "request", &tx.request.headers) {
-                return Some(v);
-            }
-
-            if let Some(resp) = &tx.response {
-                // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
-                if resp.headers.contains_key(FIELD) {
-                    return Some(ctx.report_with(&EARLY_DATA_FORBIDDEN,
-                        "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
-                    ));
-                }
-                if let Some(v) = self.connection_names_early_data(ctx, "response", &resp.headers) {
-                    return Some(v);
-                }
-            }
-
-            None
+            self.connection_names_early_data(
+                ctx,
+                crate::lint::Party::Client,
+                "request",
+                &tx.request.headers,
+            )
         };
-        Vec::from_iter(finding())
+
+        // The response's own two readings, beside the request's rather than
+        // behind them. The sentence quoted below is about what the origin wrote,
+        // and the request's answer is no evidence about it.
+        let response_side = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
+            // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
+            if resp.headers.contains_key(FIELD) {
+                return Some(ctx.by_server().report_with(&EARLY_DATA_FORBIDDEN,
+                    "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
+                ));
+            }
+            self.connection_names_early_data(
+                ctx,
+                crate::lint::Party::Server,
+                "response",
+                &resp.headers,
+            )
+        };
+
+        let mut out = Vec::from_iter(request_side());
+        out.extend(response_side());
+        out
     }
 }
 

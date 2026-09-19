@@ -399,43 +399,40 @@ impl Rule for NoConnectionSpecificFields {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Each section's own version, decided before anything else is read.
-            let request = ConnectionlessVersion::of(&tx.request.version);
-            let response = tx.response.as_ref().and_then(|resp| {
-                ConnectionlessVersion::of(&resp.version).map(|governing| (governing, resp))
-            });
+        // Each section's own version, decided before anything else is read.
+        let request = ConnectionlessVersion::of(&tx.request.version);
+        let response = tx.response.as_ref().and_then(|resp| {
+            ConnectionlessVersion::of(&resp.version).map(|governing| (governing, resp))
+        });
 
-            // A transaction neither half of which was carried by one of these
-            // versions ends here.
-            if request.is_none() && response.is_none() {
-                return None;
-            }
+        // A transaction neither half of which was carried by one of these
+        // versions ends here.
+        if request.is_none() && response.is_none() {
+            return Vec::new();
+        }
 
-            if let Some(governing) = request {
-                if let Some(violation) = self.check_field_section(
-                    governing,
-                    Direction::Request,
-                    &tx.request.headers,
-                    ctx,
-                ) {
-                    return Some(violation);
-                }
-            }
-
-            if let Some((governing, resp)) = response {
-                if let Some(violation) =
-                    self.check_field_section(governing, Direction::Response, &resp.headers, ctx)
-                {
-                    return Some(violation);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+        // One finding per section. A connection-specific field in the request was
+        // written by the client and one in the response by the origin; the
+        // prohibition binds each of them separately, and the repair is in a
+        // different message for each.
+        let mut out = Vec::new();
+        if let Some(governing) = request {
+            out.extend(self.check_field_section(
+                governing,
+                Direction::Request,
+                &tx.request.headers,
+                ctx,
+            ));
+        }
+        if let Some((governing, resp)) = response {
+            out.extend(self.check_field_section(
+                governing,
+                Direction::Response,
+                &resp.headers,
+                ctx,
+            ));
+        }
+        out
     }
 }
 
@@ -487,6 +484,44 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
         )
+    }
+
+    /// **Both sections are read, and neither answers for the other.** The rule
+    /// applied `check_field_section` to the request and then, only if that
+    /// found nothing, to the response — so an HTTP/2 exchange whose *both*
+    /// halves carried a connection-specific field reported the client alone and
+    /// `--about server` was silent about a field the origin wrote.
+    ///
+    /// Held here rather than in `a_rule_reading_both_sections_reports_both`,
+    /// which builds its fixture at HTTP/1.1: this rule's subject is the version,
+    /// and at HTTP/1.1 there is nothing to report in either section.
+    #[test]
+    fn a_field_in_each_section_is_reported_in_each_section() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("transfer-encoding", "chunked")],
+        );
+        tx.request.version = "HTTP/2.0".to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("upgrade", "websocket")]);
+        if let Some(resp) = tx.response.as_mut() {
+            resp.version = "HTTP/2.0".to_string();
+        }
+        let found = crate::test_helpers::run_rule_all(
+            &RULE,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        );
+        let parties: Vec<_> = found.iter().filter_map(|v| v.party).collect();
+        assert_eq!(
+            found.len(),
+            2,
+            "one finding per section: {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(parties.contains(&crate::lint::Party::Client), "{parties:?}");
+        assert!(parties.contains(&crate::lint::Party::Server), "{parties:?}");
     }
 
     // --- The five names, on each version that forbids them ---

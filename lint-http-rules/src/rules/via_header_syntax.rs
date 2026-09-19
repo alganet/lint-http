@@ -231,28 +231,26 @@ impl Rule for ViaHeaderSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
-            let report = |party: crate::lint::Party, defect: Defect| {
-                ctx.by(party).report_with(defect.def, defect.message)
-            };
-
-            if let Some(defect) = judge(&tx.request.headers, "Request") {
-                return Some(report(crate::lint::Party::Client, defect));
-            }
-
-            // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
-            if let Some(resp) = &tx.response {
-                if let Some(defect) = judge(&resp.headers, "Response") {
-                    return Some(report(crate::lint::Party::Server, defect));
-                }
-            }
-
-            None
+        // One finding per section. Each section carries its own `Via`, written
+        // by a different hop, and a defect in one says nothing about the other.
+        let report = |party: crate::lint::Party, defect: Defect| {
+            ctx.by(party).report_with(defect.def, defect.message)
         };
-        Vec::from_iter(finding())
+        let mut out = Vec::new();
+
+        // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
+        if let Some(defect) = judge(&tx.request.headers, "Request") {
+            out.push(report(crate::lint::Party::Client, defect));
+        }
+
+        // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
+        if let Some(resp) = &tx.response {
+            if let Some(defect) = judge(&resp.headers, "Response") {
+                out.push(report(crate::lint::Party::Server, defect));
+            }
+        }
+
+        out
     }
 }
 
