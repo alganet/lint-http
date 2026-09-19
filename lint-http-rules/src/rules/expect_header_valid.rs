@@ -200,9 +200,12 @@ impl Rule for ExpectHeaderValid {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // A body that ends early down to the point the members are reached:
+        // above that, a value with no `Expect` in it and a value whose quoting
+        // never closes are verdicts on the field as a whole. `#expectation` is
+        // a list, and each member is an expectation the client raised on its
+        // own terms.
+        let judge = || -> Vec<Violation> {
             // The field is defined on the request, so the request is where it is read.
             //
             // cite(RFC 9110 § 10.1.1): "The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server in order to properly handle this request."
@@ -221,14 +224,16 @@ impl Rule for ExpectHeaderValid {
             // document would report every second member as junk.
             //
             // cite(RFC 9110 § B.3): "List-based grammar for Expect has been restored for compatibility with RFC 2616."
-            let value = combined_field_value_as_written(&tx.request.headers, "Expect")?;
+            let Some(value) = combined_field_value_as_written(&tx.request.headers, "Expect") else {
+                return Vec::new();
+            };
 
             // Read after the field, not before it: both this and a missing `Expect`
             // end the rule, and the header probe is one map lookup where the config
             // read is several.
             // One API now that every finding here names an entry: the severity is
             // the entry's, resolved from the configuration by identity.
-            let report = |defect: Defect| Some(ctx.report_with(defect.def, defect.message));
+            let report = |defect: Defect| ctx.report_with(defect.def, defect.message);
 
             // A list of no members, which is not a list with an empty member in it —
             // the two look alike and only one of them is a defect. The sender-expanded
@@ -237,36 +242,51 @@ impl Rule for ExpectHeaderValid {
             //
             // cite(RFC 9110 § A): "Expect = [ expectation *( OWS "," OWS expectation ) ]"
             if trim_ows(&value).is_empty() {
-                return None;
+                return Vec::new();
             }
 
             let Some(members) = members_of(&value) else {
-                return report(Defect::named(
+                return vec![report(Defect::named(
                     &QUOTED_STRING_DELIMITER_MISSING,
                     format!(
                         "Expect has a quoted-string that is never terminated: '{}'",
                         crate::helpers::shown::shown_in_finding(&value)
                     ),
-                ));
+                ))];
             };
 
             // cite(RFC 9110 § 10.1.1): "The Expect field value is case-insensitive."
+            let mut out: Vec<Violation> = Vec::new();
             let mut hundred_continue: Option<Expectation<'_>> = None;
+            // Stated once for the whole value, however many gaps it has: the
+            // emptiness is the list's, where each member's own defect below is
+            // one expectation the client raised badly.
+            let mut said_empty = false;
             for (i, member) in members.iter().enumerate() {
                 if member.is_empty() {
-                    return report(Defect::named(
-                        &LIST_MEMBER_EMPTY,
-                        format!(
-                            "Expect writes an empty list element (member {} of {}): '{}'",
-                            i + 1,
-                            members.len(),
-                            crate::helpers::shown::shown_in_finding(&value)
-                        ),
-                    ));
+                    if !said_empty {
+                        said_empty = true;
+                        out.push(report(Defect::named(
+                            &LIST_MEMBER_EMPTY,
+                            format!(
+                                "Expect writes an empty list element (member {} of {}): '{}'",
+                                i + 1,
+                                members.len(),
+                                crate::helpers::shown::shown_in_finding(&value)
+                            ),
+                        )));
+                    }
+                    continue;
                 }
+                // The one gate inside the walk: a member that does not derive
+                // from `expectation` has no name for the readings below to
+                // compare against `100-continue`.
                 let e = match parse_expectation(member) {
                     Ok(e) => e,
-                    Err(defect) => return report(defect),
+                    Err(defect) => {
+                        out.push(report(defect));
+                        continue;
+                    }
                 };
                 if hundred_continue.is_none() && e.name.eq_ignore_ascii_case(HUNDRED_CONTINUE) {
                     hundred_continue = Some(e);
@@ -295,12 +315,13 @@ impl Rule for ExpectHeaderValid {
                 )
                 .is_none()
                 {
-                    return report(Defect::named(
+                    out.push(report(Defect::named(
                         &EXPECT_100_CONTINUE_FORBIDDEN,
                         "Request carries a 100-continue expectation but no content: the expectation \
                          asks the server to weigh in before content the message never had"
                             .to_string(),
-                    ));
+                    )));
+                    return out;
                 }
 
                 // A 417 says the response chain does not understand expectations, so
@@ -321,12 +342,13 @@ impl Rule for ExpectHeaderValid {
                             && carries_hundred_continue(&prev.request.headers)
                     })
                 {
-                    return report(Defect::named(
+                    out.push(report(Defect::named(
                         &STATUS_417_IGNORED,
                         "Request repeats one the response chain answered with 417 (Expectation Failed) \
                          and still carries a 100-continue expectation"
                             .to_string(),
-                    ));
+                    )));
+                    return out;
                 }
 
                 // No MUST is broken by writing one: the grammar admits a value and
@@ -338,7 +360,7 @@ impl Rule for ExpectHeaderValid {
                 //
                 // cite(RFC 9110 § 10.1.1): "A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met."
                 if e.has_arguments() {
-                    return report(Defect::named(
+                    out.push(report(Defect::named(
                         &EXPECT_100_CONTINUE_INVALID,
                         format!(
                             "Expect writes the 100-continue expectation with an argument ('{}'); \
@@ -348,13 +370,13 @@ impl Rule for ExpectHeaderValid {
                              the grammar admits the argument",
                             crate::helpers::shown::shown_in_finding(e.member)
                         ),
-                    ));
+                    )));
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        judge()
     }
 }
 
@@ -706,17 +728,75 @@ mod tests {
         tx
     }
 
+    /// `Expect = #expectation`, and a request raising three expectations, two
+    /// of them malformed, is answered about both.
+    #[test]
+    fn every_defective_expectation_is_answered_about() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.insert(
+            "expect",
+            hyper::header::HeaderValue::from_static("100-continue@x, 200-ok, 300-ok=y; foo="),
+        );
+        let found = judge_all(&tx);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["expect_member_malformed", "parameter_value_empty"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The emptiness is the list's and not a member's, so a value written with
+    /// three gaps states it once -- while the members' own defects beside it
+    /// are still counted per member.
+    #[test]
+    fn an_expect_written_with_gaps_states_its_emptiness_once() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.insert(
+            "expect",
+            hyper::header::HeaderValue::from_static("200-ok, , , 100-continue@x"),
+        );
+        let found = judge_all(&tx);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["list_member_empty", "expect_member_malformed"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    fn judge_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
+        let rule = ExpectHeaderValid;
+        crate::test_helpers::run_rule_all(
+            &rule,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// The fixtures below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported: a helper that
+    /// silently drops a second finding cannot see this walk regress.
     fn judge_with(
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
     ) -> Option<Violation> {
         let rule = ExpectHeaderValid;
-        crate::test_helpers::run_rule(
+        let mut found = crate::test_helpers::run_rule_all(
             &rule,
             tx,
             history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        )
+        );
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
     }
 
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {

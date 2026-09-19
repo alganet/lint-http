@@ -333,16 +333,22 @@ impl Rule for WarningHeaderSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // One finding per section: each carries its own `Warning`, written by a
-        // different sender, and a defect in one is no evidence about the other.
+        // Each section carries its own `Warning`, written by a different
+        // sender, and a defect in one is no evidence about the other -- and
+        // within a section each warning-value is a warning the sender raised on
+        // its own terms.
         let mut out = Vec::new();
-        if let Some(defect) = judge(&tx.request.headers, "Request") {
-            out.push(ctx.by_client().report_with(defect.def, defect.message));
-        }
+        out.extend(
+            judge(&tx.request.headers, "Request")
+                .into_iter()
+                .map(|defect| ctx.by_client().report_with(defect.def, defect.message)),
+        );
         if let Some(resp) = &tx.response {
-            if let Some(defect) = judge(&resp.headers, "Response") {
-                out.push(ctx.by_server().report_with(defect.def, defect.message));
-            }
+            out.extend(
+                judge(&resp.headers, "Response")
+                    .into_iter()
+                    .map(|defect| ctx.by_server().report_with(defect.def, defect.message)),
+            );
         }
         out
     }
@@ -362,11 +368,14 @@ static REGISTRATION: &dyn crate::rules::Rule = &WarningHeaderSyntax;
 /// be visible US-ASCII, and `to_str` used to fold every such message into
 /// "`Warning` header contains non-UTF8 value" — a claim about an encoding, made
 /// of a value that was legal where it stood.
-fn judge(headers: &hyper::HeaderMap, side: &str) -> Option<Defect> {
-    let value = combined_field_value_as_written(headers, "warning")?;
+fn judge(headers: &hyper::HeaderMap, side: &str) -> Vec<Defect> {
+    let Some(value) = combined_field_value_as_written(headers, "warning") else {
+        return Vec::new();
+    };
     validate_warning(&value)
-        .err()
+        .into_iter()
         .map(|defect| defect.in_context(|e| format!("{side} Warning header: {e}")))
+        .collect()
 }
 
 /// The octet a parse stopped in front of, for the finding that says so.
@@ -382,9 +391,19 @@ fn first_octet(s: &str) -> String {
         .unwrap_or_else(|| "nothing".into())
 }
 
-/// Validate a whole `Warning` field value.
+/// Validate a whole `Warning` field value, member by member.
+///
+/// **Each `warning-value` is a warning the sender raised on its own terms**, so
+/// a value carrying three of them, two malformed, is answered about both. The
+/// walk used to `?` out at the first, and an operator met the second only after
+/// fixing the first and re-running.
+///
+/// The `1#` floor and the empty member are both the list's rather than a
+/// member's, and each is stated once: the floor because a value with no member
+/// in it derives from nothing whatever else is written, the emptiness because
+/// § 5.6.1.1 is one sentence about how the sender wrote the list.
 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-fn validate_warning(value: &str) -> Result<(), Defect> {
+fn validate_warning(value: &str) -> Vec<Defect> {
     // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
     let v = trim_ows(value);
 
@@ -398,33 +417,50 @@ fn validate_warning(value: &str) -> Result<(), Defect> {
     // and §5.6.1.2 prints both as invalid values of exactly this construct.
     // cite(RFC 7234 § 5.5): "Warning = 1#warning-value"
     // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
+    let mut out = Vec::new();
     if members.iter().all(|m| m.is_empty()) {
         // The `1#` floor, which is the list construct's and not this field's:
         // `Warning = 1#warning-value` contributes the *name* of what has to be
         // there, and the requirement that one of them be is written once, for
         // every field spelled with that `1`.
-        return Err(Defect::named(
+        out.push(Defect::named(
             &LIST_MEMBER_MISSING,
             "the field value carries no warning-value, and `Warning = 1#warning-value` requires \
              at least one"
                 .into(),
         ));
+        return out;
     }
+
+    // Stated once for the whole value, however many gaps it has: the emptiness
+    // is the list's, where each member's own defect below is one warning the
+    // sender raised badly.
+    let mut said_empty = false;
 
     for (index, member) in members.iter().enumerate() {
         let n = index + 1;
 
         if member.is_empty() {
-            return Err(Defect::named(
-                &LIST_MEMBER_EMPTY,
-                format!("member {n} is empty, and a sender must not generate empty list elements"),
-            ));
+            if !said_empty {
+                said_empty = true;
+                out.push(Defect::named(
+                    &LIST_MEMBER_EMPTY,
+                    format!(
+                        "member {n} is empty, and a sender must not generate empty list elements"
+                    ),
+                ));
+            }
+            continue;
         }
 
-        validate_warning_value(member).map_err(|d| d.in_context(|e| format!("member {n} {e}")))?;
+        out.extend(
+            validate_warning_value(member)
+                .err()
+                .map(|d| d.in_context(|e| format!("member {n} {e}"))),
+        );
     }
 
-    Ok(())
+    out
 }
 
 /// Validate one `warning-value`, whose three or four parts are consumed in the
@@ -761,6 +797,68 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    /// The fixtures below are values stating one defect, and this says so
+    /// rather than taking the first of however many were reported: a helper
+    /// that silently drops a second finding cannot see this walk regress.
+    fn one_judged(headers: &hyper::HeaderMap, side: &str) -> Option<Defect> {
+        let mut found = judge(headers, side);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+        found.pop()
+    }
+
+    /// A `Warning` raising three warnings, two of them malformed, is answered
+    /// about both -- and each finding names the member it is about.
+    #[test]
+    fn every_defective_warning_value_is_answered_about() {
+        let found = judge_octets(b"11a example.com \"t\", 110 example.com \"t\", 110 example.com");
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec!["warning_code_malformed", "warning_text_missing"],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+        assert!(
+            found[0].message.contains("member 1 "),
+            "{}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("member 3 "),
+            "{}",
+            found[1].message
+        );
+    }
+
+    /// The emptiness is the list's and not a member's, so a value written with
+    /// three gaps states it once -- while the members' own defects beside it
+    /// are still counted per member.
+    #[test]
+    fn a_warning_written_with_gaps_states_its_emptiness_once() {
+        let found = judge_octets(b"110 example.com \"t\", , , 11a example.com \"t\"");
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec!["list_member_empty", "warning_code_malformed"],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    fn judge_octets(value: &[u8]) -> Vec<Defect> {
+        use hyper::header::HeaderValue;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers.append(
+            "Warning",
+            HeaderValue::from_bytes(value).expect("a HeaderValue can hold these octets"),
+        );
+        judge(&tx.response.as_ref().unwrap().headers, "Response")
+    }
+
     fn judged_response(value: &str) -> Option<String> {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("Warning", value)]);
@@ -870,7 +968,7 @@ mod tests {
             HeaderValue::from_bytes(b"214 example.com \"caf\xe9\"")
                 .expect("obs-text is legal here"),
         );
-        assert!(judge(&tx.response.as_ref().unwrap().headers, "Response").is_none());
+        assert!(one_judged(&tx.response.as_ref().unwrap().headers, "Response").is_none());
     }
 
     /// The same octet in a `warn-agent` is a finding, and the finding names the
@@ -883,7 +981,7 @@ mod tests {
             "Warning",
             HeaderValue::from_bytes(b"214 exa\xe9mple.com \"T\"").expect("obs-text is legal here"),
         );
-        let message = judge(&tx.response.as_ref().unwrap().headers, "Response")
+        let message = one_judged(&tx.response.as_ref().unwrap().headers, "Response")
             .expect("an obs-text octet in a warn-agent is a finding")
             .message;
         assert!(
@@ -910,7 +1008,7 @@ mod tests {
             .unwrap()
             .headers
             .append("Warning", HeaderValue::from_static(""));
-        let found = judge(&tx.response.as_ref().unwrap().headers, "Response")
+        let found = one_judged(&tx.response.as_ref().unwrap().headers, "Response")
             .expect("the second line contributes an empty member");
         assert!(
             found.message.contains("member 2 is empty"),
@@ -1148,7 +1246,7 @@ mod tests {
                 })
                 .collect();
             let tx = crate::test_helpers::make_test_transaction_with_response(200, &fields);
-            let found = judge(&tx.response.as_ref().unwrap().headers, "Response");
+            let found = one_judged(&tx.response.as_ref().unwrap().headers, "Response");
             match ex.compliance {
                 Compliance::Compliant => assert!(
                     found.is_none(),

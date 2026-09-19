@@ -435,27 +435,32 @@ impl Rule for KeepAliveHeaderValid {
         }
 
         let config: &MessageKeepAliveConfig = ctx.state();
-        // One finding per section: the field is hop-by-hop and each section's
-        // value was written by the peer at that end of this connection, so
-        // neither answers for the other.
+        // The field is hop-by-hop and each section's value was written by the
+        // peer at that end of this connection, so neither answers for the
+        // other -- and within a section each `keepalive-param` is a parameter
+        // that peer wrote on its own terms.
         let mut out = Vec::new();
-        if let Some(message) = judge(
-            &tx.request.headers,
-            &tx.request.version,
-            "Request",
-            config.max_timeout_seconds,
-        ) {
-            out.push(ctx.by_client().report_with(message.def, message.message));
-        }
-        if let Some(resp) = &tx.response {
-            if let Some(message) = judge(
-                &resp.headers,
-                &resp.version,
-                "Response",
+        out.extend(
+            judge(
+                &tx.request.headers,
+                &tx.request.version,
+                "Request",
                 config.max_timeout_seconds,
-            ) {
-                out.push(ctx.by_server().report_with(message.def, message.message));
-            }
+            )
+            .into_iter()
+            .map(|defect| ctx.by_client().report_with(defect.def, defect.message)),
+        );
+        if let Some(resp) = &tx.response {
+            out.extend(
+                judge(
+                    &resp.headers,
+                    &resp.version,
+                    "Response",
+                    config.max_timeout_seconds,
+                )
+                .into_iter()
+                .map(|defect| ctx.by_server().report_with(defect.def, defect.message)),
+            );
         }
         out
     }
@@ -479,21 +484,31 @@ fn judge(
     version: &str,
     side: &str,
     max_timeout_seconds: u64,
-) -> Option<Defect> {
-    let value = combined_field_value_as_written(headers, "keep-alive")?;
+) -> Vec<Defect> {
+    let Some(value) = combined_field_value_as_written(headers, "keep-alive") else {
+        return Vec::new();
+    };
 
-    validate_keep_alive(&value, max_timeout_seconds)
-        .err()
-        .or_else(|| missing_connection_option(headers, version))
+    // The grammar first and the connection option after it, and both are
+    // reported: they are two things to fix, and the second was reachable only
+    // once the first found nothing.
+    let mut out = validate_keep_alive(&value, max_timeout_seconds);
+    out.extend(missing_connection_option(headers, version));
+    out.into_iter()
         .map(|defect| defect.in_context(|message| format!("{side} Keep-Alive header: {message}")))
+        .collect()
 }
 
 /// The field's one requirement on a sender: it travels with its connection
 /// option or it does not travel.
 ///
-/// The grammar is judged first, so a member that derives from nothing is
-/// reported as itself rather than as this. Both are true of such a message and
-/// a rule returns one finding.
+/// The grammar is judged first because that is the order they read in, not
+/// because one stands in for the other: a `Keep-Alive: timeout` sent with no
+/// `keep-alive` connection option is a parameter to fix *and* a field that must
+/// travel with its option, and an operator that is told only the first learns
+/// the second after fixing it and re-running. This used to be reached only when
+/// the grammar found nothing, on the reasoning that a rule returns one finding
+/// -- which the walk below no longer does, and the engine never required.
 ///
 /// The gate is the message's own version. `Connection` has no meaning in HTTP/2
 /// or HTTP/3 and both forbid the field outright, so asking an HTTP/2 sender for
@@ -516,10 +531,14 @@ fn missing_connection_option(headers: &hyper::HeaderMap, version: &str) -> Optio
     ))
 }
 
-/// Validate a whole `Keep-Alive` field value.
+/// Validate a whole `Keep-Alive` field value, parameter by parameter.
+///
+/// **Each `keepalive-param` is a parameter the sender wrote on its own terms**,
+/// and the field's ordinary spelling on the wire is the two-member
+/// `timeout=5, max=1000`. The walk used to `?` out at the first defective one.
 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
 // cite(RFC 2068 § 19.7.1.1): "Keep-Alive-header = "Keep-Alive" ":" 0# keepalive-param"
-fn validate_keep_alive(value: &str, max_timeout_seconds: u64) -> Result<(), Defect> {
+fn validate_keep_alive(value: &str, max_timeout_seconds: u64) -> Vec<Defect> {
     // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
     let v = trim_ows(value);
 
@@ -527,6 +546,7 @@ fn validate_keep_alive(value: &str, max_timeout_seconds: u64) -> Result<(), Defe
     // `quoted-string` and hold one as data. Each is trimmed as it is reached
     // rather than in a pass of its own, so a value failing at its first member
     // stops there.
+    let mut out = Vec::new();
     for (index, member) in list_members_as_written(v).into_iter().enumerate() {
         let n = index + 1;
 
@@ -541,11 +561,14 @@ fn validate_keep_alive(value: &str, max_timeout_seconds: u64) -> Result<(), Defe
             continue;
         }
 
-        validate_keepalive_param(member, max_timeout_seconds)
-            .map_err(|defect| defect.in_context(|message| format!("member {n} {message}")))?;
+        out.extend(
+            validate_keepalive_param(member, max_timeout_seconds)
+                .err()
+                .map(|defect| defect.in_context(|message| format!("member {n} {message}"))),
+        );
     }
 
-    Ok(())
+    out
 }
 
 /// Validate one `keepalive-param`.
@@ -821,13 +844,78 @@ mod tests {
         tx
     }
 
-    fn check(tx: &crate::http_transaction::HttpTransaction, max: i64) -> Option<Violation> {
-        crate::test_helpers::run_rule(
+    /// The field's ordinary spelling is `timeout=5, max=1000`, and a sender
+    /// that gets both parameters wrong is answered about both.
+    #[test]
+    fn every_defective_keepalive_param_is_answered_about() {
+        let tx = response_with(Some("timeout, max="));
+        let found = check_all(&tx, 3600);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "keep_alive_parameter_equals_missing",
+                "keep_alive_parameter_value_empty"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(
+            found[0].message.contains("member 1 "),
+            "{}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("member 2 "),
+            "{}",
+            found[1].message
+        );
+    }
+
+    /// The connection option is the field's own requirement on the sender and
+    /// is no longer reached only when the grammar found nothing: a parameter to
+    /// fix and a field that must travel with its option are two things.
+    #[test]
+    fn a_bad_parameter_does_not_stand_in_for_the_missing_connection_option() {
+        let mut tx = response_with(Some("timeout"));
+        tx.response
+            .as_mut()
+            .expect("the fixture has a response")
+            .headers
+            .remove("connection");
+        let found = check_all(&tx, 3600);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "keep_alive_parameter_equals_missing",
+                "keep_alive_connection_option_missing"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    fn check_all(tx: &crate::http_transaction::HttpTransaction, max: i64) -> Vec<Violation> {
+        crate::test_helpers::run_rule_all(
             &KeepAliveHeaderValid,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_max(max),
         )
+    }
+
+    /// The fixtures below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported: a helper that
+    /// silently drops a second finding cannot see this walk regress.
+    fn check(tx: &crate::http_transaction::HttpTransaction, max: i64) -> Option<Violation> {
+        let mut found = check_all(tx, max);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
     }
 
     #[rstest]
