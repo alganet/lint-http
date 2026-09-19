@@ -57,13 +57,40 @@
 /// freshening a stored `GET` for the same reason. Everything else is equality:
 /// a stored `GET` is no candidate for an `OPTIONS`, a `TRACE`, or an unsafe
 /// method, which invalidates a stored response rather than reusing one.
-// cite(RFC 9110 § 9.2.3): "This specification defines caching semantics for GET, HEAD, and POST"
 // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
 pub fn method_allows(stored: &str, presented: &str) -> bool {
-    if !matches!(stored, "GET" | "HEAD" | "POST") {
+    if !defines_caching_semantics(stored) {
         return false;
     }
     stored == presented || (stored == "GET" && presented == "HEAD")
+}
+
+/// Whether the method a response answered is one a cache is defined to store a
+/// response for at all — RFC 9111 § 3's opening term, and the first of its
+/// conjuncts to fall.
+///
+/// § 3 is a conjunction, and this is the clause it begins with. Every later
+/// clause is about the two messages' fields, so a rule reading one of those
+/// alone can be asking a response that no cache was ever going to hold for a
+/// field that would change nothing about it. The list is § 9.2.3's and it is
+/// three long: a method has to define caching semantics to be cached, and
+/// `OPTIONS`, `TRACE`, `PUT`, `DELETE` and `CONNECT` define none, so no
+/// directive their responses carry reaches a cache.
+///
+/// `POST` is on the list and is deliberately answered `true` here, which is
+/// where this parts company with [`response_is_storable`]. § 9.3.3 puts two
+/// further conditions on a POST response — explicit freshness *and* a
+/// `Content-Location` equal to the target URI — so a POST response is storable
+/// only sometimes, and a caller that needs "was one stored" must refuse it
+/// (that function does). A caller asking instead whether stating freshness
+/// would *achieve* anything gets a different answer for `POST` than for
+/// `OPTIONS`: for a POST the two conditions are a repair the sender can make,
+/// and for an `OPTIONS` there is none. The two questions are separated because
+/// the corpus contains both kinds of caller.
+// cite(RFC 9110 § 9.2.3): "This specification defines caching semantics for GET, HEAD, and POST"
+// cite(RFC 9111 § 3): "the request method is understood by the cache"
+pub fn defines_caching_semantics(method: &str) -> bool {
+    matches!(method, "GET" | "HEAD" | "POST")
 }
 
 /// Whether the earlier exchange left a stored response behind at all.
