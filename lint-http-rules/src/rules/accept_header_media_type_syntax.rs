@@ -214,10 +214,303 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
             // media-range carries the parameters.
             // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
             // cite(RFC 9110 § 12.5.1): "Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2)."
-            let check_val = |hdr: &str,
-                             val: &str,
-                             party: crate::lint::Party|
+            // One member's reading, and the unit this rule answers in. A
+            // media-range and everything hanging off it is one thing the sender
+            // wrote, so the first defect in it answers for it. But the *next*
+            // member is a second preference the sender stated, and while this
+            // sat inside the walk it was never read once the first member had
+            // anything wrong with it.
+            let member_defect = |hdr: &str,
+                                 member: &str,
+                                 party: crate::lint::Party|
              -> Option<Violation> {
+                // Quote-aware for the same reason: a `;` inside a quoted value
+                // does not start a parameter.
+                let mut parts =
+                    crate::helpers::list::split_semicolons_respecting_quotes(member).into_iter();
+                // `OWS`, not `str::trim`: the `;` this split on prints `OWS`
+                // around it and nothing wider, and on a value read one `char`
+                // per octet `str::trim` removes %xA0 and %x85 — which are
+                // `obs-text`, and no `subtype` admits one.
+                // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
+                // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                let media = crate::helpers::headers::trim_ows(parts.next().unwrap_or(""));
+
+                // A bare asterisk is none of the three shapes, and it needs
+                // no branch of its own to say so: it holds no `/`, so the
+                // reader below refuses it for the same arithmetic reason it
+                // refuses `text`, and the message quotes the value back. It
+                // had one, reporting "invalid media-range" under §12.5.1's
+                // sentence about what the asterisk ranges over — which
+                // explains what `*` would have meant somewhere else rather
+                // than what is wrong with it here.
+                // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
+
+                if media != "*/*" {
+                    // The three ways a value is no `type "/" subtype` pair
+                    // at all are the shared reader's, and it is the reader
+                    // `content_type_valid` asks the same question of: a
+                    // member with nothing in it, one with no `/`, and one
+                    // with a `/` and an empty half. The ids are the
+                    // catalogue's and the wording is this rule's, because
+                    // the reader answers about a `media-type` and only the
+                    // caller knows it was cut out of an `Accept` member.
+                    //
+                    // A member that is all parameters reaches the first of
+                    // those: `[ weight ]` is optional and the media-range
+                    // is not.
+                    // cite(RFC 9110 § 8.3.1): "media-type = type "/" subtype parameters type       = token subtype    = token"
+                    let parsed = match crate::helpers::media_type::parse_media_type(media) {
+                        Ok(parsed) => parsed,
+                        Err(defect) => {
+                            let message = match defect {
+                                MediaTypeError::Empty => {
+                                    format!("Empty media-range in {} header", hdr)
+                                }
+                                MediaTypeError::SlashMissing => format!(
+                                    "Invalid media-range '{}' in {} header: missing '/'",
+                                    media, hdr
+                                ),
+                                MediaTypeError::PartEmpty => format!(
+                                    "Invalid media-range '{}' in {} header: empty type or subtype",
+                                    media, hdr
+                                ),
+                            };
+                            return Some(
+                                ctx.by(party).report_with(media_type_error(defect), message),
+                            );
+                        }
+                    };
+                    {
+                        // Both halves are `token`, and the reader leaves
+                        // them exactly as written — it trims the whole
+                        // value and the run before the first `;`, where
+                        // `parameters` prints `OWS`, and nothing between a
+                        // type and its subtype, where the production prints
+                        // none. So `text /html` arrives here as a `type` of
+                        // `text ` and the scan below names the space. A
+                        // separate whitespace check used to stand in front
+                        // of the parse for that case, from when the reader
+                        // did trim each half; it reported the same octet
+                        // under a sentence rendered at the site instead of
+                        // under the id the scan draws.
+                        // The subtype is exempted when it is the literal
+                        // asterisk, since that is the wildcard rather than
+                        // a name.
+                        if let Some(c) =
+                            crate::helpers::token::find_invalid_token_char(parsed.type_)
+                        {
+                            return Some(ctx.by(party).report_with(
+                                token_character(c),
+                                format!(
+                                    "Invalid token '{}' in media type '{}' of {}",
+                                    c, parsed.type_, hdr
+                                ),
+                            ));
+                        }
+                        // A wildcard type with a concrete subtype is not one of
+                        // the shapes the asterisk has a meaning in. This is a
+                        // judgement about the prose, not a reading of the ABNF:
+                        // `type` is a `token` and `*` is a `tchar`, so `*/json`
+                        // does derive from `type "/" subtype`. But §12.5.1 gives
+                        // the asterisk exactly two jobs — all media types, or
+                        // all subtypes of one type — and this is neither, so
+                        // there is nothing a recipient could match it against.
+                        // `content_type_valid` takes the same
+                        // position on the same shape in Content-Type.
+                        if parsed.type_ == "*" {
+                            return Some(ctx.by(party).report_with(&MEDIA_RANGE_WILDCARD_INVALID, format!(
+                                        "Invalid media-range '{}' in {} header: a wildcard type is only meaningful with a wildcard subtype ('*/*'), since the asterisk names all media types or all subtypes of one type and nothing else",
+                                        media, hdr
+                                    )));
+                        }
+                        if parsed.subtype != "*" {
+                            if let Some(c) =
+                                crate::helpers::token::find_invalid_token_char(parsed.subtype)
+                            {
+                                return Some(ctx.by(party).report_with(
+                                    token_character(c),
+                                    format!(
+                                        "Invalid token '{}' in media subtype '{}' of {}",
+                                        c, parsed.subtype, hdr
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                // Validate parameters (name=value). 'q' must be a valid qvalue
+                let mut weight_seen = false;
+                for p in parts {
+                    let p = p.trim();
+                    if p.is_empty() {
+                        continue;
+                    }
+                    // The weight closes the member. `Accept = #( media-range
+                    // [ weight ] )` puts it after the media-range, and the
+                    // media-range is what carries the parameters, so a
+                    // parameter after `q=` derives from nothing in this
+                    // grammar. RFC 9110 removed the production that used to
+                    // allow it and states the consequence as a SHOULD.
+                    // cite(RFC 9110 § 12.5.1): "The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields."
+                    // cite(RFC 9110 § 12.5.1): "Senders using weights SHOULD send "q" last (after all media-range parameters)."
+                    if weight_seen {
+                        return Some(ctx.by(party).report_with(&MEDIA_RANGE_PARAMETER_FORBIDDEN, format!(
+                                    "Parameter '{}' follows the weight in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
+                                    p, hdr
+                                )));
+                    }
+                    // A parameter is a name, an "=", and a value; none of the
+                    // three is optional, so a bare word among the parameters is
+                    // not a parameter with a missing value but not a parameter
+                    // at all. The split and the two `OWS` trims are the shared
+                    // walk's; the whitespace beside the `=` it hands back is
+                    // this rule's published leniency, read and dropped here so
+                    // that the paragraph saying so is a statement about the code.
+                    let Some(parsed) = crate::helpers::parameter::parameter_of(p) else {
+                        continue;
+                    };
+                    let parsed = match parsed {
+                        Ok(parsed) => parsed,
+                        Err(ParameterDefect::NoEquals(_)) => {
+                            return Some(ctx.by(party).report_with(
+                                &PARAMETER_EQUALS_MISSING,
+                                format!("Invalid parameter '{}' in {} header: missing '='", p, hdr),
+                            ))
+                        }
+                    };
+                    let k = parsed.name;
+                    let v = parsed.value;
+                    // `token = 1*tchar`, so a name with no characters is not a
+                    // name. Scanning for an invalid character cannot see this:
+                    // an empty string has no invalid character in it, and
+                    // `; =value` passed on exactly that reasoning.
+                    // (`token = 1*tchar` is under apycite's 20-character floor
+                    // on its own; the production is quoted whole on the ids
+                    // the `token` subject carries.)
+                    // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
+                    if k.is_empty() {
+                        return Some(ctx.by(party).report_with(&TOKEN_EMPTY, format!(
+                                    "Empty parameter name in '{}' of {} header: a token is one or more characters",
+                                    p, hdr
+                                )));
+                    }
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(k) {
+                        return Some(ctx.by(party).report_with(
+                            token_character(c),
+                            format!(
+                                "Invalid character '{}' in parameter name '{}' in {} header",
+                                c, k, hdr
+                            ),
+                        ));
+                    }
+
+                    // The weight's name is matched without regard to case
+                    // because §12.4.2 defines it that way, and it is looked for
+                    // among all the parameters because §12.5.1 tells recipients
+                    // to find it wherever it sits.
+                    // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
+                    // cite(RFC 9110 § 12.5.1): "Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering."
+                    if k.eq_ignore_ascii_case("q") {
+                        weight_seen = true;
+                        // The one `=` in this loop that is not a
+                        // `parameter`'s. § 5.6.6's Note is what six rules
+                        // reading a media type publish a leniency about,
+                        // and the whitespace this rule trims elsewhere
+                        // answers to it — but a `q` is the `weight`, whose
+                        // production prints both of its `OWS` *before*
+                        // `"q="` and nothing optional inside the literal.
+                        // Two sentences about the same three characters,
+                        // and the parameter's name is what chooses.
+                        // cite(RFC 9110 § 12.4.2, label: the weight production): "weight = OWS ";" OWS "q=" qvalue"
+                        if parsed.whitespace_beside_equals {
+                            return Some(ctx.by(party).report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                        "Parameter '{}' in {} header writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
+                                        p, hdr
+                                    )));
+                        }
+                        // The three-digit cap and the asymmetry between the
+                        // two branches are both in the production, and the
+                        // helper owns it — this rule does not keep a second
+                        // copy. The MUST NOT is the sender-side statement of
+                        // the same bound, and it is senders this rule reports.
+                        // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
+                        if !crate::helpers::qvalue::valid_qvalue(v) {
+                            return Some(ctx.by(party).report_with(
+                                &QVALUE_MALFORMED,
+                                format!("Invalid qvalue '{}' in {} header", v, hdr),
+                            ));
+                        }
+                    } else {
+                        // Here the whitespace beside the `=` *is* the
+                        // parameter's, and the sentence that governs it is
+                        // the Note rather than the weight's production. Both
+                        // sentences forbid the octet, so the branch chooses
+                        // which one the finding cites, not whether there is
+                        // one.
+                        // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
+                        if parsed.whitespace_beside_equals {
+                            return Some(ctx.by(party).report_with(&PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                        "Parameter '{}' in {} header writes whitespace beside its '='; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
+                                        p, hdr
+                                    )));
+                        }
+
+                        // `parameter-value` is `( token / quoted-string )`, and
+                        // the alternation is read by the helper that owns it.
+                        // Each half's defect is named after the half, which is
+                        // why the three arms below report three subjects.
+                        match crate::helpers::word::token_or_quoted_string(v) {
+                            Ok(_) => {}
+                            // The same shape the parameter *name* above was
+                            // corrected for, left standing on the value half:
+                            // `a/b;x=` reached a `tchar` scan, which finds no
+                            // invalid character in the empty string and called it
+                            // clean. Neither alternative derives the empty string
+                            // -- `token = 1*tchar`, and the shortest
+                            // `quoted-string` is its two DQUOTEs -- so the value
+                            // as written derives from no `parameter-value`.
+                            // (`x=""` is a different value and still conforms.)
+                            Err(WordDefect::Empty) => {
+                                return Some(ctx.by(party).report_with(&PARAMETER_VALUE_EMPTY, format!(
+                                            "Empty parameter value in '{}' of {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
+                                            p, hdr
+                                        )));
+                            }
+                            Err(WordDefect::NotQuotedString(defect)) => {
+                                return Some(ctx.by(party).report_with(
+                                    quoted_string_defect(defect),
+                                    format!(
+                                        "Invalid quoted-string parameter '{}' in {} header: {}",
+                                        p,
+                                        hdr,
+                                        defect.message(v)
+                                    ),
+                                ));
+                            }
+                            Err(WordDefect::NotToken(c)) => {
+                                return Some(ctx.by(party).report_with(
+                                    token_character(c),
+                                    format!(
+                                        "Invalid token '{}' in parameter value '{}' of {} header",
+                                        c, v, hdr
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
+                None
+            };
+
+            let check_val = |hdr: &str, val: &str, party: crate::lint::Party| -> Vec<Violation> {
+                // One finding per member. `#( media-range [ weight ] )` states
+                // one preference per position, so a value offering three
+                // malformed media-ranges is three preferences the operator has
+                // to correct, and a walk that returned at the first told them
+                // about one.
+                let mut found = Vec::new();
                 // A field line holding no element at all is the `#` construct's
                 // zero-element list, and §12.5.1 has a meaning for it — a sender
                 // that accepts anything. Only the *bracketing* is a recipient's
@@ -227,7 +520,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                 // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
                 // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
                 if crate::helpers::headers::trim_ows(val).is_empty() {
-                    return None;
+                    return found;
                 }
                 // Quote-aware, because a comma inside a quoted parameter value is
                 // not a list separator. A raw `split(',')` cut such a value in half
@@ -251,294 +544,18 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                     // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                     if member.is_empty() {
-                        return Some(ctx.by(party).report_with(
+                        found.push(ctx.by(party).report_with(
                             &LIST_MEMBER_EMPTY,
                             format!(
                                 "{} holds an empty list element; the field line reads '{}'. Every position in `#( media-range [ weight ] )` holds a media range, and a comma with nothing beside it holds none",
                                 hdr, val
                             ),
                         ));
+                        continue;
                     }
-                    // Quote-aware for the same reason: a `;` inside a quoted value
-                    // does not start a parameter.
-                    let mut parts =
-                        crate::helpers::list::split_semicolons_respecting_quotes(member)
-                            .into_iter();
-                    // `OWS`, not `str::trim`: the `;` this split on prints `OWS`
-                    // around it and nothing wider, and on a value read one `char`
-                    // per octet `str::trim` removes %xA0 and %x85 — which are
-                    // `obs-text`, and no `subtype` admits one.
-                    // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
-                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
-                    let media = crate::helpers::headers::trim_ows(parts.next().unwrap_or(""));
-
-                    // A bare asterisk is none of the three shapes, and it needs
-                    // no branch of its own to say so: it holds no `/`, so the
-                    // reader below refuses it for the same arithmetic reason it
-                    // refuses `text`, and the message quotes the value back. It
-                    // had one, reporting "invalid media-range" under §12.5.1's
-                    // sentence about what the asterisk ranges over — which
-                    // explains what `*` would have meant somewhere else rather
-                    // than what is wrong with it here.
-                    // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
-
-                    if media != "*/*" {
-                        // The three ways a value is no `type "/" subtype` pair
-                        // at all are the shared reader's, and it is the reader
-                        // `content_type_valid` asks the same question of: a
-                        // member with nothing in it, one with no `/`, and one
-                        // with a `/` and an empty half. The ids are the
-                        // catalogue's and the wording is this rule's, because
-                        // the reader answers about a `media-type` and only the
-                        // caller knows it was cut out of an `Accept` member.
-                        //
-                        // A member that is all parameters reaches the first of
-                        // those: `[ weight ]` is optional and the media-range
-                        // is not.
-                        // cite(RFC 9110 § 8.3.1): "media-type = type "/" subtype parameters type       = token subtype    = token"
-                        let parsed = match crate::helpers::media_type::parse_media_type(media) {
-                            Ok(parsed) => parsed,
-                            Err(defect) => {
-                                let message = match defect {
-                                    MediaTypeError::Empty => {
-                                        format!("Empty media-range in {} header", hdr)
-                                    }
-                                    MediaTypeError::SlashMissing => format!(
-                                        "Invalid media-range '{}' in {} header: missing '/'",
-                                        media, hdr
-                                    ),
-                                    MediaTypeError::PartEmpty => format!(
-                                        "Invalid media-range '{}' in {} header: empty type or subtype",
-                                        media, hdr
-                                    ),
-                                };
-                                return Some(
-                                    ctx.by(party).report_with(media_type_error(defect), message),
-                                );
-                            }
-                        };
-                        {
-                            // Both halves are `token`, and the reader leaves
-                            // them exactly as written — it trims the whole
-                            // value and the run before the first `;`, where
-                            // `parameters` prints `OWS`, and nothing between a
-                            // type and its subtype, where the production prints
-                            // none. So `text /html` arrives here as a `type` of
-                            // `text ` and the scan below names the space. A
-                            // separate whitespace check used to stand in front
-                            // of the parse for that case, from when the reader
-                            // did trim each half; it reported the same octet
-                            // under a sentence rendered at the site instead of
-                            // under the id the scan draws.
-                            // The subtype is exempted when it is the literal
-                            // asterisk, since that is the wildcard rather than
-                            // a name.
-                            if let Some(c) =
-                                crate::helpers::token::find_invalid_token_char(parsed.type_)
-                            {
-                                return Some(ctx.by(party).report_with(
-                                    token_character(c),
-                                    format!(
-                                        "Invalid token '{}' in media type '{}' of {}",
-                                        c, parsed.type_, hdr
-                                    ),
-                                ));
-                            }
-                            // A wildcard type with a concrete subtype is not one of
-                            // the shapes the asterisk has a meaning in. This is a
-                            // judgement about the prose, not a reading of the ABNF:
-                            // `type` is a `token` and `*` is a `tchar`, so `*/json`
-                            // does derive from `type "/" subtype`. But §12.5.1 gives
-                            // the asterisk exactly two jobs — all media types, or
-                            // all subtypes of one type — and this is neither, so
-                            // there is nothing a recipient could match it against.
-                            // `content_type_valid` takes the same
-                            // position on the same shape in Content-Type.
-                            if parsed.type_ == "*" {
-                                return Some(ctx.by(party).report_with(&MEDIA_RANGE_WILDCARD_INVALID, format!(
-                                        "Invalid media-range '{}' in {} header: a wildcard type is only meaningful with a wildcard subtype ('*/*'), since the asterisk names all media types or all subtypes of one type and nothing else",
-                                        media, hdr
-                                    )));
-                            }
-                            if parsed.subtype != "*" {
-                                if let Some(c) =
-                                    crate::helpers::token::find_invalid_token_char(parsed.subtype)
-                                {
-                                    return Some(ctx.by(party).report_with(
-                                        token_character(c),
-                                        format!(
-                                            "Invalid token '{}' in media subtype '{}' of {}",
-                                            c, parsed.subtype, hdr
-                                        ),
-                                    ));
-                                }
-                            }
-                        }
-                    }
-
-                    // Validate parameters (name=value). 'q' must be a valid qvalue
-                    let mut weight_seen = false;
-                    for p in parts {
-                        let p = p.trim();
-                        if p.is_empty() {
-                            continue;
-                        }
-                        // The weight closes the member. `Accept = #( media-range
-                        // [ weight ] )` puts it after the media-range, and the
-                        // media-range is what carries the parameters, so a
-                        // parameter after `q=` derives from nothing in this
-                        // grammar. RFC 9110 removed the production that used to
-                        // allow it and states the consequence as a SHOULD.
-                        // cite(RFC 9110 § 12.5.1): "The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields."
-                        // cite(RFC 9110 § 12.5.1): "Senders using weights SHOULD send "q" last (after all media-range parameters)."
-                        if weight_seen {
-                            return Some(ctx.by(party).report_with(&MEDIA_RANGE_PARAMETER_FORBIDDEN, format!(
-                                    "Parameter '{}' follows the weight in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
-                                    p, hdr
-                                )));
-                        }
-                        // A parameter is a name, an "=", and a value; none of the
-                        // three is optional, so a bare word among the parameters is
-                        // not a parameter with a missing value but not a parameter
-                        // at all. The split and the two `OWS` trims are the shared
-                        // walk's; the whitespace beside the `=` it hands back is
-                        // this rule's published leniency, read and dropped here so
-                        // that the paragraph saying so is a statement about the code.
-                        let Some(parsed) = crate::helpers::parameter::parameter_of(p) else {
-                            continue;
-                        };
-                        let parsed = match parsed {
-                            Ok(parsed) => parsed,
-                            Err(ParameterDefect::NoEquals(_)) => {
-                                return Some(ctx.by(party).report_with(
-                                    &PARAMETER_EQUALS_MISSING,
-                                    format!(
-                                        "Invalid parameter '{}' in {} header: missing '='",
-                                        p, hdr
-                                    ),
-                                ))
-                            }
-                        };
-                        let k = parsed.name;
-                        let v = parsed.value;
-                        // `token = 1*tchar`, so a name with no characters is not a
-                        // name. Scanning for an invalid character cannot see this:
-                        // an empty string has no invalid character in it, and
-                        // `; =value` passed on exactly that reasoning.
-                        // (`token = 1*tchar` is under apycite's 20-character floor
-                        // on its own; the production is quoted whole on the ids
-                        // the `token` subject carries.)
-                        // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
-                        if k.is_empty() {
-                            return Some(ctx.by(party).report_with(&TOKEN_EMPTY, format!(
-                                    "Empty parameter name in '{}' of {} header: a token is one or more characters",
-                                    p, hdr
-                                )));
-                        }
-                        if let Some(c) = crate::helpers::token::find_invalid_token_char(k) {
-                            return Some(ctx.by(party).report_with(
-                                token_character(c),
-                                format!(
-                                    "Invalid character '{}' in parameter name '{}' in {} header",
-                                    c, k, hdr
-                                ),
-                            ));
-                        }
-
-                        // The weight's name is matched without regard to case
-                        // because §12.4.2 defines it that way, and it is looked for
-                        // among all the parameters because §12.5.1 tells recipients
-                        // to find it wherever it sits.
-                        // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
-                        // cite(RFC 9110 § 12.5.1): "Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering."
-                        if k.eq_ignore_ascii_case("q") {
-                            weight_seen = true;
-                            // The one `=` in this loop that is not a
-                            // `parameter`'s. § 5.6.6's Note is what six rules
-                            // reading a media type publish a leniency about,
-                            // and the whitespace this rule trims elsewhere
-                            // answers to it — but a `q` is the `weight`, whose
-                            // production prints both of its `OWS` *before*
-                            // `"q="` and nothing optional inside the literal.
-                            // Two sentences about the same three characters,
-                            // and the parameter's name is what chooses.
-                            // cite(RFC 9110 § 12.4.2, label: the weight production): "weight = OWS ";" OWS "q=" qvalue"
-                            if parsed.whitespace_beside_equals {
-                                return Some(ctx.by(party).report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
-                                        "Parameter '{}' in {} header writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
-                                        p, hdr
-                                    )));
-                            }
-                            // The three-digit cap and the asymmetry between the
-                            // two branches are both in the production, and the
-                            // helper owns it — this rule does not keep a second
-                            // copy. The MUST NOT is the sender-side statement of
-                            // the same bound, and it is senders this rule reports.
-                            // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
-                            if !crate::helpers::qvalue::valid_qvalue(v) {
-                                return Some(ctx.by(party).report_with(
-                                    &QVALUE_MALFORMED,
-                                    format!("Invalid qvalue '{}' in {} header", v, hdr),
-                                ));
-                            }
-                        } else {
-                            // Here the whitespace beside the `=` *is* the
-                            // parameter's, and the sentence that governs it is
-                            // the Note rather than the weight's production. Both
-                            // sentences forbid the octet, so the branch chooses
-                            // which one the finding cites, not whether there is
-                            // one.
-                            // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
-                            if parsed.whitespace_beside_equals {
-                                return Some(ctx.by(party).report_with(&PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, format!(
-                                        "Parameter '{}' in {} header writes whitespace beside its '='; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
-                                        p, hdr
-                                    )));
-                            }
-
-                            // `parameter-value` is `( token / quoted-string )`, and
-                            // the alternation is read by the helper that owns it.
-                            // Each half's defect is named after the half, which is
-                            // why the three arms below report three subjects.
-                            match crate::helpers::word::token_or_quoted_string(v) {
-                                Ok(_) => {}
-                                // The same shape the parameter *name* above was
-                                // corrected for, left standing on the value half:
-                                // `a/b;x=` reached a `tchar` scan, which finds no
-                                // invalid character in the empty string and called it
-                                // clean. Neither alternative derives the empty string
-                                // -- `token = 1*tchar`, and the shortest
-                                // `quoted-string` is its two DQUOTEs -- so the value
-                                // as written derives from no `parameter-value`.
-                                // (`x=""` is a different value and still conforms.)
-                                Err(WordDefect::Empty) => {
-                                    return Some(ctx.by(party).report_with(&PARAMETER_VALUE_EMPTY, format!(
-                                            "Empty parameter value in '{}' of {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
-                                            p, hdr
-                                        )));
-                                }
-                                Err(WordDefect::NotQuotedString(defect)) => {
-                                    return Some(ctx.by(party).report_with(
-                                        quoted_string_defect(defect),
-                                        format!(
-                                            "Invalid quoted-string parameter '{}' in {} header: {}",
-                                            p,
-                                            hdr,
-                                            defect.message(v)
-                                        ),
-                                    ));
-                                }
-                                Err(WordDefect::NotToken(c)) => {
-                                    return Some(ctx.by(party).report_with(token_character(c), format!(
-                                            "Invalid token '{}' in parameter value '{}' of {} header",
-                                            c, v, hdr
-                                        )));
-                                }
-                            }
-                        }
-                    }
+                    found.extend(member_defect(hdr, member, party));
                 }
-                None
+                found
             };
 
             // Every Accept field line, not just the first. `Accept` is a list
@@ -553,7 +570,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
             let check_all = |hdr: &str,
                              headers: &hyper::HeaderMap,
                              party: crate::lint::Party|
-             -> Option<Violation> {
+             -> Vec<Violation> {
+                let mut lines = Vec::new();
                 for hv in headers.get_all("accept").iter() {
                     // Decoded from the raw octets rather than through `to_str`,
                     // which refuses `obs-text` — legal inside a `quoted-string`, so
@@ -561,11 +579,9 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // Skipping it meant a bare `*` sitting on the same line as an
                     // obs-text parameter was reported by nothing at all.
                     let val = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(v) = check_val(hdr, &val, party) {
-                        return Some(v);
-                    }
+                    lines.extend(check_val(hdr, &val, party));
                 }
-                None
+                lines
             };
 
             out.extend(check_all(
@@ -594,6 +610,35 @@ static REGISTRATION: &dyn crate::rules::Rule = &AcceptHeaderMediaTypeSyntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **Every media-range the sender offered is answered.** `#( media-range
+    /// [ weight ] )` states one preference per position, so a value offering
+    /// three malformed ranges is three preferences to correct — and a walk that
+    /// returned at the first told the operator about one.
+    #[test]
+    fn every_defective_member_is_reported() {
+        let rule = AcceptHeaderMediaTypeSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "accept_header_media_type_syntax",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.insert(
+            "accept",
+            hyper::header::HeaderValue::from_static("text/, image/png;q=x, audio/mp3;=1"),
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            found.len(),
+            3,
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
 
     /// The media-range is `OWS`-trimmed after the split on `;`, not
     /// `str::trim`-trimmed, and the two differ only on a value read one `char`

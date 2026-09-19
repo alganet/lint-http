@@ -211,7 +211,12 @@ impl Rule for AcceptEncodingParameterValid {
             // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
             let check_all = |headers: &hyper::HeaderMap,
                              party: crate::lint::Party|
-             -> Option<Violation> {
+             -> Vec<Violation> {
+                // One finding per member. `#( codings [ weight ] )` states one
+                // preference per position, and a value stating two preferences
+                // malformedly is two preferences the operator has to correct --
+                // a walk that returned at the first told them about one.
+                let mut found = Vec::new();
                 // Read as the octets the sender wrote, one `char` per octet.
                 // There are no quoted-strings anywhere in this field — a member
                 // is a `token`, one of two literals, and the weight's fixed
@@ -251,14 +256,16 @@ impl Rule for AcceptEncodingParameterValid {
                     // this defect is named for — reported nothing.
                     // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
                     // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                    // One finding for the line however many gaps it holds:
+                    // what § 5.6.1.1 forbids generating is an empty *element*,
+                    // and a line written with three of them is one list with
+                    // gaps in it. The message names the line and not the
+                    // member, which is the same reading said out loud.
+                    let mut saw_an_empty_member = false;
                     for part in crate::helpers::list::sender_list_members(val) {
                         if part.is_empty() {
-                            return Some(ctx.by(party).report_with(
-                                &LIST_MEMBER_EMPTY,
-                                format!(
-                                    "Accept-Encoding holds an empty list element; the field line reads '{val}'. Every position in `#( codings [ weight ] )` holds a coding, and a comma with nothing beside it holds none"
-                                ),
-                            ));
+                            saw_an_empty_member = true;
+                            continue;
                         }
                         // Split into token and optional params
                         let mut iter =
@@ -289,21 +296,26 @@ impl Rule for AcceptEncodingParameterValid {
                                 // arithmetic reason, and the id names that
                                 // reason rather than this field.
                                 if primary.is_empty() {
-                                    return Some(ctx.by(party).report_with(
+                                    found.push(ctx.by(party).report_with(
                                         &TOKEN_EMPTY,
                                         format!(
                                             "Empty content-coding in Accept-Encoding member '{}'",
                                             part
                                         ),
                                     ));
+                                    continue;
                                 }
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(primary)
                                 {
-                                    return Some(ctx.by(party).report_with(
+                                    found.push(ctx.by(party).report_with(
                                         token_character(c),
-                                        format!("Invalid token '{}' in Accept-Encoding header", c),
+                                        format!(
+                                            "Invalid token '{}' in Accept-Encoding member '{}'",
+                                            c, part
+                                        ),
                                     ));
+                                    continue;
                                 }
                             }
 
@@ -320,6 +332,12 @@ impl Rule for AcceptEncodingParameterValid {
                             // finding; what is a finding is anything else in
                             // its place, or two of it.
                             // cite(RFC 9110 § 12.5.3): "Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2."
+                            //
+                            // One finding per member for the weight, not one
+                            // per parameter: `[ weight ]` brackets a single
+                            // construct, so everything a member writes after
+                            // its coding is one thing that is not a weight, and
+                            // the loop ends the member rather than the value.
                             let mut weight_seen = false;
                             for param in iter {
                                 // Not skipped as an empty parameter slot, because
@@ -329,10 +347,11 @@ impl Rule for AcceptEncodingParameterValid {
                                 // — whether it sits at the end of the member or
                                 // between two others.
                                 if param.is_empty() {
-                                    return Some(ctx.by(party).report_with(&WEIGHT_MISSING, format!(
+                                    found.push(ctx.by(party).report_with(&WEIGHT_MISSING, format!(
                                         "Accept-Encoding member '{}' has a ';' with no weight after it",
                                         part
                                     )));
+                                    break;
                                 }
 
                                 // The name is matched without regard to case
@@ -361,10 +380,11 @@ impl Rule for AcceptEncodingParameterValid {
                                         .is_some_and(|v| val.is_some_and(|t| t.len() != v.len()));
 
                                 if !name.eq_ignore_ascii_case("q") {
-                                    return Some(ctx.by(party).report_with(&WEIGHT_MALFORMED, format!(
+                                    found.push(ctx.by(party).report_with(&WEIGHT_MALFORMED, format!(
                                         "'{}' is not a weight, and a weight is the only thing an Accept-Encoding coding may carry (member '{}')",
                                         param, part
                                     )));
+                                    break;
                                 }
                                 // §12.5.3 brackets one `[ weight ]` after the
                                 // codings, and the message names it because the
@@ -372,13 +392,14 @@ impl Rule for AcceptEncodingParameterValid {
                                 // per field, and a shared entry may only cite a
                                 // sentence every rule declaring it states.
                                 if weight_seen {
-                                    return Some(ctx.by(party).report_with(
+                                    found.push(ctx.by(party).report_with(
                                         &WEIGHT_DUPLICATED,
                                         format!(
                                             "More than one weight in Accept-Encoding member '{}': §12.5.3 brackets one",
                                             part
                                         ),
                                     ));
+                                    break;
                                 }
                                 weight_seen = true;
 
@@ -388,10 +409,11 @@ impl Rule for AcceptEncodingParameterValid {
                                 // `parameter`, and this field has no parameter
                                 // list for the Note to be about.
                                 if whitespace_beside_equals {
-                                    return Some(ctx.by(party).report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                    found.push(ctx.by(party).report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
                                         "Accept-Encoding member '{}' writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
                                         part
                                     )));
+                                    break;
                                 }
 
                                 // The name matched and the `=` did not, which is
@@ -400,27 +422,38 @@ impl Rule for AcceptEncodingParameterValid {
                                 // as a single string, so there is no `=` here to
                                 // be absent from a pair this field never had.
                                 let Some(v) = val else {
-                                    return Some(ctx.by(party).report_with(&WEIGHT_MALFORMED, format!(
+                                    found.push(ctx.by(party).report_with(&WEIGHT_MALFORMED, format!(
                                         "'{}' is not a weight in Accept-Encoding member '{}': the production writes \"q=\" as one literal and this member stops at the name",
                                         name, part
                                     )));
+                                    break;
                                 };
 
                                 // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                                 if !crate::helpers::qvalue::valid_qvalue(v) {
-                                    return Some(ctx.by(party).report_with(
+                                    found.push(ctx.by(party).report_with(
                                         &QVALUE_MALFORMED,
                                         format!(
                                             "Invalid qvalue '{}' in Accept-Encoding member '{}'",
                                             v, part
                                         ),
                                     ));
+                                    break;
                                 }
                             }
                         }
                     }
+
+                    if saw_an_empty_member {
+                        found.push(ctx.by(party).report_with(
+                            &LIST_MEMBER_EMPTY,
+                            format!(
+                                "Accept-Encoding holds an empty list element; the field line reads '{val}'. Every position in `#( codings [ weight ] )` holds a coding, and a comma with nothing beside it holds none"
+                            ),
+                        ));
+                    }
                 }
-                None
+                found
             };
 
             // A response's Accept-Encoding is not a stray request field: §12.5.3
@@ -445,6 +478,68 @@ static REGISTRATION: &dyn crate::rules::Rule = &AcceptEncodingParameterValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **Every coding the sender expressed a preference for is answered.**
+    /// `#( codings [ weight ] )` states one preference per position, so a value
+    /// stating three of them malformedly is three preferences to correct — and
+    /// a walk that stopped at the first told the operator about one.
+    #[test]
+    fn every_defective_member_is_reported() {
+        let rule = AcceptEncodingParameterValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "accept_encoding_parameter_valid",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.insert(
+            "accept-encoding",
+            hyper::header::HeaderValue::from_static("gzip;q=x, br;charset=utf-8, de@flate"),
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            found.len(),
+            3,
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(ids.contains(&"qvalue_malformed"));
+        assert!(ids.contains(&"weight_malformed"));
+        assert!(ids.contains(&"token_character_forbidden"));
+    }
+
+    /// The empty member stays one finding for the line. § 5.6.1.1 forbids
+    /// generating an empty *element*, and a line written with three gaps is one
+    /// list with gaps in it — which is why the message names the line and not
+    /// the member.
+    #[test]
+    fn the_gaps_in_a_line_are_one_finding_and_the_codings_are_their_own() {
+        let rule = AcceptEncodingParameterValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "accept_encoding_parameter_valid",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.insert(
+            "accept-encoding",
+            hyper::header::HeaderValue::from_static("gzip;q=x,,br;q=y,,"),
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let empties = found
+            .iter()
+            .filter(|v| v.violation == "list_member_empty")
+            .count();
+        assert_eq!(empties, 1, "the gaps are one list defect: {found:?}");
+        assert_eq!(found.len() - empties, 2, "{found:?}");
+    }
 
     #[rstest]
     #[case(Some("gzip"), false)]

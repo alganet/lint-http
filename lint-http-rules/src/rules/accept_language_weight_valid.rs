@@ -157,12 +157,17 @@ impl Rule for AcceptLanguageWeightValid {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per member. `#( language-range [ weight ] )` states one
+        // preference per position, so two members carrying malformed weights
+        // are two preferences the operator has to correct.
+        let findings = || -> Vec<Violation> {
             // The production the rule is a reading of. A member is a range and at
             // most one weight; nothing else derives from it.
             // cite(RFC 9110 § 12.5.4): "Accept-Language = #( language-range [ weight ] )"
             // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
-            let validate_value = |hdr_value: &str| -> Option<Violation> {
+            let mut out = Vec::new();
+            let validate_value = |hdr_value: &str| -> Vec<Violation> {
+                let mut found = Vec::new();
                 // A comma split with no regard for quoting, which is right rather
                 // than merely tolerable: nothing in this grammar is a
                 // quoted-string, so there is no quoted comma to protect.
@@ -207,13 +212,14 @@ impl Rule for AcceptLanguageWeightValid {
                         // parameter slots, and `weight` brackets nothing, so a `;`
                         // with nothing after it introduces a weight that is absent.
                         if param.is_empty() {
-                            return Some(ctx.report_with(
+                            found.push(ctx.report_with(
                                 &WEIGHT_MISSING,
                                 format!(
                                     "Accept-Language member '{}' has a ';' with no weight after it",
                                     member
                                 ),
                             ));
+                            break;
                         }
                         // Matched without regard to case because §12.4.2 defines
                         // the parameter that way, and this is the only name the
@@ -234,10 +240,11 @@ impl Rule for AcceptLanguageWeightValid {
                                 .is_some_and(|v| val_opt.is_some_and(|t| t.len() != v.len()));
 
                         if !name.eq_ignore_ascii_case("q") {
-                            return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
+                            found.push(ctx.report_with(&WEIGHT_MALFORMED, format!(
                                     "'{}' is not a weight, and a weight is the only thing an Accept-Language range may carry (member '{}')",
                                     param, member
                                 )));
+                            break;
                         }
                         // §12.5.4 brackets one `[ weight ]` after the range,
                         // and the message names it because the entry cannot: the
@@ -245,13 +252,14 @@ impl Rule for AcceptLanguageWeightValid {
                         // entry may only cite a sentence every rule declaring it
                         // states.
                         if weight_seen {
-                            return Some(ctx.report_with(
+                            found.push(ctx.report_with(
                                 &WEIGHT_DUPLICATED,
                                 format!(
                                     "More than one weight in Accept-Language member '{}': §12.5.4 brackets one",
                                     member
                                 ),
                             ));
+                            break;
                         }
                         weight_seen = true;
 
@@ -260,10 +268,11 @@ impl Rule for AcceptLanguageWeightValid {
                         // this field has no parameter list for the Note to be
                         // about.
                         if whitespace_beside_equals {
-                            return Some(ctx.report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                            found.push(ctx.report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
                                     "Accept-Language member '{}' writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
                                     member
                                 )));
+                            break;
                         }
 
                         // The name matched and the `=` did not, which is one
@@ -272,25 +281,27 @@ impl Rule for AcceptLanguageWeightValid {
                         // string, so there is no `=` here to be absent from a
                         // pair this field never had.
                         let Some(val) = val_opt else {
-                            return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
+                            found.push(ctx.report_with(&WEIGHT_MALFORMED, format!(
                                     "'{}' is not a weight in Accept-Language member '{}': the production writes \"q=\" as one literal and this member stops at the name",
                                     name, member
                                 )));
+                            break;
                         };
 
                         // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                         if !crate::helpers::qvalue::valid_qvalue(val) {
-                            return Some(ctx.report_with(
+                            found.push(ctx.report_with(
                                 &QVALUE_MALFORMED,
                                 format!(
                                     "Invalid qvalue '{}' in Accept-Language member '{}'",
                                     val, member
                                 ),
                             ));
+                            break;
                         }
                     }
                 }
-                None
+                found
             };
 
             // Read as the octets the sender wrote, one `char` per octet, and
@@ -307,9 +318,7 @@ impl Rule for AcceptLanguageWeightValid {
                 &tx.request.headers,
                 "accept-language",
             ) {
-                if let Some(v) = validate_value(&line) {
-                    return Some(v);
-                }
+                out.extend(validate_value(&line));
             }
 
             // A response carrying Accept-Language is not something §12.5.4
@@ -322,15 +331,13 @@ impl Rule for AcceptLanguageWeightValid {
                     &resp.headers,
                     "accept-language",
                 ) {
-                    if let Some(v) = validate_value(&line) {
-                        return Some(v);
-                    }
+                    out.extend(validate_value(&line));
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -342,6 +349,38 @@ static REGISTRATION: &dyn crate::rules::Rule = &AcceptLanguageWeightValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **Every range the sender weighted is answered.** Two members carrying
+    /// malformed weights are two preferences the operator has to correct, and a
+    /// walk that returned at the first told them about one.
+    #[test]
+    fn every_defective_weight_is_reported() {
+        let rule = AcceptLanguageWeightValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "accept_language_weight_valid",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.insert(
+            "accept-language",
+            hyper::header::HeaderValue::from_static("en;q=x, fr;charset=utf-8, de;q=1;q=1"),
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            found.len(),
+            3,
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(ids.contains(&"qvalue_malformed"));
+        assert!(ids.contains(&"weight_malformed"));
+        assert!(ids.contains(&"weight_duplicated"));
+    }
 
     /// Four fields, one number. `q=1.5` derives from neither alternative of
     /// § 12.4.2's production wherever it is written, and each rule still names
