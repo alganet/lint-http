@@ -11,9 +11,12 @@ SPDX-License-Identifier: ISC
 Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:
 
 - The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.
+- The 101 itself must name what it switched to: RFC 9110 § 15.2.2 requires an `Upgrade` header field in the response, and the requirement holds whatever the request said.
 - The protocol chosen in the response `Upgrade` header must match one offered by the client.
 - 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.
 - After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol.
+
+**The client's obligation and the server's are reported separately.** They are written for different senders and neither is a measurement the other needs, so a 101 that answers a request carrying no `Upgrade` *and* names no protocol of its own draws both findings rather than the first one alone.
 
 ## Violations
 

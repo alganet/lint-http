@@ -54,7 +54,7 @@ impl RuleMeta for Status101SwitchingProtocols {
     }
 
     fn description(&self) -> &'static str {
-        "Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:\n\n- The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.\n- The protocol chosen in the response `Upgrade` header must match one offered by the client.\n- 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.\n- After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol."
+        "Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:\n\n- The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.\n- The 101 itself must name what it switched to: RFC 9110 \u{a7} 15.2.2 requires an `Upgrade` header field in the response, and the requirement holds whatever the request said.\n- The protocol chosen in the response `Upgrade` header must match one offered by the client.\n- 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.\n- After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol.\n\n**The client's obligation and the server's are reported separately.** They are written for different senders and neither is a measurement the other needs, so a 101 that answers a request carrying no `Upgrade` *and* names no protocol of its own draws both findings rather than the first one alone."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -113,176 +113,200 @@ impl Rule for Status101SwitchingProtocols {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
+        // A 101 answers for two senders, so the body collects rather than
+        // returning the first thing it finds. The checks above the status gate
+        // are still exclusive -- each describes a response that is not a
+        // well-formed 101 at all -- and return outright; only the pair of
+        // Upgrade obligations below is answered on both sides at once.
+        let findings =
+            || -> Vec<Violation> {
+                let Some(resp) = tx.response.as_ref() else {
+                    return Vec::new();
+                };
 
-            // ── Check: HTTP traffic after a prior 101 on the same connection ──
-            // The operative clause is "for a change in the application protocol being
-            // used on this connection": a 101 switches the connection's protocol, so a
-            // later HTTP transaction on it means the hand-off did not take. There is no
-            // hard "MUST NOT send HTTP after 101"; the defect is derived from what the
-            // code indicates, which is the sentence quoted on the entry — and the reason
-            // an earlier cite here quoted the wrong (introductory) half of it.
-            //
-            // The connection id is what makes the reading possible and it is optional:
-            // a capture written without one produces no finding, which is a limit of the
-            // capture rather than a verdict about the traffic.
-            if tx.connection_id.is_some() {
-                for prev in history.iter() {
-                    if let Some(prev_resp) = &prev.response {
-                        if prev_resp.status == 101 {
-                            return Some(ctx.report(&STATUS_101_IGNORED));
+                // ── Check: HTTP traffic after a prior 101 on the same connection ──
+                // The operative clause is "for a change in the application protocol being
+                // used on this connection": a 101 switches the connection's protocol, so a
+                // later HTTP transaction on it means the hand-off did not take. There is no
+                // hard "MUST NOT send HTTP after 101"; the defect is derived from what the
+                // code indicates, which is the sentence quoted on the entry — and the reason
+                // an earlier cite here quoted the wrong (introductory) half of it.
+                //
+                // The connection id is what makes the reading possible and it is optional:
+                // a capture written without one produces no finding, which is a limit of the
+                // capture rather than a verdict about the traffic.
+                if tx.connection_id.is_some() {
+                    for prev in history.iter() {
+                        if let Some(prev_resp) = &prev.response {
+                            if prev_resp.status == 101 {
+                                return vec![ctx.report(&STATUS_101_IGNORED)];
+                            }
                         }
                     }
                 }
-            }
 
-            // Remaining checks only apply to 101 responses
-            if resp.status != 101 {
-                return None;
-            }
+                // Remaining checks only apply to 101 responses
+                if resp.status != 101 {
+                    return Vec::new();
+                }
 
-            // ── Check: 101 on a version with no upgrade mechanism ──
-            // One entry for all three versions, and the message is where the
-            // governing section goes: the entry names three sections, so a
-            // finding of it carries no citation and the version is what decides
-            // which sentence it broke. The quotes are on the entry.
-            //
-            // HTTP/1.0 needs both digits, and it is the only one here that does:
-            // HTTP/1.1 is the version that *does* support Upgrade, so the minor
-            // digit is the whole difference. A 101 over HTTP/1.0 is reported
-            // whether or not the request carried an `Upgrade` — the sentence
-            // covers the field being present, and a 101 with no request field at
-            // all is illegitimate a fortiori, since a 101 presupposes an
-            // exchange HTTP/1.0 cannot have had.
-            //
-            // The other two read the major digit only. Two spellings of HTTP/2
-            // were once listed here because the value is one a writer chose —
-            // this version carries no version field of its own — and neither
-            // enumerating them nor guessing which arrives is the question.
-            //
-            // RFC 9114 § 4.5 is the only place that document mentions 101 at
-            // all. A second rule used to report the same message from the status
-            // code's own side, behind a narrower gate that also required the
-            // response to be HTTP/3; every finding it could make was one of
-            // these, so it was deleted rather than declared beside this one.
-            if matches!(
-                crate::http_version::parse(&tx.request.version),
-                Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
-            ) {
-                let message = "101 Switching Protocols must not be sent in response to an \
+                // ── Check: 101 on a version with no upgrade mechanism ──
+                // One entry for all three versions, and the message is where the
+                // governing section goes: the entry names three sections, so a
+                // finding of it carries no citation and the version is what decides
+                // which sentence it broke. The quotes are on the entry.
+                //
+                // HTTP/1.0 needs both digits, and it is the only one here that does:
+                // HTTP/1.1 is the version that *does* support Upgrade, so the minor
+                // digit is the whole difference. A 101 over HTTP/1.0 is reported
+                // whether or not the request carried an `Upgrade` — the sentence
+                // covers the field being present, and a 101 with no request field at
+                // all is illegitimate a fortiori, since a 101 presupposes an
+                // exchange HTTP/1.0 cannot have had.
+                //
+                // The other two read the major digit only. Two spellings of HTTP/2
+                // were once listed here because the value is one a writer chose —
+                // this version carries no version field of its own — and neither
+                // enumerating them nor guessing which arrives is the question.
+                //
+                // RFC 9114 § 4.5 is the only place that document mentions 101 at
+                // all. A second rule used to report the same message from the status
+                // code's own side, behind a narrower gate that also required the
+                // response to be HTTP/3; every finding it could make was one of
+                // these, so it was deleted rather than declared beside this one.
+                if matches!(
+                    crate::http_version::parse(&tx.request.version),
+                    Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
+                ) {
+                    let message = "101 Switching Protocols must not be sent in response to an \
                      HTTP/1.0 request; a server that receives an Upgrade field in an HTTP/1.0 \
                      request must ignore it (RFC 9110 §7.8)";
-                return Some(ctx.report_with(&STATUS_101_UNSOLICITED, message.into()));
-            }
+                    return vec![ctx.report_with(&STATUS_101_UNSOLICITED, message.into())];
+                }
 
-            if crate::http_version::is_major(&tx.request.version, 2) {
-                let message = "101 Switching Protocols must not be sent over HTTP/2, which \
+                if crate::http_version::is_major(&tx.request.version, 2) {
+                    let message = "101 Switching Protocols must not be sent over HTTP/2, which \
                      does not support the status code (RFC 9113 §8.6)";
-                return Some(ctx.report_with(&STATUS_101_UNSOLICITED, message.into()));
-            }
+                    return vec![ctx.report_with(&STATUS_101_UNSOLICITED, message.into())];
+                }
 
-            if crate::http_version::is_major(&tx.request.version, 3) {
-                let message = "101 Switching Protocols must not be sent over HTTP/3, which \
+                if crate::http_version::is_major(&tx.request.version, 3) {
+                    let message = "101 Switching Protocols must not be sent over HTTP/3, which \
                      does not support the status code or the upgrade mechanism (RFC 9114 §4.5)";
-                return Some(ctx.report_with(&STATUS_101_UNSOLICITED, message.into()));
-            }
+                    return vec![ctx.report_with(&STATUS_101_UNSOLICITED, message.into())];
+                }
 
-            // ── Check: unsolicited 101 (no Upgrade in request) ──
-            // get_all_header_values combines multiple Upgrade field lines into one
-            // comma-separated list; the field-combining grammar (RFC 9110 §5.3) is cited
-            // on the helper it calls (helpers/headers.rs), which owns that quote.
-            let req_upgrade_combined =
-                crate::helpers::headers::get_all_header_values(&tx.request.headers, "upgrade");
-            // No request Upgrade at all: the client indicated no protocol, so the switch
-            // the 101 announces is one it never invited. Same entry as the empty-token
-            // and protocol-mismatch checks below — the three faces of "not indicated by
-            // the client" (nothing / malformed / a different protocol), and the sentence
-            // is quoted once, on the entry.
-            if req_upgrade_combined.is_none() {
-                return Some(
-                    ctx.report_with(
-                        &STATUS_101_PROTOCOL_FORBIDDEN,
-                        "Server sent 101 Switching Protocols but the request did not include an \
-                     Upgrade header"
-                            .into(),
-                    ),
-                );
-            }
-            let req_upgrade_val = req_upgrade_combined.unwrap();
+                // ── The two Upgrade obligations, one per sender ──
+                // These are two requirements written for two different senders, and
+                // neither is a measurement the other needs. RFC 9110 § 7.8 is about
+                // the server switching to a protocol the client never indicated;
+                // § 15.2.2's MUST is about the 101 naming what it switched to, and
+                // it holds whatever the request said. The reading used to return on
+                // the request-side finding, so a 101 defective on both sides was
+                // answered about the request alone and the response's own MUST went
+                // unreported -- a false negative no report showed, since the record
+                // was not silent.
+                //
+                // At most one finding per side: the request's three faces are one
+                // entry (nothing / no tokens / a protocol it did not offer) and the
+                // response's two are another, so `out` gains two findings at most
+                // and never the same entry twice.
+                let mut out = Vec::new();
 
-            // ── Check: 101 response missing Upgrade header ──
-            let resp_upgrade_combined =
-                crate::helpers::headers::get_all_header_values(&resp.headers, "upgrade");
-            if resp_upgrade_combined.is_none() {
-                return Some(ctx.report_with(
-                    &UPGRADE_101_MISSING,
-                    "101 Switching Protocols response missing required Upgrade header".into(),
-                ));
-            }
-            let resp_upgrade_val = resp_upgrade_combined.unwrap();
+                // get_all_header_values combines multiple Upgrade field lines into one
+                // comma-separated list; the field-combining grammar (RFC 9110 §5.3) is cited
+                // on the helper it calls (helpers/headers.rs), which owns that quote.
+                let req_upgrade_combined =
+                    crate::helpers::headers::get_all_header_values(&tx.request.headers, "upgrade");
+                let resp_upgrade_combined =
+                    crate::helpers::headers::get_all_header_values(&resp.headers, "upgrade");
 
-            // ── Check: protocol mismatch ──
-            // Protocol names carry a preferred case but are matched case-insensitively,
-            // so both lists are folded to lowercase before comparison.
-            // cite(RFC 9110 § 7.8): "Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols."
-            let offered: Vec<String> = crate::helpers::list::list_members(&req_upgrade_val)
-                .map(str::to_ascii_lowercase)
-                .collect();
+                // Protocol names carry a preferred case but are matched case-insensitively,
+                // so both lists are folded to lowercase before comparison.
+                // cite(RFC 9110 § 7.8): "Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols."
+                let members = |v: &Option<String>| -> Vec<String> {
+                    v.as_deref()
+                        .map(|s| {
+                            crate::helpers::list::list_members(s)
+                                .map(str::to_ascii_lowercase)
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                };
+                let offered = members(&req_upgrade_combined);
+                let chosen = members(&resp_upgrade_combined);
 
-            // The response must indicate at least one chosen protocol.
-            let chosen_list: Vec<String> = crate::helpers::list::list_members(&resp_upgrade_val)
-                .map(str::to_ascii_lowercase)
-                .collect();
-
-            // Upgrade present but no valid tokens (e.g. " , , "): still nothing indicated.
-            if offered.is_empty() {
-                return Some(
-                    ctx.report_with(
-                        &STATUS_101_PROTOCOL_FORBIDDEN,
-                        "Server sent 101 Switching Protocols but the request Upgrade header \
-                     contains no protocol tokens"
-                            .into(),
-                    ),
-                );
-            }
-
-            // An empty chosen list is a response Upgrade that indicates no protocol —
-            // the same MUST-generate obligation as the missing-header check above, and
-            // the entry beside it.
-            if chosen_list.is_empty() {
-                return Some(
-                    ctx.report_with(
-                        &UPGRADE_101_EMPTY,
-                        "101 Switching Protocols response Upgrade header contains no protocol \
-                     tokens"
-                            .into(),
-                    ),
-                );
-            }
-
-            // The server may choose one or more of the offered protocols, but every
-            // chosen protocol must have been offered — `all` fails on the first that
-            // was not, which is exactly "switch to a protocol not indicated" and the
-            // third face of the entry's sentence.
-            let all_matched = chosen_list.iter().all(|c| offered.contains(c));
-
-            if !all_matched {
-                return Some(ctx.report_with(
+                // The client's side. No request Upgrade at all, or one indicating no
+                // protocol, are two faces of the same entry -- "not indicated by the
+                // client" arriving as nothing or as a field with nothing in it -- and
+                // the sentence is quoted once, on the entry.
+                if req_upgrade_combined.is_none() {
+                    out.push(ctx.report_with(
                     &STATUS_101_PROTOCOL_FORBIDDEN,
-                    format!(
-                        "101 response Upgrade '{}' was not offered by the client's Upgrade '{}'",
-                        resp_upgrade_val.trim(),
-                        req_upgrade_val.trim()
-                    ),
+                    "Server sent 101 Switching Protocols but the request did not include an \
+                     Upgrade header"
+                        .into(),
                 ));
-            }
+                } else if offered.is_empty() {
+                    out.push(
+                        ctx.report_with(
+                            &STATUS_101_PROTOCOL_FORBIDDEN,
+                            "Server sent 101 Switching Protocols but the request Upgrade header \
+                     contains no protocol tokens"
+                                .into(),
+                        ),
+                    );
+                }
 
-            None
-        };
-        Vec::from_iter(finding())
+                // The server's side, and § 15.2.2's MUST is unconditional on a 101:
+                // an absent field and a present one naming no protocol both leave the
+                // response saying nothing about what it switched to. Two entries
+                // because the repair differs -- send the field, or put a protocol in
+                // the one already sent.
+                if resp_upgrade_combined.is_none() {
+                    out.push(ctx.report_with(
+                        &UPGRADE_101_MISSING,
+                        "101 Switching Protocols response missing required Upgrade header".into(),
+                    ));
+                } else if chosen.is_empty() {
+                    out.push(
+                        ctx.report_with(
+                            &UPGRADE_101_EMPTY,
+                            "101 Switching Protocols response Upgrade header contains no protocol \
+                     tokens"
+                                .into(),
+                        ),
+                    );
+                }
+
+                // The third face of the request-side entry, and it is asked only when
+                // both senders named something: a mismatch is a comparison, and a list
+                // with no members states nothing to compare. That gate is also what
+                // keeps the entry from being drawn twice -- the request-side findings
+                // above fire exactly when `offered` is empty, so the two are exclusive
+                // by construction.
+                //
+                // The server may choose one or more of the offered protocols, but every
+                // chosen protocol must have been offered — `all` fails on the first that
+                // was not, which is exactly "switch to a protocol not indicated" and the
+                // third face of the entry's sentence.
+                if !offered.is_empty()
+                    && !chosen.is_empty()
+                    && !chosen.iter().all(|c| offered.contains(c))
+                {
+                    out.push(ctx.report_with(
+                        &STATUS_101_PROTOCOL_FORBIDDEN,
+                        format!(
+                        "101 response Upgrade '{}' was not offered by the client's Upgrade '{}'",
+                        resp_upgrade_combined.as_deref().unwrap_or("").trim(),
+                        req_upgrade_combined.as_deref().unwrap_or("").trim()
+                    ),
+                    ));
+                }
+
+                out
+            };
+        findings()
     }
 }
 
@@ -308,6 +332,87 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(resp_headers);
         tx
+    }
+
+    /// Every finding the rule makes about one transaction, in order.
+    ///
+    /// `run_rule` takes the first of however many, so a test written on it
+    /// passes whether the second finding arrived or not -- which is how the
+    /// masking below survived a green suite.
+    fn judge_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<String> {
+        let rule = Status101SwitchingProtocols;
+        crate::test_helpers::run_rule_all(
+            &rule,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "status_101_switching_protocols",
+            ]),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect()
+    }
+
+    // ── Both senders answered ──
+
+    /// § 7.8 is about the client indicating a protocol and § 15.2.2 about the
+    /// 101 naming one, so a response failing both owes two findings. It used to
+    /// answer for the request and return.
+    #[rstest]
+    fn a_101_defective_on_both_sides_is_answered_about_both() {
+        let tx = make_upgrade_tx("HTTP/1.1", &[("connection", "Upgrade")], 101, &[]);
+        let mut got = judge_all(&tx);
+        got.sort();
+        assert_eq!(
+            got,
+            vec!["status_101_protocol_forbidden", "upgrade_101_missing"]
+        );
+    }
+
+    /// The same seam one check further down: both fields present, neither
+    /// naming a protocol.
+    #[rstest]
+    fn two_upgrade_fields_naming_no_protocol_are_two_findings() {
+        let tx = make_upgrade_tx(
+            "HTTP/1.1",
+            &[("upgrade", ","), ("connection", "Upgrade")],
+            101,
+            &[("upgrade", ",")],
+        );
+        let mut got = judge_all(&tx);
+        got.sort();
+        assert_eq!(
+            got,
+            vec!["status_101_protocol_forbidden", "upgrade_101_empty"]
+        );
+    }
+
+    /// The other direction: answering both sides must not invent a request-side
+    /// finding for a request that indicated a protocol.
+    #[rstest]
+    fn a_response_naming_nothing_is_not_also_the_clients_defect() {
+        let tx = make_upgrade_tx(
+            "HTTP/1.1",
+            &[("upgrade", "websocket"), ("connection", "Upgrade")],
+            101,
+            &[],
+        );
+        assert_eq!(judge_all(&tx), vec!["upgrade_101_missing"]);
+    }
+
+    /// A mismatch is the request-side entry's third face, so it must be drawn
+    /// once and not beside the two the empty lists draw. The gate that makes it
+    /// exclusive is `offered` being non-empty; this pins the count.
+    #[rstest]
+    fn a_mismatch_draws_the_entry_once() {
+        let tx = make_upgrade_tx(
+            "HTTP/1.1",
+            &[("upgrade", "h2c"), ("connection", "Upgrade")],
+            101,
+            &[("upgrade", "websocket")],
+        );
+        assert_eq!(judge_all(&tx), vec!["status_101_protocol_forbidden"]);
     }
 
     // ── Valid cases ──
