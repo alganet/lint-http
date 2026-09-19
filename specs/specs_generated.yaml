@@ -3776,7 +3776,7 @@ sources:
     snippet: it specified a suffix (in that case, "+xml") to be appended to the base subtype name.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 202
+      line: 209
   - label: link_header_valid
     section: § 4.2
     snippet: 'Type and subtype names MUST conform to the following ABNF:'
@@ -8497,7 +8497,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_present.rs
       line: 103
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 160
+      line: 167
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 62
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
