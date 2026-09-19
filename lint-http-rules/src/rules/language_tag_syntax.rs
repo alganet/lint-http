@@ -250,40 +250,57 @@ impl Rule for LanguageTagSyntax {
                 ))
             };
 
+            // One finding per member, in both fields. `#language-tag` names one
+            // language per position -- what the content is in, or what the
+            // sender will take -- so a value naming three tags that derive from
+            // no `Language-Tag` is three names to correct, and a walk that
+            // returned at the first named one.
+            //
+            // The gap stays one finding per line: § 5.6.1.1 forbids generating
+            // an empty *element*, and a line written with three of them is one
+            // list with gaps in it. That is why `empty_member`'s sentence quotes
+            // the field line and not the member.
             let content_language =
-                |headers: &hyper::HeaderMap, party: crate::lint::Party| -> Option<Violation> {
+                |headers: &hyper::HeaderMap, party: crate::lint::Party| -> Vec<Violation> {
+                    let mut found = Vec::new();
                     for hv in headers.get_all("content-language").iter() {
                         let val = decode(hv);
                         if crate::helpers::headers::trim_ows(&val).is_empty() {
                             continue;
                         }
+                        let mut saw_an_empty_member = false;
                         for token in crate::helpers::list::sender_list_members(&val) {
                             if token.is_empty() {
-                                return empty_member("Content-Language", &val, party);
+                                saw_an_empty_member = true;
+                                continue;
                             }
-                            if let Some(v) = check_tag("Content-Language", token, party) {
-                                return Some(v);
-                            }
+                            found.extend(check_tag("Content-Language", token, party));
+                        }
+                        if saw_an_empty_member {
+                            found.extend(empty_member("Content-Language", &val, party));
                         }
                     }
-                    None
+                    found
                 };
 
             let accept_language = |headers: &hyper::HeaderMap,
                                    party: crate::lint::Party|
-             -> Option<Violation> {
+             -> Vec<Violation> {
+                let mut found = Vec::new();
                 for hv in headers.get_all("accept-language").iter() {
                     let val = decode(hv);
                     if crate::helpers::headers::trim_ows(&val).is_empty() {
                         continue;
                     }
+                    let mut saw_an_empty_member = false;
                     for member in crate::helpers::list::sender_list_members(&val) {
                         // Before the weight is stripped, because `;q=0.5` is a
                         // member the sender wrote with no range in it — an empty
                         // *tag*, which is a different id — and an empty member is
                         // a comma the sender wrote with nothing at all beside it.
                         if member.is_empty() {
-                            return empty_member("Accept-Language", &val, party);
+                            saw_an_empty_member = true;
+                            continue;
                         }
                         // The weight is stripped rather than checked; whether it is
                         // a weight at all is `accept_language_weight_valid`'s
@@ -306,12 +323,13 @@ impl Rule for LanguageTagSyntax {
                         if lang == "*" {
                             continue;
                         }
-                        if let Some(v) = check_tag("Accept-Language", lang, party) {
-                            return Some(v);
-                        }
+                        found.extend(check_tag("Accept-Language", lang, party));
+                    }
+                    if saw_an_empty_member {
+                        found.extend(empty_member("Accept-Language", &val, party));
                     }
                 }
-                None
+                found
             };
 
             if let Some(resp) = &tx.response {
@@ -341,6 +359,43 @@ static REGISTRATION: &dyn crate::rules::Rule = &LanguageTagSyntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **Every tag the sender named is answered.** `#language-tag` names one
+    /// language per position, so a value naming two that derive from no
+    /// `Language-Tag` is two names to correct — and a walk that returned at the
+    /// first named one. Asked of both fields, because the rule walks them in two
+    /// separate loops and one row cannot speak for both.
+    #[rstest]
+    #[case("content-language", false)]
+    #[case("accept-language", true)]
+    fn every_defective_tag_is_reported(#[case] field: &str, #[case] in_request: bool) {
+        let rule = LanguageTagSyntax;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["language_tag_syntax"]);
+        let value = "toolongtag1-, 1nvalid, en";
+        let tx = if in_request {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+            tx
+        } else {
+            crate::test_helpers::make_test_transaction_with_response(200, &[(field, value)])
+        };
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(
+            ids.contains(&"language_tag_edge_hyphen_forbidden"),
+            "{ids:?}"
+        );
+        assert!(
+            ids.contains(&"language_tag_leading_letter_missing"),
+            "{ids:?}"
+        );
+    }
 
     #[rstest]
     #[case(Some("en"), false)]

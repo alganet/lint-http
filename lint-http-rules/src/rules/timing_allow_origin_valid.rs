@@ -159,20 +159,27 @@ impl Rule for TimingAllowOriginValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per member. `1#( origin-or-null / wildcard )` names one
+        // origin per position -- each a document origin the timing attributes
+        // are being exposed to -- so a value naming three that derive from no
+        // origin is three names the operator has to correct, and a walk that
+        // returned at the first named one.
+        let findings = || -> Vec<Violation> {
             // The header is server-sent: it rides responses, so only the response side is
             // inspected.
             // cite(Resource Timing § 3.5.2): "Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions."
-            let resp = tx.response.as_ref()?;
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
 
             let headers = &resp.headers;
 
             let tao_count = headers.get_all("timing-allow-origin").iter().count();
             if tao_count == 0 {
-                return None;
+                return Vec::new();
             }
+
+            let mut out = Vec::new();
 
             // Combine members across multiple header fields; list_members handles commas & whitespace.
             // Several header fields are explicitly allowed, so this rule checks the members,
@@ -192,17 +199,22 @@ impl Rule for TimingAllowOriginValid {
                 // one member.
                 // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
                 if crate::helpers::headers::trim_ows(s).is_empty() {
-                    return Some(ctx.report_with(
+                    out.push(ctx.report_with(
                         &LIST_MEMBER_MISSING,
                         "Timing-Allow-Origin header value is empty".into(),
                     ));
+                    continue;
                 }
 
                 // Detect empty list members caused by consecutive commas or leading empty
                 // members. The header's ABNF uses RFC 9110's list construct, so its
                 // empty-element rules apply.
                 // cite(Resource Timing § 3.5.2): "The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):"
+                // One finding for the line however many gaps it holds: what
+                // § 5.6.1.1 forbids generating is an empty *element*, and a line
+                // written with three of them is one list with gaps in it.
                 let parts: Vec<&str> = s.split(',').collect();
+                let mut saw_an_empty_member = false;
                 for (i, raw_member) in parts.iter().enumerate() {
                     if crate::helpers::headers::trim_ows(raw_member).is_empty() {
                         // An internal/leading empty member means the sender generated an
@@ -213,15 +225,18 @@ impl Rule for TimingAllowOriginValid {
                             .skip(i + 1)
                             .any(|p| !crate::helpers::headers::trim_ows(p).is_empty())
                         {
-                            return Some(ctx.report_with(
-                                &LIST_MEMBER_EMPTY,
-                                "Timing-Allow-Origin header contains empty member".into(),
-                            ));
+                            saw_an_empty_member = true;
                         }
                         // Otherwise it's trailing empty member(s) (e.g., "https://a, ");
                         // tolerated as recipient-side leniency.
                         // cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism"
                     }
+                }
+                if saw_an_empty_member {
+                    out.push(ctx.report_with(
+                        &LIST_MEMBER_EMPTY,
+                        "Timing-Allow-Origin header contains empty member".into(),
+                    ));
                 }
                 for m in crate::helpers::list::list_members(s) {
                     // `wildcard` and the case-sensitive lowercase `null` are the two
@@ -237,7 +252,7 @@ impl Rule for TimingAllowOriginValid {
                     // reader `origin_matching_for_cors` calls, so a path after
                     // the authority draws the same id here as it does there.
                     if let Err(defect) = crate::helpers::origin::validate_origin_value(m) {
-                        return Some(ctx.report_with(
+                        out.push(ctx.report_with(
                             origin_defect(defect),
                             format!(
                                 "Timing-Allow-Origin contains invalid origin: '{}' ({})",
@@ -249,9 +264,9 @@ impl Rule for TimingAllowOriginValid {
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -262,6 +277,39 @@ static REGISTRATION: &dyn crate::rules::Rule = &TimingAllowOriginValid;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **Every origin the response named is answered.** `1#( origin-or-null /
+    /// wildcard )` names one document origin per position, so a value naming two
+    /// that derive from no origin is two names to correct — and the gap beside
+    /// them is the list's own defect, counted once.
+    #[test]
+    fn every_defective_origin_is_reported_beside_the_gap() {
+        let rule = TimingAllowOriginValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "timing_allow_origin_valid",
+        ]);
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[(
+                "timing-allow-origin",
+                "http://a.example/path,,notanorigin,,https://ok.example",
+            )],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"origin_path_forbidden"), "{ids:?}");
+        assert!(ids.contains(&"origin_malformed"), "{ids:?}");
+        assert_eq!(
+            ids.iter().filter(|i| **i == "list_member_empty").count(),
+            1,
+            "the gaps are one list defect: {ids:?}"
+        );
+    }
 
     /// The two halves of the list construct, answering with the ids every
     /// other `1#` field answers with — out of a rule whose own findings are a

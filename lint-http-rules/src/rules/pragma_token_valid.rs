@@ -126,9 +126,11 @@ impl Rule for PragmaTokenValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per directive, and both sections read. A defect in the
+        // request's `Pragma` used to end the body before the response's was
+        // looked at.
+        let findings = || -> Vec<Violation> {
+            let mut out = Vec::new();
             // Validate request headers
             // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
             // Read as octets, and over the section: the historical
@@ -144,12 +146,10 @@ impl Rule for PragmaTokenValid {
                 // an empty element *within* a list (flagged in check_pragma_value). Skip it.
                 let v = v.trim();
                 if !v.is_empty() {
-                    if let Some((def, msg)) = check_pragma_value(v) {
-                        return Some(ctx.by_client().report_with(
-                            def,
-                            format!("Invalid Pragma header in request: {}", msg),
-                        ));
-                    }
+                    out.extend(check_pragma_value(v).into_iter().map(|(def, msg)| {
+                        ctx.by_client()
+                            .report_with(def, format!("Invalid Pragma header in request: {}", msg))
+                    }));
                 }
             }
 
@@ -164,35 +164,43 @@ impl Rule for PragmaTokenValid {
                 ) {
                     let v = v.trim();
                     if !v.is_empty() {
-                        if let Some((def, msg)) = check_pragma_value(v) {
-                            return Some(ctx.by_server().report_with(
+                        out.extend(check_pragma_value(v).into_iter().map(|(def, msg)| {
+                            ctx.by_server().report_with(
                                 def,
                                 format!("Invalid Pragma header in response: {}", msg),
-                            ));
-                        }
+                            )
+                        }));
                     }
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
-fn check_pragma_value(s: &str) -> Option<(&'static ViolationDef, String)> {
+fn check_pragma_value(s: &str) -> Vec<(&'static ViolationDef, String)> {
     // The `token ["=" (token / quoted-string)]` directive shape is RFC 7234 §5.4's historical
     // `extension-pragma` (dropped by RFC 9111). The pieces enforced below — the `#`-list split,
     // the empty-element rule, `token`, and `quoted-string` — are all current RFC 9110 §5.6.
-    for member in crate::helpers::list::split_commas_respecting_quotes(s) {
+    // One finding per directive. The historical production is a `#`-list and
+    // each position holds a directive the sender wrote on its own terms, so a
+    // value naming two the recipient cannot read is two directives to correct --
+    // and a walk that returned at the first named one.
+    //
+    // The gap stays one finding for the value: § 5.6.1.1 forbids generating an
+    // empty *element*, and a value written with three of them is one list with
+    // gaps in it.
+    let mut found = Vec::new();
+    let mut saw_an_empty_member = false;
+    'member: for member in crate::helpers::list::split_commas_respecting_quotes(s) {
         // An empty element *within* the list (e.g. `no-cache,,foo` or a trailing comma) is
         // forbidden, unlike the empty whole value skipped by the callers above.
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if member.is_empty() {
-            return Some((
-                &LIST_MEMBER_EMPTY,
-                "Empty directive in Pragma header".into(),
-            ));
+            saw_an_empty_member = true;
+            continue;
         }
 
         let mut kv = member.splitn(2, '=');
@@ -201,21 +209,23 @@ fn check_pragma_value(s: &str) -> Option<(&'static ViolationDef, String)> {
         // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
         let name = kv.next().unwrap().trim();
         if name.is_empty() {
-            return Some((
+            found.push((
                 &TOKEN_EMPTY,
                 format!("Empty directive name in Pragma member: '{}'", member),
             ));
+            continue 'member;
         }
 
         // Grammar owned by the helper (RFC 9110 §5.6.2 `token`).
         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-            return Some((
+            found.push((
                 token_character(c),
                 format!(
                     "Directive name contains invalid character: {}",
                     crate::helpers::shown::describe_char(c)
                 ),
             ));
+            continue 'member;
         }
 
         if let Some(vpart) = kv.next() {
@@ -237,24 +247,34 @@ fn check_pragma_value(s: &str) -> Option<(&'static ViolationDef, String)> {
                 // written here.
                 Err(crate::helpers::word::WordDefect::Empty) => continue,
                 Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => {
-                    return Some((
+                    found.push((
                         crate::violations::quoted_string::quoted_string_defect(defect),
                         format!(
                             "Invalid quoted-string in directive value: {}",
                             defect.message(vpart)
                         ),
                     ));
+                    continue 'member;
                 }
                 Err(crate::helpers::word::WordDefect::NotToken(c)) => {
-                    return Some((
+                    found.push((
                         token_character(c),
                         format!("Directive value contains invalid character: '{}'", c),
                     ));
+                    continue 'member;
                 }
             }
         }
     }
-    None
+
+    if saw_an_empty_member {
+        found.push((
+            &LIST_MEMBER_EMPTY,
+            "Empty directive in Pragma header".into(),
+        ));
+    }
+
+    found
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -265,6 +285,35 @@ static REGISTRATION: &dyn crate::rules::Rule = &PragmaTokenValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **Every directive the sender wrote is answered.** The historical
+    /// production is a `#`-list and each position holds a directive written on
+    /// its own terms, so two the recipient cannot read are two to correct — and
+    /// the gap beside them is the list's own defect, counted once.
+    #[test]
+    fn every_defective_directive_is_reported_beside_the_gap() {
+        let rule = PragmaTokenValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["pragma_token_valid"]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "pragma",
+            "n@cache,,foo=\",,no-cache",
+        )]);
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"token_character_forbidden"), "{ids:?}");
+        assert!(ids.contains(&"quoted_string_delimiter_missing"), "{ids:?}");
+        assert_eq!(
+            ids.iter().filter(|i| **i == "list_member_empty").count(),
+            1,
+            "the gaps are one list defect: {ids:?}"
+        );
+    }
 
     fn make_req(val: &str) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction();

@@ -305,20 +305,20 @@ impl Rule for MediaTypeSuffixValid {
             //   -> Unrecognized structured syntax suffix '+bogus"' in 'foo/bar+bogus"'
             //
             // The message even carried the stray quote, which is the tell.
-            out.extend((|| -> Option<Violation> {
-                for ah in values(&tx.request.headers, "accept") {
-                    for part in crate::helpers::list::split_commas_respecting_quotes(&ah) {
-                        let p = part;
-                        if p.is_empty() {
-                            continue;
-                        }
-                        if let Some(v) = check_media("Accept", p, crate::lint::Party::Client) {
-                            return Some(v);
-                        }
+            //
+            // One finding per member, because each is a media type the sender
+            // named on its own terms: `Accept: application/vnd.x+,
+            // application/y+zzz` names two suffixes the recipient cannot resolve
+            // and used to draw one, leaving the second to be met on the next run.
+            for ah in values(&tx.request.headers, "accept") {
+                for part in crate::helpers::list::split_commas_respecting_quotes(&ah) {
+                    let p = part;
+                    if p.is_empty() {
+                        continue;
                     }
+                    out.extend(check_media("Accept", p, crate::lint::Party::Client));
                 }
-                None
-            })());
+            }
 
             if let Some(resp) = &tx.response {
                 out.extend((|| -> Option<Violation> {
@@ -345,6 +345,42 @@ static REGISTRATION: &dyn crate::rules::Rule = &MediaTypeSuffixValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **Every media type the request offered is answered.** `Accept` is a list
+    /// and each member is a type the sender named on its own terms, so two
+    /// suffixes the recipient cannot resolve are two things to correct.
+    #[test]
+    fn every_defective_suffix_in_accept_is_reported() {
+        let rule = MediaTypeSuffixValid;
+        let mut cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["media_type_suffix_valid"]);
+        cfg.rules.insert(
+            "media_type_suffix_valid".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(vec![toml::Value::String("json".into())]),
+                );
+                t
+            }),
+        );
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "accept",
+            "application/vnd.x+, application/y+zzz, application/z+json",
+        )]);
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"media_type_suffix_empty"), "{ids:?}");
+        assert!(ids.contains(&"media_type_suffix_unregistered"), "{ids:?}");
+    }
 
     /// Every published snippet is run through this rule and, for the Compliant
     /// ones, through the other rules that read the same headers — judged against

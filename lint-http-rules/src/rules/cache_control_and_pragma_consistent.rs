@@ -96,18 +96,24 @@ impl Rule for CacheControlAndPragmaConsistent {
                     // syntax/token rules (e.g., `pragma_token_valid`) handle encoding errors.
                     continue;
                 };
-                for m in crate::helpers::list::list_members(s) {
-                    if m.eq_ignore_ascii_case("no-cache") {
-                        // if request also contains Cache-Control: only-if-cached, that's contradictory
-                        // No sentence says this combination is illegal; it is a
-                        // heuristic — Pragma: no-cache asks a cache to revalidate,
-                        // only-if-cached asks it to serve from cache or fail. Recorded
-                        // in the tracker.
-                        if crate::helpers::cache_control::has(&tx.request.headers, "only-if-cached")
-                        {
-                            return Some(ctx.by_client().report(&PRAGMA_CONFLICTING));
-                        }
-                    }
+                // The members are searched rather than walked, and the
+                // difference is what the finding is about. This one is not a
+                // member's defect -- it is the disagreement between two
+                // *fields*, and a `Pragma: no-cache, no-cache` states the same
+                // disagreement once. So the question asked of the list is
+                // whether it holds the directive at all.
+                //
+                // if request also contains Cache-Control: only-if-cached, that's contradictory
+                // No sentence says this combination is illegal; it is a
+                // heuristic — Pragma: no-cache asks a cache to revalidate,
+                // only-if-cached asks it to serve from cache or fail. Recorded
+                // in the tracker.
+                let asks_for_revalidation = crate::helpers::list::list_members(s)
+                    .any(|m| m.eq_ignore_ascii_case("no-cache"));
+                if asks_for_revalidation
+                    && crate::helpers::cache_control::has(&tx.request.headers, "only-if-cached")
+                {
+                    return Some(ctx.by_client().report(&PRAGMA_CONFLICTING));
                 }
             }
 
