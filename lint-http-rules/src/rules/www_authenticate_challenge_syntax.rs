@@ -125,49 +125,52 @@ impl Rule for WwwAuthenticateChallengeSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Read as octets and over the section. The reader this replaces
-            // skipped a field line it could not read as text, which made an
-            // octet outside visible US-ASCII invisible to the only rule that
-            // measures this field's grammar -- where it belongs to whichever
-            // production it landed in, and every one of them is declared here.
-            // `WWW-Authenticate = #challenge` is also why the lines are joined:
-            // they are one list.
-            if let Some(resp) = &tx.response {
-                if let Some(s) = crate::helpers::headers::combined_field_value_as_written(
-                    &resp.headers,
-                    "www-authenticate",
-                ) {
-                    let s = s.as_str();
-                    // Group members into assembled challenges using the helper so we can
-                    // test the grouping logic independently and exercise more branches.
-                    // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
-                    let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
-                        Ok(c) => c,
-                        Err(defect) => {
-                            return Some(
-                                ctx.report_with(challenge_defect(defect), defect.message()),
-                            );
-                        }
-                    };
-
-                    // Now validate each assembled challenge using helper to make it unit-testable
-                    for challenge in challenges.iter() {
-                        if let Err(defect) =
-                            crate::helpers::auth::validate_challenge_syntax(challenge)
-                        {
-                            return Some(
-                                ctx.report_with(challenge_defect(defect), defect.message()),
-                            );
-                        }
-                    }
-                }
-            }
-            None
+        // `WWW-Authenticate = #challenge`, so the list's own defect ends the
+        // reading and a member's does not: every challenge after a malformed
+        // one is still a challenge, and its own grammar is still answerable.
+        //
+        // **The body used to stop at the first member that failed**, and the
+        // entry that most often stopped it is the one entry here the grammar
+        // does not refuse. `Basic realm, Bearer realm="unfinished` reported the
+        // `info` about the bare word and never the unterminated `quoted-string`
+        // behind it -- the weakest claim in the file masking the strongest, and
+        // invisible from the report because a finding *was* there.
+        let mut out: Vec<Violation> = Vec::new();
+        // Read as octets and over the section. The reader this replaces
+        // skipped a field line it could not read as text, which made an octet
+        // outside visible US-ASCII invisible to the only rule that measures
+        // this field's grammar -- where it belongs to whichever production it
+        // landed in, and every one of them is declared here.
+        // `WWW-Authenticate = #challenge` is also why the lines are joined:
+        // they are one list.
+        let Some(resp) = &tx.response else {
+            return out;
         };
-        Vec::from_iter(finding())
+        let Some(s) = crate::helpers::headers::combined_field_value_as_written(
+            &resp.headers,
+            "www-authenticate",
+        ) else {
+            return out;
+        };
+        // Group members into assembled challenges using the helper so we can
+        // test the grouping logic independently and exercise more branches.
+        // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
+        let challenges = match crate::helpers::auth::split_and_group_challenges(s.as_str()) {
+            Ok(c) => c,
+            // A list this rule could not split into members has no members to
+            // report on, so that one finding is the whole answer.
+            Err(defect) => return vec![ctx.report_with(challenge_defect(defect), defect.message())],
+        };
+
+        // One finding per member, which is what the list construct makes them:
+        // a challenge is a subject of its own and the comma beside it is not a
+        // reason to stop reading.
+        for challenge in challenges.iter() {
+            if let Err(defect) = crate::helpers::auth::validate_challenge_syntax(challenge) {
+                out.push(ctx.report_with(challenge_defect(defect), defect.message()));
+            }
+        }
+        out
     }
 }
 
@@ -831,6 +834,47 @@ mod tests {
         if let Some(vv) = v {
             assert!(vv.message.contains("missing value"));
         }
+    }
+
+    /// `#challenge` makes every member a subject, and the body used to stop at
+    /// the first one that failed. The order here is what makes the loss
+    /// visible: the entry the grammar does not refuse comes first and is the
+    /// one that was reported, so an unterminated `quoted-string` at `error`
+    /// went unsaid behind an `info` -- and the report showed a finding, which
+    /// is why nothing about it looked wrong.
+    #[rstest]
+    #[case(
+        "Basic realm, Bearer realm=\"unfinished",
+        &["challenge_token68_invalid", "quoted_string_delimiter_missing"]
+    )]
+    #[case(
+        "Basic realm, Bearer re@alm=\"x\"",
+        &["challenge_token68_invalid", "challenge_parameter_name_character_forbidden"]
+    )]
+    #[case(
+        "Basic re@alm=\"x\", Bearer realm",
+        &["challenge_parameter_name_character_forbidden", "challenge_token68_invalid"]
+    )]
+    // A member that is well formed contributes nothing, so the count follows
+    // the defects and not the commas.
+    #[case("Basic realm=\"x\", Bearer realm", &["challenge_token68_invalid"])]
+    fn every_defective_challenge_in_the_list_is_reported(
+        #[case] val: &str,
+        #[case] expected: &[&str],
+    ) {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "www_authenticate_challenge_syntax",
+        ]);
+        let found: Vec<String> = crate::test_helpers::run_rule_all(
+            &WwwAuthenticateChallengeSyntax,
+            &make_resp(val),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        assert_eq!(found, expected, "val={val:?}");
     }
 
     /// The name this test carried said the word was not a `token68`, which is
