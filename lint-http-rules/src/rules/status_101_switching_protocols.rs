@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::status::{
@@ -248,14 +249,14 @@ impl Rule for Status101SwitchingProtocols {
                         .into(),
                 ));
                 } else if offered.is_empty() {
-                    out.push(
-                        ctx.report_with(
-                            &STATUS_101_PROTOCOL_FORBIDDEN,
-                            "Server sent 101 Switching Protocols but the request Upgrade header \
-                     contains no protocol tokens"
-                                .into(),
+                    out.push(ctx.report_with(
+                        &STATUS_101_PROTOCOL_FORBIDDEN,
+                        format!(
+                            "Server sent 101 Switching Protocols but the request Upgrade \
+                                 header is `{}`, which contains no protocol tokens",
+                            shown_in_finding(req_upgrade_combined.as_deref().unwrap_or_default())
                         ),
-                    );
+                    ));
                 }
 
                 // The server's side, and § 15.2.2's MUST is unconditional on a 101:
@@ -269,14 +270,14 @@ impl Rule for Status101SwitchingProtocols {
                         "101 Switching Protocols response missing required Upgrade header".into(),
                     ));
                 } else if chosen.is_empty() {
-                    out.push(
-                        ctx.report_with(
-                            &UPGRADE_101_EMPTY,
-                            "101 Switching Protocols response Upgrade header contains no protocol \
-                     tokens"
-                                .into(),
+                    out.push(ctx.report_with(
+                        &UPGRADE_101_EMPTY,
+                        format!(
+                            "101 Switching Protocols response Upgrade header is `{}`, which \
+                                 contains no protocol tokens",
+                            shown_in_finding(resp_upgrade_combined.as_deref().unwrap_or_default())
                         ),
-                    );
+                    ));
                 }
 
                 // The third face of the request-side entry, and it is asked only when
@@ -849,6 +850,40 @@ mod tests {
         )
         .unwrap();
         assert!(v.message.contains("no protocol tokens"));
+    }
+
+    /// Both halves of "contains no protocol tokens" name the value they read.
+    /// The sentence is true of every value that reaches it, so without the
+    /// value in it an operator is told a field is empty and not which field
+    /// line to go and look at -- and these two are the only report of the
+    /// defect now that the WebSocket rule has stopped drawing the same entries
+    /// beside them.
+    #[rstest]
+    /// The value named is the *combined* field value, which is what the reading
+    /// was done on: the join that turns however many `Upgrade` lines into one
+    /// list trims each line's `OWS`, so ` , , ` is quoted back as `, ,`.
+    #[case(&[("upgrade", " , , "), ("connection", "Upgrade")], &[("upgrade", "websocket"), ("connection", "Upgrade")], ", ,")]
+    #[case(&[("upgrade", "websocket"), ("connection", "Upgrade")], &[("upgrade", ","), ("connection", "Upgrade")], ",")]
+    fn a_field_naming_no_protocol_is_quoted_in_the_finding(
+        #[case] req: &[(&str, &str)],
+        #[case] resp: &[(&str, &str)],
+        #[case] expected: &str,
+    ) {
+        let tx = make_upgrade_tx("HTTP/1.1", req, 101, resp);
+        let v = crate::test_helpers::run_rule(
+            &Status101SwitchingProtocols,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "status_101_switching_protocols",
+            ]),
+        )
+        .unwrap();
+        assert!(
+            v.message.contains(&format!("`{expected}`")),
+            "{}",
+            v.message
+        );
     }
 
     #[rstest]
