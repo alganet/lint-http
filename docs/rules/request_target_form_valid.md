@@ -77,3 +77,21 @@ GET example.com:443 HTTP/1.1
 CONNECT /not-a-host-and-port HTTP/1.1
 CONNECT www.example.com: HTTP/1.1
 ```
+
+### ❌ Bad Nothing where the element goes: every one of the four forms derives at least one character
+
+```http
+GET  HTTP/1.1
+```
+
+### ❌ Bad `port` is `*DIGIT` and bounds nothing, so the grammar admits a number the transport has no room for
+
+```http
+CONNECT example.com:70000 HTTP/1.1
+```
+
+### ❌ Bad A space a user agent failed to encode out of a hypertext reference, which a recipient is asked not to autocorrect
+
+```http
+GET /a path with spaces HTTP/1.1
+```

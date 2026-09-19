@@ -144,3 +144,17 @@ enabled = true
 :authority: user:pass@example.com
 :path: /
 ```
+
+### ❌ Bad A CONNECT whose destination is in neither of the two places it can travel
+
+```http
+:method: CONNECT
+:path: /tunnel
+```
+
+### ❌ Bad A tunnel destination is a host and a port, and a userinfo is a third component the form has no room for
+
+```http
+:method: CONNECT
+:authority: user:pass@example.com:443
+```

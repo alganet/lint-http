@@ -195,6 +195,14 @@ impl RuleMeta for Http3PseudoHeadersValid {
                 label: Some("(the deprecated userinfo subcomponent in :authority)"),
                 snippet: "GET https://user@example.com/resource HTTP/3",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "The target names no authority and the field beside it was written and \
+                     left blank, which is the other half of the same sentence",
+                ),
+                snippet: "GET /resource HTTP/3\nHost:",
+            },
         ]
     }
 }

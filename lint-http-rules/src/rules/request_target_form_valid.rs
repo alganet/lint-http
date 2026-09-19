@@ -258,6 +258,30 @@ impl RuleMeta for RequestTargetFormValid {
                 label: Some("Request"),
                 snippet: "GET * HTTP/1.1\nGET 192.0.2.1:443 HTTP/1.1\nGET example.com:443 HTTP/1.1\nCONNECT /not-a-host-and-port HTTP/1.1\nCONNECT www.example.com: HTTP/1.1",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "Nothing where the element goes: every one of the four forms derives at \
+                     least one character",
+                ),
+                snippet: "GET  HTTP/1.1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "`port` is `*DIGIT` and bounds nothing, so the grammar admits a number \
+                     the transport has no room for",
+                ),
+                snippet: "CONNECT example.com:70000 HTTP/1.1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "A space a user agent failed to encode out of a hypertext reference, \
+                     which a recipient is asked not to autocorrect",
+                ),
+                snippet: "GET /a path with spaces HTTP/1.1",
+            },
         ]
     }
 }
@@ -843,17 +867,42 @@ mod tests {
         for example in rule.examples() {
             let expect_violation =
                 matches!(example.compliance, crate::rules::Compliance::NonCompliant);
+            // Only the request-lines. This walk used to take every line as
+            // `method SP target SP version` and panic on anything else, which
+            // made the reader the author of the rule's examples: a header line
+            // beside a request-line -- the shape every other rule's examples
+            // are written in -- ended the test with `an HTTP-version` and no
+            // finding. The lines it skips are judged by the shared suite,
+            // which builds the whole message; what is unit-tested here is
+            // `judge` itself, one request-line at a time.
+            let mut judged = 0;
             for line in example.snippet.lines() {
-                let mut parts = line.split(' ');
-                let method = parts.next().expect("a method");
-                let target = parts.next().expect("a request-target");
-                let version = parts.next().expect("an HTTP-version");
+                let parts: Vec<&str> = line.split(' ').collect();
+                let (Some(method), Some(version)) = (parts.first(), parts.last()) else {
+                    continue;
+                };
+                if parts.len() < 3 || !version.starts_with("HTTP/") {
+                    continue;
+                }
+                // Everything between the two, joined back with the spaces it
+                // was split on: a target carrying whitespace is one of the
+                // findings, so a reader that took the second word alone would
+                // hand `judge` a different target from the one published.
+                let target = parts[1..parts.len() - 1].join(" ");
+                judged += 1;
                 assert_eq!(
-                    judge(method, target, version).is_some(),
+                    judge(method, &target, version).is_some(),
                     expect_violation,
                     "{line}"
                 );
             }
+            // A skip that swallowed the whole example would leave this test
+            // green over nothing.
+            assert!(
+                judged > 0,
+                "no request-line judged in {:?}",
+                example.snippet
+            );
         }
     }
 }

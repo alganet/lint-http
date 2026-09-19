@@ -109,3 +109,10 @@ GET /path HTTP/1.1
 Host: a.example
 Host: b.example
 ```
+
+### ❌ Bad An HTTP/1.1 request that sent its authority in neither of the two places it can travel
+
+```http
+GET /path HTTP/1.1
+Accept: text/html
+```
