@@ -450,6 +450,62 @@ pub(crate) fn serialize_record(
     serde_json::to_string(&v)
 }
 
+/// The inverse of [`serialize_record`]'s body injection: take the base64
+/// `body` a capture line carries on its `request`/`response` object and hand
+/// the octets back as the transaction's own.
+///
+/// **The writer had no reader, and nothing said so.** `request_body` and
+/// `response_body` are `#[serde(skip)]`, which skips both directions, so the
+/// bodies `captures_include_body` writes were dropped on every read — and the
+/// rules that parse body octets reported nothing on any capture file, silently.
+/// The metadata beside the octets was the tell: `body_length`,
+/// `*_body_over_limit` and `body_interrupted` all serialize, so a reader kept
+/// everything needed to judge a body it could never see.
+///
+/// A `body` that is present and does not decode makes the record unreadable
+/// rather than body-less. Linting the headers and staying quiet about content
+/// nobody could reconstruct is the failure being fixed here, not a fallback for
+/// it; `records_unread` is where a report says what it could not take in.
+fn take_injected_body(
+    v: &mut serde_json::Value,
+    which: &str,
+) -> Result<Option<bytes::Bytes>, String> {
+    let Some(obj) = v.get_mut(which).and_then(|m| m.as_object_mut()) else {
+        return Ok(None);
+    };
+    let Some(raw) = obj.remove("body") else {
+        return Ok(None);
+    };
+    let Some(encoded) = raw.as_str() else {
+        return Err(format!("`{which}.body` is not a string"));
+    };
+    base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map(|b| Some(bytes::Bytes::from(b)))
+        .map_err(|e| format!("`{which}.body` is not base64: {e}"))
+}
+
+/// Parse one capture line, restoring any bodies the writer injected.
+///
+/// The parse goes through `serde_json::Value` because that is the shape the
+/// writer injects into, so the two halves stay each other's inverse rather
+/// than two independent readings of the same key.
+pub(crate) fn parse_record_line(line: &str) -> Result<CaptureEnvelope, String> {
+    let mut v: serde_json::Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
+    let request_body = take_injected_body(&mut v, "request")?;
+    let response_body = take_injected_body(&mut v, "response")?;
+    let mut envelope: CaptureEnvelope = serde_json::from_value(v).map_err(|e| e.to_string())?;
+
+    // Only a transaction has anywhere to put them. A body key on any other
+    // record type was removed above and is not carried anywhere, which is what
+    // the writer's own shape says: nothing else has a separately-skipped body.
+    if let CaptureRecord::HttpTransaction(tx) = &mut envelope.record {
+        tx.request_body = request_body;
+        tx.response_body = response_body;
+    }
+    Ok(envelope)
+}
+
 /// What one read of a capture file yielded: the records, and how many lines it
 /// could not turn into one.
 ///
@@ -544,7 +600,7 @@ pub async fn load_session_records<P: AsRef<std::path::Path>>(
         }
 
         // Parse the tagged, versioned envelope. Unknown types are skipped.
-        match serde_json::from_str::<CaptureEnvelope>(trimmed) {
+        match parse_record_line(trimmed) {
             // A session filter keeps only what this session stamped. Records
             // with no stamp are another writer's (or predate the field), so
             // they are not this session's either way.
@@ -702,6 +758,105 @@ mod tests {
             base64::engine::general_purpose::STANDARD.decode(resp_b64)?,
             b"{\"type\":\"x\"}"
         );
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    /// The other half of the test above, and for a long time nobody wrote it.
+    ///
+    /// `write_transaction_includes_bodies_when_enabled` asserts the octets
+    /// reach the JSON. That they come back was assumed, and they did not:
+    /// `request_body`/`response_body` are `#[serde(skip)]`, which skips reading
+    /// as well as writing, so every body a capture carried was dropped on load
+    /// and every rule that parses body octets reported nothing on a capture
+    /// file — silently, since a rule with no body to read has nothing to say.
+    #[tokio::test]
+    async fn read_restores_the_bodies_that_were_written() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_capture_body_roundtrip", "jsonl");
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+
+        let cw = CaptureWriter::new(p.clone(), true).await?;
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(200, &[("content-type", "text/plain")]);
+        tx.request_body = Some(bytes::Bytes::from_static(b"req-body"));
+        tx.response_body = Some(bytes::Bytes::from_static(b"resp-body"));
+        cw.write_transaction(tx).await?;
+        cw.flush().await?;
+
+        let loaded = load_captures(&tmp).await?;
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(
+            loaded[0].request_body.as_deref(),
+            Some(&b"req-body"[..]),
+            "the request body did not survive the round trip"
+        );
+        assert_eq!(
+            loaded[0].response_body.as_deref(),
+            Some(&b"resp-body"[..]),
+            "the response body did not survive the round trip"
+        );
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    /// A file written without bodies reads back body-less, and is not thereby
+    /// unreadable. The absent key is the writer saying there was nothing to
+    /// carry, which is a different answer from a key nobody could decode.
+    #[tokio::test]
+    async fn read_without_bodies_is_not_an_unread_record() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_capture_no_body", "jsonl");
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+
+        let cw = CaptureWriter::new(p.clone(), false).await?;
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(200, &[("content-type", "text/plain")]);
+        tx.request_body = Some(bytes::Bytes::from_static(b"req-body"));
+        cw.write_transaction(tx).await?;
+        cw.flush().await?;
+
+        let load = load_capture_records_from(&tmp, 0).await?;
+        assert_eq!(load.unread, 0);
+        assert_eq!(load.records.len(), 1);
+        match &load.records[0] {
+            CaptureRecord::HttpTransaction(tx) => {
+                assert!(tx.request_body.is_none());
+                assert!(tx.response_body.is_none());
+            }
+            other => panic!("expected a transaction, got {other:?}"),
+        }
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    /// A `body` that is present and does not decode leaves the record unread
+    /// rather than body-less. Linting the headers and saying nothing about
+    /// content nobody could reconstruct is the failure this reader exists to
+    /// end, so it must not be the fallback when the reconstruction fails.
+    #[tokio::test]
+    async fn a_body_that_is_not_base64_makes_the_record_unread() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_capture_bad_body", "jsonl");
+
+        use crate::test_helpers::make_test_transaction_with_response;
+        let tx = make_test_transaction_with_response(200, &[("content-type", "text/plain")]);
+        let mut v: Value = serde_json::from_str(&tx_line(&tx))?;
+        v["response"]["body"] = Value::String("not base64 !!!".into());
+        fs::write(&tmp, format!("{v}\n")).await?;
+
+        let load = load_capture_records_from(&tmp, 0).await?;
+        assert_eq!(load.unread, 1, "an undecodable body must count as unread");
+        assert!(load.records.is_empty());
 
         fs::remove_file(&tmp).await?;
         Ok(())
