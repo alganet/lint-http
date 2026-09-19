@@ -26,11 +26,12 @@ static DECLARED: &[&ViolationDef] = &[
 
 /// Detect obvious contradictions in Cache-Control directives. Flagged:
 /// - `public` and `private` present simultaneously (contradictory visibility)
-/// - `no-store` combined with `public` or `private` (no-store forbids storing)
+/// - `no-store` combined with `public` (public grants what no-store forbids)
 /// - multiple `max-age` or `s-maxage` directives with differing values
 /// - an empty list element (RFC 9110 §5.6.1.1)
 ///
-/// `no-cache` with `max-age=0` is a legal, common combination and is intentionally NOT flagged.
+/// `no-cache` with `max-age=0`, and `private` with `no-store`, are legal, common
+/// combinations in which one directive is contained in the other; neither is flagged.
 pub struct CachingDirectiveInteraction;
 
 /// The specification references this rule declares, each named so a finding
@@ -54,7 +55,7 @@ impl RuleMeta for CachingDirectiveInteraction {
     }
 
     fn description(&self) -> &'static str {
-        "Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`/`private`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0` is a legal combination and is not flagged."
+        "Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0`, and `private` together with `no-store`, are legal combinations in which one directive is contained in the other, and are not flagged."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -87,6 +88,11 @@ impl RuleMeta for CachingDirectiveInteraction {
                 compliance: Compliance::Compliant,
                 label: None,
                 snippet: "Cache-Control: public, max-age=3600",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(`private` is contained in `no-store`; the pair agrees)"),
+                snippet: "Cache-Control: private, no-store",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -161,15 +167,22 @@ impl Rule for CachingDirectiveInteraction {
                     return Some(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'public' (RFC 9111 \u{a7}5.2.2.9) and an unqualified 'private' (\u{a7}5.2.2.7): a shared cache MAY store the response and MUST NOT store it".into()));
                 }
 
-                // no-store with public/private
-                if seen.contains_key("no-store")
-                    && (seen.contains_key("public") || seen.contains_key("private"))
-                {
-                    // `no-store` forbids storing at all, so pairing it with a directive whose
-                    // only job is to say *which* caches may store is a contradiction: one of
-                    // the two is dead text, and the server does not know which it meant.
-                    // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                    return Some(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains 'no-store' (RFC 9111 \u{a7}5.2.2.5) together with 'public' or 'private', whose only job is to say which caches may store what no-store forbids storing at all".into()));
+                // `no-store` beside `public`. `public` grants storage to every cache
+                // "even if it would otherwise be prohibited" and `no-store` prohibits it
+                // to every cache; § 3 settles the response for `no-store`, so the grant
+                // is dead text and the two directives say opposite things about one
+                // response.
+                //
+                // `private` beside `no-store` is NOT this pair. `private` forbids the
+                // shared caches what `no-store` forbids all of them, so the two agree
+                // about storing and the weaker is contained in the stronger — the
+                // relation `no-cache` and `max-age=0` have to `no-store`, which this
+                // rule leaves alone on purpose. It is also the commonest way a response
+                // says "do not cache this", and nothing in it is dead text a server
+                // could have meant otherwise.
+                // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
+                if seen.contains_key("no-store") && seen.contains_key("public") {
+                    return Some(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'no-store' (RFC 9111 \u{a7}5.2.2.5) and 'public' (\u{a7}5.2.2.9): every cache MUST NOT store the response and any cache MAY store it".into()));
                 }
 
                 // Note: combinations like 'no-cache' with 'max-age=0' are allowed per RFC 9111 §3
@@ -246,6 +259,9 @@ mod tests {
     #[case(",max-age=1", "list_member_empty")]
     #[case("public, private", "cache_control_storage_conflicting")]
     #[case("no-store, public", "cache_control_storage_conflicting")]
+    // `private` is contained in `no-store`: the pair agrees about storing.
+    #[case("no-store, private", "")]
+    #[case("private, max-age=0, no-store, no-cache, must-revalidate", "")]
     #[case("max-age=60, max-age=120", "cache_control_freshness_conflicting")]
     #[case("s-maxage=60, s-maxage=120", "cache_control_freshness_conflicting")]
     // A qualified `private` exempts named fields and lets a shared cache store
@@ -278,6 +294,7 @@ mod tests {
     #[case("public, max-age=3600", false)]
     #[case("public, private", true)]
     #[case("no-store, public", true)]
+    #[case("no-store, private", false)]
     #[case("no-cache, max-age=0", false)]
     #[case("no-cache, max-age=60", false)]
     #[case("max-age=60, max-age=60", false)]
@@ -312,6 +329,7 @@ mod tests {
     #[case("public, max-age=3600", false)]
     #[case("public, private", true)]
     #[case("no-store, public", true)]
+    #[case("no-store, private", false)]
     #[case("no-cache, max-age=0", false)]
     #[case("max-age=60, max-age=60", false)]
     #[case("s-maxage=60, s-maxage=30", true)]
