@@ -157,18 +157,31 @@ defects! {
     /// answered. `_missing` is the ending for what was not written at all,
     /// which is exactly what a response with neither has done.
     ///
-    /// **`warn`, and the ending of the sentence is what keeps it off `error`
-    /// rather than the beginning.** "Is expected to" is descriptive where the
-    /// rest of this document writes MUSTs, so the finding cannot claim a
-    /// requirement was broken — but what it describes is a response served to
-    /// a request that did not shape it, which is more than a style preference.
+    /// **`info`, and the reason is the clause the sentence opens with rather
+    /// than the modal it ends on.** "Is expected to" is already descriptive
+    /// where the rest of this document writes MUSTs. But the expectation is
+    /// conditioned before it is stated — it binds a server that generated the
+    /// field *"based on properties of an HTTP request it receives"* — and no
+    /// field on the wire records whether a `Priority` was derived from the
+    /// request or stamped on every response alike. A reader holding one
+    /// exchange cannot tell the case the sentence is about from the case it is
+    /// not, and it reports both, so the finding is advice with an unobservable
+    /// premise and the message says so. The hazard the advice is about is real
+    /// where the premise holds: a per-request signal in a response a cache may
+    /// hand to a different request.
     ///
+    /// The level moved down from `warn` when the premise was read. It sits
+    /// beside `status_200_ambiguous`, whose sentence has the same shape — an
+    /// "ought to" conditioned on "some aspect of the request", equally
+    /// unrecorded — and which reports at `info` for the same reason.
+    ///
+    // cite(RFC 9218 § 5): "When an origin server generates the Priority response header field based on properties of an HTTP request it receives"
     // cite(RFC 9218 § 5): "the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
     PRIORITY_CACHEABILITY_MISSING = {
         id: "priority_cacheability_missing",
         title: "A Priority response says nothing about caching",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Info,
         spec: &[RFC_9218_5],
     }
 }
@@ -195,9 +208,19 @@ mod tests {
             &PRIORITY_URGENCY_MALFORMED,
             &PRIORITY_URGENCY_INVALID,
             &PRIORITY_INCREMENTAL_MALFORMED,
-            &PRIORITY_CACHEABILITY_MISSING,
         ] {
             assert_eq!(def.default_severity, Severity::Warn);
         }
+    }
+
+    /// And the one entry here that reports no defect in the value at all. Its
+    /// sentence is conditioned on something the wire does not record, so it
+    /// ranks below every entry that read a value and found it wanting.
+    #[test]
+    fn advice_with_an_unobservable_premise_ranks_below_a_value_that_was_read() {
+        assert_eq!(
+            PRIORITY_CACHEABILITY_MISSING.default_severity,
+            Severity::Info
+        );
     }
 }

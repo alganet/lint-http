@@ -25,7 +25,7 @@ _Written where it is reported: this defect's message names the value that caused
 ```toml
 [violations.priority_cacheability_missing]
 # A Priority response says nothing about caching
-severity = "warn"
+severity = "info"
 ```
 
 ## Reported By

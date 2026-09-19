@@ -40,7 +40,7 @@ impl RuleMeta for PriorityAndCacheabilityConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "When an origin server includes a `Priority` response header (RFC 9218 §5) it is expected to control the cacheability or applicability of the cached response by using cache-control related fields (for example `Cache-Control` and/or `Vary`). This rule warns when a response includes `Priority` but lacks both, which can lead to a cache handing a response shaped by one request to a different one. **The expectation's subject is the *cached* response, so only an exchange a cache was permitted to store is reported.** RFC 9110 §9.2.3 says a method has to define caching semantics to be cached at all and names `GET`, `HEAD` and `POST`; §9.3.7 ends by saying of one of the others that *\"Responses to the OPTIONS method are not cacheable\"*, which is the case an operator meets most often, because a `Priority` is commonly stamped on every response an edge serves. RFC 9111 §3's conjunction has to hold besides: a `302` that advertises no freshness is not stored and so is not reported, while a `404` is reported, because §15.1 defines it as heuristically cacheable. `POST` is left out although §9.2.3 names it — §9.3.3 makes a POST response cacheable only where it carries explicit freshness *and* a `Content-Location` equal to the target URI, and a reader that asked only the first term would report a response no cache could have kept. The two caching fields are read by presence alone; the `Priority` value feeds the message and is never parsed as a Dictionary, which is `priority_header_syntax`'s reading."
+        "Reports a response that carries a `Priority` field and neither `Cache-Control` nor `Vary`, so an operator can check whether a cache may hand a per-request signal to a different request. **Nothing is being violated.** RFC 9218 §5 says the server *\"is expected to\"* control the cacheability or applicability of the cached response with fields that control caching — a modal weaker than SHOULD — and it says so of a server that generated the field *\"based on properties of an HTTP request it receives\"*, a condition no field on the wire records. This rule cannot tell the case the sentence is about from the case it is not, and it reports both; the finding names the condition so the operator can settle it. A `Priority` stamped identically on every response an origin serves, which is the shape a CDN edge commonly emits, satisfies the condition in no way at all. The `Cache-Control`/`Vary` pair is §5's own parenthesis and not a tolerance: it asks for *\"header fields that control the caching behavior\"* and names those two as examples, so either answers. **The expectation's subject is the *cached* response, so only an exchange a cache was permitted to store is reported.** RFC 9110 §9.2.3 says a method has to define caching semantics to be cached at all and names `GET`, `HEAD` and `POST`; §9.3.7 ends by saying of one of the others that *\"Responses to the OPTIONS method are not cacheable\"*, which is the case an operator meets most often, because a `Priority` is commonly stamped on every response an edge serves. RFC 9111 §3's conjunction has to hold besides: a `302` that advertises no freshness is not stored and so is not reported, while a `404` is reported, because §15.1 defines it as heuristically cacheable. `POST` is left out although §9.2.3 names it — §9.3.3 makes a POST response cacheable only where it carries explicit freshness *and* a `Content-Location` equal to the target URI, and a reader that asked only the first term would report a response no cache could have kept. The two caching fields are read by presence alone; the `Priority` value feeds the message and is never parsed as a Dictionary, which is `priority_header_syntax`'s reading."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -165,9 +165,17 @@ impl Rule for PriorityAndCacheabilityConsistent {
             // MAY, which spoke to neither the Priority expectation nor the Vary
             // half of the check.)
             if !has_cache_control && !has_vary {
+                // The premise is stated in the finding because it cannot be
+                // tested in the reading. § 5's expectation binds a server that
+                // generated the field from properties of the request, and
+                // nothing on the wire says whether this one did or whether the
+                // same value is stamped on every response the origin serves.
+                // So the operator is told what would have to be true for the
+                // advice to apply to them, which is the one thing they can
+                // check and this reader cannot.
+                // cite(RFC 9218 § 5): "When an origin server generates the Priority response header field based on properties of an HTTP request it receives"
                 return Some(ctx.report_with(&PRIORITY_CACHEABILITY_MISSING, format!(
-                        "Response includes Priority header ('{}') but lacks Cache-Control or Vary to control cacheability",
-                        priority
+                        "Response carries Priority: {priority} and neither Cache-Control nor Vary, and a cache is permitted to store it. RFC 9218 §5 expects one of those fields where the server generated the Priority from properties of the request; whether this one did is not recorded on the wire, so this is advice: a Priority that is the same on every response makes the response no more request-dependent than one without the field"
                     )));
             }
 
@@ -203,7 +211,14 @@ mod tests {
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.violation, "priority_cacheability_missing");
-        assert!(v.message.contains("Priority header"));
+        // The value, and the premise the reading cannot settle. A message that
+        // named neither would be identical for every response that triggers it.
+        assert!(v.message.contains("Priority: u=3"), "{}", v.message);
+        assert!(
+            v.message.contains("properties of the request"),
+            "{}",
+            v.message
+        );
     }
 
     #[rstest]

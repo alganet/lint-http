@@ -12473,6 +12473,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/priority_and_cacheability_consistent.rs
       line: 103
+    - file: lint-http-rules/src/rules/priority_and_cacheability_consistent.rs
+      line: 176
+    - file: lint-http-rules/src/violations/priority.rs
+      line: 178
   - label: priority_and_cacheability_consistent (2)
     section: § 5
     snippet: the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)
@@ -12480,7 +12484,7 @@ sources:
     - file: lint-http-rules/src/rules/priority_and_cacheability_consistent.rs
       line: 147
     - file: lint-http-rules/src/violations/priority.rs
-      line: 166
+      line: 179
   - label: priority_header_syntax
     section: § 4
     snippet: For both the Priority header field and the PRIORITY_UPDATE frame, the set of priority parameters is encoded as a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]).
