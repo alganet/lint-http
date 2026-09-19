@@ -379,18 +379,28 @@ impl Rule for ConditionalRequestHandling {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let sent = Preconditions::of(&tx.request.headers);
-            if !sent.any() {
-                return None;
-            }
-            self.validator_was_observed(tx, &sent, history, ctx)
-                .or_else(|| self.if_none_match_was_evaluated(tx, &sent, ctx))
-                .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx))
-        };
-        Vec::from_iter(finding())
+        let sent = Preconditions::of(&tx.request.headers);
+        if !sent.any() {
+            return Vec::new();
+        }
+        // Two peers, two findings, and neither stands in for the other. The
+        // client's precondition is judged against what this exchange handed
+        // it; the origin's answer is judged against the precondition as sent,
+        // whatever the client built it from. A tag no response for this
+        // resource carried is the client's defect, and a `200` returned to
+        // that same tag when the response's own `ETag` matches it is the
+        // origin's — and answering the first used to end the reading before
+        // the second was asked, so the server's finding existed only on
+        // exchanges where the client had done nothing wrong.
+        let mut out = Vec::new();
+        out.extend(self.validator_was_observed(tx, &sent, history, ctx));
+        // The two `304` readings are exclusive by § 13.2.2, which evaluates
+        // `If-Modified-Since` only where `If-None-Match` is absent.
+        out.extend(
+            self.if_none_match_was_evaluated(tx, &sent, ctx)
+                .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx)),
+        );
+        out
     }
 }
 
@@ -896,6 +906,39 @@ mod tests {
             .expect("a finding")
             .message
             .contains("no previous response recorded for this resource"));
+    }
+
+    /// The client's finding does not stand in for the origin's. A tag no
+    /// response for this resource handed out is the client's defect, and a
+    /// `200` whose own `ETag` matches that same tag is the origin's; one
+    /// exchange can carry both, and reporting the first used to end the
+    /// reading before the second was asked.
+    #[test]
+    fn the_clients_invented_tag_does_not_hide_the_origins_missing_304() {
+        let mut tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"a\"")]);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
+        tx.request.method = "GET".to_string();
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            make_prev_with_headers(&[("etag", "\"v2\"")]),
+        ]);
+        let ids: Vec<String> = crate::test_helpers::run_rule_all(
+            &ConditionalRequestHandling,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        assert_eq!(
+            ids,
+            vec!["conditional_validator_missing", "status_304_missing"],
+            "both peers erred on this exchange, and both are reported"
+        );
     }
 
     #[test]
