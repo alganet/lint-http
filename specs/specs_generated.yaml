@@ -2094,7 +2094,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 538
+      line: 585
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 249
     - file: lint-http-rules/src/violations/base64.rs
@@ -3700,7 +3700,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 630
+      line: 677
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.html
   fragments:
@@ -4493,7 +4493,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 745
+      line: 792
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 233
 - label: RFC 7617
@@ -4510,7 +4510,7 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 551
+      line: 598
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 61
   - label: basic-credentials base64
@@ -4518,13 +4518,13 @@ sources:
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 535
+      line: 582
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 543
+      line: 590
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 46
 - label: RFC 7838
@@ -7507,7 +7507,7 @@ sources:
     snippet: It uses a case-insensitive token to identify the authentication scheme
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 438
+      line: 485
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 157
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
@@ -7523,7 +7523,9 @@ sources:
     snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 702
+      line: 331
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 749
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 60
     - file: lint-http-rules/src/violations/challenge.rs
@@ -7535,30 +7537,36 @@ sources:
     - file: lint-http-rules/src/violations/challenge.rs
       line: 160
   - label: lint-http-rules/src/helpers/auth.rs (2)
+    section: § 11.2
+    snippet: token68    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 252
+  - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.3
     snippet: 'challenge   = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 263
-  - label: lint-http-rules/src/helpers/auth.rs (3)
+      line: 288
+  - label: lint-http-rules/src/helpers/auth.rs (4)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 273
+      line: 298
     - file: lint-http-rules/src/violations/challenge.rs
       line: 88
-  - label: lint-http-rules/src/helpers/auth.rs (4)
+  - label: lint-http-rules/src/helpers/auth.rs (5)
     section: § 11.4
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 450
+      line: 497
     - file: lint-http-rules/src/violations/credentials.rs
       line: 53
     - file: lint-http-rules/src/violations/credentials.rs
       line: 84
-  - label: lint-http-rules/src/helpers/auth.rs (5)
+  - label: lint-http-rules/src/helpers/auth.rs (6)
     section: § 11.6.1
     snippet: 'WWW-Authenticate = #challenge'
     cited_by:
@@ -7598,12 +7606,12 @@ sources:
       line: 330
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 263
-  - label: lint-http-rules/src/helpers/auth.rs (6)
+  - label: lint-http-rules/src/helpers/auth.rs (7)
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 703
+      line: 750
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 141
     - file: lint-http-rules/src/helpers/cache_control.rs

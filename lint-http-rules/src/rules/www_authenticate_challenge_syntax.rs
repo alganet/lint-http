@@ -188,6 +188,18 @@ mod tests {
     #[case("Basic realm=\"example\"", false)]
     #[case("Bearer realm=\"example\", error=\"invalid_token\"", false)]
     #[case("NewScheme abcdef123=", false)]
+    // `token68` closes with `*"="`, so a credential's padding is inside the
+    // production. Both of these were an `error` about the second `=`, read as a
+    // character where an `auth-param`'s value goes; `Negotiate <base64>==` is
+    // how SPNEGO writes a challenge and the base64url row is how a JWS one does.
+    #[case("NewScheme YIIFxAYGKwYBBQUCoIIFuDCCBbSgh==", false)]
+    #[case("NewScheme eyJhbGciOiJFUzI1NiJ9-_abc==", false)]
+    #[case("NewScheme abc===", false)]
+    #[case("NewScheme a.b~c==", false)]
+    // A padding octet does not excuse the value in front of it: `=` closes a
+    // `token68` and nothing reopens it, so what follows the padding is outside
+    // every alternative the production offers.
+    #[case("NewScheme ab==cd", true)]
     #[case("Basic realm=\"a,b\"", false)]
     #[case("Basic", false)]
     #[case("", true)]
