@@ -139,9 +139,16 @@ impl Rule for ContentTypeRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept.
+        // The media type a request states is not the one the response states,
+        // and an unlisted value in each is two peers' defects rather than one:
+        // ending the reading at the request's left `--about server` silent
+        // about a response whose own Content-Type named a type the operator's
+        // list does not carry. Within a section the value is still judged once
+        // — `get_header_str` reads one line — so this widens nothing but the
+        // number of sections that get an answer.
+        let mut out = Vec::new();
+        {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             let check_media_type = |hdr_name: &str,
                                     val: &str,
@@ -216,14 +223,12 @@ impl Rule for ContentTypeRegistered {
             if let Some(val) =
                 crate::helpers::headers::get_header_str(&tx.request.headers, "content-type")
             {
-                if let Some(v) = check_media_type(
+                out.extend(check_media_type(
                     "Content-Type",
                     val,
                     &config.allowed,
                     crate::lint::Party::Client,
-                ) {
-                    return Some(v);
-                }
+                ));
             }
 
             // Check response Content-Type
@@ -231,20 +236,16 @@ impl Rule for ContentTypeRegistered {
                 if let Some(val) =
                     crate::helpers::headers::get_header_str(&resp.headers, "content-type")
                 {
-                    if let Some(v) = check_media_type(
+                    out.extend(check_media_type(
                         "Content-Type",
                         val,
                         &config.allowed,
                         crate::lint::Party::Server,
-                    ) {
-                        return Some(v);
-                    }
+                    ));
                 }
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 
@@ -371,6 +372,58 @@ mod tests {
             assert!(violation.is_none());
         }
         Ok(())
+    }
+
+    /// Both sections offend, and both are reported. The request's finding used
+    /// to end the reading, so a response naming a type the list does not carry
+    /// went unreported whenever the client's Content-Type was unlisted too —
+    /// and `--about server` showed nothing for the exchange.
+    #[test]
+    fn each_section_is_reported_and_neither_ends_the_other() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-type",
+            "application/x-git-upload-pack-request",
+        )]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[(
+                "content-type",
+                "application/x-git-upload-pack-result",
+            )]);
+        let found = crate::test_helpers::run_rule_all(
+            &ContentTypeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        assert_eq!(
+            found.len(),
+            2,
+            "one finding per offending section: {found:?}"
+        );
+        assert_eq!(found[0].party, Some(crate::lint::Party::Client));
+        assert!(found[0].message.contains("x-git-upload-pack-request"));
+        assert_eq!(found[1].party, Some(crate::lint::Party::Server));
+        assert!(found[1].message.contains("x-git-upload-pack-result"));
+    }
+
+    /// A conforming request Content-Type leaves the response's reading exactly
+    /// where it was: the section that offends is the section reported.
+    #[test]
+    fn a_listed_request_type_leaves_the_response_the_only_finding() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/x-custom")]);
+        let found = crate::test_helpers::run_rule_all(
+            &ContentTypeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].party, Some(crate::lint::Party::Server));
     }
 
     #[test]
