@@ -14,12 +14,16 @@ Warn when a conditional request names a validator (ETag / Last-Modified) that no
 
 - [conditional_validator_missing](../violations/conditional_validator_missing.md) — A precondition names a validator this exchange never provided
 - [status_304_missing](../violations/status_304_missing.md) — A false precondition is answered with 200 rather than 304
+- [status_412_ambiguous](../violations/status_412_ambiguous.md) — A false precondition is answered with success, and nothing shows whether the change was already in place
+- [status_412_missing](../violations/status_412_missing.md) — A false precondition on a state-changing request is answered with success rather than 412
 
 ## Specifications
 
 - [RFC 9110 §13.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1): Preconditions
+- [RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.1): `If-Match`: an origin server MUST NOT perform the method when the condition is false, MAY answer 412, and MAY answer 2xx where the state-changing request appears to have already been applied
 - [RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2): `If-None-Match`: an origin server MUST NOT perform the method when the condition is false and MUST answer with a 304 for GET or HEAD, or a 412 otherwise
 - [RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): `If-Modified-Since`: the recipient MUST ignore it when an `If-None-Match` is present, MUST ignore it when the value is no HTTP-date or has more than one member or the method is neither GET nor HEAD, and SHOULD answer a false condition with a 304 rather than performing the method
+- [RFC 9110 §13.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.4): `If-Unmodified-Since`: the recipient MUST ignore it when an `If-Match` is present, and when the value is no HTTP-date
 - [RFC 9110 §13.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2): Evaluation of Preconditions (precedence rules)
 - [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): Entity Tags — `entity-tag = [ weak ] opaque-tag`, `weak = %s"W/"` (case-sensitive by the `%s` prefix), `opaque-tag = DQUOTE *etagc DQUOTE`, and `etagc` as VCHAR minus the DQUOTE plus obs-text
 - [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): Last-Modified header field
@@ -83,4 +87,63 @@ enabled = true
 
 < 200 OK  HTTP/1.1
 < ETag: "abc"
+```
+
+### ✅ Good — the tag the PUT conditioned on was the current one, so the method was performed
+
+```http
+> GET /doc HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "v2"
+
+> PUT /doc HTTP/1.1
+> If-Match: "v2"
+
+< 200 OK  HTTP/1.1
+< ETag: "v3"
+```
+
+### ❌ Bad — the PUT conditioned on a tag the resource no longer had, and the tag moved anyway: the lost update went through
+
+```http
+> GET /doc HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "v2"
+
+> PUT /doc HTTP/1.1
+> If-Match: "v1"
+
+< 200 OK  HTTP/1.1
+< ETag: "v3"
+```
+
+### ❌ Bad — a create-only PUT on a resource that already had a representation owes a 412
+
+```http
+> GET /doc HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "v2"
+
+> PUT /doc HTTP/1.1
+> If-None-Match: *
+
+< 200 OK  HTTP/1.1
+< ETag: "v2"
+```
+
+### ❌ Bad — the same false If-Match answered 204 with nothing to say whether the change had already been applied
+
+```http
+> GET /doc HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "v2"
+
+> PUT /doc HTTP/1.1
+> If-Match: "v1"
+
+< 204 No Content  HTTP/1.1
 ```
