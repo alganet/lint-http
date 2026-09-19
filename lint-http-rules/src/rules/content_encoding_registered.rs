@@ -145,7 +145,13 @@ impl Rule for ContentEncodingRegistered {
                                allowed: &Vec<String>,
                                is_accept: bool,
                                party: crate::lint::Party|
-             -> Option<Violation> {
+             -> Vec<Violation> {
+                // One finding per member. `#content-coding` names one coding per
+                // position -- in `Content-Encoding` one transformation that was
+                // applied, in `Accept-Encoding` one the sender will take -- so a
+                // value naming two the recipient cannot act on is two names to
+                // correct, and a walk that returned at the first named one.
+                let mut found = Vec::new();
                 for part in crate::helpers::list::list_members(val) {
                     // Split off any parameters (e.g., gzip;q=0.8)
                     let token = part.split(';').next().unwrap().trim();
@@ -157,19 +163,21 @@ impl Rule for ContentEncodingRegistered {
                         if is_accept {
                             continue;
                         }
-                        return Some(ctx.by(party).report_with(&CONTENT_CODING_WILDCARD_FORBIDDEN, format!(
+                        found.push(ctx.by(party).report_with(&CONTENT_CODING_WILDCARD_FORBIDDEN, format!(
                                     "'*' is not a content-coding and is only meaningful in Accept-Encoding, not in {}",
                                     hdr_name
                                 )));
+                        continue;
                     }
                     // `identity` is likewise Accept-Encoding vocabulary — the way to say
                     // "no encoding". Naming it in Content-Encoding claims a transformation
                     // that by definition does nothing, so the spec reserves it away.
                     if !is_accept && token.eq_ignore_ascii_case("identity") {
-                        return Some(ctx.by(party).report_with(&CONTENT_CODING_IDENTITY_FORBIDDEN, format!(
+                        found.push(ctx.by(party).report_with(&CONTENT_CODING_IDENTITY_FORBIDDEN, format!(
                                     "'identity' is reserved for Accept-Encoding and SHOULD NOT be sent in {}",
                                     hdr_name
                                 )));
+                        continue;
                     }
                     // cite(RFC 9110 § 8.4.1): "content-coding = token"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
@@ -178,30 +186,33 @@ impl Rule for ContentEncodingRegistered {
                         // `token`'s question and not this field's. Rendered for
                         // the reason its neighbour renders it: the value is read
                         // as octets and an `obs-text` byte is named, not shown.
-                        return Some(ctx.by(party).report_with(
+                        found.push(ctx.by(party).report_with(
                             token_character(c),
                             format!(
-                                "Invalid token {} in {} header",
+                                "Invalid token {} in member '{}' of the {} header",
                                 crate::helpers::shown::describe_char(c),
+                                crate::helpers::shown::shown_in_finding(token),
                                 hdr_name
                             ),
                         ));
+                        continue;
                     }
                     // Folded to lowercase because the codings are case-insensitive. As
                     // in the media-type sibling, "registered" here means "in the
                     // operator's list": nothing consults the registry the rule is named
                     // after, and the sentence below is an "ought to" in any case.
                     if !allowed.contains(&token.to_ascii_lowercase()) {
-                        return Some(ctx.by(party).report_with(
+                        found.push(ctx.by(party).report_with(
                             &CONTENT_CODING_UNREGISTERED,
                             format!(
                                 "Unrecognized content-coding '{}' in {} header",
                                 token, hdr_name
                             ),
                         ));
+                        continue;
                     }
                 }
-                None
+                found
             };
 
             // **The empty list element is not reported here**, and the reason
@@ -263,6 +274,47 @@ mod tests {
     use super::*;
     use hyper::header::HeaderValue;
     use rstest::rstest;
+
+    /// **Every coding the response named is answered.** `#content-coding` names
+    /// one coding per position, so a value naming two the recipient cannot act
+    /// on is two names to correct — and a walk that returned at the first named
+    /// one.
+    #[test]
+    fn every_defective_coding_is_reported() {
+        let rule = ContentEncodingRegistered;
+        let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "content_encoding_registered",
+        ]);
+        cfg.rules
+            .get_mut("content_encoding_registered")
+            .expect("the rule's section")
+            .as_table_mut()
+            .expect("a table")
+            .insert(
+                "allowed".into(),
+                toml::Value::Array(vec![toml::Value::String("gzip".into())]),
+            );
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-encoding", "identity, notacoding, *")],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(
+            ids.contains(&"content_coding_identity_forbidden"),
+            "{ids:?}"
+        );
+        assert!(ids.contains(&"content_coding_unregistered"), "{ids:?}");
+        assert!(
+            ids.contains(&"content_coding_wildcard_forbidden"),
+            "{ids:?}"
+        );
+    }
 
     fn make_cfg() -> crate::config::Config {
         let mut cfg = crate::config::Config::default();
@@ -648,7 +700,10 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(v.violation, "token_character_forbidden");
-        assert_eq!(v.message, "Invalid token 0xFF in Content-Encoding header");
+        assert_eq!(
+            v.message,
+            "Invalid token 0xFF in member 'ÿ' of the Content-Encoding header"
+        );
 
         let mut tx2 = crate::test_helpers::make_test_transaction();
         let mut hm2 = hyper::HeaderMap::new();
@@ -662,7 +717,10 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(v2.violation, "token_character_forbidden");
-        assert_eq!(v2.message, "Invalid token 0xFF in Accept-Encoding header");
+        assert_eq!(
+            v2.message,
+            "Invalid token 0xFF in member 'ÿ' of the Accept-Encoding header"
+        );
     }
     #[test]
     fn request_custom_allowed_is_accepted() -> anyhow::Result<()> {
@@ -985,7 +1043,10 @@ mod tests {
         );
         assert!(v.is_some());
         let v = v.unwrap();
-        assert_eq!(v.message, "Invalid token '@' in Content-Encoding header");
+        assert_eq!(
+            v.message,
+            "Invalid token '@' in member 'x@bad' of the Content-Encoding header"
+        );
         Ok(())
     }
 }
