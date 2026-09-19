@@ -368,12 +368,31 @@ pub fn estimated_age(
     observed_at: chrono::DateTime<chrono::Utc>,
     now: chrono::DateTime<chrono::Utc>,
 ) -> i64 {
-    let stated_age = crate::helpers::headers::get_header_str(headers, "age")
+    let resident = now.signed_duration_since(observed_at).num_seconds().max(0);
+    stated_age(headers).saturating_add(resident)
+}
+
+/// The age, in whole seconds, the sender stated the response already had when
+/// it left — `Age`, and nothing added to it.
+///
+/// **A response is at least this old to every recipient of it**, which is what
+/// separates this from [`estimated_age`]: § 4.2.3 takes `current_age` as the
+/// maximum of the stated age and the time elapsed since `Date`, so no reading
+/// of either field puts the response below the number here. A caller that only
+/// needs to know how much of an advertised lifetime has already been spent can
+/// ask this and stay true whether `Date` is the instant the origin generated
+/// the response or the instant the cache in front of it served the copy.
+///
+/// Absent is zero, and so is a value the field's own `delta-seconds` does not
+/// derive: a non-numeric or negative `Age` states nothing about elapsed time,
+/// and reading it as some other number would be inventing one.
+// cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
+// cite(RFC 9111 § 4.2.3): "corrected_initial_age = max(apparent_age, corrected_age_value)"
+pub fn stated_age(headers: &HeaderMap) -> i64 {
+    crate::helpers::headers::get_header_str(headers, "age")
         .and_then(|s| s.trim().parse::<i64>().ok())
         .filter(|seconds| *seconds >= 0)
-        .unwrap_or(0);
-    let resident = now.signed_duration_since(observed_at).num_seconds().max(0);
-    stated_age.saturating_add(resident)
+        .unwrap_or(0)
 }
 
 /// Compute the freshness lifetime (in whole seconds) advertised by a response.
@@ -848,6 +867,34 @@ mod tests {
             "expected ~20s from receipt, got {}",
             val
         );
+    }
+
+    /// The age the sender stated, and nothing added to it. A caller asking how
+    /// much of an advertised lifetime is already spent needs the floor § 4.2.3
+    /// puts under `current_age`, not an estimate of it, so what the field does
+    /// not derive is zero rather than a guess: absent, empty, negative, a
+    /// decimal, a `delta-seconds` with a unit on it.
+    #[rstest::rstest]
+    #[case(&[("age", "0")], 0)]
+    #[case(&[("age", "2805")], 2805)]
+    #[case(&[("age", "  2805  ")], 2805)]
+    #[case(&[], 0)]
+    #[case(&[("age", "")], 0)]
+    #[case(&[("age", "-1")], 0)]
+    #[case(&[("age", "2.5")], 0)]
+    #[case(&[("age", "30s")], 0)]
+    fn the_stated_age_is_the_floor_under_every_reading(
+        #[case] headers: &[(&str, &str)],
+        #[case] expected: i64,
+    ) {
+        let mut hm = HeaderMap::new();
+        for (name, value) in headers {
+            hm.append(
+                hyper::header::HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                value.parse().unwrap(),
+            );
+        }
+        assert_eq!(stated_age(&hm), expected, "headers={headers:?}");
     }
 
     /// § 4.2's definition, from the response alone. One row per term: a

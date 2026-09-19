@@ -48,18 +48,31 @@ pub const RFC_9111_5_3: SpecRef = SpecRef {
 defects! {
     /// An `Expires` that says something the response's `Cache-Control`
     /// freshness directives do not: an unreadable date (which a cache must
-    /// treat as already expired) beside a positive `max-age`, a future
-    /// `Expires` beside `no-cache`, `no-store` or `max-age=0`, an already-past
-    /// `Expires` beside a positive `max-age`, or a date more than a second away
-    /// from `Date` plus a *positive* `max-age`.
+    /// treat as already expired) beside a lifetime still unspent, a future
+    /// `Expires` beside `no-cache`, `no-store` or a lifetime already spent, an
+    /// already-past `Expires` beside a lifetime still unspent, or a date more
+    /// than a second away from every instant `Date` and an unspent `max-age`
+    /// can name.
     ///
-    /// **The last shape asks for a positive `max-age` because a zero cannot
-    /// produce the disagreement.** `max-age=0` beside a past `Expires` is one
-    /// answer written twice — stale on arrival for the cache that reads the
-    /// directive, stale on arrival for the cache that reads the date — and the
-    /// distance between the two instants is not a second answer when both are
-    /// behind `Date`. A future `Expires` beside that zero is the second shape
-    /// above and is still reported.
+    /// **"Unspent" is `max-age` minus the `Age` the response arrived with, and
+    /// it is what makes `max-age=0` the ordinary case rather than the special
+    /// one.** § 4.2.3 floors `current_age` at the stated `Age`, so a lifetime
+    /// at or below that number is one no recipient has any of left: the
+    /// response is stale on arrival for the cache that reads the directive
+    /// exactly as `max-age=0` is. Beside an `Expires` already past, that is one
+    /// answer written twice, and the distance between two instants behind
+    /// `Date` is not a second answer. Beside a *future* `Expires` it is the
+    /// second shape above — which is how a spent lifetime is reported, and it
+    /// was reported as a distance until the age was read.
+    ///
+    /// **`Date` has two readings and the last shape allows for both.** Where it
+    /// is the instant the origin generated the response, the directive
+    /// population goes stale at `Date` plus `max-age`. Where it is the instant
+    /// the cache in front of the origin served this copy — which is what an
+    /// `Age` beside a `Date` at the observed instant means — the lifetime left
+    /// is what has not been spent, and both populations meet at `Date` plus
+    /// `max-age` minus `Age`. A sender who writes either has written one
+    /// lifetime twice; only a value landing on neither has written two.
     ///
     /// **Four shapes, one entry, and the population is why.** Every one of them
     /// is the same message read two ways: a cache that implements

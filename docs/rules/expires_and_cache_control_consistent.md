@@ -22,7 +22,15 @@ value is unreadable is reported separately.
 
 An `Expires` that names no instant at all counts as contradictory rather than as no
 information: a cache is required to read it as already expired, so the common
-`Expires: 0` paired with a positive `max-age` is flagged.
+`Expires: 0` paired with an unspent `max-age` is flagged.
+
+The lifetime a directive advertises is compared after the age the response arrived
+with is taken off it. A response served out of a cache has spent part of its
+`max-age` already, and an origin behind such a cache commonly writes `Expires` as
+the instant the lifetime actually runs out — `Date` plus `max-age` minus `Age` —
+which is agreement, not contradiction. A `max-age` the `Age` has consumed entirely
+is a response stale on arrival, exactly as `max-age=0` is, and is read that way in
+both directions.
 
 ## Violations
 
@@ -68,6 +76,30 @@ Expires: Wed, 21 Oct 2015 08:28:00 GMT
 HTTP/1.1 200 OK
 Date: Wed, 21 Oct 2015 07:28:00 GMT
 Cache-Control: no-cache
+Expires: Wed, 21 Oct 2015 08:28:00 GMT
+
+<...>
+```
+
+### ✅ Good Served from a cache: 3600 seconds of lifetime with 2805 spent, and an Expires 795 seconds out. Both populations stop at 07:41:15
+
+```http
+HTTP/1.1 200 OK
+Date: Wed, 21 Oct 2015 07:28:00 GMT
+Age: 2805
+Cache-Control: max-age=3600
+Expires: Wed, 21 Oct 2015 07:41:15 GMT
+
+<...>
+```
+
+### ❌ Bad An Age that has consumed the whole max-age is a response stale on arrival, so an Expires an hour out is freshness no cache has
+
+```http
+HTTP/1.1 200 OK
+Date: Wed, 21 Oct 2015 07:28:00 GMT
+Age: 900
+Cache-Control: max-age=600
 Expires: Wed, 21 Oct 2015 08:28:00 GMT
 
 <...>
