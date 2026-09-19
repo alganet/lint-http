@@ -161,9 +161,12 @@ impl Rule for RangeHeaderSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // A body behind an Option down to the point the range-set is reached:
+        // everything above it is a verdict on the field value as a whole, and
+        // `?` ends the reading early where there is no value to walk. The
+        // specifiers themselves are a list, and each is a range the client
+        // asked for on its own terms.
+        let judge = || -> Vec<Violation> {
             use hyper::header::RANGE;
 
             // A request that names no range is every other request. The absence is
@@ -172,7 +175,9 @@ impl Rule for RangeHeaderSyntax {
             //
             // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
             let hdrs = tx.request.headers.get_all(RANGE);
-            hdrs.iter().next()?;
+            if hdrs.iter().next().is_none() {
+                return Vec::new();
+            }
 
             // `to_str` refuses every octet outside visible US-ASCII, and the shared
             // reader below folds that refusal into the same `None` it returns for an
@@ -195,10 +200,10 @@ impl Rule for RangeHeaderSyntax {
                     // being cut into members at all. The alphabet it names is
                     // the widest in the production, so an octet outside it is
                     // outside the unit's `token` and is not the `=` either.
-                    return Some(ctx.report_with(
+                    return vec![ctx.report_with(
                         &RANGE_SPEC_CHARACTER_FORBIDDEN,
                         "Range header holds an octet no part of a ranges-specifier admits".into(),
-                    ));
+                    )];
                 }
             }
 
@@ -217,10 +222,11 @@ impl Rule for RangeHeaderSyntax {
             // remaining `None` is the absent case, which the first line here ruled out.
             //
             // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
-            let value = crate::helpers::headers::get_all_header_values(
-                &tx.request.headers,
-                RANGE.as_str(),
-            )?;
+            let Some(value) =
+                crate::helpers::headers::get_all_header_values(&tx.request.headers, RANGE.as_str())
+            else {
+                return Vec::new();
+            };
 
             // The split is the shared one, not a second copy of it: the unit is a
             // token, so the first `=` is the separator whatever follows it, and the
@@ -237,10 +243,10 @@ impl Rule for RangeHeaderSyntax {
                 match crate::helpers::content_range::split_ranges_specifier(&value) {
                     Ok(split) => split,
                     Err(defect) => {
-                        return Some(ctx.report_with(
+                        return vec![ctx.report_with(
                             ranges_specifier_defect(defect),
                             format!("Invalid Range header '{}': {}", value, defect.message()),
-                        ))
+                        )]
                     }
                 };
 
@@ -249,10 +255,13 @@ impl Rule for RangeHeaderSyntax {
             // rule knows one range-unit.
             //
             // cite(RFC 9110 § 14.1.1): "A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit."
-            if let Err(defect) = validate_range_set(&unit, range_set) {
-                let message = format!("Invalid Range header '{}': {}", value, defect.message);
-                return Some(ctx.report_with(defect.def, message));
-            }
+            let out: Vec<Violation> = validate_range_set(&unit, range_set)
+                .into_iter()
+                .map(|defect| {
+                    let message = format!("Invalid Range header '{}': {}", value, defect.message);
+                    ctx.report_with(defect.def, message)
+                })
+                .collect();
 
             // Three things a well-formed ranges-specifier can still be, none of them
             // reported here, all of them named so the silence is not read as an
@@ -273,14 +282,32 @@ impl Rule for RangeHeaderSyntax {
             // cite(RFC 9110 § 14.1.2): "For a GET request, a valid bytes range-spec is satisfiable if it is either:"
             // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined."
             // cite(RFC 9110 § 14.2): "A client that is requesting multiple ranges SHOULD list those ranges in ascending order (the order in which they would typically be received in a complete representation) unless there is a specific need to request a later part earlier."
-            None
+            out
         };
-        Vec::from_iter(finding())
+        judge()
     }
 }
 
 /// Walk a range-set, checking first what holds for every range unit and then, if
 /// the unit is one whose specifiers this rule knows, what holds for that unit.
+///
+/// **Every specifier is judged.** The walk used to `?` out at the first
+/// defective one, so a client asking for three ranges and getting two of them
+/// wrong was answered about one, and met the second only after fixing the first
+/// and re-running. `range-set = 1#range-spec` and the multi-range request is
+/// what the construct is for -- a media player asks for several at a time, and
+/// § 14.1.2 prints `bytes= 0-999, 4500-5499, -1000` as its own example.
+///
+/// **Each finding names the specifier it is about**, by position and by value.
+/// Without that, `bytes=a-1, a-2` is the sentence *"first-pos 'a' is not
+/// 1*DIGIT"* written twice, and an operator cannot tell how many ranges they
+/// have to fix or which -- the position readers name the part of the specifier
+/// that failed and not the specifier, which is exactly enough when one is
+/// reported and not enough when several are.
+///
+/// The empty member is the exception, and it is the list's defect rather than a
+/// specifier's: § 5.6.1.1 forbids a sender to *generate* an empty element, so a
+/// range-set written with gaps is one list with gaps, stated once.
 ///
 /// The two halves used to be one: the rule accepted `bytes` and reported every
 /// other unit as an unsupported one, so `Range: items=0-1` -- a conforming
@@ -308,20 +335,29 @@ impl Rule for RangeHeaderSyntax {
 // cite(RFC 9110 § 14.1.1): "The range unit name determines what kinds of range-spec are applicable to its own specifiers.  Hence, the following grammar is generic: each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed."
 // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand.  A proxy MAY discard a Range header field that contains a range unit it does not understand."
 // cite(RFC 9110 § 14.1.2, label: a bytes range-set the section prints with a leading space): "bytes= 0-999, 4500-5499, -1000"
-fn validate_range_set(unit: &str, range_set: &str) -> Result<(), Defect> {
+fn validate_range_set(unit: &str, range_set: &str) -> Vec<Defect> {
     // The `1` in `1#` -- a range-set with no element in it is not a range-set,
     // and the floor is the list construct's rather than this field's: what
     // `1#range-spec` says here is what `1#entity-tag` says at `If-Match` and
     // what `1#media-type` says at `Accept-Patch`.
     // cite(RFC 9110 § 14.1.1, label: range-set grammar): "range-set        = 1#range-spec"
+    let mut out = Vec::new();
     if range_set.is_empty() {
-        return Err(Defect::named(
+        out.push(Defect::named(
             &LIST_MEMBER_MISSING,
             "no range-spec found".into(),
         ));
+        return out;
     }
 
-    for spec in range_set.split(',') {
+    // Stated once for the whole range-set, however many gaps it has: the
+    // emptiness is the list's, and § 5.6.1.1 is one sentence about how the
+    // sender wrote it, where each specifier below is a range the client asked
+    // for on its own terms.
+    let mut said_empty = false;
+
+    for (index, spec) in range_set.split(',').enumerate() {
+        let n = index + 1;
         // The list construct puts OWS on either side of each comma, and OWS is
         // SP / HTAB. `trim` reaches further than that in general and no further
         // than that here: `to_str` has already refused every octet outside
@@ -338,7 +374,11 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), Defect> {
         //
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if spec.is_empty() {
-            return Err(Defect::named(&LIST_MEMBER_EMPTY, "empty range-spec".into()));
+            if !said_empty {
+                said_empty = true;
+                out.push(Defect::named(&LIST_MEMBER_EMPTY, "empty range-spec".into()));
+            }
+            continue;
         }
 
         // What is left to say about a unit this rule does not model. Every
@@ -354,13 +394,14 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), Defect> {
         //
         // cite(RFC 9110 § 14.1.1, label: other-range grammar): "other-range   = 1*( %x21-2B / %x2D-7E )"
         if let Some(c) = spec.chars().find(|c| !c.is_ascii_graphic()) {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 &RANGE_SPEC_CHARACTER_FORBIDDEN,
                 format!(
-                    "range-spec '{}' holds {:?}, which no range-spec admits",
+                    "range-spec {n} '{}' holds {:?}, which no range-spec admits",
                     spec, c
                 ),
             ));
+            continue;
         }
 
         // The one unit whose specifiers this rule can go on to read. The name is
@@ -369,10 +410,15 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), Defect> {
         //
         // cite(RFC 9110 § 14.1.2): "The "bytes" range unit is used to express subranges of a representation data's octet sequence."
         if unit == "bytes" {
-            validate_bytes_range_spec(spec)?;
+            out.extend(validate_bytes_range_spec(spec).err().map(|defect| {
+                Defect::named(
+                    defect.def,
+                    format!("range-spec {n} '{spec}': {}", defect.message),
+                )
+            }));
         }
     }
-    Ok(())
+    out
 }
 
 /// Check one range-spec against the two forms the `bytes` unit defines.
@@ -409,7 +455,7 @@ fn validate_bytes_range_spec(spec: &str) -> Result<(), Defect> {
         } else {
             Err(Defect::named(
                 &RANGE_POSITION_MALFORMED,
-                format!("suffix-range '{}' is not '-' followed by 1*DIGIT", spec),
+                "a suffix-range whose suffix-length is not 1*DIGIT".into(),
             ))
         };
     }
@@ -418,10 +464,7 @@ fn validate_bytes_range_spec(spec: &str) -> Result<(), Defect> {
     let Some((first, last)) = spec.split_once('-') else {
         return Err(Defect::named(
             &RANGE_SPEC_MALFORMED,
-            format!(
-                "byte range-spec '{}' is neither an int-range nor a suffix-range",
-                spec
-            ),
+            "neither an int-range nor a suffix-range".into(),
         ));
     };
     if !is_digits(first) {
@@ -491,14 +534,92 @@ mod tests {
     use hyper::header::HeaderValue;
     use rstest::rstest;
 
-    fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+    fn judge_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
         let rule = RangeHeaderSyntax;
-        crate::test_helpers::run_rule(
+        crate::test_helpers::run_rule_all(
             &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The cases below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported: a fixture that
+    /// silently drops a second finding cannot see this walk regress.
+    fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let mut found = judge_all(tx);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
+    }
+
+    /// A client asking for three ranges and getting two of them wrong is
+    /// answered about both, and each finding names the specifier it is about --
+    /// by position and by value, because the position readers name the half of
+    /// the specifier that failed and not the specifier.
+    #[test]
+    fn every_defective_range_spec_is_answered_about() {
+        let mut tx = make_test_transaction();
+        tx.request.headers.insert(
+            hyper::header::RANGE,
+            HeaderValue::from_static("bytes=0-499, 500-100, abc"),
+        );
+        let found = judge_all(&tx);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["range_positions_conflicting", "range_spec_malformed"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(
+            found[0].message.contains("range-spec 2 '500-100'"),
+            "{}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("range-spec 3 'abc'"),
+            "{}",
+            found[1].message
+        );
+    }
+
+    /// Two specifiers whose *only* difference is which one they are: without a
+    /// subject on the finding this is one sentence written twice.
+    #[test]
+    fn two_range_specs_failing_alike_are_still_two_findings() {
+        let mut tx = make_test_transaction();
+        tx.request.headers.insert(
+            hyper::header::RANGE,
+            HeaderValue::from_static("bytes=a-1, a-2"),
+        );
+        let found = judge_all(&tx);
+        assert_eq!(found.len(), 2, "{:?}", found);
+        assert_ne!(found[0].message, found[1].message);
+    }
+
+    /// The emptiness is the list's and not a specifier's, so a range-set
+    /// written with three gaps states it once -- while the specifiers' own
+    /// defects beside it are still counted per specifier.
+    #[test]
+    fn a_range_set_written_with_gaps_states_its_emptiness_once() {
+        let mut tx = make_test_transaction();
+        tx.request.headers.insert(
+            hyper::header::RANGE,
+            HeaderValue::from_static("bytes=0-1, , , abc"),
+        );
+        let found = judge_all(&tx);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["list_member_empty", "range_spec_malformed"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 
     #[rstest]
