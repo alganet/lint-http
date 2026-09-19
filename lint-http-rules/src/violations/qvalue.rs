@@ -174,12 +174,14 @@ defects! {
     /// member arrives and the preference does not.
     ///
     // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
+    // cite(RFC 9110 § 12.4.2, label: the weight production): "weight = OWS ";" OWS "q=" qvalue"
     WEIGHT_MALFORMED = {
         id: "weight_malformed",
         title: "Something other than a weight follows the member's ';'",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_12_4_2],
+        strength: Strength::Grammar,
     }
 
     /// Two weights in one member: `en;q=0.5;q=0.8`.

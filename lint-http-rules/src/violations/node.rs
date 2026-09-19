@@ -52,12 +52,14 @@ defects! {
     /// §7.4 records the unbracketed form as the conforming one.
     ///
     // cite(RFC 7239 § 6.1): "Also, note that an IPv6 address is always enclosed in square brackets."
+    // cite(RFC 7239 § 6, label: nodename grammar): "nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode"
     NODE_IPV6_BRACKETS_MISSING = {
         id: "node_ipv6_brackets_missing",
         title: "Node identifier holds an IPv6 address without its square brackets",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_7239_6_1],
+        strength: Strength::Grammar,
     }
 
     /// A `[`-led nodename that never closes -- no `]` anywhere in it. Told

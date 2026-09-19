@@ -983,6 +983,7 @@ severity = "warn"
 
 [violations.alt_svc_parameter_empty]
 # Alt-Svc writes a semicolon with no parameter behind it
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.alt_svc_parameter_equals_missing]
@@ -2024,6 +2025,7 @@ severity = "error"
 
 [violations.language_tag_whitespace_or_control_forbidden]
 # Language tag holds whitespace or a control character
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.last_modified_conflicting]
@@ -2084,6 +2086,7 @@ severity = "error"
 
 [violations.link_target_delimiter_missing]
 # Link member's target is not inside angle brackets
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.link_type_malformed]
@@ -2339,6 +2342,7 @@ severity = "error"
 
 [violations.node_ipv6_brackets_missing]
 # Node identifier holds an IPv6 address without its square brackets
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.node_ipv6_closing_bracket_missing]
@@ -2587,6 +2591,7 @@ severity = "error"
 
 [violations.range_spec_malformed]
 # A bytes range specifier derives from neither of the unit's two forms
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.referer_empty]
@@ -3317,6 +3322,7 @@ severity = "error"
 
 [violations.weight_malformed]
 # Something other than a weight follows the member's ';'
+# GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
 [violations.weight_missing]

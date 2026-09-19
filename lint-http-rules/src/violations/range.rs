@@ -101,12 +101,15 @@ defects! {
     /// cites the unit's section rather than the grammar's.
     ///
     // cite(RFC 9110 § 14.1.2): "Each byte range is expressed as an integer range at some offset, relative to either the beginning (int-range) or end (suffix-range) of the representation data.  Byte ranges do not use the other-range specifier."
+    // cite(RFC 9110 § 14.1.1, label: int-range grammar): "int-range     = first-pos "-" [ last-pos ]"
+    // cite(RFC 9110 § 14.1.1, label: suffix-range grammar): "suffix-range  = "-" suffix-length"
     RANGE_SPEC_MALFORMED = {
         id: "range_spec_malformed",
         title: "A bytes range specifier derives from neither of the unit's two forms",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_14_1_2],
+        strength: Strength::Grammar,
     }
 
     /// A position that is not `1*DIGIT`: the `first-pos`, the `last-pos`, or the

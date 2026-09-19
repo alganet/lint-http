@@ -71,12 +71,14 @@ defects! {
     /// in whatever assembled it.
     ///
     // cite(RFC 5646 § 2.1): "are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen"
+    // cite(RFC 5646 § 2.1): "alphanum      = (ALPHA / DIGIT)     ; letters and numbers"
     LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN = {
         id: "language_tag_whitespace_or_control_forbidden",
         title: "Language tag holds whitespace or a control character",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_5646_2_1],
+        strength: Strength::Grammar,
     }
 
     /// A visible octet outside the alphanumerics and `-`: the underscore of

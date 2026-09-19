@@ -2403,7 +2403,9 @@ sources:
     snippet: alphanum      = (ALPHA / DIGIT)     ; letters and numbers
     cited_by:
     - file: lint-http-rules/src/violations/language.rs
-      line: 86
+      line: 74
+    - file: lint-http-rules/src/violations/language.rs
+      line: 88
   - label: language (3)
     section: § 2.1
     snippet: are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen
@@ -2411,15 +2413,15 @@ sources:
     - file: lint-http-rules/src/violations/language.rs
       line: 73
     - file: lint-http-rules/src/violations/language.rs
-      line: 99
+      line: 101
     - file: lint-http-rules/src/violations/language.rs
-      line: 111
+      line: 113
   - label: language (4)
     section: § 2.1
     snippet: privateuse    = "x" 1*("-" (1*8alphanum))
     cited_by:
     - file: lint-http-rules/src/violations/language.rs
-      line: 139
+      line: 141
   - label: lint-http-rules/src/helpers/language.rs
     section: § 2.1
     snippet: A language tag is composed from a sequence of one or more "subtags", each of which refines or narrows the range of language identified by the overall tag.
@@ -2451,7 +2453,7 @@ sources:
     - file: lint-http-rules/src/helpers/language.rs
       line: 126
     - file: lint-http-rules/src/violations/language.rs
-      line: 125
+      line: 127
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.html
   fragments:
@@ -4076,7 +4078,7 @@ sources:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 287
     - file: lint-http-rules/src/violations/node.rs
-      line: 146
+      line: 148
   - label: nodename grammar
     section: § 6
     snippet: nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode
@@ -4084,13 +4086,15 @@ sources:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 201
     - file: lint-http-rules/src/violations/node.rs
-      line: 74
+      line: 55
     - file: lint-http-rules/src/violations/node.rs
-      line: 88
+      line: 76
     - file: lint-http-rules/src/violations/node.rs
-      line: 102
+      line: 90
     - file: lint-http-rules/src/violations/node.rs
-      line: 116
+      line: 104
+    - file: lint-http-rules/src/violations/node.rs
+      line: 118
   - label: obfnode grammar
     section: § 6
     snippet: obfnode = "_" 1*( ALPHA / DIGIT / "." / "_" / "-")
@@ -4112,7 +4116,7 @@ sources:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 231
     - file: lint-http-rules/src/violations/node.rs
-      line: 132
+      line: 134
   - label: lint-http-rules/src/helpers/forwarded_node.rs (4)
     section: § 6.2
     snippet: The "unknown" identifier is used when the identity of the preceding entity is not known, but the proxy server still wants to signal that a forwarding of the request was made.
@@ -4605,25 +4609,25 @@ sources:
     snippet: 'In order to have precisely one way to represent any ALPN protocol name, the following additional constraints apply:'
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 435
+      line: 436
   - label: alt_svc (3)
     section: § 3.1
     snippet: Clients MUST ignore "persist" parameters with values other than "1".
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 467
+      line: 468
   - label: alt_svc (4)
     section: § 3.1
     snippet: This specification only defines a single value for "persist".
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 466
+      line: 467
   - label: alt_svc (5)
     section: § 8
     snippet: An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1).
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 319
+      line: 320
   - label: Alt-Svc grammar
     section: § 3
     snippet: Alt-Svc       = clear / 1#alt-value
@@ -4669,7 +4673,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 58
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 436
+      line: 437
   - label: alt_svc_h3_advertisement_valid (5)
     section: § 3
     snippet: clear         = %s"clear"; "clear", case-sensitive
@@ -4695,7 +4699,7 @@ sources:
     - file: lint-http-rules/src/violations/alt_svc.rs
       line: 182
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 246
+      line: 247
   - label: alt_svc_h3_advertisement_valid (7)
     section: § 3.1
     snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
@@ -4757,11 +4761,11 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 259
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 347
+      line: 348
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 368
+      line: 369
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 399
+      line: 400
   - label: alt_svc_header_syntax (9)
     section: § 3
     snippet: The field value consists either of a list of values, each of which indicates one alternative service, or the keyword "clear".
@@ -4791,7 +4795,9 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 396
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 285
+      line: 217
+    - file: lint-http-rules/src/violations/alt_svc.rs
+      line: 286
   - label: alt_svc_header_syntax (13)
     section: § 3
     snippet: alternative   = protocol-id "=" alt-authority
@@ -5023,7 +5029,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 853
     - file: lint-http-rules/src/violations/link.rs
-      line: 390
+      line: 392
   - label: link-value assembly
     section: § 3
     snippet: link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )
@@ -5035,9 +5041,11 @@ sources:
     - file: lint-http-rules/src/violations/link.rs
       line: 35
     - file: lint-http-rules/src/violations/link.rs
-      line: 341
+      line: 321
     - file: lint-http-rules/src/violations/link.rs
-      line: 365
+      line: 343
+    - file: lint-http-rules/src/violations/link.rs
+      line: 367
   - label: link_header_valid (10)
     section: § 3.1
     snippet: Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>").
@@ -5640,6 +5648,8 @@ sources:
       line: 113
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 144
+    - file: lint-http-rules/src/violations/qvalue.rs
+      line: 177
   - label: accept_encoding_parameter_valid (2)
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
@@ -8011,7 +8021,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 230
     - file: lint-http-rules/src/violations/range.rs
-      line: 178
+      line: 181
   - label: lint-http-rules/src/helpers/content_range.rs (3)
     section: § 14.1.2
     snippet: In the byte-range syntax, first-pos, last-pos, and suffix-length are expressed as decimal number of octets.  Since there is no predefined limit to the length of content, recipients MUST anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows.
@@ -9409,7 +9419,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 450
     - file: lint-http-rules/src/violations/range.rs
-      line: 149
+      line: 152
   - label: int-range position grammar
     section: § 14.1.1
     snippet: first-pos     = 1*DIGIT last-pos      = 1*DIGIT
@@ -9417,13 +9427,15 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 397
     - file: lint-http-rules/src/violations/range.rs
-      line: 125
+      line: 128
   - label: int-range grammar
     section: § 14.1.1
     snippet: int-range     = first-pos "-" [ last-pos ]
     cited_by:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 417
+    - file: lint-http-rules/src/violations/range.rs
+      line: 104
   - label: other-range grammar
     section: § 14.1.1
     snippet: other-range   = 1*( %x21-2B / %x2D-7E )
@@ -9452,6 +9464,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 400
+    - file: lint-http-rules/src/violations/range.rs
+      line: 105
   - label: range_header_syntax (3)
     section: § 14.1.2
     snippet: A client can limit the number of bytes requested without knowing the size of the selected representation.  If the last-pos value is absent, or if the value is greater than or equal to the current length of the representation data, the byte range is interpreted as the remainder of the representation

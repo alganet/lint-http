@@ -318,12 +318,14 @@ defects! {
     /// the production they quote.
     ///
     // cite(RFC 8288 § 3.1): "Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>")."
+    // cite(RFC 8288 § 3, label: link-value assembly): "link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
     LINK_TARGET_DELIMITER_MISSING = {
         id: "link_target_delimiter_missing",
         title: "Link member's target is not inside angle brackets",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_8288_3],
+        strength: Strength::Grammar,
     }
 
     /// A member that goes on past its target with something other than the
