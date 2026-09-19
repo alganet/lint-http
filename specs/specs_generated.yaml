@@ -544,7 +544,7 @@ sources:
     snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
-      line: 106
+      line: 119
     - file: lint-http-rules/src/violations/content_security_policy.rs
       line: 147
   - label: content_security_policy_valid (2)

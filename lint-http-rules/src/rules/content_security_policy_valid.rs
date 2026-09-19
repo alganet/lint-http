@@ -66,12 +66,25 @@ const HASH_PREFIXES: [&str; 3] = ["sha256-", "sha384-", "sha512-"];
 impl ContentSecurityPolicyValid {
     /// One `;`-separated directive: its name, then each of its source
     /// expressions.
-    fn directive_defect(
+    ///
+    /// **Every source expression the directive names is answered.** A
+    /// `serialized-source-list` is written one `source-expression` per position
+    /// -- each an origin, a scheme, a nonce or a hash the policy permits -- so
+    /// `script-src 'nonce-' 'sha256-'` names two the browser cannot resolve and
+    /// is two things to correct. The list is separated by whitespace rather
+    /// than by commas, which is the only reason this walk is not the same
+    /// construct as `1#element`; the sender's obligation is written per
+    /// position either way.
+    ///
+    /// The directive-name defect does not end the reading of the sources: a
+    /// name the production does not admit is the operator's to fix, and so is
+    /// each unresolvable source beside it.
+    fn directive_defects(
         &self,
         directive: &str,
         position: usize,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         if directive.is_empty() {
             // Only the first position, because only the first is unbracketed.
             // `serialized-policy` puts every directive after the first inside
@@ -81,15 +94,15 @@ impl ContentSecurityPolicyValid {
             // Reporting them was one of the two readings a `;` has and the
             // wrong one.
             if position > 0 {
-                return None;
+                return Vec::new();
             }
-            return Some(ctx.report_with(
+            return vec![ctx.report_with(
                 &CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
                 format!(
                     "Content-Security-Policy opens with a ';' and names no directive at position {}",
                     position
                 ),
-            ));
+            )];
         }
 
         // ASCII whitespace, not Unicode: the value is one `char` per octet, so
@@ -104,11 +117,12 @@ impl ContentSecurityPolicyValid {
         // letters, digits and `-`. Enforcing `token` here let typos like
         // `default_src` (underscore is a legal tchar) pass unflagged.
         // cite(CSP3 § 2.3): "directive-name = 1*( ALPHA / DIGIT / "-" )"
+        let mut out = Vec::new();
         if let Some(c) = name
             .chars()
             .find(|c| !(c.is_ascii_alphanumeric() || *c == '-'))
         {
-            return Some(ctx.report_with(
+            out.push(ctx.report_with(
                 &CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN,
                 format!(
                     "Invalid character {} in CSP directive-name '{}', at position {}",
@@ -119,7 +133,8 @@ impl ContentSecurityPolicyValid {
             ));
         }
 
-        parts.find_map(|source| self.source_expression_defect(source, name, ctx))
+        out.extend(parts.filter_map(|source| self.source_expression_defect(source, name, ctx)));
+        out
     }
 
     /// One source expression, quoted or not.
@@ -306,10 +321,16 @@ impl Rule for ContentSecurityPolicyValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
+        // One finding per defective directive, in every policy the response
+        // carries. A server may send several `Content-Security-Policy` field
+        // lines and each is a policy enforced in its own right -- which is why
+        // the walk below reads them all rather than stopping at the first that
+        // has something wrong with it.
+        let findings = || -> Vec<Violation> {
+            let mut out = Vec::new();
+            let Some(resp) = tx.response.as_ref() else {
+                return out;
+            };
 
             // Read as the octets the sender wrote. A `directive-name` is
             // `1*( ALPHA / DIGIT / "-" )`, so an octet outside visible US-ASCII is
@@ -323,26 +344,28 @@ impl Rule for ContentSecurityPolicyValid {
                 let policy = policy.as_str();
 
                 if crate::helpers::headers::trim_ows(policy).is_empty() {
-                    return Some(ctx.report_with(
+                    // The line names no policy at all, so there are no
+                    // directives in it to read: this is the whole of what is
+                    // wrong with this line, and the next line is its own.
+                    out.push(ctx.report_with(
                         &CONTENT_SECURITY_POLICY_EMPTY,
                         "Content-Security-Policy header MUST not be empty".into(),
                     ));
+                    continue;
                 }
 
                 for (position, directive) in policy.split(';').enumerate() {
-                    if let Some(defect) = self.directive_defect(
+                    out.extend(self.directive_defects(
                         crate::helpers::headers::trim_ows(directive),
                         position,
                         ctx,
-                    ) {
-                        return Some(defect);
-                    }
+                    ));
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -591,6 +614,55 @@ mod tests {
         )
         .unwrap();
         assert!(v.message.contains("Empty hash value"));
+    }
+
+    /// **Every source expression the policy names is answered, in every
+    /// directive, on every line.** A `serialized-source-list` is written one
+    /// `source-expression` per position and a policy one directive per `;`, so
+    /// a response carrying four unresolvable sources across two directives and
+    /// two lines is four things to correct — and a walk that returned at the
+    /// first of them named one.
+    #[test]
+    fn every_defective_source_is_reported_across_directives_and_lines() {
+        let rule = ContentSecurityPolicyValid;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-security-policy",
+            "script-src 'nonce-' 'sha256-'; img-src nonce-abc",
+        )]);
+        headers.append(
+            "content-security-policy",
+            HeaderValue::from_static("def@ult-src 'unterminated"),
+        );
+        tx.response.as_mut().unwrap().headers = headers;
+
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        // Two empty values in one directive: the walk did not end at the first.
+        assert_eq!(
+            ids.iter()
+                .filter(|i| **i == "content_security_policy_base64_value_empty")
+                .count(),
+            2,
+            "{ids:?}"
+        );
+        // A second directive, behind the first, and a second field line behind
+        // the whole policy.
+        assert!(
+            ids.contains(&"content_security_policy_source_delimiter_missing"),
+            "{ids:?}"
+        );
+        assert!(
+            ids.contains(&"content_security_policy_directive_name_character_forbidden"),
+            "the second field line is read too: {ids:?}"
+        );
     }
 
     #[test]
