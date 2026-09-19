@@ -4802,25 +4802,43 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 212
+      line: 238
   - label: lint-http-rules/src/helpers/parameter.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 153
+      line: 160
+  - label: mime-charset
+    section: § 3.2.1
+    snippet: mime-charset  = 1*mime-charsetc
+    cited_by:
+    - file: lint-http-rules/src/helpers/parameter.rs
+      line: 185
+  - label: mime-charsetc
+    section: § 3.2.1
+    snippet: mime-charsetc = ALPHA / DIGIT
+    cited_by:
+    - file: lint-http-rules/src/helpers/parameter.rs
+      line: 186
   - label: lint-http-rules/src/helpers/parameter.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 191
+      line: 217
   - label: lint-http-rules/src/helpers/parameter.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 184
+      line: 210
+  - label: lint-http-rules/src/helpers/parameter.rs (5)
+    section: § 3.2.2
+    snippet: The <mime-charset> ABNF defined here differs from the one in Section 2.3 of [RFC2978] in that it does not allow the single quote character
+    cited_by:
+    - file: lint-http-rules/src/helpers/parameter.rs
+      line: 187
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.html
   fragments:

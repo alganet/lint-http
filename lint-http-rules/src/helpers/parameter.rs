@@ -146,9 +146,16 @@ pub fn parameter_of(segment: &str) -> Option<Result<Parameter<'_>, ParameterDefe
 /// did. What 8187 changed is elsewhere -- the ISO-8859-1 requirement is gone,
 /// and it stopped trying to define a generic `parameter` rule.
 ///
-/// The `charset` is checked only for being ASCII and quote-free, which is far
-/// looser than `mime-charset`, so that production is deliberately not quoted
-/// below -- it would describe a check this function does not make.
+/// The `charset` is `"UTF-8" / mime-charset`, and both alternatives are read
+/// here as the second one: `mime-charset = 1*mime-charsetc` derives `UTF-8`
+/// itself, so one walk answers the production. This said the charset was
+/// checked "only for being ASCII and quote-free, which is far looser than
+/// `mime-charset`", and it was -- `UTF-8.1''x` and `iso 8859-1''x` passed a
+/// reader that then quoted every other production in the value. What the walk
+/// does *not* decide is which charset a producer may choose, because that is
+/// not the grammar: `iso-8859-1` derives from `mime-charset` and § 3.2.1
+/// forbids a producer to use it in the next paragraph, which is a different
+/// claim about a value this function calls well-formed.
 ///
 // cite(RFC 8187 § 3.2.1): "ext-value = charset  "'" [ language ] "'" value-chars"
 pub fn validate_ext_value(val: &str) -> Result<(), String> {
@@ -167,9 +174,28 @@ pub fn validate_ext_value(val: &str) -> Result<(), String> {
     if charset.is_empty() {
         return Err("charset in ext-value must not be empty".into());
     }
-    // Basic charset sanity: must be ASCII and not contain quote
-    if !charset.is_ascii() || charset.contains('\'') {
-        return Err("invalid charset in ext-value".into());
+    // `1*mime-charsetc`, transcribed. The production is RFC 2978 § 2.3's with
+    // the single quote taken out -- which the section says in as many words,
+    // and which the delimiter above already made true here -- and it is
+    // narrower than `token` in both directions: it admits `{` and `}`, which
+    // `tchar` does not, and refuses `.`, `*`, `|` and `'`, which `tchar`
+    // admits. So a charset is not "a word that is not the delimiter", and
+    // `UTF-8.1` is not one.
+    //
+    // cite(RFC 8187 § 3.2.1, label: mime-charset): "mime-charset  = 1*mime-charsetc"
+    // cite(RFC 8187 § 3.2.1, label: mime-charsetc): "mime-charsetc = ALPHA / DIGIT"
+    // cite(RFC 8187 § 3.2.2): "The <mime-charset> ABNF defined here differs from the one in Section 2.3 of [RFC2978] in that it does not allow the single quote character"
+    if let Some(c) = charset.chars().find(|c| {
+        !(c.is_ascii_alphanumeric()
+            || matches!(
+                c,
+                '!' | '#' | '$' | '%' | '&' | '+' | '-' | '^' | '_' | '`' | '{' | '}' | '~'
+            ))
+    }) {
+        return Err(format!(
+            "charset '{charset}' in ext-value holds {}, which mime-charset does not admit",
+            crate::helpers::shown::describe_char(c)
+        ));
     }
 
     // Language part may be empty; we don't strictly validate language tags here
@@ -304,6 +330,26 @@ mod tests {
         assert!(validate_ext_value("UTF-8''a*b").is_err());
         assert!(validate_ext_value("UTF-8''a{b").is_err());
         assert!(validate_ext_value("UTF-8''ok-name.ext~1").is_ok());
+    }
+
+    /// `mime-charset` crosses `token` rather than sitting inside it, and each
+    /// row is one of the four places the two productions disagree. The last is
+    /// the one this reader used to admit: `UTF-8.1` is a `token`, is ASCII, and
+    /// carries no quote, so every test the charset had passed on it.
+    #[test]
+    fn mime_charset_is_not_the_token_production() {
+        // Registered spellings, which is what the alternation is for.
+        assert!(validate_ext_value("UTF-8''x").is_ok());
+        assert!(validate_ext_value("iso-8859-1''x").is_ok());
+        // `{` and `}` are `mime-charsetc` and no `tchar`.
+        assert!(validate_ext_value("a{b}''x").is_ok());
+        // `.`, `*` and `|` are `tchar` and no `mime-charsetc`.
+        assert!(validate_ext_value("UTF-8.1''x").is_err());
+        assert!(validate_ext_value("UTF*8''x").is_err());
+        assert!(validate_ext_value("UTF|8''x").is_err());
+        // And a charset is one word: the space is nothing either production
+        // admits, and it was the plainest of the values that used to pass.
+        assert!(validate_ext_value("iso 8859-1''x").is_err());
     }
 
     #[test]
