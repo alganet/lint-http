@@ -73,7 +73,9 @@ pub fn method_allows(stored: &str, presented: &str) -> bool {
 /// entry. § 3 is a conjunction, and this reads one term of it, `no-store`, on
 /// both of the messages that can carry the directive. The rest of the list is
 /// either already asked or unanswerable from here: the request method is
-/// [`method_allows`]'s first test, and whether the cache is shared is what
+/// [`method_allows`]'s first test where a pairing is being judged and
+/// [`response_is_storable`]'s where a single exchange is, and whether the cache
+/// is shared is what
 /// decides the `private` and `Authorization` terms — nothing on the wire says
 /// which side of that a reader is on, so a linter that assumed one would be
 /// reporting its own guess.
@@ -129,6 +131,40 @@ pub fn storage_allowed(
             || has(response, "max-age")
             || has(response, "s-maxage")
             || super::status::is_heuristically_cacheable(status))
+}
+
+/// Whether a cache could have stored the response to this exchange at all.
+///
+/// [`storage_allowed`] reads § 3's conjunction as far as the two messages
+/// answer it; this adds the term § 3 opens with, which is about the request
+/// method rather than about either message's fields, and so completes the
+/// question for a caller holding one exchange rather than a pairing.
+///
+/// **The method half is a list, and it is short.** RFC 9110 § 9.2.3 says a
+/// method has to define caching semantics to be cached at all and names the
+/// three that do, so `OPTIONS`, `TRACE`, `PUT`, `DELETE` and `CONNECT` leave
+/// nothing behind however the response is framed. `OPTIONS` is the one worth
+/// naming, because § 9.3.7 ends by saying so in its own words rather than
+/// leaving it to be read off the list.
+///
+/// **`POST` is on § 9.2.3's list and is deliberately not read here.** § 9.3.3
+/// makes a POST response cacheable only where it carries explicit freshness
+/// *and* a `Content-Location` equal to the target URI, and the second term
+/// needs the request target resolved against a reference this module never
+/// sees. A reader that asked only the first would call a POST response storable
+/// that no cache could have kept, which is the direction these filters must not
+/// err in; refusing every POST errs in the other, and costs a caller only the
+/// response that carries an `Expires` and a matching `Content-Location`.
+// cite(RFC 9110 § 9.2.3): "For a cache to store and use a response, the associated method needs to explicitly allow caching and to detail under what conditions a response can be used to satisfy subsequent requests; a method definition that does not do so cannot be cached."
+// cite(RFC 9110 § 9.3.7): "Responses to the OPTIONS method are not cacheable."
+// cite(RFC 9110 § 9.3.3): "Responses to POST requests are only cacheable when they include explicit freshness information (see Section 4.2.1 of [CACHING]) and a Content-Location header field that has the same value as the POST's target URI (Section 8.7)."
+pub fn response_is_storable(
+    method: &str,
+    request: &hyper::HeaderMap,
+    status: u16,
+    response: &hyper::HeaderMap,
+) -> bool {
+    matches!(method, "GET" | "HEAD") && storage_allowed(request, status, response)
 }
 
 /// Whether either message of an exchange carried `no-store` — § 3's one term
@@ -220,6 +256,48 @@ mod tests {
         #[case] expected: bool,
     ) {
         assert_eq!(method_allows(stored, presented), expected);
+    }
+
+    /// § 3's first term, which is about the method and not about a field, and
+    /// the two directions a caller holding one exchange gets it wrong in: a
+    /// status range admits an `OPTIONS` § 9.3.7 says is not cacheable and a
+    /// `POST` § 9.3.3 conditions, and a range of `200..400` excludes a `404`
+    /// § 15.1 defines as heuristically cacheable.
+    #[rstest]
+    #[case("GET", 200, true)]
+    #[case("HEAD", 200, true)]
+    #[case("GET", 404, true)]
+    #[case("GET", 405, true)]
+    #[case("OPTIONS", 200, false)]
+    #[case("TRACE", 200, false)]
+    #[case("PUT", 200, false)]
+    #[case("DELETE", 200, false)]
+    #[case("CONNECT", 200, false)]
+    #[case("POST", 200, false)]
+    // The method answers first, and § 3's own terms still answer after it.
+    #[case("GET", 302, false)]
+    #[case("GET", 412, false)]
+    fn a_response_is_storable_only_where_its_method_leaves_one(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(
+            response_is_storable(method, &headers(&[]), status, &headers(&[])),
+            expected
+        );
+    }
+
+    /// The method is compared case-sensitively, which § 9.1 asks for: a
+    /// lowercase `get` is a method token this specification does not define.
+    #[test]
+    fn the_method_is_read_case_sensitively() {
+        assert!(!response_is_storable(
+            "get",
+            &headers(&[]),
+            200,
+            &headers(&[])
+        ));
     }
 
     /// § 3's last alternatives, one per row, and the shapes that satisfy none

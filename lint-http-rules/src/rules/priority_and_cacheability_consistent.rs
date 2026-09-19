@@ -40,7 +40,7 @@ impl RuleMeta for PriorityAndCacheabilityConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "When an origin server includes a `Priority` response header (RFC 9218 §5) it is expected to control the cacheability or applicability of the cached response by using cache-control related fields (for example `Cache-Control` and/or `Vary`). This rule warns when a response includes `Priority` but lacks an explicit caching directive such as `Cache-Control` or `Vary` which can lead to incorrect caching of responses that differ by request properties."
+        "When an origin server includes a `Priority` response header (RFC 9218 §5) it is expected to control the cacheability or applicability of the cached response by using cache-control related fields (for example `Cache-Control` and/or `Vary`). This rule warns when a response includes `Priority` but lacks both, which can lead to a cache handing a response shaped by one request to a different one. **The expectation's subject is the *cached* response, so only an exchange a cache was permitted to store is reported.** RFC 9110 §9.2.3 says a method has to define caching semantics to be cached at all and names `GET`, `HEAD` and `POST`; §9.3.7 ends by saying of one of the others that *\"Responses to the OPTIONS method are not cacheable\"*, which is the case an operator meets most often, because a `Priority` is commonly stamped on every response an edge serves. RFC 9111 §3's conjunction has to hold besides: a `302` that advertises no freshness is not stored and so is not reported, while a `404` is reported, because §15.1 defines it as heuristically cacheable. `POST` is left out although §9.2.3 names it — §9.3.3 makes a POST response cacheable only where it carries explicit freshness *and* a `Content-Location` equal to the target URI, and a reader that asked only the first term would report a response no cache could have kept. The two caching fields are read by presence alone; the `Priority` value feeds the message and is never parsed as a Dictionary, which is `priority_header_syntax`'s reading."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -70,9 +70,24 @@ impl RuleMeta for PriorityAndCacheabilityConsistent {
                 snippet: "HTTP/1.1 200 OK\nVary: Accept-Encoding\nPriority: u=1\n\n<body...>",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(OPTIONS — §9.3.7: responses to OPTIONS are not cacheable)"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAllow: GET, HEAD, OPTIONS\nPriority: u=3, i=?0\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(302 — advertises no freshness, and §15.1 does not name it)"),
+                snippet: "HTTP/1.1 302 Found\nLocation: https://example.com/elsewhere\nPriority: u=3\n",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nPriority: u=2\n\n<body...>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(404 — §15.1 defines it as heuristically cacheable)"),
+                snippet: "HTTP/1.1 404 Not Found\nPriority: u=3\n\n<body...>",
             },
         ]
     }
@@ -115,14 +130,27 @@ impl Rule for PriorityAndCacheabilityConsistent {
             }
             let priority = priority_val?;
 
-            // Restrict to "cacheable-ish" 2xx/3xx responses. This is a heuristic range,
-            // not RFC 9110 §15.1's set of responses cacheable by default: it over-includes
-            // non-default-cacheable 3xx (302, 303, 307) and omits the heuristically
-            // cacheable 404, 410, and 451. The imprecision is tolerable because the check
-            // is a soft best-practice warning, not a MUST; tightening it to §15.1's exact
-            // list would be a behavior change. No sentence licenses this exact bound, so it
-            // carries no cite.
-            if !(200..400).contains(&resp.status) {
+            // The expectation has a subject, and it is the *cached* response.
+            // Where no cache was permitted to store this one there is nothing
+            // whose cacheability or applicability a field could control, so the
+            // sentence does not reach the exchange at all -- it is not an
+            // expectation this response has failed to meet.
+            //
+            // This replaced a status range of `200..400`, whose own comment
+            // said no sentence licensed it. The range admitted an `OPTIONS`
+            // response, which § 9.3.7 says outright is not cacheable, and every
+            // `302`, `303` and `307`, which advertise no freshness and are not
+            // among § 15.1's heuristically cacheable statuses; and it excluded
+            // `404`, `405`, `410`, `414` and `501`, which are. The question the
+            // helper asks is the one the sentence asks, so the imprecision goes
+            // in both directions at once.
+            // cite(RFC 9218 § 5): "the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
+            if !crate::helpers::stored_response::response_is_storable(
+                &tx.request.method,
+                &tx.request.headers,
+                resp.status,
+                &resp.headers,
+            ) {
                 return None;
             }
 
@@ -273,6 +301,76 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
+    }
+
+    /// The gate the status range got wrong, in both directions and in one
+    /// table. § 5's subject is the cached response, so the row's answer is the
+    /// answer to "could a cache have stored this" and never to "is the status
+    /// between 200 and 400": a `404` is inside the sentence and outside the old
+    /// range, and an `OPTIONS` 200, a `302` and a `POST` are the other way
+    /// round.
+    #[rstest]
+    // § 15.1's heuristically cacheable statuses, on a method that stores.
+    #[case("GET", 200, true)]
+    #[case("HEAD", 200, true)]
+    #[case("GET", 404, true)]
+    #[case("GET", 410, true)]
+    #[case("GET", 501, true)]
+    // § 9.3.7: "Responses to the OPTIONS method are not cacheable."
+    #[case("OPTIONS", 200, false)]
+    #[case("OPTIONS", 204, false)]
+    // § 9.2.3 names three methods; the rest define no caching semantics.
+    #[case("TRACE", 200, false)]
+    #[case("PUT", 200, false)]
+    #[case("DELETE", 200, false)]
+    // § 9.3.3 conditions the POST half on freshness this response has not
+    // stated and a `Content-Location` this reader does not resolve.
+    #[case("POST", 200, false)]
+    // Inside the old range and outside § 3's last term: no freshness, and a
+    // status § 15.1 does not name.
+    #[case("GET", 302, false)]
+    #[case("GET", 307, false)]
+    #[case("GET", 304, false)]
+    fn only_a_response_a_cache_could_have_kept_is_reported(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] reported: bool,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            status,
+            &[("priority", "u=3")],
+        );
+        tx.request.method = method.to_string();
+        let rule = PriorityAndCacheabilityConsistent;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(v.is_some(), reported, "{method} {status}");
+    }
+
+    /// The storability terms a response can carry rather than inherit from its
+    /// status, so a `302` that advertises a lifetime is reported after all —
+    /// and `Vary` alone still answers the finding, which is the check this gate
+    /// sits in front of rather than a part of it.
+    #[rstest]
+    #[case(&[("priority", "u=3"), ("expires", "Thu, 01 Jan 2026 00:00:00 GMT")], true)]
+    #[case(&[("priority", "u=3"), ("vary", "Accept-Encoding")], false)]
+    fn a_302_is_read_by_what_it_advertises(
+        #[case] resp_headers: &[(&str, &str)],
+        #[case] reported: bool,
+    ) {
+        let tx = crate::test_helpers::make_test_transaction_with_response(302, resp_headers);
+        let rule = PriorityAndCacheabilityConsistent;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(v.is_some(), reported);
     }
 
     #[rstest]
