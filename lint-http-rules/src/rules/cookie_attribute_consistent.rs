@@ -2,15 +2,17 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::cookie::find_invalid_cookie_octet;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::DRAFT_IETF_HTTPBIS_RFC6265BIS;
 use crate::violations::cookie::{
     COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_EXPIRES_MALFORMED, COOKIE_EXPIRES_MISSING,
     COOKIE_FLAG_VALUE_FORBIDDEN, COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING,
-    COOKIE_PAIR_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
-    COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, COOKIE_SECURE_MISSING, RFC_6265_4_1_1,
-    RFC_6265_5_1_1, RFC_6265_5_2_2, RFC_6265_5_2_3, RFC_6265_5_2_4,
+    COOKIE_PAIR_EQUALS_MISSING, COOKIE_PAIR_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING,
+    COOKIE_PATH_MISSING, COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, COOKIE_SECURE_MISSING,
+    COOKIE_VALUE_CHARACTER_FORBIDDEN, RFC_6265_4_1_1, RFC_6265_5_1_1, RFC_6265_5_2_2,
+    RFC_6265_5_2_3, RFC_6265_5_2_4,
 };
 use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
@@ -24,15 +26,20 @@ pub struct CookieAttributeConsistent;
 
 /// What this rule reports that another reading already named.
 ///
-/// Three imports, each for a different reason. `sane-cookie-date` is RFC
+/// Five imports, each for a different reason. `sane-cookie-date` is RFC
 /// 6265's name for the timestamp RFC 9110 § 5.6.7 writes, so an `Expires` a
 /// recipient cannot read is the same defect a `Date` or a `Sunset` a recipient
 /// cannot read is. `cookie-name = token` imports the HTTP production by name,
 /// so a name that is empty or holds a delimiter answers to `token` — the
-/// alphabets are not merely similar, they are the same set. And `Path` and
-/// `Domain` were read out by `cookie_path_valid` and `cookie_domain_valid`
-/// first: this rule asks a coarser question of the same two attributes, so it
-/// reports what they report rather than a second name for it.
+/// alphabets are not merely similar, they are the same set. `cookie-pair`'s
+/// own two failures — no `=` at all, and a `cookie-value` octet outside
+/// `cookie-octet` — are `cookie_pair_valid`'s ids too, reused rather than
+/// redeclared for the same reason `cookie-name`'s are: the production is one
+/// grammar shared by both directions the cookie travels, and an operator
+/// tunes either shape once. And `Path` and `Domain` were read out by
+/// `cookie_path_valid` and `cookie_domain_valid` first: this rule asks a
+/// coarser question of the same two attributes, so it reports what they
+/// report rather than a second name for it.
 ///
 /// What is left in the rule's own words is the shape of the field line and the
 /// attributes nothing else reads — `SameSite`, `Max-Age`, the two flags, and
@@ -40,6 +47,8 @@ pub struct CookieAttributeConsistent;
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
     &COOKIE_PAIR_MISSING,
+    &COOKIE_PAIR_EQUALS_MISSING,
+    &COOKIE_VALUE_CHARACTER_FORBIDDEN,
     &COOKIE_FLAG_VALUE_FORBIDDEN,
     &COOKIE_SECURE_MISSING,
     &COOKIE_SAME_SITE_MISSING,
@@ -85,11 +94,24 @@ impl CookieAttributeConsistent {
             return Some(ctx.report(&COOKIE_PAIR_MISSING));
         }
 
+        // `cookie-pair = cookie-name "=" cookie-value` requires the `=`
+        // unconditionally -- an empty value is legal (`SID=`) but no `=` at
+        // all derives from neither alternative of the production. A bare
+        // token here used to fall through this whole function silently: the
+        // old reading took whatever preceded the first `=` as the name and
+        // never asked whether an `=` had been there to precede.
+        // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
+        let Some((name, value)) = pair.split_once('=') else {
+            return Some(ctx.report_with(
+                &COOKIE_PAIR_EQUALS_MISSING,
+                format!("Set-Cookie pair '{pair}' has no '=': `cookie-pair = cookie-name \"=\" cookie-value` requires one"),
+            ));
+        };
+
         // The name is a `token` by import rather than by resemblance -- § 4.1.1
         // writes `cookie-name = token` and takes the production from the HTTP
         // document -- so both of its defects are that production's.
-        // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
-        let name = pair.split('=').next().unwrap_or("").trim();
+        let name = name.trim();
         if name.is_empty() {
             return Some(ctx.report_with(&TOKEN_EMPTY, "Set-Cookie cookie name is empty".into()));
         }
@@ -97,6 +119,22 @@ impl CookieAttributeConsistent {
             return Some(ctx.report_with(
                 token_character(c),
                 format!("Set-Cookie cookie-name contains invalid character: '{}'", c),
+            ));
+        }
+
+        // `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )`,
+        // the production's other half -- nothing before this read it either,
+        // so a value carrying a comma, a bare quote or any other octet
+        // outside `cookie-octet` passed as silently as a missing `=` did. A
+        // semicolon in the value is already this function's own `pair`, cut
+        // by `split_set_cookie` before this point -- it reports above, on the
+        // segment it starts, as a pair with no `=`.
+        if let Some(c) = find_invalid_cookie_octet(value) {
+            return Some(ctx.report_with(
+                &COOKIE_VALUE_CHARACTER_FORBIDDEN,
+                format!(
+                    "Set-Cookie value '{value}' contains a character outside cookie-octet: '{c}'"
+                ),
             ));
         }
 
@@ -348,6 +386,16 @@ impl RuleMeta for CookieAttributeConsistent {
                 ),
                 snippet: "Set-Cookie: SID=1; Expires=Wed, 27-Aug-2036 02:28:19 GMT",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a bare token has no '=', so it is no cookie-pair at all"),
+                snippet: "Set-Cookie: SID",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a comma is outside cookie-octet"),
+                snippet: "Set-Cookie: SID=abc,def",
+            },
         ]
     }
 }
@@ -425,8 +473,19 @@ mod tests {
     #[case("SID=1; Secure=1", true)]
     #[case("SID=1; HttpOnly=1", true)]
     #[case("SID=1; SameSite", true)]
-    #[case("SID", false)]
+    // A bare token with no `=` at all: `cookie-pair` has no alternative
+    // without one, so this is not a name with an empty value -- it is no
+    // cookie-pair, and the cookie is lost the same way an empty pair loses
+    // it. Was silently accepted; see `cookie_pair_equals_missing` below.
+    #[case("SID", true)]
     #[case("", true)]
+    // `cookie-value`'s own grammar, read for the first time: a comma and a
+    // raw space are both outside `cookie-octet`.
+    #[case("SID=abc,def", true)]
+    #[case("SID=has space", true)]
+    // The DQUOTE-wrapped alternative `cookie-value` offers, legal.
+    #[case("SID=\"has space\"", true)]
+    #[case("SID=\"abcdef\"", false)]
     fn set_cookie_cases(#[case] value: &str, #[case] expect_violation: bool) {
         let v = check_set_cookie(value);
         if expect_violation {
@@ -523,12 +582,16 @@ mod tests {
             trailers: None,
         });
 
-        // A field line holding an octet above %x7F
+        // A field line holding an octet above %x7F, in the cookie-name half
+        // of an otherwise well-formed pair -- the `=` is what keeps this test
+        // about the name's own character class rather than about the missing
+        // `=` `cookie_pair_equals_missing` now reports first for a bare
+        // octet with none.
         tx.response
             .as_mut()
             .unwrap()
             .headers
-            .append("set-cookie", HeaderValue::from_bytes(&[0xff])?);
+            .append("set-cookie", HeaderValue::from_bytes(&[0xff, b'=', b'1'])?);
 
         let rule = CookieAttributeConsistent;
         let v = crate::test_helpers::run_rule(
@@ -556,6 +619,33 @@ mod tests {
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("invalid character") && msg.contains("@"));
+    }
+
+    /// `cookie_pair_valid` declares this id on the request side; this is the
+    /// same id reported here, on `Set-Cookie`, for the same production.
+    #[test]
+    fn a_bare_token_with_no_equals_is_no_cookie_pair() {
+        let v = check_set_cookie("SID").expect("a finding");
+        assert_eq!(v.violation, "cookie_pair_equals_missing");
+    }
+
+    /// The other half of `cookie-pair` that had never been read: `Set-Cookie`
+    /// validated `cookie-name` and skipped `cookie-value` entirely.
+    #[test]
+    fn a_cookie_value_octet_outside_cookie_octet_is_reported() {
+        let v = check_set_cookie("SID=abc,def").expect("a finding");
+        assert_eq!(v.violation, "cookie_value_character_forbidden");
+        assert!(v.message.contains("','"), "{}", v.message);
+    }
+
+    /// The DQUOTE-wrapped alternative `cookie-value` offers is read the same
+    /// way on both sides of the cookie: legal when its content is, illegal
+    /// when a forbidden octet -- here, the space -- is inside the quotes too.
+    #[test]
+    fn a_quoted_cookie_value_is_read_inside_its_quotes() {
+        assert!(check_set_cookie("SID=\"abcdef\"").is_none());
+        let v = check_set_cookie("SID=\"has space\"").expect("a finding");
+        assert_eq!(v.violation, "cookie_value_character_forbidden");
     }
 
     #[test]

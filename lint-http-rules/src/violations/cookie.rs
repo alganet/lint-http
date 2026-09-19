@@ -416,12 +416,15 @@ defects! {
         strength: Strength::Grammar,
     }
 
-    /// A `cookie-value` octet outside `cookie-octet`: a comma, a semicolon, a
-    /// backslash, a bare double-quote, whitespace, a control character, or
-    /// anything above %x7E. `cookie-octet` is the same alphabet `Set-Cookie`
-    /// writes and `Cookie` echoes back — both fields import it from § 4.1.1 —
-    /// but nothing before this reader asked the question of the value a
-    /// client actually sent.
+    /// A `cookie-value` octet outside `cookie-octet`: a comma, a backslash, a
+    /// bare double-quote, whitespace, a control character, or anything above
+    /// %x7E. A semicolon is `cookie-pair`'s own delimiter and is read as one
+    /// before either reader reaches this check, so it reports as
+    /// `cookie_pair_equals_missing` on the segment it starts rather than as
+    /// this entry. `cookie-octet` is the same alphabet `Set-Cookie` writes and
+    /// `Cookie` echoes back — both fields import it from § 4.1.1 — but
+    /// nothing before this reader asked the question of the value a client
+    /// actually sent.
     ///
     // cite(RFC 6265 § 4.1.1): "cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )"
     // cite(RFC 6265 § 4.1.1): "cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E"
