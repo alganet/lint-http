@@ -39,7 +39,7 @@ impl RuleMeta for CachedValidatorsReused {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**An entry stored for one variant is not one a request for another declined.** §4's last condition on the pairing is §4.1's: the request now presented must match the stored request in every field the response's `Vary` nominates. A response served under `Vary: Accept-Encoding` to a request that asked for nothing is stored for the identity variant, and its validator could not have turned a request for gzip into a `304`, so the search reads past it. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
+        "This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.\n\n**A request carrying any precondition is not one sent with none.** `If-Match` and `If-Unmodified-Since` ask for a `412` rather than a `304`, and a client that wrote either conditioned on the validator it was given, so the rule stays silent on them too; the entry it reports is the request that reused nothing.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.\n\n**An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.\n\n**An entry stored for one variant is not one a request for another declined.** §4's last condition on the pairing is §4.1's: the request now presented must match the stored request in every field the response's `Vary` nominates. A response served under `Vary: Accept-Encoding` to a request that asked for nothing is stored for the identity variant, and its validator could not have turned a request for gzip into a `304`, so the search reads past it. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.\n\n**The entry is the newest response a cache could have kept, not simply the last one.** An exchange that left nothing stored does not replace the entry before it, and there are two ways to leave nothing: a `no-store` response was never stored, and only GET, HEAD and POST leave a stored response behind at all (RFC 9111 §4) — a stored `GET` answers a `HEAD` and nothing else. So an `OPTIONS` or a `TRACE` between the response that handed over the validator and the request that declines it is not the entry, and reading it as one reported that no validator had been offered when one had. An ordinary `200` carrying no validator is a different matter: it *was* storable, so it replaced the entry, and after it there is nothing left to condition on."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -166,6 +166,16 @@ impl Rule for CachedValidatorsReused {
             // cite(RFC 9111 § 4.3.1): "MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated."
             let has_if_range = tx.request.headers.contains_key("if-range");
 
+            // And the two that ask for a `412` rather than a `304`. A client
+            // that wrote `If-Match` or `If-Unmodified-Since` conditioned on
+            // the validator it was given — for a different answer, which
+            // § 13.1.1 reserves for completing a partial representation — and
+            // the entry names a request with no precondition on it at all. The
+            // message used to say "without conditional headers" beside an
+            // `If-Match`, describing a request that had one.
+            let has_if_match = tx.request.headers.contains_key("if-match");
+            let has_if_unmodified_since = tx.request.headers.contains_key("if-unmodified-since");
+
             // The governing SHOULD, on the ETag/GET path. The Last-Modified-only case is
             // an efficiency heuristic rather than a SHOULD: §13.1.3 describes
             // If-Modified-Since as "typically used" to allow efficient cache updates but
@@ -174,13 +184,19 @@ impl Rule for CachedValidatorsReused {
             // literal "GET request".
             // cite(RFC 9110 § 13.1.2): "When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request"
             // cite(RFC 9110 § 13.1.3): "If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag"
-            if !has_if_none_match && !has_if_modified_since && !has_if_range {
+            if !has_if_none_match
+                && !has_if_modified_since
+                && !has_if_range
+                && !has_if_match
+                && !has_if_unmodified_since
+            {
                 Some(ctx.report_with(
                     &CONDITIONAL_MISSING,
                     format!(
-                        "Client re-requesting resource without conditional headers. \
-                         Server provided validators (ETag: {}, Last-Modified: {}) but client \
-                         is not using If-None-Match or If-Modified-Since headers.",
+                        "Client re-requesting resource with no precondition on it. Server \
+                         provided validators (ETag: {}, Last-Modified: {}) and the request \
+                         carries none of If-None-Match, If-Modified-Since, If-Match, \
+                         If-Unmodified-Since or If-Range.",
                         resp.headers
                             .get("etag")
                             .and_then(|v| v.to_str().ok())
@@ -235,6 +251,15 @@ mod tests {
     // The same request with the validator left off is still the omission: what
     // the gate above turns on is the precondition, never the `Range` beside it.
     #[case(Some(vec![("etag", "\"abc123\"")]), vec![("range", "bytes=100-199")], true)]
+    // A request conditioned on the tag for a `412` rather than a `304` still
+    // conditioned on it: `If-Match` and `If-Unmodified-Since` are preconditions
+    // too, and a request carrying one is not one sent with none.
+    #[case(Some(vec![("etag", "\"abc123\"")]), vec![("if-match", "\"abc123\"")], false)]
+    #[case(
+        Some(vec![("last-modified", "Mon, 01 Jan 2020 00:00:00 GMT")]),
+        vec![("if-unmodified-since", "Mon, 01 Jan 2020 00:00:00 GMT")],
+        false
+    )]
     // `If-Range` carrying a date, the other half of `entity-tag / HTTP-date`.
     #[case(
         Some(vec![("last-modified", "Mon, 01 Jan 2020 00:00:00 GMT")]),
@@ -309,7 +334,7 @@ mod tests {
             // an offer rather than an instruction.
             assert_eq!(v.violation, "conditional_missing");
             assert_eq!(v.severity, crate::lint::Severity::Info);
-            assert!(v.message.contains("conditional headers"));
+            assert!(v.message.contains("no precondition"));
         } else {
             assert!(violation.is_none());
         }

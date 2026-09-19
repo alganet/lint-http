@@ -10,6 +10,8 @@ SPDX-License-Identifier: ISC
 
 This rule checks if the client correctly uses conditional headers (`If-None-Match`, `If-Modified-Since`, or `If-Range`) when re-requesting a resource it has previously fetched.
 
+**A request carrying any precondition is not one sent with none.** `If-Match` and `If-Unmodified-Since` ask for a `412` rather than a `304`, and a client that wrote either conditioned on the validator it was given, so the rule stays silent on them too; the entry it reports is the request that reused nothing.
+
 If a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.
 
 **An offer no cache was allowed to accept is not one that was declined.** RFC 9111 §3 decides whether the earlier exchange left a stored response at all, and a `no-store` on either of its two messages — the response's (§5.2.2.5) or the request's (§5.2.1.5) — answers no. The `ETag` beside such a directive reached no store, so the round trip this rule calls avoidable could not have been a `304`, and the rule stays silent.
