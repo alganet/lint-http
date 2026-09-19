@@ -6131,7 +6131,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 283
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 44
+      line: 57
   - label: cache_control_directive_valid
     section: § 5.1
     snippet: A field name labels the corresponding field value as having the semantics defined by that name.
@@ -6282,8 +6282,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 190
-    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 50
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 133
   - label: conditional_date_syntax (2)
@@ -6292,8 +6290,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_date_syntax.rs
       line: 191
-    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 51
   - label: conditional_date_syntax (3)
     section: § 5.5
     snippet: A field value does not include leading or trailing whitespace
@@ -6377,7 +6373,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 227
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 49
+      line: 60
     - file: lint-http-rules/src/violations/if_range.rs
       line: 136
   - label: conditional_request_handling
@@ -6660,8 +6656,6 @@ sources:
       line: 191
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 219
-    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 46
   - label: content_type_present (4)
     section: § 8.3
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
@@ -6902,8 +6896,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 117
-    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 45
   - label: expect_header_valid
     section: § 10.1.1
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
@@ -7941,7 +7933,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 279
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 47
+      line: 58
     - file: lint-http-rules/src/violations/content_range.rs
       line: 85
     - file: lint-http-rules/src/violations/content_range.rs
@@ -8135,7 +8127,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 276
+      line: 271
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
       line: 237
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
@@ -8185,7 +8177,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 284
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 278
+      line: 273
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.5
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
@@ -8193,7 +8185,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 420
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 279
+      line: 274
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.5
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
@@ -9395,7 +9387,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 229
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 48
+      line: 59
   - label: range_request_and_caching
     section: § 13.1.5
     snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
@@ -9776,8 +9768,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
       line: 97
-    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 54
     - file: lint-http-rules/src/violations/retry_after.rs
       line: 83
   - label: retry_after_status_valid
@@ -9829,37 +9819,37 @@ sources:
     snippet: User-Agent = product *( RWS ( product / comment ) )
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 42
+      line: 55
   - label: singleton_fields_not_repeated (2)
     section: § 10.2.4
     snippet: Server = product *( RWS ( product / comment ) )
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 41
+      line: 54
   - label: singleton_fields_not_repeated (3)
     section: § 11.6.2
     snippet: Authorization = credentials
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 52
+      line: 61
   - label: singleton_fields_not_repeated (4)
     section: § 11.7.2
     snippet: Proxy-Authorization = credentials
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 53
+      line: 62
   - label: the exception's shape
     section: § 5.3
     snippet: 'such as an ABNF rule of #(values) defined in Section 5.6.1'
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 277
+      line: 272
   - label: singleton_fields_not_repeated (5)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated, having the same semantics as the Origination Date Field (orig-date) defined in Section 3.6.1 of [RFC5322].
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 43
+      line: 56
   - label: status
     section: § 13.1.1
     snippet: Alternatively, if the request is a state-changing operation that appears to have already been applied to the selected representation, the origin server MAY respond with a 2xx (Successful) status code
@@ -10542,7 +10532,7 @@ sources:
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 111
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 56
+      line: 64
   - label: age_header_numeric (2)
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
@@ -11126,13 +11116,13 @@ sources:
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server.
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 55
+      line: 63
   - label: singleton_fields_not_repeated (2)
     section: § 5.3
     snippet: The "Expires" response header field gives the date/time after which the response is considered stale.
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 57
+      line: 65
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 138
   - label: status_and_caching_semantics
