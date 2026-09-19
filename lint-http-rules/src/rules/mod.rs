@@ -1725,6 +1725,130 @@ enabled = "true"
         Ok(())
     }
 
+    /// **A rule walking a list must be able to report every member.** The shape
+    /// this pins at zero is a `for` over one of the list-member helpers whose
+    /// body `return`s a finding:
+    ///
+    /// ```ignore
+    /// for member in list_members(value) {
+    ///     if let Some(defect) = check(member) { return Some(defect) }
+    /// }
+    /// ```
+    ///
+    /// RFC 9110 § 5.6.1 has a sender generate a list one element per position,
+    /// and each element is written on its own terms — `Allow` names one method
+    /// per member, `Accept-Encoding` states one preference, `Vary` names one
+    /// selecting field. So a rule reading such a field answers its question once
+    /// per member, and one that returns at the first member it has anything to
+    /// say about answers it once per value. `Accept-Encoding: gzip;q=x,
+    /// br;charset=utf-8, de@flate` is three malformities in three separate
+    /// preferences and drew one finding; the operator fixed the qvalue, re-ran,
+    /// and met the second. Twenty-four rules carried it.
+    ///
+    /// **What this does not pin is the empty member**, and the distinction is
+    /// the whole reading rather than an exemption. § 5.6.1.1 forbids
+    /// *generating* an empty element, so a value written with three gaps is one
+    /// list with gaps in it: the emptiness is the list's defect and stays one
+    /// finding, while the member checks are the member's and are counted per
+    /// member. A walk that sets a flag and `continue`s is that shape and passes
+    /// here.
+    ///
+    /// **One rule answers per message and is named below rather than
+    /// reshaped.** `websocket_handshake_valid` walks `Sec-WebSocket-Extensions`
+    /// for an extension the request never offered, and returns at the first —
+    /// but its unit is the handshake, not the list. RFC 6455 § 4.1 gives a
+    /// client six numbered checks and has it *Fail the WebSocket Connection* at
+    /// whichever fails first, and the rule reports that verdict: one finding per
+    /// `101`, chosen by that order across all six. Collecting the extension
+    /// members there would build a vector the assembly site then truncates to
+    /// its head — the same finding, reached by more code, from a file that no
+    /// longer looks like it answers once. Whether the handshake or the member is
+    /// the right unit for that rule is a question about all six checks rather
+    /// than about this list, so it is asked rather than assumed.
+    #[test]
+    fn a_list_walk_does_not_end_at_its_first_defective_member() -> anyhow::Result<()> {
+        // Answers per message by an argument written at its own assembly site,
+        // not per list member. Named here so the carve-out is greppable and has
+        // to be re-argued if it grows.
+        const ANSWERS_PER_MESSAGE: [&str; 1] = ["websocket_handshake_valid.rs"];
+        // The helpers that yield a list's members. `parse_semicolon_list` is not
+        // among them: a `;`-separated run is one member's parameters, and which
+        // of those a member answers for is that member's reading rather than
+        // the list's.
+        const WALKS: [&str; 5] = [
+            "list_members(",
+            "sender_list_members(",
+            "list_members_as_written(",
+            "split_commas_respecting_quotes(",
+            "split_top_level(",
+        ];
+
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        let mut carrying = Vec::new();
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            if path.extension().is_none_or(|e| e != "rs") {
+                continue;
+            }
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
+            if ANSWERS_PER_MESSAGE.contains(&name.as_ref()) {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path)?;
+            // Only the code that ships: a fixture is not a finding site. The
+            // same cut `a_section_reader_applied_twice_does_not_end_the_body`
+            // makes.
+            let body = src
+                .split("\n#[cfg(test)]")
+                .next()
+                .unwrap_or(&src)
+                .to_string();
+            let lines: Vec<&str> = body.lines().collect();
+
+            for (i, line) in lines.iter().enumerate() {
+                if !line.contains("for ") || !line.contains(" in ") {
+                    continue;
+                }
+                // The header may be wrapped by rustfmt, so it is read up to its
+                // opening brace before the helper is looked for in it.
+                let mut header = (*line).to_string();
+                let mut j = i;
+                while !header.contains('{') && j + 1 < lines.len() && j - i < 8 {
+                    j += 1;
+                    header.push(' ');
+                    header.push_str(lines[j].trim());
+                }
+                if !WALKS.iter().any(|w| header.contains(w)) {
+                    continue;
+                }
+
+                // The loop body, by the indentation of its `for`: the closing
+                // brace of a rustfmt-formatted block sits at the same column.
+                let indent = line.len() - line.trim_start().len();
+                let end = ((j + 1)..lines.len())
+                    .find(|k| {
+                        let l = lines[*k];
+                        !l.trim().is_empty()
+                            && l.len() - l.trim_start().len() <= indent
+                            && l.trim_start().starts_with('}')
+                    })
+                    .unwrap_or(lines.len());
+                if lines[j + 1..end].iter().any(|l| l.contains("return Some(")) {
+                    carrying.push(format!("{}:{}", name, i + 1));
+                }
+            }
+        }
+
+        assert!(
+            carrying.is_empty(),
+            "a walk over a list's members that returns at the first defective one \
+             answers for the value where the sender wrote a member. Collect the \
+             findings and keep the one each member yields:\n  {}",
+            carrying.join("\n  ")
+        );
+        Ok(())
+    }
+
     #[test]
     fn every_rule_file_is_registered() {
         // Deleting the hand-maintained `RULES` const removed the single place
