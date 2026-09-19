@@ -1666,7 +1666,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 52
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 510
+      line: 587
     - file: lint-http-rules/src/violations/uri.rs
       line: 332
   - label: lint-http-rules/src/helpers/authority.rs (11)
@@ -7865,7 +7865,7 @@ sources:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 235
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 329
+      line: 374
     - file: lint-http-rules/src/violations/list.rs
       line: 73
   - label: lint-http-rules/src/helpers/authority.rs
@@ -8121,7 +8121,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 57
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 304
+      line: 345
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 388
   - label: lint-http-rules/src/helpers/field_placement.rs
@@ -8623,7 +8623,7 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 201
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 444
+      line: 521
     - file: lint-http-rules/src/violations/product.rs
       line: 105
   - label: lint-http-rules/src/helpers/product.rs (5)
@@ -8633,7 +8633,7 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 200
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 443
+      line: 520
     - file: lint-http-rules/src/violations/product.rs
       line: 104
   - label: lint-http-rules/src/helpers/product.rs (6)
@@ -8787,7 +8787,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 329
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 282
+      line: 289
     - file: lint-http-rules/src/violations/token.rs
       line: 59
     - file: lint-http-rules/src/violations/token.rs
@@ -10505,7 +10505,7 @@ sources:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 219
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 318
+      line: 359
   - label: upgrade_header_syntax (3)
     section: § 7.8
     snippet: A client MAY send a list of protocol names in the Upgrade header field of a request to invite the server to switch to one or more of the named protocols, in order of descending preference, before sending the final response.
@@ -10559,13 +10559,13 @@ sources:
     snippet: port = <port, see [URI], Section 3.2.3>
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 509
+      line: 586
   - label: via_header_syntax (2)
     section: § 5.6.3
     snippet: OWS = *( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 270
+      line: 277
   - label: via_header_syntax (3)
     section: § 7.6.3
     snippet: A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards.
@@ -10577,31 +10577,31 @@ sources:
     snippet: A sender MAY generate comments to identify the software of each recipient, analogous to the User-Agent and Server header fields.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 540
+      line: 617
   - label: via_header_syntax (5)
     section: § 7.6.3
     snippet: An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 246
+      line: 248
   - label: via_header_syntax (6)
     section: § 7.6.3
     snippet: For brevity, the protocol-name is omitted when the received protocol is HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 410
+      line: 487
   - label: via_header_syntax (7)
     section: § 7.6.3
     snippet: However, comments in Via are optional, and a recipient MAY remove them prior to forwarding the message.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 541
+      line: 618
   - label: via_header_syntax (8)
     section: § 7.6.3
     snippet: However, if the real host is considered to be sensitive information, a sender MAY replace it with a pseudonym.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 473
+      line: 550
   - label: via_header_syntax (9)
     section: § 7.6.3
     snippet: The "Via" header field indicates the presence of intermediate protocols and recipients between the user agent and the server (on requests) or between the origin server and the client (on responses)
@@ -10613,15 +10613,15 @@ sources:
     snippet: The received-by portion is normally the host and optional port number of a recipient server or client that subsequently forwarded the message.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 472
+      line: 549
   - label: via_header_syntax (11)
     section: § 7.6.3
     snippet: 'Via = #( received-protocol RWS received-by [ RWS comment ] )'
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 317
+      line: 358
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 401
+      line: 478
     - file: lint-http-rules/src/violations/via.rs
       line: 85
     - file: lint-http-rules/src/violations/via.rs
@@ -10633,7 +10633,7 @@ sources:
     snippet: received-by = pseudonym [ ":" port ] pseudonym = token
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 470
+      line: 547
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 632
   - label: via_header_syntax (13)
@@ -10641,25 +10641,25 @@ sources:
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 407
+      line: 484
   - label: via_header_syntax (14)
     section: § 7.8
     snippet: protocol-name = token
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 408
+      line: 485
   - label: via_header_syntax (15)
     section: § 7.8
     snippet: protocol-version = token
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 409
+      line: 486
   - label: via_header_syntax (16)
     section: § B.2
     snippet: For simplicity, we have removed uri-host from the received-by production because it can be encompassed by the existing grammar for pseudonym.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 471
+      line: 548
     - file: lint-http-rules/src/violations/via.rs
       line: 156
   - label: warning_header_syntax

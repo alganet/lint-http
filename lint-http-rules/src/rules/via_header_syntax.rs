@@ -239,15 +239,19 @@ impl Rule for ViaHeaderSyntax {
         let mut out = Vec::new();
 
         // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
-        if let Some(defect) = judge(&tx.request.headers, "Request") {
-            out.push(report(crate::lint::Party::Client, defect));
-        }
+        out.extend(
+            judge(&tx.request.headers, "Request")
+                .into_iter()
+                .map(|defect| report(crate::lint::Party::Client, defect)),
+        );
 
         // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
         if let Some(resp) = &tx.response {
-            if let Some(defect) = judge(&resp.headers, "Response") {
-                out.push(report(crate::lint::Party::Server, defect));
-            }
+            out.extend(
+                judge(&resp.headers, "Response")
+                    .into_iter()
+                    .map(|defect| report(crate::lint::Party::Server, defect)),
+            );
         }
 
         out
@@ -259,11 +263,14 @@ impl Rule for ViaHeaderSyntax {
 /// The lines are joined before anything is counted, because the members of a
 /// list-based field do not belong to the line that happens to carry them — a
 /// member written empty at a line boundary is an empty member.
-fn judge(headers: &hyper::HeaderMap, side: &str) -> Option<Defect> {
-    let value = combined_field_value_octets(headers, "via")?;
+fn judge(headers: &hyper::HeaderMap, side: &str) -> Vec<Defect> {
+    let Some(value) = combined_field_value_octets(headers, "via") else {
+        return Vec::new();
+    };
     validate_via(&value)
-        .err()
+        .into_iter()
         .map(|defect| defect.in_context(|message| format!("{side} Via header: {message}")))
+        .collect()
 }
 
 /// Skip `OWS` -- the optional whitespace a list permits around its commas.
@@ -293,14 +300,48 @@ fn ends_a_member(b: u8) -> bool {
     b == b',' || b == b' ' || b == b'\t'
 }
 
-/// Validate a whole `Via` field value.
+/// Where the member starting at `from` ends: just past the comma that closes
+/// it, or `None` if it runs to the end of the value.
+///
+/// Comment-aware, because a comment is the one place in this grammar where a
+/// comma is data — `1.1 host (proxy, v2)` is one member, and a resumption that
+/// cut at the first comma would read `v2)` as a second one and report a member
+/// the sender never wrote. Only reached after a defect, where the parse is
+/// already lost; an unterminated comment ends the reading rather than guessing
+/// past it.
+fn next_member(v: &[u8], from: usize) -> Option<usize> {
+    let mut i = from;
+    while i < v.len() {
+        match v[i] {
+            b',' => return Some(i + 1),
+            b'(' => i = scan_comment(v, i).ok()?,
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// Validate a whole `Via` field value, naming everything wrong with it.
+///
+/// **One finding per member.** `Via = #( received-protocol RWS received-by
+/// [ RWS comment ] )` is a list whose every element is a hop that wrote itself,
+/// and each is malformed on its own terms — so a value naming four proxies of
+/// which three are defective is three things for an operator to chase, not one.
+/// The reading returned at the first defective member, so a `Via` chain was
+/// answered about its first bad hop and the operator met the second only after
+/// fixing the first and re-running.
+///
+/// **The empty member is the exception, and it is the list's defect rather than
+/// a member's.** RFC 9110 § 5.6.1.1 forbids a sender to *generate* an empty
+/// element, so a value written with gaps in it is one list with gaps; it is
+/// stated once however many there are.
 ///
 /// Takes octets rather than a `&str` for the same reason the `product` grammar
 /// does: `ctext` admits `obs-text`, so a member may legally carry a comment that
 /// is not visible US-ASCII, while the same octet in a `pseudonym` is not a
 /// `tchar` and has to be reported *there* -- at the production that excludes it,
 /// rather than as a claim about the whole field's encoding.
-fn validate_via(value: &[u8]) -> Result<(), Defect> {
+fn validate_via(value: &[u8]) -> Vec<Defect> {
     // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
     let mut v = value;
     while let [b' ' | b'\t', rest @ ..] = v {
@@ -316,10 +357,14 @@ fn validate_via(value: &[u8]) -> Result<(), Defect> {
     // violates nothing.
     // cite(RFC 9110 § 7.6.3): "Via = #( received-protocol RWS received-by [ RWS comment ] )"
     // cite(RFC 9110 § 5.6.1.1): "#element => [ 1#element ]"
+    let mut out = Vec::new();
     if v.is_empty() {
-        return Ok(());
+        return out;
     }
 
+    // Stated once for the whole value, however many gaps it has: the emptiness
+    // is the list's, and § 5.6.1.1 is one sentence about how the sender wrote it.
+    let mut said_empty = false;
     let mut i = 0usize;
     let mut n = 0usize;
     loop {
@@ -328,18 +373,43 @@ fn validate_via(value: &[u8]) -> Result<(), Defect> {
 
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if i == v.len() || v[i] == b',' {
-            return Err(Defect::named(
-                &LIST_MEMBER_EMPTY,
-                format!("member {n} is empty, and a sender must not generate empty list elements"),
-            ));
+            if !said_empty {
+                said_empty = true;
+                out.push(Defect::named(
+                    &LIST_MEMBER_EMPTY,
+                    format!(
+                        "member {n} is empty, and a sender must not generate empty list elements"
+                    ),
+                ));
+            }
+            if i == v.len() {
+                return out;
+            }
+            i += 1;
+            continue;
         }
 
-        let commented;
-        (i, commented) = validate_member(v, i, n)?;
+        let start = i;
+        let commented = match validate_member(v, i, n) {
+            Ok((next, commented)) => {
+                i = next;
+                commented
+            }
+            Err(defect) => {
+                out.push(defect);
+                match next_member(v, start) {
+                    Some(next) => {
+                        i = next;
+                        continue;
+                    }
+                    None => return out,
+                }
+            }
+        };
         i = skip_ws(v, i);
 
         if i == v.len() {
-            return Ok(());
+            return out;
         }
         if v[i] != b',' {
             // `validate_member` stops at the first octet that cannot continue a
@@ -349,7 +419,7 @@ fn validate_via(value: &[u8]) -> Result<(), Defect> {
             // That is the one shape here with an entry of its own — a repeated
             // optional group is not the same sender as trailing content, even
             // though the parser is stopped in the same place by both.
-            return Err(if v[i] == b'(' {
+            out.push(if v[i] == b'(' {
                 Defect::named(
                     &VIA_COMMENT_DUPLICATED,
                     format!(
@@ -371,6 +441,13 @@ fn validate_via(value: &[u8]) -> Result<(), Defect> {
                     },
                 )
             });
+            match next_member(v, i) {
+                Some(next) => {
+                    i = next;
+                    continue;
+                }
+                None => return out,
+            }
         }
         i += 1;
     }
@@ -559,6 +636,81 @@ static REGISTRATION: &dyn crate::rules::Rule = &ViaHeaderSyntax;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The old shape of [`validate_via`], for the cases below that each state
+    /// one defect or none. A value with several defective members is not one of
+    /// them, and is asserted against the vector by
+    /// `a_chain_of_defective_hops_is_answered_about_each_of_them`.
+    /// **A chain of four proxies, three of them defective, is three findings.**
+    /// The reading returned at the first bad hop, so an operator fixing it and
+    /// re-running met the second — and the report said nothing about hops the
+    /// value named in plain sight. 44% of the `Via` field lines in a sample of
+    /// real traffic carry more than one member, so a chain is the ordinary case
+    /// rather than the corner.
+    #[test]
+    fn a_chain_of_defective_hops_is_answered_about_each_of_them() {
+        let found = validate_via(b"1.1, HT@P/1.1 b, 1.1 [2001:db8::1], 1.1 good");
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "via_received_by_missing",
+                "token_character_forbidden",
+                "via_received_by_obsolete"
+            ],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// A comma inside a comment is data, and the resumption after a defective
+    /// member has to know it: cutting at the first comma would invent a member
+    /// out of the comment's tail and report the sender for it.
+    #[test]
+    fn a_comma_inside_a_defective_members_comment_does_not_start_a_member() {
+        let found = validate_via(b"1.1 fred (a, b) trailing, HT@P/1.1 lucy");
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec!["via_member_malformed", "token_character_forbidden"],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The empty member is the list's defect and not a member's, so a value
+    /// written with three gaps states it once — while the members' own defects
+    /// beside them are still counted per member.
+    #[test]
+    fn a_list_written_with_gaps_states_its_emptiness_once() {
+        let found = validate_via(b"1.1 a, , , HT@P/1.1 b");
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec!["list_member_empty", "token_character_forbidden"],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    fn one_judged(headers: &hyper::HeaderMap, side: &str) -> Option<Defect> {
+        let mut found = judge(headers, side);
+        assert!(found.len() <= 1, "{} findings", found.len());
+        found.pop()
+    }
+
+    fn one_defect(value: &[u8]) -> Result<(), Defect> {
+        let mut found = validate_via(value);
+        assert!(
+            found.len() <= 1,
+            "this reader is for values stating one defect; got {:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+        match found.pop() {
+            Some(defect) => Err(defect),
+            None => Ok(()),
+        }
+    }
     use rstest::rstest;
 
     fn headers(pairs: &[(&str, &str)]) -> hyper::HeaderMap {
@@ -588,7 +740,7 @@ mod tests {
     // OWS is permitted on both sides of the separator.
     #[case("1.1 a ,\t1.0 b")]
     fn accepts_conforming_values(#[case] v: &str) {
-        assert!(validate_via(v.as_bytes()).is_ok(), "{v}");
+        assert!(one_defect(v.as_bytes()).is_ok(), "{v}");
     }
 
     #[rstest]
@@ -643,7 +795,7 @@ mod tests {
         "member 1 does not begin with a received-protocol, but with '('"
     )]
     fn reports_non_conforming_values(#[case] v: &str, #[case] expected: &str) {
-        let err = validate_via(v.as_bytes()).expect_err(v).message;
+        let err = one_defect(v.as_bytes()).expect_err(v).message;
         assert!(err.contains(expected), "{v}: got {err}");
     }
 
@@ -653,7 +805,7 @@ mod tests {
     #[test]
     fn a_bracketed_ipv6_literal_is_not_a_pseudonym() {
         for v in ["1.1 [::1]", "1.1 [2001:db8::1]:8080"] {
-            let err = validate_via(v.as_bytes()).expect_err(v).message;
+            let err = one_defect(v.as_bytes()).expect_err(v).message;
             assert!(
                 err.contains("removed uri-host from this production"),
                 "{v}: got {err}"
@@ -669,12 +821,12 @@ mod tests {
         let mut inside = b"1.1 fred (U".to_vec();
         inside.push(0xdc);
         inside.extend_from_slice(b"nix)");
-        assert!(validate_via(&inside).is_ok());
+        assert!(one_defect(&inside).is_ok());
 
         let mut outside = b"1.1 fr".to_vec();
         outside.push(0xdc);
         outside.extend_from_slice(b"ed");
-        assert!(validate_via(&outside)
+        assert!(one_defect(&outside)
             .expect_err("obs-text is not a tchar")
             .message
             .contains("received-by containing 0xDC"));
@@ -684,7 +836,7 @@ mod tests {
     /// without reading `quoted-pair` disagrees, and cuts this value in two.
     #[test]
     fn a_comma_inside_a_comment_is_not_a_separator() {
-        assert!(validate_via(b"1.1 fred (a\\), b), 1.0 lucy").is_ok());
+        assert!(one_defect(b"1.1 fred (a\\), b), 1.0 lucy").is_ok());
     }
 
     /// Every production this field is made of, answering with the id it
@@ -707,7 +859,7 @@ mod tests {
     #[case("1.1 fred (a) (b)", "via_comment_duplicated")]
     #[case("1.1 exa mple", "via_member_malformed")]
     fn a_via_member_borrows_every_production_it_is_made_of(#[case] value: &str, #[case] id: &str) {
-        let defect = judge(&headers(&[("via", value)]), "Request").expect("a finding");
+        let defect = one_judged(&headers(&[("via", value)]), "Request").expect("a finding");
         assert_eq!(defect.def.id, id, "{value}");
     }
 
@@ -720,7 +872,7 @@ mod tests {
     #[case("1.1, 1.0 fred")]
     #[case("1.1 , 1.0 fred")]
     fn every_way_of_stopping_after_the_protocol_is_one_entry(#[case] value: &str) {
-        let defect = judge(&headers(&[("via", value)]), "Request").expect("a finding");
+        let defect = one_judged(&headers(&[("via", value)]), "Request").expect("a finding");
         assert_eq!(defect.def.id, "via_received_by_missing", "{value}");
     }
 
@@ -730,7 +882,7 @@ mod tests {
     #[test]
     fn an_empty_member_at_a_line_boundary_is_found() {
         let hm = headers(&[("via", "1.1 fred"), ("via", "")]);
-        let defect = judge(&hm, "Request").expect("an empty member");
+        let defect = one_judged(&hm, "Request").expect("an empty member");
         assert_eq!(defect.def.id, "list_member_empty");
         let err = defect.message;
         assert!(err.contains("member 2 is empty"), "got {err}");
@@ -740,7 +892,7 @@ mod tests {
     /// `#element` permits.
     #[test]
     fn a_single_empty_line_is_a_list_of_no_members() {
-        assert!(judge(&headers(&[("via", "")]), "Request").is_none());
+        assert!(one_judged(&headers(&[("via", "")]), "Request").is_none());
     }
 
     /// A second field line carries the second hop at least as often as the first
@@ -749,7 +901,7 @@ mod tests {
     #[test]
     fn every_field_line_is_read() {
         let hm = headers(&[("via", "1.1 fred"), ("via", "1.0 [::1]")]);
-        let err = judge(&hm, "Request")
+        let err = one_judged(&hm, "Request")
             .expect("the second line is measured too")
             .message;
         assert!(err.contains("member 2"), "got {err}");
@@ -763,7 +915,7 @@ mod tests {
             "via",
             HeaderValue::from_bytes(b"1.1 fr\xffed").expect("a field value hyper accepts"),
         );
-        let err = judge(&hm, "Request")
+        let err = one_judged(&hm, "Request")
             .expect("the octet is reported where it sits")
             .message;
         assert!(err.contains("received-by containing 0xFF"), "got {err}");
@@ -818,7 +970,7 @@ mod tests {
                         .unwrap_or_else(|| panic!("not a field line: {l:?}"))
                 })
                 .collect();
-            let found = judge(&headers(&pairs), "Request").map(|defect| defect.message);
+            let found = one_judged(&headers(&pairs), "Request").map(|defect| defect.message);
             match ex.compliance {
                 Compliance::Compliant => assert!(
                     found.is_none(),
