@@ -4897,7 +4897,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 163
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 549
+      line: 556
   - label: immutable_cache_never_stale (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
@@ -4907,7 +4907,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 528
+      line: 535
 - label: RFC 8259
   url: https://www.rfc-editor.org/rfc/rfc8259.html
   fragments:
@@ -7791,7 +7791,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 817
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 126
+      line: 132
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 215
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -8689,7 +8689,7 @@ sources:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 116
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 602
+      line: 609
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -10758,7 +10758,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_present.rs
       line: 94
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 572
+      line: 579
   - label: cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -10812,29 +10812,29 @@ sources:
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 181
+      line: 194
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 320
+      line: 327
   - label: caching_directive_interaction (2)
     section: § 5.2.2.7
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 156
+      line: 162
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 140
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 483
+      line: 490
   - label: caching_directive_interaction (3)
     section: § 5.2.2.9
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 155
+      line: 161
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 293
+      line: 300
   - label: expires_and_cache_control_consistent
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
@@ -10998,7 +10998,7 @@ sources:
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 143
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 506
+      line: 513
   - label: lint-http-rules/src/helpers/cache_control.rs (14)
     section: § 5.2.2.4
     snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
@@ -11008,7 +11008,7 @@ sources:
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 206
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 464
+      line: 471
   - label: lint-http-rules/src/helpers/cache_control.rs (15)
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
@@ -11026,15 +11026,15 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 285
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 171
+      line: 183
     - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 207
     - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 231
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 294
+      line: 301
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 373
+      line: 380
   - label: lint-http-rules/src/helpers/stored_response.rs
     section: § 3
     snippet: a private response directive, if the cache is not shared
@@ -11100,7 +11100,7 @@ sources:
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 229
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 349
+      line: 356
   - label: lint-http-rules/src/helpers/stored_response.rs (9)
     section: § 4.1
     snippet: If (after any normalization that might take place) a header field is absent from a request, it can only match another request if it is also absent there.
@@ -11174,7 +11174,7 @@ sources:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 245
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 425
+      line: 432
   - label: pragma_token_valid
     section: § 5.4
     snippet: As a result, this specification deprecates Pragma.

@@ -287,6 +287,13 @@ defects! {
     /// response, so it says nothing `public` disagrees with — which is why this
     /// is a reading of the argument and not a name comparison.
     ///
+    /// **`private` beside `no-store` is not here either.** `no-store` forbids
+    /// every cache what `private` forbids the shared ones, so the two agree
+    /// about storing and the weaker is contained in the stronger — the
+    /// relation `no-cache` and `max-age=0` have to it, which nothing reports.
+    /// Only `public` disagrees with `no-store`: one grants what the other
+    /// forbids, and § 3 hands the response to `no-store`.
+    ///
     /// `warn`: nothing is malformed and no cache is confused, but one of the
     /// two directives is dead text in every deployment that reads the field.
     ///

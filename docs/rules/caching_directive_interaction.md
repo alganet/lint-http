@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`/`private`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0` is a legal combination and is not flagged.
+Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0`, and `private` together with `no-store`, are legal combinations in which one directive is contained in the other, and are not flagged.
 
 ## Violations
 
@@ -38,6 +38,12 @@ enabled = true
 
 ```http
 Cache-Control: public, max-age=3600
+```
+
+### ✅ Good (`private` is contained in `no-store`; the pair agrees)
+
+```http
+Cache-Control: private, no-store
 ```
 
 ### ❌ Bad
