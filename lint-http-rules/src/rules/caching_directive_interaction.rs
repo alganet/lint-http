@@ -110,129 +110,126 @@ impl Rule for CachingDirectiveInteraction {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Helper to check a single HeaderMap for contradictions
-            let check_headers = |hdrs: &hyper::HeaderMap,
-                                 party: crate::lint::Party|
-             -> Option<Violation> {
-                // The value is read as the octets the sender wrote, so there is
-                // no line for a reader to skip and nothing for this rule to say
-                // about the field's encoding. An octet no `tchar` admits is a
-                // directive name's defect, which the two syntax rules next door
-                // report with the id that names it.
-                let lines = crate::helpers::cache_control::field_lines(hdrs);
+        // Each section is read on its own and every finding it yields is kept.
+        // A request whose directives contradict one another says nothing
+        // about whether the response's do, and a value carrying a storage
+        // conflict beside a freshness conflict carries two defects, not the
+        // one the code happened to test first. Within one section each entry
+        // is drawn at most once — one disagreement about storing, one about
+        // freshness — so a field written three ways is one finding of each
+        // kind rather than a report per pair of directives.
+        let check_headers = |hdrs: &hyper::HeaderMap,
+                             party: crate::lint::Party|
+         -> Vec<Violation> {
+            let mut out = Vec::new();
+            // The value is read as the octets the sender wrote, so there is
+            // no line for a reader to skip and nothing for this rule to say
+            // about the field's encoding. An octet no `tchar` admits is a
+            // directive name's defect, which the two syntax rules next door
+            // report with the id that names it.
+            let lines = crate::helpers::cache_control::field_lines(hdrs);
 
-                // An empty *element* within the list is forbidden — as distinct
-                // from an entirely empty field value, which is a legal
-                // zero-element list and which `members` already exempts.
-                // `directives_of` would have dropped the empty member; this is
-                // what the raw reader is for.
-                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                if crate::helpers::cache_control::members(&lines).any(str::is_empty) {
-                    return Some(ctx.by(party).report_with(
-                        &LIST_MEMBER_EMPTY,
-                        "Cache-Control header contains empty member".into(),
-                    ));
-                }
+            // An empty *element* within the list is forbidden — as distinct
+            // from an entirely empty field value, which is a legal
+            // zero-element list and which `members` already exempts.
+            // `directives_of` would have dropped the empty member; this is
+            // what the raw reader is for.
+            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            if crate::helpers::cache_control::members(&lines).any(str::is_empty) {
+                out.push(ctx.by(party).report_with(
+                    &LIST_MEMBER_EMPTY,
+                    "Cache-Control header contains empty member".into(),
+                ));
+            }
 
-                // Directive names are compared case-insensitively, so the map is
-                // keyed by the folded name; the argument is kept as written.
-                use std::collections::HashMap;
-                let mut seen: HashMap<String, Vec<Option<String>>> = HashMap::new();
-                for directive in crate::helpers::cache_control::directives_in(&lines) {
-                    seen.entry(directive.name.to_ascii_lowercase())
-                        .or_default()
-                        .push(directive.argument.map(str::to_string));
-                }
+            // Directive names are compared case-insensitively, so the map is
+            // keyed by the folded name; the argument is kept as written.
+            use std::collections::HashMap;
+            let mut seen: HashMap<String, Vec<Option<String>>> = HashMap::new();
+            for directive in crate::helpers::cache_control::directives_in(&lines) {
+                seen.entry(directive.name.to_ascii_lowercase())
+                    .or_default()
+                    .push(directive.argument.map(str::to_string));
+            }
 
-                if seen.is_empty() {
-                    return None;
-                }
+            if seen.is_empty() {
+                return out;
+            }
 
-                // public vs private contradiction. Only *unqualified* private (no `=field-name`
-                // argument) forbids a shared cache from storing the whole response; qualified
-                // `private="…"` lets it store the rest, so it does not contradict public — the cite
-                // is explicitly about "unqualified private". For a shared cache the unqualified
-                // pair directly conflicts: public says it MAY store, private says it MUST NOT. The
-                // spec resolves conflicting directives by honoring the most restrictive (§4.2.1),
-                // so this flag is a misconfiguration heuristic, not an illegal combination.
-                // cite(RFC 9111 § 5.2.2.9): "The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3."
-                // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
-                let private_unqualified = seen
-                    .get("private")
-                    .is_some_and(|vs| vs.iter().any(|v| v.is_none()));
-                if seen.contains_key("public") && private_unqualified {
-                    return Some(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'public' (RFC 9111 \u{a7}5.2.2.9) and an unqualified 'private' (\u{a7}5.2.2.7): a shared cache MAY store the response and MUST NOT store it".into()));
-                }
+            // public vs private contradiction. Only *unqualified* private (no `=field-name`
+            // argument) forbids a shared cache from storing the whole response; qualified
+            // `private="…"` lets it store the rest, so it does not contradict public — the cite
+            // is explicitly about "unqualified private". For a shared cache the unqualified
+            // pair directly conflicts: public says it MAY store, private says it MUST NOT. The
+            // spec resolves conflicting directives by honoring the most restrictive (§4.2.1),
+            // so this flag is a misconfiguration heuristic, not an illegal combination.
+            // cite(RFC 9111 § 5.2.2.9): "The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3."
+            // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
+            let private_unqualified = seen
+                .get("private")
+                .is_some_and(|vs| vs.iter().any(|v| v.is_none()));
+            if seen.contains_key("public") && private_unqualified {
+                out.push(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'public' (RFC 9111 \u{a7}5.2.2.9) and an unqualified 'private' (\u{a7}5.2.2.7): a shared cache MAY store the response and MUST NOT store it".into()));
+            }
+            // `no-store` beside `public`. `public` grants storage to every cache
+            // "even if it would otherwise be prohibited" and `no-store` prohibits it
+            // to every cache; § 3 settles the response for `no-store`, so the grant
+            // is dead text and the two directives say opposite things about one
+            // response.
+            //
+            // `private` beside `no-store` is NOT this pair. `private` forbids the
+            // shared caches what `no-store` forbids all of them, so the two agree
+            // about storing and the weaker is contained in the stronger — the
+            // relation `no-cache` and `max-age=0` have to `no-store`, which this
+            // rule leaves alone on purpose. It is also the commonest way a response
+            // says "do not cache this", and nothing in it is dead text a server
+            // could have meant otherwise.
+            // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
+            else if seen.contains_key("no-store") && seen.contains_key("public") {
+                out.push(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'no-store' (RFC 9111 \u{a7}5.2.2.5) and 'public' (\u{a7}5.2.2.9): every cache MUST NOT store the response and any cache MAY store it".into()));
+            }
 
-                // `no-store` beside `public`. `public` grants storage to every cache
-                // "even if it would otherwise be prohibited" and `no-store` prohibits it
-                // to every cache; § 3 settles the response for `no-store`, so the grant
-                // is dead text and the two directives say opposite things about one
-                // response.
-                //
-                // `private` beside `no-store` is NOT this pair. `private` forbids the
-                // shared caches what `no-store` forbids all of them, so the two agree
-                // about storing and the weaker is contained in the stronger — the
-                // relation `no-cache` and `max-age=0` have to `no-store`, which this
-                // rule leaves alone on purpose. It is also the commonest way a response
-                // says "do not cache this", and nothing in it is dead text a server
-                // could have meant otherwise.
-                // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                if seen.contains_key("no-store") && seen.contains_key("public") {
-                    return Some(ctx.by(party).report_with(&CACHE_CONTROL_STORAGE_CONFLICTING, "Cache-Control contains both 'no-store' (RFC 9111 \u{a7}5.2.2.5) and 'public' (\u{a7}5.2.2.9): every cache MUST NOT store the response and any cache MAY store it".into()));
-                }
+            // Note: combinations like 'no-cache' with 'max-age=0' are allowed per RFC 9111 §3
+            // and are intentionally *not* flagged as redundant by this rule.
 
-                // Note: combinations like 'no-cache' with 'max-age=0' are allowed per RFC 9111 §3
-                // and are intentionally *not* flagged as redundant by this rule.
-
-                // Multiple max-age or s-maxage with differing values is ambiguous; the spec says a
-                // cache should use the first occurrence or treat the response as stale, so flagging
-                // the divergence is a consistency heuristic.
-                // cite(RFC 9111 § 4.2.1): "When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale."
-                for key in ["max-age", "s-maxage"] {
-                    if let Some(vals) = seen.get(key) {
-                        // Collect numeric values (unquoted token form) and compare
-                        let mut nums: Vec<String> = Vec::new();
-                        for s in vals.iter().flatten() {
-                            let s = s.trim();
-                            let inner = if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-                                &s[1..s.len() - 1]
-                            } else {
-                                s
-                            };
-                            if !inner.is_empty() {
-                                nums.push(inner.to_string());
-                            }
+            // Multiple max-age or s-maxage with differing values is ambiguous; the spec says a
+            // cache should use the first occurrence or treat the response as stale, so flagging
+            // the divergence is a consistency heuristic.
+            // cite(RFC 9111 § 4.2.1): "When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale."
+            for key in ["max-age", "s-maxage"] {
+                if let Some(vals) = seen.get(key) {
+                    // Collect numeric values (unquoted token form) and compare
+                    let mut nums: Vec<String> = Vec::new();
+                    for s in vals.iter().flatten() {
+                        let s = s.trim();
+                        let inner = if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                            &s[1..s.len() - 1]
+                        } else {
+                            s
+                        };
+                        if !inner.is_empty() {
+                            nums.push(inner.to_string());
                         }
-                        if nums.len() > 1 {
-                            // if at least two are different, flag
-                            let first = &nums[0];
-                            if nums.iter().any(|x| x != first) {
-                                return Some(ctx.by(party).report_with(&CACHE_CONTROL_FRESHNESS_CONFLICTING, format!("Cache-Control contains multiple '{}' directives with differing values, and RFC 9111 \u{a7}4.2.1 leaves a cache free to use the first or to treat the response as stale", key)));
-                            }
+                    }
+                    if nums.len() > 1 {
+                        // if at least two are different, flag
+                        let first = &nums[0];
+                        if nums.iter().any(|x| x != first) {
+                            out.push(ctx.by(party).report_with(&CACHE_CONTROL_FRESHNESS_CONFLICTING, format!("Cache-Control contains multiple '{}' directives with differing values, and RFC 9111 \u{a7}4.2.1 leaves a cache free to use the first or to treat the response as stale", key)));
+                            break;
                         }
                     }
                 }
-
-                None
-            };
-
-            // Check request and response headers
-            if let Some(v) = check_headers(&tx.request.headers, crate::lint::Party::Client) {
-                return Some(v);
-            }
-            if let Some(resp) = &tx.response {
-                if let Some(v) = check_headers(&resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+
+        let mut out = check_headers(&tx.request.headers, crate::lint::Party::Client);
+        if let Some(resp) = &tx.response {
+            out.extend(check_headers(&resp.headers, crate::lint::Party::Server));
+        }
+        out
     }
 }
 
@@ -384,6 +381,65 @@ mod tests {
         assert!(run(&[0xff]).is_none(), "the octet alone is not this rule's");
         let found = run(b"public, private, \xff").expect("the contradiction");
         assert_eq!(found.violation, "cache_control_storage_conflicting");
+    }
+
+    /// A finding does not end the reading. One value can carry a disagreement
+    /// about storing beside one about freshness, and a request's defect is not
+    /// the response's; each is reported, and each to its own party. Three
+    /// directives disagreeing about storage are still one disagreement.
+    #[test]
+    fn a_finding_does_not_end_the_reading() {
+        let rule = CachingDirectiveInteraction;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "caching_directive_interaction",
+        ]);
+        let hist = crate::transaction_history::TransactionHistory::empty();
+        let ids = |tx: &crate::http_transaction::HttpTransaction| {
+            crate::test_helpers::run_rule_all(&rule, tx, &hist, &cfg)
+                .into_iter()
+                .map(|v| (v.violation, v.party))
+                .collect::<Vec<_>>()
+        };
+        use crate::lint::Party::{Client, Server};
+
+        assert_eq!(
+            ids(&make_req("public, private, max-age=60, max-age=30")),
+            [
+                (
+                    "cache_control_storage_conflicting".to_string(),
+                    Some(Client)
+                ),
+                (
+                    "cache_control_freshness_conflicting".to_string(),
+                    Some(Client)
+                ),
+            ]
+        );
+
+        let mut tx = make_resp("no-store, public");
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("cache-control", "public, private")]);
+        assert_eq!(
+            ids(&tx),
+            [
+                (
+                    "cache_control_storage_conflicting".to_string(),
+                    Some(Client)
+                ),
+                (
+                    "cache_control_storage_conflicting".to_string(),
+                    Some(Server)
+                ),
+            ]
+        );
+
+        assert_eq!(
+            ids(&make_req("public, private, no-store")),
+            [(
+                "cache_control_storage_conflicting".to_string(),
+                Some(Client)
+            )]
+        );
     }
 
     #[test]
