@@ -11,7 +11,9 @@ use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
-use crate::violations::ext_value::{EXT_VALUE_MALFORMED, RFC_8187_3_2_1};
+use crate::violations::ext_value::{
+    EXT_VALUE_CHARSET_FORBIDDEN, EXT_VALUE_MALFORMED, RFC_8187_3_2_1,
+};
 use crate::violations::language::{
     tag_defect, LANGUAGE_TAG_CHARACTER_FORBIDDEN, LANGUAGE_TAG_EDGE_HYPHEN_FORBIDDEN,
     LANGUAGE_TAG_EMPTY, LANGUAGE_TAG_LEADING_LETTER_MISSING, LANGUAGE_TAG_SUBTAG_EMPTY,
@@ -117,6 +119,7 @@ static DECLARED: &[&ViolationDef] = &[
     &LANGUAGE_TAG_SUBTAG_EMPTY,
     &LANGUAGE_TAG_SUBTAG_LENGTH_INVALID,
     &EXT_VALUE_MALFORMED,
+    &EXT_VALUE_CHARSET_FORBIDDEN,
 ];
 
 /// One finding from the reading, and the entry it reports as.
@@ -552,6 +555,11 @@ impl RuleMeta for LinkHeaderValid {
                 label: Some("(any name ending in '*' owes an ext-value, not just title*)"),
                 snippet: "HTTP/1.1 200 OK\nLink: </a>; rel=next; example*=UTF-8x",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a well-formed ext-value in an encoding a producer may not use)"),
+                snippet: "HTTP/1.1 200 OK\nLink: </a>; rel=next; title*=iso-8859-1'en'%A3%20rates",
+            },
         ]
     }
 }
@@ -943,6 +951,22 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
                             "writes {}='{}', which does not derive from ext-value: {why}",
                             parsed.name,
                             shown_in_finding(value)
+                        ),
+                    ));
+                }
+                // The grammar first, then the choice: a value deriving from no
+                // `ext-value` named no encoding to be forbidden.
+                if let Some(charset) = crate::helpers::parameter::ext_value_charset_reserved(value)
+                {
+                    return Err(Defect::named(
+                        &EXT_VALUE_CHARSET_FORBIDDEN,
+                        format!(
+                            "writes {}='{}', naming the character encoding '{}', which \
+                             RFC 8187 §3.2.1 reserves for future use and forbids a producer \
+                             to write; a recipient built to that document decodes UTF-8 alone",
+                            parsed.name,
+                            shown_in_finding(value),
+                            shown_in_finding(charset)
                         ),
                     ));
                 }
@@ -1413,6 +1437,8 @@ mod tests {
     // with no `=` states no value for the production to refuse.
     #[case(b"<https://example.com/>; rel=next; title*=UTF-8''")]
     #[case(b"<https://example.com/>; rel=next; example*")]
+    // The fold § 3.2.1 requires: `utf-8` is `UTF-8` and neither is reported.
+    #[case(b"<https://example.com/>; rel=next; title*=utf-8''x")]
     fn conforming_values_draw_nothing(#[case] value: &[u8]) {
         assert_eq!(
             judge_response(200, value),
@@ -1674,6 +1700,13 @@ mod tests {
     #[case(b"</a>; rel=next; title*=UTF-8x", "ext_value_malformed")]
     #[case(b"</a>; rel=next; example*=UTF-8''a*b", "ext_value_malformed")]
     #[case(b"</a>; rel=next; example*=\"UTF-8''a@b\"", "ext_value_malformed")]
+    // Well formed and still forbidden: `mime-charset` derives `iso-8859-1`, so
+    // the grammar's entry would be untrue of this value and the producer's is
+    // the one owed. The order of the two reads is what says so.
+    #[case(
+        b"</a>; rel=next; title*=iso-8859-1'en'%A3%20rates",
+        "ext_value_charset_forbidden"
+    )]
     fn a_link_value_borrows_every_production_it_is_made_of(#[case] value: &[u8], #[case] id: &str) {
         let headers = crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]);
         let defect = judge(&headers, "Response", true).expect("a finding");

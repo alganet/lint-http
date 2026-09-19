@@ -2593,10 +2593,19 @@ enabled = "true"
     /// `error`. `link_header_valid` declares it now. One declarer became two,
     /// and the production did not move — which is the whole test of whether a
     /// second declarer is a seam or a duplication.
+    ///
+    /// **114 is that entry's sibling arriving beside it.**
+    /// `ext_value_charset_forbidden` is RFC 8187 § 3.2.1's other paragraph —
+    /// the encoding a producer may choose, rather than the production the value
+    /// derives from — and it is declared by the same two rules for the same
+    /// reason, because both read an `ext-value` and the choice is made wherever
+    /// the value is written. A new id whose declarers are a subset of an
+    /// existing shared id's costs one here and buys the seam nothing it did
+    /// not already have.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 113;
+        const CEILING: usize = 114;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();

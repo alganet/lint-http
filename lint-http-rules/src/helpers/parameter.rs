@@ -251,6 +251,24 @@ pub fn validate_ext_value(val: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// The `charset` an `ext-value` names, when it is not `UTF-8`.
+///
+/// The second of § 3.2.1's two claims about the value, and it is asked only of
+/// a value [`validate_ext_value`] has accepted: the sentence forbidding an
+/// encoding is about a *choice* the producer made, and a value that derives
+/// from no `ext-value` chose nothing. Callers judge in that order for the same
+/// reason.
+///
+/// Folded, because the section says character encoding names are matched
+/// case-insensitively — so `utf-8` is `UTF-8` and neither is reported.
+///
+// cite(RFC 8187 § 3.2.1, label: producers): "Producers MUST use the "UTF-8" ([RFC3629]) character encoding."
+// cite(RFC 8187 § 3.2.1, label: folding): "Note that both character encoding names and language tags are restricted to the US-ASCII coded character set and are matched case-insensitively"
+pub fn ext_value_charset_reserved(val: &str) -> Option<&str> {
+    let charset = &val[..val.find('\'')?];
+    (!charset.eq_ignore_ascii_case("UTF-8")).then_some(charset)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,6 +348,25 @@ mod tests {
         assert!(validate_ext_value("UTF-8''a*b").is_err());
         assert!(validate_ext_value("UTF-8''a{b").is_err());
         assert!(validate_ext_value("UTF-8''ok-name.ext~1").is_ok());
+    }
+
+    /// The charset a value names, and the fold § 3.2.1 requires of the
+    /// comparison. `None` is the answer for `UTF-8` in any case, and for a
+    /// value with no separator at all — which is not this reader's verdict to
+    /// give, since the grammar refused it first.
+    #[test]
+    fn the_reserved_charset_is_read_case_insensitively() {
+        assert_eq!(ext_value_charset_reserved("UTF-8''x"), None);
+        assert_eq!(ext_value_charset_reserved("utf-8'en'x"), None);
+        assert_eq!(
+            ext_value_charset_reserved("iso-8859-1'en'%A3"),
+            Some("iso-8859-1")
+        );
+        assert_eq!(
+            ext_value_charset_reserved("Shift_JIS''x"),
+            Some("Shift_JIS")
+        );
+        assert_eq!(ext_value_charset_reserved("UTF-8x"), None);
     }
 
     /// `mime-charset` crosses `token` rather than sitting inside it, and each

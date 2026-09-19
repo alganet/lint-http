@@ -1803,6 +1803,11 @@ severity = "warn"
 # Expires derives from no HTTP-date, so a cache reads it as already expired
 severity = "warn"
 
+[violations.ext_value_charset_forbidden]
+# An extended parameter value names a character encoding reserved for future use
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.ext_value_malformed]
 # An extended parameter value is no ext-value
 # GRAMMAR obliges the sender, so this defaults to error.

@@ -22,6 +22,7 @@ When a parameter value is syntactically invalid, the rule raises a `warn`-level 
 
 - [content_disposition_parameter_duplicated](../violations/content_disposition_parameter_duplicated.md) — Content-Disposition names one parameter twice
 - [content_disposition_size_invalid](../violations/content_disposition_size_invalid.md) — A Content-Disposition size parameter is not a number
+- [ext_value_charset_forbidden](../violations/ext_value_charset_forbidden.md) — An extended parameter value names a character encoding reserved for future use
 - [ext_value_malformed](../violations/ext_value_malformed.md) — An extended parameter value is no ext-value
 - [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
 - [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
@@ -66,4 +67,10 @@ Content-Disposition: attachment; filename="unclosed   # the quoted-string never 
 Content-Disposition: attachment; filename*=UTF-8'%e2%82%ac   ;  # missing second quote
 Content-Disposition: attachment; size=12a
 Content-Disposition: attachment; filename=foo; filename=bar  # duplicate parameter name
+```
+
+### ❌ Bad (a well-formed ext-value in an encoding a producer may not use)
+
+```http
+Content-Disposition: attachment; filename*=iso-8859-1'en'%A3%20rates
 ```

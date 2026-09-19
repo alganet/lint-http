@@ -220,6 +220,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [expect_value_empty](violations/expect_value_empty.md) — Expect writes an expectation '=' with no value after it
 - [expires_conflicting](violations/expires_conflicting.md) — Expires and the Cache-Control freshness directives disagree
 - [expires_malformed](violations/expires_malformed.md) — Expires derives from no HTTP-date, so a cache reads it as already expired
+- [ext_value_charset_forbidden](violations/ext_value_charset_forbidden.md) — An extended parameter value names a character encoding reserved for future use
 - [ext_value_malformed](violations/ext_value_malformed.md) — An extended parameter value is no ext-value
 - [field_connection_specific_forbidden](violations/field_connection_specific_forbidden.md) — A connection-specific field is written on a version that has none
 - [field_line_duplicated](violations/field_line_duplicated.md) — A field is written on more lines than its definition allows
