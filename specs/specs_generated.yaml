@@ -170,7 +170,7 @@ sources:
     snippet: Only request destinations that are script-like or "style" are considered as any exploits pertain to them.
     cited_by:
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs
-      line: 187
+      line: 191
 - label: HTML
   url: https://html.spec.whatwg.org/multipage/browsers.html
   type: text/html

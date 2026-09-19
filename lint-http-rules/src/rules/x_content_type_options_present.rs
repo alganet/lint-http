@@ -183,9 +183,14 @@ impl Rule for XContentTypeOptionsPresent {
                 // to successful responses). The configured content-type list stands in for
                 // the request destination, which a proxy cannot know: the spec only blocks
                 // for script-like and style destinations, so the config names the types a
-                // deployment serves to those destinations.
+                // deployment serves to those destinations. That stand-in cannot hold for a
+                // method whose destination is never script-like or style regardless of the
+                // content-type carried: a CORS preflight (OPTIONS), a loopback diagnostic
+                // (TRACE), and a tunnel's own response (CONNECT) are never fetched for
+                // rendering or execution, so no content-type list stands in for anything.
                 // cite(Fetch § 3.6.1): "Only request destinations that are script-like or "style" are considered as any exploits pertain to them."
-                if (200..300).contains(&resp.status)
+                if !matches!(tx.request.method.as_str(), "OPTIONS" | "TRACE" | "CONNECT")
+                    && (200..300).contains(&resp.status)
                     && config.content_types.contains(&content_type)
                     && !resp.headers.contains_key("x-content-type-options")
                 {
@@ -290,6 +295,58 @@ mod tests {
         } else {
             assert!(violation.is_none());
         }
+        Ok(())
+    }
+
+    #[rstest]
+    // A destination that is never script-like or style leaves no content-type
+    // list to stand in for one: nothing fires however the type matches.
+    #[case("OPTIONS", false)]
+    #[case("TRACE", false)]
+    #[case("CONNECT", false)]
+    // POST carries no such exclusion — a document destination is still one a
+    // browser renders and may execute against.
+    #[case("POST", true)]
+    #[case("GET", true)]
+    fn check_response_excludes_non_script_methods(
+        #[case] method: &str,
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
+        let rule = XContentTypeOptionsPresent;
+
+        let mut config = crate::config::Config::default();
+        config.rules.insert(
+            "x_content_type_options_present".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert(
+                    "content_types".into(),
+                    toml::Value::Array(vec![toml::Value::String("text/html".into())]),
+                );
+                t
+            }),
+        );
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = method.to_string();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/html")]),
+            body_length: None,
+            body_interrupted: false,
+            trailers: None,
+        });
+
+        let violation = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+
+        assert_eq!(violation.is_some(), expect_violation);
         Ok(())
     }
 
