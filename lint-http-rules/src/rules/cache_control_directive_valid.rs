@@ -106,7 +106,7 @@ impl Defect {
 }
 
 impl CacheControlDirectiveValid {
-    /// The first defect in one message's `Cache-Control` field, if it has one.
+    /// Every defect in one message's `Cache-Control` field.
     ///
     /// Read over the whole section and as octets. `Cache-Control =
     /// #cache-directive` makes the field lines of a section one list, and a
@@ -115,25 +115,55 @@ impl CacheControlDirectiveValid {
     /// reading line by line through the string reader made it. Where the
     /// members come from, and which of them the grammar's `#element` even
     /// admits, is [`crate::helpers::cache_control`]'s answer.
+    ///
+    /// **Each directive states its own argument syntax, so a response whose
+    /// `max-age` carries letters and whose `private` names no field has two
+    /// corrections to make and not one.** The walk used to end at the first,
+    /// which on this field is the masking with the widest reach in the
+    /// catalogue: most `Cache-Control` values name several directives.
+    ///
+    /// **The empty member is the list's defect and not a member's**, so it is
+    /// stated once however many gaps the value carries — the same reading
+    /// `cache_control_token_valid` makes of the same list beside this one.
     fn defect(
         &self,
         headers: &hyper::HeaderMap,
         side: &str,
         party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let value =
-            crate::helpers::headers::combined_field_value_as_written(headers, "cache-control")?;
+    ) -> Vec<Violation> {
+        let Some(value) =
+            crate::helpers::headers::combined_field_value_as_written(headers, "cache-control")
+        else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        let mut saw_an_empty_member = false;
         for member in crate::helpers::cache_control::members_of(&value) {
+            if member.is_empty() {
+                saw_an_empty_member = true;
+                continue;
+            }
             if let Some(defect) = member_defect(member, side) {
                 let message = format!(
                     "Invalid Cache-Control header in {}: {}",
                     side, defect.message
                 );
-                return Some(ctx.by(party).report_with(defect.def, message));
+                out.push(ctx.by(party).report_with(defect.def, message));
             }
         }
-        None
+        if saw_an_empty_member {
+            let empty = crate::helpers::cache_control::MemberDefect::Empty;
+            out.push(ctx.by(party).report_with(
+                cache_directive_member(empty),
+                format!(
+                    "Invalid Cache-Control header in {}: {}",
+                    side,
+                    empty.message()
+                ),
+            ));
+        }
+        out
     }
 }
 
@@ -462,6 +492,26 @@ static REGISTRATION: &dyn crate::rules::Rule = &CacheControlDirectiveValid;
 
 #[cfg(test)]
 mod tests {
+    /// The cases below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported. `run_rule` is
+    /// `run_rule_all(..).into_iter().next()`, so a walk that starts answering
+    /// twice about one field passes every one-defect case already written here
+    /// and the regression is invisible to this file.
+    fn one_finding(
+        rule: &dyn crate::rules::Rule,
+        tx: &crate::http_transaction::HttpTransaction,
+        history: &crate::transaction_history::TransactionHistory,
+        cfg: &crate::config::Config,
+    ) -> Option<crate::lint::Violation> {
+        let mut found = crate::test_helpers::run_rule_all(rule, tx, history, cfg);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
+    }
+
     use super::*;
     use rstest::rstest;
 
@@ -509,7 +559,7 @@ mod tests {
     fn request_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req(value);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -544,7 +594,7 @@ mod tests {
     fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_resp(value);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -565,7 +615,7 @@ mod tests {
             ("cache-control", "no-cache"),
             ("cache-control", "max-age=60"),
         ]);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -584,7 +634,7 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("cache-control", bad);
         tx.request.headers = hm;
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -594,7 +644,8 @@ mod tests {
         assert_eq!(v.violation, "token_character_forbidden");
         assert_eq!(
             v.message,
-            "Invalid Cache-Control header in request: Directive name contains invalid character: 0xFF"
+            "Invalid Cache-Control header in request: Cache-Control member '\u{ff}' has a \
+             directive name containing an invalid character: 0xFF"
         );
         Ok(())
     }
@@ -606,7 +657,7 @@ mod tests {
         // zero-element list, exactly like `empty_whole_value_is_allowed_request`.
         let rule = CacheControlDirectiveValid;
         let tx = make_req("   ");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -623,7 +674,7 @@ mod tests {
     fn whitespace_only_response_is_allowed() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_resp("   ");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -640,7 +691,7 @@ mod tests {
     fn private_unterminated_quoted_reports_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("private=\"unterminated");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -659,7 +710,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("cache-control", ",max-age=1")]);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -675,7 +726,7 @@ mod tests {
         // empty *element* in `empty_member_is_violation`.
         let rule = CacheControlDirectiveValid;
         let tx = make_req("");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -689,7 +740,7 @@ mod tests {
     fn empty_whole_value_is_allowed_response() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_resp("");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -725,7 +776,7 @@ mod tests {
     fn foo_empty_value_allowed() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -739,7 +790,7 @@ mod tests {
     fn foo_quoted_value_allowed() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=\"bar\"");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -753,7 +804,7 @@ mod tests {
     fn directive_value_invalid_token() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=bad@val");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -772,7 +823,7 @@ mod tests {
     fn oversized_delta_seconds_is_valid_syntax(#[case] value: &str) -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req(value);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -786,7 +837,7 @@ mod tests {
     fn empty_directive_name_is_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("=bar");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -800,7 +851,7 @@ mod tests {
     fn private_quoted_empty_field_is_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("private=\"field1,,field3\"");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -814,7 +865,7 @@ mod tests {
     fn private_quoted_invalid_field_char_is_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("private=\"field1,bad@field\"");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -841,7 +892,7 @@ mod tests {
             body_interrupted: false,
             trailers: None,
         });
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -851,7 +902,8 @@ mod tests {
         assert_eq!(v.violation, "token_character_forbidden");
         assert_eq!(
             v.message,
-            "Invalid Cache-Control header in response: Directive name contains invalid character: 0xFF"
+            "Invalid Cache-Control header in response: Cache-Control member '\u{ff}' has a \
+             directive name containing an invalid character: 0xFF"
         );
         Ok(())
     }
@@ -860,7 +912,7 @@ mod tests {
     fn whitespace_around_name_value_accepted() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req(" max-age = 3600 ");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -874,7 +926,7 @@ mod tests {
     fn quoted_string_with_extra_chars_reports_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=\"bar\"x");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -912,19 +964,23 @@ mod tests {
     /// The two rules that read this field's members answer with one id apiece
     /// for the defects they share.
     ///
-    /// The last column is where the sentence comes from, and the two halves of
-    /// this table are the difference the catalogue makes. Above it, the member
-    /// reader words the finding and both rules pass its sentence on unchanged —
-    /// prose deduplicated by sharing code, which was possible before any of
-    /// this. Below it, each rule words the argument's finding itself and the
-    /// two texts differ; only the id makes them one defect.
+    /// The last column is where the sentence comes from. For the member's own
+    /// grammar the reader words the finding and both rules pass its sentence on
+    /// unchanged — prose deduplicated by sharing code, which was possible
+    /// before any of this. For the argument each rule words the finding itself,
+    /// and the two texts now agree as well: once these walks collect rather
+    /// than stop at the first defective member, a finding has to name the
+    /// directive it is about, and there is one true way to say which directive
+    /// carried the character. **Which leaves the two rules drawing one entry
+    /// with one sentence for every shape in this table**, which is what the
+    /// duplicate Q6 asks about looks like from inside.
     #[test]
     fn both_cache_control_syntax_rules_report_one_id_for_one_mistake() {
         let judge_with = |rule: &dyn crate::rules::Rule, value: &str| -> Violation {
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.request.headers =
                 crate::test_helpers::make_headers_from_pairs(&[("cache-control", value)]);
-            crate::test_helpers::run_rule(
+            one_finding(
                 rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
@@ -936,11 +992,11 @@ mod tests {
         for (value, id, one_sentence) in [
             ("no-cache,,foo", "list_member_empty", true),
             ("=abc", "token_empty", true),
-            ("foo=bad@value", "token_character_forbidden", false),
+            ("foo=bad@value", "token_character_forbidden", true),
             (
                 "foo=\"unterminated",
                 "quoted_string_delimiter_missing",
-                false,
+                true,
             ),
         ] {
             let directive = judge_with(&CacheControlDirectiveValid, value);
@@ -1021,7 +1077,7 @@ mod tests {
     fn the_extension_directives_are_asked_their_digits_and_not_their_form() {
         let rule = CacheControlDirectiveValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let quiet = crate::test_helpers::run_rule(
+        let quiet = one_finding(
             &rule,
             &make_resp("max-age=60, stale-while-revalidate=\"30\", stale-if-error=\"60\""),
             &crate::transaction_history::TransactionHistory::empty(),
@@ -1068,7 +1124,7 @@ mod tests {
     /// Read a value's first finding, which every assertion above wants.
     fn judge(value: &str) -> Violation {
         let rule = CacheControlDirectiveValid;
-        crate::test_helpers::run_rule(
+        one_finding(
             &rule,
             &make_req(value),
             &crate::transaction_history::TransactionHistory::empty(),
@@ -1081,7 +1137,7 @@ mod tests {
     /// that side.
     fn judge_response(value: &str) -> Violation {
         let rule = CacheControlDirectiveValid;
-        crate::test_helpers::run_rule(
+        one_finding(
             &rule,
             &make_resp(value),
             &crate::transaction_history::TransactionHistory::empty(),
@@ -1094,7 +1150,7 @@ mod tests {
     fn multiple_directives_unquoted_comma_accepted() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=bar,baz");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -1102,5 +1158,58 @@ mod tests {
         );
         assert!(v.is_none());
         Ok(())
+    }
+
+    /// Each directive states its own argument syntax, so a `max-age` whose
+    /// digits are letters and a `private` naming no field name are two
+    /// corrections. Neither finding is the other's, and each names its
+    /// directive.
+    #[test]
+    fn a_value_with_two_bad_arguments_answers_about_both() {
+        let rule = CacheControlDirectiveValid;
+        let tx = make_resp("max-age=abc, private=\"\"");
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "delta_seconds_character_forbidden",
+                "cache_control_private_argument_empty"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(found[0].message.contains("max-age"), "{}", found[0].message);
+        assert!(found[1].message.contains("private"), "{}", found[1].message);
+    }
+
+    /// The same reading of the same list its neighbour makes: however many gaps
+    /// the value carries, the list is empty-membered once.
+    #[test]
+    fn a_value_written_with_gaps_states_its_emptiness_once() {
+        let rule = CacheControlDirectiveValid;
+        let tx = make_resp("max-age=abc, , , no-cache=\"\"");
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "delta_seconds_character_forbidden",
+                "cache_control_no_cache_argument_empty",
+                "list_member_empty"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 }

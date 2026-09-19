@@ -122,7 +122,7 @@ pub fn cache_directive_member(defect: CacheControlMemberDefect<'_>) -> &'static 
     match defect {
         CacheControlMemberDefect::Empty => &LIST_MEMBER_EMPTY,
         CacheControlMemberDefect::NameEmpty(_) => &TOKEN_EMPTY,
-        CacheControlMemberDefect::NameCharacter(c) => token_character(c),
+        CacheControlMemberDefect::NameCharacter(_, c) => token_character(c),
     }
 }
 
@@ -170,11 +170,11 @@ mod tests {
             (CacheControlMemberDefect::Empty, "list_member_empty"),
             (CacheControlMemberDefect::NameEmpty("=abc"), "token_empty"),
             (
-                CacheControlMemberDefect::NameCharacter('@'),
+                CacheControlMemberDefect::NameCharacter("n@cache", '@'),
                 "token_character_forbidden",
             ),
             (
-                CacheControlMemberDefect::NameCharacter(' '),
+                CacheControlMemberDefect::NameCharacter("no cache", ' '),
                 "token_whitespace_or_control_forbidden",
             ),
         ] {
@@ -218,7 +218,7 @@ mod tests {
             auth_param_member(AuthParamsDefect::Empty).id,
         );
         assert_eq!(
-            cache_directive_member(CacheControlMemberDefect::NameCharacter('@')).id,
+            cache_directive_member(CacheControlMemberDefect::NameCharacter("n@cache", '@')).id,
             auth_param_member(AuthParamsDefect::NameCharacter('@')).id,
         );
     }
