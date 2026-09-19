@@ -1031,6 +1031,15 @@ fn lint_records(
     about: AboutScope,
 ) -> anyhow::Result<LintReport> {
     let state = state::StateStore::new(cfg.general.ttl_seconds, cfg.general.max_history);
+    // One store for the whole file, not one per record: a protocol rule's
+    // subject is the connection's run of events, and the store is keyed by the
+    // `connection_id` each record carries — so events from two connections in
+    // one file stay two runs, and the second SETTINGS of one connection is
+    // visible as the duplicate it is.
+    let protocol_events = protocol_event_store::ProtocolEventStore::new(
+        cfg.general.ttl_seconds,
+        cfg.general.max_protocol_event_history,
+    );
     // Precompute the enabled rule set once, then reuse it across the replay.
     let engine = engine::PreparedEngine::new(cfg)?;
 
@@ -1074,37 +1083,38 @@ fn lint_records(
                     violations,
                 }));
             }
-            // Replayed from the record rather than re-linted. A protocol rule
-            // reads a *run* of events through the store the live connection
-            // built, and a capture file holds the events without that store —
-            // so re-linting here would ask a stateful rule a question with
-            // half the history and get a different answer than the wire did.
-            // The findings the live pass reached are on the record; this
-            // reports those.
+            // Re-linted from the event, like every other record kind here.
             //
-            // Reports them *as this configuration says to*, which does not
-            // follow from the paragraph above and did not happen. Which rules
-            // run was settled when the record was written and cannot be
-            // revisited here; which findings are reported is a separate
-            // question that only the reader's config answers, and the answer
-            // was being taken from the file. A capture linted under a config
-            // that switches every rule off reported nothing from its
-            // transactions and every recorded protocol finding, at the
-            // severity the *writer's* config chose, and failed the exit code
-            // on it — while the documented contract said `--config` reads the
-            // `[rules]` toggles and the `[violations]` overrides.
+            // **What stood here reported the file's own findings instead,** on
+            // the argument that a protocol rule reads a *run* of events through
+            // the store the live connection built and a capture file holds the
+            // events without that store. The second half is not a fact about
+            // capture files: the store is keyed by `connection_id`, every
+            // protocol event record carries one, and the arm above rebuilds
+            // exactly such a store from a session record's frames. A file's
+            // events replayed in file order through one fresh store reconstruct
+            // the same per-connection history the wire had.
+            //
+            // What the old arm cost is a false clean. A capture whose SETTINGS
+            // frame carries a reserved HTTP/2 identifier — which RFC 9114
+            // § 7.2.4.1 says MUST be treated as a connection error — reported
+            // `no findings in 0 transactions and 1 protocol event` and exited 0
+            // whenever the writing pass had not recorded the finding itself: a
+            // rule switched off when the file was written, a file written by
+            // another tool, a file edited after the fact. `lint-captures` is
+            // the one command whose whole subject is a file it did not write.
+            //
+            // The reader's configuration decides what is reported, as it did
+            // before, but now by the ordinary route: disabled rules were
+            // filtered out when the engine was built, and each finding passes
+            // the rule's own resolved violation table on the way out.
             capture::CaptureRecord::ProtocolEvent(record) => {
                 pe_count += 1;
-                let mut violations = record.violations.clone();
-                violations.retain_mut(|v| {
-                    match engine.recorded_protocol_severity(&v.rule, &v.violation, v.severity) {
-                        Some(severity) => {
-                            v.severity = severity;
-                            true
-                        }
-                        None => false,
-                    }
-                });
+                let mut violations = engine.lint_protocol_event(&record.event, &protocol_events);
+                // Recorded *before* gating, for the same reason a transaction is:
+                // a later event's history is the run that happened, not the run
+                // this report happens to show.
+                protocol_events.record_event(&record.event);
                 removed.add(retain_reportable(&mut violations, min_severity, about));
                 if violations.is_empty() {
                     continue;
@@ -3762,17 +3772,22 @@ enabled = false
         Ok(())
     }
 
-    /// A protocol event replays from its record, and the reader's config still
-    /// decides what that record gets to say.
+    /// A protocol event is linted from the event, and the reader's config
+    /// decides what the rule gets to say.
     ///
     /// The three answers are separate because they came from three different
     /// places and only one of them was ever asked: a rule switched off, a
-    /// defect switched off under a rule that is on, and a severity moved. All
-    /// three were read for a transaction and none of them for a protocol
-    /// event, which reported at the level the *writer's* config chose and
-    /// carried the exit code with it.
+    /// defect switched off under a rule that is on, and a severity moved.
+    ///
+    /// **The record's own `violations` are empty, and that is the assertion.**
+    /// This test handed itself the finding it was checking for — a
+    /// `http3_settings_identifier_forbidden` written into the fixture beside
+    /// the settings that earn it — and so it passed for as long as the replay
+    /// copied the file's findings out, which is precisely the behaviour that
+    /// was wrong. The reserved identifier is on the wire; the rule is what has
+    /// to find it.
     #[tokio::test]
-    async fn a_recorded_protocol_finding_is_reported_as_this_config_says() -> anyhow::Result<()> {
+    async fn a_protocol_event_is_linted_as_this_config_says() -> anyhow::Result<()> {
         use lint_http::protocol_event::{
             MessageDirection, ProtocolEvent, ProtocolEventKind, ProtocolEventRecord,
         };
@@ -3788,15 +3803,7 @@ enabled = false
                         direction: MessageDirection::Server,
                     },
                 },
-                vec![{
-                    let mut v = lint::Violation::new(
-                        "http3_settings_frame",
-                        lint::Severity::Error,
-                        "SETTINGS carries a reserved identifier",
-                    );
-                    v.violation = "http3_settings_identifier_forbidden".to_string();
-                    v
-                }],
+                Vec::new(),
             )))
         };
         let replay = |cfg: &config::Config| {
@@ -3815,6 +3822,11 @@ enabled = false
         let kept = replay(&on)?;
         assert_eq!(kept.total(), 1);
         assert_eq!(kept.protocol_count, 1);
+        assert_eq!(
+            kept.findings[0].violations()[0].violation,
+            "http3_settings_identifier_forbidden",
+            "the finding is the rule's reading of 0x02, not the record's claim"
+        );
 
         // A different rule enabled, so this one is off: the finding is not this
         // config's to report.
@@ -3857,6 +3869,80 @@ enabled = false
         assert_eq!(
             report.findings[0].violations()[0].severity,
             lint::Severity::Info
+        );
+        Ok(())
+    }
+
+    /// Two SETTINGS frames on one connection are a duplicate, and the replay
+    /// has to be able to see the first one to say so.
+    ///
+    /// The half of protocol linting a single record cannot demonstrate. A
+    /// protocol rule's subject is the connection's *run* of events, and the
+    /// argument for reporting a capture's recorded findings instead of
+    /// re-linting them was that a file holds the events without the store the
+    /// live connection built. It holds the `connection_id` on every one of
+    /// them, which is the store's key — so one store fed the file in order
+    /// rebuilds the run, and RFC 9114 § 7.2.4's "MUST NOT be sent
+    /// subsequently" becomes answerable from the file alone.
+    ///
+    /// Both directions, because a store keyed wrongly would fail only one:
+    /// the second frame of a connection is a duplicate, and the first frame of
+    /// a *different* connection in the same file is not.
+    #[tokio::test]
+    async fn a_second_settings_frame_on_one_connection_replays_as_a_duplicate() -> anyhow::Result<()>
+    {
+        use lint_http::protocol_event::{
+            MessageDirection, ProtocolEvent, ProtocolEventKind, ProtocolEventRecord,
+        };
+
+        let mut temp = crate::temp_files::TempFiles::new();
+        let settings = |connection_id: Uuid| {
+            capture::CaptureRecord::ProtocolEvent(Box::new(ProtocolEventRecord::new(
+                ProtocolEvent {
+                    timestamp: chrono::Utc::now(),
+                    connection_id,
+                    kind: ProtocolEventKind::H3SettingsReceived {
+                        // Nothing reserved and nothing repeated: the only thing
+                        // this value can draw is the duplicate-frame finding.
+                        settings: vec![(0x06, 65536)],
+                        direction: MessageDirection::Server,
+                    },
+                },
+                Vec::new(),
+            )))
+        };
+        let cfg = load_validated_config(
+            write_config_enabling("http3_settings_frame", &mut temp)
+                .await?
+                .to_str(),
+        )
+        .await?;
+
+        let one = Uuid::new_v4();
+        let twice = lint_records(
+            &cfg,
+            vec![settings(one), settings(one)],
+            lint::Severity::Info,
+            AboutScope::all(),
+        )?;
+        assert_eq!(twice.protocol_count, 2);
+        assert_eq!(twice.total(), 1, "the second frame is the duplicate");
+        assert_eq!(
+            twice.findings[0].violations()[0].violation,
+            "http3_settings_duplicated"
+        );
+
+        let apart = lint_records(
+            &cfg,
+            vec![settings(Uuid::new_v4()), settings(Uuid::new_v4())],
+            lint::Severity::Info,
+            AboutScope::all(),
+        )?;
+        assert_eq!(apart.protocol_count, 2);
+        assert_eq!(
+            apart.total(),
+            0,
+            "two connections are two runs, and each frame is its own first"
         );
         Ok(())
     }
