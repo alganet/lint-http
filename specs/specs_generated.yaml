@@ -922,19 +922,19 @@ sources:
     snippet: keep-alive-extension = token [ "=" ( token / quoted-string ) ]
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 573
+      line: 596
   - label: keep_alive_header_valid (2)
     section: § 2
     snippet: keep-alive-info      =   "timeout" "=" delta-seconds
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 621
+      line: 644
   - label: keep_alive_header_valid (3)
     section: § 2.1
     snippet: The value of the "timeout" parameter is a single integer in seconds.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 700
+      line: 723
 - label: MDN Content-Type
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
   fragments:
@@ -1390,19 +1390,19 @@ sources:
     snippet: HTTP/1.1 does not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 622
+      line: 645
   - label: keep_alive_header_valid (2)
     section: § 19.7.1.1
     snippet: Keep-Alive-header = "Keep-Alive" ":" 0# keepalive-param
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 521
+      line: 540
   - label: keep_alive_header_valid (3)
     section: § 19.7.1.1
     snippet: The Keep-Alive header itself is optional, and is used only if a parameter is being sent.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 539
+      line: 559
   - label: keep_alive_header_valid (4)
     section: § 19.7.1.1
     snippet: When the Keep-Alive connection-token has been transmitted with a request or a response, a Keep-Alive header field MAY also be included.
@@ -1414,7 +1414,7 @@ sources:
     snippet: keepalive-param = param-name "=" value
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 572
+      line: 595
     - file: lint-http-rules/src/violations/keep_alive.rs
       line: 116
     - file: lint-http-rules/src/violations/keep_alive.rs
@@ -1424,49 +1424,49 @@ sources:
     snippet: At least one delimiter (tspecials) must exist between any two tokens, since they would otherwise be interpreted as a single token.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 582
+      line: 605
   - label: keep_alive_header_valid (6)
     section: § 2.1
     snippet: Wherever this construct is used, null elements are allowed, but do not contribute
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 538
+      line: 558
   - label: keep_alive_header_valid (7)
     section: § 2.1
     snippet: linear whitespace (LWS) can be included between any two adjacent words (token or quoted-string), and between adjacent tokens and delimiters (tspecials), without changing the interpretation of a field.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 599
+      line: 622
   - label: LWS grammar
     section: § 2.2
     snippet: LWS            = [CRLF] 1*( SP | HT )
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 600
+      line: 623
   - label: keep_alive_header_valid (8)
     section: § 2.2
     snippet: The backslash character ("\") may be used as a single-character quoting mechanism only within quoted-string and comment constructs.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 658
+      line: 681
   - label: keep_alive_header_valid (9)
     section: § 2.2
     snippet: quoted-string  = ( <"> *(qdtext) <"> )
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 657
+      line: 680
   - label: keep_alive_header_valid (10)
     section: § 2.2
     snippet: token          = 1*<any CHAR except CTLs or tspecials>
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 656
+      line: 679
   - label: keepalive value
     section: § 3.7
     snippet: value          = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 655
+      line: 678
     - file: lint-http-rules/src/violations/keep_alive.rs
       line: 159
 - label: RFC 2616
@@ -1648,7 +1648,7 @@ sources:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 218
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 627
+      line: 663
     - file: lint-http-rules/src/violations/uri.rs
       line: 278
   - label: lint-http-rules/src/helpers/authority.rs (10)
@@ -3889,7 +3889,7 @@ sources:
     snippet: Warning = 1#warning-value
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 399
+      line: 418
   - label: warning_header_syntax (2)
     section: § 5.5
     snippet: Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages.
@@ -3901,19 +3901,19 @@ sources:
     snippet: Warnings are assigned three digit warn-codes.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 444
+      line: 480
   - label: warning_header_syntax (4)
     section: § 5.5
     snippet: warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 599
+      line: 635
   - label: warn-code grammar
     section: § 5.5
     snippet: warn-code = 3DIGIT warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 443
+      line: 479
     - file: lint-http-rules/src/violations/warning.rs
       line: 77
   - label: warning_header_syntax (5)
@@ -3921,15 +3921,15 @@ sources:
     snippet: warn-date = DQUOTE HTTP-date DQUOTE
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 543
+      line: 579
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 657
+      line: 693
   - label: warn-text position
     section: § 5.5
     snippet: warn-text = quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 501
+      line: 537
     - file: lint-http-rules/src/violations/warning.rs
       line: 116
   - label: warning-value assembly
@@ -3937,7 +3937,7 @@ sources:
     snippet: warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 437
+      line: 473
     - file: lint-http-rules/src/violations/warning.rs
       line: 40
     - file: lint-http-rules/src/violations/warning.rs
@@ -5855,7 +5855,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 289
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 400
+      line: 419
     - file: lint-http-rules/src/violations/list.rs
       line: 101
   - label: accept_patch_header_valid (6)
@@ -6109,7 +6109,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 363
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 407
+      line: 429
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 299
     - file: lint-http-rules/src/rules/http_version_syntax.rs
@@ -6117,7 +6117,7 @@ sources:
     - file: lint-http-rules/src/rules/http_version_syntax.rs
       line: 182
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 520
+      line: 539
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 649
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
@@ -6143,7 +6143,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 185
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 386
+      line: 405
     - file: lint-http-rules/src/violations/request_target.rs
       line: 319
     - file: lint-http-rules/src/violations/request_target.rs
@@ -6839,7 +6839,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 29
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 208
+      line: 211
   - label: context_fields_direction (3)
     section: § 10.1.2
     snippet: The "From" header field contains an Internet email address for a human user who controls the requesting user agent.
@@ -7021,13 +7021,13 @@ sources:
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 290
+      line: 310
   - label: expect_header_valid (2)
     section: § 10.1.1
     snippet: A client MUST NOT generate a 100-continue expectation in a request that does not include content.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 289
+      line: 309
     - file: lint-http-rules/src/violations/expect.rs
       line: 121
   - label: expect_header_valid (3)
@@ -7035,7 +7035,7 @@ sources:
     snippet: A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server).
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 315
+      line: 336
     - file: lint-http-rules/src/violations/status.rs
       line: 526
   - label: expect_header_valid (4)
@@ -7043,7 +7043,7 @@ sources:
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 339
+      line: 361
   - label: expect_header_valid (5)
     section: § 10.1.1
     snippet: The Expect field value is case-insensitive.
@@ -7051,7 +7051,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 92
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 253
+      line: 258
   - label: expect_header_valid (6)
     section: § 10.1.1
     snippet: The only expectation defined by this specification is "100-continue" (with no defined parameters).
@@ -7065,7 +7065,7 @@ sources:
     snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 406
+      line: 428
     - file: lint-http-rules/src/violations/expect.rs
       line: 70
     - file: lint-http-rules/src/violations/expect.rs
@@ -7075,25 +7075,25 @@ sources:
     snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 314
+      line: 335
   - label: expect_header_valid (8)
     section: § A
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 238
+      line: 243
   - label: expect_header_valid (9)
     section: § B.3
     snippet: List-based grammar for Expect has been restored for compatibility with RFC 2616.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 223
+      line: 226
   - label: expect_header_valid (10)
     section: § B.3
     snippet: Parameters in media type, media range, and expectation can be empty via one or more trailing semicolons.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 553
+      line: 575
   - label: extension_headers_registered
     section: § 16.3
     snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
@@ -7291,7 +7291,7 @@ sources:
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 502
+      line: 517
   - label: language_tag_syntax
     section: § 8.5
     snippet: 'Content-Language = #language-tag'
@@ -7419,7 +7419,7 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 98
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 681
+      line: 717
     - file: lint-http-rules/src/violations/http_date.rs
       line: 157
   - label: lint-http-core/src/http_date.rs (3)
@@ -7449,7 +7449,7 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 324
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 699
+      line: 735
     - file: lint-http-rules/src/violations/http_date.rs
       line: 196
   - label: lint-http-core/src/http_date.rs (6)
@@ -7467,7 +7467,7 @@ sources:
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 129
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 739
+      line: 775
     - file: lint-http-rules/src/violations/http_date.rs
       line: 128
   - label: lint-http-core/src/http_date.rs (7)
@@ -8115,7 +8115,7 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 438
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 523
+      line: 542
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 652
     - file: lint-http-rules/src/rules/refresh_header_syntax.rs
@@ -8127,7 +8127,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 345
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 388
+      line: 407
   - label: lint-http-rules/src/helpers/field_placement.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -8471,7 +8471,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 452
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 585
+      line: 607
     - file: lint-http-rules/src/violations/parameter.rs
       line: 132
   - label: lint-http-rules/src/helpers/media_type.rs (3)
@@ -8499,7 +8499,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 392
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 513
+      line: 535
   - label: parameter-value grammar
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
@@ -8509,7 +8509,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 26
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 514
+      line: 536
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 95
     - file: lint-http-rules/src/violations/parameter.rs
@@ -8527,7 +8527,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 235
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 511
+      line: 533
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 281
   - label: lint-http-rules/src/helpers/media_type.rs (6)
@@ -8593,7 +8593,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 108
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 512
+      line: 534
     - file: lint-http-rules/src/violations/parameter.rs
       line: 70
     - file: lint-http-rules/src/violations/parameter.rs
@@ -8679,7 +8679,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 482
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 682
+      line: 718
     - file: lint-http-rules/src/violations/quoted_string.rs
       line: 60
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -10639,7 +10639,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 547
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 632
+      line: 668
   - label: via_header_syntax (13)
     section: § 7.6.3
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
@@ -10671,7 +10671,7 @@ sources:
     snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 738
+      line: 774
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.html
   fragments:
@@ -10948,7 +10948,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 354
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 701
+      line: 724
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 107
     - file: lint-http-rules/src/violations/delta_seconds.rs
