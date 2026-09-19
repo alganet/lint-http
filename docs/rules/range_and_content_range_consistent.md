@@ -16,7 +16,7 @@ Validate the semantics and syntax of `Range` (request) and `Content-Range` (resp
 
 **A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.
 
-A 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.
+A 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.
 
 A 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.
 
