@@ -115,27 +115,27 @@ impl Rule for CookiePairValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector. Every `Cookie` field line
-        // is a separate `cookie-string`, and every `;`-separated segment on a
-        // line is a separate `cookie-pair`, so `find_map` walks both without
-        // one reading standing in for the other.
-        let finding = || -> Option<Violation> {
-            tx.request
-                .headers
-                .get_all("cookie")
-                .iter()
-                .find_map(|hv| self.line_defect(&field_line_as_written(hv), ctx))
-        };
-        Vec::from_iter(finding())
+        // One finding per `cookie-pair`, not one per request. Every `Cookie`
+        // field line is a separate `cookie-string` and every `;`-separated
+        // segment on a line is a separate `cookie-pair`, and the comment that
+        // stood here said `find_map` walked both "without one reading standing
+        // in for the other" -- which is what `find_map` cannot do. It stops at
+        // the first defect it finds, so a request carrying thirteen pairs, as
+        // three of the browser leg's do, was answered for one of them.
+        tx.request
+            .headers
+            .get_all("cookie")
+            .iter()
+            .flat_map(|hv| self.line_defects(&field_line_as_written(hv), ctx))
+            .collect()
     }
 }
 
 impl CookiePairValid {
-    /// The first defect on one `Cookie` field line, if it has one.
+    /// One defect per defective `cookie-pair` on one `Cookie` field line.
     ///
     // cite(RFC 6265 § 4.2.1): "cookie-string = cookie-pair *( ";" SP cookie-pair )"
-    fn line_defect(&self, line: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+    fn line_defects(&self, line: &str, ctx: &crate::rules::RuleContext<'_>) -> Vec<Violation> {
         line.split(';')
             .map(str::trim)
             // A stray `;;` or a leading/trailing `;` produces an empty
@@ -143,7 +143,8 @@ impl CookiePairValid {
             // pair with nothing between its delimiters — `Set-Cookie`'s
             // attribute list is read the same way.
             .filter(|segment| !segment.is_empty())
-            .find_map(|segment| self.pair_defect(segment, ctx))
+            .filter_map(|segment| self.pair_defect(segment, ctx))
+            .collect()
     }
 
     /// The defect in one `cookie-pair`, if it has one.
@@ -208,6 +209,56 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         )
+    }
+
+    fn judge_all(cookie_values: &[&str]) -> Vec<Violation> {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let pairs: Vec<(&str, &str)> = cookie_values.iter().map(|v| ("cookie", *v)).collect();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+        let config =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_pair_valid"]);
+        crate::test_helpers::run_rule_all(
+            &CookiePairValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+    }
+
+    /// Every `cookie-pair` is answered for, not just the first defective one.
+    ///
+    /// `cookie-string = cookie-pair *( ";" SP cookie-pair )` puts as many
+    /// pairs on one line as the store had for the host — three of the corpus's
+    /// own requests carry thirteen — and `find_map` answered for one of them.
+    /// The comment beside it claimed it walked every pair "without one reading
+    /// standing in for the other", which is the one thing `find_map` cannot do.
+    #[test]
+    fn every_pair_on_the_line_is_answered_for() {
+        let found = judge_all(&["novalue; sid=abc,def"]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "cookie_pair_equals_missing",
+                "cookie_value_character_forbidden"
+            ]
+        );
+    }
+
+    /// And every field line, which is the same claim one level out: HTTP/2 and
+    /// HTTP/3 let a `Cookie` be split across lines, so the pairs a browser
+    /// sends arrive on several of them.
+    #[test]
+    fn every_line_of_the_field_is_answered_for() {
+        let found = judge_all(&["novalue", "sid=abc,def"]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "cookie_pair_equals_missing",
+                "cookie_value_character_forbidden"
+            ]
+        );
     }
 
     #[rstest]

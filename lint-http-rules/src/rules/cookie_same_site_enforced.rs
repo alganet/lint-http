@@ -96,13 +96,16 @@ impl Rule for CookieSameSiteEnforced {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per cookie the request sent, not one per request: a
+        // `Cookie` field carries as many `cookie-pair`s as the store had for
+        // the host, and each is its own decision to send. The walk used to
+        // return at the first cookie whose `SameSite` the context does not
+        // allow, so a cross-site request carrying two of them named one.
+        let findings = || -> Vec<Violation> {
             // only care about outgoing requests that carry Cookie headers
             let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
             if cookie_headers.is_empty() {
-                return None;
+                return Vec::new();
             }
 
             // compute simple request metadata needed for matching
@@ -132,8 +135,8 @@ impl Rule for CookieSameSiteEnforced {
                 // `none` means there is no initiator site (e.g., user‑initiated
                 // top‑level navigation). Treat it as unknown and skip enforcement
                 // to avoid false positives.
-                Some("none") => return None,
-                _ => return None,
+                Some("none") => return Vec::new(),
+                _ => return Vec::new(),
             };
 
             // allow sending of Lax cookies in top-level safe navigations
@@ -158,6 +161,7 @@ impl Rule for CookieSameSiteEnforced {
             }
 
             // examine each sent cookie against its stored metadata
+            let mut out = Vec::new();
             for (name, value) in sent_pairs {
                 // look for the most specific applicable live cookie with exact name/value
                 let candidate = live_cookies
@@ -205,7 +209,7 @@ impl Rule for CookieSameSiteEnforced {
                         match effective {
                             // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
                             crate::helpers::cookie::SameSite::Strict => {
-                                return Some(ctx.report_with(&COOKIE_SAME_SITE_IGNORED, format!(
+                                out.push(ctx.report_with(&COOKIE_SAME_SITE_IGNORED, format!(
                                         "Cookie '{}' has SameSite=Strict but is sent in a cross-site context",
                                         name
                                     )));
@@ -215,7 +219,7 @@ impl Rule for CookieSameSiteEnforced {
                             // crosses sites, which is why this arm only fires when it is not one.
                             // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1."
                             crate::helpers::cookie::SameSite::Lax if !allow_lax => {
-                                return Some(ctx.report_with(&COOKIE_SAME_SITE_IGNORED, format!(
+                                out.push(ctx.report_with(&COOKIE_SAME_SITE_IGNORED, format!(
                                         "Cookie '{}' has SameSite=Lax but is sent in a restricted cross-site context",
                                         name
                                     )));
@@ -226,9 +230,9 @@ impl Rule for CookieSameSiteEnforced {
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -297,6 +301,54 @@ mod tests {
             ]),
         )
         .is_none());
+    }
+
+    /// Two `SameSite=Strict` cookies on one cross-site request are two
+    /// cookies the user agent was not to send.
+    ///
+    /// The walk returned at the first of them, so the second was reported
+    /// nowhere. A `Cookie` field carries as many pairs as the store had for
+    /// the host, and each is its own decision to send.
+    #[test]
+    fn every_cookie_the_request_sent_is_answered_for() {
+        let rule = CookieSameSiteEnforced;
+        let ts = Utc::now();
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            make_resp_tx(
+                "https://example.com/",
+                Some("b=2; SameSite=Strict"),
+                Some(ts + chrono::Duration::seconds(1)),
+            ),
+            make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Strict"),
+                Some(ts),
+            ),
+        ]);
+        let mut tx = make_tx_with_req("https://example.com/", Some("a=1; b=2"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        tx.request
+            .headers
+            .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced",
+            ]),
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(
+            found[0].message.contains("Cookie 'a'"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("Cookie 'b'"),
+            "{:?}",
+            found[1].message
+        );
     }
 
     #[test]
