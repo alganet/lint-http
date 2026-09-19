@@ -1910,7 +1910,7 @@ enabled = "true"
     /// member. A walk that sets a flag and `continue`s is that shape and passes
     /// here.
     ///
-    /// **One rule answers per message and is named below rather than
+    /// **Two rules answer per message and are named below rather than
     /// reshaped.** `websocket_handshake_valid` walks `Sec-WebSocket-Extensions`
     /// for an extension the request never offered, and returns at the first —
     /// but its unit is the handshake, not the list. RFC 6455 § 4.1 gives a
@@ -1922,23 +1922,143 @@ enabled = "true"
     /// longer looks like it answers once. Whether the handshake or the member is
     /// the right unit for that rule is a question about all six checks rather
     /// than about this list, so it is asked rather than assumed.
+    /// `sec_websocket_headers_consistent` is the server half of the same
+    /// argument, made about the same numbered list, and it is named here for
+    /// the first time — not because it changed, but because until this test
+    /// could see a walk over a local binding it was never matched, and naming a
+    /// rule the test cannot reach is a claim about coverage that is not true.
+    ///
+    /// **Three ways of writing this walk used to go past this test, and each
+    /// one hid rules.** The iterator had to be a `WALKS` call *in the loop
+    /// header*, spelled from a fixed list:
+    ///
+    /// 1. **A member helper the list did not name.** `Cache-Control` is the most
+    ///    repeated list on the web and its two syntax rules walk it through
+    ///    `helpers::cache_control`, which had no entry here. The list is now
+    ///    checked against the modules it comes from — every `pub fn` in
+    ///    `helpers/list.rs` and `helpers/cache_control.rs` is either a walk or
+    ///    an argued exclusion — so a new member helper fails this test until
+    ///    someone says which it is. **An allowlist nobody is forced to maintain
+    ///    is a list that drifts, and its drift is invisible by construction.**
+    /// 2. **The helper bound to a local first.** `let members =
+    ///    list_members_as_written(v); for m in members` names a helper the list
+    ///    already had, one line above the loop. Four rules were written that
+    ///    way. Bindings are followed now.
+    /// 3. **A splitter the rule defines for itself.** `x_forwarded_consistent`
+    ///    has its own `fn members(&str) -> impl Iterator<Item = &str>`, and no
+    ///    helper name appears in its loop at all. A file-local function whose
+    ///    *return type* yields several borrowed strings is a member reader, so
+    ///    it joins the file's walk set — the test reads the shape rather than
+    ///    the name.
     #[test]
     fn a_list_walk_does_not_end_at_its_first_defective_member() -> anyhow::Result<()> {
         // Answers per message by an argument written at its own assembly site,
-        // not per list member. Named here so the carve-out is greppable and has
-        // to be re-argued if it grows.
-        const ANSWERS_PER_MESSAGE: [&str; 1] = ["websocket_handshake_valid.rs"];
-        // The helpers that yield a list's members. `parse_semicolon_list` is not
-        // among them: a `;`-separated run is one member's parameters, and which
-        // of those a member answers for is that member's reading rather than
-        // the list's.
-        const WALKS: [&str; 5] = [
+        // not per list member. Named here so each carve-out is greppable and
+        // has to be re-argued if it grows. Both are the RFC 6455 § 4.1
+        // handshake, whose numbered checks are a document's own verdict order
+        // rather than an assumption about this engine; Q13 asks about them.
+        const ANSWERS_PER_MESSAGE: [&str; 2] = [
+            "websocket_handshake_valid.rs",
+            "sec_websocket_headers_consistent.rs",
+        ];
+        // The helpers that yield a list's members, and the ones that do not.
+        // Every `pub fn` of the two modules these come from is in one list or
+        // the other, checked below, so a new member helper cannot be added
+        // without deciding which — the previous form was an allowlist nobody
+        // was obliged to keep current, and `cache_control::members_of` walked
+        // the most repeated list on the web without appearing in it.
+        const WALKS: [&str; 8] = [
             "list_members(",
             "sender_list_members(",
             "list_members_as_written(",
             "split_commas_respecting_quotes(",
             "split_top_level(",
+            "cache_control::members(",
+            "cache_control::members_of(",
+            "directives_in(",
         ];
+        // The rest of what those two modules export, and none of it yields a
+        // list's members. `split_semicolons_respecting_quotes` is the one that
+        // has to be argued: a `;`-separated run is one member's parameters, and
+        // which of those a member answers for is that member's reading rather
+        // than the list's — rules walking it collect anyway, they are simply
+        // not this test's subject. `parse_semicolon_list` is the same construct
+        // parsed. Everything else answers a question about the whole field —
+        // is this directive present, what lifetime does it state, is the
+        // quoting balanced — or is a method on one directive already read.
+        const NOT_A_MEMBER_WALK: [&str; 18] = [
+            "split_semicolons_respecting_quotes",
+            "parse_semicolon_list",
+            "quoting_is_balanced",
+            "read_member",
+            "field_lines",
+            "has",
+            "has_unqualified",
+            "is",
+            "is_unqualified",
+            "message",
+            "delta_seconds",
+            "forbids_storage_or_reuse",
+            "get_cache_control_max_age",
+            "get_cache_control_s_maxage",
+            "compute_freshness_lifetime",
+            "estimated_age",
+            "stated_age",
+            "fresh_when_observed",
+        ];
+
+        // The allowlist is checked against the modules it names, so it cannot
+        // silently fall behind them.
+        let helpers = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/helpers");
+        let mut exported = Vec::new();
+        let mut unclassified = Vec::new();
+        for module in ["list.rs", "cache_control.rs"] {
+            let src = std::fs::read_to_string(helpers.join(module))?;
+            let body = src
+                .split("\n#[cfg(test)]")
+                .next()
+                .unwrap_or(&src)
+                .to_string();
+            for line in body.lines() {
+                let Some(rest) = line.trim().strip_prefix("pub fn ") else {
+                    continue;
+                };
+                let name: String = rest
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                let walked = WALKS.iter().any(|w| {
+                    let path = w.trim_end_matches('(');
+                    path.rsplit("::").next() == Some(name.as_str())
+                });
+                if !walked && !NOT_A_MEMBER_WALK.contains(&name.as_str()) {
+                    unclassified.push(format!("helpers/{module}: {name}"));
+                }
+                exported.push(name);
+            }
+        }
+        assert!(
+            unclassified.is_empty(),
+            "a `pub fn` of a list-member module is neither in WALKS nor named as not being a \
+             member walk. Decide which it is: a helper that yields a list's members belongs in \
+             WALKS so a rule walking it is watched here, and one that answers a question about \
+             the whole field belongs in NOT_A_MEMBER_WALK:\n  {}",
+            unclassified.join("\n  ")
+        );
+        // The other direction, because a list is only maintained where being
+        // wrong costs something: a name here that no longer exports is a
+        // classification of nothing, and it makes the count above look larger
+        // than the reading behind it.
+        let dead: Vec<&&str> = NOT_A_MEMBER_WALK
+            .iter()
+            .filter(|n| !exported.iter().any(|e| e == *n))
+            .collect();
+        assert!(
+            dead.is_empty(),
+            "a name declared not to be a member walk is exported by neither module; \
+             delete it:\n  {:?}",
+            dead
+        );
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut carrying = Vec::new();
@@ -1962,20 +2082,92 @@ enabled = "true"
                 .to_string();
             let lines: Vec<&str> = body.lines().collect();
 
+            // A statement, joined across the lines rustfmt wrapped it over, so
+            // a helper call and the `for` that reads its result are each looked
+            // for in one string rather than in whichever line they start on.
+            let statement = |i: usize, stop: char| -> (String, usize) {
+                let mut text = lines[i].to_string();
+                let mut j = i;
+                while !text.contains(stop) && j + 1 < lines.len() && j - i < 8 {
+                    j += 1;
+                    text.push(' ');
+                    text.push_str(lines[j].trim());
+                }
+                (text, j)
+            };
+
+            // **The names a member walk can wear in this file.** Two of the
+            // three blind spots this test had were names: a helper's result put
+            // in a local before the loop, and a splitter the file defines for
+            // itself. Both are collected here so the loop headers below can be
+            // read for either.
+            let mut local_walks: Vec<String> = Vec::new();
+            for (i, line) in lines.iter().enumerate() {
+                let trimmed = line.trim();
+                // `fn members(value: &str) -> impl Iterator<Item = &str>` and
+                // `-> Vec<&str>`: a function whose return type yields several
+                // borrowed strings is reading a value into its parts. The shape
+                // is the test, not the name — `x_forwarded_consistent` calls
+                // its own `members` and no helper appears in its loop at all.
+                if let Some(rest) = trimmed
+                    .strip_prefix("fn ")
+                    .or_else(|| trimmed.strip_prefix("pub fn "))
+                {
+                    let (signature, _) = statement(i, '{');
+                    let yields_parts = signature.contains("Iterator<Item = &str>")
+                        || signature.contains("Iterator<Item = &'a str>")
+                        || signature.contains("-> Vec<&str>")
+                        || signature.contains("-> Vec<&'a str>");
+                    if yields_parts {
+                        local_walks.push(
+                            rest.chars()
+                                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                                .collect(),
+                        );
+                    }
+                    continue;
+                }
+                // `let members = list_members_as_written(&value);` — the helper
+                // is named one line above the loop instead of inside it. Four
+                // rules were written that way and none was ever matched here.
+                if let Some(rest) = trimmed
+                    .strip_prefix("let ")
+                    .map(|r| r.strip_prefix("mut ").unwrap_or(r))
+                {
+                    let (assignment, _) = statement(i, ';');
+                    let names_a_walk = WALKS.iter().any(|w| assignment.contains(w))
+                        || local_walks
+                            .iter()
+                            .any(|w| assignment.contains(&format!("{w}(")));
+                    if names_a_walk {
+                        local_walks.push(
+                            rest.chars()
+                                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                                .collect(),
+                        );
+                    }
+                }
+            }
+
             for (i, line) in lines.iter().enumerate() {
                 if !line.contains("for ") || !line.contains(" in ") {
                     continue;
                 }
                 // The header may be wrapped by rustfmt, so it is read up to its
                 // opening brace before the helper is looked for in it.
-                let mut header = (*line).to_string();
-                let mut j = i;
-                while !header.contains('{') && j + 1 < lines.len() && j - i < 8 {
-                    j += 1;
-                    header.push(' ');
-                    header.push_str(lines[j].trim());
-                }
-                if !WALKS.iter().any(|w| header.contains(w)) {
+                let (header, j) = statement(i, '{');
+                let Some((_, iterated)) = header.split_once(" in ") else {
+                    continue;
+                };
+                let walks_a_list = WALKS.iter().any(|w| iterated.contains(w))
+                    || local_walks.iter().any(|w| {
+                        !w.is_empty()
+                            && (iterated.contains(&format!("{w}("))
+                                || iterated
+                                    .split(|c: char| !c.is_alphanumeric() && c != '_')
+                                    .any(|t| t == w))
+                    });
+                if !walks_a_list {
                     continue;
                 }
 
@@ -1990,7 +2182,15 @@ enabled = "true"
                             && l.trim_start().starts_with('}')
                     })
                     .unwrap_or(lines.len());
-                if lines[j + 1..end].iter().any(|l| l.contains("return Some(")) {
+                // Both spellings of ending the walk, because a rule whose
+                // reader already collects regresses by returning a `vec!` and
+                // not by returning a `Some`: this test used to name only the
+                // shape the rules had before they were fixed, which is the
+                // shape they can no longer be written in.
+                let ends_the_walk = lines[j + 1..end]
+                    .iter()
+                    .any(|l| l.contains("return Some(") || l.contains("return vec!["));
+                if ends_the_walk {
                     carrying.push(format!("{}:{}", name, i + 1));
                 }
             }
