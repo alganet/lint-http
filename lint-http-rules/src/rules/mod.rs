@@ -2850,10 +2850,23 @@ enabled = "true"
     /// the value is written. A new id whose declarers are a subset of an
     /// existing shared id's costs one here and buys the seam nothing it did
     /// not already have.
+    ///
+    /// **116, and both are `cookie_attribute_consistent` finally reading the
+    /// other half of a production it already had one declarer of.**
+    /// `cookie_pair_valid` reads `cookie-pair = cookie-name "=" cookie-value`
+    /// on the `Cookie` request field; `cookie_attribute_consistent` reads the
+    /// same production on `Set-Cookie` and had validated only `cookie-name`
+    /// — `cookie-value`'s own grammar, and a `cookie-pair` missing its `=`
+    /// entirely, both passed silently on the response side until now.
+    /// `cookie_pair_equals_missing` and `cookie_value_character_forbidden`
+    /// join `token_empty` and `token_character_forbidden` as the fourth and
+    /// fifth ids this exact pair of rules already shares for `cookie-name`,
+    /// not two new seams but two old ones the response-side reader had not
+    /// reached yet.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 114;
+        const CEILING: usize = 116;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();

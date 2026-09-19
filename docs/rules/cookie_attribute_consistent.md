@@ -27,12 +27,14 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 - [cookie_flag_value_forbidden](../violations/cookie_flag_value_forbidden.md) — Set-Cookie writes a value on a flag attribute
 - [cookie_max_age_malformed](../violations/cookie_max_age_malformed.md) — Set-Cookie Max-Age is not a number a user agent will read
 - [cookie_max_age_missing](../violations/cookie_max_age_missing.md) — Set-Cookie Max-Age attribute carries no value
+- [cookie_pair_equals_missing](../violations/cookie_pair_equals_missing.md) — A Cookie pair is written without its '='
 - [cookie_pair_missing](../violations/cookie_pair_missing.md) — Set-Cookie carries no cookie-pair
 - [cookie_path_leading_slash_missing](../violations/cookie_path_leading_slash_missing.md) — Set-Cookie Path attribute is not rooted at `/`
 - [cookie_path_missing](../violations/cookie_path_missing.md) — Set-Cookie Path attribute carries no value
 - [cookie_same_site_invalid](../violations/cookie_same_site_invalid.md) — Set-Cookie SameSite names no policy the grammar defines
 - [cookie_same_site_missing](../violations/cookie_same_site_missing.md) — Set-Cookie SameSite attribute carries no value
 - [cookie_secure_missing](../violations/cookie_secure_missing.md) — A SameSite=None cookie is not Secure
+- [cookie_value_character_forbidden](../violations/cookie_value_character_forbidden.md) — Cookie value holds a character outside cookie-octet
 - [domain_name_whitespace_or_control_forbidden](../violations/domain_name_whitespace_or_control_forbidden.md) — Domain name holds whitespace or a control character
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
@@ -93,4 +95,16 @@ Set-Cookie: SID=1; Expires=NotADate
 
 ```http
 Set-Cookie: SID=1; Expires=Wed, 27-Aug-2036 02:28:19 GMT
+```
+
+### ❌ Bad — a bare token has no '=', so it is no cookie-pair at all
+
+```http
+Set-Cookie: SID
+```
+
+### ❌ Bad — a comma is outside cookie-octet
+
+```http
+Set-Cookie: SID=abc,def
 ```

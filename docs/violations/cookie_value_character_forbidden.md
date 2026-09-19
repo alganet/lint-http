@@ -31,4 +31,5 @@ severity = "error"
 
 ## Reported By
 
+- [cookie_attribute_consistent](../rules/cookie_attribute_consistent.md)
 - [cookie_pair_valid](../rules/cookie_pair_valid.md)

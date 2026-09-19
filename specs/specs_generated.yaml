@@ -891,9 +891,9 @@ sources:
     snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 121
+      line: 159
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 469
+      line: 472
   - label: cookie_same_site_enforced
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
@@ -901,7 +901,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
       line: 206
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 645
+      line: 648
   - label: cookie_same_site_enforced (2)
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
@@ -2569,13 +2569,13 @@ sources:
     snippet: cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 427
+      line: 430
   - label: cookie (2)
     section: § 4.1.1
     snippet: cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 426
+      line: 429
   - label: cookie-av alternatives
     section: § 4.1.1
     snippet: max-age-av        = "Max-Age=" non-zero-digit *DIGIT
@@ -2587,7 +2587,7 @@ sources:
     snippet: secure-av         = "Secure" httponly-av       = "HttpOnly"
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 446
+      line: 449
   - label: set-cookie-string
     section: § 4.1.1
     snippet: set-cookie-header = "Set-Cookie:" SP set-cookie-string set-cookie-string = cookie-pair *( ";" SP cookie-av )
@@ -2599,7 +2599,7 @@ sources:
     snippet: The user agent MUST use an algorithm equivalent to
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 517
+      line: 520
   - label: cookie (4)
     section: § 5.1.3
     snippet: The string is a host name (i.e., not an IP address).
@@ -2633,19 +2633,19 @@ sources:
     snippet: If the cookie's secure-only-flag is true, then the request-uri's scheme must denote a "secure" protocol (as defined by the user agent).
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 550
+      line: 553
   - label: cookie (9)
     section: § 5.4
     snippet: The request-uri's path path-matches the cookie's path.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 588
+      line: 591
   - label: cookie_attribute_consistent
     section: § 4.1.1
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 91
+      line: 103
     - file: lint-http-rules/src/rules/cookie_pair_valid.rs
       line: 154
     - file: lint-http-rules/src/violations/cookie.rs
@@ -2655,35 +2655,35 @@ sources:
     snippet: expires-av        = "Expires=" sane-cookie-date
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 207
+      line: 245
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 483
+      line: 486
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 515
+      line: 518
   - label: cookie_attribute_consistent (2)
     section: § 4.1.1
     snippet: extension-av      = <any CHAR except CTLs or ";">
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 132
+      line: 170
   - label: cookie_attribute_consistent (3)
     section: § 4.1.1
     snippet: httponly-av       = "HttpOnly"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 141
+      line: 179
   - label: cookie_attribute_consistent (4)
     section: § 4.1.1
     snippet: secure-av         = "Secure"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 140
+      line: 178
   - label: cookie_attribute_consistent (5)
     section: § 5.2.2
     snippet: If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 180
+      line: 218
   - label: cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
@@ -2717,7 +2717,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
       line: 280
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 587
+      line: 590
   - label: cookie_lifecycle (3)
     section: § 5.4
     snippet: Cookies with longer paths are listed before cookies with shorter paths.
@@ -2761,11 +2761,11 @@ sources:
     - file: lint-http-rules/src/violations/cookie.rs
       line: 386
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 447
+      line: 450
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 484
+      line: 487
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 516
+      line: 519
   - label: lint-http-rules/src/helpers/cookie.rs (2)
     section: § 4.1.1
     snippet: cookie-av         = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av
