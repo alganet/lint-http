@@ -345,6 +345,30 @@ pub fn trim_ows(s: &str) -> &str {
     s.trim_matches(|c| c == ' ' || c == '\t')
 }
 
+/// The value § 5.2 recombines a repeated field into, rendered for a finding.
+///
+/// [`singleton_field_preamble`] wants one string naming what a recipient joining
+/// the lines would read, and every caller of it that counts more than one line
+/// was building that string a different way or not at all — six duplication
+/// findings said "Multiple X header fields present" and named neither value, so
+/// `DENY` beside `SAMEORIGIN` and `SAMEORIGIN` beside `SAMEORIGIN` were the same
+/// sentence. They are not the same message: one is a policy nobody wrote and the
+/// other is a line written twice.
+///
+/// Each line is read as the octets the sender wrote and escaped for display, so
+/// an `obs-text` octet shows as an escape rather than as whatever the terminal
+/// makes of it. `OWS` around each line goes, because § 5.5 excludes it from the
+/// value before anything evaluates it.
+///
+// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
+pub fn joined_field_lines_shown(headers: &HeaderMap, name: &str) -> String {
+    field_lines_as_written(headers, name)
+        .iter()
+        .map(|line| crate::helpers::shown::shown_in_finding(trim_ows(line)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 #[cfg(test)]
 mod concat_header_tests {
     use super::get_all_header_values;

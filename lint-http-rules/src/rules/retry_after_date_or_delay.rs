@@ -89,8 +89,20 @@ impl Rule for RetryAfterDateOrDelay {
             // line-combining the way a list field can: the HTTP-date alternative contains a
             // comma of its own, so a comma-joined value is ambiguous rather than merely long.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-            if resp.headers.get_all("retry-after").iter().count() > 1 {
-                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into()));
+            let lines = resp.headers.get_all("retry-after").iter().count();
+            if lines > 1 {
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
+                        "{}. The HTTP-date alternative carries a comma of its own, so the joined value is ambiguous rather than merely long",
+                        crate::helpers::headers::singleton_field_preamble(
+                            "Retry-After",
+                            lines,
+                            &crate::helpers::headers::joined_field_lines_shown(
+                                &resp.headers,
+                                "retry-after",
+                            ),
+                            "`Retry-After = HTTP-date / delay-seconds`, and neither alternative is a comma-separated list",
+                        )
+                    )));
             }
 
             // Each value is either a delay-seconds count or an HTTP-date.
@@ -207,7 +219,15 @@ mod tests {
         // Both lines are individually well-formed, which is exactly why this needs
         // its own check: the per-value loop finds nothing to complain about.
         let v = v.expect("expected violation for two Retry-After field lines");
-        assert!(v.message.contains("Multiple Retry-After"));
+        // The joined value is the point: the HTTP-date's own comma is in it, so
+        // what a recipient reads is neither of the two answers the server gave.
+        assert!(
+            v.message
+                .contains("Retry-After is written on 2 header lines")
+                && v.message.contains("'120, Wed, 21 Oct 2015 07:28:00 GMT'"),
+            "{}",
+            v.message
+        );
         Ok(())
     }
 

@@ -123,7 +123,20 @@ impl Rule for XFrameOptionsValueValid {
             if count > 1 {
                 return Some(ctx.report_with(
                     &FIELD_LINE_DUPLICATED,
-                    "Multiple X-Frame-Options header fields present".into(),
+                    format!(
+                        "{}. Two lines that disagree are the case worth seeing — \
+                         `DENY` beside `SAMEORIGIN` is a framing policy neither line \
+                         states — and two that agree are a line written twice",
+                        crate::helpers::headers::singleton_field_preamble(
+                            "X-Frame-Options",
+                            count,
+                            &crate::helpers::headers::joined_field_lines_shown(
+                                headers,
+                                "x-frame-options",
+                            ),
+                            "the value is a single keyword and not a comma-separated list",
+                        )
+                    ),
                 ));
             }
 
@@ -350,8 +363,15 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Multiple X-Frame-Options"));
+        // Both values, because DENY beside SAMEORIGIN is the case worth
+        // seeing: neither line is the policy, and a report that said only
+        // "written twice" left the operator to go and look.
+        let msg = v.expect("must be reported").message;
+        assert!(
+            msg.contains("X-Frame-Options is written on 2 header lines")
+                && msg.contains("'DENY, SAMEORIGIN'"),
+            "{msg}"
+        );
     }
 
     #[test]
