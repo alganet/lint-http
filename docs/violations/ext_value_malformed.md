@@ -32,3 +32,4 @@ severity = "error"
 ## Reported By
 
 - [content_disposition_parameter_valid](../rules/content_disposition_parameter_valid.md)
+- [link_header_valid](../rules/link_header_valid.md)
