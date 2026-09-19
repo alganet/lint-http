@@ -10,7 +10,7 @@ Set-Cookie Expires attribute carries no value
 
 ## Message
 
-Set-Cookie attribute 'Expires' requires a HTTP-date value
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 

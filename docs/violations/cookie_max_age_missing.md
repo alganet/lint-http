@@ -10,7 +10,7 @@ Set-Cookie Max-Age attribute carries no value
 
 ## Message
 
-Set-Cookie attribute 'Max-Age' requires a numeric value
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 

@@ -143,6 +143,23 @@ pub const RFC_6265_4_2_1: SpecRef = SpecRef {
     note: "Cookie request header syntax — cookie-header and cookie-string; cookie-pair itself is imported from § 4.1.1",
 };
 
+/// The wording [`COOKIE_PATH_MISSING`] carries, and [`COOKIE_DOMAIN_MISSING`]'s
+/// below it.
+///
+/// A def holding its own message is reported through `ctx.report`, which emits
+/// that message and nothing else. These two cannot be: a response sets many
+/// cookies, so a finding about one of them has to say which, and naming the
+/// cookie means formatting the message at the site. Two rules report each of
+/// these ids — `cookie_path_valid` and `cookie_domain_valid` read the value in
+/// full, `cookie_attribute_consistent` reads its presence — and a wording
+/// written out at both sites is a wording that agrees only until someone edits
+/// one. It is written here, beside the def whose sentence it is.
+pub const COOKIE_PATH_MISSING_WORDING: &str = "Set-Cookie attribute 'Path' requires a value";
+
+/// The wording [`COOKIE_DOMAIN_MISSING`] carries. See
+/// [`COOKIE_PATH_MISSING_WORDING`] for why it is not on the def.
+pub const COOKIE_DOMAIN_MISSING_WORDING: &str = "Set-Cookie attribute 'Domain' requires a value";
+
 defects! {
     /// `Path` written as a bare attribute, with no `=` and nothing after it.
     ///
@@ -155,7 +172,7 @@ defects! {
     COOKIE_PATH_MISSING = {
         id: "cookie_path_missing",
         title: "Set-Cookie Path attribute carries no value",
-        message: "Set-Cookie attribute 'Path' requires a value",
+        message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_5_2_4],
     }
@@ -241,7 +258,7 @@ defects! {
     COOKIE_DOMAIN_MISSING = {
         id: "cookie_domain_missing",
         title: "Set-Cookie Domain attribute carries no value",
-        message: "Set-Cookie attribute 'Domain' requires a value",
+        message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_5_2_3],
     }
@@ -271,7 +288,7 @@ defects! {
     COOKIE_DOMAIN_LEADING_DOT_OBSOLETE = {
         id: "cookie_domain_leading_dot_obsolete",
         title: "Set-Cookie Domain attribute keeps the obsolete leading dot",
-        message: "Set-Cookie 'Domain' attribute uses a leading '.' which is deprecated; prefer the registry form without leading dot",
+        message: "",
         default_severity: Severity::Info,
         spec: &[RFC_6265_5_2_3],
     }
@@ -313,7 +330,7 @@ defects! {
     COOKIE_SAME_SITE_MISSING = {
         id: "cookie_same_site_missing",
         title: "Set-Cookie SameSite attribute carries no value",
-        message: "Set-Cookie attribute 'SameSite' requires a value",
+        message: "",
         default_severity: Severity::Warn,
         spec: &[DRAFT_IETF_HTTPBIS_RFC6265BIS],
         strength: Strength::Should,
@@ -347,7 +364,7 @@ defects! {
     COOKIE_MAX_AGE_MISSING = {
         id: "cookie_max_age_missing",
         title: "Set-Cookie Max-Age attribute carries no value",
-        message: "Set-Cookie attribute 'Max-Age' requires a numeric value",
+        message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
         strength: Strength::Should,
@@ -387,7 +404,7 @@ defects! {
     COOKIE_PAIR_MISSING = {
         id: "cookie_pair_missing",
         title: "Set-Cookie carries no cookie-pair",
-        message: "Set-Cookie header missing cookie-pair",
+        message: "",
         default_severity: Severity::Error,
         spec: &[RFC_6265_4_1_1],
         strength: Strength::Should,
@@ -473,7 +490,7 @@ defects! {
     COOKIE_SECURE_MISSING = {
         id: "cookie_secure_missing",
         title: "A SameSite=None cookie is not Secure",
-        message: "Set-Cookie with 'SameSite=None' must also set 'Secure'",
+        message: "",
         default_severity: Severity::Error,
         spec: &[DRAFT_IETF_HTTPBIS_RFC6265BIS],
     }
@@ -488,7 +505,7 @@ defects! {
     COOKIE_EXPIRES_MISSING = {
         id: "cookie_expires_missing",
         title: "Set-Cookie Expires attribute carries no value",
-        message: "Set-Cookie attribute 'Expires' requires a HTTP-date value",
+        message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_6265_4_1_1],
         strength: Strength::Should,
@@ -772,12 +789,21 @@ mod tests {
         }
     }
 
-    /// The six mapped defects format their message at the site, and
-    /// `COOKIE_PATH_MISSING` holds its own — the invariant `report` and
-    /// `report_with` each assert one half of.
+    /// Every `Path` defect formats its message at the site, `COOKIE_PATH_MISSING`
+    /// now included — the invariant `report_with` asserts.
+    ///
+    /// It used to hold its own message, and this test pinned that. A response
+    /// sets many cookies and this rule answers for each, so a finding has to
+    /// name the cookie it is about; a def holding its whole message cannot say
+    /// that, because `report` emits it and nothing else. The wording did not
+    /// move to the site — two rules report this id and would have kept two
+    /// copies of one sentence — it moved to [`COOKIE_PATH_MISSING_WORDING`],
+    /// beside the def, which is what the second assertion holds.
     #[test]
-    fn only_the_unparameterised_defect_holds_a_message() {
-        assert!(!COOKIE_PATH_MISSING.message.is_empty());
+    fn every_path_defect_formats_its_message_at_the_site() {
+        assert!(COOKIE_PATH_MISSING.message.is_empty());
+        assert!(!COOKIE_PATH_MISSING_WORDING.is_empty());
+        assert!(!COOKIE_DOMAIN_MISSING_WORDING.is_empty());
         for defect in [
             CookiePathDefect::Empty,
             CookiePathDefect::NotAbsolute("login"),

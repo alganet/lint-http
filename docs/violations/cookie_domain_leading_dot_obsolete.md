@@ -10,7 +10,7 @@ Set-Cookie Domain attribute keeps the obsolete leading dot
 
 ## Message
 
-Set-Cookie 'Domain' attribute uses a leading '.' which is deprecated; prefer the registry form without leading dot
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 
