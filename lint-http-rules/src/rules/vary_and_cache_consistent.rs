@@ -87,10 +87,12 @@ impl Rule for VaryAndCacheConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
+        // The two verdicts about the response as a whole end the reading; the
+        // walk over the directives answers per directive and collects.
+        let finding = || -> Vec<Violation> {
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
 
             // A `Vary: *` can never be matched by a cache, so any explicit
             // cacheability directive on the same response is ineffective.
@@ -105,7 +107,7 @@ impl Rule for VaryAndCacheConsistent {
             //
             // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
             if !crate::helpers::vary::vary_nomination(&resp.headers).is_wildcard() {
-                return None;
+                return Vec::new();
             }
 
             // If Vary: * is present, an explicit cacheability directive is likely ineffective (the
@@ -119,19 +121,25 @@ impl Rule for VaryAndCacheConsistent {
             // member it was parsed from, and it is read as octets so a bad
             // one no longer hides the directives written beside it.
             let lines = crate::helpers::cache_control::field_lines(&resp.headers);
+            // `Cache-Control = #cache-directive`, and each directive that
+            // advertises reuse is a separate thing this response says and this
+            // `Vary` makes ineffective: an operator removing `max-age` has not
+            // dealt with the `s-maxage` written beside it. The finding names the
+            // directive, so the two sentences differ.
+            let mut out = Vec::new();
             for directive in crate::helpers::cache_control::directives_in(&lines) {
                 if ADVERTISES_REUSE.iter().any(|name| directive.is(name)) {
                     let name = directive.name.to_ascii_lowercase();
-                    return Some(ctx.report_with(&CACHE_CONTROL_REDUNDANT, format!(
+                    out.push(ctx.report_with(&CACHE_CONTROL_REDUNDANT, format!(
                             "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective",
                             name, name
                         )));
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        finding()
     }
 }
 
@@ -141,6 +149,25 @@ static REGISTRATION: &dyn crate::rules::Rule = &VaryAndCacheConsistent;
 
 #[cfg(test)]
 mod tests {
+    /// The cases below are responses stating one defect, and this says so
+    /// rather than taking the first of however many were reported: `run_rule`
+    /// is `run_rule_all(..).into_iter().next()`, so a walk that starts
+    /// answering twice passes every one-defect case already written here.
+    fn one_finding(
+        rule: &dyn crate::rules::Rule,
+        tx: &crate::http_transaction::HttpTransaction,
+        history: &crate::transaction_history::TransactionHistory,
+        cfg: &crate::config::Config,
+    ) -> Option<crate::lint::Violation> {
+        let mut found = crate::test_helpers::run_rule_all(rule, tx, history, cfg);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for responses stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
+    }
+
     use super::*;
     use rstest::rstest;
 
@@ -153,7 +180,7 @@ mod tests {
             200,
             &[("vary", "*"), ("cache-control", "max-age=86400")],
         );
-        let found = crate::test_helpers::run_rule(
+        let found = one_finding(
             &VaryAndCacheConsistent,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -186,42 +213,34 @@ mod tests {
     }
 
     #[rstest]
-    #[case(Some("*"), Some("max-age=3600"), true)]
-    #[case(Some("*"), Some("s-maxage=3600"), true)]
-    #[case(Some("*"), Some("public"), true)]
-    #[case(Some("*"), Some("public, max-age=60"), true)]
-    #[case(Some("*"), Some("no-cache"), false)]
-    #[case(Some("Accept-Encoding"), Some("max-age=60"), false)]
-    #[case(None, Some("max-age=60"), false)]
-    fn check_cases(
-        #[case] vary: Option<&str>,
-        #[case] cc: Option<&str>,
-        #[case] expect_violation: bool,
-    ) {
+    // The count is the expectation and not a `bool`: `public, max-age=60`
+    // names two directives the wildcard kills, and each is a separate thing to
+    // remove. A `bool` here read "at least one finding", which is exactly what
+    // a walk answering once about a list also satisfies.
+    #[case(Some("*"), Some("max-age=3600"), 1)]
+    #[case(Some("*"), Some("s-maxage=3600"), 1)]
+    #[case(Some("*"), Some("public"), 1)]
+    #[case(Some("*"), Some("public, max-age=60"), 2)]
+    #[case(Some("*"), Some("no-cache"), 0)]
+    #[case(Some("Accept-Encoding"), Some("max-age=60"), 0)]
+    #[case(None, Some("max-age=60"), 0)]
+    fn check_cases(#[case] vary: Option<&str>, #[case] cc: Option<&str>, #[case] expected: usize) {
         let rule = VaryAndCacheConsistent;
         let tx = make_tx(vary, cc);
-        let v = crate::test_helpers::run_rule(
+        let found = crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        if expect_violation {
-            assert!(
-                v.is_some(),
-                "expected violation for vary={:?}, cc={:?}",
-                vary,
-                cc
-            );
-        } else {
-            assert!(
-                v.is_none(),
-                "unexpected violation for vary={:?}, cc={:?}: {:?}",
-                vary,
-                cc,
-                v
-            );
-        }
+        assert_eq!(
+            found.len(),
+            expected,
+            "vary={:?}, cc={:?}: {:?}",
+            vary,
+            cc,
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 
     /// The two ways the walk this rule used to hold could not see a `*`.
@@ -241,7 +260,7 @@ mod tests {
                 "cache-control",
                 "max-age=3600".parse().expect("a directive"),
             );
-            crate::test_helpers::run_rule(
+            one_finding(
                 &VaryAndCacheConsistent,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
@@ -276,7 +295,7 @@ mod tests {
             .unwrap()
             .headers
             .insert("cache-control", bad);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -314,7 +333,7 @@ mod tests {
             trailers: None,
         });
 
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -329,7 +348,7 @@ mod tests {
 
         // Public (mixed case) should be detected
         let tx = make_tx(Some("*"), Some("Public"));
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -339,7 +358,7 @@ mod tests {
 
         // MAX-AGE uppercase
         let tx2 = make_tx(Some("*"), Some("MAX-AGE=60"));
-        let v2 = crate::test_helpers::run_rule(
+        let v2 = one_finding(
             &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -369,7 +388,7 @@ mod tests {
             trailers: None,
         });
 
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -383,7 +402,7 @@ mod tests {
         // Vary: * with a non-cacheability extension should not be flagged
         let rule = VaryAndCacheConsistent;
         let tx = make_tx(Some("*"), Some("foo=bar"));
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -401,5 +420,28 @@ mod tests {
         // validate should succeed without error
         rule.prepare(&cfg)?;
         Ok(())
+    }
+
+    /// Each directive advertising reuse is a separate thing this response says
+    /// and this `Vary` makes ineffective, so removing `max-age` has not dealt
+    /// with the `s-maxage` written beside it. The finding names the directive.
+    #[test]
+    fn every_reuse_directive_the_wildcard_kills_is_named() {
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("vary", "*"), ("cache-control", "max-age=60, s-maxage=60")],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &VaryAndCacheConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "vary_and_cache_consistent",
+            ]),
+        );
+        let messages: Vec<&str> = found.iter().map(|v| v.message.as_str()).collect();
+        assert_eq!(messages.len(), 2, "{messages:?}");
+        assert!(messages[0].contains("'max-age'"), "{messages:?}");
+        assert!(messages[1].contains("'s-maxage'"), "{messages:?}");
     }
 }

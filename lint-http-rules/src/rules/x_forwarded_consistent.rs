@@ -319,9 +319,12 @@ impl Rule for XForwardedConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Three fields and, in each, one member per hop. A proxy chain that
+        // wrote two of the fields badly wrote two things to correct, and a
+        // chain whose second hop is not a `node` is not made well-formed by its
+        // third being one — so neither loop ends at its first finding.
+        let mut out = Vec::new();
+        {
             for (name, field, kind) in FIELDS {
                 // Every line of the field, and every octet of every line. A proxy
                 // chain appends by adding a field line as often as by extending the
@@ -334,14 +337,12 @@ impl Rule for XForwardedConsistent {
                 };
                 for member in members(&value) {
                     if let Some((def, message)) = check_member(field, *kind, member) {
-                        return Some(ctx.report_with(def, message));
+                        out.push(ctx.report_with(def, message));
                     }
                 }
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 
@@ -361,7 +362,7 @@ mod tests {
     /// The octets are the parameter because one of the cases below cannot be
     /// written as a `&str`: a lone %xFF is not UTF-8, and passing it as one would
     /// have put two octets on the wire and tested the wrong value.
-    fn judge_bytes(pairs: &[(&str, &[u8])]) -> Option<String> {
+    fn judge_bytes_all(pairs: &[(&str, &[u8])]) -> Vec<crate::lint::Violation> {
         let rule = XForwardedConsistent;
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -371,13 +372,26 @@ mod tests {
                 HeaderValue::from_bytes(value).expect("a field value"),
             );
         }
-        crate::test_helpers::run_rule(
+        crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
-        .map(|v| v.message)
+    }
+
+    /// The cases below are messages stating one defect, and this says so rather
+    /// than taking the first of however many were reported: a fixture that
+    /// silently drops a second finding cannot see either of this rule's two
+    /// walks regress.
+    fn judge_bytes(pairs: &[(&str, &[u8])]) -> Option<String> {
+        let mut found = judge_bytes_all(pairs);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for messages stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop().map(|v| v.message)
     }
 
     fn judge(pairs: &[(&str, &str)]) -> Option<String> {
@@ -694,5 +708,47 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "x_forwarded_consistent");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
+    }
+
+    /// One member per hop is what this field is: a chain whose second hop is
+    /// not a `node` is not made well-formed by its third being one.
+    #[test]
+    fn a_chain_with_two_bad_hops_is_answered_about_both() {
+        let found = judge_bytes_all(&[("x-forwarded-for", b"[::1, 1.2.3.4:x")]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["node_ipv6_closing_bracket_missing", "node_port_malformed"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The same one level out: the three fields are three separate things a
+    /// proxy wrote, and the walk over them ended at the first as well.
+    #[test]
+    fn two_bad_fields_are_each_answered_about() {
+        let found = judge_bytes_all(&[
+            ("x-forwarded-for", b"1.2.3.4:x"),
+            ("x-forwarded-proto", b"ht@p"),
+        ]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["node_port_malformed", "uri_scheme_character_forbidden"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// Two hops failing the same way are two findings of one entry on one
+    /// message, so each has to name the hop it is about or the pair is one
+    /// sentence written twice.
+    #[test]
+    fn two_hops_failing_alike_each_name_their_own_member() {
+        let found = judge_bytes_all(&[("x-forwarded-for", b"1.2.3.4:x, 5.6.7.8:y")]);
+        let messages: Vec<&str> = found.iter().map(|v| v.message.as_str()).collect();
+        assert_eq!(messages.len(), 2, "{messages:?}");
+        assert_ne!(messages[0], messages[1], "{messages:?}");
     }
 }

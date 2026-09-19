@@ -1483,7 +1483,7 @@ sources:
     snippet: Therefore, where at least one element is required, at least one non-null element MUST be present.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 312
+      line: 346
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 87
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
@@ -1495,7 +1495,7 @@ sources:
     snippet: Wherever this construct is used, null elements are allowed, but do not contribute to the count of elements present.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 311
+      line: 345
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 63
 - label: RFC 2617
@@ -3217,13 +3217,13 @@ sources:
     snippet: ;When using the quoted-string syntax variant, the value ;after quoted-string unescaping MUST conform to the ;'token' ABNF.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 213
+      line: 222
   - label: sec_websocket_extensions_syntax
     section: § 9.1
     snippet: A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616].
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 421
+      line: 462
   - label: sec_websocket_extensions_syntax (2)
     section: § 9.1
     snippet: Any extension-token used MUST be a registered token (see Section 11.4).
@@ -3237,7 +3237,7 @@ sources:
     snippet: If a value is received by either the client or the server during negotiation that does not conform to the ABNF below, the recipient of such malformed data MUST immediately _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 333
+      line: 370
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
       line: 46
   - label: sec_websocket_extensions_syntax (4)
@@ -3245,7 +3245,7 @@ sources:
     snippet: Note that this section is using ABNF syntax/rules from [RFC2616], including the "implied *LWS rule".
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 310
+      line: 344
   - label: Sec-WebSocket-Extensions grammar
     section: § 9.1
     snippet: Sec-WebSocket-Extensions = extension-list extension-list = 1#extension extension = extension-token *( ";" extension-param ) extension-token = registered-token registered-token = token extension-param = token [ "=" (token | quoted-string) ]
@@ -11168,7 +11168,7 @@ sources:
     - file: lint-http-rules/src/helpers/vary.rs
       line: 80
     - file: lint-http-rules/src/rules/vary_and_cache_consistent.rs
-      line: 106
+      line: 108
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 229
     - file: lint-http-rules/src/violations/cache_control.rs
