@@ -237,6 +237,31 @@ impl ChallengeDefect<'_> {
     }
 }
 
+/// How many `"="` close a value that derives from `token68`, or `None` where
+/// the production does not derive it at all.
+///
+/// **The padding is inside the alternative.** `token68` is one or more octets
+/// from its own alphabet followed by `*"="`, so the `=` on a base64 credential
+/// belongs to the credential and is not a separator between anything. A reader
+/// that decides between `token68` and `#auth-param` by asking whether an `=`
+/// is present anywhere is asking about a character both alternatives contain.
+///
+/// The count is what the caller needs rather than a yes: one padding octet
+/// leaves a value both alternatives derive, and more than one leaves a value
+/// only this one does.
+// cite(RFC 9110 § 11.2): "token68    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
+fn token68_padding(value: &str) -> Option<usize> {
+    let body = value.trim_end_matches('=');
+    if body.is_empty()
+        || !body
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '~' | '+' | '/'))
+    {
+        return None;
+    }
+    Some(value.len() - body.len())
+}
+
 /// Whether one assembled `WWW-Authenticate` challenge is syntactically
 /// acceptable, answered as a [`ChallengeDefect`].
 ///
@@ -283,6 +308,28 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
     if let Some(rest) = parts.next() {
         let rest = trim_ows(rest);
         if rest.is_empty() {
+            return Ok(());
+        }
+
+        // `token68` closes with `*"="`, and the routing below reads an `=`
+        // anywhere in the rest as the mark of an `auth-param`. That sends a
+        // padded credential to the parameter parser, which finds the second
+        // padding octet where a value goes and reports it as a character no
+        // value admits -- `Negotiate <base64>==`, which is how SPNEGO writes a
+        // challenge, was an `error` about a value the grammar generates.
+        //
+        // **Only more than one padding octet is settled here.** `abc=` is
+        // derived by both alternatives -- a `token68` and an `auth-param` whose
+        // value was left off -- and the branch below already decides that one
+        // by the scheme. Two or more cannot be an `auth-param` at all: a value
+        // is `token / quoted-string` and `=` is in neither, so nothing is being
+        // chosen between and the production answers alone.
+        //
+        // No control octet is possible on this path: the alphabet
+        // `token68_padding` matches holds none, so the reading that guards the
+        // branches around it has nothing left to ask.
+        // cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
+        if token68_padding(rest).is_some_and(|padding| padding > 1) {
             return Ok(());
         }
 
@@ -752,6 +799,7 @@ pub fn parse_nc_hex(s: &str) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     /// The trim and the split are `OWS`, so an `obs-text` octet is content:
     /// padding a scheme with one leaves it in the scheme, where the `token`
@@ -971,6 +1019,45 @@ mod tests {
     fn parse_auth_params_trailing_comma_is_error() {
         let r = parse_auth_params("a=b,");
         assert!(r.is_err());
+    }
+
+    /// The production's own answer, and the count is the part the caller uses:
+    /// one padding octet leaves a value both alternatives of `challenge`
+    /// derive, and more than one leaves a value only `token68` does.
+    #[rstest]
+    #[case("abc", Some(0))]
+    #[case("abc=", Some(1))]
+    #[case("abc==", Some(2))]
+    #[case("YIIFxAYGKwYBBQUCoIIFuDCCBbSgh==", Some(2))]
+    #[case("eyJhbGciOiJFUzI1NiJ9-_abc==", Some(2))]
+    #[case("a.b~c+d/e", Some(0))]
+    // A `=` that is not trailing padding closes nothing, so the value is
+    // outside the production however the octets after it read.
+    #[case("ab==cd", None)]
+    #[case("realm=\"x\"", None)]
+    // `1*(...)` before the padding: `=` alone derives no token68.
+    #[case("=", None)]
+    #[case("", None)]
+    // The alphabet is `token68`'s, not `token`'s -- `!` and `@` are `tchar` and
+    // neither is here.
+    #[case("ab!cd", None)]
+    #[case("ab@cd", None)]
+    fn token68_padding_answers_the_production(
+        #[case] value: &str,
+        #[case] expected: Option<usize>,
+    ) {
+        assert_eq!(token68_padding(value), expected);
+    }
+
+    /// The shape a SPNEGO challenge is written in, which the reader used to
+    /// hand to the parameter parser because it asked whether an `=` was present
+    /// anywhere rather than whether the production put it there.
+    #[rstest]
+    #[case("Negotiate YIIFxAYGKwYBBQUCoIIFuDCCBbSgh==")]
+    #[case("DPoP eyJhbGciOiJFUzI1NiJ9-_abc==")]
+    #[case("NewScheme abc===")]
+    fn a_padded_token68_is_the_credential_and_not_a_parameter(#[case] challenge: &str) {
+        assert_eq!(validate_challenge_syntax(challenge), Ok(()));
     }
 
     #[test]
