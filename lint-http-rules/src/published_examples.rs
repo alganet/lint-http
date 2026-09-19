@@ -1008,7 +1008,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "structured_field_inner_list_malformed",
     "structured_field_member_empty",
     "structured_field_value_empty",
-    "sunset_invalid",
     "token68_body_empty",
     "token68_padding_malformed",
     "transfer_coding_parameter_missing",

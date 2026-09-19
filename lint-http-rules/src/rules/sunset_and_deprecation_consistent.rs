@@ -411,7 +411,7 @@ mod tests {
         assert!(
             found
                 .message
-                .contains("Sunset header is not a valid HTTP-date"),
+                .contains("Sunset header 'not-a-date' is not a valid HTTP-date"),
             "{}",
             found.message,
         );
