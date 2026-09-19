@@ -899,7 +899,7 @@ sources:
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 206
+      line: 210
     - file: lint-http-rules/src/violations/cookie.rs
       line: 665
   - label: cookie_same_site_enforced (2)
@@ -907,13 +907,13 @@ sources:
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 198
+      line: 202
   - label: cookie_same_site_enforced (3)
     section: § 4.1.2.7
     snippet: If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 216
+      line: 220
 - label: draft-thomson-hybi-http-timeout-03
   url: https://datatracker.ietf.org/doc/html/draft-thomson-hybi-http-timeout-03
   fragments:
@@ -2681,7 +2681,7 @@ sources:
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_matching.rs
-      line: 158
+      line: 162
   - label: cookie_domain_valid
     section: § 5.2
     snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
@@ -2773,7 +2773,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 114
     - file: lint-http-rules/src/rules/cookie_pair_valid.rs
-      line: 154
+      line: 155
     - file: lint-http-rules/src/violations/cookie.rs
       line: 426
   - label: lint-http-rules/src/helpers/cookie.rs (4)

@@ -92,13 +92,16 @@ impl Rule for CookieDomainMatching {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per cookie the request sent, not one per request: a
+        // `Cookie` field carries as many `cookie-pair`s as the store had for
+        // the host, and each is its own decision to send. The walk used to
+        // return at the first one that should not have been sent, so a request
+        // carrying two cookies scoped to another host named one of them.
+        let findings = || -> Vec<Violation> {
             // only care about outgoing requests that carry Cookie headers
             let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
             if cookie_headers.is_empty() {
-                return None;
+                return Vec::new();
             }
 
             let req_uri = &tx.request.uri;
@@ -128,6 +131,7 @@ impl Rule for CookieDomainMatching {
                 }
             }
 
+            let mut out = Vec::new();
             for (name, value) in sent_pairs {
                 let mut valid_match = false;
                 let mut domain_mismatch = false;
@@ -157,10 +161,11 @@ impl Rule for CookieDomainMatching {
                 // failing the domain requirement was never eligible to be sent.
                 // cite(RFC 6265 § 5.4): "Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:"
                 if domain_mismatch {
-                    return Some(ctx.report_with(&COOKIE_SCOPE_IGNORED, format!(
+                    out.push(ctx.report_with(&COOKIE_SCOPE_IGNORED, format!(
                             "Cookie '{}' with value '{}' was set for a different domain and should not be sent to host '{}'",
                             name, value, req_host
                         )));
+                    continue;
                 }
 
                 // The path half of the same §5.4 requirement was checked here and
@@ -179,9 +184,9 @@ impl Rule for CookieDomainMatching {
                 // otherwise the cookie is unknown to our history; skip
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -282,6 +287,48 @@ mod tests {
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("different domain"));
+    }
+
+    /// Two cookies scoped elsewhere are two cookies to stop sending.
+    ///
+    /// The walk returned at the first, so a request carrying both named one of
+    /// them and an operator fixing it found the second waiting behind it. A
+    /// `Cookie` field carries as many pairs as the store had for the host.
+    #[test]
+    fn every_cookie_the_request_sent_is_answered_for() {
+        let rule = CookieDomainMatching;
+        let ts = Utc::now();
+        let prev = make_resp_tx(
+            "https://example.com/",
+            Some("a=1; Domain=example.com"),
+            Some(ts),
+        );
+        let prev2 = make_resp_tx(
+            "https://example.com/",
+            Some("b=2; Domain=example.com"),
+            Some(ts + chrono::Duration::seconds(1)),
+        );
+        let mut tx = make_tx_with_req("https://other.com/", Some("a=1; b=2"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2, prev]);
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(
+            found[0].message.contains("Cookie 'a'"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("Cookie 'b'"),
+            "{:?}",
+            found[1].message
+        );
     }
 
     #[test]
