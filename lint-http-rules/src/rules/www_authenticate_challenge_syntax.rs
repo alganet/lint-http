@@ -833,8 +833,14 @@ mod tests {
         }
     }
 
+    /// The name this test carried said the word was not a `token68`, which is
+    /// the one thing the value settles: `realm` derives from the production,
+    /// and what the finding reports is that an `auth-param` missing its value
+    /// derives from it too. The message it pinned said `token68 or auth-param
+    /// expected` -- a parser's sentence about a value that failed neither
+    /// alternative, and the opposite of the entry it belongs to.
     #[test]
-    fn suspicious_single_token_after_scheme_is_violation_for_non_token68() {
+    fn a_bare_word_after_the_scheme_is_read_as_both_alternatives() {
         let rule = WwwAuthenticateChallengeSyntax;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "www_authenticate_challenge_syntax",
@@ -850,7 +856,9 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("suspicious single token"));
+        let message = v.unwrap().message;
+        assert!(message.contains("the single word 'realm'"), "{message}");
+        assert!(message.contains("the grammar refuses nothing"), "{message}");
     }
 
     #[test]

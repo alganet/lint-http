@@ -211,7 +211,7 @@ impl ChallengeDefect<'_> {
                 "WWW-Authenticate token68 contains control characters".to_string()
             }
             Self::SuspiciousSingleToken(word) => format!(
-                "WWW-Authenticate challenge has suspicious single token '{}' after scheme; token68 or auth-param expected",
+                "WWW-Authenticate challenge carries the single word '{}' after its scheme, and the grammar refuses nothing about it: `token68` derives that word, and so does an `auth-param` whose value was left off, so the value cannot say which of the two was written",
                 word
             ),
             Self::EmptyParameterName => "WWW-Authenticate auth-param name is empty".to_string(),
