@@ -7,6 +7,7 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::delta_seconds::{
     DELTA_SECONDS_CHARACTER_FORBIDDEN, DELTA_SECONDS_EMPTY, RFC_9111_1_2_2,
 };
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
@@ -57,6 +58,7 @@ pub struct StrictTransportSecurityValid;
 /// a control octet cannot enter a `hyper::HeaderValue`, whatever the rule does
 /// with it afterwards.
 static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
     &STRICT_TRANSPORT_SECURITY_EMPTY,
     &STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY,
     &STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING,
@@ -74,6 +76,34 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
 
+/// The sender's once-only rule for the field, stated by the field's own
+/// document rather than inferred from § 5.3's exception clause. § 6.1's grammar
+/// already puts the field outside that exception — the directives are
+/// semicolon-separated and no alternative of the production is a comma list —
+/// but § 7.1 says the same thing about the field lines directly, which is why
+/// this rule cites both and not only the general sentence.
+const RFC_6797_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6797",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-7.1",
+    note: "HTTP-over-Secure-Transport Request Type — the sentence obliging an \
+           HSTS Host that includes the field to include only one of it",
+};
+
+/// What the recipient does with the second line, and the reason this finding
+/// does not talk about recombination. § 5.2 joins repeated field lines with a
+/// comma within a section, and for most singleton fields that joined value is
+/// the hazard; here no recipient ever builds it. A UA takes the first line and
+/// drops the rest, so the sender's second policy is not misread — it is not
+/// read.
+const RFC_6797_8_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6797",
+    section: Some("8.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-8.1",
+    note: "Strict-Transport-Security Response Header Field Processing — the UA \
+           processes only the first of several STS header fields",
+};
+
 impl RuleMeta for StrictTransportSecurityValid {
     fn id(&self) -> &'static str {
         "strict_transport_security_valid"
@@ -85,7 +115,7 @@ impl RuleMeta for StrictTransportSecurityValid {
     }
 
     fn description(&self) -> &'static str {
-        "The `Strict-Transport-Security` response header signals HSTS policies. This rule ensures responses include the required `max-age` directive (a non-negative integer) and that optional directives `includeSubDomains` and `preload` are present without values. Unknown directives are accepted but any value must be a `token` or `quoted-string`. The value is read as the octets the sender wrote, so an octet outside the `token` alphabet is reported where it lands rather than as an encoding verdict about the whole field."
+        "The `Strict-Transport-Security` response header signals HSTS policies. This rule ensures responses include the required `max-age` directive (a non-negative integer) and that optional directives `includeSubDomains` and `preload` are present without values. Unknown directives are accepted but any value must be a `token` or `quoted-string`. The value is read as the octets the sender wrote, so an octet outside the `token` alphabet is reported where it lands rather than as an encoding verdict about the whole field.\\n\\n**The field may be written only once.** RFC 6797 §7.1: *\"If an STS header field is included, the HSTS Host MUST include only one such header field\"* — and §6.1's directives are semicolon-separated, so no alternative of the production is a comma-separated list and RFC 9110 §5.3's exception does not reach the field. What a recipient does about it is not §5.2's recombination: §8.1 has a UA *\"process only the first such header field\"*, so a second line is discarded rather than joined, and the policy in force is whichever one the server emitted first. The finding names every line, because which one is first is the whole answer."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -93,6 +123,9 @@ impl RuleMeta for StrictTransportSecurityValid {
             RFC_6797_6_1,
             RFC_6797_6_1_1,
             RFC_6797_6_1_2,
+            RFC_6797_7_1,
+            RFC_6797_8_1,
+            RFC_9110_5_3,
             RFC_9111_1_2_2,
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
@@ -145,6 +178,13 @@ impl RuleMeta for StrictTransportSecurityValid {
                 label: Some("— a trailing `;` opens a directive the sender never wrote"),
                 snippet: "Strict-Transport-Security: max-age=15552000;",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— two policies, of which a UA reads the ten-minute one and discards the other",
+                ),
+                snippet: "HTTP/1.1 200 OK\nStrict-Transport-Security: max-age=600\nStrict-Transport-Security: max-age=15724800; includeSubDomains",
+            },
         ]
     }
 }
@@ -174,10 +214,55 @@ impl Rule for StrictTransportSecurityValid {
             // and reports under the id below; inside a `directive-value`'s
             // `quoted-string` it is `qdtext`, which admits `obs-text`, so the
             // string reader was refusing a value this field generates.
-            for line in crate::helpers::headers::field_lines_as_written(
+            let lines = crate::helpers::headers::field_lines_as_written(
                 &resp.headers,
                 "strict-transport-security",
-            ) {
+            );
+
+            // **The second line is not read by anyone**, and that is what makes
+            // this worth a finding of its own rather than the general untidiness
+            // of a repeated field. § 6.1's directives are semicolon-separated,
+            // so no alternative of the production is a comma list and § 5.3's
+            // exception does not apply; § 7.1 then says the same thing about
+            // this field directly. What a recipient does about it is § 8.1's
+            // sentence, and it is not § 5.2's recombination — a UA takes the
+            // first line and discards the rest, so the policy in force is
+            // whichever one the server happened to emit first and the other one
+            // is not a weaker policy but no policy. The finding names every line
+            // for that reason: which one is first is the whole answer, and an
+            // operator reading it needs to see that the line they meant is the
+            // one being dropped.
+            // cite(RFC 6797 § 7.1): "If an STS header field is included, the HSTS Host MUST include only one such header field."
+            // cite(RFC 6797 § 8.1): "If a UA receives more than one STS header field in an HTTP response message over secure transport, then the UA MUST process only the first such header field."
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            if lines.len() > 1 {
+                let shown: Vec<String> = lines
+                    .iter()
+                    .map(|l| {
+                        format!(
+                            "'{}'",
+                            crate::helpers::shown::shown_in_finding(
+                                crate::helpers::headers::trim_ows(l)
+                            )
+                        )
+                    })
+                    .collect();
+                return Some(ctx.report_with(
+                    &FIELD_LINE_DUPLICATED,
+                    format!(
+                        "Strict-Transport-Security is written on {} header lines ({}); \
+                         the field is a singleton — `[ directive ] *( \";\" [ directive ] )` \
+                         has no comma-separated-list alternative — so an HSTS Host that \
+                         includes it must include only one (RFC 6797 §7.1). A UA processes \
+                         only the first, so every later line is discarded rather than \
+                         combined (RFC 6797 §8.1)",
+                        lines.len(),
+                        shown.join(", ")
+                    ),
+                ));
+            }
+
+            for line in lines {
                 let v = crate::helpers::headers::trim_ows(&line);
 
                 // Unnamed, and the grammar is the reason. § 6.1 writes
@@ -850,9 +935,15 @@ mod tests {
         .is_none());
     }
 
+    /// A second line lacking `max-age` is not a policy without a lifetime, and
+    /// this is the row that says so. § 8.1 has the UA process only the first
+    /// field, so the deployed policy here is the complete `max-age=1` and the
+    /// line that declares no lifetime is one nothing reads — reporting
+    /// `strict_transport_security_max_age_missing` about it would name a defect
+    /// of no policy in force. The repetition is what is wrong with the message,
+    /// and it is what the rule says.
     #[test]
-    fn multiple_header_fields_one_invalid_reports_violation() {
-        // two header fields: one valid, one missing max-age
+    fn a_line_nobody_reads_is_not_a_policy_missing_its_lifetime() {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
@@ -870,13 +961,14 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "strict_transport_security_valid",
         ]);
-        assert!(crate::test_helpers::run_rule(
+        let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         )
-        .is_some());
+        .expect("a finding");
+        assert_eq!(v.violation, "field_line_duplicated");
     }
 
     #[test]
@@ -922,6 +1014,50 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
+        assert!(v.is_none(), "{v:?}");
+    }
+
+    /// Two policies on one response, and the finding names both — because
+    /// which one is first decides which one is deployed, and the operator
+    /// reading the report is looking for the line that is being dropped.
+    ///
+    /// The single-line row is the other direction and is the reason this test
+    /// is not one assertion: a check that reported every policy would satisfy
+    /// the first half and make the entry useless.
+    #[test]
+    fn two_policy_lines_are_reported_and_one_is_not() {
+        let rule = StrictTransportSecurityValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let history = crate::transaction_history::TransactionHistory::empty();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[
+                ("strict-transport-security", "max-age=600"),
+                (
+                    "strict-transport-security",
+                    "max-age=15724800; includeSubDomains",
+                ),
+            ]);
+        let v = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg).expect("a finding");
+        assert_eq!(v.violation, "field_line_duplicated");
+        assert!(
+            v.message.contains("'max-age=600'")
+                && v.message.contains("'max-age=15724800; includeSubDomains'"),
+            "both lines are named: {}",
+            v.message
+        );
+
+        // The discarded line is the second one, and both policies here are
+        // well formed on their own — so nothing but the repetition is wrong,
+        // and one line of the same shape says nothing.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[(
+                "strict-transport-security",
+                "max-age=15724800; includeSubDomains",
+            )]);
+        let v = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg);
         assert!(v.is_none(), "{v:?}");
     }
 

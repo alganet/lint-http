@@ -3727,29 +3727,41 @@ sources:
     snippet: UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification.
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 171
+      line: 211
   - label: strict_transport_security_valid (2)
     section: § 6.1
     snippet: directive-name            = token
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 232
+      line: 317
   - label: strict_transport_security_valid (3)
     section: § 6.1
     snippet: directive-value           = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 261
+      line: 346
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 324
+      line: 409
   - label: max-age carries a value
     section: § 6.1.1
     snippet: 'The syntax of the max-age directive''s REQUIRED value (after quoted-string unescaping, if necessary) is defined as:'
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 262
+      line: 347
     - file: lint-http-rules/src/violations/strict_transport_security.rs
       line: 137
+  - label: strict_transport_security_valid (4)
+    section: § 7.1
+    snippet: If an STS header field is included, the HSTS Host MUST include only one such header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
+      line: 235
+  - label: strict_transport_security_valid (5)
+    section: § 8.1
+    snippet: If a UA receives more than one STS header field in an HTTP response message over secure transport, then the UA MUST process only the first such header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
+      line: 236
 - label: RFC 6838
   url: https://www.rfc-editor.org/rfc/rfc6838.html
   fragments:
@@ -8124,6 +8136,8 @@ sources:
       line: 110
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 276
+    - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
+      line: 237
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 134
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
