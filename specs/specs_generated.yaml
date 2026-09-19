@@ -2872,6 +2872,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 180
+  - label: singleton_fields_not_repeated
+    section: § 5.4
+    snippet: When the user agent generates an HTTP request, the user agent MUST NOT attach more than one Cookie header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
+      line: 192
   - label: trace_method_echo
     section: § 4.2.1
     snippet: The user agent sends stored cookies to the origin server in the Cookie header.
@@ -7462,6 +7468,8 @@ sources:
       line: 294
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 199
+    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
+      line: 173
   - label: lint-http-core/src/http_version.rs (3)
     section: § 2.5
     snippet: The first digit (major version) indicates the messaging syntax, whereas the second digit (minor version) indicates the highest minor version within that major version to which the sender is conformant (able to understand for future communication).
@@ -8205,7 +8213,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 273
+      line: 450
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
       line: 237
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
@@ -8255,7 +8263,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 284
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 275
+      line: 452
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.5
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
@@ -8263,7 +8271,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 444
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 276
+      line: 453
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.5
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
@@ -9921,7 +9929,7 @@ sources:
     snippet: 'such as an ABNF rule of #(values) defined in Section 5.6.1'
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 274
+      line: 451
   - label: singleton_fields_not_repeated (5)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated, having the same semantics as the Origination Date Field (orig-date) defined in Section 3.6.1 of [RFC5322].
@@ -12053,6 +12061,18 @@ sources:
       line: 207
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 158
+  - label: singleton_fields_not_repeated
+    section: § 8.2.3
+    snippet: This header field contains multiple values, but does not use a COMMA (",") as a separator, thereby preventing cookie-pairs from being sent on multiple field lines (see Section 5.2 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
+      line: 150
+  - label: singleton_fields_not_repeated (2)
+    section: § 8.2.3
+    snippet: To allow for better compression efficiency, the Cookie header field MAY be split into separate header fields, each with one or more cookie-pairs.
+    cited_by:
+    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
+      line: 151
   - label: status
     section: § 8.6
     snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
@@ -12400,6 +12420,12 @@ sources:
       line: 208
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 159
+  - label: singleton_fields_not_repeated
+    section: § 4.2.1
+    snippet: To allow for better compression efficiency, the Cookie header field ([COOKIES]) MAY be split into separate field lines, each with one or more cookie-pairs, before compression.
+    cited_by:
+    - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
+      line: 152
   - label: status_426_upgrade_valid
     section: § 4.5
     snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
