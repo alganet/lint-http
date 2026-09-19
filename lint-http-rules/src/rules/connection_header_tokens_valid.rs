@@ -52,8 +52,10 @@ impl ConnectionHeaderTokensValid {
         headers: &hyper::HeaderMap,
         party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let value = combined_field_value_as_written(headers, "connection")?;
+    ) -> Vec<Violation> {
+        let Some(value) = combined_field_value_as_written(headers, "connection") else {
+            return Vec::new();
+        };
 
         // The field's own production, in the form the collected grammar gives a
         // sender, and the two things it says about emptiness. The outer `[ ]` is why
@@ -74,9 +76,10 @@ impl ConnectionHeaderTokensValid {
         // cite(RFC 9110 § A, label: Connection grammar, sender-expanded): "Connection = [ connection-option *( OWS "," OWS connection-option ) ]"
         // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
         if trim_ows(&value).is_empty() {
-            return None;
+            return Vec::new();
         }
 
+        let mut out = Vec::new();
         let mut saw_an_empty_element = false;
 
         for member in sender_list_members(&value) {
@@ -103,7 +106,7 @@ impl ConnectionHeaderTokensValid {
                 // character that stopped the parse is by definition one the grammar
                 // did not admit — often a control octet, which written through would
                 // corrupt the finding rather than describe it.
-                return Some(ctx.by(party).report_with(
+                out.push(ctx.by(party).report_with(
                     token_character(ch),
                     format!(
                         "Connection header holds invalid character '{}' in member '{}'; a member is a connection-option, which is a token",
@@ -111,6 +114,7 @@ impl ConnectionHeaderTokensValid {
                         member.escape_debug()
                     ),
                 ));
+                continue;
             }
 
             // The one field the section names, and the whole of what this rule decides
@@ -125,15 +129,16 @@ impl ConnectionHeaderTokensValid {
             // cite(RFC 9110 § 7.6.1): "Connection options are case-insensitive."
             // cite(RFC 9110 § 7.6.1): "A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING])."
             if member.eq_ignore_ascii_case("cache-control") {
-                return Some(ctx.by(party).report_with(
+                out.push(ctx.by(party).report_with(
                     &CONNECTION_OPTION_FORBIDDEN,
                     "Connection header lists 'Cache-Control' as a connection option; the field is intended for all recipients of the content, and RFC 9110 §7.6.1 names it as one a sender MUST NOT list".to_string(),
                 ));
+                continue;
             }
         }
 
         if saw_an_empty_element {
-            return Some(ctx.by(party).report_with(
+            out.push(ctx.by(party).report_with(
                 &LIST_MEMBER_EMPTY,
                 format!(
                     "Connection header holds an empty member: '{}'",
@@ -142,7 +147,7 @@ impl ConnectionHeaderTokensValid {
             ));
         }
 
-        None
+        out
     }
 }
 
@@ -249,26 +254,19 @@ impl Rule for ConnectionHeaderTokensValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            if let Some(v) =
-                self.check_field_section(&tx.request.headers, crate::lint::Party::Client, ctx)
-            {
-                return Some(v);
-            }
+        // One finding per member, and one per section. Every position in
+        // `#connection-option` holds an option the sender wrote on its own
+        // terms -- an option that is not a token and an option § 7.6.1 forbids
+        // listing are two separate things to change -- and the request's
+        // `Connection` and the response's are two lists written by two peers.
+        let mut out =
+            self.check_field_section(&tx.request.headers, crate::lint::Party::Client, ctx);
 
-            if let Some(resp) = &tx.response {
-                if let Some(v) =
-                    self.check_field_section(&resp.headers, crate::lint::Party::Server, ctx)
-                {
-                    return Some(v);
-                }
-            }
+        if let Some(resp) = &tx.response {
+            out.extend(self.check_field_section(&resp.headers, crate::lint::Party::Server, ctx));
+        }
 
-            None
-        };
-        Vec::from_iter(finding())
+        out
     }
 }
 
@@ -349,6 +347,71 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The same fixture, answering with every finding rather than the first.
+    /// The `Option` above is the question the rule used to answer, and it
+    /// cannot state the claim that one list is several findings.
+    fn connection_all(section: Section, lines: &[&[u8]]) -> Vec<Violation> {
+        let rule = ConnectionHeaderTokensValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        for line in lines {
+            hm.append(
+                hyper::header::CONNECTION,
+                HeaderValue::from_bytes(line).expect("field value"),
+            );
+        }
+        match section {
+            Section::Request => tx.request.headers = hm,
+            Section::Response => tx.response.as_mut().expect("response").headers = hm,
+        }
+        crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// **Every option the sender listed is answered.** A member that is not a
+    /// token and a member § 7.6.1 forbids listing are two separate things to
+    /// change, and a walk that stopped at the first named one of them.
+    #[test]
+    fn every_defective_option_is_reported() {
+        let found = connection_all(Section::Response, &[b"keep@alive, cache-control"]);
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(
+            ids.contains(&"token_character_forbidden")
+                && ids.contains(&"connection_option_forbidden"),
+            "both members are answered: {ids:?}"
+        );
+    }
+
+    /// A defect in the request's `Connection` no longer stands in for the
+    /// response's: two lists, two peers, two findings.
+    #[test]
+    fn both_sections_are_read() {
+        let rule = ConnectionHeaderTokensValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request
+            .headers
+            .append(hyper::header::CONNECTION, HeaderValue::from_static("k@ep"));
+        tx.response
+            .as_mut()
+            .expect("response")
+            .headers
+            .append(hyper::header::CONNECTION, HeaderValue::from_static("cl@se"));
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        let parties: Vec<_> = found.iter().filter_map(|v| v.party).collect();
+        assert!(parties.contains(&crate::lint::Party::Client));
+        assert!(parties.contains(&crate::lint::Party::Server));
     }
 
     #[rstest]

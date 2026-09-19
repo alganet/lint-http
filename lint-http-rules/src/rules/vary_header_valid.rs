@@ -108,12 +108,18 @@ impl Rule for VaryHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per member. `Vary = #( "*" / field-name )` names one
+        // field per position, and a cache reading the value has to find every
+        // one of them -- so a value naming two field-names that are not tokens
+        // is two selecting fields the operator has to correct, and a walk that
+        // stopped at the first reported one of them.
+        let findings = || -> Vec<Violation> {
             // Vary is a response header field; the rule inspects responses only.
             // cite(RFC 9110 § 12.5.5): "The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response."
-            let resp = tx.response.as_ref()?;
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
+            let mut out = Vec::new();
 
             // The whole check transcribes the field grammar: a comma list whose members
             // are each "*" or a field-name.
@@ -138,10 +144,16 @@ impl Rule for VaryHeaderValid {
                 // is forbidden, unlike the empty whole value skipped above. The
                 // sentence that forbids it is on the def, where the twenty-odd
                 // other fields reporting a stray comma read the same one.
-                for raw in s.split(',') {
-                    if crate::helpers::headers::trim_ows(raw).is_empty() {
-                        return Some(ctx.report_with(&LIST_MEMBER_EMPTY, "Vary header contains empty token (e.g., trailing or consecutive commas)".into()));
-                    }
+                //
+                // One finding for the line however many gaps it holds: what
+                // § 5.6.1.1 forbids generating is an empty *element*, and a line
+                // with three of them is one list written with gaps in it. The
+                // token scan below is the member's defect and is counted per
+                // member; this is the list's.
+                if s.split(',')
+                    .any(|raw| crate::helpers::headers::trim_ows(raw).is_empty())
+                {
+                    out.push(ctx.report_with(&LIST_MEMBER_EMPTY, "Vary header contains empty token (e.g., trailing or consecutive commas)".into()));
                 }
 
                 for token in crate::helpers::list::list_members(s) {
@@ -164,10 +176,16 @@ impl Rule for VaryHeaderValid {
 
                     // Every other member is a field-name, i.e. a token.
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(ctx.report_with(
+                        // The member is named, and it has to be: once a value
+                        // reports every member it offends in, two findings that
+                        // said only which octet was wrong would be one sentence
+                        // twice for `Vary: Acc@pt, Us@r` and the operator could
+                        // not tell which field-name either was about.
+                        out.push(ctx.report_with(
                             token_character(c),
                             format!(
-                                "Vary header contains invalid field-name token character: {}",
+                                "Vary header member '{}' contains {}, which is not a `tchar`, so it derives from no `token` and therefore from no `field-name`",
+                                crate::helpers::shown::shown_in_finding(token),
                                 crate::helpers::shown::describe_char(c)
                             ),
                         ));
@@ -175,9 +193,9 @@ impl Rule for VaryHeaderValid {
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -281,6 +299,62 @@ mod tests {
         }
     }
 
+    /// **Every field-name the response listed is answered.** `Vary` names the
+    /// selecting fields a cache has to key on, and a value naming three that
+    /// are not tokens is three keys the operator has to correct — a walk that
+    /// stopped at the first named one, and could not say which.
+    #[test]
+    fn every_defective_field_name_is_reported() {
+        let rule = VaryHeaderValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("vary", "Acc@pt, User Agent, X=Key")],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            found.len(),
+            3,
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        for member in ["Acc@pt", "User Agent", "X=Key"] {
+            assert!(
+                found.iter().any(|v| v.message.contains(member)),
+                "no finding names the member '{member}': {:?}",
+                found.iter().map(|v| &v.message).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    /// The empty member stays one finding for the line, and this pins the
+    /// split: § 5.6.1.1 forbids generating an empty *element*, and a line with
+    /// three gaps is one list written with gaps in it.
+    #[test]
+    fn three_empty_members_are_one_finding_and_the_tokens_are_their_own() {
+        let rule = VaryHeaderValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("vary", "Acc@pt,,Us@r,,")],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let empties = found
+            .iter()
+            .filter(|v| v.violation == "list_member_empty")
+            .count();
+        assert_eq!(empties, 1, "the gaps are one list defect: {found:?}");
+        assert_eq!(found.len() - empties, 2, "{found:?}");
+    }
+
     #[test]
     fn multiple_header_fields_merged() {
         let rule = VaryHeaderValid;
@@ -347,9 +421,14 @@ mod tests {
         );
         let v = v.expect("a finding");
         assert_eq!(v.violation, "token_character_forbidden");
+        // Both halves, and they answer differently on purpose: the octet is
+        // *named*, because the octets that fail a `tchar` test are very often
+        // the ones that print as nothing; the member is *escaped for display*,
+        // which leaves 0xFF showing as `ÿ` — legibly and wrongly as to
+        // encoding, which is exactly why the named octet stands beside it.
         assert_eq!(
             v.message,
-            "Vary header contains invalid field-name token character: 0xFF"
+            "Vary header member 'ÿ' contains 0xFF, which is not a `tchar`, so it derives from no `token` and therefore from no `field-name`"
         );
         Ok(())
     }
