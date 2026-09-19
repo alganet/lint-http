@@ -582,16 +582,21 @@ impl Rule for LinkHeaderValid {
             return Vec::new();
         }
 
-        // One finding per section: a `Link` the client wrote and one the origin
-        // sent back are two field values by two senders.
+        // A `Link` the client wrote and one the origin sent back are two field
+        // values by two senders, and each member of either is a link the sender
+        // stated on its own terms.
         let mut out = Vec::new();
-        if let Some(defect) = judge(&tx.request.headers, "Request", false) {
-            out.push(ctx.by_client().report_with(defect.def, defect.message));
-        }
+        out.extend(
+            judge(&tx.request.headers, "Request", false)
+                .into_iter()
+                .map(|defect| ctx.by_client().report_with(defect.def, defect.message)),
+        );
         if let Some(resp) = &tx.response {
-            if let Some(defect) = judge(&resp.headers, "Response", true) {
-                out.push(ctx.by_server().report_with(defect.def, defect.message));
-            }
+            out.extend(
+                judge(&resp.headers, "Response", true)
+                    .into_iter()
+                    .map(|defect| ctx.by_server().report_with(defect.def, defect.message)),
+            );
         }
         out
     }
@@ -610,15 +615,30 @@ static REGISTRATION: &dyn crate::rules::Rule = &LinkHeaderValid;
 /// the angle brackets, and it is ordinary `qdtext` inside a `quoted-string`,
 /// which `title="caf\u{e9}"` is. Neither of those is *"the header contains a
 /// non-UTF8 value"*, and one of them is not a finding at all.
-fn judge(headers: &hyper::HeaderMap, side: &str, is_response: bool) -> Option<Defect> {
-    let value = combined_field_value_as_written(headers, "link")?;
+fn judge(headers: &hyper::HeaderMap, side: &str, is_response: bool) -> Vec<Defect> {
+    let Some(value) = combined_field_value_as_written(headers, "link") else {
+        return Vec::new();
+    };
 
     validate_link(&value, is_response)
-        .err()
+        .into_iter()
         .map(|defect| defect.in_context(|message| format!("{side} Link header: {message}")))
+        .collect()
 }
 
-/// Validate a whole `Link` field value.
+/// Validate a whole `Link` field value, member by member.
+///
+/// **A `Link` naming six preload targets, two of them wrong, is answered about
+/// both.** The walk used to `?` out at the first defective member, so the
+/// operator met the second only after fixing the first and re-running — and
+/// this is the field where that costs most: 60 of the 150 `Link` field lines
+/// in a corpus of ordinary web traffic carry more than one member, because
+/// preload hints are written in tens.
+///
+/// **The empty member is the exception, and it is the list's defect rather
+/// than a member's.** § 5.6.1.1 forbids a sender to *generate* an empty
+/// element, so a value written with gaps in it is one list with gaps, stated
+/// once however many there are.
 ///
 /// The first production is quoted with the line below it because
 /// `Link = #link-value` is eighteen characters once whitespace is collapsed,
@@ -628,7 +648,7 @@ fn judge(headers: &hyper::HeaderMap, side: &str, is_response: bool) -> Option<De
 // cite(RFC 8288 § 1.2): "The requirements regarding conformance and error handling highlighted in [RFC7230], Section 2.5 apply to this document."
 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
 // cite(RFC 8288 § 3): "Link       = #link-value link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
-fn validate_link(value: &str, is_response: bool) -> Result<(), Defect> {
+fn validate_link(value: &str, is_response: bool) -> Vec<Defect> {
     // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
     let v = trim_ows(value);
 
@@ -638,26 +658,39 @@ fn validate_link(value: &str, is_response: bool) -> Result<(), Defect> {
     // sentence below would report it.
     //
     // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+    let mut out = Vec::new();
     if v.is_empty() {
-        return Ok(());
+        return out;
     }
+
+    // Stated once for the whole value, however many gaps it has: § 5.6.1.1 is
+    // one sentence about how the sender wrote the list, where the members'
+    // own defects below are one per link the sender named.
+    let mut said_empty = false;
 
     for (index, member) in split_link_values(v).into_iter().map(trim_ows).enumerate() {
         let n = index + 1;
 
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if member.is_empty() {
-            return Err(Defect::named(
-                &LIST_MEMBER_EMPTY,
-                format!("member {n} is empty, and the list construct admits no empty element"),
-            ));
+            if !said_empty {
+                said_empty = true;
+                out.push(Defect::named(
+                    &LIST_MEMBER_EMPTY,
+                    format!("member {n} is empty, and the list construct admits no empty element"),
+                ));
+            }
+            continue;
         }
 
-        validate_link_value(member, is_response)
-            .map_err(|defect| defect.in_context(|message| format!("member {n} {message}")))?;
+        out.extend(
+            validate_link_value(member, is_response)
+                .err()
+                .map(|defect| defect.in_context(|message| format!("member {n} {message}"))),
+        );
     }
 
-    Ok(())
+    out
 }
 
 /// Cut a `Link` field value at the commas that separate its members.
@@ -1364,14 +1397,26 @@ mod tests {
         crate::test_helpers::make_test_config_with_enabled_rules(&["link_header_valid"])
     }
 
-    fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<String> {
-        crate::test_helpers::run_rule(
+    fn run_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<crate::lint::Violation> {
+        crate::test_helpers::run_rule_all(
             &LinkHeaderValid,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
         )
-        .map(|v| v.message)
+    }
+
+    /// The cases below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported: `run_rule` would
+    /// hide a second finding, which is the thing this reader was fixed for.
+    fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<String> {
+        let mut found = run_all(tx);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop().map(|v| v.message)
     }
 
     fn judge_response(status: u16, value: &[u8]) -> Option<String> {
@@ -1704,7 +1749,13 @@ mod tests {
     )]
     fn a_link_value_borrows_every_production_it_is_made_of(#[case] value: &[u8], #[case] id: &str) {
         let headers = crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]);
-        let defect = judge(&headers, "Response", true).expect("a finding");
+        let mut found = judge(&headers, "Response", true);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+        let defect = found.pop().expect("a finding");
         assert_eq!(
             defect.def.id,
             id,
@@ -1782,6 +1833,64 @@ mod tests {
             ]);
         let msg = run(&tx).expect("reported");
         assert!(msg.contains("member 2"), "{msg}");
+    }
+
+    /// A `Link` naming three targets, two of them wrong, is answered about both
+    /// — and each finding says which member it is about, so the operator can
+    /// tell how many links they have to fix and which.
+    #[test]
+    fn every_defective_member_of_a_link_is_answered_about() {
+        let found = judge(
+            &crate::test_helpers::make_headers_from_octet_pairs(&[(
+                "Link",
+                b"</a>; rel=next; rel=prev, </b>; rel=next, </c>; rel = next",
+            )]),
+            "Response",
+            true,
+        );
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec!["link_rel_duplicated", "bws_forbidden"],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+        assert!(
+            found[0]
+                .message
+                .starts_with("Response Link header: member 1 "),
+            "{}",
+            found[0].message
+        );
+        assert!(
+            found[1]
+                .message
+                .starts_with("Response Link header: member 3 "),
+            "{}",
+            found[1].message
+        );
+    }
+
+    /// The emptiness is the list's and not a member's, so a value written with
+    /// three gaps states it once — while the members' own defects beside it are
+    /// still counted per member.
+    #[test]
+    fn a_link_written_with_gaps_states_its_emptiness_once() {
+        let found = judge(
+            &crate::test_helpers::make_headers_from_octet_pairs(&[(
+                "Link",
+                b"</a>; rel=next, , , </b>; rel=next; rel=prev",
+            )]),
+            "Response",
+            true,
+        );
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec!["list_member_empty", "link_rel_duplicated"],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
     }
 
     /// The `>` and the DQUOTE do not nest, and a comma inside either is data.
