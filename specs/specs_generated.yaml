@@ -2687,7 +2687,7 @@ sources:
     snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_valid.rs
-      line: 157
+      line: 163
     - file: lint-http-rules/src/rules/cookie_path_valid.rs
       line: 176
   - label: cookie_domain_valid (2)
@@ -2695,7 +2695,7 @@ sources:
     snippet: If the attribute-name case-insensitively matches the string "Domain", the user agent MUST process the cookie-av as follows.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_valid.rs
-      line: 166
+      line: 172
   - label: cookie_lifecycle
     section: § 4.1.2.5
     snippet: The Secure attribute limits the scope of the cookie to "secure" channels

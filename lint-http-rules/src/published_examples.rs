@@ -902,7 +902,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "cookie_path_control_character_forbidden",
     "cookie_path_empty",
     "cookie_path_missing",
-    "cookie_same_site_invalid",
     "cookie_same_site_missing",
     "credentials_control_character_forbidden",
     "credentials_empty",
