@@ -114,12 +114,16 @@ impl RuleMeta for AcceptEncodingParameterValid {
     /// Both directions carry the field with a meaning of its own: a request
     /// states what codings a response may use, a response what the resource was
     /// willing to accept. §12.5.3 defines the two readings and gives them the
-    /// same syntax, which is why one grammar reads both.
+    /// same syntax, which is why one grammar reads both — and why the peer
+    /// answerable for a defect is the one whose section it was read from, not a
+    /// single presumption for the file. Presuming the client made a malformed
+    /// response `Accept-Encoding` the client's defect, which is a claim about
+    /// text the client never wrote.
     /// cite(RFC 9110 § 12.5.3): "When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response."
     /// cite(RFC 9110 § 12.5.3): "When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request."
     /// cite(RFC 9110 § 12.5.3): "The field value is evaluated the same way as in a request."
     fn party(&self) -> crate::rules::RuleParty {
-        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+        crate::rules::RuleParty::PerSite
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -191,15 +195,23 @@ impl Rule for AcceptEncodingParameterValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own, the finding it yields is kept, and it
+        // is blamed on the peer whose section it was read from. §12.5.3 gives
+        // the response's `Accept-Encoding` a meaning of its own — what the
+        // resource was willing to accept — so the server wrote it, and a defect
+        // in it is the server's. Reading the request first and stopping there
+        // meant a malformed value in a 415, which is where the field most often
+        // appears in a response, was never read at all.
+        let mut out = Vec::new();
+        {
             // The production the whole rule is a reading of. Two things about it
             // decide almost every branch below: a member is a coding and at most
             // one weight, and `codings` has exactly three alternatives.
             // cite(RFC 9110 § 12.5.3): "Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*""
             // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
-            let check_all = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            let check_all = |headers: &hyper::HeaderMap,
+                             party: crate::lint::Party|
+             -> Option<Violation> {
                 // Read as the octets the sender wrote, one `char` per octet.
                 // There are no quoted-strings anywhere in this field — a member
                 // is a `token`, one of two literals, and the weight's fixed
@@ -241,7 +253,7 @@ impl Rule for AcceptEncodingParameterValid {
                     // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                     for part in crate::helpers::list::sender_list_members(val) {
                         if part.is_empty() {
-                            return Some(ctx.report_with(
+                            return Some(ctx.by(party).report_with(
                                 &LIST_MEMBER_EMPTY,
                                 format!(
                                     "Accept-Encoding holds an empty list element; the field line reads '{val}'. Every position in `#( codings [ weight ] )` holds a coding, and a comma with nothing beside it holds none"
@@ -277,7 +289,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 // arithmetic reason, and the id names that
                                 // reason rather than this field.
                                 if primary.is_empty() {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         &TOKEN_EMPTY,
                                         format!(
                                             "Empty content-coding in Accept-Encoding member '{}'",
@@ -288,7 +300,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(primary)
                                 {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         token_character(c),
                                         format!("Invalid token '{}' in Accept-Encoding header", c),
                                     ));
@@ -317,7 +329,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 // — whether it sits at the end of the member or
                                 // between two others.
                                 if param.is_empty() {
-                                    return Some(ctx.report_with(&WEIGHT_MISSING, format!(
+                                    return Some(ctx.by(party).report_with(&WEIGHT_MISSING, format!(
                                         "Accept-Encoding member '{}' has a ';' with no weight after it",
                                         part
                                     )));
@@ -349,7 +361,7 @@ impl Rule for AcceptEncodingParameterValid {
                                         .is_some_and(|v| val.is_some_and(|t| t.len() != v.len()));
 
                                 if !name.eq_ignore_ascii_case("q") {
-                                    return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
+                                    return Some(ctx.by(party).report_with(&WEIGHT_MALFORMED, format!(
                                         "'{}' is not a weight, and a weight is the only thing an Accept-Encoding coding may carry (member '{}')",
                                         param, part
                                     )));
@@ -360,7 +372,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 // per field, and a shared entry may only cite a
                                 // sentence every rule declaring it states.
                                 if weight_seen {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         &WEIGHT_DUPLICATED,
                                         format!(
                                             "More than one weight in Accept-Encoding member '{}': §12.5.3 brackets one",
@@ -376,7 +388,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 // `parameter`, and this field has no parameter
                                 // list for the Note to be about.
                                 if whitespace_beside_equals {
-                                    return Some(ctx.report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                    return Some(ctx.by(party).report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
                                         "Accept-Encoding member '{}' writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
                                         part
                                     )));
@@ -388,7 +400,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 // as a single string, so there is no `=` here to
                                 // be absent from a pair this field never had.
                                 let Some(v) = val else {
-                                    return Some(ctx.report_with(&WEIGHT_MALFORMED, format!(
+                                    return Some(ctx.by(party).report_with(&WEIGHT_MALFORMED, format!(
                                         "'{}' is not a weight in Accept-Encoding member '{}': the production writes \"q=\" as one literal and this member stops at the name",
                                         name, part
                                     )));
@@ -396,7 +408,7 @@ impl Rule for AcceptEncodingParameterValid {
 
                                 // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                                 if !crate::helpers::qvalue::valid_qvalue(v) {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         &QVALUE_MALFORMED,
                                         format!(
                                             "Invalid qvalue '{}' in Accept-Encoding member '{}'",
@@ -416,18 +428,12 @@ impl Rule for AcceptEncodingParameterValid {
             // accept — and says its value is evaluated the same way. Only the
             // request was ever read, so a malformed one in a 415 response, which is
             // where the field most often appears, went unchecked.
-            if let Some(v) = check_all(&tx.request.headers) {
-                return Some(v);
-            }
+            out.extend(check_all(&tx.request.headers, crate::lint::Party::Client));
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_all(&resp.headers) {
-                    return Some(v);
-                }
+                out.extend(check_all(&resp.headers, crate::lint::Party::Server));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

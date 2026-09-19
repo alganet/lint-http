@@ -149,26 +149,25 @@ impl Rule for ExtensionHeadersRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+        // Each section is read on its own and the finding it yields is kept. An
+        // unregistered field name a request wrote is not one a response wrote,
+        // and a trailer section's names are not its header section's: each is a
+        // different peer's choice at a different point in the message. Stopping
+        // at the first meant one section's name stood in for every section after
+        // it. Within a section the first unlisted name is still the one
+        // reported.
+        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
 
-            // All four, in wire order, from the shared walk. A trailer field name is
-            // a field name, so the allowlist reaches it on the same terms; a
-            // transaction the upstream never answered has no response half; and
-            // which sections exist at all is the framing's answer, not this rule's.
-            // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
-            for (section, party, headers) in crate::helpers::headers::transaction_field_sections(tx)
-            {
-                if let Some(v) = check_section(section, party, headers, config, ctx) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+        // All four, in wire order, from the shared walk. A trailer field name is
+        // a field name, so the allowlist reaches it on the same terms; a
+        // transaction the upstream never answered has no response half; and
+        // which sections exist at all is the framing's answer, not this rule's.
+        // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
+        crate::helpers::headers::transaction_field_sections(tx)
+            .filter_map(|(section, party, headers)| {
+                check_section(section, party, headers, config, ctx)
+            })
+            .collect()
     }
 }
 

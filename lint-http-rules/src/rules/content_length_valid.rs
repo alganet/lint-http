@@ -96,9 +96,13 @@ impl Rule for ContentLengthValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. A
+        // request whose `Content-Length` does not derive says nothing about
+        // whether the response's does, and the two are different peers' framing
+        // of two different bodies. Within a section the precedence between the
+        // defects a value can carry is unchanged.
+        let mut out = Vec::new();
+        {
             // The field is defined by what it describes, not by direction, so it is checked
             // on both sides below. The `1*DIGIT` grammar and the §6.3 comma-list rule are
             // deliberately *not* re-quoted here: `validate_content_length` owns both, and a
@@ -149,20 +153,14 @@ impl Rule for ContentLengthValid {
             };
 
             // Request
-            if let Some(v) = check(&tx.request.headers, crate::lint::Party::Client) {
-                return Some(v);
-            }
+            out.extend(check(&tx.request.headers, crate::lint::Party::Client));
 
             // Response
             if let Some(resp) = &tx.response {
-                if let Some(v) = check(&resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
+                out.extend(check(&resp.headers, crate::lint::Party::Server));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

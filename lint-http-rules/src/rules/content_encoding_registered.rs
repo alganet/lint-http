@@ -125,9 +125,13 @@ impl Rule for ContentEncodingRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. The
+        // coding a response applied to its content and the codings a request
+        // said it would accept are two peers' values, and an unlisted name in
+        // each is two defects. Within a section the first unlisted coding is
+        // still the one reported.
+        let mut out = Vec::new();
+        {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             // Helper to check a single header value against allowed list
             // `is_accept` distinguishes the two grammars. They are not the same vocabulary:
@@ -222,15 +226,13 @@ impl Rule for ContentEncodingRegistered {
                     &resp.headers,
                     "content-encoding",
                 ) {
-                    if let Some(v) = check_value(
+                    out.extend(check_value(
                         "Content-Encoding",
                         &val,
                         &config.allowed,
                         false,
                         crate::lint::Party::Server,
-                    ) {
-                        return Some(v);
-                    }
+                    ));
                 }
             }
 
@@ -239,20 +241,16 @@ impl Rule for ContentEncodingRegistered {
                 &tx.request.headers,
                 "accept-encoding",
             ) {
-                if let Some(v) = check_value(
+                out.extend(check_value(
                     "Accept-Encoding",
                     &val,
                     &config.allowed,
                     true,
                     crate::lint::Party::Client,
-                ) {
-                    return Some(v);
-                }
+                ));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

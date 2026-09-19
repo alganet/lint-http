@@ -14,7 +14,7 @@ Check that a `Content-Type` header — in a request or a response — reads as a
 
 **A wildcard is reported**, though `*` is a legal `token` and `text/*` parses as a `media-type`. The asterisk is defined in §12.5.1 as what groups media types into *ranges* — `media-range`, which Accept takes and Content-Type does not — so a Content-Type carrying one names a set where a single media type is expected. This is the rule's judgement, not a grammar violation. (`*/plain` is rejected too, though it is not a valid `media-range` either: `media-range` allows `*/*` and `type/*`, never a wildcard type with a concrete subtype.)
 
-**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A rule yields one finding, and which value applies comes before whether a value is well formed.
+**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A section yields one finding, and which value applies comes before whether a value is well formed. The precedence is within a section: a defective request `Content-Type` and a defective response `Content-Type` are two peers' defects and are both reported.
 
 **Whitespace beside a parameter's `=` is reported.** RFC 9110 §5.6.6 forbids it in the production and again in prose — not even the "bad" whitespace HTTP tolerates elsewhere — so `charset =utf-8` derives from nothing. This rule used to trim it and publish the leniency here; the other two ways a `parameter` fails to derive were already reported from the same reader, and enforcing two thirds of one sentence made a claim about the third that nothing backed.
 

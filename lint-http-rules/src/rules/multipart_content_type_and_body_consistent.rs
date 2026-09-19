@@ -123,9 +123,12 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. A
+        // request whose multipart body does not agree with the boundary its
+        // `Content-Type` declares says nothing about the response's body, and
+        // the two are different peers' content.
+        let mut out = Vec::new();
+        {
             // Why a MIME grammar governs an HTTP body at all, and why the boundary
             // named in the header is the one the body must use: RFC 9110 adopts
             // §5.1.1 for every multipart type and makes the parameter part of the
@@ -188,33 +191,27 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
             // every counted octet retained and so is marked untruncated. A
             // multipart body cut off before its closing delimiter is missing that
             // delimiter for a reason that is not the sender's.
-            if let Some(v) = check_message(
+            out.extend(check_message(
                 "request",
                 crate::lint::Party::Client,
                 &tx.request.headers,
                 tx.request_body
                     .as_ref()
                     .filter(|_| !tx.request_body_over_limit && !tx.request.body_interrupted),
-            ) {
-                return Some(v);
-            }
+            ));
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_message(
+                out.extend(check_message(
                     "response",
                     crate::lint::Party::Server,
                     &resp.headers,
                     tx.response_body
                         .as_ref()
                         .filter(|_| !tx.response_body_over_limit && !resp.body_interrupted),
-                ) {
-                    return Some(v);
-                }
+                ));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 
@@ -468,6 +465,44 @@ mod tests {
             .expect("a body with no delimiter line is a finding")
             .message;
         assert!(message.contains(r"--a\\b"), "{message}");
+    }
+
+    /// Both messages carry a multipart body missing its delimiter, and both are
+    /// reported. The request's finding used to end the reading, so a response
+    /// whose body did not match the boundary it declared went unreported
+    /// whenever the request's body had the same defect — two bodies, two
+    /// senders, one finding between them.
+    #[test]
+    fn each_message_is_reported_and_neither_ends_the_other() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "multipart/mixed; boundary=abc")],
+        );
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-type",
+            "multipart/mixed; boundary=xyz",
+        )]);
+        tx.request_body = Some(Bytes::from_static(b"no boundaries here"));
+        tx.response_body = Some(Bytes::from_static(b"no boundaries here"));
+
+        let rule = MultipartContentTypeAndBodyConsistent;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            found.len(),
+            2,
+            "one finding per offending message: {found:?}"
+        );
+        assert!(found
+            .iter()
+            .any(|v| v.party == Some(crate::lint::Party::Client) && v.message.contains("--xyz")));
+        assert!(found
+            .iter()
+            .any(|v| v.party == Some(crate::lint::Party::Server) && v.message.contains("--abc")));
     }
 
     #[test]

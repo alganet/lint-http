@@ -92,9 +92,12 @@ impl Rule for ContentMd5VsDigestPreference {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. A
+        // request offering the obsolete digest beside the current one says
+        // nothing about whether the response does, and the redundancy is the
+        // choice of whichever peer wrote the pair.
+        let mut out = Vec::new();
+        {
             // Helper to check a header map for both Content-Digest and Content-MD5.
             // The same check runs over the request and the response below, which is
             // what this sentence licenses — Content-Digest is defined for both
@@ -130,20 +133,22 @@ impl Rule for ContentMd5VsDigestPreference {
             };
 
             // Check request
-            if let Some(v) = check_map("request", &tx.request.headers, crate::lint::Party::Client) {
-                return Some(v);
-            }
+            out.extend(check_map(
+                "request",
+                &tx.request.headers,
+                crate::lint::Party::Client,
+            ));
 
             // Check response
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_map("response", &resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
+                out.extend(check_map(
+                    "response",
+                    &resp.headers,
+                    crate::lint::Party::Server,
+                ));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

@@ -133,9 +133,14 @@ impl Rule for AuthSchemeRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. The
+        // scheme a server names in a challenge and the scheme a client names in
+        // its credentials are two peers' choices, and an unregistered name in
+        // each is two defects — a challenge inviting a scheme nobody registered
+        // said nothing about the credentials sent back to it. Within a section
+        // the first unregistered scheme is still the one reported.
+        let mut out = Vec::new();
+        {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             // The registry question, asked of one scheme token that is already
             // known to be one.
@@ -176,24 +181,22 @@ impl Rule for AuthSchemeRegistered {
             // field's encoding. A value that will not group is not this rule's
             // to report.
             if let Some(resp) = &tx.response {
-                if let Some(s) = crate::helpers::headers::combined_field_value_as_written(
-                    &resp.headers,
-                    "www-authenticate",
-                ) {
-                    if let Ok(challenges) = crate::helpers::auth::split_and_group_challenges(&s) {
-                        for challenge in challenges {
-                            let scheme =
-                                challenge.split(char::is_whitespace).next().unwrap().trim();
-                            if let Some(v) = check_registered(
-                                "WWW-Authenticate",
-                                scheme,
-                                crate::lint::Party::Server,
-                            ) {
-                                return Some(v);
-                            }
+                out.extend((|| -> Option<Violation> {
+                    let s = crate::helpers::headers::combined_field_value_as_written(
+                        &resp.headers,
+                        "www-authenticate",
+                    )?;
+                    let challenges = crate::helpers::auth::split_and_group_challenges(&s).ok()?;
+                    for challenge in challenges {
+                        let scheme = challenge.split(char::is_whitespace).next().unwrap().trim();
+                        if let Some(v) =
+                            check_registered("WWW-Authenticate", scheme, crate::lint::Party::Server)
+                        {
+                            return Some(v);
                         }
                     }
-                }
+                    None
+                })());
             }
 
             // The credentials a request presents. `Authorization = credentials`
@@ -202,22 +205,23 @@ impl Rule for AuthSchemeRegistered {
             // each. A value whose framework structure is wrong is
             // `authorization_credentials_valid`'s finding, so what is taken
             // from each line here is only the scheme in front of it.
-            for hv in tx.request.headers.get_all("authorization").iter() {
-                let v = crate::helpers::headers::field_line_as_written(hv);
-                let scheme = v.split(char::is_whitespace).next().unwrap_or("").trim();
-                if scheme.is_empty() {
-                    continue;
+            out.extend((|| -> Option<Violation> {
+                for hv in tx.request.headers.get_all("authorization").iter() {
+                    let v = crate::helpers::headers::field_line_as_written(hv);
+                    let scheme = v.split(char::is_whitespace).next().unwrap_or("").trim();
+                    if scheme.is_empty() {
+                        continue;
+                    }
+                    if let Some(vv) =
+                        check_registered("Authorization", scheme, crate::lint::Party::Client)
+                    {
+                        return Some(vv);
+                    }
                 }
-                if let Some(vv) =
-                    check_registered("Authorization", scheme, crate::lint::Party::Client)
-                {
-                    return Some(vv);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+                None
+            })());
+        }
+        out
     }
 }
 

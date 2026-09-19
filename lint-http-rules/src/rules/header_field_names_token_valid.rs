@@ -127,24 +127,23 @@ impl Rule for HeaderFieldNamesTokenValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // All four, in wire order, from the shared walk. A trailer field name is
-            // a field name, so the same grammar reaches it; a transaction the
-            // upstream never answered has no response half; and which sections exist
-            // at all is the framing's answer, not this rule's.
-            // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
-            for (section, party, headers) in crate::helpers::headers::transaction_field_sections(tx)
-            {
-                if let Some(v) = check_section(section, party, headers, ctx) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+        // Each section is read on its own and the finding it yields is kept. A
+        // field name the request wrote is not one the response wrote, and a
+        // trailer section's names are not its header section's: each is a
+        // different list of names written at a different point by a peer that
+        // could have got the others right. Stopping at the first meant one
+        // section's defect stood in for every section after it, and the ones
+        // never read were silent rather than clean. Within a section the first
+        // offending name is still the one reported.
+        //
+        // All four, in wire order, from the shared walk. A trailer field name is
+        // a field name, so the same grammar reaches it; a transaction the
+        // upstream never answered has no response half; and which sections exist
+        // at all is the framing's answer, not this rule's.
+        // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
+        crate::helpers::headers::transaction_field_sections(tx)
+            .filter_map(|(section, party, headers)| check_section(section, party, headers, ctx))
+            .collect()
     }
 }
 
@@ -445,6 +444,54 @@ mod tests {
             }
         }
         assert!(saw_a_finding, "the guard never produced a finding");
+    }
+
+    /// All four sections offend, and all four are reported. The walk used to
+    /// stop at the first, so a `DQUOTE` in the request's header section stood
+    /// in for one in every section after it — and the sections never read were
+    /// silent rather than clean, which reads from a report as conforming.
+    #[test]
+    fn every_offending_section_is_reported_and_none_ends_the_walk() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "text/plain")],
+        );
+        tx.request.headers = section_with("x\"bad", "v");
+        tx.request.trailers = Some(section_with("x\"bad", "v"));
+        let resp = tx.response.as_mut().expect("a response");
+        resp.headers = section_with("x\"bad", "v");
+        resp.trailers = Some(section_with("x\"bad", "v"));
+
+        let found = crate::test_helpers::run_rule_all(
+            &HeaderFieldNamesTokenValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                HeaderFieldNamesTokenValid.id(),
+            ]),
+        );
+        assert_eq!(
+            found.len(),
+            4,
+            "one finding per offending section: {found:?}"
+        );
+        for section in [
+            "request header section",
+            "request trailer section",
+            "response header section",
+            "response trailer section",
+        ] {
+            assert!(
+                found.iter().any(|v| v.message.contains(section)),
+                "no finding names the {section}: {found:?}"
+            );
+        }
+        assert!(found
+            .iter()
+            .any(|v| v.party == Some(crate::lint::Party::Client)));
+        assert!(found
+            .iter()
+            .any(|v| v.party == Some(crate::lint::Party::Server)));
     }
 
     #[test]
