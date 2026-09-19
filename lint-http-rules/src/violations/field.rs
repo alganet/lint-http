@@ -122,11 +122,23 @@ defects! {
     /// that takes the first, or the last, silently obeys one of two
     /// instructions.
     ///
-    /// `warn` rather than `error`: every value is legible and most recipients
-    /// resolve the ambiguity the same way, so this is a sender defect a
-    /// deployment can carry rather than a message a recipient must reject.
-    /// Where a document says otherwise about its own field — `Content-Length`'s
-    /// framing, for one — the rule reading that field says so at its own site.
+    /// `error`, because § 5.3 is a MUST NOT and it binds the sender. This
+    /// entry used to argue itself down to `warn` — every value is legible,
+    /// most recipients resolve the ambiguity the same way, so a deployment can
+    /// carry it — and that is an argument about what a *recipient* survives,
+    /// which is not what this catalogue ranks on. The paragraph outlived the
+    /// level it was defending. Where a document says something further about
+    /// its own field — `Content-Length`'s framing, for one — the rule reading
+    /// that field says so at its own site.
+    ///
+    /// **A field's definition is not the only thing that can admit the second
+    /// line.** § 5.3's exception turns on the definition and no version
+    /// rewrites one, but a protocol document may name a field and hand the
+    /// split back: RFC 9113 § 8.2.3 and RFC 9114 § 4.2.1 do exactly that for
+    /// `Cookie`, for compression, requiring the lines rejoined with `"; "` on
+    /// the way out. So a declarer of this entry that counts field lines of a
+    /// named field owes the version its field section arrived on —
+    /// `singleton_fields_not_repeated` is where that is written down.
     ///
     // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
     FIELD_LINE_DUPLICATED = {

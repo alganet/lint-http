@@ -6039,7 +6039,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 168
     - file: lint-http-rules/src/violations/field.rs
-      line: 239
+      line: 251
   - label: allow_header_method_tokens_valid (2)
     section: § 10.2.1
     snippet: An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration.
@@ -6787,7 +6787,7 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 179
     - file: lint-http-rules/src/violations/field.rs
-      line: 218
+      line: 230
   - label: context_fields_direction (2)
     section: § 10.1.1
     snippet: The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server in order to properly handle this request.
@@ -7085,7 +7085,7 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 314
     - file: lint-http-rules/src/violations/field.rs
-      line: 195
+      line: 207
   - label: extension_headers_registered (5)
     section: § 5.1
     snippet: Other recipients SHOULD ignore unrecognized header and trailer fields
@@ -8223,7 +8223,7 @@ sources:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
       line: 131
     - file: lint-http-rules/src/violations/field.rs
-      line: 131
+      line: 143
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.5
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
@@ -11852,7 +11852,7 @@ sources:
     snippet: Any message containing connection-specific header fields MUST be treated as malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/violations/field.rs
-      line: 167
+      line: 179
   - label: header_field_names_token_valid
     section: § 8.2.1
     snippet: HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed
@@ -12028,7 +12028,7 @@ sources:
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 77
     - file: lint-http-rules/src/violations/field.rs
-      line: 166
+      line: 178
   - label: no_connection_specific_fields
     section: § 8.2.2
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/2 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/2 endpoints as malformed (Section 8.1.1).
@@ -12449,7 +12449,7 @@ sources:
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 79
     - file: lint-http-rules/src/violations/field.rs
-      line: 168
+      line: 180
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.html
   fragments:
