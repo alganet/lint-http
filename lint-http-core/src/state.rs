@@ -7,7 +7,7 @@
 use chrono::Utc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -55,7 +55,20 @@ struct Inner {
     /// Index mapping client to the resource strings it has entries for.  Lets
     /// `collect_for_client` (behind the origin-scoped queries) read just that
     /// client's keys instead of scanning every key in `store`.
-    client_index: HashMap<ClientIdentifier, HashSet<String>>,
+    ///
+    /// **Ordered, and that is the whole of why it is a `BTreeSet`.**
+    /// `collect_for_client` walks this set to build one client's history, and a
+    /// `HashSet` walks it in an order Rust randomizes per *process* — so the
+    /// history handed to a rule was in a different order in every run. The
+    /// timestamp sort the origin-scoped queries apply is stable, which means it
+    /// preserves that order for every pair of transactions stamped at the same
+    /// instant instead of correcting it, and a capture whose records share a
+    /// timestamp is entirely such pairs. Four runs in thirty of one such file
+    /// reported a different defect for the same request, from the same binary.
+    /// A linter's report has to be a function of its input, so the traversal is
+    /// ordered by the resource string: arbitrary as a ranking, reproducible as
+    /// an order, and that is the property being bought.
+    client_index: HashMap<ClientIdentifier, BTreeSet<String>>,
 }
 
 /// Thread-safe store for transaction state with bounded history.
@@ -1004,6 +1017,55 @@ mod tests {
         );
         drop(inner);
         assert!(store.collect_for_client(&client).is_empty());
+    }
+
+    /// One client's history comes back in an order the input decides, not one
+    /// the process does.
+    ///
+    /// **Eight resources recorded at one instant.** Every transaction here
+    /// carries the same timestamp, so the stable sort the origin-scoped queries
+    /// apply preserves whatever order this function produced — it corrects
+    /// nothing and cannot. With a `HashSet` behind `client_index` that order was
+    /// Rust's per-process hash seed: one file, one binary, a different report in
+    /// four runs of thirty, because a rule that reconstructs state from history
+    /// by last-write-wins was handed the writes in a different sequence.
+    ///
+    /// Eight is chosen so the assertion cannot pass by luck: one of 40320
+    /// orderings is the sorted one.
+    #[test]
+    fn one_clients_history_is_ordered_by_its_input_and_not_by_a_hash_seed() {
+        let store = StateStore::new(300, 10);
+        let client = make_client();
+        let at = Utc::now();
+
+        // Inserted in an order that is neither sorted nor reversed, so a
+        // traversal borrowing insertion order fails this too.
+        for path in ["/d", "/a", "/h", "/c", "/f", "/b", "/g", "/e"] {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.client = client.clone();
+            tx.request.uri = format!("http://example.com{path}");
+            tx.timestamp = at;
+            store.record_transaction(&tx);
+        }
+
+        let uris: Vec<String> = store
+            .collect_for_client(&client)
+            .iter()
+            .map(|tx| tx.request.uri.clone())
+            .collect();
+        assert_eq!(
+            uris,
+            [
+                "http://example.com/a",
+                "http://example.com/b",
+                "http://example.com/c",
+                "http://example.com/d",
+                "http://example.com/e",
+                "http://example.com/f",
+                "http://example.com/g",
+                "http://example.com/h",
+            ],
+        );
     }
 
     #[test]
