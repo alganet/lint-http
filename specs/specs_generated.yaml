@@ -9977,7 +9977,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 184
     - file: lint-http-rules/src/rules/www_authenticate_challenge_syntax.rs
-      line: 146
+      line: 157
   - label: status_code_semantics (5)
     section: § 11.7.1
     snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
