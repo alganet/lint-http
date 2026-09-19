@@ -4649,7 +4649,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 249
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 732
+      line: 775
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 335
   - label: alt_svc_h3_advertisement_valid (2)
@@ -4687,7 +4687,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 154
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 571
+      line: 622
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 382
   - label: alt_svc_h3_advertisement_valid (6)
@@ -4717,7 +4717,7 @@ sources:
     snippet: This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 816
+      line: 882
   - label: alt_svc_header_syntax (2)
     section: § 2
     snippet: Note that for the purpose of this specification, an ALPN protocol name implicitly includes TLS in the suite of protocols it identifies, unless specified otherwise in its definition.
@@ -4729,7 +4729,7 @@ sources:
     snippet: Alt-Svc MAY occur in any HTTP response message, regardless of the status code.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 749
+      line: 794
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 359
   - label: alt_svc_header_syntax (4)
@@ -4807,7 +4807,7 @@ sources:
     snippet: alternative   = protocol-id "=" alt-authority
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 562
+      line: 613
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 415
     - file: lint-http-rules/src/violations/alt_svc.rs
@@ -4817,7 +4817,7 @@ sources:
     snippet: protocol-id   = token ; percent-encoded ALPN protocol name
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 563
+      line: 614
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 141
   - label: alt_svc_header_syntax (15)
@@ -6173,7 +6173,7 @@ sources:
     snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 733
+      line: 776
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 336
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -7833,7 +7833,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 106
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 817
+      line: 883
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 137
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
@@ -8347,7 +8347,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 180
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 790
+      line: 839
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 660
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -8779,7 +8779,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 89
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 564
+      line: 615
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 422
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
@@ -8865,7 +8865,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 250
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 765
+      line: 812
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 371
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs

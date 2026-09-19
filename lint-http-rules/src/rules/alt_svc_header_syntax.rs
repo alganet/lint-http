@@ -543,7 +543,7 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<Defect> {
 }
 
 /// One `alt-value = alternative *( OWS ";" OWS parameter )`.
-fn check_alt_value(member: &str) -> Option<Defect> {
+fn check_alt_value(member: &str) -> Vec<Defect> {
     let shown = shown_in_finding(member);
     // The splitter always pushes a trailing segment, so there is always a
     // first one; `alt-value` is an `alternative` with the parameter group
@@ -553,6 +553,57 @@ fn check_alt_value(member: &str) -> Option<Defect> {
         .split_first()
         .expect("the splitter yields at least one segment");
 
+    // Everything the alternative reader answers is about whether this member
+    // *is* an `alt-value` at all: with no '=' to split on, or a protocol-id
+    // that is not a `token`, there is no alternative to read an authority out
+    // of and no ground for a parameter to stand on. So it ends the member,
+    // where the two readings below do not.
+    let authority = match alternative_defect(&shown, alternative) {
+        Err(defect) => return vec![defect],
+        Ok(authority) => authority,
+    };
+
+    // An authority a recipient cannot reach does not make a `ma` of `x` any
+    // less of a correction, and a member naming three parameters badly is three
+    // corrections: these are independent readings of a member that did parse.
+    let mut found = Vec::new();
+    found.extend(check_alt_authority(&shown, authority));
+    let mut saw_an_empty_parameter = false;
+    for parameter in parameters {
+        // `*( OWS ";" OWS parameter )` repeats a group holding one parameter,
+        // so two adjacent semicolons produce a repetition with nothing in it.
+        // Stated once per member for the same reason the empty list element is
+        // stated once per field: the sentence is about the member, so a member
+        // written with three gaps would otherwise carry three copies of it.
+        //
+        // The brackets § 5.6.6 puts around its own `[ parameter ]` are what
+        // makes an empty repetition conforming there and a defect here, which
+        // is why the entry is this field's rather than that subject's.
+        if parameter.is_empty() {
+            saw_an_empty_parameter = true;
+            continue;
+        }
+        found.extend(check_parameter(&shown, parameter));
+    }
+    if saw_an_empty_parameter {
+        found.push(Defect::named(
+            &ALT_SVC_PARAMETER_EMPTY,
+            format!(
+                "Alt-Svc alt-value '{shown}' carries a semicolon with no parameter after it. Each repetition of `*( OWS \";\" OWS parameter )` holds one `parameter`, and a `parameter` is a name, an '=' and a value"
+            ),
+        ));
+    }
+    found
+}
+
+/// Whether `alternative` is an `alternative` at all, and the `alt-authority`
+/// it names if it is.
+///
+/// `alternative = protocol-id "=" alt-authority`, and every defect below is a
+/// reason the halves cannot be told apart or the left one is not a
+/// `protocol-id`. Each ends the reading of the member, because what follows
+/// the delimiter is only an authority once there is a delimiter.
+fn alternative_defect<'a>(shown: &str, alternative: &'a str) -> Result<&'a str, Defect> {
     // The first `=` is the delimiter and not a guess: `protocol-id` is a
     // `token`, `=` is not a `tchar`, and RFC 7838's own escaping table prints
     // the ALPN name `w=x:y#z` as the `protocol-id` `w%3Dx%3Ay#z` -- the
@@ -570,7 +621,7 @@ fn check_alt_value(member: &str) -> Option<Defect> {
         // because a reader can say how its sender got there.
         // cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
         if alternative.eq_ignore_ascii_case(CLEAR) {
-            return Some(Defect::named(
+            return Err(Defect::named(
                 &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
                 format!(
                     "Alt-Svc carries '{}' where the keyword is spelled `%s\"clear\"` -- a case-sensitive string, so this value is read as an `alt-value` instead, and an `alt-value` opens with `protocol-id \"=\" alt-authority`",
@@ -578,7 +629,7 @@ fn check_alt_value(member: &str) -> Option<Defect> {
                 ),
             ));
         }
-        return Some(Defect::named(
+        return Err(Defect::named(
             &ALT_SVC_ALTERNATIVE_EQUALS_MISSING,
             format!(
                 "Alt-Svc alt-value '{shown}' has no '=' in its alternative. `alternative` is `protocol-id \"=\" alt-authority`, so a recipient reading this finds a protocol identifier and no alternative to reach it at"
@@ -586,7 +637,7 @@ fn check_alt_value(member: &str) -> Option<Defect> {
         ));
     };
     if whitespace_beside_delimiter(protocol_id, authority) {
-        return Some(Defect::named(
+        return Err(Defect::named(
             &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
             format!(
                 "Alt-Svc alt-value '{shown}' has whitespace beside the '=' of its alternative. `alternative` prints `protocol-id \"=\" alt-authority` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon before a parameter"
@@ -594,7 +645,7 @@ fn check_alt_value(member: &str) -> Option<Defect> {
         ));
     }
     if protocol_id.is_empty() {
-        return Some(Defect::named(
+        return Err(Defect::named(
             &TOKEN_EMPTY,
             format!(
                 "Alt-Svc alt-value '{shown}' has an empty protocol-id. `protocol-id` is a `token`, and `token` is `1*tchar`"
@@ -602,7 +653,7 @@ fn check_alt_value(member: &str) -> Option<Defect> {
         ));
     }
     if let Some(c) = crate::helpers::token::find_invalid_token_char(protocol_id) {
-        return Some(Defect::named(
+        return Err(Defect::named(
             token_character(c),
             format!(
                 "Alt-Svc protocol-id '{}' holds {}, which is no `tchar`. An ALPN protocol name is an octet sequence with no constraints of its own, so anything a `token` will not carry is written percent-encoded",
@@ -612,22 +663,14 @@ fn check_alt_value(member: &str) -> Option<Defect> {
         ));
     }
     if let Some(defect) = protocol_id_encoding_defect(protocol_id) {
-        return Some(defect.in_context(|message| {
+        return Err(defect.in_context(|message| {
             format!(
                 "Alt-Svc protocol-id '{}' is not the one spelling this field allows for its ALPN protocol name: {message}",
                 shown_in_finding(protocol_id)
             )
         }));
     }
-    if let Some(defect) = check_alt_authority(&shown, authority) {
-        return Some(defect);
-    }
-    for parameter in parameters {
-        if let Some(defect) = check_parameter(&shown, parameter) {
-            return Some(defect);
-        }
-    }
-    None
+    Ok(authority)
 }
 
 /// The specification references this rule declares, each named so a finding
@@ -741,13 +784,17 @@ impl Rule for AltSvcHeaderSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // The three verdicts above the member walk each answer for the whole
+        // field -- there is no field, the quoting makes the member boundaries a
+        // guess, or the value is neither half of the alternation -- so each ends
+        // the reading. The walk below them answers per member and collects.
+        let finding = || -> Vec<Violation> {
             // No status gate, and the sentence below is the whole reason there is
             // none: every response is a response this field may ride on.
             // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
-            let resp = tx.response.as_ref()?;
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
 
             // One `char` per octet, because the findings below are about what a
             // sender wrote: `to_str` would fold a field carrying `obs-text` into
@@ -763,24 +810,26 @@ impl Rule for AltSvcHeaderSyntax {
             // and the join here writes the comma alone -- which is why the member
             // walk below trims `OWS` rather than assuming there is none.
             // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
-            let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
+            let Some(value) = combined_field_value_as_written(&resp.headers, "alt-svc") else {
+                return Vec::new();
+            };
             let value = trim_ows(&value);
 
             if value == CLEAR {
-                return None;
+                return Vec::new();
             }
 
             // A quote that never closes makes the member list untrustworthy: every
             // separator after the stray DQUOTE stops being one, so the count of
             // members and the identity of each is a guess.
             if !quoting_is_balanced(value) {
-                return Some(ctx.report_with(
+                return vec![ctx.report_with(
                     &QUOTED_STRING_DELIMITER_MISSING,
                     format!(
                         "Alt-Svc value '{}' has a DQUOTE that never closes. `alt-authority` is a `quoted-string` and a `parameter`'s value may be one, so an unterminated quote leaves every comma and semicolon after it inside a string that has no end",
                         shown_in_finding(value)
                     ),
-                ));
+                )];
             }
 
             let members = list_members_as_written(value);
@@ -789,10 +838,10 @@ impl Rule for AltSvcHeaderSyntax {
             // was ruled out above -- so an empty value is neither.
             // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
             if members.iter().all(|m| m.is_empty()) {
-                return Some(ctx.report_with(
+                return vec![ctx.report_with(
                     &LIST_MEMBER_MISSING,
                     "Alt-Svc carries an empty field value. The field is either the keyword `clear` or `1#alt-value`, whose floor is one alternative -- so this value is neither, and it advertises nothing".into(),
-                ));
+                )];
             }
 
             // The parenthetical is the finding, and it is the document's own word
@@ -800,37 +849,49 @@ impl Rule for AltSvcHeaderSyntax {
             // The sentence saying so is on the entry, with the recipient
             // behaviour that ranks it above everything else this rule reports.
             if members.contains(&CLEAR) {
-                return Some(ctx.report_with(
+                return vec![ctx.report_with(
                     &ALT_SVC_CLEAR_CONFLICTING,
                     format!(
                         "Alt-Svc response carries both the keyword `clear` and alternative services ('{}'). `Alt-Svc = clear / 1#alt-value` is an alternation, so a value holding both derives from neither half -- the document calls this an invalid reply and has a client invalidate the alternatives named beside the keyword",
                         shown_in_finding(value)
                     ),
-                ));
+                )];
             }
 
+            // `1#alt-value` is a list, and an origin advertising h3 advertises
+            // the drafts beside it -- most Alt-Svc values in the wild name more
+            // than one alternative. Each is a separate thing the sender wrote
+            // and a separate thing to correct, so the walk collects.
+            let mut out = Vec::new();
+            let mut saw_an_empty_member = false;
             for member in members {
                 if member.is_empty() {
-                    // The `#rule` this document imports is the one RFC 9110 § 5.6.1
-                    // now carries, and both put the requirement on the sender.
-                    // cite(RFC 7838 § 1.1): "This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230]."
-                    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                    return Some(ctx.report_with(
-                        &LIST_MEMBER_EMPTY,
-                        format!(
-                            "Alt-Svc value '{}' holds an empty list element. A recipient counts the alternatives it can read and drops this one, so what the list advertises and what it looks like differ",
-                            shown_in_finding(value)
-                        ),
-                    ));
+                    // Stated once however many gaps the value carries: the
+                    // sentence is about the list rather than about a member, so
+                    // repeating it per gap would be one finding written twice.
+                    saw_an_empty_member = true;
+                    continue;
                 }
-                if let Some(defect) = check_alt_value(member) {
-                    return Some(ctx.report_with(defect.def, defect.message));
+                for defect in check_alt_value(member) {
+                    out.push(ctx.report_with(defect.def, defect.message));
                 }
             }
-
-            None
+            if saw_an_empty_member {
+                // The `#rule` this document imports is the one RFC 9110 § 5.6.1
+                // now carries, and both put the requirement on the sender.
+                // cite(RFC 7838 § 1.1): "This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230]."
+                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                out.push(ctx.report_with(
+                    &LIST_MEMBER_EMPTY,
+                    format!(
+                        "Alt-Svc value '{}' holds an empty list element. A recipient counts the alternatives it can read and drops this one, so what the list advertises and what it looks like differ",
+                        shown_in_finding(value)
+                    ),
+                ));
+            }
+            out
         };
-        Vec::from_iter(finding())
+        finding()
     }
 }
 
@@ -847,13 +908,32 @@ mod tests {
         crate::test_helpers::make_test_config_with_enabled_rules(&["alt_svc_header_syntax"])
     }
 
-    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        crate::test_helpers::run_rule(
+    fn check_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
+        crate::test_helpers::run_rule_all(
             &AltSvcHeaderSyntax,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config(),
         )
+    }
+
+    /// The cases below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported: a fixture that
+    /// silently drops a second finding cannot see this walk regress.
+    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let mut found = check_all(tx);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
+    }
+
+    fn run_all(headers: &[(&str, &str)]) -> Vec<Violation> {
+        check_all(&crate::test_helpers::make_test_transaction_with_response(
+            200, headers,
+        ))
     }
 
     fn run(headers: &[(&str, &str)]) -> Option<Violation> {
@@ -1157,5 +1237,59 @@ mod tests {
     #[test]
     fn needs_a_response() {
         assert!(AltSvcHeaderSyntax.needs_response());
+    }
+
+    /// `Alt-Svc = clear / 1#alt-value`, and an origin advertising h3 advertises
+    /// the drafts beside it: most Alt-Svc values in this field's traffic name
+    /// more than one alternative. Two of them written badly are two things to
+    /// fix, and each finding names the member it is about.
+    #[test]
+    fn a_value_naming_two_bad_alternatives_answers_about_both() {
+        let found = run_all(&[("alt-svc", "h3=\"a:1\"; ma=, h2")]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "alt_svc_parameter_value_empty",
+                "alt_svc_alternative_equals_missing"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The same masking one level down, inside a single alt-value: the
+    /// `*( OWS ";" OWS parameter )` repetition was walked with the same early
+    /// return, and the authority ahead of it ended the walk before it began.
+    #[test]
+    fn a_member_with_a_bad_authority_and_a_bad_parameter_answers_about_both() {
+        let found = run_all(&[("alt-svc", "h3=\"a:z\"; persist=2")]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["uri_port_character_forbidden", "alt_svc_persist_invalid"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The empty list element is the list's defect and not a member's, and the
+    /// empty parameter is the member's and not a parameter's — so each is
+    /// stated once however many gaps are written, while the members' own
+    /// defects beside them are still counted per member.
+    #[test]
+    fn the_gaps_of_a_list_and_of_a_member_are_each_stated_once() {
+        let found = run_all(&[("alt-svc", "h3=\"a:1\"; ; , , , h2")]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "alt_svc_parameter_empty",
+                "alt_svc_alternative_equals_missing",
+                "list_member_empty"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 }
