@@ -117,11 +117,20 @@ impl Rule for SunsetAndDeprecationConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per `Sunset` line that contradicts the `Deprecation`, and
+        // the asymmetry between the two fields is measured rather than assumed:
+        // a repeated `Deprecation` is `deprecation_header_syntax`'s finding, so
+        // which of two a reader acts on is already reported and taking the first
+        // states nothing untrue; a repeated `Sunset` is nobody's, so a line read
+        // nowhere is a line read not at all. That is the same reason
+        // `date_and_time_headers_consistent` walks the field, and this rule
+        // named that walk while answering about one line.
+        let findings = || -> Vec<Violation> {
+            let mut out = Vec::new();
             // only applies to responses
-            let resp = tx.response.as_ref()?;
+            let Some(resp) = tx.response.as_ref() else {
+                return out;
+            };
 
             // Get Sunset header if present and parseable. Recipient parse (all three
             // HTTP-date formats, helper-owned), so a failure is "not any HTTP-date" —
@@ -130,17 +139,21 @@ impl Rule for SunsetAndDeprecationConsistent {
             //
             // A value no recipient can read is `date_and_time_headers_consistent`'s
             // finding, not this rule's: it parses the same field for its own
-            // comparison, judges every field line where this reads only the
-            // first, and its `description()` names `Sunset` among the fields it
-            // owns the reading of. There is nothing here to compare it with, so
-            // there is nothing to say.
-            let sunset_opt = match crate::helpers::headers::get_header_str(&resp.headers, "sunset")
-            {
-                Some(s) => crate::http_date::parse_http_date_to_datetime(s)
-                    .ok()
-                    .map(|dt| (s.to_string(), dt)),
-                None => None,
-            };
+            // comparison and its `description()` names `Sunset` among the fields
+            // it owns the reading of. There is nothing here to compare such a
+            // line with, so there is nothing to say about it -- which is why an
+            // unreadable line is skipped and not counted.
+            let sunsets: Vec<(String, chrono::DateTime<chrono::Utc>)> = resp
+                .headers
+                .get_all("sunset")
+                .iter()
+                .filter_map(|hv| {
+                    let text = crate::helpers::headers::field_line_as_written(hv);
+                    crate::http_date::parse_http_date_to_datetime(&text)
+                        .ok()
+                        .map(|dt| (text, dt))
+                })
+                .collect();
 
             // Get Deprecation header (structured '@<seconds>' form) if present and parseable
             // We intentionally only consider the structured '@' form here; legacy forms are
@@ -194,21 +207,21 @@ impl Rule for SunsetAndDeprecationConsistent {
             // tolerance — no spec licenses it; against a strict MUST NOT it only makes
             // the rule more lenient (recorded in the audit ledger, not cited).
             // cite(RFC 9745 § 4): "The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field."
-            if let (Some((dep_raw, dep_dt)), Some((sun_raw, sun_dt))) =
-                (deprecation_opt, sunset_opt)
-            {
+            if let Some((dep_raw, dep_dt)) = deprecation_opt {
                 let allowed_skew = chrono::Duration::seconds(60);
-                if dep_dt > sun_dt + allowed_skew {
-                    return Some(ctx.report_with(&SUNSET_CONFLICTING, format!(
+                for (sun_raw, sun_dt) in sunsets {
+                    if dep_dt > sun_dt + allowed_skew {
+                        out.push(ctx.report_with(&SUNSET_CONFLICTING, format!(
                             "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation",
                             dep_raw, sun_raw
                         )));
+                    }
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -220,6 +233,78 @@ static REGISTRATION: &dyn crate::rules::Rule = &SunsetAndDeprecationConsistent;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Every finding this rule makes about one response.
+    fn findings_for(pairs: &[(&str, &str)]) -> Vec<crate::lint::Violation> {
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, pairs);
+        crate::test_helpers::run_rule_all(
+            &SunsetAndDeprecationConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "sunset_and_deprecation_consistent",
+            ]),
+        )
+    }
+
+    /// A `Sunset` written twice is two shutdown times, and § 4 is about each.
+    ///
+    /// The field's repetition is nobody's finding — `deprecation_header_syntax`
+    /// reports a repeated `Deprecation` and no rule reports a repeated `Sunset`
+    /// — so a line this rule does not read is a line no rule reads. Reading the
+    /// first alone let a response name a shutdown before its own deprecation and
+    /// say nothing, as long as it named a later one first.
+    #[rstest]
+    #[case::only_the_second_conflicts(
+        &[
+            ("deprecation", "@1767225600"),
+            ("sunset", "Fri, 01 Jan 2027 00:00:00 GMT"),
+            ("sunset", "Thu, 01 Jan 2015 00:00:00 GMT"),
+        ],
+        1
+    )]
+    #[case::both_conflict(
+        &[
+            ("deprecation", "@1767225600"),
+            ("sunset", "Thu, 01 Jan 2015 00:00:00 GMT"),
+            ("sunset", "Fri, 02 Jan 2015 00:00:00 GMT"),
+        ],
+        2
+    )]
+    #[case::neither_conflicts(
+        &[
+            ("deprecation", "@1000000000"),
+            ("sunset", "Fri, 01 Jan 2027 00:00:00 GMT"),
+            ("sunset", "Sat, 02 Jan 2027 00:00:00 GMT"),
+        ],
+        0
+    )]
+    // One line and one finding: the walk must not turn a single conflict into
+    // more than the one thing there is to fix.
+    #[case::one_line(
+        &[
+            ("deprecation", "@1767225600"),
+            ("sunset", "Thu, 01 Jan 2015 00:00:00 GMT"),
+        ],
+        1
+    )]
+    fn every_sunset_line_is_measured_against_the_deprecation(
+        #[case] pairs: &[(&str, &str)],
+        #[case] expected: usize,
+    ) {
+        let found = findings_for(pairs);
+        let messages: Vec<&str> = found.iter().map(|v| v.message.as_str()).collect();
+        assert_eq!(found.len(), expected, "{messages:?}");
+        assert!(
+            found.iter().all(|v| v.violation == "sunset_conflicting"),
+            "{:?}",
+            found.iter().map(|v| &v.violation).collect::<Vec<_>>()
+        );
+        // Two findings of one entry on one message are one sentence written
+        // twice unless each names the line it is about.
+        let distinct: std::collections::BTreeSet<&str> = messages.iter().copied().collect();
+        assert_eq!(distinct.len(), messages.len(), "{messages:?}");
+    }
 
     #[rstest]
     fn consistent_deprecation_and_sunset_ok() {
