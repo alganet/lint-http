@@ -146,9 +146,13 @@ impl Rule for ContentDispositionParameterValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. A
+        // request part's `Content-Disposition` and a response's are written by
+        // different peers about different content, and a malformed parameter in
+        // each is two defects. Within a section the first offending line is
+        // still the one reported.
+        let mut out = Vec::new();
+        {
             // This rule owns `disposition-parm` and nothing above it. An empty field
             // value and a missing disposition-type are defects in the part of the
             // grammar `content_disposition_token_valid` owns, and it reports
@@ -394,18 +398,15 @@ impl Rule for ContentDispositionParameterValid {
                 };
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_section(&resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
+                out.extend(check_section(&resp.headers, crate::lint::Party::Server));
             }
 
-            if let Some(v) = check_section(&tx.request.headers, crate::lint::Party::Client) {
-                return Some(v);
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+            out.extend(check_section(
+                &tx.request.headers,
+                crate::lint::Party::Client,
+            ));
+        }
+        out
     }
 }
 

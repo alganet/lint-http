@@ -158,9 +158,13 @@ impl Rule for MediaTypeSuffixValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. The
+        // media types a request is willing to accept are not the one a response
+        // returns, and an unrecognized structured syntax suffix in each is two
+        // peers' defects. Within a section the first offending value is still
+        // the one reported.
+        let mut out = Vec::new();
+        {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             let check_media = |hdr_name: &str,
                                val: &str,
@@ -277,11 +281,14 @@ impl Rule for MediaTypeSuffixValid {
                     .collect()
             };
 
-            for val in values(&tx.request.headers, "content-type") {
-                if let Some(v) = check_media("Content-Type", &val, crate::lint::Party::Client) {
-                    return Some(v);
+            out.extend((|| -> Option<Violation> {
+                for val in values(&tx.request.headers, "content-type") {
+                    if let Some(v) = check_media("Content-Type", &val, crate::lint::Party::Client) {
+                        return Some(v);
+                    }
                 }
-            }
+                None
+            })());
 
             // Accept is a list, so each member is checked. Each field line is split
             // on its own rather than after recombining them, which is *not* the same
@@ -298,29 +305,35 @@ impl Rule for MediaTypeSuffixValid {
             //   -> Unrecognized structured syntax suffix '+bogus"' in 'foo/bar+bogus"'
             //
             // The message even carried the stray quote, which is the tell.
-            for ah in values(&tx.request.headers, "accept") {
-                for part in crate::helpers::list::split_commas_respecting_quotes(&ah) {
-                    let p = part;
-                    if p.is_empty() {
-                        continue;
-                    }
-                    if let Some(v) = check_media("Accept", p, crate::lint::Party::Client) {
-                        return Some(v);
+            out.extend((|| -> Option<Violation> {
+                for ah in values(&tx.request.headers, "accept") {
+                    for part in crate::helpers::list::split_commas_respecting_quotes(&ah) {
+                        let p = part;
+                        if p.is_empty() {
+                            continue;
+                        }
+                        if let Some(v) = check_media("Accept", p, crate::lint::Party::Client) {
+                            return Some(v);
+                        }
                     }
                 }
-            }
+                None
+            })());
 
             if let Some(resp) = &tx.response {
-                for val in values(&resp.headers, "content-type") {
-                    if let Some(v) = check_media("Content-Type", &val, crate::lint::Party::Server) {
-                        return Some(v);
+                out.extend((|| -> Option<Violation> {
+                    for val in values(&resp.headers, "content-type") {
+                        if let Some(v) =
+                            check_media("Content-Type", &val, crate::lint::Party::Server)
+                        {
+                            return Some(v);
+                        }
                     }
-                }
+                    None
+                })());
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

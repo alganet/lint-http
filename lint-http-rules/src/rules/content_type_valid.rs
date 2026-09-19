@@ -88,7 +88,7 @@ impl RuleMeta for ContentTypeValid {
     }
 
     fn description(&self) -> &'static str {
-        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `text/*` parses as a `media-type`. The asterisk is defined in §12.5.1 as what groups media types into *ranges* — `media-range`, which Accept takes and Content-Type does not — so a Content-Type carrying one names a set where a single media type is expected. This is the rule's judgement, not a grammar violation. (`*/plain` is rejected too, though it is not a valid `media-range` either: `media-range` allows `*/*` and `type/*`, never a wildcard type with a concrete subtype.)\n\n**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A rule yields one finding, and which value applies comes before whether a value is well formed.\n\n**Whitespace beside a parameter's `=` is reported.** RFC 9110 §5.6.6 forbids it in the production and again in prose — not even the \"bad\" whitespace HTTP tolerates elsewhere — so `charset =utf-8` derives from nothing. This rule used to trim it and publish the leniency here; the other two ways a `parameter` fails to derive were already reported from the same reader, and enforcing two thirds of one sentence made a claim about the third that nothing backed."
+        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `text/*` parses as a `media-type`. The asterisk is defined in §12.5.1 as what groups media types into *ranges* — `media-range`, which Accept takes and Content-Type does not — so a Content-Type carrying one names a set where a single media type is expected. This is the rule's judgement, not a grammar violation. (`*/plain` is rejected too, though it is not a valid `media-range` either: `media-range` allows `*/*` and `type/*`, never a wildcard type with a concrete subtype.)\n\n**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A section yields one finding, and which value applies comes before whether a value is well formed. The precedence is within a section: a defective request `Content-Type` and a defective response `Content-Type` are two peers' defects and are both reported.\n\n**Whitespace beside a parameter's `=` is reported.** RFC 9110 §5.6.6 forbids it in the production and again in prose — not even the \"bad\" whitespace HTTP tolerates elsewhere — so `charset =utf-8` derives from nothing. This rule used to trim it and publish the leniency here; the other two ways a `parameter` fails to derive were already reported from the same reader, and enforcing two thirds of one sentence made a claim about the third that nothing backed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -187,9 +187,14 @@ impl Rule for ContentTypeValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. The
+        // media type a request states describes the representation it encloses;
+        // the one a response states describes the representation it returns.
+        // A defect in each is two peers' defects. Within a section nothing
+        // changes: the duplicated field line still precedes every question
+        // about a value, and the first malformed value is still the one named.
+        let mut out = Vec::new();
+        {
             let check_message = |which: &str,
                                  party: crate::lint::Party,
                                  headers: &hyper::HeaderMap,
@@ -221,9 +226,11 @@ impl Rule for ContentTypeValid {
                 // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
                 // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
                 // This returns before any value is validated, and that is the
-                // choice: a rule yields one violation, and when two field lines are
-                // present the question of *which value applies* comes before the
-                // question of whether a value is well formed. Naming the malformed
+                // choice: a section yields one violation, and when two field lines
+                // are present the question of *which value applies* comes before
+                // the question of whether a value is well formed. The other
+                // section is read regardless — this ends the reading of the
+                // message that carries the duplication, not of the transaction. Naming the malformed
                 // one would imply the recipient reads it, which is the thing §8.3
                 // says cannot be assumed.
                 if vals.len() > 1 {
@@ -265,29 +272,23 @@ impl Rule for ContentTypeValid {
                 None
             };
 
-            if let Some(v) = check_message(
+            out.extend(check_message(
                 "request",
                 crate::lint::Party::Client,
                 &tx.request.headers,
                 tx.request.trailers.as_ref(),
-            ) {
-                return Some(v);
-            }
+            ));
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_message(
+                out.extend(check_message(
                     "response",
                     crate::lint::Party::Server,
                     &resp.headers,
                     resp.trailers.as_ref(),
-                ) {
-                    return Some(v);
-                }
+                ));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

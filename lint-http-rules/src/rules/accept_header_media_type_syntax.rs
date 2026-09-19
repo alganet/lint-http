@@ -126,11 +126,14 @@ impl RuleMeta for AcceptHeaderMediaTypeSyntax {
 
     /// The rule reads a response's `Accept` as well as a request's, and
     /// §12.5.1 gives that one a meaning of its own rather than treating it as a
-    /// stray request field.
+    /// stray request field. So the peer answerable for a defect is the one
+    /// whose section it was read from: presuming the client made a malformed
+    /// response `Accept` the client's defect, which is a claim about text the
+    /// client never wrote.
     /// cite(RFC 9110 § 12.5.1): "The "Accept" header field can be used by user agents to specify their preferences regarding response media types."
     /// cite(RFC 9110 § 12.5.1): "When sent by a server in a response, Accept provides information about which content types are preferred in the content of a subsequent request to the same resource."
     fn party(&self) -> crate::rules::RuleParty {
-        crate::rules::RuleParty::Presumed(crate::lint::Party::Client)
+        crate::rules::RuleParty::PerSite
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -197,15 +200,24 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own, the finding it yields is kept, and it
+        // is blamed on the peer whose section it was read from. §12.5.1 gives
+        // the response's `Accept` a meaning of its own — the media types
+        // preferred in a subsequent request — so the server wrote it, and a
+        // defect in it is the server's. Reading the request first and stopping
+        // there left a malformed response `Accept` unread whenever the request
+        // carried one of its own.
+        let mut out = Vec::new();
+        {
             // The list grammar, and the one production every branch below is a
             // piece of. A member is a media-range and at most one weight; the
             // media-range carries the parameters.
             // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
             // cite(RFC 9110 § 12.5.1): "Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2)."
-            let check_val = |hdr: &str, val: &str| -> Option<Violation> {
+            let check_val = |hdr: &str,
+                             val: &str,
+                             party: crate::lint::Party|
+             -> Option<Violation> {
                 // A field line holding no element at all is the `#` construct's
                 // zero-element list, and §12.5.1 has a meaning for it — a sender
                 // that accepts anything. Only the *bracketing* is a recipient's
@@ -239,7 +251,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                     // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                     if member.is_empty() {
-                        return Some(ctx.report_with(
+                        return Some(ctx.by(party).report_with(
                             &LIST_MEMBER_EMPTY,
                             format!(
                                 "{} holds an empty list element; the field line reads '{}'. Every position in `#( media-range [ weight ] )` holds a media range, and a comma with nothing beside it holds none",
@@ -300,7 +312,9 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                         media, hdr
                                     ),
                                 };
-                                return Some(ctx.report_with(media_type_error(defect), message));
+                                return Some(
+                                    ctx.by(party).report_with(media_type_error(defect), message),
+                                );
                             }
                         };
                         {
@@ -322,7 +336,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             if let Some(c) =
                                 crate::helpers::token::find_invalid_token_char(parsed.type_)
                             {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     token_character(c),
                                     format!(
                                         "Invalid token '{}' in media type '{}' of {}",
@@ -341,7 +355,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // `content_type_valid` takes the same
                             // position on the same shape in Content-Type.
                             if parsed.type_ == "*" {
-                                return Some(ctx.report_with(&MEDIA_RANGE_WILDCARD_INVALID, format!(
+                                return Some(ctx.by(party).report_with(&MEDIA_RANGE_WILDCARD_INVALID, format!(
                                         "Invalid media-range '{}' in {} header: a wildcard type is only meaningful with a wildcard subtype ('*/*'), since the asterisk names all media types or all subtypes of one type and nothing else",
                                         media, hdr
                                     )));
@@ -350,7 +364,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(parsed.subtype)
                                 {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         token_character(c),
                                         format!(
                                             "Invalid token '{}' in media subtype '{}' of {}",
@@ -378,7 +392,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // cite(RFC 9110 § 12.5.1): "The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields."
                         // cite(RFC 9110 § 12.5.1): "Senders using weights SHOULD send "q" last (after all media-range parameters)."
                         if weight_seen {
-                            return Some(ctx.report_with(&MEDIA_RANGE_PARAMETER_FORBIDDEN, format!(
+                            return Some(ctx.by(party).report_with(&MEDIA_RANGE_PARAMETER_FORBIDDEN, format!(
                                     "Parameter '{}' follows the weight in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
                                     p, hdr
                                 )));
@@ -396,7 +410,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         let parsed = match parsed {
                             Ok(parsed) => parsed,
                             Err(ParameterDefect::NoEquals(_)) => {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     &PARAMETER_EQUALS_MISSING,
                                     format!(
                                         "Invalid parameter '{}' in {} header: missing '='",
@@ -416,13 +430,13 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // the `token` subject carries.)
                         // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
                         if k.is_empty() {
-                            return Some(ctx.report_with(&TOKEN_EMPTY, format!(
+                            return Some(ctx.by(party).report_with(&TOKEN_EMPTY, format!(
                                     "Empty parameter name in '{}' of {} header: a token is one or more characters",
                                     p, hdr
                                 )));
                         }
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(k) {
-                            return Some(ctx.report_with(
+                            return Some(ctx.by(party).report_with(
                                 token_character(c),
                                 format!(
                                     "Invalid character '{}' in parameter name '{}' in {} header",
@@ -450,7 +464,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // and the parameter's name is what chooses.
                             // cite(RFC 9110 § 12.4.2, label: the weight production): "weight = OWS ";" OWS "q=" qvalue"
                             if parsed.whitespace_beside_equals {
-                                return Some(ctx.report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                return Some(ctx.by(party).report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
                                         "Parameter '{}' in {} header writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
                                         p, hdr
                                     )));
@@ -462,7 +476,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // the same bound, and it is senders this rule reports.
                             // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
                             if !crate::helpers::qvalue::valid_qvalue(v) {
-                                return Some(ctx.report_with(
+                                return Some(ctx.by(party).report_with(
                                     &QVALUE_MALFORMED,
                                     format!("Invalid qvalue '{}' in {} header", v, hdr),
                                 ));
@@ -476,7 +490,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // one.
                             // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
                             if parsed.whitespace_beside_equals {
-                                return Some(ctx.report_with(&PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                return Some(ctx.by(party).report_with(&PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, format!(
                                         "Parameter '{}' in {} header writes whitespace beside its '='; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
                                         p, hdr
                                     )));
@@ -498,13 +512,13 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                 // as written derives from no `parameter-value`.
                                 // (`x=""` is a different value and still conforms.)
                                 Err(WordDefect::Empty) => {
-                                    return Some(ctx.report_with(&PARAMETER_VALUE_EMPTY, format!(
+                                    return Some(ctx.by(party).report_with(&PARAMETER_VALUE_EMPTY, format!(
                                             "Empty parameter value in '{}' of {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
                                             p, hdr
                                         )));
                                 }
                                 Err(WordDefect::NotQuotedString(defect)) => {
-                                    return Some(ctx.report_with(
+                                    return Some(ctx.by(party).report_with(
                                         quoted_string_defect(defect),
                                         format!(
                                             "Invalid quoted-string parameter '{}' in {} header: {}",
@@ -515,7 +529,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                     ));
                                 }
                                 Err(WordDefect::NotToken(c)) => {
-                                    return Some(ctx.report_with(token_character(c), format!(
+                                    return Some(ctx.by(party).report_with(token_character(c), format!(
                                             "Invalid token '{}' in parameter value '{}' of {} header",
                                             c, v, hdr
                                         )));
@@ -536,7 +550,10 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
             // which is not the same thing: an unbalanced quote in one line would
             // otherwise swallow the members of every line after it, and this rule
             // would report the first line's defect against the last line's text.
-            let check_all = |hdr: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            let check_all = |hdr: &str,
+                             headers: &hyper::HeaderMap,
+                             party: crate::lint::Party|
+             -> Option<Violation> {
                 for hv in headers.get_all("accept").iter() {
                     // Decoded from the raw octets rather than through `to_str`,
                     // which refuses `obs-text` — legal inside a `quoted-string`, so
@@ -544,26 +561,28 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // Skipping it meant a bare `*` sitting on the same line as an
                     // obs-text parameter was reported by nothing at all.
                     let val = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(v) = check_val(hdr, &val) {
+                    if let Some(v) = check_val(hdr, &val, party) {
                         return Some(v);
                     }
                 }
                 None
             };
 
-            if let Some(v) = check_all("Accept", &tx.request.headers) {
-                return Some(v);
-            }
+            out.extend(check_all(
+                "Accept",
+                &tx.request.headers,
+                crate::lint::Party::Client,
+            ));
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_all("Accept", &resp.headers) {
-                    return Some(v);
-                }
+                out.extend(check_all(
+                    "Accept",
+                    &resp.headers,
+                    crate::lint::Party::Server,
+                ));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

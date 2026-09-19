@@ -152,37 +152,37 @@ impl Rule for TrailerFieldsValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. The
+        // fields a request puts after its content are not the ones a response
+        // puts after its own, and a trailer that may not be sent there is a
+        // defect of whichever peer sent it.
+        let mut out = Vec::new();
+        {
             // Each trailer section is measured against the header section of its own
             // message. A request's `Trailer` announces what that request will send and
             // its `Connection` names options for that message, so neither says anything
             // about what the response may put after its content.
             if let Some(ref trailers) = tx.request.trailers {
-                if let Some(v) = check_trailers(
+                out.extend(check_trailers(
                     ctx,
                     crate::lint::Party::Client,
                     trailers,
                     &tx.request.headers,
-                ) {
-                    return Some(v);
-                }
+                ));
             }
 
             if let Some(ref resp) = tx.response {
                 if let Some(ref trailers) = resp.trailers {
-                    if let Some(v) =
-                        check_trailers(ctx, crate::lint::Party::Server, trailers, &resp.headers)
-                    {
-                        return Some(v);
-                    }
+                    out.extend(check_trailers(
+                        ctx,
+                        crate::lint::Party::Server,
+                        trailers,
+                        &resp.headers,
+                    ));
                 }
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 
@@ -330,6 +330,32 @@ mod tests {
     }
 
     // ---- Prohibited trailer fields (response) ----
+
+    /// Both trailer sections offend, and both are reported. The request's
+    /// finding used to end the reading, so a response putting a prohibited name
+    /// after its content went unreported whenever the request had done the same
+    /// — two peers, two messages, one finding between them.
+    #[test]
+    fn each_trailer_section_is_reported_and_neither_ends_the_other() {
+        let mut tx = make_test_transaction_with_response(200, &[]);
+        let prohibited = make_headers_from_pairs(&[("content-length", "42")]);
+        tx.request.trailers = Some(prohibited.clone());
+        tx.response.as_mut().expect("a response").trailers = Some(prohibited);
+
+        let found =
+            crate::test_helpers::run_rule_all(&TrailerFieldsValid, &tx, &empty_history(), &cfg());
+        assert_eq!(
+            found.len(),
+            2,
+            "one finding per offending section: {found:?}"
+        );
+        assert!(found
+            .iter()
+            .any(|v| v.party == Some(crate::lint::Party::Client)));
+        assert!(found
+            .iter()
+            .any(|v| v.party == Some(crate::lint::Party::Server)));
+    }
 
     #[rstest]
     #[case("content-length")]

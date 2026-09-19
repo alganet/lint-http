@@ -130,9 +130,14 @@ impl Rule for ContentEncodingAndTypeConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. The
+        // codings a request applied to its content are not the ones a response
+        // applied to its own, and a defect in each is two peers' defects.
+        // Within a section nothing changes: the empty list member still
+        // precedes the reading of the coding names, and a status that ends at
+        // its header section still answers before the value beside it is read.
+        let mut out = Vec::new();
+        {
             // Helper to validate a Content-Encoding-like header value (comma-separated members).
             // This helper validates members in `val` and updates `seen` with found codings so duplicates
             // across multiple header fields can be detected when `seen` is shared between calls.
@@ -248,22 +253,17 @@ impl Rule for ContentEncodingAndTypeConsistent {
             // Both halves are walked, because both may carry the field. The
             // registry rule beside this one reads only the response, which is
             // why the list's own defect is answered here.
-            if let Some(v) = empty_member(&tx.request.headers, crate::lint::Party::Client) {
-                return Some(v);
-            }
-            if let Some(resp) = &tx.response {
-                if let Some(v) = empty_member(&resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
-            }
-
+            //
             // The lines of a section are one list, read as octets. `to_str`
             // refuses everything outside visible US-ASCII, which folded an
             // `obs-text` octet in a coding name into a verdict about the
             // field's encoding -- a claim about the whole value where the
             // defect is one character of one member, and one this rule already
             // had an id for. Reading the octets is what lets that id answer.
-            {
+            out.extend((|| -> Option<Violation> {
+                if let Some(v) = empty_member(&tx.request.headers, crate::lint::Party::Client) {
+                    return Some(v);
+                }
                 let mut seen = std::collections::HashSet::new();
                 if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
                     &tx.request.headers,
@@ -278,77 +278,82 @@ impl Rule for ContentEncodingAndTypeConsistent {
                         return Some(v);
                     }
                 }
-            }
+                None
+            })());
 
             // Check response Content-Encoding header(s)
             if let Some(resp) = &tx.response {
-                // No-body statuses should not carry Content-Encoding
-                let status = resp.status;
-                // These three statuses reach the same verdict by different routes, and only
-                // one of them is a stated requirement.
-                //
-                // 304 is the grounded case: Content-Encoding is representation metadata,
-                // it is not among the fields a 304 is told to send, and it does not guide
-                // cache updates — so the sentence below covers it directly (a SHOULD NOT,
-                // which is why the message says "should not").
-                // cite(RFC 9110 § 15.4.5): "a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates"
-                //
-                // 1xx and 204 are the linter's inference: those responses carry no content,
-                // so a coding describing how the content was encoded has nothing to
-                // describe. No sentence says this, and for 204 the spec arguably leans the
-                // other way — metadata on such a response is *meaningful*, which would make
-                // a coding header describing a representation the client is not receiving a
-                // conforming thing to send. Kept because in traffic it is far more often a
-                // misconfiguration; recorded as the possible false positive it is.
-                // cite(RFC 9110 § 15.3.5): "Metadata in the response header fields refer to the target resource and its selected representation after the requested action was applied."
-                //
-                // **The two verdicts are two entries**, because their evidence differs in
-                // kind: one quotes a SHOULD NOT and the other quotes nothing, and one id
-                // over both would put § 15.4.5 behind the inference. It also gives an
-                // operator who disagrees with the inference something to silence that does
-                // not take the stated finding with it.
-                let is_no_body_status =
-                    (100..200).contains(&status) || status == 204 || status == 304;
-                if is_no_body_status && resp.headers.contains_key("content-encoding") {
-                    return Some(if status == 304 {
-                        ctx.by_server().report_with(
-                            &STATUS_304_METADATA_FORBIDDEN,
-                            "304 Not Modified sends Content-Encoding, which is representation \
+                out.extend((|| -> Option<Violation> {
+                    if let Some(v) = empty_member(&resp.headers, crate::lint::Party::Server) {
+                        return Some(v);
+                    }
+                    // No-body statuses should not carry Content-Encoding
+                    let status = resp.status;
+                    // These three statuses reach the same verdict by different routes, and only
+                    // one of them is a stated requirement.
+                    //
+                    // 304 is the grounded case: Content-Encoding is representation metadata,
+                    // it is not among the fields a 304 is told to send, and it does not guide
+                    // cache updates — so the sentence below covers it directly (a SHOULD NOT,
+                    // which is why the message says "should not").
+                    // cite(RFC 9110 § 15.4.5): "a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates"
+                    //
+                    // 1xx and 204 are the linter's inference: those responses carry no content,
+                    // so a coding describing how the content was encoded has nothing to
+                    // describe. No sentence says this, and for 204 the spec arguably leans the
+                    // other way — metadata on such a response is *meaningful*, which would make
+                    // a coding header describing a representation the client is not receiving a
+                    // conforming thing to send. Kept because in traffic it is far more often a
+                    // misconfiguration; recorded as the possible false positive it is.
+                    // cite(RFC 9110 § 15.3.5): "Metadata in the response header fields refer to the target resource and its selected representation after the requested action was applied."
+                    //
+                    // **The two verdicts are two entries**, because their evidence differs in
+                    // kind: one quotes a SHOULD NOT and the other quotes nothing, and one id
+                    // over both would put § 15.4.5 behind the inference. It also gives an
+                    // operator who disagrees with the inference something to silence that does
+                    // not take the stated finding with it.
+                    let is_no_body_status =
+                        (100..200).contains(&status) || status == 204 || status == 304;
+                    if is_no_body_status && resp.headers.contains_key("content-encoding") {
+                        return Some(if status == 304 {
+                            ctx.by_server().report_with(
+                                &STATUS_304_METADATA_FORBIDDEN,
+                                "304 Not Modified sends Content-Encoding, which is representation \
                              metadata and not one of the fields the status code is required to \
                              carry: the response exists to transfer as little as possible"
-                                .into(),
-                        )
-                    } else {
-                        ctx.by_server().report_with(
-                            &STATUS_METADATA_REDUNDANT,
-                            format!(
+                                    .into(),
+                            )
+                        } else {
+                            ctx.by_server().report_with(
+                                &STATUS_METADATA_REDUNDANT,
+                                format!(
                                 "Response {status} is terminated by the end of its header section \
                                  and carries no content, so the Content-Encoding beside it names a \
                                  coding applied to nothing the client will receive"
                             ),
-                        )
-                    });
-                }
-
-                let mut seen = std::collections::HashSet::new();
-                if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
-                    &resp.headers,
-                    "content-encoding",
-                ) {
-                    if let Some(v) = check_encoding_header(
-                        "Content-Encoding",
-                        &val,
-                        &mut seen,
-                        crate::lint::Party::Server,
-                    ) {
-                        return Some(v);
+                            )
+                        });
                     }
-                }
-            }
 
-            None
-        };
-        Vec::from_iter(finding())
+                    let mut seen = std::collections::HashSet::new();
+                    if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
+                        &resp.headers,
+                        "content-encoding",
+                    ) {
+                        if let Some(v) = check_encoding_header(
+                            "Content-Encoding",
+                            &val,
+                            &mut seen,
+                            crate::lint::Party::Server,
+                        ) {
+                            return Some(v);
+                        }
+                    }
+                    None
+                })());
+            }
+        }
+        out
     }
 }
 

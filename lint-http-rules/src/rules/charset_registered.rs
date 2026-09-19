@@ -158,9 +158,13 @@ impl Rule for CharsetRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. A
+        // charset the request names is not the one the response names, and an
+        // unrecognized one in each is two peers' defects. Within a section the
+        // first unregistered charset is still the one reported — that choice
+        // among equals is this rule's and is unchanged.
+        let mut out = Vec::new();
+        {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             use crate::helpers::media_type::parse_media_type;
 
@@ -336,18 +340,20 @@ impl Rule for CharsetRegistered {
                 None
             };
 
-            if let Some(v) = check_all("request", &tx.request.headers, crate::lint::Party::Client) {
-                return Some(v);
-            }
+            out.extend(check_all(
+                "request",
+                &tx.request.headers,
+                crate::lint::Party::Client,
+            ));
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_all("response", &resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
+                out.extend(check_all(
+                    "response",
+                    &resp.headers,
+                    crate::lint::Party::Server,
+                ));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

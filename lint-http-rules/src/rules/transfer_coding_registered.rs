@@ -193,9 +193,14 @@ impl Rule for TransferCodingRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. A
+        // coding a request applied to its content is not one a response applied
+        // to its own, and neither is the coding a client said it would accept
+        // in `TE`: each is a different value written by a different peer about
+        // a different message. Within a section the first unlisted coding is
+        // still the one reported.
+        let mut out = Vec::new();
+        {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
             // check a list-style header value (Transfer-Encoding or TE) against allowed list
             let check_value = |hdr_name: &str,
@@ -469,28 +474,34 @@ impl Rule for TransferCodingRegistered {
             // applied to *this message's* body, whichever way it is travelling.
             // cite(RFC 9112 § 6.1): "Transfer-Encoding = #transfer-coding"
             if let Some(resp) = &tx.response {
-                for hv in resp.headers.get_all("transfer-encoding").iter() {
+                out.extend((|| -> Option<Violation> {
+                    for hv in resp.headers.get_all("transfer-encoding").iter() {
+                        if let Some(v) = check_value(
+                            "Transfer-Encoding",
+                            &decode(hv),
+                            &config.allowed,
+                            crate::lint::Party::Server,
+                        ) {
+                            return Some(v);
+                        }
+                    }
+                    None
+                })());
+            }
+
+            out.extend((|| -> Option<Violation> {
+                for hv in tx.request.headers.get_all("transfer-encoding").iter() {
                     if let Some(v) = check_value(
                         "Transfer-Encoding",
                         &decode(hv),
                         &config.allowed,
-                        crate::lint::Party::Server,
+                        crate::lint::Party::Client,
                     ) {
                         return Some(v);
                     }
                 }
-            }
-
-            for hv in tx.request.headers.get_all("transfer-encoding").iter() {
-                if let Some(v) = check_value(
-                    "Transfer-Encoding",
-                    &decode(hv),
-                    &config.allowed,
-                    crate::lint::Party::Client,
-                ) {
-                    return Some(v);
-                }
-            }
+                None
+            })());
 
             // TE describes the client, so only the request side is read here. A TE
             // field on a response is `te_header_valid`' finding, not a
@@ -502,20 +513,21 @@ impl Rule for TransferCodingRegistered {
             // `TE:` among its three examples of TE use and says what it means.
             // cite(RFC 9112 § 7.4): "If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked."
             // cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
-            for hv in tx.request.headers.get_all("te").iter() {
-                if let Some(v) = check_value(
-                    "TE",
-                    &decode(hv),
-                    &config.allowed,
-                    crate::lint::Party::Client,
-                ) {
-                    return Some(v);
+            out.extend((|| -> Option<Violation> {
+                for hv in tx.request.headers.get_all("te").iter() {
+                    if let Some(v) = check_value(
+                        "TE",
+                        &decode(hv),
+                        &config.allowed,
+                        crate::lint::Party::Client,
+                    ) {
+                        return Some(v);
+                    }
                 }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+                None
+            })());
+        }
+        out
     }
 }
 

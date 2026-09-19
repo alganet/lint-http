@@ -117,9 +117,13 @@ impl Rule for FormDataContentDispositionValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. A
+        // `Content-Disposition` a request writes for a form-data part is not
+        // the one a response writes for its content, and a malformed value in
+        // each is two peers' defects. Within a section the first offending line
+        // is still the one reported.
+        let mut out = Vec::new();
+        {
             // Scope worth being honest about: RFC 7578 §4.2 places its requirement on
             // each *part* of a multipart/form-data body, and this proxy does not parse
             // bodies — the transaction carries header maps, not parts. So what is
@@ -259,27 +263,33 @@ impl Rule for FormDataContentDispositionValid {
             // as `obs-text`. The verdict this replaced named an encoding about
             // a value where none had been applied.
             if let Some(resp) = &tx.response {
-                for hv in resp.headers.get_all("content-disposition").iter() {
+                out.extend((|| -> Option<Violation> {
+                    for hv in resp.headers.get_all("content-disposition").iter() {
+                        let Ok(s) = hv.to_str() else { continue };
+                        if let Some(v) =
+                            check_value("Content-Disposition", s, crate::lint::Party::Server)
+                        {
+                            return Some(v);
+                        }
+                    }
+                    None
+                })());
+            }
+
+            // Check request headers (multipart/form-data parts may present Content-Disposition in requests)
+            out.extend((|| -> Option<Violation> {
+                for hv in tx.request.headers.get_all("content-disposition").iter() {
                     let Ok(s) = hv.to_str() else { continue };
                     if let Some(v) =
-                        check_value("Content-Disposition", s, crate::lint::Party::Server)
+                        check_value("Content-Disposition", s, crate::lint::Party::Client)
                     {
                         return Some(v);
                     }
                 }
-            }
-
-            // Check request headers (multipart/form-data parts may present Content-Disposition in requests)
-            for hv in tx.request.headers.get_all("content-disposition").iter() {
-                let Ok(s) = hv.to_str() else { continue };
-                if let Some(v) = check_value("Content-Disposition", s, crate::lint::Party::Client) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+                None
+            })());
+        }
+        out
     }
 }
 

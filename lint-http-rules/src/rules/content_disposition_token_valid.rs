@@ -179,9 +179,12 @@ impl Rule for ContentDispositionTokenValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each section is read on its own and the finding it yields is kept. A
+        // request part's `Content-Disposition` and a response's are written by
+        // different peers, and a token defect in each is two defects. Within a
+        // section the first offending line is still the one reported.
+        let mut out = Vec::new();
+        {
             // Helper to validate a single Content-Disposition header value
             let check_value =
                 |hdr_name: &str, val: &str, party: crate::lint::Party| -> Option<Violation> {
@@ -324,28 +327,22 @@ impl Rule for ContentDispositionTokenValid {
             };
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = check_message(
+                out.extend(check_message(
                     "response",
                     crate::lint::Party::Server,
                     &resp.headers,
                     resp.trailers.as_ref(),
-                ) {
-                    return Some(v);
-                }
+                ));
             }
 
-            if let Some(v) = check_message(
+            out.extend(check_message(
                 "request",
                 crate::lint::Party::Client,
                 &tx.request.headers,
                 tx.request.trailers.as_ref(),
-            ) {
-                return Some(v);
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+            ));
+        }
+        out
     }
 }
 

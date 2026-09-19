@@ -150,9 +150,14 @@ impl Rule for LanguageTagSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // Each field of each section is read on its own and the finding it
+        // yields is kept. A malformed tag in `Content-Language` says nothing
+        // about the tags in `Accept-Language`, and a request's says nothing
+        // about a response's: each is a defect in the value that carries it,
+        // and each finding names its own field and value. Within one field of
+        // one section the first malformed tag is still the one reported.
+        let mut out = Vec::new();
+        {
             // The two fields this rule reads do not use the same production, and
             // RFC 9110 says so in one sentence. `Content-Language` carries
             // `language-tag` (RFC 5646 §2.1); `Accept-Language` carries the broader
@@ -310,25 +315,21 @@ impl Rule for LanguageTagSyntax {
             };
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = content_language(&resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
+                out.extend(content_language(&resp.headers, crate::lint::Party::Server));
             }
-            if let Some(v) = content_language(&tx.request.headers, crate::lint::Party::Client) {
-                return Some(v);
-            }
-            if let Some(v) = accept_language(&tx.request.headers, crate::lint::Party::Client) {
-                return Some(v);
-            }
+            out.extend(content_language(
+                &tx.request.headers,
+                crate::lint::Party::Client,
+            ));
+            out.extend(accept_language(
+                &tx.request.headers,
+                crate::lint::Party::Client,
+            ));
             if let Some(resp) = &tx.response {
-                if let Some(v) = accept_language(&resp.headers, crate::lint::Party::Server) {
-                    return Some(v);
-                }
+                out.extend(accept_language(&resp.headers, crate::lint::Party::Server));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

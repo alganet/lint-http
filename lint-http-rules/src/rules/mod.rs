@@ -1477,6 +1477,254 @@ enabled = "true"
         Ok(())
     }
 
+    /// **A rule that reads both sections must be able to report both.** The
+    /// shape this pins at zero is one section reader delegated to a closure and
+    /// applied twice — to the request, then to the response — where the first
+    /// call's finding `return`s out of the whole body:
+    ///
+    /// ```ignore
+    /// if let Some(v) = check(&tx.request.headers, Party::Client) { return Some(v) }
+    /// if let Some(resp) = &tx.response {
+    ///     if let Some(v) = check(&resp.headers, Party::Server) { return Some(v) }
+    /// }
+    /// ```
+    ///
+    /// A client's defect then stands in for the server's. The response's value
+    /// is not judged and found conforming — it is never read, so `--about
+    /// server` is silent about a section the report never looked at, and the
+    /// silence is indistinguishable from a clean one. Nineteen rules carried it,
+    /// and on real traffic `content_type_registered` withheld five findings: a
+    /// `git-upload-pack` POST and four protobuf posts whose *responses* named
+    /// media types the operator's list does not carry, each masked by the
+    /// request's own unlisted type.
+    ///
+    /// The two tokens together are the whole test, and neither alone would be.
+    /// `Single-finding body behind an Option` is the comment a rule writes when
+    /// its body yields at most one finding for the whole transaction, and
+    /// `if let Some(v) = check` is a section reader whose answer ends that body.
+    /// A rule that keeps one finding *per section* writes neither: it collects
+    /// into a vector, so there is no early `return` for a second section to sit
+    /// behind. An inner `check` inside a per-section closure is untouched — that
+    /// file no longer declares the single-Option body.
+    ///
+    /// **What this does not pin.** 69 rules still run a single-Option body over
+    /// both sections without delegating to a `check` closure, and some of them
+    /// honestly have one finding to give. Each needs its own reading, and a
+    /// count ratchet over them would assert that the number is the fact — which
+    /// it is not.
+    /// The behavioural half of
+    /// [`a_section_reader_applied_twice_does_not_end_the_body`]. That line is
+    /// textual and pins one signature at zero; this one dispatches, and asks
+    /// the property the signature was only evidence for: **a transaction whose
+    /// request and response both offend one rule draws a finding for each, and
+    /// each names the peer whose section it was read from.**
+    ///
+    /// Every rule below reads one field — or a pair of fields with one meaning
+    /// — in both directions, and each ran its section reader over the request
+    /// and then, only if that found nothing, over the response. The value in
+    /// each column is the rule's own non-compliant published example, so a
+    /// column that stops firing is a claim about the example rather than about
+    /// this test.
+    ///
+    /// Each rule is prepared under its own `config_example`, which is what
+    /// carries the allowlists three of them read; `enabled` is forced on
+    /// afterwards, because `extension_headers_registered` ships off and its
+    /// shipped state is not what this asks about.
+    ///
+    /// Three fixed rules are held elsewhere rather than here, because a header
+    /// pair cannot express them: `trailer_fields_valid` needs two trailer
+    /// sections, `multipart_content_type_and_body_consistent` needs two bodies,
+    /// and `header_field_names_token_valid` needs a field *name* no `HeaderMap`
+    /// will hold.
+    #[test]
+    fn a_rule_reading_both_sections_reports_both() {
+        /// One row: the rule, the request's field lines, the response's.
+        struct Both {
+            rule: &'static str,
+            request: &'static [(&'static str, &'static str)],
+            response: &'static [(&'static str, &'static str)],
+        }
+        const fn both(
+            rule: &'static str,
+            request: &'static [(&'static str, &'static str)],
+            response: &'static [(&'static str, &'static str)],
+        ) -> Both {
+            Both {
+                rule,
+                request,
+                response,
+            }
+        }
+        let cases: &[Both] = &[
+            both(
+                "accept_encoding_parameter_valid",
+                &[("accept-encoding", "gzip;q=1.0000")],
+                &[("accept-encoding", "gzip;q=1.0000")],
+            ),
+            both(
+                "accept_header_media_type_syntax",
+                &[("accept", "*/json")],
+                &[("accept", "*/json")],
+            ),
+            both(
+                "auth_scheme_registered",
+                &[("authorization", "X-MyAuth abc")],
+                &[("www-authenticate", "NewScheme abc=")],
+            ),
+            both(
+                "charset_registered",
+                &[("content-type", "text/plain; charset=unknown-charset")],
+                &[("content-type", "text/plain; charset=unknown-charset")],
+            ),
+            both(
+                "content_disposition_parameter_valid",
+                &[("content-disposition", "attachment; size=12a")],
+                &[("content-disposition", "attachment; size=12a")],
+            ),
+            both(
+                "content_disposition_token_valid",
+                &[("content-disposition", "; filename=\"example.txt\"")],
+                &[("content-disposition", "; filename=\"example.txt\"")],
+            ),
+            both(
+                "content_encoding_and_type_consistent",
+                &[("content-encoding", "gzip, gzip")],
+                &[("content-encoding", "gzip, gzip")],
+            ),
+            both(
+                "content_encoding_registered",
+                &[("accept-encoding", "x-custom")],
+                &[("content-encoding", "x-custom")],
+            ),
+            both(
+                "content_length_valid",
+                &[("content-length", "abc")],
+                &[("content-length", "abc")],
+            ),
+            both(
+                "content_md5_vs_digest_preference",
+                &[
+                    ("content-digest", "sha-256=:dGVzdA==:"),
+                    ("content-md5", "dGVzdA=="),
+                ],
+                &[
+                    ("content-digest", "sha-256=:dGVzdA==:"),
+                    ("content-md5", "dGVzdA=="),
+                ],
+            ),
+            both(
+                "content_type_registered",
+                &[("content-type", "application/x-git-upload-pack-request")],
+                &[("content-type", "application/x-git-upload-pack-result")],
+            ),
+            both(
+                "content_type_valid",
+                &[("content-type", "text")],
+                &[("content-type", "text")],
+            ),
+            both(
+                "extension_headers_registered",
+                &[("acme-request-idd", "7c1f2b")],
+                &[("acme-request-idd", "7c1f2b")],
+            ),
+            both(
+                "form_data_content_disposition_valid",
+                &[("content-disposition", "form-data; filename=\"photo.png\"")],
+                &[("content-disposition", "form-data; filename=\"photo.png\"")],
+            ),
+            both(
+                "language_tag_syntax",
+                &[("content-language", "en-TooLongSubtag123")],
+                &[("content-language", "en-TooLongSubtag123")],
+            ),
+            both(
+                "media_type_suffix_valid",
+                &[("accept", "application/bar+nope")],
+                &[("content-type", "application/vnd.example+unknown")],
+            ),
+            both(
+                "multipart_boundary_syntax",
+                &[("content-type", "multipart/mixed")],
+                &[("content-type", "multipart/mixed")],
+            ),
+            both(
+                "transfer_coding_registered",
+                &[("transfer-encoding", "x-custom")],
+                &[("transfer-encoding", "x-custom")],
+            ),
+        ];
+
+        let by_id: std::collections::BTreeMap<&str, &&'static dyn Rule> =
+            RULES.iter().map(|r| (RuleMeta::id(*r), r)).collect();
+        let mut wrong = Vec::new();
+        for Both {
+            rule: id,
+            request,
+            response,
+        } in cases
+        {
+            let rule = **by_id.get(id).unwrap_or_else(|| panic!("no rule {id}"));
+
+            let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[id]);
+            let mut table: toml::map::Map<String, toml::Value> =
+                toml::from_str(rule.config_example())
+                    .unwrap_or_else(|e| panic!("{id}: unreadable config_example: {e}"));
+            table.insert("enabled".into(), toml::Value::Boolean(true));
+            cfg.rules.insert((*id).into(), toml::Value::Table(table));
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, response);
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(request);
+
+            let found = crate::test_helpers::run_rule_all(
+                rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            let parties: Vec<_> = found.iter().filter_map(|v| v.party).collect();
+            if found.len() < 2
+                || !parties.contains(&crate::lint::Party::Client)
+                || !parties.contains(&crate::lint::Party::Server)
+            {
+                wrong.push(format!(
+                    "{id}: {} finding(s), parties {parties:?} — {:?}",
+                    found.len(),
+                    found.iter().map(|v| &v.message).collect::<Vec<_>>()
+                ));
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "a rule reading both sections must report each, and blame the peer \
+             whose section carried it:\n  {}",
+            wrong.join("\n  ")
+        );
+    }
+
+    #[test]
+    fn a_section_reader_applied_twice_does_not_end_the_body() -> anyhow::Result<()> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            if path.extension().is_none_or(|e| e != "rs") {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path)?;
+            // Only the code that ships: a fixture is not a finding site. The
+            // same cut `a_per_site_rule_names_a_party_at_every_finding` makes.
+            let body = src.split("\n#[cfg(test)]").next().unwrap_or(&src);
+            if !body.contains("Single-finding body behind an Option") {
+                continue;
+            }
+            assert!(
+                !body.contains("if let Some(v) = check"),
+                "{}: a section reader whose finding returns out of a single-Option                  body leaves the other section unread. Collect into a vector and                  keep the finding each section yields",
+                path.display(),
+            );
+        }
+        Ok(())
+    }
+
     #[test]
     fn every_rule_file_is_registered() {
         // Deleting the hand-maintained `RULES` const removed the single place
