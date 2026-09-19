@@ -62,8 +62,10 @@ impl TrailerHeaderValid {
         hdrs: &hyper::HeaderMap,
         party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let value = combined_field_value_as_written(hdrs, "trailer")?;
+    ) -> Vec<Violation> {
+        let Some(value) = combined_field_value_as_written(hdrs, "trailer") else {
+            return Vec::new();
+        };
         let connection_val = combined_field_value_as_written(hdrs, "connection");
 
         // The field's own production, in the form the collected grammar gives a
@@ -76,9 +78,10 @@ impl TrailerHeaderValid {
         //
         // cite(RFC 9110 § A, label: Trailer grammar): "Trailer = [ field-name *( OWS "," OWS field-name ) ]"
         if trim_ows(&value).is_empty() {
-            return None;
+            return Vec::new();
         }
 
+        let mut out = Vec::new();
         let mut saw_an_empty_element = false;
 
         for member in sender_list_members(&value) {
@@ -100,13 +103,14 @@ impl TrailerHeaderValid {
             //
             // cite(RFC 9110 § A, label: field-name grammar): "field-name = token field-value = *field-content"
             if let Some(ch) = crate::helpers::token::find_invalid_token_char(member) {
-                return Some(ctx.by(party).report_with(
+                out.push(ctx.by(party).report_with(
                     token_character(ch),
                     format!(
                         "Trailer header contains invalid character '{}' in member '{}'; a member is a field-name, which is a token",
                         ch, member
                     ),
                 ));
+                continue;
             }
 
             // The one § 6.5.1 field this rule checks at declaration time, and it
@@ -120,10 +124,11 @@ impl TrailerHeaderValid {
             //
             // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
             if member.eq_ignore_ascii_case("trailer") {
-                return Some(ctx.by(party).report_with(
+                out.push(ctx.by(party).report_with(
                     &TRAILER_MEMBER_INVALID,
                     "Trailer header nominates 'Trailer'; a Trailer field cannot announce the trailer section it is already inside (RFC 9110 §6.5.1)".to_string(),
                 ));
+                continue;
             }
 
             // Scope note: this rule checks the *declaration*, and § 6.5.1's "MUST NOT
@@ -140,24 +145,25 @@ impl TrailerHeaderValid {
                 member,
                 connection_val.as_deref(),
             ) {
-                return Some(ctx.by(party).report_with(
+                out.push(ctx.by(party).report_with(
                     &TRAILER_MEMBER_INVALID,
                     format!(
                         "Trailer header nominates connection-specific field '{}'; it does not survive the hop, so it cannot arrive as a trailer (RFC 9110 §7.6.1)",
                         member
                     ),
                 ));
+                continue;
             }
         }
 
         if saw_an_empty_element {
-            return Some(ctx.by(party).report_with(
+            out.push(ctx.by(party).report_with(
                 &LIST_MEMBER_EMPTY,
                 format!("Trailer header holds an empty member: '{}'", value),
             ));
         }
 
-        None
+        out
     }
 }
 
@@ -280,26 +286,17 @@ impl Rule for TrailerHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            if let Some(v) =
-                self.check_field_section(&tx.request.headers, crate::lint::Party::Client, ctx)
-            {
-                return Some(v);
-            }
+        // One finding per member, and one per section. Every position in
+        // `#field-name` nominates one field, and a value nominating three that
+        // cannot arrive as trailers is three announcements to withdraw.
+        let mut out =
+            self.check_field_section(&tx.request.headers, crate::lint::Party::Client, ctx);
 
-            if let Some(resp) = &tx.response {
-                if let Some(v) =
-                    self.check_field_section(&resp.headers, crate::lint::Party::Server, ctx)
-                {
-                    return Some(v);
-                }
-            }
+        if let Some(resp) = &tx.response {
+            out.extend(self.check_field_section(&resp.headers, crate::lint::Party::Server, ctx));
+        }
 
-            None
-        };
-        Vec::from_iter(finding())
+        out
     }
 }
 
@@ -353,6 +350,51 @@ mod tests {
     /// A single `Trailer` line, in one section, and nothing else.
     fn trailer(section: Section, value: &str) -> Option<Violation> {
         run(&tx_with(section, &[("trailer", value.as_bytes())]))
+    }
+
+    /// The same, answering with every finding rather than the first.
+    fn trailer_all(section: Section, value: &str) -> Vec<Violation> {
+        crate::test_helpers::run_rule_all(
+            &TrailerHeaderValid,
+            &tx_with(section, &[("trailer", value.as_bytes())]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+    }
+
+    /// **Every field the sender nominated is answered.** A value nominating
+    /// three fields that cannot arrive as trailers is three announcements to
+    /// withdraw, and a walk that stopped at the first named one.
+    #[test]
+    fn every_defective_nomination_is_reported() {
+        let found = trailer_all(Section::Response, "Fo@, Trailer, Connection");
+        assert_eq!(
+            found.len(),
+            3,
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// A defect in the request's `Trailer` no longer stands in for the
+    /// response's.
+    #[test]
+    fn both_sections_are_read() {
+        let mut tx = tx_with(Section::Request, &[("trailer", b"Fo@")]);
+        tx.response.as_mut().expect("response").headers.append(
+            HeaderName::from_static("trailer"),
+            HeaderValue::from_static("B@r"),
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &TrailerHeaderValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        let parties: Vec<_> = found.iter().filter_map(|v| v.party).collect();
+        assert!(parties.contains(&crate::lint::Party::Client));
+        assert!(parties.contains(&crate::lint::Party::Server));
     }
 
     #[rstest]

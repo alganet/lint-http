@@ -59,7 +59,7 @@ impl AllowHeaderMethodTokensValid {
         section: &str,
         party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         // The field's own production, in the form the collected grammar gives a
         // sender, and the two things it says about emptiness. The outer `[ ]` is why
         // an `Allow:` carrying nothing is not reported: the field is `#method` and
@@ -80,9 +80,10 @@ impl AllowHeaderMethodTokensValid {
         // cite(RFC 9110 § 10.2.1): "An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration."
         // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
         if trim_ows(value).is_empty() {
-            return None;
+            return Vec::new();
         }
 
+        let mut out = Vec::new();
         let mut saw_an_empty_element = false;
 
         // Splitting on every comma finds exactly the members the list construct
@@ -145,7 +146,7 @@ impl AllowHeaderMethodTokensValid {
                     (ch as u32) <= 0xFF,
                     "the value is one `char` per octet; a wider `char` would truncate into a different octet"
                 );
-                return Some(ctx.by(party).report_with(
+                out.push(ctx.by(party).report_with(
                     token_character(ch),
                     format!(
                         "Allow in the {} header section: member '{}' contains {}, which is not a `tchar`, so it derives from no `token` and therefore from no `method`",
@@ -154,6 +155,7 @@ impl AllowHeaderMethodTokensValid {
                         describe_octet(ch as u8)
                     ),
                 ));
+                continue;
             }
         }
 
@@ -163,7 +165,7 @@ impl AllowHeaderMethodTokensValid {
             // string the sender wrote: an `Allow:` line beside an `Allow: GET` line
             // combines to `GET,`, whose comma is the join's. An operator grepping a
             // capture for the quoted text would otherwise find nothing.
-            return Some(ctx.by(party).report_with(
+            out.push(ctx.by(party).report_with(
                 &LIST_MEMBER_EMPTY,
                 format!(
                     "Allow in the {} header section holds an empty list element; the section's field lines combine to '{}'. A resource that allows no methods says so with an empty field value; a comma with nothing beside it says nothing",
@@ -173,7 +175,7 @@ impl AllowHeaderMethodTokensValid {
             ));
         }
 
-        None
+        out
     }
 }
 
@@ -315,9 +317,14 @@ impl Rule for AllowHeaderMethodTokensValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // One finding per member, and one per section. `Allow` is a `#method`
+        // list, and every position in it holds a `method` the sender wrote on
+        // its own terms -- so a value naming two methods that are not tokens is
+        // two things an operator has to change, and a walk that stopped at the
+        // first told them about one. The same arithmetic runs one level up: the
+        // request's `Allow` and the response's are two sections, and the first
+        // section's finding used to end the body before the second was read.
+        let findings = || -> Vec<Violation> {
             // One field section is one list however many lines carry it, so the lines are
             // joined before the members are counted: an `Allow:` written as a second line
             // is an empty *member* of the joined value, while the same line written alone
@@ -345,29 +352,29 @@ impl Rule for AllowHeaderMethodTokensValid {
                 .as_ref()
                 .and_then(|resp| combined_field_value_as_written(&resp.headers, "allow"));
 
-            if request.is_none() && response.is_none() {
-                return None;
-            }
+            let mut out = Vec::new();
 
             if let Some(value) = &request {
-                if let Some(v) =
-                    self.check_field_section(value, "request", crate::lint::Party::Client, ctx)
-                {
-                    return Some(v);
-                }
+                out.extend(self.check_field_section(
+                    value,
+                    "request",
+                    crate::lint::Party::Client,
+                    ctx,
+                ));
             }
 
             if let Some(value) = &response {
-                if let Some(v) =
-                    self.check_field_section(value, "response", crate::lint::Party::Server, ctx)
-                {
-                    return Some(v);
-                }
+                out.extend(self.check_field_section(
+                    value,
+                    "response",
+                    crate::lint::Party::Server,
+                    ctx,
+                ));
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        findings()
     }
 }
 
@@ -427,6 +434,44 @@ mod tests {
         }
 
         crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// Every finding, not the first. The helpers above answer `Option`, which is
+    /// the question the rule used to answer and cannot state the claim that one
+    /// list is several findings.
+    fn check_allow_all(lines: &[&str], is_response: bool) -> Vec<Violation> {
+        use crate::http_transaction::ResponseInfo;
+        let rule = AllowHeaderMethodTokensValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+
+        if is_response && tx.response.is_none() {
+            tx.response = Some(ResponseInfo {
+                status: 200,
+                version: "HTTP/1.1".into(),
+                headers: HeaderMap::new(),
+                body_length: None,
+                body_interrupted: false,
+                trailers: None,
+            });
+        }
+        let headers = if is_response {
+            &mut tx.response.as_mut().unwrap().headers
+        } else {
+            &mut tx.request.headers
+        };
+        for line in lines {
+            headers.append(
+                hyper::header::ALLOW,
+                HeaderValue::from_bytes(line.as_bytes()).unwrap(),
+            );
+        }
+
+        crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -495,6 +540,86 @@ mod tests {
             "{}",
             violation.message
         );
+    }
+
+    /// **A list of three bad methods is three things to fix.** Every position in
+    /// `#method` holds a `method` the sender generated on its own terms, so a
+    /// value naming three that are not tokens is three separate repairs — and a
+    /// walk that stopped at the first told the operator about one, who fixed it,
+    /// re-ran, and met the second.
+    #[test]
+    fn every_member_that_is_not_a_token_is_reported() {
+        let found = check_allow_all(&["G@T, P(ST, D=LETE"], true);
+        assert_eq!(
+            found.len(),
+            3,
+            "three members that are not tokens are three findings: {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        for (member, octet) in [("G@T", "@"), ("P(ST", "("), ("D=LETE", "=")] {
+            assert!(
+                found.iter().any(|v| v.message.contains(member)),
+                "no finding names the member '{member}' (octet {octet}): {:?}",
+                found.iter().map(|v| &v.message).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    /// The empty member stays one finding, and this pins the split. § 5.6.1.1
+    /// forbids *generating* an empty element, and what the sender generated is
+    /// one list with a gap in it however many gaps it has — so the emptiness is
+    /// the list's defect and the token scan is the member's. A value carrying
+    /// both says both, once each way.
+    #[test]
+    fn an_empty_member_is_the_lists_defect_and_the_token_scan_is_the_members() {
+        let found = check_allow_all(&["G@T,,P(ST,,"], true);
+        let empties = found
+            .iter()
+            .filter(|v| v.violation == "list_member_empty")
+            .count();
+        assert_eq!(empties, 1, "three empty members are one list defect");
+        assert_eq!(
+            found.len() - empties,
+            2,
+            "two members that are not tokens are two findings: {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// A defect in the request's `Allow` no longer stands in for the response's.
+    /// The two sections are two lists, written by two peers, and each finding is
+    /// blamed on the one whose section carried it.
+    #[test]
+    fn both_sections_are_read_and_each_finding_names_its_peer() {
+        use crate::http_transaction::ResponseInfo;
+        let rule = AllowHeaderMethodTokensValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request
+            .headers
+            .append(hyper::header::ALLOW, HeaderValue::from_static("G@T"));
+        tx.response = Some(ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: {
+                let mut h = HeaderMap::new();
+                h.append(hyper::header::ALLOW, HeaderValue::from_static("P(ST"));
+                h
+            },
+            body_length: None,
+            body_interrupted: false,
+            trailers: None,
+        });
+
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(found.len(), 2, "each section carries its own finding");
+        let parties: Vec<_> = found.iter().filter_map(|v| v.party).collect();
+        assert!(parties.contains(&crate::lint::Party::Client));
+        assert!(parties.contains(&crate::lint::Party::Server));
     }
 
     /// One field section is one list however many lines carry it. Both directions

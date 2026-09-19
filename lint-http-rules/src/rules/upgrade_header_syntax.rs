@@ -198,8 +198,10 @@ impl UpgradeHeaderSyntax {
     ///
     /// cite(RFC 9110 § 5.5): "HTTP field values consist of a sequence of characters in a format defined by the field's grammar."
     /// cite(RFC 9110 § A, label: Upgrade grammar, sender-expanded): "Upgrade = [ protocol *( OWS "," OWS protocol ) ]"
-    fn defect(headers: &hyper::HeaderMap, direction: &str) -> Option<Defect> {
-        let value = combined_field_value_as_written(headers, "upgrade")?;
+    fn defects(headers: &hyper::HeaderMap, direction: &str) -> Vec<Defect> {
+        let Some(value) = combined_field_value_as_written(headers, "upgrade") else {
+            return Vec::new();
+        };
 
         // The two things the production says about emptiness, and they are not
         // the same thing. The outer brackets of the sender-expanded form are why
@@ -217,9 +219,10 @@ impl UpgradeHeaderSyntax {
         // cite(RFC 9110 § 5.6.1.1): "#element => [ 1#element ]"
         // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
         if trim_ows(&value).is_empty() {
-            return None;
+            return Vec::new();
         }
 
+        let mut out = Vec::new();
         let mut saw_an_empty_member = false;
 
         for member in sender_list_members(&value) {
@@ -235,14 +238,14 @@ impl UpgradeHeaderSyntax {
             }
 
             if let Some(defect) = protocol_defect(member) {
-                return Some(
+                out.push(
                     defect.in_context(|message| format!("{direction} Upgrade header {message}")),
                 );
             }
         }
 
         if saw_an_empty_member {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &LIST_MEMBER_EMPTY,
                 format!(
                     "{direction} Upgrade header holds an empty member: '{}'",
@@ -251,7 +254,7 @@ impl UpgradeHeaderSyntax {
             ));
         }
 
-        None
+        out
     }
 }
 
@@ -387,34 +390,49 @@ impl Rule for UpgradeHeaderSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // No version gate, and the sibling that reports presence is why. A
-            // grammar is what a value is measured against whatever carried it, and
-            // over HTTP/2 and HTTP/3 the field's *presence* is already the finding —
-            // `no_connection_specific_fields` makes it, and says in as many
-            // words that it reads no value because whether one derives from its
-            // field's own production is that field's rule's question. This is that
-            // rule, and declining the value there and here would leave the question
-            // asked by nobody. `connection_header_tokens_valid` reads its own
-            // connection-specific field the same way for the same reason.
-            // The half that produced the judgement travels with it: the one
-            // reporting site below cannot tell afterwards which of the two calls
-            // answered.
-            let (party, defect) = Self::defect(&tx.request.headers, "Request")
-                .map(|defect| (crate::lint::Party::Client, defect))
-                .or_else(|| {
-                    let resp = tx.response.as_ref()?;
-                    Self::defect(&resp.headers, "Response")
-                        .map(|defect| (crate::lint::Party::Server, defect))
-                })?;
+        // One finding per member, and one per direction. Every position in
+        // `#protocol` names a protocol the sender is offering or has switched
+        // to, so a value naming two that derive from no `protocol` is two
+        // offers to correct. And the request's `Upgrade` no longer stands in
+        // for the response's: they are two lists written by two peers, and the
+        // `or_else` that read the second only when the first was clean meant a
+        // client's malformed offer hid the server's malformed acceptance.
+        let findings =
+            || -> Vec<Violation> {
+                // No version gate, and the sibling that reports presence is why. A
+                // grammar is what a value is measured against whatever carried it, and
+                // over HTTP/2 and HTTP/3 the field's *presence* is already the finding —
+                // `no_connection_specific_fields` makes it, and says in as many
+                // words that it reads no value because whether one derives from its
+                // field's own production is that field's rule's question. This is that
+                // rule, and declining the value there and here would leave the question
+                // asked by nobody. `connection_header_tokens_valid` reads its own
+                // connection-specific field the same way for the same reason.
+                // The half that produced the judgement travels with it: the one
+                // reporting site below cannot tell afterwards which of the two calls
+                // answered.
+                let mut out: Vec<Violation> = Self::defects(&tx.request.headers, "Request")
+                    .into_iter()
+                    // Read last: a message about to be reported is the only one that
+                    // pays for the map probes and the two lookups of the rule id.
+                    .map(|defect| {
+                        ctx.by(crate::lint::Party::Client)
+                            .report_with(defect.def, defect.message)
+                    })
+                    .collect();
 
-            // Read last: a message about to be reported is the only one that pays
-            // for the map probes and the two lookups of the rule id.
-            Some(ctx.by(party).report_with(defect.def, defect.message))
-        };
-        Vec::from_iter(finding())
+                if let Some(resp) = tx.response.as_ref() {
+                    out.extend(Self::defects(&resp.headers, "Response").into_iter().map(
+                        |defect| {
+                            ctx.by(crate::lint::Party::Server)
+                                .report_with(defect.def, defect.message)
+                        },
+                    ));
+                }
+
+                out
+            };
+        findings()
     }
 }
 
@@ -461,6 +479,70 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The same fixture, answering with every finding rather than the first.
+    fn upgrade_all(section: Section, lines: &[&[u8]]) -> Vec<Violation> {
+        let rule = UpgradeHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        for line in lines {
+            hm.append(
+                hyper::header::UPGRADE,
+                HeaderValue::from_bytes(line).expect("field value"),
+            );
+        }
+        match section {
+            Section::Request => tx.request.headers = hm,
+            Section::Response => tx.response.as_mut().expect("response").headers = hm,
+        }
+        crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// **Every protocol the sender offered is answered.** Two members deriving
+    /// from no `protocol` are two offers to correct.
+    #[test]
+    fn every_defective_protocol_is_reported() {
+        let found = upgrade_all(Section::Response, &[b"h2c/, we bsocket"]);
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(
+            ids.contains(&"token_empty") && ids.contains(&"token_whitespace_or_control_forbidden"),
+            "both members are answered: {ids:?}"
+        );
+    }
+
+    /// A client's malformed offer no longer hides the server's malformed
+    /// acceptance. The `or_else` that read the response only when the request
+    /// was clean is why `--about server` could be silent about a value it had
+    /// never looked at.
+    #[test]
+    fn a_malformed_offer_does_not_hide_a_malformed_acceptance() {
+        let rule = UpgradeHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers.append(
+            hyper::header::UPGRADE,
+            HeaderValue::from_static("we@bsocket"),
+        );
+        tx.response
+            .as_mut()
+            .expect("response")
+            .headers
+            .append(hyper::header::UPGRADE, HeaderValue::from_static("h2@c"));
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        let parties: Vec<_> = found.iter().filter_map(|v| v.party).collect();
+        assert!(parties.contains(&crate::lint::Party::Client));
+        assert!(parties.contains(&crate::lint::Party::Server));
     }
 
     /// Both halves of a `protocol` are `token`s, and one id answers for either.
