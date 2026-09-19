@@ -9,12 +9,25 @@ use crate::violations::ViolationDef;
 
 /// One entry over four shapes of one disagreement.
 ///
-/// An `Expires` naming no instant at all beside a positive `max-age`, a future
-/// one beside `no-cache`, an already-past one beside a positive `max-age`, and a
-/// date that is not `Date` plus `max-age` are all the same message read two
-/// ways: caches that implement `Cache-Control` use the directive, caches that do
-/// not use the field. Same sender, same repair, same loss — which of the four it
-/// was is the message's to say.
+/// An `Expires` naming no instant at all beside an unspent `max-age`, a future
+/// one beside `no-cache` or a lifetime already spent, an already-past one beside
+/// an unspent `max-age`, and a date that is neither instant `Date` and an
+/// unspent `max-age` can name are all the same message read two ways: caches
+/// that implement `Cache-Control` use the directive, caches that do not use the
+/// field. Same sender, same repair, same loss — which of the four it was is the
+/// message's to say.
+///
+/// **What "unspent" adds, and what every shape here answered without it: the
+/// age the response arrived with.** `Date` plus `max-age` is where the directive
+/// population stops calling a response fresh only when that response had spent
+/// none of its lifetime yet. RFC 9111 § 4.2.3 floors `current_age` at the stated
+/// `Age`, so an origin serving through a cache that stamps its own `Date` states
+/// the lifetime that is *left*, and `Date` plus `max-age` minus `Age` is where
+/// both populations meet. It is what a CDN in front of an origin ordinarily
+/// writes — 3600 seconds of lifetime with 2805 of them already spent, and an
+/// `Expires` 795 seconds out — and it was read as a response holding two
+/// answers when it holds one. A lifetime the age had consumed entirely was read
+/// the same way, as freshness no cache had.
 ///
 /// **What no shape here is, and used to be: a value a recipient cannot read.**
 /// The first shape was every `Expires` the parser refused, which put a spelling
@@ -55,7 +68,7 @@ impl RuleMeta for ExpiresAndCacheControlConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nThe comparison is made against the instant the sender wrote, not the one a recipient\ncan read: a value refused only for its spelling — a zone token of `UTC`, a weekday that\nis not the day its own date falls on — still names its instant, and naming the same\ninstant `Date` plus `max-age` names is agreement however it is spelled. That such a\nvalue is unreadable is reported separately.\n\nAn `Expires` that names no instant at all counts as contradictory rather than as no\ninformation: a cache is required to read it as already expired, so the common\n`Expires: 0` paired with a positive `max-age` is flagged."
+        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nThe comparison is made against the instant the sender wrote, not the one a recipient\ncan read: a value refused only for its spelling — a zone token of `UTC`, a weekday that\nis not the day its own date falls on — still names its instant, and naming the same\ninstant `Date` plus `max-age` names is agreement however it is spelled. That such a\nvalue is unreadable is reported separately.\n\nAn `Expires` that names no instant at all counts as contradictory rather than as no\ninformation: a cache is required to read it as already expired, so the common\n`Expires: 0` paired with an unspent `max-age` is flagged.\n\nThe lifetime a directive advertises is compared after the age the response arrived\nwith is taken off it. A response served out of a cache has spent part of its\n`max-age` already, and an origin behind such a cache commonly writes `Expires` as\nthe instant the lifetime actually runs out — `Date` plus `max-age` minus `Age` —\nwhich is agreement, not contradiction. A `max-age` the `Age` has consumed entirely\nis a response stale on arrival, exactly as `max-age=0` is, and is read that way in\nboth directions."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -87,6 +100,20 @@ impl RuleMeta for ExpiresAndCacheControlConsistent {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: no-cache\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "Served from a cache: 3600 seconds of lifetime with 2805 spent, and an Expires 795 seconds out. Both populations stop at 07:41:15",
+                ),
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nAge: 2805\nCache-Control: max-age=3600\nExpires: Wed, 21 Oct 2015 07:41:15 GMT\n\n<...>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "An Age that has consumed the whole max-age is a response stale on arrival, so an Expires an hour out is freshness no cache has",
+                ),
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nAge: 900\nCache-Control: max-age=600\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
             },
         ]
     }
@@ -157,6 +184,29 @@ impl Rule for ExpiresAndCacheControlConsistent {
                 return None;
             }
 
+            // How much of the advertised lifetime the response had already
+            // spent when it arrived. Every arm below asks whether the directive
+            // population still calls this response fresh, and until this was
+            // read every arm answered for a response that had spent none of it.
+            // §4.2.3 floors `current_age` at the stated `Age`, so a lifetime at
+            // or below that number is one no recipient has any of left — which
+            // is `max-age=0` written in the other field, and the arms treat it
+            // the same way.
+            // cite(RFC 9111 § 4.2.3): "corrected_initial_age = max(apparent_age, corrected_age_value)"
+            // cite(RFC 9111 § 4.2): "response_is_fresh = (freshness_lifetime > current_age)"
+            let age = crate::helpers::cache_control::stated_age(&resp.headers);
+            let remaining = |lifetime: Option<i64>| lifetime.is_some_and(|s| s > age);
+            // Fresh to *some* cache: `s-maxage` answers only for a shared one,
+            // and either being unspent is enough for the two fields to be able
+            // to hold two answers.
+            let cc_still_fresh = remaining(cc_max_age) || remaining(cc_s_maxage);
+            // Not fresh to any of them. `max-age` is the arm's field here as it
+            // was when the test was `== Some(0)`: a zero is a lifetime the age
+            // has spent before it started, and the generalisation is the same
+            // sentence with the age put back in.
+            let cc_stale_on_arrival =
+                cc_no_cache || cc_no_store || cc_max_age.is_some_and(|s| s <= age);
+
             // The recipient is required to read an Expires it cannot derive an instant from
             // — `0` above all, the classic anti-caching idiom — as a time already past. So it
             // contradicts a positive max-age/s-maxage exactly the way a stale date does, and the
@@ -168,7 +218,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // expired" is true against any.
             // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
             let Some(expires) = expires_meant else {
-                if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
+                if cc_still_fresh {
                     return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                             "Expires '{}' names no instant, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory",
                             expires_raw
@@ -200,11 +250,19 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // (recorded in the tracker).
             // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
             // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field"
-            if (cc_no_cache || cc_no_store || cc_max_age == Some(0)) && expires > date_ref {
+            if cc_stale_on_arrival && expires > date_ref {
+                let directives = if cc_no_cache {
+                    "no-cache".to_string()
+                } else if cc_no_store {
+                    "no-store".to_string()
+                } else if age > 0 {
+                    format!("max-age={} beside Age: {age}", cc_max_age.unwrap_or(0))
+                } else {
+                    "max-age=0".to_string()
+                };
                 return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                         "Response contains Cache-Control directives {:?} that make it non-fresh, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1){}",
-                        if cc_no_cache { "no-cache" } else if cc_no_store { "no-store" } else { "max-age=0" },
-                        expires, as_written
+                        directives, expires, as_written
                     )));
             }
 
@@ -213,9 +271,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // the directive wins and Expires is ignored, so this is a consistency flag, not a spec
             // violation — the two values simply disagree.
             // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
-            if (cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0)
-                && expires <= date_ref
-            {
+            if cc_still_fresh && expires <= date_ref {
                 return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
                         "Response contains Cache-Control max-age/s-maxage but Expires {} is not in the future relative to Date {} — values are contradictory (RFC 9111 §4.2, §5.3){}",
                         expires, date_ref, as_written
@@ -241,14 +297,37 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // is dropping the only expiry the HTTP/1.0 cache had.
             if resp.headers.contains_key("date") {
                 if let Some(max_age) = cc_max_age {
-                    if max_age > 0 {
+                    if max_age > age {
+                        // Two instants, because `Date` has two readings and the
+                        // message does not say which one it was written under.
+                        // Where `Date` is when the origin generated the
+                        // response, the directive population goes stale at
+                        // `Date + max-age` and the age is the time since. Where
+                        // it is when the cache in front served this copy — which
+                        // is what an `Age` beside a `Date` at the observed
+                        // instant means — the lifetime left is what has not been
+                        // spent, and the two populations meet at `Date + max-age
+                        // - Age`. An `Expires` landing on either is one lifetime
+                        // written twice, so only a value that lands on neither
+                        // is two.
+                        // cite(RFC 9111 § 4.2.3): "apparent_age = max(0, response_time - date_value)"
                         let expected = date_ref + chrono::Duration::seconds(max_age);
+                        let expected_after_age =
+                            date_ref + chrono::Duration::seconds(max_age - age);
                         // Allow a small leeway (1 second) for formatting/rounding differences
                         let diff = (expected - expires).num_seconds().abs();
-                        if diff > 1 {
+                        let diff_after_age = (expected_after_age - expires).num_seconds().abs();
+                        if diff > 1 && diff_after_age > 1 {
+                            let spent = if age > 0 {
+                                format!(
+                                    ", or {expected_after_age} once the Age: {age} it arrived with is taken off"
+                                )
+                            } else {
+                                String::new()
+                            };
                             return Some(ctx.report_with(&EXPIRES_CONFLICTING, format!(
-                                    "Cache-Control max-age={} suggests Expires should be {} (Date + max-age), but Expires is {} — prefer consistent values or omit Expires (RFC 9111 §5.3){}",
-                                    max_age, expected, expires, as_written
+                                    "Cache-Control max-age={} suggests Expires should be {} (Date + max-age){}, but Expires is {} — prefer consistent values or omit Expires (RFC 9111 §5.3){}",
+                                    max_age, expected, spent, expires, as_written
                                 )));
                         }
                     }
@@ -345,6 +424,73 @@ mod tests {
                 headers
             );
         }
+        Ok(())
+    }
+
+    /// The age a response arrived with, in each arm that asks whether the
+    /// directive population still calls it fresh.
+    ///
+    /// `Date` is the same instant in every row and `Age` is what moves, so a
+    /// verdict that changes between two rows here changed because of the age
+    /// and nothing else.
+    #[rstest]
+    // The lifetime is 3600 seconds and 2805 of them are spent, so a cache
+    // reading the directive has 795 left and a cache reading the field is told
+    // 795. One instant, named twice. Read off www.iana.org.
+    #[case(&[("cache-control","public, max-age=3600"),("age","2805"),("date","Sun, 30 Aug 2026 00:03:31 GMT"),("expires","Sun, 30 Aug 2026 00:16:46 GMT")], false)]
+    // The same response with no age behind it: now the directive says an hour
+    // and the field says thirteen minutes, and they are two answers.
+    #[case(&[("cache-control","public, max-age=3600"),("date","Sun, 30 Aug 2026 00:03:31 GMT"),("expires","Sun, 30 Aug 2026 00:16:46 GMT")], true)]
+    // And the reading the age does not license: `Date` plus the whole lifetime
+    // is still an instant the two can meet at, so a response served with an age
+    // it has not spent is silent on the arithmetic it was already silent on.
+    #[case(&[("cache-control","public, max-age=3600"),("age","2805"),("date","Sun, 30 Aug 2026 00:03:31 GMT"),("expires","Sun, 30 Aug 2026 01:03:31 GMT")], false)]
+    // Neither instant. The lifetime is ten minutes however the age is read, and
+    // the field names four hours. Read off www.rfc-editor.org.
+    #[case(&[("cache-control","public, max-age=600"),("age","1012"),("date","Sun, 30 Aug 2026 01:20:10 GMT"),("expires","Sun, 30 Aug 2026 05:20:10 GMT")], true)]
+    // A lifetime the age has spent entirely is a response stale on arrival to
+    // every cache, which is what `max-age=0` says and is already silent beside
+    // a past `Expires`. Distance between two past instants is not two answers.
+    #[case(&[("cache-control","max-age=600"),("age","623"),("date","Sun, 30 Aug 2026 01:44:55 GMT"),("expires","Sat, 29 Aug 2026 22:10:03 GMT")], false)]
+    // One second of it left, and the arm is back: the field says the response
+    // went stale yesterday and the directive says it has not.
+    #[case(&[("cache-control","max-age=600"),("age","599"),("date","Sun, 30 Aug 2026 01:44:55 GMT"),("expires","Sat, 29 Aug 2026 22:10:03 GMT")], true)]
+    // A spent lifetime is not fresh, so a *future* `Expires` beside it is the
+    // disagreement the non-fresh arm names — the arm that until now only knew
+    // the lifetime written as a zero.
+    #[case(&[("cache-control","max-age=600"),("age","900"),("date","Sun, 30 Aug 2026 01:20:10 GMT"),("expires","Sun, 30 Aug 2026 02:20:10 GMT")], true)]
+    // An `Expires` naming no instant is already-expired, and a lifetime the age
+    // has spent agrees with it. The same row with the age dropped is the `-1`
+    // idiom this entry has always reported.
+    #[case(&[("cache-control","max-age=600"),("age","900"),("date","Sun, 30 Aug 2026 01:20:10 GMT"),("expires","-1")], false)]
+    #[case(&[("cache-control","max-age=600"),("date","Sun, 30 Aug 2026 01:20:10 GMT"),("expires","-1")], true)]
+    // `s-maxage` answers for a shared cache and is unspent here, so one
+    // population still holds a lifetime the field contradicts.
+    #[case(&[("cache-control","max-age=600, s-maxage=7200"),("age","900"),("date","Sun, 30 Aug 2026 01:20:10 GMT"),("expires","-1")], true)]
+    // An `Age` outside `delta-seconds` states nothing about elapsed time, so it
+    // is read as no age rather than as some other number: the verdict is the
+    // one the response would get with the field absent.
+    #[case(&[("cache-control","public, max-age=3600"),("age","not-a-number"),("date","Sun, 30 Aug 2026 00:03:31 GMT"),("expires","Sun, 30 Aug 2026 00:16:46 GMT")], true)]
+    fn age_is_part_of_the_lifetime_already_spent(
+        #[case] headers: &[(&str, &str)],
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
+        let tx = make_test_transaction_with_response(200, headers);
+        let rule = ExpiresAndCacheControlConsistent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "expires_and_cache_control_consistent",
+        ]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "headers={headers:?} gave {v:?}"
+        );
         Ok(())
     }
 

@@ -10840,37 +10840,43 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 202
+      line: 252
   - label: expires_and_cache_control_consistent (2)
+    section: § 4.2.3
+    snippet: apparent_age = max(0, response_time - date_value)
+    cited_by:
+    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
+      line: 313
+  - label: expires_and_cache_control_consistent (3)
     section: § 5.3
     snippet: A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 169
+      line: 219
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
       line: 133
     - file: lint-http-rules/src/violations/expires.rs
-      line: 127
-  - label: expires_and_cache_control_consistent (3)
+      line: 140
+  - label: expires_and_cache_control_consistent (4)
     section: § 5.3
     snippet: If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 201
+      line: 251
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 215
+      line: 273
     - file: lint-http-rules/src/violations/expires.rs
-      line: 83
+      line: 96
   - label: expires
     section: § 5.3
     snippet: The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 108
+      line: 135
     - file: lint-http-rules/src/rules/expires_date_syntax.rs
       line: 124
     - file: lint-http-rules/src/violations/expires.rs
-      line: 126
+      line: 139
   - label: immutable_cache_never_stale
     section: § 5.2.2.4
     snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
@@ -10904,7 +10910,7 @@ sources:
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 451
+      line: 470
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 240
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
@@ -10912,45 +10918,53 @@ sources:
     snippet: response_is_fresh = (freshness_lifetime > current_age)
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 452
+      line: 471
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 355
+    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
+      line: 196
   - label: lint-http-rules/src/helpers/cache_control.rs (3)
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 400
+      line: 419
   - label: lint-http-rules/src/helpers/cache_control.rs (4)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 410
+      line: 429
   - label: lint-http-rules/src/helpers/cache_control.rs (5)
     section: § 4.2.3
     snippet: apparent_age = max(0, response_time - date_value);
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 453
+      line: 472
   - label: lint-http-rules/src/helpers/cache_control.rs (6)
     section: § 4.2.3
     snippet: corrected_initial_age = max(apparent_age, corrected_age_value)
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 365
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 390
+    - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
+      line: 195
   - label: lint-http-rules/src/helpers/cache_control.rs (7)
     section: § 4.2.3
     snippet: corrected_initial_age = max(apparent_age, corrected_age_value);
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 454
+      line: 473
   - label: lint-http-rules/src/helpers/cache_control.rs (8)
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 364
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 389
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 89
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
@@ -10994,7 +11008,7 @@ sources:
     snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 455
+      line: 474
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 143
     - file: lint-http-rules/src/violations/cache_control.rs
