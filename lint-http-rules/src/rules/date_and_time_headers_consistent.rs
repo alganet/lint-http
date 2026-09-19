@@ -101,8 +101,9 @@ enum Timestamp {
 /// the per-field format rules.
 ///
 /// Only the first line is read: every field asked here but `Sunset` is a
-/// singleton, and `Sunset` is read line by line below through
-/// [`Timestamp::of`], because no other rule owns its repetition.
+/// singleton whose repetition another rule reports. `Sunset` is read line by
+/// line below, through [`Timestamp::of`] in both of the walks that own it,
+/// because no other rule owns its repetition.
 fn timestamp(headers: &hyper::HeaderMap, name: &str) -> Timestamp {
     headers.get(name).map_or(Timestamp::Absent, Timestamp::of)
 }
@@ -138,15 +139,16 @@ fn stated_instant(
 /// **Two anchors and not one, because the field's sentence is about the future
 /// and not about the message.** RFC 8594 § 3 asks a `Sunset` to name a time
 /// still to come; `Date` is the best statement of when "now" was for the
-/// message that carries it, and a response that states no `Date` has not
-/// thereby stopped having a shutdown time in the past. What is left is the
+/// message that carries it, and a response that states no readable `Date` has
+/// not thereby stopped having a shutdown time in the past. What is left is the
 /// instant the exchange was observed, which is a fact about the capture rather
 /// than about the message — so it is a separate variant and the finding says
 /// which one it measured against.
 enum Now {
     /// The response's own `Date`, and the text it was written as.
     Stated(chrono::DateTime<chrono::Utc>, String),
-    /// When the transaction was seen, for a response that states no `Date`.
+    /// When the transaction was seen, for a response that states no `Date` —
+    /// or states one no recipient can read, which anchors just as little.
     Observed(chrono::DateTime<chrono::Utc>),
 }
 
@@ -237,7 +239,9 @@ impl DateAndTimeHeadersConsistent {
     /// refused, and the checks above report it against the field it arrived on.
     ///
     /// Every field line, because `Sunset` is read line by line above for the
-    /// same reason: no other rule owns its repetition.
+    /// same reason: no other rule owns its repetition. This walk collected from
+    /// the day it was written; the two above it did not, and a claim made in
+    /// three comments held in one place.
     ///
     // cite(RFC 9110 § 5.6.7): "HTTP-date = IMF-fixdate / obs-date"
     // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
@@ -295,51 +299,82 @@ impl DateAndTimeHeadersConsistent {
         }
         None
     }
-
-    /// `Sunset` announces a shutdown, so it names a time still to come.
+    /// `Sunset` states an instant, or states nothing a recipient can read.
     ///
-    /// One § 3 sentence licenses both halves — the HTTP-date format and the
-    /// future check (the skew only makes the past-check lenient).
+    /// **Split from the comparison below, and the split is the point.** RFC 8594
+    /// § 3 licenses both halves in one sentence, but they are not the same kind
+    /// of claim: this one is about the octets on the line and nothing else,
+    /// while the comparison is measured against an instant the message has to
+    /// supply. Only the second has anything to sit behind.
     ///
     /// Every field line is judged, not just the first: `Sunset` is a singleton
     /// the repeated-singleton rule does not list, so a second line judged
-    /// nowhere would be a second line judged not at all.
+    /// nowhere would be a second line judged not at all. Two unreadable lines
+    /// are two values to fix, so each finding names the one it is about —
+    /// without that a response states the same sentence twice and an operator
+    /// cannot tell which line either of them is for.
+    // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
+    fn sunset_is_readable(
+        headers: &hyper::HeaderMap,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        headers
+            .get_all("sunset")
+            .iter()
+            .filter_map(|line| match Timestamp::of(line) {
+                Timestamp::Unparseable(defect) => {
+                    let shown = crate::helpers::shown::shown_in_finding(
+                        &crate::helpers::headers::field_line_as_written(line),
+                    );
+                    Some(ctx.by_server().report_with(
+                        http_date_defect(defect),
+                        match defect {
+                            crate::http_date::HttpDateDefect::DayNameConflicting => format!(
+                                "Sunset header '{shown}' names a weekday its own date does not \
+                                 fall on (RFC 8594 §3)"
+                            ),
+                            crate::http_date::HttpDateDefect::Empty => format!(
+                                "Sunset header '{shown}' is empty or contains only whitespace \
+                                 (RFC 8594 §3)"
+                            ),
+                            _ => format!(
+                                "Sunset header '{shown}' is not a valid HTTP-date (RFC 8594 §3)"
+                            ),
+                        },
+                    ))
+                }
+                Timestamp::At(..) | Timestamp::Absent => None,
+            })
+            .collect()
+    }
+
+    /// `Sunset` announces a shutdown, so it names a time still to come.
+    ///
+    /// The skew only makes the past-check lenient. A line no recipient can read
+    /// names no instant, and is [`Self::sunset_is_readable`]'s finding rather
+    /// than this one's; every field line is judged here too, for the reason
+    /// given there.
     // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
     fn sunset_is_still_to_come(
-        &self,
         headers: &hyper::HeaderMap,
         now: &Now,
         skew: chrono::Duration,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         headers
             .get_all("sunset")
             .iter()
-            .find_map(|line| match Timestamp::of(line) {
-                Timestamp::Unparseable(defect) => Some(ctx.by_server().report_with(
-                    http_date_defect(defect),
-                    match defect {
-                        crate::http_date::HttpDateDefect::DayNameConflicting => {
-                            "Sunset header names a weekday its own date does not fall on \
-                             (RFC 8594 §3)"
-                        }
-                        crate::http_date::HttpDateDefect::Empty => {
-                            "Sunset header is empty or contains only whitespace (RFC 8594 §3)"
-                        }
-                        _ => "Sunset header is not a valid HTTP-date (RFC 8594 §3)",
-                    }
-                    .into(),
-                )),
+            .filter_map(|line| match Timestamp::of(line) {
                 Timestamp::At(sunset, text) if sunset <= now.at() - skew => {
                     Some(ctx.by_server().report_with(&SUNSET_INVALID, format!(
                         "Sunset header '{}' is before or equal to {}; Sunset should indicate a future shutdown date",
                         text, now.describe()
                     )))
                 }
-                Timestamp::At(..) | Timestamp::Absent => None,
+                Timestamp::At(..) | Timestamp::Absent | Timestamp::Unparseable(_) => None,
             })
+            .collect()
     }
-
     /// A 2xx, 3xx or 4xx response that never says when it was written.
     ///
     /// Asked last of the response, and the ordering is the reading: every other
@@ -480,7 +515,9 @@ impl Rule for DateAndTimeHeadersConsistent {
         // Each check below is one sentence about one pair of fields, and each
         // states its own reading of a field that is absent, unreadable or not a
         // date — which is why they are named functions rather than a ladder:
-        // the ladder made those three readings look like one.
+        // the ladder made those three readings look like one. A check that
+        // states its own reading needs no finding in front of it, which is the
+        // argument for reporting all of them.
         // Tolerate some small clock skew when comparing dates. 60s is a linter
         // heuristic — no spec licenses it; §8.8.2.1's "MUST NOT ... later than ...
         // Date" is strict, so this only makes the rule *more* lenient (recorded in
@@ -506,55 +543,62 @@ impl Rule for DateAndTimeHeadersConsistent {
         // The response's chain, which stays a chain: every check in it is
         // measured against the instant `Date` states, so the first one to answer
         // ends it because the ones behind it have nothing left to measure.
-        let response_side = || -> Option<Violation> {
-            if let Some(resp) = &tx.response {
-                if let Some(v) =
-                    self.date_is_readable(&resp.headers, crate::lint::Party::Server, ctx)
-                {
-                    return Some(v);
-                }
-                // The two comparisons below are against Date, so they are asked
-                // only where Date is a timestamp; where it is not, the check
-                // above has already reported it.
-                // `Last-Modified` is measured against `Date` and against
-                // nothing else: § 8.8.2.1 constrains it relative to the
-                // server's time of message origination, which is what `Date`
-                // states and what no observer can supply in its place.
-                if let Timestamp::At(date, date_text) = timestamp(&resp.headers, "date") {
-                    if let Some(v) = Self::last_modified_not_after_date(
-                        &resp.headers,
-                        date,
-                        &date_text,
-                        skew,
-                        ctx,
-                    ) {
-                        return Some(v);
-                    }
-                }
-                // `Sunset` is measured against whichever instant is available.
-                // An unreadable `Date` has already been reported above, so the
-                // only response reaching the fallback is one that wrote none.
-                let now = match timestamp(&resp.headers, "date") {
-                    Timestamp::At(date, date_text) => Now::Stated(date, date_text),
-                    Timestamp::Absent | Timestamp::Unparseable(_) => Now::Observed(tx.timestamp),
-                };
-                if let Some(v) = self.sunset_is_still_to_come(&resp.headers, &now, skew, ctx) {
-                    return Some(v);
-                }
-                if let Some(v) = self.date_states_when_the_response_was_written(resp, ctx) {
-                    return Some(v);
-                }
+        // Not a chain. Each check below states its own reading of a `Date` that
+        // is absent, unreadable or a timestamp, and every one of those readings
+        // is written into the check itself: `Last-Modified` is asked only under
+        // `Timestamp::At`, `Sunset` chooses its own anchor, and the missing-Date
+        // question is about the field's absence and not about any instant. So
+        // there is nothing here for a finding to stand in for, and ending at the
+        // first one only withheld the rest.
+        //
+        // **The order is still the reading**, and it is all the order does now:
+        // a value the sender wrote wrong is stated before a field it did not
+        // write at all.
+        let response_side = || -> Vec<Violation> {
+            let mut out = Vec::new();
+            let Some(resp) = &tx.response else {
+                return out;
+            };
+            out.extend(self.date_is_readable(&resp.headers, crate::lint::Party::Server, ctx));
+            // `Last-Modified` is measured against `Date` and against nothing
+            // else: § 8.8.2.1 constrains it relative to the server's time of
+            // message origination, which is what `Date` states and what no
+            // observer can supply in its place. A `Date` that is not a timestamp
+            // supplies none, which is what this arm says and why the comparison
+            // needs no finding above it to protect it.
+            if let Timestamp::At(date, date_text) = timestamp(&resp.headers, "date") {
+                out.extend(Self::last_modified_not_after_date(
+                    &resp.headers,
+                    date,
+                    &date_text,
+                    skew,
+                    ctx,
+                ));
             }
-
-            None
+            // The two readings of `Sunset`, and only the second of them is
+            // measured against anything.
+            out.extend(Self::sunset_is_readable(&resp.headers, ctx));
+            // A `Date` no recipient can read anchors nothing, exactly as an
+            // absent one does not, so both fall to the observed instant — and
+            // the finding says which anchor it used either way.
+            let now = match timestamp(&resp.headers, "date") {
+                Timestamp::At(date, date_text) => Now::Stated(date, date_text),
+                Timestamp::Absent | Timestamp::Unparseable(_) => Now::Observed(tx.timestamp),
+            };
+            out.extend(Self::sunset_is_still_to_come(
+                &resp.headers,
+                &now,
+                skew,
+                ctx,
+            ));
+            out.extend(self.date_states_when_the_response_was_written(resp, ctx));
+            out
         };
-        // Beside the chain above rather than inside it. Every check in there
-        // reads what the value *names*, and the first one to answer ends the
-        // chain because the ones behind it are measured against the instant it
-        // failed to produce. The spelling is a different question about the
-        // same octets: an obsolete `Sunset` still names an instant, so
-        // `sunset_invalid` is still true of it, and neither finding stands in
-        // for the other.
+        // The spelling is a third question about the same octets, and it was
+        // kept out of the block above while that block was a chain. It stays a
+        // separate call because it stays a separate question: an obsolete
+        // `Sunset` still names an instant, so `sunset_invalid` is still true of
+        // it, and neither finding stands in for the other.
         let mut out = request_side();
         out.extend(response_side());
         out.extend(Self::spelled_as_a_sender_may_generate(
@@ -1004,8 +1048,97 @@ mod tests {
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
-        assert!(m.contains("Sunset header is not a valid HTTP-date"));
+        assert!(m.contains("Sunset header 'not-a-date' is not a valid HTTP-date"));
         Ok(())
+    }
+
+    /// A `Sunset` written on two lines is two values to fix.
+    ///
+    /// The rule reads every field line because no other rule counts this
+    /// field's repetition — three of this file's comments said so while the
+    /// walk was a `find_map` and stopped at the first line with anything wrong.
+    /// The two lines are given different defects so the count is visible in the
+    /// ids as well as in the length; the length is the assertion, because a walk
+    /// that regresses passes every one-line case it already had.
+    #[test]
+    fn two_unreadable_sunset_lines_are_two_findings() {
+        let found = response_findings(&[
+            ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+            ("sunset", " "),
+            ("sunset", "not-a-date"),
+        ]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(found.len(), 2, "{ids:?}");
+        assert!(ids.contains(&"http_date_empty"), "{ids:?}");
+        assert!(ids.contains(&"http_date_malformed"), "{ids:?}");
+        // Each names the line it is about: two findings of one entry on one
+        // message are one sentence written twice unless they do.
+        assert!(
+            found.iter().any(|v| v.message.contains("'not-a-date'")),
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The same, for the comparison half rather than the format half.
+    #[test]
+    fn two_past_sunset_lines_are_two_findings() {
+        let found = response_findings(&[
+            ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+            ("sunset", "Mon, 01 Jan 2001 00:00:00 GMT"),
+            ("sunset", "Tue, 02 Jan 2001 00:00:00 GMT"),
+        ]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(found.len(), 2, "{ids:?}");
+        assert!(ids.iter().all(|id| *id == "sunset_invalid"), "{ids:?}");
+        assert!(
+            found[0].message != found[1].message,
+            "one sentence written twice: {}",
+            found[0].message
+        );
+    }
+
+    /// A response's checks are not a chain, and these are the three seams where
+    /// it was one.
+    ///
+    /// Each row writes two independent defects and asks for both. The argument
+    /// for ending at the first finding was that everything behind it is measured
+    /// against the instant `Date` states, so it has nothing left to measure —
+    /// true of the comparisons, and of nothing else the block carries. A
+    /// `Sunset` whose octets no recipient can read is a fact about `Sunset`; a
+    /// `Date` that is not there is a fact about `Date`.
+    #[rstest]
+    // An unreadable `Date` said nothing about an unreadable `Sunset`.
+    #[case(
+        &[("date", "not-a-date"), ("sunset", " ")],
+        &["http_date_malformed", "http_date_empty"]
+    )]
+    // A `Last-Modified` later than its `Date` said nothing about a past `Sunset`.
+    #[case(
+        &[
+            ("date", "Wed, 21 Oct 2015 07:28:00 GMT"),
+            ("last-modified", "Thu, 22 Oct 2015 07:28:00 GMT"),
+            ("sunset", "Sun, 06 Nov 1994 08:49:37 GMT"),
+        ],
+        &["last_modified_conflicting", "sunset_invalid"]
+    )]
+    // A `Sunset` finding said nothing about the `Date` that was never written —
+    // and this seam is why the case is here rather than in the forged set: the
+    // template record already draws `date_missing`, so a required row for it is
+    // subtracted away before the scorer reads it.
+    #[case(
+        &[("sunset", "Sun, 06 Nov 1994 08:49:37 GMT")],
+        &["sunset_invalid", "date_missing"]
+    )]
+    fn a_finding_about_one_field_does_not_end_the_reading_of_another(
+        #[case] pairs: &[(&str, &str)],
+        #[case] expected: &[&str],
+    ) {
+        let found = response_findings(pairs);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        for want in expected {
+            assert!(ids.contains(want), "{want} missing from {ids:?}");
+        }
     }
 
     #[test]
