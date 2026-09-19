@@ -1478,9 +1478,9 @@ enabled = "true"
     }
 
     /// **A rule that reads both sections must be able to report both.** The
-    /// shape this pins at zero is one section reader delegated to a closure and
-    /// applied twice — to the request, then to the response — where the first
-    /// call's finding `return`s out of the whole body:
+    /// shape this pins at zero is one section reader applied twice — to the
+    /// request, then to the response — inside a body that yields at most one
+    /// finding, so that the first call's answer ends the whole body:
     ///
     /// ```ignore
     /// if let Some(v) = check(&tx.request.headers, Party::Client) { return Some(v) }
@@ -1498,20 +1498,25 @@ enabled = "true"
     /// media types the operator's list does not carry, each masked by the
     /// request's own unlisted type.
     ///
-    /// The two tokens together are the whole test, and neither alone would be.
-    /// `Single-finding body behind an Option` is the comment a rule writes when
-    /// its body yields at most one finding for the whole transaction, and
-    /// `if let Some(v) = check` is a section reader whose answer ends that body.
-    /// A rule that keeps one finding *per section* writes neither: it collects
-    /// into a vector, so there is no early `return` for a second section to sit
-    /// behind. An inner `check` inside a per-section closure is untouched — that
-    /// file no longer declares the single-Option body.
+    /// **This line used to test for the token `if let Some(v) = check`, and a
+    /// spelling is not a shape.** Fifteen more rules wrote the same body and
+    /// none of them contained that token: ten chained the two calls with
+    /// `.or_else`, one named its reader `judge` and wrote the `if let` out, one
+    /// passed the header map as a third argument. Every one of them reported the
+    /// request and left the response unread, and this line said the shape was
+    /// gone. What it asks now is the shape itself — a callee with a
+    /// request-only call site *and* a response-only call site, in a file that
+    /// declares the single-Option body. A call handed **both** sections at once
+    /// is one reading of the pair and is not this; so is a rule that collects
+    /// into a vector, which no longer declares that body.
     ///
-    /// **What this does not pin.** 69 rules still run a single-Option body over
-    /// both sections without delegating to a `check` closure, and some of them
-    /// honestly have one finding to give. Each needs its own reading, and a
-    /// count ratchet over them would assert that the number is the fact — which
-    /// it is not.
+    /// **What this cannot see.** A rule that reads the two sections inline,
+    /// without a shared callee between them, is invisible here — the shape has
+    /// no name to key on. `a_rule_reading_both_sections_reports_both` below is
+    /// the half that asks the property rather than the signature, and the
+    /// remaining rules that run a single-Option body over both sections need
+    /// their own reading one at a time. A count ratchet over them would assert
+    /// that the number is the fact, which it is not.
     /// The behavioural half of
     /// [`a_section_reader_applied_twice_does_not_end_the_body`]. That line is
     /// textual and pins one signature at zero; this one dispatches, and asks
@@ -1772,12 +1777,48 @@ enabled = "true"
 
     #[test]
     fn a_section_reader_applied_twice_does_not_end_the_body() -> anyhow::Result<()> {
+        /// The callee of every call expression in `src`, paired with the text of
+        /// its arguments — enough to ask which field section each call was
+        /// handed, which a line-level scan cannot answer because a call to a
+        /// section reader is routinely written over four lines.
+        fn call_sites(src: &str) -> Vec<(String, String)> {
+            let bytes = src.as_bytes();
+            let mut out = Vec::new();
+            for (open, _) in src.match_indices('(') {
+                let name_end = src[..open].trim_end().len();
+                let name_start = src[..name_end]
+                    .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+                    .map_or(0, |i| i + 1);
+                let name = &src[name_start..name_end];
+                if name.is_empty() || name.starts_with(|c: char| c.is_ascii_digit()) {
+                    continue;
+                }
+                let mut depth = 1usize;
+                let mut i = open + 1;
+                while i < bytes.len() && depth > 0 {
+                    match bytes[i] {
+                        b'(' => depth += 1,
+                        b')' => depth -= 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                out.push((
+                    name.to_string(),
+                    src[open + 1..i.saturating_sub(1)].to_string(),
+                ));
+            }
+            out
+        }
+
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        let mut wrong = Vec::new();
         for entry in std::fs::read_dir(&dir)? {
             let path = entry?.path();
             if path.extension().is_none_or(|e| e != "rs") {
                 continue;
             }
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
             let src = std::fs::read_to_string(&path)?;
             // Only the code that ships: a fixture is not a finding site. The
             // same cut `a_per_site_rule_names_a_party_at_every_finding` makes.
@@ -1785,14 +1826,61 @@ enabled = "true"
             if !body.contains("Single-finding body behind an Option") {
                 continue;
             }
-            assert!(
-                !body.contains("if let Some(v) = check"),
-                "{}: a section reader whose finding returns out of a single-Option                  body leaves the other section unread. Collect into a vector and                  keep the finding each section yields",
-                path.display(),
-            );
+            if ONE_SECTION_IS_THE_OTHERS_INPUT.contains(&stem) {
+                continue;
+            }
+            let mut per_callee: std::collections::BTreeMap<String, (bool, bool)> =
+                std::collections::BTreeMap::new();
+            for (name, args) in call_sites(body) {
+                let request =
+                    args.contains("tx.request.headers") || args.contains("request.headers");
+                let response = args.contains("resp.headers") || args.contains("response.headers");
+                let seen = per_callee.entry(name).or_default();
+                // A call handed *both* sections is one reading of the pair, and
+                // is not this shape; only a callee with a request-only site and
+                // a response-only site was applied once per section.
+                match (request, response) {
+                    (true, false) => seen.0 = true,
+                    (false, true) => seen.1 = true,
+                    _ => {}
+                }
+            }
+            for (name, (request, response)) in per_callee {
+                if request && response {
+                    wrong.push(format!("{}: `{name}`", path.display()));
+                }
+            }
         }
+        assert!(
+            wrong.is_empty(),
+            "a section reader applied once per section, inside a body that yields \
+             at most one finding, leaves the second section unread. Collect into a \
+             vector and keep the finding each section yields:\n  {}",
+            wrong.join("\n  "),
+        );
         Ok(())
     }
+
+    /// The three rules where one section is *input* to a judgement about the
+    /// other, so applying a reader to each is not this shape.
+    ///
+    /// **Measured, not assumed:** emptying this list fails the line above naming
+    /// these three files and no others.
+    ///
+    /// - `cookie_lifecycle` reads `set-cookie` off the responses in the
+    ///   *history*, not off this transaction's response section, and the `resp`
+    ///   those lines come from is a past exchange's.
+    /// - `range_and_content_range_consistent` reads the request's `Range` to
+    ///   know what the response's `Content-Range` was answering; the finding is
+    ///   about the response.
+    /// - `status_101_switching_protocols` reads both `Upgrade` field lines to
+    ///   compare them; the 101 is one negotiation and the finding is about the
+    ///   response that closed it.
+    const ONE_SECTION_IS_THE_OTHERS_INPUT: &[&str] = &[
+        "cookie_lifecycle",
+        "range_and_content_range_consistent",
+        "status_101_switching_protocols",
+    ];
 
     /// **A rule walking a list must be able to report every member.** The shape
     /// this pins at zero is a `for` over one of the list-member helpers whose
