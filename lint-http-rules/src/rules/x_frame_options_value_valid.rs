@@ -124,9 +124,10 @@ impl Rule for XFrameOptionsValueValid {
                 return Some(ctx.report_with(
                     &FIELD_LINE_DUPLICATED,
                     format!(
-                        "{}. Two lines that disagree are the case worth seeing — \
-                         `DENY` beside `SAMEORIGIN` is a framing policy neither line \
-                         states — and two that agree are a line written twice",
+                        "{}. Read the two values above against each other: where \
+                         they differ, the framing policy in force is one neither \
+                         line states, and where they agree the field is a line \
+                         written twice",
                         crate::helpers::headers::singleton_field_preamble(
                             "X-Frame-Options",
                             count,
