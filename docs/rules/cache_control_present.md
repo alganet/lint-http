@@ -44,3 +44,23 @@ Cache-Control: no-store
 HTTP/1.1 200 OK
 Content-Type: application/json
 ```
+
+### ✅ Good (OPTIONS — §9.3.7: no cache stores it, so none guesses at it)
+
+```http
+OPTIONS /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Allow: GET, HEAD, OPTIONS
+```
+
+### ✅ Good (POST — §9.3.3 gives a POST response no heuristic to take away)
+
+```http
+POST /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Content-Type: application/json
+```

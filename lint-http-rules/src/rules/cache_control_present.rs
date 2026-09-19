@@ -65,6 +65,18 @@ impl RuleMeta for CacheControlPresent {
                 label: Some("Response with no Cache-Control field line"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: application/json",
             },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(OPTIONS — \u{a7}9.3.7: no cache stores it, so none guesses at it)"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAllow: GET, HEAD, OPTIONS\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(POST — \u{a7}9.3.3 gives a POST response no heuristic to take away)",
+                ),
+                snippet: "POST /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: application/json\n",
+            },
         ]
     }
 }
@@ -86,6 +98,30 @@ impl Rule for CacheControlPresent {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             if let Some(resp) = &tx.response {
+                // The heuristic this rule warns about is one a cache assigns to a
+                // response it has stored, so the question comes after storability
+                // rather than instead of it. RFC 9111 § 3 is a conjunction whose
+                // first term is the request method, and § 9.2.3 names the three
+                // methods that define caching semantics at all: an `OPTIONS` or a
+                // `TRACE` answered `200` leaves nothing stored however it is
+                // framed, so no `Cache-Control` its sender could add would take
+                // any guess away from any cache. `POST` is on § 9.2.3's list and
+                // is still refused here, by § 9.3.3 rather than by § 9.2.3: a POST
+                // response is cacheable only with explicit freshness, so the
+                // heuristic branch this rule is about is one it never reaches.
+                // `response_is_storable` answers both, and the trigger below —
+                // no `Cache-Control` at all — leaves it reading exactly the method
+                // and the request's own `no-store`.
+                // cite(RFC 9110 § 9.3.7): "Responses to the OPTIONS method are not cacheable."
+                if !crate::helpers::stored_response::response_is_storable(
+                    &tx.request.method,
+                    &tx.request.headers,
+                    resp.status,
+                    &resp.headers,
+                ) {
+                    return None;
+                }
+
                 // Nothing requires a `Cache-Control` on a 200. What the absence of one buys is
                 // a cache guessing: with no explicit expiration time, a heuristic freshness
                 // lifetime is permitted, and the origin no longer decides how long its response
@@ -118,11 +154,36 @@ mod tests {
 
     use rstest::rstest;
 
+    /// The method is a parameter because RFC 9111 \u{a7} 3's conjunction opens with
+    /// it: the heuristic this rule warns about is assigned to a stored
+    /// response, and `OPTIONS`, `TRACE` and the rest of \u{a7} 9.2.3's absentees
+    /// leave none. `POST` is on \u{a7} 9.2.3's list and is still not asked, by
+    /// \u{a7} 9.3.3 — which is the one row here that differs from
+    /// `status_and_caching_semantics` next door, so it is pinned in both files.
     #[rstest]
-    #[case(200, None, true, Some("Response 200 without Cache-Control header"))]
-    #[case(200, Some(("cache-control", "no-cache")), false, None)]
-    #[case(404, None, false, None)]
+    #[case(
+        "GET",
+        200,
+        None,
+        true,
+        Some("Response 200 without Cache-Control header")
+    )]
+    #[case(
+        "HEAD",
+        200,
+        None,
+        true,
+        Some("Response 200 without Cache-Control header")
+    )]
+    #[case("GET", 200, Some(("cache-control", "no-cache")), false, None)]
+    #[case("GET", 404, None, false, None)]
+    #[case("OPTIONS", 200, None, false, None)]
+    #[case("TRACE", 200, None, false, None)]
+    #[case("POST", 200, None, false, None)]
+    #[case("PUT", 200, None, false, None)]
+    #[case("DELETE", 200, None, false, None)]
     fn check_response_cases(
+        #[case] method: &str,
         #[case] status: u16,
         #[case] header: Option<(&str, &str)>,
         #[case] expect_violation: bool,
@@ -131,10 +192,11 @@ mod tests {
         let rule = CacheControlPresent;
 
         use crate::test_helpers::make_test_transaction_with_response;
-        let tx = match header {
+        let mut tx = match header {
             Some((k, v)) => make_test_transaction_with_response(status, &[(k, v)]),
             None => make_test_transaction_with_response(status, &[]),
         };
+        tx.request.method = method.to_string();
         let violation = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -180,7 +242,30 @@ mod tests {
 
         let mut saw_a_finding = false;
         for ex in rule.examples() {
-            let mut lines = ex.snippet.lines();
+            // An example may open with a request line, and two of them do: the
+            // method is what this rule reads first, so a guard that dropped the
+            // line would judge an `OPTIONS` story as the `GET` the builder
+            // defaults to and call a Compliant example a finding.
+            let mut lines = ex.snippet.lines().peekable();
+            let mut method = "GET".to_string();
+            if lines
+                .peek()
+                .is_some_and(|l| !l.starts_with("HTTP/") && l.contains(" HTTP/"))
+            {
+                let request_line = lines.next().expect("peeked");
+                method = request_line
+                    .split_whitespace()
+                    .next()
+                    .expect("a request line has a method")
+                    .to_string();
+                // Then the request's own field lines, up to the blank line that
+                // separates the two messages.
+                for l in lines.by_ref() {
+                    if l.trim().is_empty() {
+                        break;
+                    }
+                }
+            }
             let start = lines.next().expect("an example has a start line");
             let status: u16 = start
                 .split_whitespace()
@@ -195,7 +280,8 @@ mod tests {
                 })
                 .collect();
 
-            let tx = crate::test_helpers::make_test_transaction_with_response(status, &pairs);
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &pairs);
+            tx.request.method.clone_from(&method);
             let found = crate::test_helpers::run_rule(
                 &rule,
                 &tx,

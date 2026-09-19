@@ -75,6 +75,18 @@ impl RuleMeta for StatusAndCachingSemantics {
                 label: None,
                 snippet: "HTTP/1.1 302 Found\nLocation: https://example.org/",
             },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(OPTIONS — \u{a7}9.2.3 defines no caching semantics for it, so no freshness would store it)",
+                ),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 403 Forbidden\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(POST — \u{a7}9.3.3 makes explicit freshness half of what would store it)"),
+                snippet: "POST /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 403 Forbidden\n",
+            },
         ]
     }
 }
@@ -96,6 +108,27 @@ impl Rule for StatusAndCachingSemantics {
             let resp = tx.response.as_ref()?;
 
             let status = resp.status;
+
+            // A response to a method that defines no caching semantics is not
+            // stored at any freshness it states either, and for the reason one
+            // clause earlier: § 3's conjunction opens with the request method,
+            // and § 9.2.3 names the three that qualify. An `OPTIONS` or a
+            // `TRACE` reaches this rule's report site by advertising no
+            // freshness and carrying a status § 15.1 leaves out — and there is
+            // no `max-age` its sender could add that would change the answer,
+            // so the finding names a repair that does not exist.
+            //
+            // `POST` is on § 9.2.3's list and stays asked, which is where this
+            // parts from `cache_control_present` next door. That rule warns
+            // about a heuristic § 9.3.3 never lets a POST response reach; this
+            // one says the response is unstorable and asks for freshness, and
+            // for a POST explicit freshness is half of exactly what § 9.3.3
+            // requires to make it storable. The advice is takeable, so it is
+            // given.
+            // cite(RFC 9111 § 3): "the request method is understood by the cache"
+            if !crate::helpers::stored_response::defines_caching_semantics(&tx.request.method) {
+                return None;
+            }
 
             // An interim response is not stored at any freshness it states.
             // Storability is a conjunction, and § 3 puts a final status code
@@ -213,6 +246,49 @@ mod tests {
         } else {
             assert!(v.is_none(), "unexpected violation: {:?}", v);
         }
+        Ok(())
+    }
+
+    /// RFC 9111 \u{a7} 3's conjunction opens with the request method, and a `403`
+    /// that states no freshness reaches the report site whatever asked for it.
+    /// `OPTIONS` and `TRACE` define no caching semantics (\u{a7} 9.2.3), so no
+    /// `max-age` their senders could add would make a cache hold the response
+    /// and the finding names a repair that does not exist.
+    ///
+    /// **`POST` is the row that separates this rule from `cache_control_present`
+    /// next door**, and it is pinned in both files for that reason. There the
+    /// harm is a heuristic \u{a7} 9.3.3 never lets a POST response reach, so the
+    /// question is dropped; here the finding is that nothing may store the
+    /// response, and \u{a7} 9.3.3 makes explicit freshness half of what would
+    /// change that. The advice is takeable, so it is still given.
+    #[rstest]
+    #[case("GET", true)]
+    #[case("HEAD", true)]
+    #[case("POST", true)]
+    #[case("OPTIONS", false)]
+    #[case("TRACE", false)]
+    #[case("PUT", false)]
+    #[case("DELETE", false)]
+    fn the_method_decides_whether_the_question_is_asked_at_all(
+        #[case] method: &str,
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
+        let rule = StatusAndCachingSemantics;
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(403, &[]);
+        tx.request.method = method.to_string();
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "method {method} judged wrongly: {v:?}"
+        );
         Ok(())
     }
 

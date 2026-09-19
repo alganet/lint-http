@@ -49,3 +49,21 @@ Expires: Wed, 21 Oct 2015 07:28:00 GMT
 HTTP/1.1 302 Found
 Location: https://example.org/
 ```
+
+### ✅ Good (OPTIONS — §9.2.3 defines no caching semantics for it, so no freshness would store it)
+
+```http
+OPTIONS /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 403 Forbidden
+```
+
+### ❌ Bad (POST — §9.3.3 makes explicit freshness half of what would store it)
+
+```http
+POST /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 403 Forbidden
+```
