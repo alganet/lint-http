@@ -1485,7 +1485,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
       line: 346
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 87
+      line: 90
     - file: lint-http-rules/src/violations/sec_websocket_extensions.rs
       line: 105
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
@@ -3357,13 +3357,13 @@ sources:
     snippet: In such a case, the header field includes the protocol version(s) supported by the server.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 125
+      line: 133
   - label: sec_websocket_version_advertised (2)
     section: § 11.3.5
     snippet: The |Sec-WebSocket-Version| header field is also sent from the server to the client on WebSocket handshake error, when the version received from the client does not match a version understood by the server.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 124
+      line: 132
     - file: lint-http-rules/src/violations/sec_websocket_version.rs
       line: 210
   - label: sec_websocket_version_advertised (3)
@@ -3371,7 +3371,7 @@ sources:
     snippet: ABNF rules with the "-Client" suffix in the name are only used in requests sent by the client to the server; ABNF rules with the "-Server" suffix in the name are only used in responses sent by the server to the client.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
-      line: 217
+      line: 229
   - label: sec_websocket_version_advertised (4)
     section: § 4.3
     snippet: This section is using ABNF syntax/rules from Section 2.1 of [RFC2616], including the "implied *LWS rule".

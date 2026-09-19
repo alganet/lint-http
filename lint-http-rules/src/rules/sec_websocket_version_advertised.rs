@@ -77,8 +77,11 @@ impl SecWebsocketVersionAdvertised {
     ///
     /// cite(RFC 6455 § 4.3, label: Sec-WebSocket-Version-Server): "Sec-WebSocket-Version-Server = 1#version"
     /// cite(RFC 6455 § 4.4): "If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use."
-    fn defect(resp_headers: &hyper::HeaderMap, requested: Option<&str>) -> Option<Defect> {
-        let value = combined_field_value_as_written(resp_headers, "sec-websocket-version")?;
+    fn defect(resp_headers: &hyper::HeaderMap, requested: Option<&str>) -> Vec<Defect> {
+        let Some(value) = combined_field_value_as_written(resp_headers, "sec-websocket-version")
+        else {
+            return Vec::new();
+        };
         let advertised = Self::advertised(&value);
 
         // `1#version` needs one element that is not null, which is the one place
@@ -86,7 +89,7 @@ impl SecWebsocketVersionAdvertised {
         //
         // cite(RFC 2616 § 2.1): "Therefore, where at least one element is required, at least one non-null element MUST be present."
         if advertised.is_empty() {
-            return Some(Defect::named(
+            return vec![Defect::named(
                 &SEC_WEBSOCKET_VERSION_LIST_EMPTY,
                 format!(
                     "advertises no version: '{}'. The field is `1#version` in a response, and the \
@@ -94,15 +97,20 @@ impl SecWebsocketVersionAdvertised {
                      one that is not",
                     shown_in_finding(&value)
                 ),
-            ));
+            )];
         }
 
+        // A server advertising two versions advertises them independently, and
+        // one of them deriving from no `version` neither explains the next nor
+        // makes it well formed. The finding names the member, so two of them
+        // are two sentences.
+        let mut found = Vec::new();
         for member in &advertised {
             if let Some(defect) = version_production_defect(member) {
                 // The terminal's entries, which the request's field reports
                 // through the same reader: a member of this list and the whole
                 // of that value are the same production and the same defect.
-                return Some(Defect::named(
+                found.push(Defect::named(
                     version_defect(defect),
                     format!(
                         "advertises '{}', which derives from no `version`: {}",
@@ -125,7 +133,11 @@ impl SecWebsocketVersionAdvertised {
         // cite(RFC 6455 § 11.3.5): "In such a case, the header field includes the protocol version(s) supported by the server."
         if let Some(requested) = requested {
             if advertised.contains(&requested) {
-                return Some(Defect::named(
+                // Asked of the list as written, whatever any member derives
+                // from: a value holding the requested version says the two
+                // contradictory things whether or not the member beside it is
+                // well formed, so this is not behind the walk above.
+                found.push(Defect::named(
                     &SEC_WEBSOCKET_VERSION_CONFLICTING,
                     format!(
                         "advertises '{}', which includes the version the request asked for \
@@ -139,7 +151,7 @@ impl SecWebsocketVersionAdvertised {
             }
         }
 
-        None
+        found
     }
 }
 
@@ -225,10 +237,12 @@ impl Rule for SecWebsocketVersionAdvertised {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
+        // The gates end the reading; what the reader answers is a list's worth
+        // of findings and each becomes a violation.
+        let finding = || -> Vec<Violation> {
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
 
             // Only an opening handshake's answer is measured, and the shared reader
             // is what decides that a request is one — the same gate the two rules
@@ -236,7 +250,9 @@ impl Rule for SecWebsocketVersionAdvertised {
             // handshake to them and not to this rule is not a gap anyone has to
             // find. Above HTTP/1.x the handshake is an extended CONNECT and this
             // field is not part of it.
-            crate::helpers::websocket::opening_handshake_version(&tx.request)?;
+            if crate::helpers::websocket::opening_handshake_version(&tx.request).is_none() {
+                return Vec::new();
+            }
 
             // The request's version is read as one value: `Sec-WebSocket-Version-Client
             // = version` is a single `version`, not a list, so a request carrying
@@ -248,15 +264,18 @@ impl Rule for SecWebsocketVersionAdvertised {
                 combined_field_value_as_written(&tx.request.headers, "sec-websocket-version")
                     .map(|raw| trim_ows(&raw).to_string());
 
-            let defect = Self::defect(&resp.headers, requested.as_deref())?;
-            let message = format!(
-                "The response to a WebSocket opening handshake {}",
-                defect.message
-            );
-
-            Some(ctx.report_with(defect.def, message))
+            Self::defect(&resp.headers, requested.as_deref())
+                .into_iter()
+                .map(|defect| {
+                    let message = format!(
+                        "The response to a WebSocket opening handshake {}",
+                        defect.message
+                    );
+                    ctx.report_with(defect.def, message)
+                })
+                .collect()
         };
-        Vec::from_iter(finding())
+        finding()
     }
 }
 
@@ -273,7 +292,7 @@ mod tests {
 
     /// A handshake request carrying `requested`, answered by `status` with the
     /// given `Sec-WebSocket-Version` response lines.
-    fn exchange(requested: Option<&str>, status: u16, lines: &[&[u8]]) -> Option<Violation> {
+    fn exchange_all(requested: Option<&str>, status: u16, lines: &[&[u8]]) -> Vec<Violation> {
         let rule = SecWebsocketVersionAdvertised;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
         tx.request.method = "GET".into();
@@ -299,12 +318,25 @@ mod tests {
         }
         tx.response.as_mut().expect("response").headers = hm;
 
-        crate::test_helpers::run_rule(
+        crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// The cases below are exchanges stating one defect, and this says so
+    /// rather than taking the first of however many were reported: a fixture
+    /// that silently drops a second finding cannot see this walk regress.
+    fn exchange(requested: Option<&str>, status: u16, lines: &[&[u8]]) -> Option<Violation> {
+        let mut found = exchange_all(requested, status, lines);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for exchanges stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
     }
 
     /// §4.4's own worked exchange, in both spellings it prints.
@@ -459,5 +491,36 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "sec_websocket_version_advertised");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
+    }
+
+    /// `Sec-WebSocket-Version-Server = 1#version`. A server advertising two
+    /// versions advertises them independently, and one deriving from no
+    /// `version` neither explains the next nor makes it well formed.
+    #[test]
+    fn two_versions_deriving_from_no_version_are_each_named() {
+        let found = exchange_all(Some("25"), 400, &[b"1a, 2b"]);
+        let messages: Vec<&str> = found.iter().map(|v| v.message.as_str()).collect();
+        assert_eq!(messages.len(), 2, "{messages:?}");
+        assert!(messages[0].contains("'1a'"), "{messages:?}");
+        assert!(messages[1].contains("'2b'"), "{messages:?}");
+    }
+
+    /// The contradiction is asked of the list as written, whatever any member
+    /// derives from — a value holding the requested version says both things
+    /// whether or not the member beside it is well formed. It used to sit
+    /// behind the walk and was unreachable for any such value.
+    #[test]
+    fn a_malformed_member_does_not_hide_the_contradiction_beside_it() {
+        let found = exchange_all(Some("13"), 400, &[b"1a, 13"]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "sec_websocket_version_malformed",
+                "sec_websocket_version_conflicting"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 }
