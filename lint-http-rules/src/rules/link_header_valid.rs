@@ -685,7 +685,7 @@ fn validate_link(value: &str, is_response: bool) -> Vec<Defect> {
 
         out.extend(
             validate_link_value(member, is_response)
-                .err()
+                .into_iter()
                 .map(|defect| defect.in_context(|message| format!("member {n} {message}"))),
         );
     }
@@ -790,30 +790,48 @@ fn split_link_values(s: &str) -> Vec<&str> {
 // cite(RFC 8288 § 3.4.1): "The type attribute MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers."
 const AT_MOST_ONCE: &[&str] = &["rel", "media", "title", "title*", "type"];
 
-/// Validate one `link-value`.
+/// Validate one `link-value`, parameter by parameter.
+///
+/// **The same masking the member walk carried, one level down.** The
+/// `*( OWS ";" OWS link-param )` repetition is a value split into repeated
+/// same-kind parts, each a thing the sender wrote on its own terms: a
+/// duplicated `type` and a `media` with whitespace around its `=` are two
+/// things to fix, and this returned at the first of them.
+///
+/// **Three early returns stay, and they are not the same shape.** A member with
+/// no `<`, no `>`, an octet no `URI-Reference` admits, or something other than
+/// `;`-delimited parameters after its `>` has not written one parameter badly —
+/// it has failed to be a `link-value` at all, and there is no member left to
+/// read parameters out of. Inside the walk the parse is the same kind of gate
+/// one parameter down: a segment that does not derive from `link-param` states
+/// one defect, and the checks below it want a name and a value it does not have.
+///
+/// The three checks after the walk are the member's own and independent of the
+/// parameters': `rel`'s absence, its value's grammar, and the preload pair. The
+/// last two need the first, so they are chained to it and to nothing else.
 // cite(RFC 8288 § 3): "link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
-fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
+fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
     let Some(rest) = member.strip_prefix('<') else {
-        return Err(Defect::named(
+        return vec![Defect::named(
             &LINK_TARGET_DELIMITER_MISSING,
             format!(
                 "'{}' does not open with the '<' the production prints before its URI-Reference",
                 shown_in_finding(member)
             ),
-        ));
+        )];
     };
 
     // `<` and `>` are neither of them URI characters, so the first `>` is the
     // one that closes the target -- there is no component of a `URI-Reference`
     // it could be sitting inside.
     let Some(close) = rest.find('>') else {
-        return Err(Defect::named(
+        return vec![Defect::named(
             &LINK_TARGET_DELIMITER_MISSING,
             format!(
                 "'{}' has no '>' closing its URI-Reference",
                 shown_in_finding(member)
             ),
-        ));
+        )];
     };
     let (target, after) = rest.split_at(close);
 
@@ -827,14 +845,14 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
     // the message's own context.
     // cite(RFC 8288 § 3.1): "Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>")."
     if let Some(c) = find_non_uri_char(target) {
-        return Err(Defect::named(
+        return vec![Defect::named(
             &URI_CHARACTER_FORBIDDEN,
             format!(
                 "target '{}' holds {}, which no URI-Reference admits",
                 shown_in_finding(target),
                 describe_char(c)
             ),
-        ));
+        )];
     }
 
     // `*( OWS ";" OWS link-param )` -- the repetition opens on a `;` and there
@@ -844,20 +862,26 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
     // for exactly the bracket this production does not have.
     let after = trim_ows(&after[1..]);
     if after.is_empty() {
-        return missing_rel(member);
+        return vec![missing_rel(member)];
     }
     let Some(params_src) = after.strip_prefix(';') else {
-        return Err(Defect::named(
+        return vec![Defect::named(
             &LINK_MEMBER_MALFORMED,
             format!(
                 "'{}' has '{}' after its '>', where the production admits only ';'-delimited parameters",
                 shown_in_finding(member),
                 shown_in_finding(after)
             ),
-        ));
+        )];
     };
 
+    let mut out: Vec<Defect> = Vec::new();
     let mut seen: Vec<String> = Vec::new();
+    // Read off the segments as written rather than off the parse, because the
+    // requirement it answers is an absence claim. See the `rel` block after the
+    // walk for why that distinction only starts to matter once the walk keeps
+    // going past a parameter it could not read.
+    let mut wrote_rel = false;
     let mut rel_value: Option<String> = None;
     let mut as_value: Option<String> = None;
 
@@ -869,13 +893,14 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         // carries nothing. So the missing parameter is this serialisation's
         // finding and the missing member above is the shared one.
         if segment.is_empty() {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 &LINK_PARAM_EMPTY,
                 format!(
                     "'{}' has a ';' with no link-param after it",
                     shown_in_finding(member)
                 ),
             ));
+            continue;
         }
 
         // cite(RFC 8288 § 3): "link-param = token BWS [ "=" BWS ( token / quoted-string ) ]"
@@ -889,20 +914,40 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         // for it. Here it is a finding, and it is RFC 8288's: the optional
         // group makes the `=` itself optional, so a member writing one owes a
         // `word` after it.
-        let parsed = parse_token_bws_word(segment).map_err(|defect| {
-            let message = format!(
-                "parameter '{}' does not match link-param: {}",
-                shown_in_finding(segment),
-                defect.message(segment)
-            );
-            // The `None` is the empty value, which the shared mapping leaves
-            // to the field: here the optional group makes the `=` itself
-            // optional, so a member that writes one owes a `word` after it.
-            match token_bws_word_defect(&defect) {
-                Some(def) => Defect::named(def, message),
-                None => Defect::named(&LINK_PARAM_VALUE_EMPTY, message),
+        // A `link-param` is `token BWS [ "=" BWS ( token / quoted-string ) ]`,
+        // so the name is the text before the first `=` and the production
+        // admits a parameter with no `=` at all — a bare `rel` writes this
+        // attribute and states no value. That makes the spelling readable
+        // whether or not the value derives from anything, which is what the
+        // absence claim after the walk needs.
+        // cite(RFC 8288 § 3): "link-param = token BWS [ "=" BWS ( token / quoted-string ) ]"
+        if trim_ows(segment.split_once('=').map_or(segment, |(name, _)| name))
+            .eq_ignore_ascii_case("rel")
+        {
+            wrote_rel = true;
+        }
+
+        // The one gate inside the walk: a segment that does not derive from
+        // `link-param` has no name and no value for the checks below to read,
+        // so it states its one defect and the walk moves to the next parameter.
+        let parsed = match parse_token_bws_word(segment) {
+            Ok(parsed) => parsed,
+            Err(defect) => {
+                let message = format!(
+                    "parameter '{}' does not match link-param: {}",
+                    shown_in_finding(segment),
+                    defect.message(segment)
+                );
+                // The `None` is the empty value, which the shared mapping leaves
+                // to the field: here the optional group makes the `=` itself
+                // optional, so a member that writes one owes a `word` after it.
+                out.push(match token_bws_word_defect(&defect) {
+                    Some(def) => Defect::named(def, message),
+                    None => Defect::named(&LINK_PARAM_VALUE_EMPTY, message),
+                });
+                continue;
             }
-        })?;
+        };
 
         // The `BWS` is printed in this production, so the trim above is what a
         // recipient is required to do -- and the sender is required not to have
@@ -911,8 +956,11 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         //
         // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
         // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
+        // Not a gate: the whitespace is around the `=`, and the name and the
+        // value on either side of it were read. A parameter written with BWS
+        // *and* a value its own production refuses is two things to fix.
         if parsed.bws {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 &BWS_FORBIDDEN,
                 format!(
                     "parameter '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
@@ -933,7 +981,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
             } else {
                 &LINK_ATTRIBUTE_DUPLICATED
             };
-            return Err(Defect::named(
+            out.push(Defect::named(
                 def,
                 format!(
                     "writes '{}' more than once, and this serialisation admits it at most once in a link-value",
@@ -972,8 +1020,12 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         // cite(RFC 8288 § 3.4.1): "The "title*" link-param can be used to encode this attribute in a different character set and/or contain language information as per [RFC8187]."
         if name.ends_with('*') {
             if let Some(value) = parsed.value.as_deref() {
+                // The grammar first, then the choice, and the `else` is what
+                // says so now the walk collects: a value deriving from no
+                // `ext-value` named no encoding to be forbidden, so the second
+                // reading is chained to the first and to nothing else.
                 if let Err(why) = crate::helpers::parameter::validate_ext_value(value) {
-                    return Err(Defect::named(
+                    out.push(Defect::named(
                         &EXT_VALUE_MALFORMED,
                         format!(
                             "writes {}='{}', which does not derive from ext-value: {why}",
@@ -981,12 +1033,10 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
                             shown_in_finding(value)
                         ),
                     ));
-                }
-                // The grammar first, then the choice: a value deriving from no
-                // `ext-value` named no encoding to be forbidden.
-                if let Some(charset) = crate::helpers::parameter::ext_value_charset_reserved(value)
+                } else if let Some(charset) =
+                    crate::helpers::parameter::ext_value_charset_reserved(value)
                 {
-                    return Err(Defect::named(
+                    out.push(Defect::named(
                         &EXT_VALUE_CHARSET_FORBIDDEN,
                         format!(
                             "writes {}='{}', naming the character encoding '{}', which \
@@ -1047,7 +1097,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
             "hreflang" => {
                 let value = parsed.value.as_deref().unwrap_or_default();
                 if let Err(why) = crate::helpers::language::validate_language_tag(value) {
-                    return Err(Defect::named(
+                    out.push(Defect::named(
                         tag_defect(why),
                         format!(
                             "writes hreflang='{}', which does not derive from Language-Tag: {}",
@@ -1061,7 +1111,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
             "type" => {
                 let value = parsed.value.as_deref().unwrap_or_default();
                 if let Err(why) = type_value_defect(value) {
-                    return Err(Defect::named(
+                    out.push(Defect::named(
                         &LINK_TYPE_MALFORMED,
                         format!(
                             "writes type='{}', which does not derive from type-name \"/\" subtype-name: {}",
@@ -1088,11 +1138,31 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         seen.push(name);
     }
 
+    // The member's own three, independent of the parameters' defects above and
+    // chained to each other because each is the evidence the next reads: there
+    // is no relation type to judge without a `rel`, and no preload without one.
     let Some(rel_value) = rel_value else {
-        return missing_rel(member);
+        // **A parameter that does not parse is not a parameter that is not
+        // there.** `rel_value` is filled only by a segment the production
+        // accepted, so reading its absence as the attribute's absence answered
+        // `</a>; rel=n\u{e9}xt` with *"carries no 'rel' parameter"* beside the
+        // finding about the value it plainly carries. Before the walk collected
+        // its defects the second sentence was unreachable — the parse failure
+        // ended the member — so the honesty of this branch is something
+        // unmasking the walk is what put a load on.
+        if !wrote_rel {
+            out.push(missing_rel(member));
+        }
+        return out;
     };
 
-    let relation_types = validate_rel_value(&rel_value)?;
+    let relation_types = match validate_rel_value(&rel_value) {
+        Ok(types) => types,
+        Err(defect) => {
+            out.push(defect);
+            return out;
+        }
+    };
 
     // The fold cannot change an answer today, and that is worth saying rather
     // than leaving for a reader to trace: every relation type reaching here
@@ -1121,13 +1191,14 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
     // cite(HTML Semantics § 4.2.4.4): "If attribs["as"] does not exist, then return false."
     if is_response && preloads {
         let Some(as_value) = as_value else {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 &LINK_PRELOAD_AS_MISSING,
                 format!(
                     "'{}' asks for a preload with no 'as' parameter, so the HTML processing model for a response's Link headers stops before fetching anything",
                     shown_in_finding(member)
                 ),
             ));
+            return out;
         };
 
         // The value takes the same early return the absent parameter does,
@@ -1143,7 +1214,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         // cite(HTML Semantics § 4.2.4.4): "If destination is null, then return false."
         // cite(HTML Semantics § 4.2.4.4): "If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords"
         if !PRELOAD_DESTINATIONS.contains(&as_value.as_str()) {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 &LINK_PRELOAD_AS_INVALID,
                 format!(
                     "'{}' asks for a preload whose as='{}' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything",
@@ -1154,7 +1225,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
         }
     }
 
-    Ok(())
+    out
 }
 
 /// The six strings a response's `Link: rel=preload` survives HTML's
@@ -1177,14 +1248,14 @@ const PRELOAD_DESTINATIONS: &[&str] = &["fetch", "font", "image", "script", "sty
 /// [`AT_MOST_ONCE`]'s.
 // cite(RFC 8288 § 3.3): "The relation type of a link conveyed in the Link header field is conveyed in the "rel" parameter's value."
 // cite(RFC 8288 § 3.3): "The rel parameter MUST be present but MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers."
-fn missing_rel(member: &str) -> Result<(), Defect> {
-    Err(Defect::named(
+fn missing_rel(member: &str) -> Defect {
+    Defect::named(
         &LINK_REL_MISSING,
         format!(
             "'{}' carries no 'rel' parameter, and a link-value must have one",
             shown_in_finding(member)
         ),
-    ))
+    )
 }
 
 /// Split a `rel` value into its relation types and judge each one.
@@ -1868,6 +1939,60 @@ mod tests {
                 .starts_with("Response Link header: member 3 "),
             "{}",
             found[1].message
+        );
+    }
+
+    /// The `*( OWS ";" OWS link-param )` repetition is a list too: a member
+    /// writing a duplicated `type` and a `media` with whitespace around its `=`
+    /// has two things to fix, and each is reported.
+    #[test]
+    fn every_defective_parameter_of_a_link_value_is_answered_about() {
+        let found = judge(
+            &crate::test_helpers::make_headers_from_octet_pairs(&[(
+                "Link",
+                b"</a>; rel=next; type=\"text/plain\"; type=\"text/html\"; media = screen",
+            )]),
+            "Response",
+            true,
+        );
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            vec!["link_attribute_duplicated", "bws_forbidden"],
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// A parameter that does not parse is not a parameter that is not there.
+    /// `rel` whose value the production refuses is answered about the value and
+    /// not also told it is absent -- and a member that really writes no `rel`
+    /// beside an unreadable parameter still is.
+    #[rstest]
+    #[case(
+        b"</a>; rel=n\xe9xt",
+        vec!["token_character_forbidden"]
+    )]
+    #[case(
+        b"</a>; rel = next; rel=prev",
+        vec!["bws_forbidden", "link_rel_duplicated"]
+    )]
+    #[case(
+        b"</a>; anchor=n\xe9xt",
+        vec!["token_character_forbidden", "link_rel_missing"]
+    )]
+    fn an_unreadable_rel_is_not_an_absent_one(#[case] value: &[u8], #[case] want: Vec<&str>) {
+        let found = judge(
+            &crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]),
+            "Response",
+            true,
+        );
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            want,
+            "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
         );
     }
 
