@@ -146,6 +146,14 @@ impl RuleMeta for HostHeader {
                 label: Some("Two field lines of a field that does not recombine as a list"),
                 snippet: "GET /path HTTP/1.1\nHost: a.example\nHost: b.example",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "An HTTP/1.1 request that sent its authority in neither of the two \
+                     places it can travel",
+                ),
+                snippet: "GET /path HTTP/1.1\nAccept: text/html",
+            },
         ]
     }
 }

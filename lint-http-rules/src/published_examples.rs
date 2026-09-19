@@ -203,13 +203,38 @@ fn strip_trace(line: &str) -> &str {
         .unwrap_or(line)
 }
 
-fn is_request_line(l: &str) -> bool {
+/// A request-line, and the target inside it.
+///
+/// The target is everything between the method and the version, joined back
+/// with the spaces it was split on -- because `request-target` is where a
+/// space is the defect. § 3.2 says no whitespace is allowed there and spends
+/// its next sentence on why the value arrives anyway, and an example format
+/// that reads a request-line as exactly three space-separated parts cannot
+/// write the one message that sentence is about. Such a line was not a
+/// request-line at all, so a snippet holding one tokenized to nothing and the
+/// example was skipped with `NoMessageShape`.
+///
+/// The three guards on the method are what keep the wider shape from swallowing
+/// its neighbours: a status line's first word is digits, a pseudo-header's and
+/// a field line's carry the colon, and the version has to be last -- so
+/// `HTTP/1.1 404 Not Found` is still a status line, whose own last word is not
+/// a version.
+fn request_line_parts(l: &str) -> Option<(&str, String, &str)> {
     let parts: Vec<&str> = l.split(' ').collect();
-    parts.len() == 3
-        && !parts[0].is_empty()
-        && !parts[0].chars().all(|c| c.is_ascii_digit())
-        && !parts[0].contains(':')
-        && parts[2].to_ascii_uppercase().starts_with("HTTP/")
+    let (method, version) = (parts.first()?, parts.last()?);
+    if parts.len() < 3
+        || method.is_empty()
+        || method.chars().all(|c| c.is_ascii_digit())
+        || method.contains(':')
+        || !version.to_ascii_uppercase().starts_with("HTTP/")
+    {
+        return None;
+    }
+    Some((method, parts[1..parts.len() - 1].join(" "), version))
+}
+
+fn is_request_line(l: &str) -> bool {
+    request_line_parts(l).is_some()
 }
 
 /// `HTTP/1.1 200 OK`, `HTTP/2 200`, or the trace shorthand `200 OK`.
@@ -436,12 +461,11 @@ impl Tokenizer {
             self.in_body = self.cur.is_some();
             return Some(());
         }
-        if is_request_line(line) {
-            let parts: Vec<&str> = line.split(' ').collect();
+        if let Some((method, target, version)) = request_line_parts(line) {
             self.start(Msg {
-                method: parts[0].to_string(),
-                target: parts[1].to_string(),
-                version: map_version(parts[2]),
+                method: method.to_string(),
+                target,
+                version: map_version(version),
                 ..Default::default()
             });
             return Some(());
@@ -851,11 +875,7 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "alt_svc_port_empty",
     "alt_svc_port_invalid",
     "auth_param_equals_missing",
-    "authority_empty",
     "authority_tunnel_host_empty",
-    "authority_tunnel_missing",
-    "authority_tunnel_port_invalid",
-    "authority_tunnel_userinfo_forbidden",
     "base64_character_forbidden",
     "base64_pad_bits_invalid",
     "base64_quantum_malformed",
@@ -928,7 +948,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "forwarded_pair_equals_missing",
     "forwarded_pair_value_empty",
     "forwarded_response_forbidden",
-    "host_missing",
     "http_date_empty",
     "http_date_whitespace_forbidden",
     "if_range_empty",
@@ -979,9 +998,7 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "referer_empty",
     "refresh_url_empty",
     "refresh_url_malformed",
-    "request_target_empty",
     "request_target_malformed",
-    "request_target_whitespace_forbidden",
     "sec_fetch_value_malformed",
     "sec_websocket_accept_missing",
     "sec_websocket_extensions_parameter_missing",
@@ -1151,6 +1168,23 @@ mod tests {
             Some(("HTTP/1.1".into(), 401))
         );
         assert!(is_request_line("G@T /index.html HTTP/1.1"));
+    }
+
+    /// The whitespace a request-target is not allowed to carry, which is the
+    /// whole of what one entry is about and what the three-part reading could
+    /// not express.
+    #[test]
+    fn a_target_keeps_the_whitespace_that_makes_it_a_finding() {
+        assert_eq!(
+            request_line_parts("GET /a path HTTP/1.1"),
+            Some(("GET", "/a path".to_string(), "HTTP/1.1"))
+        );
+        assert_eq!(
+            request_line_parts("GET  HTTP/1.1"),
+            Some(("GET", String::new(), "HTTP/1.1"))
+        );
+        // The version is last, so a reason phrase carrying one is not a target.
+        assert!(!is_request_line("HTTP/1.1 404 Not Found"));
     }
 
     #[test]

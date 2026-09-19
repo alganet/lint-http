@@ -365,6 +365,21 @@ impl RuleMeta for Http2PseudoHeadersValid {
                 label: Some("An 'https' target's authority carries no userinfo"),
                 snippet: ":method: GET\n:scheme: https\n:authority: user:pass@example.com\n:path: /",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "A CONNECT whose destination is in neither of the two places it can travel",
+                ),
+                snippet: ":method: CONNECT\n:path: /tunnel",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "A tunnel destination is a host and a port, and a userinfo is a third \
+                     component the form has no room for",
+                ),
+                snippet: ":method: CONNECT\n:authority: user:pass@example.com:443",
+            },
         ]
     }
 }

@@ -104,3 +104,10 @@ Host: example.com
 ```http
 GET https://user@example.com/resource HTTP/3
 ```
+
+### ❌ Bad The target names no authority and the field beside it was written and left blank, which is the other half of the same sentence
+
+```http
+GET /resource HTTP/3
+Host:
+```
