@@ -31,16 +31,15 @@ fn validate_ext_value_empty_charset_error() {
 
 #[test]
 fn validate_ext_value_invalid_charset_non_ascii() {
-    // Non-ASCII charset should be rejected
+    // `mime-charsetc` is ALPHA / DIGIT and thirteen printable US-ASCII
+    // characters, so a charset carrying U+2713 derives from no `charset` at
+    // all -- and the refusal names the octet rather than the production.
     let v = "UT\u{2713}F'en'%20"; // contains non-ascii char in charset
     let res = validate_ext_value(v);
     assert!(res.is_err());
-    assert!(res
-        .as_ref()
-        .err()
-        .unwrap()
-        .to_lowercase()
-        .contains("invalid charset"));
+    let why = res.as_ref().err().unwrap();
+    assert!(why.contains("mime-charset does not admit"), "{why}");
+    assert!(why.contains('\u{2713}'), "{why}");
 }
 
 /// An `angle-addr` whose contents are not an `addr-spec` is refused, and the
