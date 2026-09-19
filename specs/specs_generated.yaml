@@ -5380,7 +5380,7 @@ sources:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 357
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 129
+      line: 138
     - file: lint-http-rules/src/violations/deprecation.rs
       line: 98
 - label: RFC 8615
@@ -12783,7 +12783,7 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 119
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 164
+      line: 177
   - label: lint-http-rules/src/helpers/structured_fields.rs
     section: § 3.1.2
     snippet: Note that parameters are ordered, and parameter keys cannot contain uppercase letters.
@@ -13273,7 +13273,7 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 118
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 163
+      line: 176
     - file: lint-http-rules/src/violations/deprecation.rs
       line: 71
   - label: sunset_and_deprecation_consistent
@@ -13281,6 +13281,6 @@ sources:
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
     cited_by:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 196
+      line: 209
     - file: lint-http-rules/src/violations/deprecation.rs
       line: 125
