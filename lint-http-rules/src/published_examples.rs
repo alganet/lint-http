@@ -920,7 +920,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "domain_name_length_invalid",
     "domain_name_whitespace_or_control_forbidden",
     "early_data_duplicated",
-    "early_data_invalid",
     "etag_character_forbidden",
     "etag_weak_indicator_invalid",
     "expect_100_continue_invalid",

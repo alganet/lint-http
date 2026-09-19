@@ -267,10 +267,14 @@ impl Rule for EarlyDataHeaderSafeMethod {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // The request's own readings, behind an Option: each is measured against
-        // the field's presence in this section, and the first to answer ends
-        // them. The response's are asked separately below.
-        let request_side = || -> Option<Violation> {
+        // The request's own readings, and each is about a different subject: the
+        // method the request was sent with, how many field lines carry the mark,
+        // what each of those lines says, and whether the `Connection` field
+        // names the mark as a connection-option. None of them is evidence about
+        // any other, so a request that offends in two ways is answered about
+        // both. The response's readings are asked separately below.
+        let request_side = || -> Vec<Violation> {
+            let mut found = Vec::new();
             let config: &EarlyDataConfig = ctx.state();
 
             // A count, not a value: the field is a singleton whose whole grammar is one
@@ -302,7 +306,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 // cite(RFC 8470 § 4): "Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data."
                 // cite(RFC 9110 § 9.2.1): "Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource."
                 if !config.safe_methods.iter().any(|m| m == &tx.request.method) {
-                    return Some(ctx.by_client().report_with(
+                    found.push(ctx.by_client().report_with(
                         &EARLY_DATA_METHOD_FORBIDDEN,
                         format!(
                             "Request carrying an Early-Data header field was conveyed in TLS early data on a previous hop (RFC 8470 §5.1), and its method '{}' is not one this deployment lists as safe; RFC 8470 §4 has a client send only safe methods in early data, because a replayed unsafe request takes effect twice",
@@ -315,23 +319,26 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 // has an intermediary write the field: it adds one only where there is none.
                 // cite(RFC 8470 § 5.1): "An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request)."
                 if instances > 1 {
-                    return Some(ctx.by_client().report_with(&EARLY_DATA_DUPLICATED,
+                    found.push(ctx.by_client().report_with(&EARLY_DATA_DUPLICATED,
                         format!(
                             "Request carries {instances} Early-Data header field lines, and a client may send at most one — the field holds a single bit. A server reads them as one instance with the value 1, so the extra lines change nothing about the request; an intermediary marking early data adds the field only when it is not already there"
                         ),
                     ));
                 }
 
-                // Exactly one line here, so the value is that line's octets, and the `else`
-                // is unreachable rather than a judgement. Compared as octets, because the
-                // only question asked of them is whether they are this one literal — and
-                // equality of two field values is equality of two octet strings, which no
-                // decode is needed to answer.
+                // Every line, not the first one. The count above is one claim and the
+                // octets are another: a sender that wrote two lines saying `0` wrote a
+                // line too many *and* wrote the wrong value twice, and reading only
+                // `get(FIELD)` answered about the first line and called the rest
+                // unreachable. Compared as octets, because the only question asked of
+                // them is whether they are this one literal — and equality of two field
+                // values is equality of two octet strings, which no decode is needed to
+                // answer.
                 // cite(RFC 8470 § 5.1): "It has just one valid value: "1"."
-                if let Some(hv) = tx.request.headers.get(FIELD) {
+                for hv in tx.request.headers.get_all(FIELD) {
                     let written = hv.as_bytes();
                     if written != b"1" {
-                        return Some(ctx.by_client().report_with(&EARLY_DATA_INVALID,
+                        found.push(ctx.by_client().report_with(&EARLY_DATA_INVALID,
                             format!(
                                 "Early-Data header field carries {}, and the field has exactly one valid value, \"1\". A server treats an invalid instance as though it said 1, so the request is marked as early data all the same — the value is simply wrong",
                                 describe_value(written)
@@ -349,34 +356,42 @@ impl Rule for EarlyDataHeaderSafeMethod {
             // before this one forbids removing it.
             // cite(RFC 8470 § 5.1): "An intermediary MUST NOT remove this header field if it is present in a request."
             // cite(RFC 8470 § 5.1): "Early-Data MUST NOT appear in a Connection header field."
-            self.connection_names_early_data(
+            found.extend(self.connection_names_early_data(
                 ctx,
                 crate::lint::Party::Client,
                 "request",
                 &tx.request.headers,
-            )
+            ));
+            found
         };
 
         // The response's own two readings, beside the request's rather than
         // behind them. The sentence quoted below is about what the origin wrote,
         // and the request's answer is no evidence about it.
-        let response_side = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
+        let response_side = || -> Vec<Violation> {
+            let mut found = Vec::new();
+            let Some(resp) = tx.response.as_ref() else {
+                return found;
+            };
             // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
             if resp.headers.contains_key(FIELD) {
-                return Some(ctx.by_server().report_with(&EARLY_DATA_FORBIDDEN,
+                found.push(ctx.by_server().report_with(&EARLY_DATA_FORBIDDEN,
                     "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
                 ));
             }
-            self.connection_names_early_data(
+            // Naming the field as a connection-option is a defect of the
+            // `Connection` field, and writing the field in a response is a defect
+            // of the response — a response doing both is two lines to delete.
+            found.extend(self.connection_names_early_data(
                 ctx,
                 crate::lint::Party::Server,
                 "response",
                 &resp.headers,
-            )
+            ));
+            found
         };
 
-        let mut out = Vec::from_iter(request_side());
+        let mut out = request_side();
         out.extend(response_side());
         out
     }
@@ -443,6 +458,19 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
         )
+    }
+
+    /// Every finding, in the order the rule states them.
+    fn check_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<String> {
+        crate::test_helpers::run_rule_all(
+            &EarlyDataHeaderSafeMethod,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect()
     }
 
     fn make_tx(method: &str, headers: &[(&str, &str)]) -> crate::http_transaction::HttpTransaction {
@@ -598,15 +626,62 @@ mod tests {
     }
 
     /// The method question comes first: two lines under an unsafe method is still, and
-    /// mainly, an unsafe method in early data.
+    /// mainly, an unsafe method in early data. It comes first without ending the
+    /// reading — the extra line is a second thing the sender wrote wrong, and
+    /// deleting it does not make the method safe.
     #[test]
-    fn the_method_finding_outranks_the_multiplicity_one() {
-        let v = check(&make_tx(
-            "POST",
-            &[("early-data", "1"), ("early-data", "1")],
-        ))
-        .expect("reported");
-        assert!(v.message.contains("conveyed in TLS early data"));
+    fn the_method_finding_leads_the_multiplicity_one_without_hiding_it() {
+        let tx = make_tx("POST", &[("early-data", "1"), ("early-data", "1")]);
+        assert!(check(&tx)
+            .expect("reported")
+            .message
+            .contains("conveyed in TLS early data"));
+        assert_eq!(
+            check_all(&tx),
+            vec!["early_data_method_forbidden", "early_data_duplicated"]
+        );
+    }
+
+    /// Four independent subjects on one request: the method it was sent with, the
+    /// number of lines carrying the mark, what each of those lines says, and the
+    /// `Connection` field naming the mark as a connection-option. None is
+    /// evidence about another, so all four are stated.
+    ///
+    /// The two `early_data_invalid` findings are the point of reading every line
+    /// rather than the first: `0` written twice is the wrong value written twice.
+    #[test]
+    fn four_independent_defects_are_four_findings() {
+        assert_eq!(
+            check_all(&make_tx(
+                "POST",
+                &[
+                    ("early-data", "0"),
+                    ("early-data", "0"),
+                    ("connection", "early-data"),
+                ],
+            )),
+            vec![
+                "early_data_method_forbidden",
+                "early_data_duplicated",
+                "early_data_invalid",
+                "early_data_invalid",
+                "early_data_forbidden",
+            ]
+        );
+    }
+
+    /// The other direction: a request with nothing else wrong draws exactly the
+    /// one finding its single defect earns, so the walk adds no noise.
+    #[test]
+    fn one_defect_is_still_one_finding() {
+        assert_eq!(
+            check_all(&make_tx("GET", &[("early-data", "0")])),
+            vec!["early_data_invalid"]
+        );
+        assert_eq!(
+            check_all(&make_tx("POST", &[("early-data", "1")])),
+            vec!["early_data_method_forbidden"]
+        );
     }
 
     /// §5.1: "Early-Data MUST NOT appear in a Connection header field." Reported by
@@ -658,6 +733,34 @@ mod tests {
             v.message.contains("Response carries an Early-Data"),
             "{v:?}"
         );
+    }
+
+    /// The response's two readings are also independent: writing the field on a
+    /// response is a line to delete, and naming it as a connection-option is a
+    /// different line to delete. A response doing both is answered about both.
+    #[test]
+    fn a_response_offending_twice_is_answered_twice() {
+        let mut tx = make_tx("GET", &[]);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[
+                ("early-data", "1"),
+                ("connection", "early-data"),
+            ]),
+            body_length: Some(0),
+            body_interrupted: false,
+            trailers: None,
+        });
+        let found = crate::test_helpers::run_rule_all(
+            &EarlyDataHeaderSafeMethod,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(found[0].message.contains("Response carries an Early-Data"));
+        assert!(found[1].message.contains("connection-option"));
     }
 
     /// A request with no field at all measures nothing.
