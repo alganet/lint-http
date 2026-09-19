@@ -36,6 +36,7 @@ Parses the `Link` field of a request and of a response — every field line of o
 ## Violations
 
 - [bws_forbidden](../violations/bws_forbidden.md) — Whitespace written where the grammar admits BWS
+- [ext_value_charset_forbidden](../violations/ext_value_charset_forbidden.md) — An extended parameter value names a character encoding reserved for future use
 - [ext_value_malformed](../violations/ext_value_malformed.md) — An extended parameter value is no ext-value
 - [language_tag_character_forbidden](../violations/language_tag_character_forbidden.md) — Language tag holds a character outside letters, digits and hyphen
 - [language_tag_edge_hyphen_forbidden](../violations/language_tag_edge_hyphen_forbidden.md) — Language tag starts or ends with a hyphen
@@ -242,4 +243,11 @@ Link: </a>; rel=next; title*=UTF-8''%zz
 ```http
 HTTP/1.1 200 OK
 Link: </a>; rel=next; example*=UTF-8x
+```
+
+### ❌ Bad (a well-formed ext-value in an encoding a producer may not use)
+
+```http
+HTTP/1.1 200 OK
+Link: </a>; rel=next; title*=iso-8859-1'en'%A3%20rates
 ```

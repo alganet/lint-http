@@ -9,7 +9,9 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::content_disposition::{
     CONTENT_DISPOSITION_PARAMETER_DUPLICATED, CONTENT_DISPOSITION_SIZE_INVALID, RFC_6266_4_1,
 };
-use crate::violations::ext_value::{EXT_VALUE_MALFORMED, RFC_8187_3_2_1};
+use crate::violations::ext_value::{
+    EXT_VALUE_CHARSET_FORBIDDEN, EXT_VALUE_MALFORMED, RFC_8187_3_2_1,
+};
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
 };
@@ -50,6 +52,7 @@ static DECLARED: &[&ViolationDef] = &[
     &CONTENT_DISPOSITION_PARAMETER_DUPLICATED,
     &CONTENT_DISPOSITION_SIZE_INVALID,
     &EXT_VALUE_MALFORMED,
+    &EXT_VALUE_CHARSET_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -126,6 +129,11 @@ impl RuleMeta for ContentDispositionParameterValid {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "Content-Disposition: attachment; filename=\"unclosed   # the quoted-string never closes\nContent-Disposition: attachment; filename*=UTF-8'%e2%82%ac   ;  # missing second quote\nContent-Disposition: attachment; size=12a\nContent-Disposition: attachment; filename=foo; filename=bar  # duplicate parameter name",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a well-formed ext-value in an encoding a producer may not use)"),
+                snippet: "Content-Disposition: attachment; filename*=iso-8859-1'en'%A3%20rates",
             },
         ]
     }
@@ -266,6 +274,21 @@ impl Rule for ContentDispositionParameterValid {
                                 format!("{} filename* extended value invalid: {}", hdr_name, e),
                             ));
                         }
+                        // The grammar first, then the choice: a value deriving
+                        // from no `ext-value` named no encoding to be forbidden.
+                        if let Some(charset) =
+                            crate::helpers::parameter::ext_value_charset_reserved(val)
+                        {
+                            return Some(ctx.by(party).report_with(
+                                &EXT_VALUE_CHARSET_FORBIDDEN,
+                                format!(
+                                    "{hdr_name} filename* names the character encoding \
+                                     '{charset}', which RFC 8187 §3.2.1 reserves for future \
+                                     use and forbids a producer to write; a recipient built \
+                                     to that document decodes UTF-8 alone"
+                                ),
+                            ));
+                        }
                     } else if name.eq_ignore_ascii_case("size") {
                         // allow token or quoted-string with digits only
                         let raw_val = if val.starts_with('"') {
@@ -305,6 +328,20 @@ impl Rule for ContentDispositionParameterValid {
                                     format!(
                                         "{} extended parameter '{}' invalid: {}",
                                         hdr_name, name, e
+                                    ),
+                                ));
+                            }
+                            if let Some(charset) =
+                                crate::helpers::parameter::ext_value_charset_reserved(val)
+                            {
+                                return Some(ctx.by(party).report_with(
+                                    &EXT_VALUE_CHARSET_FORBIDDEN,
+                                    format!(
+                                        "{hdr_name} extended parameter '{name}' names the \
+                                         character encoding '{charset}', which RFC 8187 \
+                                         §3.2.1 reserves for future use and forbids a \
+                                         producer to write; a recipient built to that \
+                                         document decodes UTF-8 alone"
                                     ),
                                 ));
                             }
@@ -407,6 +444,18 @@ mod tests {
     )]
     #[case("attachment; size=12a", Some("content_disposition_size_invalid"))]
     #[case("attachment; filename*=no-separators", Some("ext_value_malformed"))]
+    #[case("attachment; filename*=UTF-8.1''x", Some("ext_value_malformed"))]
+    // Well formed and still forbidden: `mime-charset` derives `iso-8859-1`, so
+    // the grammar's entry would be untrue of this value. The `example*` row is
+    // the generic `disp-ext-parm` site, which reads the same two claims.
+    #[case(
+        "attachment; filename*=iso-8859-1'en'%A3%20rates",
+        Some("ext_value_charset_forbidden")
+    )]
+    #[case(
+        "attachment; example*=Shift_JIS''x",
+        Some("ext_value_charset_forbidden")
+    )]
     fn a_disposition_parameter_reports_the_productions_it_borrows(
         #[case] value: &str,
         #[case] id: Option<&str>,
@@ -433,6 +482,8 @@ mod tests {
     #[case(Some("attachment; filename=\"a.txt\""), false)]
     #[case(Some("attachment; filename=\"a;b.txt\""), false)]
     #[case(Some("attachment; filename*=UTF-8''%e2%82%ac%20rates"), false)]
+    // § 3.2.1 matches character encoding names case-insensitively.
+    #[case(Some("attachment; filename*=utf-8''%e2%82%ac"), false)]
     #[case(Some("attachment; filename=example.txt; size=12345"), false)]
     #[case(
         Some("attachment; filename=example.txt; filename*=UTF-8''%e2%82%ac%20rates"),
