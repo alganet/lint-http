@@ -41,6 +41,14 @@ pub struct RangeAndContentRangeConsistent;
 /// range is a response the client asked for and may be unable to read. All
 /// three are the status code's — every one of them is read out of the request
 /// and the response at once, and neither range field is at fault in any.
+///
+/// **The two groups are reported beside each other, never instead.** They are
+/// claims about different subjects, and for as long as the status group was
+/// checked first and returned, the eleven grammar entries and the four
+/// consistency ones were unreachable on any message that had one — the client
+/// was told its 206 answered no range request and nothing about the
+/// `complete-length` it would reassemble against. `status_defects` is that
+/// group under its own name.
 static DECLARED: &[&ViolationDef] = &[
     &STATUS_206_UNSOLICITED,
     &STATUS_416_UNSOLICITED,
@@ -163,7 +171,7 @@ units = ["bytes"]
     }
 
     fn description(&self) -> &'static str {
-        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
+        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition. That is a finding about the status code, and it is reported *beside* whatever the response's `Content-Range` says rather than in place of it: the two are claims about different subjects, and a client handed `Content-Range: bytes 42-1233/1000` still has to read it to know what it was given.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -242,29 +250,26 @@ impl Rule for RangeAndContentRangeConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
+        let Some(resp) = tx.response.as_ref() else {
+            return Vec::new();
+        };
+        // What the request asked for, read from its first `Range` field line: the
+        // unit it named and the range-set it named it over. A value that is not a
+        // `ranges-specifier` at all is `range_header_syntax`'s
+        // finding, and leaves this rule knowing less rather than guessing.
+        let requested = crate::helpers::headers::get_header_str(&tx.request.headers, "range")
+            .and_then(|v| crate::helpers::content_range::split_ranges_specifier(v).ok());
+
+        // The status code's own defects come first and are *collected*. What the
+        // field says is read after them and beside them.
+        let mut out = status_defects(tx, resp, requested.as_ref(), ctx);
+
         // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
+        // one finding (or none) joins the vector above.
         let finding = || -> Option<Violation> {
             let config: &RangeConsistencyConfig = ctx.state();
-            let resp = tx.response.as_ref()?;
 
             let status = resp.status;
-            let has_range_request = tx.request.headers.get("range").is_some();
-            // What the request asked for, read from its first `Range` field line: the
-            // unit it named and the range-set it named it over. A value that is not a
-            // `ranges-specifier` at all is `range_header_syntax`'s
-            // finding, and leaves this rule knowing less rather than guessing.
-            let requested = crate::helpers::headers::get_header_str(&tx.request.headers, "range")
-                .and_then(|v| crate::helpers::content_range::split_ranges_specifier(v).ok());
-
-            // A 206 is *defined* as the answer to a range request, so one returned to a
-            // request that asked for no range contradicts its own status code -- the
-            // status is the defect and neither range field is, which is why the id is
-            // the status code's. This check used to sit two branches deeper, where only
-            // a 206 carrying a well-formed satisfied Content-Range could reach it.
-            if status == 206 && !has_range_request {
-                return Some(ctx.report(&STATUS_206_UNSOLICITED));
-            }
 
             // 206 Partial Content rules. What the field means in this status --
             // and in the 416 below, which is the only other one that gives it a
@@ -286,24 +291,11 @@ impl Rule for RangeAndContentRangeConsistent {
                         return Some(ctx.report_with(&CONTENT_RANGE_FORBIDDEN, "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into()));
                     }
 
-                    // One requested range may not be answered with a multipart
-                    // response at all. The count is exact rather than a guess: a
-                    // range-set is a `#`-list, whose separator is the comma, and no
-                    // range-spec may contain one. Empty elements are not elements, so
-                    // the shared list splitter is the one that counts them -- and a
-                    // `Range` this rule could not split into a specifier leaves
-                    // `requested` empty, which reports nothing.
-                    // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-                    let requested_ranges = requested
-                        .as_ref()
-                        .map(|(_, set)| crate::helpers::list::list_members(set).count());
-                    if requested_ranges == Some(1) {
-                        return Some(ctx.report(&STATUS_206_MULTIPART_FORBIDDEN));
-                    }
-
                     // Each part's own Content-Range is in the message content, which
                     // this rule does not read. The requirement below is therefore
-                    // neither checked nor waived here.
+                    // neither checked nor waived here. Whether a request for one
+                    // range may be answered with multipart at all is the status
+                    // code's question and is asked in `status_defects`.
                     // cite(RFC 9110 § 15.3.7.2): "Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part."
                     return None;
                 }
@@ -398,27 +390,6 @@ impl Rule for RangeAndContentRangeConsistent {
 
             // 416 Range Not Satisfiable rules
             if status == 416 {
-                // The status names the request field it is about, the same way 206's
-                // definition does, so a 416 to a request carrying no Range announces
-                // the rejection of nothing -- the status code's own defect, and the
-                // entry beside the 206 one.
-                //
-                // Unless the range is in the other field. A partial PUT names the
-                // range it is writing in the request's own Content-Range, so a server
-                // answering "that range is not satisfiable" has something to be about
-                // even with no Range field in sight. § 14.5 leaves that whole exchange
-                // to private agreement between the two parties, which means there is
-                // no sentence here to measure it against -- and a rule that reported
-                // it would be supplying one. The 206 side above keeps its finding:
-                // nothing in § 14.5 gives a response to a PUT an enclosed part to
-                // describe, which is the only thing a 206 says.
-                // cite(RFC 9110 § 14.5): "Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents."
-                let request_names_a_range_elsewhere =
-                    tx.request.headers.get("content-range").is_some();
-                if !has_range_request && !request_names_a_range_elsewhere {
-                    return Some(ctx.report(&STATUS_416_UNSOLICITED));
-                }
-
                 let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
                 if cr.is_none() {
                     // Both sentences asking for the field say SHOULD, and both say it
@@ -462,8 +433,73 @@ impl Rule for RangeAndContentRangeConsistent {
 
             None
         };
-        Vec::from_iter(finding())
+        out.extend(finding());
+        out
     }
+}
+
+/// What the *status code* has to answer for, given the request it answers.
+///
+/// Separated from the reading of `Content-Range` below it, and the separation is
+/// the whole of what this function is for. RFC 9110 § 14.4 gives the field a
+/// meaning per status code and conditions its grammar on nothing else, so a
+/// status a request contradicts is one finding and a value that derives from no
+/// `Content-Range` is another one about a different subject. They used to be the
+/// same `return`: the status check was reached first, so the fifteen entries
+/// about the field's value -- ten of them `error` -- were unreachable on every
+/// message that had one of these. A client handed `bytes 42-1233/1000` still has
+/// to read it to know what it was given, whatever provoked the 206.
+fn status_defects(
+    tx: &crate::http_transaction::HttpTransaction,
+    resp: &lint_http_core::http_transaction::ResponseInfo,
+    requested: Option<&(String, &str)>,
+    ctx: &crate::rules::RuleContext<'_>,
+) -> Vec<Violation> {
+    let mut out = Vec::new();
+    let has_range_request = tx.request.headers.get("range").is_some();
+
+    // A 206 is *defined* as the answer to a range request, so one returned to a
+    // request that asked for no range contradicts its own status code -- the
+    // status is the defect and neither range field is, which is why the id is
+    // the status code's.
+    if resp.status == 206 && !has_range_request {
+        out.push(ctx.report(&STATUS_206_UNSOLICITED));
+    }
+
+    // One requested range may not be answered with a multipart response at all.
+    // The count is exact rather than a guess: a range-set is a `#`-list, whose
+    // separator is the comma, and no range-spec may contain one. Empty elements
+    // are not elements, so the shared list splitter is the one that counts them
+    // -- and a `Range` this rule could not split into a specifier leaves
+    // `requested` empty, which reports nothing.
+    // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+    if resp.status == 206
+        && response_is_multipart_byteranges(&resp.headers)
+        && requested.map(|(_, set)| crate::helpers::list::list_members(set).count()) == Some(1)
+    {
+        out.push(ctx.report(&STATUS_206_MULTIPART_FORBIDDEN));
+    }
+
+    // The status names the request field it is about, the same way 206's
+    // definition does, so a 416 to a request carrying no Range announces the
+    // rejection of nothing -- the status code's own defect, and the entry beside
+    // the 206 one.
+    //
+    // Unless the range is in the other field. A partial PUT names the range it is
+    // writing in the request's own Content-Range, so a server answering "that
+    // range is not satisfiable" has something to be about even with no Range
+    // field in sight. § 14.5 leaves that whole exchange to private agreement
+    // between the two parties, which means there is no sentence here to measure
+    // it against -- and a rule that reported it would be supplying one. The 206
+    // side above keeps its finding: nothing in § 14.5 gives a response to a PUT
+    // an enclosed part to describe, which is the only thing a 206 says.
+    // cite(RFC 9110 § 14.5): "Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents."
+    if resp.status == 416 && !has_range_request && tx.request.headers.get("content-range").is_none()
+    {
+        out.push(ctx.report(&STATUS_416_UNSOLICITED));
+    }
+
+    out
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -1105,7 +1141,7 @@ mod tests {
     /// Content-Range says -- the check used to be reachable only through a
     /// well-formed satisfied one.
     #[rstest]
-    fn missing_request_range_is_reported_before_the_content_range_is_read() {
+    fn missing_request_range_is_reported_whatever_the_content_range_says() {
         let rule = RangeAndContentRangeConsistent;
         for headers in [
             vec![("content-range", "bytes */1234")],
@@ -1113,17 +1149,137 @@ mod tests {
             vec![("content-type", "multipart/byteranges; boundary=SEP")],
         ] {
             let tx = crate::test_helpers::make_test_transaction_with_response(206, &headers);
-            let v = crate::test_helpers::run_rule(
+            let v = crate::test_helpers::run_rule_all(
                 &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg_with_units(&["bytes"]),
             );
-            assert!(v
-                .expect("a 206 to a request with no Range is reported")
-                .message
-                .contains("request did not include a Range"));
+            assert!(
+                v.iter()
+                    .any(|f| f.message.contains("request did not include a Range")),
+                "a 206 to a request with no Range is reported: {v:?}"
+            );
         }
+    }
+
+    /// The status finding and the field's are about different subjects, so
+    /// neither stands in for the other. Each row is a value the client has to
+    /// read to know what it was handed, on a status the request contradicts.
+    #[rstest]
+    #[case("bytes 42-1233/1000", "content_range_complete_length_conflicting")]
+    #[case("bytes 5-3/10", "content_range_positions_conflicting")]
+    #[case("bytes 0-499", "content_range_slash_missing")]
+    #[case("bytes 0-x/10", "content_range_numeral_malformed")]
+    #[case("bytes */1234", "content_range_form_invalid")]
+    fn an_unsolicited_206_still_has_its_content_range_read(
+        #[case] value: &str,
+        #[case] drawn: &str,
+    ) {
+        let rule = RangeAndContentRangeConsistent;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            206,
+            &[("content-range", value)],
+        );
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert!(
+            v.iter().any(|f| f.violation == "status_206_unsolicited"),
+            "the status is still reported: {v:?}"
+        );
+        assert!(
+            v.iter().any(|f| f.violation == drawn),
+            "the value is read beside the status, not instead of it: {v:?}"
+        );
+        assert_eq!(v.len(), 2, "{v:?}");
+    }
+
+    /// The 416 half of the same separation, and the value that provoked it: a
+    /// `complete-length` that derives from no numeral.
+    #[rstest]
+    fn an_unsolicited_416_still_has_its_content_range_read() {
+        let rule = RangeAndContentRangeConsistent;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            416,
+            &[("content-range", "bytes */-1")],
+        );
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert_eq!(v.len(), 2, "{v:?}");
+        assert!(
+            v.iter().any(|f| f.violation == "status_416_unsolicited"),
+            "{v:?}"
+        );
+        assert!(
+            v.iter()
+                .any(|f| f.violation == "content_range_numeral_malformed"),
+            "{v:?}"
+        );
+    }
+
+    /// A multipart 206 answering a request for one range, carrying the field
+    /// § 15.3.7.2 forbids in its header section: the placement is one defect and
+    /// the status's suitability another, and reporting the first used to end the
+    /// message.
+    #[rstest]
+    fn a_multipart_206_reports_the_field_and_the_status_it_answers_with() {
+        let rule = RangeAndContentRangeConsistent;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            206,
+            &[
+                ("content-type", "multipart/byteranges; boundary=SEP"),
+                ("content-range", "bytes 0-499/1234"),
+            ],
+        );
+        tx.request
+            .headers
+            .insert("range", "bytes=0-499".parse().unwrap());
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert_eq!(v.len(), 2, "{v:?}");
+        assert!(
+            v.iter()
+                .any(|f| f.violation == "status_206_multipart_forbidden"),
+            "{v:?}"
+        );
+        assert!(
+            v.iter().any(|f| f.violation == "content_range_forbidden"),
+            "{v:?}"
+        );
+    }
+
+    /// The partial-PUT exception survives the move: § 14.5 leaves that exchange
+    /// to private agreement, so a 416 whose request named its range in its own
+    /// `Content-Range` reports neither the status nor a field it did send.
+    #[rstest]
+    fn a_partial_put_416_reports_neither_half() {
+        let rule = RangeAndContentRangeConsistent;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            416,
+            &[("content-range", "bytes */1234")],
+        );
+        tx.request
+            .headers
+            .insert("content-range", "bytes 0-499/1234".parse().unwrap());
+        let v = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert!(v.is_empty(), "{v:?}");
     }
 
     /// A malformed unit is still a malformed Content-Range.
