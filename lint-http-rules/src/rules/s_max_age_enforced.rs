@@ -109,26 +109,19 @@ impl Rule for SMaxAgeEnforced {
 
             let (prev_tx, s_max_age, max_age) = candidate?;
 
-            // Estimate current age as the Age header plus elapsed seconds — a simplification of
-            // §4.2.3's full algorithm, adequate for the boundary comparison below.
-            let mut age_val: i64 = 0;
-            if let Some(resp) = &prev_tx.response {
-                if let Some(hv) = resp.headers.get("age") {
-                    if let Ok(s) = hv.to_str() {
-                        if let Ok(n) = s.trim().parse::<i64>() {
-                            if n >= 0 {
-                                age_val = n;
-                            }
-                        }
-                    }
-                }
-            }
-            let elapsed = tx
-                .timestamp
-                .signed_duration_since(prev_tx.timestamp)
-                .num_seconds();
-            let elapsed = if elapsed < 0 { 0 } else { elapsed };
-            let current_age = age_val.saturating_add(elapsed);
+            // The age the stored response arrived with plus the time it has
+            // since spent in our record — §4.2.3's algorithm minus the terms no
+            // linter observes, which is the estimate the two neighbouring
+            // staleness rules ask for by name. This rule had written it out
+            // instead, so a third copy of the simplification stood where the
+            // helper's own doc said there were two.
+            let current_age = prev_tx.response.as_ref().map_or(0, |resp| {
+                crate::helpers::cache_control::estimated_age(
+                    &resp.headers,
+                    prev_tx.timestamp,
+                    tx.timestamp,
+                )
+            });
 
             // A conditional request is the revalidation whose timing this rule judges.
             // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
