@@ -10,8 +10,7 @@ SPDX-License-Identifier: ISC
 
 Measures the server's half of a WebSocket opening handshake against the request it answers, following the list RFC 6455 § 4.1 gives a client for validating that response:
 
-- `Upgrade` is `websocket`. In a response that is one value, not a list: § 4.1 has the client fail the connection when the field *contains a value that is not an ASCII case-insensitive match* for `websocket`, and § 4.2.2 asks for the field *with value "websocket"*. The request's `Upgrade`, by contrast, need only *include the "websocket" keyword*, and `sec_websocket_headers_consistent` reads it that way.
-- `Connection` names the `Upgrade` connection-option — a list, one item later in the same numbered list.
+- `Upgrade` names no protocol besides `websocket`. In a response that is one value, not a list: § 4.1 has the client fail the connection when the field *contains a value that is not an ASCII case-insensitive match* for `websocket`, and § 4.2.2 asks for the field *with value "websocket"*. The request's `Upgrade`, by contrast, need only *include the "websocket" keyword*, and `sec_websocket_headers_consistent` reads it that way. Whether the field is there at all, whether it names any protocol, and whether `Connection` names the `Upgrade` option are asked of every message carrying an `Upgrade` by `status_101_switching_protocols` and `upgrade_and_connection_consistent`, on wider gates — so § 4.1's first two items are reported once, by them, rather than a second time here.
 - `Sec-WebSocket-Accept` is the base64 SHA-1 of the request's `Sec-WebSocket-Key` concatenated with the well-known GUID. The finding names the value the server should have written.
 - `Sec-WebSocket-Extensions`, when present, names only extensions the request offered.
 - `Sec-WebSocket-Protocol`, when present, is a single `token` — the server's production, where the client's is a list — that is not the empty string and that the request offered. A server agreeing to no subprotocol sends no field.
@@ -22,7 +21,7 @@ One finding is about the request rather than the response, and it is one only a 
 
 Only HTTP/1.x exchanges are measured: over HTTP/2 and HTTP/3 the handshake is an extended CONNECT carrying `:protocol` (RFC 8441, RFC 9220), where `Connection` and `Upgrade` are forbidden and `Sec-WebSocket-Accept` is not sent at all.
 
-Two neighbours own the sentences this rule does not. The obligation to send an `Upgrade` in *any* `101`, and to name in it only protocols the client offered, is RFC 9110's and belongs to `status_101_switching_protocols`. `Sec-WebSocket-Version: 13` is asked of the request by `sec_websocket_headers_consistent` and is deliberately not asked of the server here: RFC 6455 § 4.2.1's list makes every one of its items a MUST-refuse, while § 4.2.2 aborts a handshake only for a version *that does not match a version understood by the server* — a fact about the server, which a `101` is that server asserting. `Sec-WebSocket-Extensions` is measured here only against what the request offered; its own grammar (`extension-list`, `extension-param`) is `sec_websocket_extensions_syntax`'s, in both directions.
+Three neighbours own the sentences this rule does not. The obligation to send an `Upgrade` in *any* `101`, to name a protocol in it, and to name in it only protocols the client offered, is RFC 9110's and belongs to `status_101_switching_protocols`; the `Connection` option a sender of `Upgrade` owes is § 7.8's and belongs to `upgrade_and_connection_consistent`. Both report on any message carrying an `Upgrade`, so a WebSocket handshake reaches them like any other and needed no second answer from here. `Sec-WebSocket-Version: 13` is asked of the request by `sec_websocket_headers_consistent` and is deliberately not asked of the server here: RFC 6455 § 4.2.1's list makes every one of its items a MUST-refuse, while § 4.2.2 aborts a handshake only for a version *that does not match a version understood by the server* — a fact about the server, which a `101` is that server asserting. `Sec-WebSocket-Extensions` is measured here only against what the request offered; its own grammar (`extension-list`, `extension-param`) is `sec_websocket_extensions_syntax`'s, in both directions.
 
 ## Violations
 
@@ -34,10 +33,7 @@ Two neighbours own the sentences this rule does not. The obligation to send an `
 - [status_101_forbidden](../violations/status_101_forbidden.md) — A 101 completes a WebSocket handshake the server had to refuse
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
-- [upgrade_101_empty](../violations/upgrade_101_empty.md) — A 101 response names no protocol on its Upgrade field
 - [upgrade_101_invalid](../violations/upgrade_101_invalid.md) — A 101 response names a protocol its handshake does not permit
-- [upgrade_101_missing](../violations/upgrade_101_missing.md) — A 101 response carries no Upgrade field
-- [upgrade_connection_option_missing](../violations/upgrade_connection_option_missing.md) — Upgrade is sent with no upgrade connection-option in Connection
 
 ## Specifications
 
@@ -49,8 +45,6 @@ Two neighbours own the sentences this rule does not. The obligation to send an `
 - [RFC 8441 §5](https://www.rfc-editor.org/rfc/rfc8441.html#section-5): Updates RFC 6455: over HTTP/2 the handshake is an extended CONNECT, `Connection` and `Upgrade` MUST NOT be included, and `Sec-WebSocket-Accept` is not processed — the sentences behind this rule's version gate
 - [RFC 9220 §3](https://www.rfc-editor.org/rfc/rfc9220.html#section-3): Carries RFC 8441's mechanism to HTTP/3 with identical semantics
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
-- [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade — the sender's obligation to name the field as a connection-option beside it, and the `#protocol` grammar that makes the field's presence the thing the obligation turns on
-- [RFC 9110 §15.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2): 101 Switching Protocols — the status code is a change in the application protocol being used on this connection, and the response MUST generate an `Upgrade` field naming the protocol(s) in effect after it
 
 ## Configuration
 

@@ -32,4 +32,3 @@ severity = "error"
 ## Reported By
 
 - [status_101_switching_protocols](../rules/status_101_switching_protocols.md)
-- [websocket_handshake_valid](../rules/websocket_handshake_valid.md)

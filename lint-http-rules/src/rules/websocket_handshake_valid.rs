@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::field_placement::is_nominated_by_connection;
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::list_members;
 use crate::helpers::shown::{describe_octet, shown_in_finding};
@@ -23,10 +22,7 @@ use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
-use crate::violations::upgrade::{
-    RFC_9110_15_2_2, RFC_9110_7_8, UPGRADE_101_EMPTY, UPGRADE_101_INVALID, UPGRADE_101_MISSING,
-    UPGRADE_CONNECTION_OPTION_MISSING,
-};
+use crate::violations::upgrade::UPGRADE_101_INVALID;
 use crate::violations::ViolationDef;
 
 /// The server's half of a WebSocket opening handshake, measured against the
@@ -77,18 +73,20 @@ pub struct WebsocketHandshakeValid;
 /// field of the *request*, so nothing holding one message alone can say whether
 /// it is right.
 ///
-/// The response's `Connection` takes [`upgrade`](crate::violations::upgrade)'s
-/// entry, because the option a sender of `Upgrade` owes is HTTP's requirement
-/// and § 4.1 only restates it for this handshake — the same reading the rule
-/// measuring the request made, so one id now answers for both halves of the
-/// exchange and for every other protocol an `Upgrade` may name.
+/// The response's `Upgrade` and `Connection` split three ways and only one of
+/// them is this document's. A `101` with no `Upgrade`, one naming no protocol,
+/// and a `Connection` that does not name the option are what § 15.2.2 and § 7.8
+/// ask of *every* message that carries an `Upgrade` — and this rule restated all
+/// three, under the neighbours' own ids, on a gate narrower than theirs in every
+/// direction. One value reached an operator as two findings with one id on them,
+/// which is a defect of the report whichever rule is right about the value.
 ///
-/// The response's `Upgrade` splits three ways and only one of them is this
-/// document's. A `101` with no field, and one naming no protocol, are what
-/// § 15.2.2 asks of *every* `101` — [`upgrade`](crate::violations::upgrade)'s
-/// pair, reported here from a second rule — while a field naming anything
-/// besides `websocket` is § 4.2.2's ceiling on the value, which HTTP does not
-/// set.
+/// What is left is § 4.2.2's ceiling, which HTTP does not set: a field naming
+/// anything besides `websocket`. HTTP asks a `101` to name a protocol the client
+/// offered, so a client that offered `Upgrade: websocket, h2c` and was answered
+/// `h2c` was answered legally by HTTP and must fail the connection by this
+/// document. No neighbour makes that claim, and it is the one reading of the
+/// response's `Upgrade` no other rule can stand in for.
 ///
 /// The `101` that completed a handshake a server was required to refuse is the
 /// [`status`](crate::violations::status) subject's, and it is the last of this
@@ -105,10 +103,7 @@ static DECLARED: &[&ViolationDef] = &[
     &STATUS_101_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
-    &UPGRADE_101_EMPTY,
     &UPGRADE_101_INVALID,
-    &UPGRADE_101_MISSING,
-    &UPGRADE_CONNECTION_OPTION_MISSING,
 ];
 
 /// One finding from the reading, and the entry it reports as.
@@ -219,72 +214,26 @@ impl WebsocketHandshakeValid {
     /// `status_101_switching_protocols`'.
     // cite(RFC 6455 § 4.1): "If the response lacks an |Upgrade| header field or the |Upgrade| header field contains a value that is not an ASCII case-insensitive match for the value "websocket", the client MUST _Fail the WebSocket Connection_."
     // cite(RFC 6455 § 4.2.2): "An |Upgrade| header field with value "websocket" as per RFC 2616 [RFC2616]."
-    fn upgrade_defect(resp_headers: &hyper::HeaderMap) -> Option<Defect> {
-        let Some(raw) = combined_field_value_as_written(resp_headers, "upgrade") else {
-            return Some(Defect::named(
-                &UPGRADE_101_MISSING,
-                "it carries no Upgrade header field".into(),
-            ));
-        };
-        if let Some(other) = list_members(&raw).find(|m| !m.eq_ignore_ascii_case("websocket")) {
-            return Some(Defect::named(
-                &UPGRADE_101_INVALID,
-                format!(
-                    "its Upgrade header field names `{}`, and the only protocol this response's \
-                     Upgrade may name is `websocket`",
-                    shown_in_finding(other)
-                ),
-            ));
-        }
-        // A field that is present and names nothing is the first clause's case
-        // reached by a second route: there is no `websocket` in it to match. The
-        // neighbour reports the same message as a 101 whose `Upgrade` indicates no
-        // protocol, from RFC 9110's side of it.
-        if list_members(&raw).next().is_none() {
-            return Some(Defect::named(
-                &UPGRADE_101_EMPTY,
-                format!(
-                    "its Upgrade header field is `{}`, which names no protocol at all where this \
-                     response's Upgrade is defined with the value `websocket`",
-                    shown_in_finding(trim_ows(&raw))
-                ),
-            ));
-        }
-        None
-    }
-
-    /// The response's `Connection`, which *is* a list — the asymmetry with the
-    /// field above is the document's own, stated one item later in the same list.
     ///
-    /// The nomination question is `Connection`'s, and the shared predicate is what
-    /// knows a `connection-option` is a field name and therefore compared without
-    /// case; the sentence here asks for exactly that fold in its own words. The
-    /// lines are joined before it looks, because `Connection` is one list however
-    /// many of them carry it.
-    /// **The entry is HTTP's and not this document's**, the same reading the rule
-    /// measuring the request took: a sender of `Upgrade` owes the option whatever
-    /// it is upgrading to, § 7.8 is where that is written, and the two sentences
-    /// below restate it for one protocol and one direction. A `101` is a message
-    /// carrying `Upgrade`, so the general sentence reaches it without any help
-    /// from this one.
-    // cite(RFC 6455 § 4.1): "If the response lacks a |Connection| header field or the |Connection| header field doesn't contain a token that is an ASCII case-insensitive match for the value "Upgrade", the client MUST _Fail the WebSocket Connection_."
-    // cite(RFC 6455 § 4.2.2): "A |Connection| header field with value "Upgrade"."
-    fn connection_defect(resp_headers: &hyper::HeaderMap) -> Option<Defect> {
-        let Some(value) = combined_field_value_as_written(resp_headers, "connection") else {
-            return Some(Defect::named(
-                &UPGRADE_CONNECTION_OPTION_MISSING,
-                "it carries no Connection header field, so it names no connection-option at all"
-                    .into(),
-            ));
-        };
-        if is_nominated_by_connection("upgrade", Some(&value)) {
-            return None;
-        }
+    /// **An absent field and a field naming nothing are not read here**, though
+    /// § 4.1's first item names them: RFC 9110 § 15.2.2 asks the same two things
+    /// of *every* 101, `status_101_switching_protocols` reports both on a gate
+    /// wider than this rule's in every direction, and this rule reported them a
+    /// second time under the same two ids. One value, one defect, one entry, and
+    /// an operator meeting it twice. What is left here is the half no neighbour
+    /// makes: HTTP asks a 101 to name a protocol the client offered, and this
+    /// document asks it to name `websocket` and nothing else -- so a client that
+    /// offered `Upgrade: websocket, h2c` and was answered `h2c` has been answered
+    /// legally by HTTP and must fail the connection by RFC 6455.
+    fn upgrade_defect(resp_headers: &hyper::HeaderMap) -> Option<Defect> {
+        let raw = combined_field_value_as_written(resp_headers, "upgrade")?;
+        let other = list_members(&raw).find(|m| !m.eq_ignore_ascii_case("websocket"))?;
         Some(Defect::named(
-            &UPGRADE_CONNECTION_OPTION_MISSING,
+            &UPGRADE_101_INVALID,
             format!(
-                "its Connection header field is `{}`, which does not include the Upgrade token",
-                shown_in_finding(&value)
+                "its Upgrade header field names `{}`, and the only protocol this response's \
+                 Upgrade may name is `websocket`",
+                shown_in_finding(other)
             ),
         ))
     }
@@ -555,7 +504,7 @@ impl RuleMeta for WebsocketHandshakeValid {
     }
 
     fn description(&self) -> &'static str {
-        "Measures the server's half of a WebSocket opening handshake against the request it answers, following the list RFC 6455 § 4.1 gives a client for validating that response:\n\n- `Upgrade` is `websocket`. In a response that is one value, not a list: § 4.1 has the client fail the connection when the field *contains a value that is not an ASCII case-insensitive match* for `websocket`, and § 4.2.2 asks for the field *with value \"websocket\"*. The request's `Upgrade`, by contrast, need only *include the \"websocket\" keyword*, and `sec_websocket_headers_consistent` reads it that way.\n- `Connection` names the `Upgrade` connection-option — a list, one item later in the same numbered list.\n- `Sec-WebSocket-Accept` is the base64 SHA-1 of the request's `Sec-WebSocket-Key` concatenated with the well-known GUID. The finding names the value the server should have written.\n- `Sec-WebSocket-Extensions`, when present, names only extensions the request offered.\n- `Sec-WebSocket-Protocol`, when present, is a single `token` — the server's production, where the client's is a list — that is not the empty string and that the request offered. A server agreeing to no subprotocol sends no field.\n\nOne finding is about the request rather than the response, and it is one only a rule holding both halves can make: a `101` answering a handshake whose `Sec-WebSocket-Key` is absent or is not a sixteen-octet nonce. RFC 6455 § 4.2.1 requires a server to stop processing such a handshake and answer with an error status, so completing it is the server's defect; the value itself is reported separately, against the client, by `sec_websocket_headers_consistent`.\n\n**Only `101` responses are measured.** RFC 6455 § 4.2.2 lists what a server sends *if the server chooses to accept the incoming connection*, and names five things it does instead — a `401` challenge, a `3xx` redirect, a `403` for an origin it will not serve, a `404` for a resource it does not have, a `426` for a version it does not speak. § 4.1 hands all of them to ordinary HTTP processing, where the rest of this catalogue measures them, so a non-`101` answer is a refusal rather than a malformed handshake.\n\nOnly HTTP/1.x exchanges are measured: over HTTP/2 and HTTP/3 the handshake is an extended CONNECT carrying `:protocol` (RFC 8441, RFC 9220), where `Connection` and `Upgrade` are forbidden and `Sec-WebSocket-Accept` is not sent at all.\n\nTwo neighbours own the sentences this rule does not. The obligation to send an `Upgrade` in *any* `101`, and to name in it only protocols the client offered, is RFC 9110's and belongs to `status_101_switching_protocols`. `Sec-WebSocket-Version: 13` is asked of the request by `sec_websocket_headers_consistent` and is deliberately not asked of the server here: RFC 6455 § 4.2.1's list makes every one of its items a MUST-refuse, while § 4.2.2 aborts a handshake only for a version *that does not match a version understood by the server* — a fact about the server, which a `101` is that server asserting. `Sec-WebSocket-Extensions` is measured here only against what the request offered; its own grammar (`extension-list`, `extension-param`) is `sec_websocket_extensions_syntax`'s, in both directions."
+        "Measures the server's half of a WebSocket opening handshake against the request it answers, following the list RFC 6455 § 4.1 gives a client for validating that response:\n\n- `Upgrade` names no protocol besides `websocket`. In a response that is one value, not a list: § 4.1 has the client fail the connection when the field *contains a value that is not an ASCII case-insensitive match* for `websocket`, and § 4.2.2 asks for the field *with value \"websocket\"*. The request's `Upgrade`, by contrast, need only *include the \"websocket\" keyword*, and `sec_websocket_headers_consistent` reads it that way. Whether the field is there at all, whether it names any protocol, and whether `Connection` names the `Upgrade` option are asked of every message carrying an `Upgrade` by `status_101_switching_protocols` and `upgrade_and_connection_consistent`, on wider gates — so § 4.1's first two items are reported once, by them, rather than a second time here.\n- `Sec-WebSocket-Accept` is the base64 SHA-1 of the request's `Sec-WebSocket-Key` concatenated with the well-known GUID. The finding names the value the server should have written.\n- `Sec-WebSocket-Extensions`, when present, names only extensions the request offered.\n- `Sec-WebSocket-Protocol`, when present, is a single `token` — the server's production, where the client's is a list — that is not the empty string and that the request offered. A server agreeing to no subprotocol sends no field.\n\nOne finding is about the request rather than the response, and it is one only a rule holding both halves can make: a `101` answering a handshake whose `Sec-WebSocket-Key` is absent or is not a sixteen-octet nonce. RFC 6455 § 4.2.1 requires a server to stop processing such a handshake and answer with an error status, so completing it is the server's defect; the value itself is reported separately, against the client, by `sec_websocket_headers_consistent`.\n\n**Only `101` responses are measured.** RFC 6455 § 4.2.2 lists what a server sends *if the server chooses to accept the incoming connection*, and names five things it does instead — a `401` challenge, a `3xx` redirect, a `403` for an origin it will not serve, a `404` for a resource it does not have, a `426` for a version it does not speak. § 4.1 hands all of them to ordinary HTTP processing, where the rest of this catalogue measures them, so a non-`101` answer is a refusal rather than a malformed handshake.\n\nOnly HTTP/1.x exchanges are measured: over HTTP/2 and HTTP/3 the handshake is an extended CONNECT carrying `:protocol` (RFC 8441, RFC 9220), where `Connection` and `Upgrade` are forbidden and `Sec-WebSocket-Accept` is not sent at all.\n\nThree neighbours own the sentences this rule does not. The obligation to send an `Upgrade` in *any* `101`, to name a protocol in it, and to name in it only protocols the client offered, is RFC 9110's and belongs to `status_101_switching_protocols`; the `Connection` option a sender of `Upgrade` owes is § 7.8's and belongs to `upgrade_and_connection_consistent`. Both report on any message carrying an `Upgrade`, so a WebSocket handshake reaches them like any other and needed no second answer from here. `Sec-WebSocket-Version: 13` is asked of the request by `sec_websocket_headers_consistent` and is deliberately not asked of the server here: RFC 6455 § 4.2.1's list makes every one of its items a MUST-refuse, while § 4.2.2 aborts a handshake only for a version *that does not match a version understood by the server* — a fact about the server, which a `101` is that server asserting. `Sec-WebSocket-Extensions` is measured here only against what the request offered; its own grammar (`extension-list`, `extension-param`) is `sec_websocket_extensions_syntax`'s, in both directions."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -568,8 +517,6 @@ impl RuleMeta for WebsocketHandshakeValid {
             RFC_8441_5,
             RFC_9220_3,
             RFC_9110_5_6_2,
-            RFC_9110_7_8,
-            RFC_9110_15_2_2,
         ]
     }
 
@@ -663,7 +610,6 @@ impl Rule for WebsocketHandshakeValid {
             let defect = [
                 Self::refusable_handshake(&req.headers),
                 Self::upgrade_defect(&resp.headers),
-                Self::connection_defect(&resp.headers),
                 Self::accept_defect(&req.headers, &resp.headers),
                 Self::extensions_defect(&req.headers, &resp.headers),
                 Self::subprotocol_defect(&req.headers, &resp.headers),
@@ -803,8 +749,11 @@ mod tests {
     #[case("websocket, websocket", None)]
     #[case("notwebsocket", Some(("names `notwebsocket`", "upgrade_101_invalid")))]
     #[case("websocket, h2c", Some(("names `h2c`", "upgrade_101_invalid")))]
-    #[case("", Some(("names no protocol at all", "upgrade_101_empty")))]
-    #[case("  ,  ", Some(("names no protocol at all", "upgrade_101_empty")))]
+    // A field naming no protocol at all is § 15.2.2's question about every 101
+    // and `status_101_switching_protocols` answers it, on a wider gate and with
+    // the value in the message. This rule reported the same entry beside it.
+    #[case("", None)]
+    #[case("  ,  ", None)]
     fn the_response_upgrade_names_websocket_and_nothing_else(
         #[case] value: &str,
         #[case] expected: Option<(&str, &str)>,
@@ -847,16 +796,36 @@ mod tests {
         assert!(run(&tx).is_none());
     }
 
+    /// The two obligations this rule stopped restating, and the one it kept.
+    ///
+    /// An absent `Upgrade`, a present one naming nothing, and a `Connection`
+    /// that does not name the option are each asked of *every* 101 by a
+    /// neighbour whose gate is wider than this rule's in every direction --
+    /// and each was drawn a second time here, under the same id, so one value
+    /// reached an operator as two findings. Silence here is the whole of the
+    /// change: `status_101_switching_protocols` and
+    /// `upgrade_and_connection_consistent` still report all three.
+    ///
+    /// The last row is the control. A member that is not `websocket` is RFC
+    /// 6455's own ceiling on the value and no neighbour states it, so this is
+    /// the one reading of the response's `Upgrade` that had to stay.
     #[rstest]
-    fn the_response_upgrade_is_required() {
-        let tx = make_ws_tx(
-            handshake_request(),
-            101,
-            vec![("connection", "Upgrade"), ("sec-websocket-accept", ACCEPT)],
-        );
-        let found = run(&tx).unwrap();
-        assert!(found.message.contains("carries no Upgrade header field"));
-        assert_eq!(found.violation, "upgrade_101_missing");
+    #[case(vec![("connection", "Upgrade")], None)]
+    #[case(vec![("upgrade", ""), ("connection", "Upgrade")], None)]
+    #[case(vec![("upgrade", "websocket")], None)]
+    #[case(vec![("upgrade", "websocket"), ("connection", "keep-alive")], None)]
+    #[case(vec![("upgrade", "h2c"), ("connection", "Upgrade")], Some("upgrade_101_invalid"))]
+    fn the_general_upgrade_obligations_are_not_restated_here(
+        #[case] resp: Vec<(&str, &str)>,
+        #[case] expected: Option<&str>,
+    ) {
+        let mut resp = resp;
+        resp.push(("sec-websocket-accept", ACCEPT));
+        let tx = make_ws_tx(handshake_request(), 101, resp);
+        match expected {
+            None => assert!(run(&tx).is_none(), "{:?}", run(&tx)),
+            Some(id) => assert_eq!(run(&tx).unwrap().violation, id),
+        }
     }
 
     /// `Connection` is a list, and it is one list however many field lines carry
@@ -865,7 +834,10 @@ mod tests {
     #[rstest]
     #[case(vec!["Upgrade"], None)]
     #[case(vec!["keep-alive", "Upgrade"], None)]
-    #[case(vec!["keep-alive"], Some("does not include the Upgrade token"))]
+    // The option's absence is `upgrade_and_connection_consistent`'s, which is
+    // where the reading that a second field line is a second member belongs
+    // too: it joins the lines the same way.
+    #[case(vec!["keep-alive"], None)]
     fn the_response_connection_is_one_list(
         #[case] lines: Vec<&str>,
         #[case] expected: Option<&str>,
@@ -880,62 +852,6 @@ mod tests {
             None => assert!(run(&tx).is_none()),
             Some(text) => assert!(run(&tx).unwrap().message.contains(text)),
         }
-    }
-
-    /// Both shapes of the missing option report one entry, and it is the one HTTP
-    /// owns — the same id `upgrade_and_connection_consistent` reports about the
-    /// same message from the general sentence, and the same one the request's half
-    /// of this handshake reports about the other message.
-    #[rstest]
-    fn the_response_connection_is_required() {
-        let tx = make_ws_tx(
-            handshake_request(),
-            101,
-            vec![("upgrade", "websocket"), ("sec-websocket-accept", ACCEPT)],
-        );
-        let found = run(&tx).unwrap();
-        assert!(found.message.contains("carries no Connection header field"));
-        assert_eq!(found.violation, "upgrade_connection_option_missing");
-
-        let tx = make_ws_tx(
-            handshake_request(),
-            101,
-            vec![
-                ("upgrade", "websocket"),
-                ("connection", "keep-alive"),
-                ("sec-websocket-accept", ACCEPT),
-            ],
-        );
-        assert_eq!(
-            run(&tx).unwrap().violation,
-            "upgrade_connection_option_missing"
-        );
-    }
-
-    /// A `Connection` value holding an `obs-text` octet is a value, and the finding
-    /// is about that value. Read through `to_str` the whole field vanished and the
-    /// rule reported the field as missing — a claim about the message where the
-    /// truth is about what is in it.
-    #[rstest]
-    fn an_obs_text_connection_value_is_not_a_missing_field() {
-        let mut tx = make_ws_tx(handshake_request(), 101, vec![]);
-        tx.response.as_mut().unwrap().headers =
-            crate::test_helpers::make_headers_from_octet_pairs(&[
-                ("upgrade", b"websocket"),
-                ("connection", b"Upgrade\xe9"),
-                ("sec-websocket-accept", ACCEPT.as_bytes()),
-            ]);
-        let v = run(&tx).unwrap();
-        assert!(
-            v.message.contains("does not include the Upgrade token"),
-            "{}",
-            v.message
-        );
-        assert!(
-            !v.message.contains("carries no Connection"),
-            "{}",
-            v.message
-        );
     }
 
     #[rstest]

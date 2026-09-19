@@ -33,4 +33,3 @@ severity = "error"
 
 - [sec_websocket_headers_consistent](../rules/sec_websocket_headers_consistent.md)
 - [upgrade_and_connection_consistent](../rules/upgrade_and_connection_consistent.md)
-- [websocket_handshake_valid](../rules/websocket_handshake_valid.md)

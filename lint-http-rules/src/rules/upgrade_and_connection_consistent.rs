@@ -379,6 +379,39 @@ mod tests {
         assert_eq!(run(&tx).is_some(), expect_violation);
     }
 
+    /// A response `Connection` holding an `obs-text` octet is a value, and what is
+    /// wrong is in it rather than about the message. Read back through a UTF-8
+    /// decoder the whole field vanishes and a `101` that did name the option is
+    /// reported as one carrying no `Connection` at all -- the claim an operator
+    /// cannot act on, because the field is right there in the capture.
+    ///
+    /// The reading is shared with the request side, which has this pair already;
+    /// the case is here because the message it guards is a `101`'s, and the rule
+    /// that used to hold that scenario has stopped answering for it.
+    #[rstest]
+    #[case(b"Upgrade\xe9", true)]
+    #[case(b"Upgrade, x\xe9y", false)]
+    fn an_obs_text_response_connection_is_not_a_missing_field(
+        #[case] connection: &[u8],
+        #[case] expect_violation: bool,
+    ) {
+        let mut tx = make_test_transaction_with_response(101, &[]);
+        tx.request.headers = make_headers_from_pairs(&[]);
+        if let Some(resp) = tx.response.as_mut() {
+            resp.headers = make_headers_from_octet_pairs(&[
+                ("upgrade", b"websocket"),
+                ("connection", connection),
+            ]);
+        }
+        match run(&tx) {
+            None => assert!(!expect_violation),
+            Some(v) => {
+                assert!(expect_violation, "{}", v.message);
+                assert!(!v.message.contains("no Connection field"), "{}", v.message);
+            }
+        }
+    }
+
     /// And the response's own version stands it down, where the request's does not.
     #[test]
     fn an_http2_response_is_not_asked_for_the_option() {
