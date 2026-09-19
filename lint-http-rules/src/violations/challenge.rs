@@ -228,6 +228,41 @@ pub fn challenge_defect(defect: ChallengeDefect<'_>) -> &'static ViolationDef {
     }
 }
 
+/// Every defect in one field's `#challenge` list, as the id it reports under
+/// and the sentence it renders, in the order the members were written.
+///
+/// **The reading is the production's and not the field's**, which is why both
+/// fields defined as `#challenge` call it: § 11.7.1 defines
+/// `Proxy-Authenticate` as § 11.6.1's field addressed to a different
+/// recipient, and neither sentence says anything about the grammar that the
+/// other does not. `field` is only how the sentence names what carried the
+/// value.
+///
+/// **A defect of the *list* ends the reading, and a defect of a member does
+/// not.** A value that could not be split into members has no members to
+/// answer for, so it yields one finding; past that, every member is a subject
+/// of its own and the comma beside a malformed one is not a reason to stop
+/// reading the one after it.
+///
+/// The tuple is the judge-then-report shape: nothing here builds a `Violation`,
+/// because the party and the context belong to the rule that asked.
+// cite(RFC 9110 § 11.6.1): "WWW-Authenticate = #challenge"
+// cite(RFC 9110 § 11.7.1): "Proxy-Authenticate = #challenge"
+pub fn challenge_list_defects(field: &str, value: &str) -> Vec<(&'static ViolationDef, String)> {
+    let challenges = match crate::helpers::auth::split_and_group_challenges(value) {
+        Ok(c) => c,
+        Err(defect) => return vec![(challenge_defect(defect), defect.message(field))],
+    };
+    challenges
+        .iter()
+        .filter_map(|challenge| {
+            crate::helpers::auth::validate_challenge_syntax(challenge)
+                .err()
+                .map(|defect| (challenge_defect(defect), defect.message(field)))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

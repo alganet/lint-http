@@ -26,4 +26,5 @@ severity = "info"
 
 ## Reported By
 
+- [proxy_authenticate_challenge_syntax](../rules/proxy_authenticate_challenge_syntax.md)
 - [www_authenticate_challenge_syntax](../rules/www_authenticate_challenge_syntax.md)

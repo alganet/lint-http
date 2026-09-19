@@ -193,30 +193,38 @@ pub enum ChallengeDefect<'a> {
 }
 
 impl ChallengeDefect<'_> {
-    /// The finding. Every sentence names `WWW-Authenticate` or the production
-    /// inside it, because this helper serves one field and its callers embed
-    /// the sentence whole.
-    pub fn message(self) -> String {
+    /// The finding, about the field that carried the challenge.
+    ///
+    /// **The field is an argument because the production is not the field's.**
+    /// `challenge` is § 11.3's, and `WWW-Authenticate` and `Proxy-Authenticate`
+    /// are two lists of it — § 11.7.1 defines the second in the first's terms
+    /// and differs only in who the challenge addresses. The ids these render
+    /// under never named a field, so a second reader needed no new entry; the
+    /// sentences did name one, in every arm, and this is what that cost.
+    ///
+    /// Callers pass the field as a sender spells it, because that is how a
+    /// reader will find it in the message they are holding.
+    // cite(RFC 9110 § 11.7.1): "The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request."
+    pub fn message(self, field: &str) -> String {
         match self {
             Self::EmptyMember => {
-                "WWW-Authenticate header contains empty challenge/member".to_string()
+                format!("{field} header contains empty challenge/member")
             }
             Self::SchemeMissing => {
-                "WWW-Authenticate contains parameter before any auth-scheme".to_string()
+                format!("{field} contains parameter before any auth-scheme")
             }
             Self::SchemeCharacter(c) => {
-                format!("Invalid character '{}' in WWW-Authenticate auth-scheme", c)
+                format!("Invalid character '{c}' in {field} auth-scheme")
             }
             Self::Token68ControlCharacter => {
-                "WWW-Authenticate token68 contains control characters".to_string()
+                format!("{field} token68 contains control characters")
             }
             Self::SuspiciousSingleToken(word) => format!(
-                "WWW-Authenticate challenge carries the single word '{}' after its scheme, and the grammar refuses nothing about it: `token68` derives that word, and so does an `auth-param` whose value was left off, so the value cannot say which of the two was written",
-                word
+                "{field} challenge carries the single word '{word}' after its scheme, and the grammar refuses nothing about it: `token68` derives that word, and so does an `auth-param` whose value was left off, so the value cannot say which of the two was written"
             ),
-            Self::EmptyParameterName => "WWW-Authenticate auth-param name is empty".to_string(),
+            Self::EmptyParameterName => format!("{field} auth-param name is empty"),
             Self::ParameterMissingValue(name) => {
-                format!("WWW-Authenticate auth-param '{}' missing value", name)
+                format!("{field} auth-param '{name}' missing value")
             }
             Self::ParameterNameCharacter(c) => {
                 format!("Invalid character '{}' in auth-param name", c)
@@ -1312,7 +1320,7 @@ mod tests {
         );
         assert!(r
             .unwrap_err()
-            .message()
+            .message("WWW-Authenticate")
             .starts_with("Invalid quoted-string in auth-param 'realm': "));
     }
 

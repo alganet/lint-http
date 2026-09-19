@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::challenge::{
-    challenge_defect, CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
+    CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
     CHALLENGE_PARAMETER_NAME_EMPTY, CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN,
     CHALLENGE_PARAMETER_VALUE_MISSING, CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID,
     RFC_9110_11_3, RFC_9110_11_6_1,
@@ -125,9 +125,10 @@ impl Rule for WwwAuthenticateChallengeSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // `WWW-Authenticate = #challenge`, so the list's own defect ends the
-        // reading and a member's does not: every challenge after a malformed
-        // one is still a challenge, and its own grammar is still answerable.
+        // `WWW-Authenticate = #challenge`, and the reading is § 11.3's rather
+        // than this field's: `challenge_list_defects` answers for both fields
+        // defined as a list of it, and the name passed in is only how the
+        // sentence spells what carried the value.
         //
         // **The body used to stop at the first member that failed**, and the
         // entry that most often stopped it is the one entry here the grammar
@@ -135,7 +136,7 @@ impl Rule for WwwAuthenticateChallengeSyntax {
         // `info` about the bare word and never the unterminated `quoted-string`
         // behind it -- the weakest claim in the file masking the strongest, and
         // invisible from the report because a finding *was* there.
-        let mut out: Vec<Violation> = Vec::new();
+        //
         // Read as octets and over the section. The reader this replaces
         // skipped a field line it could not read as text, which made an octet
         // outside visible US-ASCII invisible to the only rule that measures
@@ -143,34 +144,20 @@ impl Rule for WwwAuthenticateChallengeSyntax {
         // landed in, and every one of them is declared here.
         // `WWW-Authenticate = #challenge` is also why the lines are joined:
         // they are one list.
+        // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
         let Some(resp) = &tx.response else {
-            return out;
+            return Vec::new();
         };
-        let Some(s) = crate::helpers::headers::combined_field_value_as_written(
+        let Some(value) = crate::helpers::headers::combined_field_value_as_written(
             &resp.headers,
             "www-authenticate",
         ) else {
-            return out;
+            return Vec::new();
         };
-        // Group members into assembled challenges using the helper so we can
-        // test the grouping logic independently and exercise more branches.
-        // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
-        let challenges = match crate::helpers::auth::split_and_group_challenges(s.as_str()) {
-            Ok(c) => c,
-            // A list this rule could not split into members has no members to
-            // report on, so that one finding is the whole answer.
-            Err(defect) => return vec![ctx.report_with(challenge_defect(defect), defect.message())],
-        };
-
-        // One finding per member, which is what the list construct makes them:
-        // a challenge is a subject of its own and the comma beside it is not a
-        // reason to stop reading.
-        for challenge in challenges.iter() {
-            if let Err(defect) = crate::helpers::auth::validate_challenge_syntax(challenge) {
-                out.push(ctx.report_with(challenge_defect(defect), defect.message()));
-            }
-        }
-        out
+        crate::violations::challenge::challenge_list_defects("WWW-Authenticate", value.as_str())
+            .into_iter()
+            .map(|(def, message)| ctx.report_with(def, message))
+            .collect()
     }
 }
 

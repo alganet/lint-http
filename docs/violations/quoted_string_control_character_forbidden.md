@@ -50,6 +50,7 @@ severity = "error"
 - [pragma_token_valid](../rules/pragma_token_valid.md)
 - [prefer_header_valid](../rules/prefer_header_valid.md)
 - [preference_applied_header_valid](../rules/preference_applied_header_valid.md)
+- [proxy_authenticate_challenge_syntax](../rules/proxy_authenticate_challenge_syntax.md)
 - [sec_websocket_extensions_syntax](../rules/sec_websocket_extensions_syntax.md)
 - [server_timing_header_syntax](../rules/server_timing_header_syntax.md)
 - [strict_transport_security_valid](../rules/strict_transport_security_valid.md)

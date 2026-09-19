@@ -580,6 +580,9 @@ enabled = true
 [rules.problem_details_structure_valid]
 enabled = true
 
+[rules.proxy_authenticate_challenge_syntax]
+enabled = true
+
 [rules.proxy_connection_discouraged]
 enabled = true
 # RFC 9112 Appendix C.2.2 carries no BCP 14 keyword at all, so the finding is
