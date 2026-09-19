@@ -178,49 +178,42 @@ impl Rule for ContextFieldsDirection {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // A response context field in a request, then a request context field
-            // in a response. Each table is probed against the *other* direction
-            // only — in its own direction the field is what its section says it
-            // is, and its value is its own rule's question.
-            // The half that produced the message travels with it: the one
-            // reporting site below cannot tell afterwards which table answered.
-            let (party, (def, message)) = misdirected(
-                &tx.request.headers,
-                RESPONSE_CONTEXT_FIELDS,
-                "Request",
-                "response context field",
-                "a request",
-            )
-            .map(|message| {
-                (
-                    crate::lint::Party::Client,
-                    (&FIELD_RESPONSE_CONTEXT_MISDIRECTED, message),
-                )
-            })
-            .or_else(|| {
-                tx.response.as_ref().and_then(|resp| {
-                    misdirected(
-                        &resp.headers,
-                        REQUEST_CONTEXT_FIELDS,
-                        "Response",
-                        "request context field",
-                        "a response",
-                    )
-                    .map(|message| {
-                        (
-                            crate::lint::Party::Server,
-                            (&FIELD_REQUEST_CONTEXT_MISDIRECTED, message),
-                        )
-                    })
-                })
-            })?;
-
-            Some(ctx.by(party).report_with(def, message))
-        };
-        Vec::from_iter(finding())
+        // A response context field in a request, then a request context field in
+        // a response. Each table is probed against the *other* direction only —
+        // in its own direction the field is what its section says it is, and its
+        // value is its own rule's question.
+        //
+        // One finding per section: the two tables answer about two different
+        // senders, and a misdirected field in the request is no evidence about
+        // the response.
+        let mut out = Vec::new();
+        if let Some(message) = misdirected(
+            &tx.request.headers,
+            RESPONSE_CONTEXT_FIELDS,
+            "Request",
+            "response context field",
+            "a request",
+        ) {
+            out.push(
+                ctx.by_client()
+                    .report_with(&FIELD_RESPONSE_CONTEXT_MISDIRECTED, message),
+            );
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(message) = misdirected(
+                &resp.headers,
+                REQUEST_CONTEXT_FIELDS,
+                "Response",
+                "request context field",
+                "a response",
+            ) {
+                out.push(
+                    ctx.by_server()
+                        .report_with(&FIELD_REQUEST_CONTEXT_MISDIRECTED, message),
+                );
+            }
+        }
+        out
     }
 }
 

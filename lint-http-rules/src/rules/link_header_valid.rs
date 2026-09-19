@@ -571,34 +571,29 @@ impl Rule for LinkHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Most messages carry no `Link`, and the config read is several map
-            // probes and a hash of the rule id against one lookup per section.
-            if !tx.request.headers.contains_key("link")
-                && !tx
-                    .response
-                    .as_ref()
-                    .is_some_and(|resp| resp.headers.contains_key("link"))
-            {
-                return None;
+        // Most messages carry no `Link`, and the config read is several map
+        // probes and a hash of the rule id against one lookup per section.
+        if !tx.request.headers.contains_key("link")
+            && !tx
+                .response
+                .as_ref()
+                .is_some_and(|resp| resp.headers.contains_key("link"))
+        {
+            return Vec::new();
+        }
+
+        // One finding per section: a `Link` the client wrote and one the origin
+        // sent back are two field values by two senders.
+        let mut out = Vec::new();
+        if let Some(defect) = judge(&tx.request.headers, "Request", false) {
+            out.push(ctx.by_client().report_with(defect.def, defect.message));
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(defect) = judge(&resp.headers, "Response", true) {
+                out.push(ctx.by_server().report_with(defect.def, defect.message));
             }
-
-            // The half that produced the judgement travels with it: the one
-            // reporting site below cannot tell afterwards which call answered.
-            let (party, defect) = judge(&tx.request.headers, "Request", false)
-                .map(|defect| (crate::lint::Party::Client, defect))
-                .or_else(|| {
-                    tx.response.as_ref().and_then(|resp| {
-                        judge(&resp.headers, "Response", true)
-                            .map(|defect| (crate::lint::Party::Server, defect))
-                    })
-                })?;
-
-            Some(ctx.by(party).report_with(defect.def, defect.message))
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 

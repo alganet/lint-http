@@ -466,22 +466,19 @@ impl Rule for SecWebsocketExtensionsSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // The half that produced the judgement travels with it: the one
-            // reporting site below cannot tell afterwards which call answered.
-            let (party, defect) = Self::defect(&tx.request.headers, "Request")
-                .map(|defect| (crate::lint::Party::Client, defect))
-                .or_else(|| {
-                    let resp = tx.response.as_ref()?;
-                    Self::defect(&resp.headers, "Response")
-                        .map(|defect| (crate::lint::Party::Server, defect))
-                })?;
-
-            Some(ctx.by(party).report_with(defect.def, defect.message))
-        };
-        Vec::from_iter(finding())
+        // One finding per section. § 9.1 addresses the malformed value to
+        // whichever peer received it, so the offer and the acceptance are two
+        // values judged on their own terms.
+        let mut out = Vec::new();
+        if let Some(defect) = Self::defect(&tx.request.headers, "Request") {
+            out.push(ctx.by_client().report_with(defect.def, defect.message));
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(defect) = Self::defect(&resp.headers, "Response") {
+                out.push(ctx.by_server().report_with(defect.def, defect.message));
+            }
+        }
+        out
     }
 }
 

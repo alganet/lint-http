@@ -402,33 +402,29 @@ impl Rule for SingletonFieldsNotRepeated {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // The half that produced the judgement travels with it: the one
-            // reporting site below cannot tell afterwards which call answered.
-            let (party, message) = judge(
-                &tx.request.headers,
-                tx.request.trailers.as_ref(),
-                "Request",
-                &tx.request.version,
-            )
-            .map(|message| (crate::lint::Party::Client, message))
-            .or_else(|| {
-                tx.response.as_ref().and_then(|resp| {
-                    judge(
-                        &resp.headers,
-                        resp.trailers.as_ref(),
-                        "Response",
-                        &resp.version,
-                    )
-                    .map(|message| (crate::lint::Party::Server, message))
-                })
-            })?;
-
-            Some(ctx.by(party).report_with(&FIELD_LINE_DUPLICATED, message))
-        };
-        Vec::from_iter(finding())
+        // One finding per section. A singleton the client repeated and one the
+        // origin repeated are two senders each breaking the same requirement,
+        // and the repair is in a different message for each.
+        let mut out = Vec::new();
+        if let Some(message) = judge(
+            &tx.request.headers,
+            tx.request.trailers.as_ref(),
+            "Request",
+            &tx.request.version,
+        ) {
+            out.push(ctx.by_client().report_with(&FIELD_LINE_DUPLICATED, message));
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(message) = judge(
+                &resp.headers,
+                resp.trailers.as_ref(),
+                "Response",
+                &resp.version,
+            ) {
+                out.push(ctx.by_server().report_with(&FIELD_LINE_DUPLICATED, message));
+            }
+        }
+        out
     }
 }
 

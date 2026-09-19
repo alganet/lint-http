@@ -212,30 +212,23 @@ impl Rule for UpgradeAndConnectionConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Each half is measured against its own version. In a reverse-proxy capture
-            // the request may have arrived over HTTP/3 while the response came back from
-            // the origin over HTTP/1.1, and the sender the sentence is about is the one
-            // that wrote the section being read.
-            // The half that produced the judgement travels with it: the one
-            // reporting site below cannot tell afterwards which of the two calls
-            // answered.
-            let (party, (def, message)) =
-                Self::defect(&tx.request.headers, &tx.request.version, "Request")
-                    .map(|defect| (crate::lint::Party::Client, defect))
-                    .or_else(|| {
-                        let resp = tx.response.as_ref()?;
-                        Self::defect(&resp.headers, &resp.version, "Response")
-                            .map(|defect| (crate::lint::Party::Server, defect))
-                    })?;
-
-            // Read last: every gate above ends the rule, so only a message about to be
-            // reported pays for the map probes and the hash over the rule id.
-            Some(ctx.by(party).report_with(def, message))
-        };
-        Vec::from_iter(finding())
+        // One finding per section, each measured against its own version. In a
+        // reverse-proxy capture the request may have arrived over HTTP/3 while
+        // the response came back from the origin over HTTP/1.1, and the sender
+        // the sentence is about is the one that wrote the section being read —
+        // so neither section's answer stands in for the other's.
+        let mut out = Vec::new();
+        if let Some((def, message)) =
+            Self::defect(&tx.request.headers, &tx.request.version, "Request")
+        {
+            out.push(ctx.by_client().report_with(def, message));
+        }
+        if let Some(resp) = &tx.response {
+            if let Some((def, message)) = Self::defect(&resp.headers, &resp.version, "Response") {
+                out.push(ctx.by_server().report_with(def, message));
+            }
+        }
+        out
     }
 }
 

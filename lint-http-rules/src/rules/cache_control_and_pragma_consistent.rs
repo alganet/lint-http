@@ -82,55 +82,57 @@ impl Rule for CacheControlAndPragmaConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Check requests: Pragma: no-cache vs Cache-Control: only-if-cached contradiction
-            // `Pragma` is the HTTP/1.0 spelling of a request `no-cache`, and `Cache-Control`
-            // is the one that means anything now. A message carrying both is asking to be
-            // read by two generations of cache and had better say the same thing to each.
-            // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
-            for hv in tx.request.headers.get_all("pragma").iter() {
-                let Ok(s) = hv.to_str() else {
-                    // Ignore non-UTF8 header values here and let dedicated
-                    // syntax/token rules (e.g., `pragma_token_valid`) handle encoding errors.
-                    continue;
-                };
-                // The members are searched rather than walked, and the
-                // difference is what the finding is about. This one is not a
-                // member's defect -- it is the disagreement between two
-                // *fields*, and a `Pragma: no-cache, no-cache` states the same
-                // disagreement once. So the question asked of the list is
-                // whether it holds the directive at all.
-                //
-                // if request also contains Cache-Control: only-if-cached, that's contradictory
-                // No sentence says this combination is illegal; it is a
-                // heuristic — Pragma: no-cache asks a cache to revalidate,
-                // only-if-cached asks it to serve from cache or fail. Recorded
-                // in the tracker.
-                let asks_for_revalidation = crate::helpers::list::list_members(s)
-                    .any(|m| m.eq_ignore_ascii_case("no-cache"));
-                if asks_for_revalidation
-                    && crate::helpers::cache_control::has(&tx.request.headers, "only-if-cached")
-                {
-                    return Some(ctx.by_client().report(&PRAGMA_CONFLICTING));
-                }
-            }
+        // One finding per section. The two entries are about two senders — the
+        // client that wrote a `Pragma` its own `Cache-Control` contradicts, and
+        // the origin that wrote one into a response where the field never had a
+        // meaning — so neither answers for the other.
+        let mut out = Vec::new();
 
-            // A Pragma in a response is deprecated, so flag any response Pragma. §5.4 also carries a
-            // gutter Note that "Pragma: no-cache" in responses "was never specified" and so cannot
-            // reliably replace Cache-Control: no-cache — that Note can't be machine-cited (its `|`
-            // gutter markers break extraction), so it is paraphrased in the message, not cited.
-            // cite(RFC 9111 § 5.4): "However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma."
-            if let Some(resp) = &tx.response {
-                if resp.headers.contains_key("pragma") {
-                    return Some(ctx.by_server().report_with(&PRAGMA_OBSOLETE, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead".into()));
-                }
+        // Check requests: Pragma: no-cache vs Cache-Control: only-if-cached contradiction
+        // `Pragma` is the HTTP/1.0 spelling of a request `no-cache`, and `Cache-Control`
+        // is the one that means anything now. A message carrying both is asking to be
+        // read by two generations of cache and had better say the same thing to each.
+        // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
+        for hv in tx.request.headers.get_all("pragma").iter() {
+            let Ok(s) = hv.to_str() else {
+                // Ignore non-UTF8 header values here and let dedicated
+                // syntax/token rules (e.g., `pragma_token_valid`) handle encoding errors.
+                continue;
+            };
+            // The members are searched rather than walked, and the
+            // difference is what the finding is about. This one is not a
+            // member's defect -- it is the disagreement between two
+            // *fields*, and a `Pragma: no-cache, no-cache` states the same
+            // disagreement once. So the question asked of the list is
+            // whether it holds the directive at all.
+            //
+            // if request also contains Cache-Control: only-if-cached, that's contradictory
+            // No sentence says this combination is illegal; it is a
+            // heuristic — Pragma: no-cache asks a cache to revalidate,
+            // only-if-cached asks it to serve from cache or fail. Recorded
+            // in the tracker.
+            let asks_for_revalidation =
+                crate::helpers::list::list_members(s).any(|m| m.eq_ignore_ascii_case("no-cache"));
+            if asks_for_revalidation
+                && crate::helpers::cache_control::has(&tx.request.headers, "only-if-cached")
+            {
+                out.push(ctx.by_client().report(&PRAGMA_CONFLICTING));
+                break;
             }
+        }
 
-            None
-        };
-        Vec::from_iter(finding())
+        // A Pragma in a response is deprecated, so flag any response Pragma. §5.4 also carries a
+        // gutter Note that "Pragma: no-cache" in responses "was never specified" and so cannot
+        // reliably replace Cache-Control: no-cache — that Note can't be machine-cited (its `|`
+        // gutter markers break extraction), so it is paraphrased in the message, not cited.
+        // cite(RFC 9111 § 5.4): "However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma."
+        if let Some(resp) = &tx.response {
+            if resp.headers.contains_key("pragma") {
+                out.push(ctx.by_server().report_with(&PRAGMA_OBSOLETE, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead".into()));
+            }
+        }
+
+        out
     }
 }
 

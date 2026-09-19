@@ -477,26 +477,36 @@ impl Rule for DateAndTimeHeadersConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        //
         // Each check below is one sentence about one pair of fields, and each
         // states its own reading of a field that is absent, unreadable or not a
         // date — which is why they are named functions rather than a ladder:
         // the ladder made those three readings look like one.
-        let finding = || -> Option<Violation> {
-            // Tolerate some small clock skew when comparing dates. 60s is a linter
-            // heuristic — no spec licenses it; §8.8.2.1's "MUST NOT ... later than ...
-            // Date" is strict, so this only makes the rule *more* lenient (recorded in
-            // the audit ledger, not cited).
-            const ALLOWED_SKEW_SECS: i64 = 60;
-            let skew = chrono::Duration::seconds(ALLOWED_SKEW_SECS);
-            if let Some(v) =
-                self.date_is_readable(&tx.request.headers, crate::lint::Party::Client, ctx)
-            {
-                return Some(v);
-            }
+        // Tolerate some small clock skew when comparing dates. 60s is a linter
+        // heuristic — no spec licenses it; §8.8.2.1's "MUST NOT ... later than ...
+        // Date" is strict, so this only makes the rule *more* lenient (recorded in
+        // the audit ledger, not cited).
+        const ALLOWED_SKEW_SECS: i64 = 60;
+        let skew = chrono::Duration::seconds(ALLOWED_SKEW_SECS);
 
+        // The request's own two questions, asked on their own. Neither is
+        // measured against anything the response says, so a response finding is
+        // no reason to stop asking them — and the client's unreadable `Date` is
+        // not the origin's, so it may not stand in for it either.
+        let request_side = || -> Vec<Violation> {
+            let mut out = Vec::new();
+            out.extend(self.date_is_readable(&tx.request.headers, crate::lint::Party::Client, ctx));
+            out.extend(Self::if_modified_since_not_after_date(
+                &tx.request.headers,
+                skew,
+                ctx,
+            ));
+            out
+        };
+
+        // The response's chain, which stays a chain: every check in it is
+        // measured against the instant `Date` states, so the first one to answer
+        // ends it because the ones behind it have nothing left to measure.
+        let response_side = || -> Option<Violation> {
             if let Some(resp) = &tx.response {
                 if let Some(v) =
                     self.date_is_readable(&resp.headers, crate::lint::Party::Server, ctx)
@@ -536,7 +546,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                 }
             }
 
-            Self::if_modified_since_not_after_date(&tx.request.headers, skew, ctx)
+            None
         };
         // Beside the chain above rather than inside it. Every check in there
         // reads what the value *names*, and the first one to answer ends the
@@ -545,7 +555,8 @@ impl Rule for DateAndTimeHeadersConsistent {
         // same octets: an obsolete `Sunset` still names an instant, so
         // `sunset_invalid` is still true of it, and neither finding stands in
         // for the other.
-        let mut out = Vec::from_iter(finding());
+        let mut out = request_side();
+        out.extend(response_side());
         out.extend(Self::spelled_as_a_sender_may_generate(
             &tx.request.headers,
             "date",

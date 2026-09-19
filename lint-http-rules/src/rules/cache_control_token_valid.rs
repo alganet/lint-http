@@ -142,25 +142,22 @@ impl Rule for CacheControlTokenValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        //
-        // Both sides of the exchange carry this field and are read the same way;
-        // only the word in the finding differs.
+        // One finding per section. Both sides of the exchange carry this field
+        // and are read the same way; only the word in the finding differs, and
+        // a directive the client wrote is not evidence about the one the origin
+        // sent back.
         // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
-        let finding = || -> Option<Violation> {
-            self.defect(
-                &tx.request.headers,
-                "request",
-                crate::lint::Party::Client,
-                ctx,
-            )
-            .or_else(|| {
-                let resp = tx.response.as_ref()?;
-                self.defect(&resp.headers, "response", crate::lint::Party::Server, ctx)
-            })
-        };
-        Vec::from_iter(finding())
+        let mut out = Vec::new();
+        out.extend(self.defect(
+            &tx.request.headers,
+            "request",
+            crate::lint::Party::Client,
+            ctx,
+        ));
+        if let Some(resp) = &tx.response {
+            out.extend(self.defect(&resp.headers, "response", crate::lint::Party::Server, ctx));
+        }
+        out
     }
 }
 

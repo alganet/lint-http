@@ -421,48 +421,43 @@ impl Rule for KeepAliveHeaderValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // The field probe is one lookup per section; `parse_keep_alive_config`
-            // is several map probes and a hash of the rule id. Nearly every message
-            // carries no `Keep-Alive`, so the config is read only once the field is
-            // known to be here.
-            if !tx.request.headers.contains_key("keep-alive")
-                && !tx
-                    .response
-                    .as_ref()
-                    .is_some_and(|resp| resp.headers.contains_key("keep-alive"))
-            {
-                return None;
-            }
+        // The field probe is one lookup per section; `parse_keep_alive_config`
+        // is several map probes and a hash of the rule id. Nearly every message
+        // carries no `Keep-Alive`, so the config is read only once the field is
+        // known to be here.
+        if !tx.request.headers.contains_key("keep-alive")
+            && !tx
+                .response
+                .as_ref()
+                .is_some_and(|resp| resp.headers.contains_key("keep-alive"))
+        {
+            return Vec::new();
+        }
 
-            let config: &MessageKeepAliveConfig = ctx.state();
-            // The half that produced the judgement travels with it: the one
-            // reporting site below cannot tell afterwards which of the two calls
-            // answered, and `side` is a string for the message.
-            let (party, message) = judge(
-                &tx.request.headers,
-                &tx.request.version,
-                "Request",
+        let config: &MessageKeepAliveConfig = ctx.state();
+        // One finding per section: the field is hop-by-hop and each section's
+        // value was written by the peer at that end of this connection, so
+        // neither answers for the other.
+        let mut out = Vec::new();
+        if let Some(message) = judge(
+            &tx.request.headers,
+            &tx.request.version,
+            "Request",
+            config.max_timeout_seconds,
+        ) {
+            out.push(ctx.by_client().report_with(message.def, message.message));
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(message) = judge(
+                &resp.headers,
+                &resp.version,
+                "Response",
                 config.max_timeout_seconds,
-            )
-            .map(|message| (crate::lint::Party::Client, message))
-            .or_else(|| {
-                tx.response.as_ref().and_then(|resp| {
-                    judge(
-                        &resp.headers,
-                        &resp.version,
-                        "Response",
-                        config.max_timeout_seconds,
-                    )
-                    .map(|message| (crate::lint::Party::Server, message))
-                })
-            })?;
-
-            Some(ctx.by(party).report_with(message.def, message.message))
-        };
-        Vec::from_iter(finding())
+            ) {
+                out.push(ctx.by_server().report_with(message.def, message.message));
+            }
+        }
+        out
     }
 }
 
