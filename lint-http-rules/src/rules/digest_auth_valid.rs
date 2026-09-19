@@ -10,6 +10,9 @@ use crate::violations::digest_credentials::{
     DIGEST_CREDENTIALS_PARAMETER_EMPTY, DIGEST_CREDENTIALS_PARAMETER_MISSING,
     DIGEST_CREDENTIALS_QUOTING_INVALID, RFC_2617_3_2_2, RFC_7616_3_4,
 };
+use crate::violations::ext_value::{
+    EXT_VALUE_CHARSET_FORBIDDEN, EXT_VALUE_MALFORMED, RFC_8187_3_2_1,
+};
 use crate::violations::list::{auth_param_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -47,6 +50,17 @@ pub struct DigestAuthValid;
 /// BWS ( token / quoted-string )`, so a member with no `=` breaks *that*
 /// sentence, and `parameter_equals_missing` carries § 5.6.6's about a
 /// production with no `BWS` in it.
+/// The document that defines the encoding, naming the fields that carry it.
+const RFC_8187_B: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8187",
+    section: Some("B"),
+    url: "https://www.rfc-editor.org/rfc/rfc8187.html#appendix-B",
+    note: "The implementation report, which lists the four header fields using this \
+           encoding — `Authentication-Control`, this one, `Content-Disposition` and \
+           `Link`. What says the document in force for a `username*` is RFC 8187 and \
+           not the RFC 5987 that RFC 7616 named in 2015",
+};
+
 static DECLARED: &[&ViolationDef] = &[
     &AUTH_PARAM_EQUALS_MISSING,
     &DIGEST_CREDENTIALS_PARAMETER_MISSING,
@@ -60,6 +74,8 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &EXT_VALUE_MALFORMED,
+    &EXT_VALUE_CHARSET_FORBIDDEN,
 ];
 
 impl RuleMeta for DigestAuthValid {
@@ -80,6 +96,8 @@ impl RuleMeta for DigestAuthValid {
         &[
             RFC_7616_3_4,
             RFC_2617_3_2_2,
+            RFC_8187_3_2_1,
+            RFC_8187_B,
             RFC_9110_11_2,
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_2,
@@ -117,6 +135,16 @@ impl RuleMeta for DigestAuthValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(qop sent with no cnonce or nc — the response value is computed over both)"),
                 snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\", qop=auth",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(username* is §3.4's answer for a name a quoted-string cannot hold)"),
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username*=UTF-8''%c3%bcser, realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a username* whose percent-escape is not hexadecimal)"),
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username*=UTF-8''%zz, realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\"",
             },
         ]
     }
@@ -173,6 +201,23 @@ impl Rule for DigestAuthValid {
                         // cite(RFC 7616 § 3.4): "If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code."
                         let required = ["username", "realm", "nonce", "uri", "response"];
                         for &k in &required {
+                            // **`username*` is how § 3.4 says to send a username
+                            // the `quoted-string` production cannot hold**, so a
+                            // credential carrying it carries the parameter. Asked
+                            // for `username` by name, this walk reported the one
+                            // shape the section prescribes — and the repair it
+                            // named, adding a `username` beside the `username*`,
+                            // is the shape the same paragraph calls an error.
+                            //
+                            // Sending both is that error and is not reported here
+                            // yet; what this says is only that the extended
+                            // spelling satisfies the requirement, which is the
+                            // half § 3.4 states about a credential carrying one.
+                            //
+                            // cite(RFC 7616 § 3.4, label: username-quoted): "If the username contains characters not allowed inside the ABNF quoted-string production, the username* parameter can be used."
+                            if k == "username" && map.contains_key("username*") {
+                                continue;
+                            }
                             match map.get(k) {
                                 Some(v) => {
                                     // treat empty unquoted values or quoted-strings with empty inner content
@@ -278,6 +323,55 @@ impl Rule for DigestAuthValid {
                                 return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
                                         "Digest Authorization sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
                                     )));
+                            }
+
+                            // `username*` carries "the extended notation defined in
+                            // [RFC5987]", which RFC 8187 obsoletes with the same
+                            // `ext-value`, `value-chars`, `pct-encoded` and `attr-char`
+                            // productions byte for byte — and RFC 8187's own
+                            // implementation report names this field as one of the four
+                            // that use the encoding, so the document in force is the one
+                            // read here. The parameter was excluded from both quoting
+                            // lists above and then measured as a `token`, which is what
+                            // `UTF-8''%zz` is: every octet an `ext-value` prints is a
+                            // `tchar`, so the token walk could never refuse one.
+                            //
+                            // **By name, and `Link`'s reading is by shape**, which is the
+                            // difference between the two documents rather than an
+                            // inconsistency here: RFC 8187 § 3.2.1 says the trailing
+                            // asterisk is "just a convention" and that a field has to
+                            // specify the extended value in its own definition. RFC 8288
+                            // does that for every parameter at once, in its parsing
+                            // algorithm; RFC 7616 does it for this one parameter, in
+                            // prose. So a Digest `foo*` is an ordinary extension
+                            // parameter and stays unread.
+                            //
+                            // cite(RFC 7616 § 3.4, label: username-star): "If the userhash parameter value is set "false" and the username contains characters not allowed inside the ABNF quoted-string production, the user's name can be sent with this parameter, using the extended notation defined in [RFC5987]."
+                            // cite(RFC 8187 § B): ""Authorization" (as used in HTTP Digest Authentication, defined in [RFC7616]),"
+                            if k == "username*" {
+                                if let Err(why) = crate::helpers::parameter::validate_ext_value(v) {
+                                    return Some(ctx.report_with(
+                                        &EXT_VALUE_MALFORMED,
+                                        format!(
+                                            "Digest Authorization sends username*='{v}', which \
+                                             does not derive from ext-value: {why}"
+                                        ),
+                                    ));
+                                }
+                                if let Some(charset) =
+                                    crate::helpers::parameter::ext_value_charset_reserved(v)
+                                {
+                                    return Some(ctx.report_with(
+                                        &EXT_VALUE_CHARSET_FORBIDDEN,
+                                        format!(
+                                            "Digest Authorization sends username*='{v}', naming \
+                                             the character encoding '{charset}', which RFC 8187 \
+                                             §3.2.1 reserves for future use and forbids a \
+                                             producer to write; a recipient built to that \
+                                             document decodes UTF-8 alone"
+                                        ),
+                                    ));
+                                }
                             }
 
                             // A value that opens with a quote is validated as a quoted-string
@@ -388,6 +482,18 @@ mod tests {
         Some("Digest username=\"Mufasa\", realm=\"test\", nonce=a@bad, uri=\"/\", response=\"d\""),
         true
     )]
+    // A conforming `username*` alone, which is § 3.4's own answer for a name the
+    // `quoted-string` production cannot hold; and an ordinary extension
+    // parameter whose name happens to end in an asterisk, which RFC 7616
+    // defines no extended notation for and which stays an unread token.
+    #[case(
+        Some("Digest username*=UTF-8''%c3%bcser, realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\""),
+        false
+    )]
+    #[case(
+        Some("Digest username=\"u\", foo*=UTF-8x, realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\""),
+        false
+    )]
     #[case(Some("Basic abc"), false)]
     #[case(Some("Digest"), true)]
     #[case(
@@ -454,6 +560,18 @@ mod tests {
         "digest_credentials_quoting_invalid"
     )]
     #[case::must_not_quote("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", qop=\"auth\", cnonce=\"c\", nc=00000001", "digest_credentials_quoting_invalid")]
+    // `username*` is the one parameter this document defines in RFC 8187's
+    // extended notation, and every octet an `ext-value` prints is a `tchar` --
+    // so before it was read as one, the token walk was the whole of what
+    // measured these values and neither of them moved it.
+    #[case::username_star_malformed(
+        "Digest username*=UTF-8''%zz, realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\"",
+        "ext_value_malformed"
+    )]
+    #[case::username_star_charset(
+        "Digest username*=iso-8859-1'en'%A3, realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\"",
+        "ext_value_charset_forbidden"
+    )]
     fn the_auth_params_grammar_is_not_digests(#[case] header: &str, #[case] violation: &str) {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request

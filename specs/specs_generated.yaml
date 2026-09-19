@@ -1506,7 +1506,7 @@ sources:
     snippet: This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 216
+      line: 261
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.html
   fragments:
@@ -4471,13 +4471,13 @@ sources:
     snippet: 'For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 265
+      line: 310
   - label: digest_auth_valid (2)
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 264
+      line: 309
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 147
   - label: digest_auth_valid (3)
@@ -4485,15 +4485,27 @@ sources:
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 173
+      line: 201
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 119
+  - label: username-star
+    section: § 3.4
+    snippet: If the userhash parameter value is set "false" and the username contains characters not allowed inside the ABNF quoted-string production, the user's name can be sent with this parameter, using the extended notation defined in [RFC5987].
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_auth_valid.rs
+      line: 349
+  - label: username-quoted
+    section: § 3.4
+    snippet: If the username contains characters not allowed inside the ABNF quoted-string production, the username* parameter can be used.
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_auth_valid.rs
+      line: 217
   - label: cnonce
     section: § 3.4
     snippet: This parameter MUST be used by all implementations.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 215
+      line: 260
   - label: digest_credentials
     section: § 3.4
     snippet: The values of the opaque and algorithm fields must be those supplied in the WWW-Authenticate response header field for the entity being requested.
@@ -4791,6 +4803,12 @@ sources:
 - label: RFC 8187
   url: https://www.rfc-editor.org/rfc/rfc8187.html
   fragments:
+  - label: digest_auth_valid
+    section: § B
+    snippet: '"Authorization" (as used in HTTP Digest Authentication, defined in [RFC7616]),'
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_auth_valid.rs
+      line: 350
   - label: reserved
     section: § 3.2.1
     snippet: Extension character encodings (mime-charset) are reserved for future use.
@@ -7641,7 +7659,7 @@ sources:
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
       line: 108
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 148
+      line: 176
     - file: lint-http-rules/src/violations/auth_scheme.rs
       line: 51
   - label: auth-param grammar

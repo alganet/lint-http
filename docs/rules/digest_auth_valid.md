@@ -22,6 +22,8 @@ Servers and clients relying on Digest authentication may behave incorrectly when
 - [digest_credentials_parameter_empty](../violations/digest_credentials_parameter_empty.md) — A required Digest parameter is written with nothing in it
 - [digest_credentials_parameter_missing](../violations/digest_credentials_parameter_missing.md) — Digest credentials omit a parameter the response computation needs
 - [digest_credentials_quoting_invalid](../violations/digest_credentials_quoting_invalid.md) — A Digest parameter is written in the syntax its definition refuses
+- [ext_value_charset_forbidden](../violations/ext_value_charset_forbidden.md) — An extended parameter value names a character encoding reserved for future use
+- [ext_value_malformed](../violations/ext_value_malformed.md) — An extended parameter value is no ext-value
 - [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
 - [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
@@ -35,6 +37,8 @@ Servers and clients relying on Digest authentication may behave incorrectly when
 
 - [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the "MUST be used by all implementations" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced in both directions
 - [RFC 2617 §3.2.2](https://www.rfc-editor.org/rfc/rfc2617.html#section-3.2.2): The Authorization Request Header — `cnonce` and `nc` MUST be specified if a qop directive is sent, which is the sentence that makes their absence observable from the credential alone
+- [RFC 8187 §3.2.1](https://www.rfc-editor.org/rfc/rfc8187.html#section-3.2.1): `ext-value = charset "'" [ language ] "'" value-chars` — the charset that may not be empty, the language that may be, and the `value-chars` made of `pct-encoded` and `attr-char`. Obsoletes RFC 5987, which older references named; the production is unchanged
+- [RFC 8187 §B](https://www.rfc-editor.org/rfc/rfc8187.html#appendix-B): The implementation report, which lists the four header fields using this encoding — `Authentication-Control`, this one, `Content-Disposition` and `Link`. What says the document in force for a `username*` is RFC 8187 and not the RFC 5987 that RFC 7616 named in 2015
 - [RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2): Authentication Parameters — `auth-scheme = token`, `auth-param = token BWS "=" BWS ( token / quoted-string )`, and `token68`'s alphabet
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
@@ -75,4 +79,18 @@ Authorization: Digest username=Mu!fasa, realm="test", nonce="abc", uri="/protect
 ```http
 GET /protected HTTP/1.1
 Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/protected", response="d41d8c", qop=auth
+```
+
+### ✅ Good (username* is §3.4's answer for a name a quoted-string cannot hold)
+
+```http
+GET /protected HTTP/1.1
+Authorization: Digest username*=UTF-8''%c3%bcser, realm="test", nonce="abc", uri="/protected", response="d41d8c"
+```
+
+### ❌ Bad (a username* whose percent-escape is not hexadecimal)
+
+```http
+GET /protected HTTP/1.1
+Authorization: Digest username*=UTF-8''%zz, realm="test", nonce="abc", uri="/protected", response="d41d8c"
 ```
