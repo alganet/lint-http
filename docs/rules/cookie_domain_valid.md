@@ -79,3 +79,10 @@ Set-Cookie: SID=1; Domain=
 ```http
 Set-Cookie: SID=1; Domain=.example.com
 ```
+
+### ❌ Bad — two cookies, two findings, each naming its own
+
+```http
+Set-Cookie: a=1; Domain=.example.com
+Set-Cookie: b=2; Domain=192.168.0.1
+```

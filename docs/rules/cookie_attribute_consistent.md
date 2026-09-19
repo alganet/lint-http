@@ -85,6 +85,13 @@ Set-Cookie: id=1; SameSite=None
 Set-Cookie: SID=1; Max-Age=abc
 ```
 
+### ❌ Bad — two cookies, two findings, each naming its own
+
+```http
+Set-Cookie: a=1; Max-Age=soon
+Set-Cookie: b=2; SameSite=maybe
+```
+
 ### ❌ Bad — Expires names no instant at all
 
 ```http

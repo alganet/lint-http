@@ -411,6 +411,11 @@ impl RuleMeta for CookieAttributeConsistent {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— two cookies, two findings, each naming its own"),
+                snippet: "Set-Cookie: a=1; Max-Age=soon\nSet-Cookie: b=2; SameSite=maybe",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("— Expires names no instant at all"),
                 snippet: "Set-Cookie: SID=1; Expires=NotADate",
             },
