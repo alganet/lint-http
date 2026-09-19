@@ -2462,7 +2462,7 @@ severity = "error"
 
 [violations.priority_cacheability_missing]
 # A Priority response says nothing about caching
-severity = "warn"
+severity = "info"
 
 [violations.priority_incremental_malformed]
 # Priority incremental is not a Boolean
