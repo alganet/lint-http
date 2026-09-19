@@ -52,7 +52,7 @@ const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
 };
 
 impl CacheControlTokenValid {
-    /// The first defect in one message's `Cache-Control` field, if it has one.
+    /// Every defect in one message's `Cache-Control` field.
     ///
     /// Read over the whole section and as octets. `Cache-Control =
     /// #cache-directive` makes the field lines of a section one list, and a
@@ -61,24 +61,55 @@ impl CacheControlTokenValid {
     /// reading line by line through the string reader made it. Where the
     /// members come from, and which of them the grammar's `#element` even
     /// admits, is [`crate::helpers::cache_control`]'s answer.
+    ///
+    /// **A directive is a thing the sender wrote on its own terms, so each one
+    /// that is wrong is a separate correction.** This walk used to stop at the
+    /// first, which for the most repeated list on the web — most
+    /// `Cache-Control` values name several directives — meant an operator met
+    /// the second only after fixing the first.
+    ///
+    /// **The empty member is the list's defect and not a member's**, so it is
+    /// stated once however many gaps the value carries, while the members' own
+    /// defects beside it are still counted per member. `a,,,b` has written one
+    /// thing wrong about its list and however many about its directives.
     fn defect(
         &self,
         headers: &hyper::HeaderMap,
         side: &str,
         party: crate::lint::Party,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let value =
-            crate::helpers::headers::combined_field_value_as_written(headers, "cache-control")?;
+    ) -> Vec<Violation> {
+        let Some(value) =
+            crate::helpers::headers::combined_field_value_as_written(headers, "cache-control")
+        else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        let mut saw_an_empty_member = false;
         for member in crate::helpers::cache_control::members_of(&value) {
+            if member.is_empty() {
+                saw_an_empty_member = true;
+                continue;
+            }
             if let Some((def, message)) = member_defect(member) {
-                return Some(ctx.by(party).report_with(
+                out.push(ctx.by(party).report_with(
                     def,
                     format!("Invalid Cache-Control header in {}: {}", side, message),
                 ));
             }
         }
-        None
+        if saw_an_empty_member {
+            let defect = crate::helpers::cache_control::MemberDefect::Empty;
+            out.push(ctx.by(party).report_with(
+                cache_directive_member(defect),
+                format!(
+                    "Invalid Cache-Control header in {}: {}",
+                    side,
+                    defect.message()
+                ),
+            ));
+        }
+        out
     }
 }
 
@@ -142,10 +173,10 @@ impl Rule for CacheControlTokenValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // One finding per section. Both sides of the exchange carry this field
-        // and are read the same way; only the word in the finding differs, and
-        // a directive the client wrote is not evidence about the one the origin
-        // sent back.
+        // Each section read on its own. Both sides of the exchange carry this
+        // field and are read the same way; only the word in the finding
+        // differs, and a directive the client wrote is not evidence about the
+        // one the origin sent back.
         // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         let mut out = Vec::new();
         out.extend(self.defect(
@@ -172,6 +203,7 @@ fn member_defect(member: &str) -> Option<(&'static ViolationDef, String)> {
         Ok(directive) => directive,
         Err(defect) => return Some((cache_directive_member(defect), defect.message())),
     };
+    let name = directive.name;
     let argument = directive.argument?;
 
     // The `( token / quoted-string )` alternation is read by the shared helper
@@ -189,13 +221,17 @@ fn member_defect(member: &str) -> Option<(&'static ViolationDef, String)> {
         Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => Some((
             quoted_string_defect(defect),
             format!(
-                "Invalid quoted-string in directive value: {}",
+                "Invalid quoted-string in directive {} value: {}",
+                name,
                 defect.message(argument)
             ),
         )),
         Err(crate::helpers::word::WordDefect::NotToken(c)) => Some((
             token_character(c),
-            format!("Directive value contains invalid character: '{}'", c),
+            format!(
+                "Directive {} value contains invalid character: '{}'",
+                name, c
+            ),
         )),
     }
 }
@@ -206,6 +242,26 @@ static REGISTRATION: &dyn crate::rules::Rule = &CacheControlTokenValid;
 
 #[cfg(test)]
 mod tests {
+    /// The cases below are values stating one defect, and this says so rather
+    /// than taking the first of however many were reported. `run_rule` is
+    /// `run_rule_all(..).into_iter().next()`, so a walk that starts answering
+    /// twice about one field passes every one-defect case already written here
+    /// and the regression is invisible to this file.
+    fn one_finding(
+        rule: &dyn crate::rules::Rule,
+        tx: &crate::http_transaction::HttpTransaction,
+        history: &crate::transaction_history::TransactionHistory,
+        cfg: &crate::config::Config,
+    ) -> Option<crate::lint::Violation> {
+        let mut found = crate::test_helpers::run_rule_all(rule, tx, history, cfg);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop()
+    }
+
     use super::*;
     use rstest::rstest;
 
@@ -242,7 +298,7 @@ mod tests {
     fn request_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_req(value);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -266,7 +322,7 @@ mod tests {
     fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_resp(value);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -289,7 +345,7 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("cache-control", bad);
         tx.request.headers = hm;
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -299,7 +355,8 @@ mod tests {
         assert_eq!(v.violation, "token_character_forbidden");
         assert_eq!(
             v.message,
-            "Invalid Cache-Control header in request: Directive name contains invalid character: 0xFF"
+            "Invalid Cache-Control header in request: Cache-Control member '\u{ff}' has a \
+             directive name containing an invalid character: 0xFF"
         );
         Ok(())
     }
@@ -312,7 +369,7 @@ mod tests {
             ("cache-control", "no-cache"),
             ("cache-control", "max-age=60"),
         ]);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -330,7 +387,7 @@ mod tests {
             ("cache-control", "no-cache"),
             ("cache-control", "max-age=60"),
         ]);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -350,7 +407,7 @@ mod tests {
         let judge = |rule: &dyn crate::rules::Rule, field: &str, value: &str| -> String {
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
-            crate::test_helpers::run_rule(
+            one_finding(
                 rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
@@ -387,7 +444,7 @@ mod tests {
     fn quoted_string_with_extra_chars_reports_violation() -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_req("foo=\"bar\"x");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -401,7 +458,7 @@ mod tests {
     fn quoted_value_unterminated_reports_violation() -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_req("foo=\"unterminated");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -415,7 +472,7 @@ mod tests {
     fn empty_directive_value_is_accepted() -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_req("foo=");
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -434,7 +491,7 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("cache-control", bad);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -444,7 +501,8 @@ mod tests {
         assert_eq!(v.violation, "token_character_forbidden");
         assert_eq!(
             v.message,
-            "Invalid Cache-Control header in response: Directive name contains invalid character: 0xFF"
+            "Invalid Cache-Control header in response: Cache-Control member '\u{ff}' has a \
+             directive name containing an invalid character: 0xFF"
         );
         Ok(())
     }
@@ -455,7 +513,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("cache-control", ",max-age=1")]);
-        let v = crate::test_helpers::run_rule(
+        let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -485,5 +543,62 @@ mod tests {
         // validate should succeed without error
         rule.prepare(&cfg)?;
         Ok(())
+    }
+
+    /// `Cache-Control = #cache-directive`, and a value naming two directives
+    /// badly is two things to fix. Each finding names the member it is about,
+    /// so the two sentences are not one sentence written twice.
+    #[test]
+    fn a_value_with_two_bad_directives_answers_about_both() {
+        let rule = CacheControlTokenValid;
+        let tx = make_resp("n@cache, foo=\"");
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "token_character_forbidden",
+                "quoted_string_delimiter_missing"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(
+            found[0].message.contains("'n@cache'"),
+            "the first names its member: {}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("foo"),
+            "the second names its member: {}",
+            found[1].message
+        );
+    }
+
+    /// The empty member is the list's defect and not a member's, so a value
+    /// written with three gaps states it once — while the members' own defects
+    /// beside it are still counted per member.
+    #[test]
+    fn a_value_written_with_gaps_states_its_emptiness_once() {
+        let rule = CacheControlTokenValid;
+        let tx = make_resp("no-cache, , , n@cache");
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["token_character_forbidden", "list_member_empty"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 }

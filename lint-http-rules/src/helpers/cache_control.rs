@@ -199,7 +199,7 @@ pub fn read_member(member: &str) -> Result<Directive<'_>, MemberDefect<'_>> {
         return Err(MemberDefect::NameEmpty(member));
     }
     if let Some(c) = crate::helpers::token::find_invalid_token_char(directive.name) {
-        return Err(MemberDefect::NameCharacter(c));
+        return Err(MemberDefect::NameCharacter(member, c));
     }
     Ok(directive)
 }
@@ -217,8 +217,12 @@ pub enum MemberDefect<'a> {
     /// A member whose name is empty — `=abc`, the `=` with nothing before it.
     /// Carries the member, because the finding shows what was written.
     NameEmpty(&'a str),
-    /// A character in the directive name that no `tchar` admits.
-    NameCharacter(char),
+    /// A character in the directive name that no `tchar` admits. Carries the
+    /// member for the same reason [`Self::NameEmpty`] does: once the walk
+    /// reading this field collects rather than stops, a value writing two bad
+    /// names states this sentence twice, and an operator reading two copies of
+    /// "a character no tchar admits" cannot tell which directive to go and fix.
+    NameCharacter(&'a str, char),
 }
 
 impl MemberDefect<'_> {
@@ -234,9 +238,11 @@ impl MemberDefect<'_> {
             // to treat as opaque -- `0xE9` is what it is, `é` a reading of it.
             // Every octet the old string reader could deliver renders exactly
             // as it did, because the quotes are the helper's.
-            Self::NameCharacter(c) => {
+            Self::NameCharacter(member, c) => {
                 format!(
-                    "Directive name contains invalid character: {}",
+                    "Cache-Control member '{}' has a directive name containing an invalid \
+                     character: {}",
+                    crate::helpers::shown::shown_in_finding(member),
                     crate::helpers::shown::describe_char(c)
                 )
             }
@@ -688,11 +694,12 @@ mod tests {
         );
         assert_eq!(
             read_member("no cache").unwrap_err(),
-            MemberDefect::NameCharacter(' ')
+            MemberDefect::NameCharacter("no cache", ' ')
         );
         assert_eq!(
             read_member("no cache").unwrap_err().message(),
-            "Directive name contains invalid character: ' '"
+            "Cache-Control member 'no cache' has a directive name containing an invalid \
+             character: ' '"
         );
         let directive = read_member("max-age=60").unwrap();
         assert_eq!(directive.name, "max-age");
