@@ -145,7 +145,13 @@ impl Rule for ContentEncodingAndTypeConsistent {
                                          val: &str,
                                          seen: &mut std::collections::HashSet<String>,
                                          party: crate::lint::Party|
-             -> Option<Violation> {
+             -> Vec<Violation> {
+                // One finding per member. `#content-coding` names one coding
+                // per position -- § 8.4 has the sender list them "in the order
+                // in which they were applied" -- so a value naming two the
+                // recipient cannot act on is two names to correct, and a walk
+                // that returned at the first named one.
+                let mut found = Vec::new();
                 // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
                 for part in crate::helpers::list::list_members(val) {
                     // Strip parameters (not expected for Content-Encoding but be forgiving)
@@ -164,16 +170,18 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // ownership rather than of this branch: the two shapes were
                     // always two defects, and only one of them had a reporter.
                     if token.is_empty() {
-                        return Some(ctx.by(party).report_with(
+                        found.push(ctx.by(party).report_with(
                             &TOKEN_EMPTY,
                             format!("{} header contains empty member", hdr_name),
                         ));
+                        continue;
                     }
                     if token == "*" && hdr_name.eq_ignore_ascii_case("Content-Encoding") {
-                        return Some(ctx.by(party).report_with(
+                        found.push(ctx.by(party).report_with(
                             &CONTENT_CODING_WILDCARD_FORBIDDEN,
                             format!("Wildcard '*' is not valid in {} header", hdr_name),
                         ));
+                        continue;
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                         // Rendered rather than written through: the value is
@@ -181,14 +189,16 @@ impl Rule for ContentEncodingAndTypeConsistent {
                         // `obs-text` byte a recipient is told to treat as
                         // opaque -- and `0xE9` is what that byte is, where `é`
                         // is a reading of it.
-                        return Some(ctx.by(party).report_with(
+                        found.push(ctx.by(party).report_with(
                             token_character(c),
                             format!(
-                                "Invalid token {} in {} header",
+                                "Invalid token {} in member '{}' of the {} header",
                                 crate::helpers::shown::describe_char(c),
+                                crate::helpers::shown::shown_in_finding(token),
                                 hdr_name
                             ),
                         ));
+                        continue;
                     }
                     // Repeating a coding is not forbidden anywhere: §8.4 has the sender list
                     // the codings "in the order in which they were applied", which makes
@@ -199,13 +209,14 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // coding listed a second time is what the entry quotes.
                     let key = token.to_ascii_lowercase();
                     if !seen.insert(key.clone()) {
-                        return Some(ctx.by(party).report_with(
+                        found.push(ctx.by(party).report_with(
                             &CONTENT_CODING_REDUNDANT,
                             format!("Duplicate content-coding '{}' in {} header", key, hdr_name),
                         ));
+                        continue;
                     }
                 }
-                None
+                found
             };
 
             // The empty member, before the walk above drops it. §5.6.1.2 has a
@@ -260,33 +271,34 @@ impl Rule for ContentEncodingAndTypeConsistent {
             // field's encoding -- a claim about the whole value where the
             // defect is one character of one member, and one this rule already
             // had an id for. Reading the octets is what lets that id answer.
-            out.extend((|| -> Option<Violation> {
-                if let Some(v) = empty_member(&tx.request.headers, crate::lint::Party::Client) {
-                    return Some(v);
-                }
+            // The gap and the codings are two defects and both are kept: a
+            // comma the sender may not have written is the list's, and a coding
+            // the recipient cannot act on is the member's. Reporting the gap
+            // used to end the reading before any member was seen.
+            out.extend(empty_member(
+                &tx.request.headers,
+                crate::lint::Party::Client,
+            ));
+            {
                 let mut seen = std::collections::HashSet::new();
                 if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
                     &tx.request.headers,
                     "content-encoding",
                 ) {
-                    if let Some(v) = check_encoding_header(
+                    out.extend(check_encoding_header(
                         "Content-Encoding",
                         &val,
                         &mut seen,
                         crate::lint::Party::Client,
-                    ) {
-                        return Some(v);
-                    }
+                    ));
                 }
-                None
-            })());
+            }
 
             // Check response Content-Encoding header(s)
             if let Some(resp) = &tx.response {
-                out.extend((|| -> Option<Violation> {
-                    if let Some(v) = empty_member(&resp.headers, crate::lint::Party::Server) {
-                        return Some(v);
-                    }
+                out.extend(empty_member(&resp.headers, crate::lint::Party::Server));
+                {
+                    let mut side: Vec<Violation> = Vec::new();
                     // No-body statuses should not carry Content-Encoding
                     let status = resp.status;
                     // These three statuses reach the same verdict by different routes, and only
@@ -314,8 +326,12 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // not take the stated finding with it.
                     let is_no_body_status =
                         (100..200).contains(&status) || status == 204 || status == 304;
+                    // The one place this side still stops early, and on
+                    // purpose: the advice is to take the field off the message
+                    // altogether, so the grammar of a value that is not to be
+                    // sent is not a second thing to fix.
                     if is_no_body_status && resp.headers.contains_key("content-encoding") {
-                        return Some(if status == 304 {
+                        side.push(if status == 304 {
                             ctx.by_server().report_with(
                                 &STATUS_304_METADATA_FORBIDDEN,
                                 "304 Not Modified sends Content-Encoding, which is representation \
@@ -333,24 +349,22 @@ impl Rule for ContentEncodingAndTypeConsistent {
                             ),
                             )
                         });
-                    }
-
-                    let mut seen = std::collections::HashSet::new();
-                    if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
-                        &resp.headers,
-                        "content-encoding",
-                    ) {
-                        if let Some(v) = check_encoding_header(
-                            "Content-Encoding",
-                            &val,
-                            &mut seen,
-                            crate::lint::Party::Server,
+                    } else {
+                        let mut seen = std::collections::HashSet::new();
+                        if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
+                            &resp.headers,
+                            "content-encoding",
                         ) {
-                            return Some(v);
+                            side.extend(check_encoding_header(
+                                "Content-Encoding",
+                                &val,
+                                &mut seen,
+                                crate::lint::Party::Server,
+                            ));
                         }
                     }
-                    None
-                })());
+                    out.extend(side);
+                }
             }
         }
         out
@@ -366,6 +380,35 @@ mod tests {
     use super::*;
     use hyper::header::HeaderValue;
     use rstest::rstest;
+
+    /// **Every coding the response named is answered, and the gap beside them
+    /// is its own finding.** A comma the sender may not have written is the
+    /// list's defect; a coding the recipient cannot act on is the member's.
+    /// Reporting the gap used to end the reading before any member was seen.
+    #[test]
+    fn every_defective_coding_is_reported_beside_the_gap() {
+        let rule = ContentEncodingAndTypeConsistent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "content_encoding_and_type_consistent",
+        ]);
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-encoding", "*,,gzip, gzip")],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let ids: Vec<_> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(ids.contains(&"list_member_empty"), "{ids:?}");
+        assert!(
+            ids.contains(&"content_coding_wildcard_forbidden"),
+            "{ids:?}"
+        );
+        assert!(ids.contains(&"content_coding_redundant"), "{ids:?}");
+    }
 
     /// The six fields spelling `content-coding = token` now answer for it with
     /// one pair of ids, and the last two arrive from the rules that ask the
@@ -548,7 +591,10 @@ mod tests {
         );
         let v = violation.expect("a finding");
         assert_eq!(v.violation, "token_character_forbidden");
-        assert_eq!(v.message, "Invalid token 0xFF in Content-Encoding header");
+        assert_eq!(
+            v.message,
+            "Invalid token 0xFF in member 'ÿ' of the Content-Encoding header"
+        );
     }
     /// `Content-Encoding = #content-coding`, so an empty field value is a list
     /// with no element in it and a comma with nothing beside it is an element
@@ -728,7 +774,10 @@ mod tests {
         );
         let v = v.expect("a finding");
         assert_eq!(v.violation, "token_character_forbidden");
-        assert_eq!(v.message, "Invalid token 0xFF in Content-Encoding header");
+        assert_eq!(
+            v.message,
+            "Invalid token 0xFF in member 'ÿ' of the Content-Encoding header"
+        );
         Ok(())
     }
 
