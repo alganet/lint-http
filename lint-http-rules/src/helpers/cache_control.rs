@@ -355,9 +355,9 @@ pub fn get_cache_control_s_maxage(headers: &HeaderMap) -> Option<i64> {
 /// our own record, omitting the `response_delay` and `apparent_age` terms,
 /// which need request/response timing this linter does not record. The clamp of
 /// a negative elapsed to zero absorbs clock skew the way § 4.2.3 floors its own
-/// result. It is an estimate, and the two rules that ask are best-effort
-/// warnings about staleness — but they had each written it out, so they had two
-/// estimates, and only one of them said which.
+/// result. It is an estimate, and the three rules that ask are best-effort
+/// warnings about staleness — but they had each written it out, so they had
+/// three estimates, and only one of them said which.
 ///
 /// A non-numeric or negative `Age` is dropped rather than propagated: the field
 /// is `delta-seconds`, so a value outside it states nothing about elapsed time.

@@ -11010,7 +11010,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 474
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
-      line: 143
+      line: 136
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 513
   - label: lint-http-rules/src/helpers/cache_control.rs (14)
@@ -11178,7 +11178,7 @@ sources:
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 98
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
-      line: 134
+      line: 127
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 112
   - label: must_revalidate_enforced (2)
