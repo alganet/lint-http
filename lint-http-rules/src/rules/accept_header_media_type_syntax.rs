@@ -223,7 +223,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
             let member_defect = |hdr: &str,
                                  member: &str,
                                  party: crate::lint::Party|
-             -> Option<Violation> {
+             -> Vec<Violation> {
                 // Quote-aware for the same reason: a `;` inside a quoted value
                 // does not start a parameter.
                 let mut parts =
@@ -276,9 +276,15 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                     media, hdr
                                 ),
                             };
-                            return Some(
-                                ctx.by(party).report_with(media_type_error(defect), message),
-                            );
+                            // A member that is no `media-range` at all ends
+                            // here. The parameters hang off the media-range in
+                            // `( type "/" subtype ) parameters`, so with no
+                            // pair for them to hang off there is nothing for a
+                            // parameter finding to be about — the same reading
+                            // `alt-value` makes of its own `alternative`.
+                            return vec![ctx
+                                .by(party)
+                                .report_with(media_type_error(defect), message)];
                         }
                     };
                     {
@@ -300,13 +306,13 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         if let Some(c) =
                             crate::helpers::token::find_invalid_token_char(parsed.type_)
                         {
-                            return Some(ctx.by(party).report_with(
+                            return vec![ctx.by(party).report_with(
                                 token_character(c),
                                 format!(
                                     "Invalid token '{}' in media type '{}' of {}",
                                     c, parsed.type_, hdr
                                 ),
-                            ));
+                            )];
                         }
                         // A wildcard type with a concrete subtype is not one of
                         // the shapes the asterisk has a meaning in. This is a
@@ -319,28 +325,37 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // `content_type_valid` takes the same
                         // position on the same shape in Content-Type.
                         if parsed.type_ == "*" {
-                            return Some(ctx.by(party).report_with(&MEDIA_RANGE_WILDCARD_INVALID, format!(
+                            return vec![ctx.by(party).report_with(&MEDIA_RANGE_WILDCARD_INVALID, format!(
                                         "Invalid media-range '{}' in {} header: a wildcard type is only meaningful with a wildcard subtype ('*/*'), since the asterisk names all media types or all subtypes of one type and nothing else",
                                         media, hdr
-                                    )));
+                                    ))];
                         }
                         if parsed.subtype != "*" {
                             if let Some(c) =
                                 crate::helpers::token::find_invalid_token_char(parsed.subtype)
                             {
-                                return Some(ctx.by(party).report_with(
+                                return vec![ctx.by(party).report_with(
                                     token_character(c),
                                     format!(
                                         "Invalid token '{}' in media subtype '{}' of {}",
                                         c, parsed.subtype, hdr
                                     ),
-                                ));
+                                )];
                             }
                         }
                     }
                 }
 
-                // Validate parameters (name=value). 'q' must be a valid qvalue
+                // One finding per parameter. `parameters = *( OWS ";" OWS
+                // [ parameter ] )` writes them beside each other rather than
+                // inside each other, so a media-range naming two of them badly
+                // is two things to correct — and the walk over the members
+                // above was closed while this one, one level down inside a
+                // member, still answered once. Each parameter's own reading is
+                // still a chain: a name that is not a token and a value that is
+                // not a word are two readings of one `parameter`, and the
+                // second reads text the first has already condemned.
+                let mut out = Vec::new();
                 let mut weight_seen = false;
                 for p in parts {
                     let p = p.trim();
@@ -355,11 +370,18 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // allow it and states the consequence as a SHOULD.
                     // cite(RFC 9110 § 12.5.1): "The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields."
                     // cite(RFC 9110 § 12.5.1): "Senders using weights SHOULD send "q" last (after all media-range parameters)."
+                    //
+                    // Stated once, and it ends the walk: what is wrong is
+                    // where the weight sits, which is one property of the
+                    // member and one edit to make. Everything past the weight
+                    // derives from nothing in this grammar, so reading it as a
+                    // parameter would be reading text no production admits.
                     if weight_seen {
-                        return Some(ctx.by(party).report_with(&MEDIA_RANGE_PARAMETER_FORBIDDEN, format!(
-                                    "Parameter '{}' follows the weight in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
-                                    p, hdr
+                        out.push(ctx.by(party).report_with(&MEDIA_RANGE_PARAMETER_FORBIDDEN, format!(
+                                    "Parameter '{}' follows the weight of media-range '{}' in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
+                                    p, media, hdr
                                 )));
+                        return out;
                     }
                     // A parameter is a name, an "=", and a value; none of the
                     // three is optional, so a bare word among the parameters is
@@ -374,10 +396,14 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     let parsed = match parsed {
                         Ok(parsed) => parsed,
                         Err(ParameterDefect::NoEquals(_)) => {
-                            return Some(ctx.by(party).report_with(
+                            out.push(ctx.by(party).report_with(
                                 &PARAMETER_EQUALS_MISSING,
-                                format!("Invalid parameter '{}' in {} header: missing '='", p, hdr),
-                            ))
+                                format!(
+                                    "Invalid parameter '{}' of media-range '{}' in {} header: missing '='",
+                                    p, media, hdr
+                                ),
+                            ));
+                            continue;
                         }
                     };
                     let k = parsed.name;
@@ -391,19 +417,21 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // the `token` subject carries.)
                     // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
                     if k.is_empty() {
-                        return Some(ctx.by(party).report_with(&TOKEN_EMPTY, format!(
-                                    "Empty parameter name in '{}' of {} header: a token is one or more characters",
-                                    p, hdr
+                        out.push(ctx.by(party).report_with(&TOKEN_EMPTY, format!(
+                                    "Empty parameter name in '{}' of media-range '{}' in {} header: a token is one or more characters",
+                                    p, media, hdr
                                 )));
+                        continue;
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(k) {
-                        return Some(ctx.by(party).report_with(
+                        out.push(ctx.by(party).report_with(
                             token_character(c),
                             format!(
-                                "Invalid character '{}' in parameter name '{}' in {} header",
-                                c, k, hdr
+                                "Invalid character '{}' in parameter name '{}' of media-range '{}' in {} header",
+                                c, k, media, hdr
                             ),
                         ));
+                        continue;
                     }
 
                     // The weight's name is matched without regard to case
@@ -425,10 +453,11 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // and the parameter's name is what chooses.
                         // cite(RFC 9110 § 12.4.2, label: the weight production): "weight = OWS ";" OWS "q=" qvalue"
                         if parsed.whitespace_beside_equals {
-                            return Some(ctx.by(party).report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
-                                        "Parameter '{}' in {} header writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
-                                        p, hdr
+                            out.push(ctx.by(party).report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                        "Parameter '{}' of media-range '{}' in {} header writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
+                                        p, media, hdr
                                     )));
+                            continue;
                         }
                         // The three-digit cap and the asymmetry between the
                         // two branches are both in the production, and the
@@ -437,10 +466,14 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // the same bound, and it is senders this rule reports.
                         // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
                         if !crate::helpers::qvalue::valid_qvalue(v) {
-                            return Some(ctx.by(party).report_with(
+                            out.push(ctx.by(party).report_with(
                                 &QVALUE_MALFORMED,
-                                format!("Invalid qvalue '{}' in {} header", v, hdr),
+                                format!(
+                                    "Invalid qvalue '{}' on media-range '{}' in {} header",
+                                    v, media, hdr
+                                ),
                             ));
+                            continue;
                         }
                     } else {
                         // Here the whitespace beside the `=` *is* the
@@ -451,10 +484,11 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // one.
                         // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
                         if parsed.whitespace_beside_equals {
-                            return Some(ctx.by(party).report_with(&PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, format!(
-                                        "Parameter '{}' in {} header writes whitespace beside its '='; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
-                                        p, hdr
+                            out.push(ctx.by(party).report_with(&PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, format!(
+                                        "Parameter '{}' of media-range '{}' in {} header writes whitespace beside its '='; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
+                                        p, media, hdr
                                     )));
+                            continue;
                         }
 
                         // `parameter-value` is `( token / quoted-string )`, and
@@ -473,35 +507,42 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // as written derives from no `parameter-value`.
                             // (`x=""` is a different value and still conforms.)
                             Err(WordDefect::Empty) => {
-                                return Some(ctx.by(party).report_with(&PARAMETER_VALUE_EMPTY, format!(
-                                            "Empty parameter value in '{}' of {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
-                                            p, hdr
+                                out.push(ctx.by(party).report_with(&PARAMETER_VALUE_EMPTY, format!(
+                                            "Empty parameter value in '{}' of media-range '{}' in {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
+                                            p, media, hdr
                                         )));
                             }
                             Err(WordDefect::NotQuotedString(defect)) => {
-                                return Some(ctx.by(party).report_with(
+                                out.push(ctx.by(party).report_with(
                                     quoted_string_defect(defect),
                                     format!(
-                                        "Invalid quoted-string parameter '{}' in {} header: {}",
+                                        "Invalid quoted-string parameter '{}' of media-range '{}' in {} header: {}",
                                         p,
+                                        media,
                                         hdr,
                                         defect.message(v)
                                     ),
                                 ));
                             }
                             Err(WordDefect::NotToken(c)) => {
-                                return Some(ctx.by(party).report_with(
+                                // The whole parameter as written, not the
+                                // value half alone: two parameters of one
+                                // media-range can carry the same bad value,
+                                // and a sentence naming only the value is one
+                                // sentence printed twice with nothing in it to
+                                // say which parameter to go and edit.
+                                out.push(ctx.by(party).report_with(
                                     token_character(c),
                                     format!(
-                                        "Invalid token '{}' in parameter value '{}' of {} header",
-                                        c, v, hdr
+                                        "Invalid token '{}' in the value of parameter '{}' of media-range '{}' in {} header",
+                                        c, p, media, hdr
                                     ),
                                 ));
                             }
                         }
                     }
                 }
-                None
+                out
             };
 
             let check_val = |hdr: &str, val: &str, party: crate::lint::Party| -> Vec<Violation> {
@@ -1022,8 +1063,105 @@ mod tests {
         .expect("an empty parameter-value derives from neither alternative");
         assert_eq!(
             v.message,
-            "Empty parameter value in 'charset=' of Accept header: a parameter-value is a token or a quoted-string, and neither derives the empty string"
+            "Empty parameter value in 'charset=' of media-range 'text/html' in Accept header: a parameter-value is a token or a quoted-string, and neither derives the empty string"
         );
+    }
+
+    /// Every finding one `Accept` value draws, in reader order.
+    fn all_accept(value: &str) -> Vec<Violation> {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", value)]);
+        crate::test_helpers::run_rule_all(
+            &AcceptHeaderMediaTypeSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "accept_header_media_type_syntax",
+            ]),
+        )
+    }
+
+    /// **Every defective parameter of one media-range is answered.**
+    /// `parameters = *( OWS ";" OWS [ parameter ] )` writes them beside each
+    /// other, so a media-range naming two badly is two things to correct. The
+    /// walk over `#( media-range [ weight ] )` was closed already; this is the
+    /// repetition one level down inside a member.
+    #[test]
+    fn every_defective_parameter_of_one_media_range_is_reported() {
+        let found = all_accept("text/html;a=@;b=@");
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(found
+            .iter()
+            .all(|v| v.violation == "token_character_forbidden"));
+        assert_ne!(found[0].message, found[1].message);
+        assert!(
+            found[0].message.contains("parameter 'a=@'"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("parameter 'b=@'"),
+            "{:?}",
+            found[1].message
+        );
+    }
+
+    /// Two media-ranges writing the same defective parameter are two sentences
+    /// that can be told apart, because each names the media-range it is about.
+    #[test]
+    fn two_media_ranges_with_the_same_bad_parameter_name_their_own() {
+        let found = all_accept("text/html;a=@, text/plain;a=@");
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_ne!(found[0].message, found[1].message);
+        assert!(
+            found[0].message.contains("media-range 'text/html'"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("media-range 'text/plain'"),
+            "{:?}",
+            found[1].message
+        );
+    }
+
+    /// A member that is no `media-range` at all still answers once: the
+    /// parameters hang off the `type "/" subtype` pair, and with no pair there
+    /// is nothing for a parameter finding to be about.
+    #[test]
+    fn a_member_that_is_no_media_range_ends_at_that() {
+        let found = all_accept("texthtml;a=@;b=@");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["media_type_malformed"],
+            "{found:?}"
+        );
+    }
+
+    /// A parameter past the weight is stated once and ends the reading. What is
+    /// wrong is where the weight sits — one property of the member and one edit
+    /// — and everything after it derives from nothing this grammar prints.
+    #[test]
+    fn parameters_after_the_weight_are_one_finding() {
+        let found = all_accept("text/html;q=0.5;a=1;b=2");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["media_range_parameter_forbidden"],
+            "{found:?}"
+        );
+    }
+
+    /// The other direction: a media-range carrying several well-formed
+    /// parameters and a weight draws nothing at all.
+    #[test]
+    fn a_conforming_media_range_with_several_parameters_is_silent() {
+        assert!(all_accept("text/html;level=1;charset=utf-8;q=0.5").is_empty());
     }
 
     #[test]
