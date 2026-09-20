@@ -308,18 +308,30 @@ enabled = true
          separately. No other field in the table has such an exception, and both documents \
          grant it by name.\
          \n\n\
-         **Thirteen singleton fields are deliberately not here**, because their repetition is \
-         already reported where their values are read, with the joined value in the finding: \
-         `Referer`, `Content-Location`, `Location`, `Max-Forwards`, `From`, \
-         `Content-Disposition`, `Content-Type`, `ETag` and `Retry-After` each carry the check \
-         in their own rule, `If-Modified-Since` and `If-Unmodified-Since` in \
-         `conditional_headers_consistent`, `Host` in \
-         `host_header` (where RFC 9112 §3.2 adds the recipient's 400), and \
-         `Content-Length` in the body-length rules — RFC 9110 §8.6 gives that field its own \
+         **Many more singleton fields are deliberately not here**, because their repetition is \
+         already reported where their values are read, with the joined value in the finding. \
+         Nine carry the check in a rule of their own — `Referer`, `Content-Location`, \
+         `Location`, `Max-Forwards`, `From`, `Content-Disposition`, `Content-Type`, `ETag` and \
+         `Retry-After` — `If-Modified-Since` and `If-Unmodified-Since` are counted in \
+         `conditional_headers_consistent`, `Host` in `host_header` (where RFC 9112 §3.2 adds \
+         the recipient's 400), and `Content-Length` reports its repetition as \
+         `content_length_conflicting` instead, because RFC 9110 §8.6 gives that field its own \
          arithmetic for duplicate values, which is a different question from this rule's. \
-         The last five moved out of the table rather than being kept out of it: they were in \
-         both places, so one repetition drew this entry twice, and the rule reading the value \
-         is the one that can say what the repetition costs the recipient.\
+         Beyond those, every field whose own document fixes it to one value counts its own \
+         repetition where that value is judged: `Strict-Transport-Security`, \
+         `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, the three \
+         `Cross-Origin-*-Policy` fields, the five `Sec-Fetch-*` fields, \
+         `Origin-Agent-Cluster`, `Deprecation`, `Refresh` and \
+         `Access-Control-Allow-Origin`.\n\n\
+         **That list is a census and a census goes stale**, which this one had: it said \
+         thirteen while seventeen more sites had been added around it, and a reader counting \
+         the fields this catalogue watches would have been told less than half of them. \
+         `every_other_declarer_of_this_entry_is_named_here` reads the registry rather than \
+         this paragraph, so the next site added fails a test instead of quietly making the \
+         sentence wrong.\n\n\
+         Five of the fields above moved out of the table rather than being kept out of it: \
+         they were in both places, so one repetition drew this entry twice, and the rule \
+         reading the value is the one that can say what the repetition costs the recipient.\
          \n\n\
          **What a recipient does with the repetition is each field's own hazard**, and this \
          rule does not guess at it: the finding names the field's grammar and §5.3, not a \
@@ -500,6 +512,73 @@ mod tests {
     use super::*;
     use hyper::header::{HeaderName, HeaderValue};
     use rstest::rstest;
+
+    /// Every other rule that can draw this entry is named in `description()`.
+    ///
+    /// The paragraph there is a census of where a singleton field's repetition
+    /// is reported when it is not reported here, and a census is a claim about
+    /// code that keeps being written: it said *thirteen* while seventeen more
+    /// declarers had been added around it. What makes the claim checkable is
+    /// that it is a claim about the **registry** and not about a spelling — the
+    /// rules are asked what they declare, so a site added under any idiom, in
+    /// any file, is counted.
+    ///
+    /// The assertion is on the rule ids rather than on a number, so a failure
+    /// says which rule to name rather than that some count moved. Adding a
+    /// declarer is meant to fail here: name it in `description()`, then add it
+    /// below.
+    #[test]
+    fn every_other_declarer_of_this_entry_is_named_here() {
+        let mut found: Vec<&str> = crate::rules::REGISTERED_RULES
+            .iter()
+            .filter(|r| {
+                r.id() != SingletonFieldsNotRepeated.id()
+                    && r.violations()
+                        .iter()
+                        .any(|v| v.id == FIELD_LINE_DUPLICATED.id)
+            })
+            .map(|r| r.id())
+            .collect();
+        found.sort_unstable();
+
+        let mut named = [
+            "access_control_allow_origin_valid",
+            "conditional_headers_consistent",
+            "content_disposition_token_valid",
+            "content_location_and_uri_consistent",
+            "content_type_valid",
+            "cross_origin_embedder_policy_valid",
+            "cross_origin_opener_policy_valid",
+            "cross_origin_resource_policy_valid",
+            "deprecation_header_syntax",
+            "etag_syntax",
+            "from_header_email_syntax",
+            "host_header",
+            "location_header_uri_valid",
+            "max_forwards_numeric",
+            "origin_isolated_header_valid",
+            "origin_matching_for_cors",
+            "referer_uri_valid",
+            "refresh_header_syntax",
+            "retry_after_date_or_delay",
+            "sec_fetch_dest_value_valid",
+            "sec_fetch_mode_value_valid",
+            "sec_fetch_site_value_valid",
+            "sec_fetch_storage_access_value_valid",
+            "sec_fetch_user_value_valid",
+            "strict_transport_security_valid",
+            "x_content_type_options_present",
+            "x_frame_options_value_valid",
+            "x_xss_protection_value_valid",
+        ];
+        named.sort_unstable();
+
+        assert_eq!(
+            found,
+            named.to_vec(),
+            "a rule declaring field_line_duplicated is not named in description()"
+        );
+    }
 
     fn cfg() -> crate::config::Config {
         crate::test_helpers::make_test_config_with_enabled_rules(&["singleton_fields_not_repeated"])
@@ -800,12 +879,17 @@ mod tests {
         assert_eq!(run(&tx), None);
     }
 
-    /// The thirteen fields whose repetition another rule reports are absent
-    /// from the table on purpose — two lines of them draw nothing *here*.
+    /// Every field whose repetition another rule reports is absent from the
+    /// table on purpose — two lines of it draw nothing *here*.
     ///
-    /// The last five are the ones that were in both places: each drew
-    /// `field_line_duplicated` from its own rule *and* from this one, so the
-    /// message carried it twice. This is the row that holds them out.
+    /// **The rows are the other half of `description()`'s census**, and the
+    /// pair is what keeps one repetition from becoming two findings: the other
+    /// test asserts that every declarer is named, this one asserts that no
+    /// field a declarer owns is also in the table. Five of the first thirteen
+    /// were once in both places and each drew `field_line_duplicated` twice
+    /// from one message; the security headers below were never in the table,
+    /// and are pinned here so that adding one is a failing test rather than a
+    /// double report nobody reads.
     #[rstest]
     #[case("referer", "/a")]
     #[case("content-location", "/a")]
@@ -820,6 +904,22 @@ mod tests {
     #[case("retry-after", "120")]
     #[case("if-modified-since", "Tue, 15 Nov 1994 08:12:31 GMT")]
     #[case("if-unmodified-since", "Tue, 15 Nov 1994 08:12:31 GMT")]
+    #[case("strict-transport-security", "max-age=1")]
+    #[case("x-frame-options", "DENY")]
+    #[case("x-content-type-options", "nosniff")]
+    #[case("x-xss-protection", "0")]
+    #[case("cross-origin-opener-policy", "same-origin")]
+    #[case("cross-origin-embedder-policy", "require-corp")]
+    #[case("cross-origin-resource-policy", "same-origin")]
+    #[case("sec-fetch-dest", "document")]
+    #[case("sec-fetch-mode", "navigate")]
+    #[case("sec-fetch-site", "same-origin")]
+    #[case("sec-fetch-user", "?1")]
+    #[case("sec-fetch-storage-access", "active")]
+    #[case("origin-agent-cluster", "?1")]
+    #[case("deprecation", "@1688169599")]
+    #[case("refresh", "5")]
+    #[case("access-control-allow-origin", "*")]
     fn fields_owned_by_other_rules_draw_nothing_here(#[case] name: &str, #[case] value: &str) {
         let tx = response_with_lines(&[(name, value), (name, value)]);
         assert_eq!(run(&tx), None, "{name}");
