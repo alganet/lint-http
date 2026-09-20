@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::request_target::{target_uri_host, target_uri_security, ConnectionSecurity};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::{
@@ -47,24 +48,25 @@ pub struct CookieLifecycle;
 /// The request a cookie is being sent on, in the three terms a cookie is
 /// matched against.
 struct RequestScope {
-    scheme: String,
+    security: ConnectionSecurity,
     host: String,
     path: String,
 }
 
 impl RequestScope {
-    fn of(request_uri: &str) -> Self {
-        Self {
-            scheme: if request_uri.to_ascii_lowercase().starts_with("https://") {
-                "https".into()
-            } else {
-                "http".into()
-            },
-            host: crate::helpers::request_target::extract_host_from_request_target(request_uri)
-                .unwrap_or_default(),
+    /// `None` when nothing in the message names the host the request addressed.
+    ///
+    /// § 3.3 reconstructs that from the request-target *or* from `Host`, and
+    /// an origin-form target with neither leaves it unknown. Every question
+    /// below is asked of a cookie store keyed by host, so an unknown host is
+    /// not a host that matches nothing — it is a scope this rule cannot judge.
+    fn of(request_uri: &str, request_headers: &hyper::HeaderMap) -> Option<Self> {
+        Some(Self {
+            security: target_uri_security(request_uri),
+            host: target_uri_host(request_uri, request_headers)?,
             path: crate::helpers::request_target::extract_path_from_request_target(request_uri)
                 .unwrap_or_else(|| "/".into()),
-        }
+        })
     }
 
     /// Whether a stored cookie would be sent on this request.
@@ -72,7 +74,7 @@ impl RequestScope {
     fn applies(&self, cookie: &crate::helpers::cookie::Cookie) -> bool {
         cookie.domain_matches(&self.host)
             && cookie.path_matches(&self.path)
-            && (!cookie.secure || self.scheme == "https")
+            && cookie.channel_allows(self.security)
     }
 }
 
@@ -100,9 +102,12 @@ fn previously_set(
     let mut for_another_path = false;
     for (past, resp) in history.responses() {
         for line in crate::helpers::headers::field_lines(&resp.headers, "set-cookie") {
-            let Some(cookie) =
-                crate::helpers::cookie::parse_set_cookie(line, &past.request.uri, past.timestamp)
-            else {
+            let Some(cookie) = crate::helpers::cookie::parse_set_cookie(
+                line,
+                &past.request.uri,
+                &past.request.headers,
+                past.timestamp,
+            ) else {
                 continue;
             };
             if cookie.name != name || !cookie.domain_matches(&request.host) {
@@ -137,7 +142,13 @@ impl CookieLifecycle {
         value: &str,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        if request.scheme == "https" {
+        // Not `!= Secure`. A request-target in origin-form — the ordinary
+        // HTTP/1.1 shape — states no scheme at all, and the connection that
+        // would have supplied one is not in the capture. This entry accuses a
+        // user agent of putting a value the server marked too sensitive for
+        // clear text onto the wire in clear text, so it is reported only where
+        // the target says the channel was unsecured.
+        if !request.security.is_known_insecure() {
             return None;
         }
         let sent_a_secure_cookie = live.iter().any(|c| {
@@ -199,7 +210,7 @@ impl RuleMeta for CookieLifecycle {
             Example {
                 compliance: Compliance::Compliant,
                 label: Some("— different non-secure cookie over HTTP"),
-                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=secure; Secure; Path=/\n\n> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=plain; Path=/foo\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> Cookie: id=plain           # only the non-secure value is sent over HTTP",
+                snippet: "> GET http://example.com/ HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=secure; Secure; Path=/\n\n> GET http://example.com/foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=plain; Path=/foo\n\n> GET http://example.com/foo HTTP/1.1\n> Host: example.com\n> Cookie: id=plain           # only the non-secure value is sent over HTTP",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -216,10 +227,20 @@ impl RuleMeta for CookieLifecycle {
                 label: Some("— two cookies, two separate mistakes"),
                 snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=abc; Secure; Path=/\n< Set-Cookie: theme=dark; Path=/\n\n> GET /dashboard HTTP/1.1\n> Host: example.com\n> Cookie: sid=abc; theme=light   # a leaked Secure cookie and a stale value, reported separately",
             },
+            // **The request-target is in absolute-form because the label says
+            // "over HTTP" and only that form says so.** An origin-form target
+            // carries a path and nothing else; the scheme of the target URI is
+            // then the connection's, and a snippet has no connection. Written
+            // in origin-form this example claimed a transport it did not show.
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— secure cookie over HTTP"),
-                snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Secure\n\n> GET /dashboard HTTP/1.1\n> Host: example.com\n> Cookie: sid=123            # insecure transport",
+                snippet: "> GET http://example.com/login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Secure\n\n> GET http://example.com/dashboard HTTP/1.1\n> Host: example.com\n> Cookie: sid=123            # insecure transport",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a Secure cookie on a target that states no scheme"),
+                snippet: "> GET https://example.com/login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Secure\n\n> GET /dashboard HTTP/1.1\n> Host: example.com\n> Cookie: sid=123            # origin-form: the scheme is the connection's, not the target's",
             },
         ]
     }
@@ -241,7 +262,9 @@ impl Rule for CookieLifecycle {
             return Vec::new();
         }
 
-        let request = RequestScope::of(&tx.request.uri);
+        let Some(request) = RequestScope::of(&tx.request.uri, &tx.request.headers) else {
+            return Vec::new();
+        };
         // Already filtered to what is unexpired at this request's time.
         let live = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
 
@@ -777,5 +800,108 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "cookie_lifecycle");
         crate::rules::validate_rules(&cfg).unwrap();
+    }
+    fn make_origin_form_tx(
+        path: &str,
+        host: Option<&str>,
+        cookie: &str,
+    ) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.uri = path.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("cookie", cookie)]);
+        if let Some(h) = host {
+            tx.request
+                .headers
+                .insert("host", hyper::header::HeaderValue::from_str(h).unwrap());
+        }
+        tx
+    }
+
+    /// The scope of an origin-form request is the `Host` field's, so the store
+    /// has something to be compared against and this rule's questions are
+    /// asked at all.
+    ///
+    /// Read from the target string alone the host was `""`, which
+    /// domain-matches no stored cookie, so every one of the three entries went
+    /// quiet on the ordinary HTTP/1.1 request rather than on a request whose
+    /// scope was in doubt.
+    #[test]
+    fn an_origin_form_target_is_judged_against_the_host_field() {
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://example.com/", Some("sid=abc"), Some(ts));
+        let mut tx = make_origin_form_tx("/account", Some("example.com"), "sid=stale");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieLifecycle,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].violation, "cookie_value_conflicting");
+    }
+
+    /// **A target that states no scheme is not a target that states an
+    /// unsecured one**, and this entry says the value the server marked too
+    /// sensitive for clear text went out in clear text.
+    ///
+    /// Reading the host out of `Host` is what puts a `Secure` cookie in front
+    /// of this question in the first place, so the two halves of § 3.3's
+    /// reconstruction have to be repaired together: with the host read and the
+    /// scheme still guessed, every conforming HTTP/1.1 client echoing a
+    /// `Secure` cookie over TLS would be accused here.
+    #[test]
+    fn a_secure_cookie_is_not_in_the_clear_because_the_target_states_no_scheme() {
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://example.com/", Some("sid=abc; Secure"), Some(ts));
+        let mut tx = make_origin_form_tx("/account", Some("example.com"), "sid=abc");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieLifecycle,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        );
+        assert!(
+            found.is_empty(),
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The other direction: where the target does say the channel was
+    /// unsecured, the entry still fires.
+    #[test]
+    fn a_secure_cookie_on_a_stated_http_target_is_still_reported() {
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://example.com/", Some("sid=abc; Secure"), Some(ts));
+        let mut tx = make_origin_form_tx("/account", Some("example.com"), "sid=abc");
+        tx.request.uri = "http://example.com/account".into();
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieLifecycle,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].violation, "cookie_secure_ignored");
+    }
+
+    /// Nothing names the host, so nothing here is answerable.
+    #[test]
+    fn an_origin_form_target_with_no_host_field_is_not_judged() {
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://example.com/", Some("sid=abc"), Some(ts));
+        let mut tx = make_origin_form_tx("/account", None, "sid=stale");
+        tx.request.headers.remove("host");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieLifecycle,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        );
+        assert!(found.is_empty(), "{found:?}");
     }
 }

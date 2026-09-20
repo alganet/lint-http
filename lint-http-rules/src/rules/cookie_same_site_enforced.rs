@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::request_target::{target_uri_host, target_uri_security};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::{COOKIE_SAME_SITE_IGNORED, DRAFT_IETF_HTTPBIS_RFC6265BIS};
@@ -110,16 +111,21 @@ impl Rule for CookieSameSiteEnforced {
 
             // compute simple request metadata needed for matching
             let req_uri = &tx.request.uri;
-            let scheme = if req_uri.to_ascii_lowercase().starts_with("https://") {
-                "https"
-            } else {
-                "http"
-            };
+            // Three-valued, because the request-target is: an origin-form
+            // target — the ordinary HTTP/1.1 shape — states no scheme, and
+            // reading that as `http` drops every `Secure` cookie out of the
+            // walk below on a request that may well have crossed TLS.
+            let security = target_uri_security(req_uri);
 
             // extract host portion (without port) using shared helper
-            let req_host =
-                crate::helpers::request_target::extract_host_from_request_target(req_uri)
-                    .unwrap_or_default();
+            // § 3.3 puts the target URI's authority in the request-target only
+            // when the form carries one; for an origin-form target it is in
+            // `Host`, which is what that field is for. Reading the target
+            // string alone and defaulting to `""` makes every stored cookie
+            // fail to domain-match a host that was never in question.
+            let Some(req_host) = target_uri_host(req_uri, &tx.request.headers) else {
+                return Vec::new();
+            };
 
             let req_path =
                 crate::helpers::request_target::extract_path_from_request_target(req_uri)
@@ -171,7 +177,7 @@ impl Rule for CookieSameSiteEnforced {
                             && c.value == value
                             && c.domain_matches(&req_host)
                             && c.path_matches(&req_path)
-                            && (!c.secure || scheme == "https")
+                            && c.channel_allows(security)
                     })
                     .max_by(|a, b| {
                         // Prefer longer path; on tie, prefer more specific (longer) domain.
@@ -719,5 +725,98 @@ mod tests {
             ]),
         )
         .is_none());
+    }
+    fn make_origin_form_tx(
+        path: &str,
+        host: Option<&str>,
+        cookie: &str,
+    ) -> crate::http_transaction::HttpTransaction {
+        let mut tx = make_test_transaction();
+        tx.request.uri = path.to_string();
+        tx.request.headers =
+            make_headers_from_pairs(&[("cookie", cookie), ("sec-fetch-site", "cross-site")]);
+        if let Some(h) = host {
+            tx.request
+                .headers
+                .insert("host", HeaderValue::from_str(h).unwrap());
+        }
+        tx
+    }
+
+    /// The candidate is looked up by host, and on an origin-form target the
+    /// host is in `Host`. Read from the target string alone it was `""`, so no
+    /// stored cookie was ever the candidate and this rule had nothing to
+    /// enforce on the ordinary HTTP/1.1 request.
+    #[test]
+    fn an_origin_form_target_is_judged_against_the_host_field() {
+        let ts = Utc::now();
+        let prev = make_resp_tx(
+            "https://example.com/",
+            Some("sid=abc; SameSite=Strict; Path=/"),
+            Some(ts),
+        );
+        let mut tx = make_origin_form_tx("/account", Some("example.com"), "sid=abc");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieSameSiteEnforced,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced",
+            ]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].violation, "cookie_same_site_ignored");
+    }
+
+    /// And a `Secure` cookie is still the candidate, because a target that
+    /// states no scheme is not a scheme that fails to denote a secure
+    /// protocol. `Secure` beside `SameSite=Strict` is the everyday session
+    /// cookie, so folding the two-valued reading in here silenced the pairing
+    /// this rule is most for.
+    #[test]
+    fn a_secure_cookie_is_still_the_candidate_when_the_target_states_no_scheme() {
+        let ts = Utc::now();
+        let prev = make_resp_tx(
+            "https://example.com/",
+            Some("sid=abc; Secure; SameSite=Strict; Path=/"),
+            Some(ts),
+        );
+        let mut tx = make_origin_form_tx("/account", Some("example.com"), "sid=abc");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieSameSiteEnforced,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced",
+            ]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].violation, "cookie_same_site_ignored");
+    }
+
+    /// Nothing names the host, so no candidate can be chosen and the rule
+    /// declines rather than choosing none.
+    #[test]
+    fn an_origin_form_target_with_no_host_field_is_not_judged() {
+        let ts = Utc::now();
+        let prev = make_resp_tx(
+            "https://example.com/",
+            Some("sid=abc; SameSite=Strict; Path=/"),
+            Some(ts),
+        );
+        let mut tx = make_origin_form_tx("/account", None, "sid=abc");
+        tx.request.headers.remove("host");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieSameSiteEnforced,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced",
+            ]),
+        );
+        assert!(found.is_empty(), "{found:?}");
     }
 }

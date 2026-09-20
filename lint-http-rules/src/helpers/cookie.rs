@@ -4,6 +4,8 @@
 
 //! Cookie-related helpers used by cookie-related rules.
 
+use crate::helpers::request_target::{target_uri_host, ConnectionSecurity};
+
 /// The ways a `Set-Cookie` `Path` attribute fails, named rather than described.
 ///
 /// The two halves are not the same kind of finding, and the type is what makes
@@ -184,6 +186,28 @@ impl Cookie {
         req.ends_with(&format!(".{}", dom))
     }
 
+    /// § 5.4's third requirement on the cookie-list: a `Secure` cookie belongs
+    /// in it only when the request-uri's scheme denotes a secure protocol.
+    ///
+    /// **The third state of [`ConnectionSecurity`] is the reason this is a
+    /// method and not `!secure || scheme == "https"` written out at each call
+    /// site**, which is how all three of this crate's callers had it. A
+    /// request-target in origin-form states no scheme, so it is not a scheme
+    /// that fails to denote a secure protocol — it is no evidence either way,
+    /// and the ordinary HTTP/1.1 request over TLS is exactly that shape. Read
+    /// as insecure, such a request accuses a conforming user agent of putting
+    /// a `Secure` cookie on the wire in the clear; read here, it leaves the
+    /// requirement unjudged and the other two conjuncts to speak.
+    ///
+    /// The § 5.4 requirement names no scheme itself: the NOTE below hands the
+    /// definition to the user agent, and what this crate takes from it is the
+    /// example the NOTE gives and nothing wider.
+    // cite(RFC 6265 § 5.4, label: the secure-only requirement): "If the cookie's secure-only-flag is true, then the request-uri's scheme must denote a "secure" protocol (as defined by the user agent)."
+    // cite(RFC 6265 § 5.4, label: which schemes are secure): "The notion of a "secure" protocol is not defined by this document."
+    pub fn channel_allows(&self, security: ConnectionSecurity) -> bool {
+        !self.secure || !security.is_known_insecure()
+    }
+
     /// Path-match per RFC 6265 §5.1.4.  `request_path` should be the path
     /// component extracted from the request-target (leading '/' or "/").
     // cite(RFC 6265 § 5.1.4, label: cookie path-match): "A request-path path-matches a given cookie-path if at least one of the following conditions holds"
@@ -300,20 +324,24 @@ pub fn split_set_cookie(line: &str) -> (&str, impl Iterator<Item = Attribute<'_>
 }
 
 /// The host the request was sent to, which a cookie with no `Domain` is bound
-/// to.
+/// to — `None` when nothing in the request names one.
+///
+/// **This asked the request-target for a `://` and took what followed**, which
+/// is two readings wrong at once. A target in origin-form has no `://` and the
+/// host is in `Host`, so the store bound every cookie of an ordinary HTTP/1.1
+/// exchange to the empty string; the comment that stood here recorded that as
+/// a property — "an empty domain matches no request later" — rather than as
+/// the defect it is, and it held only because the request side read the host
+/// the same wrong way and the two empties matched each other. And a `://`
+/// further along a target is ordinary data: `/login?next=https://evil.example/`
+/// bound a host-only cookie to `evil.example`, a host the message never
+/// addressed, out of a value the sender does not control.
+///
+/// [`target_uri_host`] is § 3.3's reconstruction and refuses both.
 // cite(RFC 6265 § 5.3): "Set the cookie's host-only-flag to true."
-fn default_domain(request_uri: &str) -> String {
-    let Some(idx) = request_uri.find("://") else {
-        // An unparseable request-target leaves nothing to bind to, and an empty
-        // domain matches no request later.
-        return String::new();
-    };
-    let authority = request_uri[idx + 3..].split('/').next().unwrap_or("");
-    authority
-        .split(':')
-        .next()
-        .unwrap_or("")
-        .to_ascii_lowercase()
+// cite(RFC 6265 § 5.3, label: the host-only domain): "Set the cookie's domain to the canonicalized request-host."
+fn default_domain(request_uri: &str, request_headers: &hyper::HeaderMap) -> Option<String> {
+    target_uri_host(request_uri, request_headers)
 }
 
 /// The default-path of a cookie set by a request to `request_uri`.
@@ -343,12 +371,17 @@ fn default_path(request_uri: &str) -> String {
     }
 }
 
-/// Parse a `Set-Cookie` header value into a `Cookie` struct, using the
-/// request URI and timestamp to derive default domain/path and compute
-/// expiration.  Returns `None` if the value cannot be parsed at all.
+/// Parse a `Set-Cookie` header value into a `Cookie` struct, using the request
+/// and timestamp to derive default domain/path and compute expiration.
+///
+/// `None` when the value cannot be parsed at all, and when the cookie carries
+/// no `Domain` and the request names no host to bind it to. The headers are
+/// needed because § 3.3 puts the host of an origin-form request in `Host` and
+/// not in the request-target, which is where the host-only default comes from.
 pub fn parse_set_cookie(
     header_value: &str,
     request_uri: &str,
+    request_headers: &hyper::HeaderMap,
     timestamp: chrono::DateTime<chrono::Utc>,
 ) -> Option<Cookie> {
     let (pair, attributes) = split_set_cookie(header_value);
@@ -434,7 +467,13 @@ pub fn parse_set_cookie(
     // No Domain attribute → host-only cookie bound to the request-host.
     // cite(RFC 6265 § 5.3): "Set the cookie's host-only-flag to true."
     let host_only = domain_attr.is_none();
-    let domain = domain_attr.unwrap_or_else(|| default_domain(request_uri));
+    // A host-only cookie whose request named no host has no scope at all, and
+    // the store cannot hold what it cannot key. `""` is not that scope: it is
+    // a host name, and one every later question then compares against.
+    let domain = match domain_attr {
+        Some(d) => d,
+        None => default_domain(request_uri, request_headers)?,
+    };
 
     let path = path_attr.unwrap_or_else(|| default_path(request_uri));
 
@@ -512,7 +551,9 @@ pub fn build_cookie_store(
     for prev in history_items.iter().rev() {
         if let Some(resp) = &prev.response {
             for s in crate::helpers::headers::field_lines(&resp.headers, "set-cookie") {
-                if let Some(cookie) = parse_set_cookie(s, &prev.request.uri, prev.timestamp) {
+                if let Some(cookie) =
+                    parse_set_cookie(s, &prev.request.uri, &prev.request.headers, prev.timestamp)
+                {
                     live_cookies.retain(|c| {
                         !(c.name == cookie.name
                             && c.domain == cookie.domain
@@ -723,6 +764,12 @@ fn parse_hms(token: &[u8]) -> Option<(u64, u64, u64)> {
 
 #[cfg(test)]
 mod tests {
+    /// The three of the four request-target forms that carry no host leave it
+    /// to `Host`; a test whose target is absolute-form needs no field.
+    fn no_headers() -> hyper::HeaderMap {
+        hyper::HeaderMap::new()
+    }
+
     use super::*;
     use rstest::rstest;
 
@@ -766,7 +813,13 @@ mod tests {
     fn parse_set_cookie_defaults_and_attributes() {
         // basic name/value and default domain/path from a multi-segment URI
         let ts = chrono::Utc::now();
-        let c = parse_set_cookie("SID=abc123", "https://example.com/foo/bar", ts).unwrap();
+        let c = parse_set_cookie(
+            "SID=abc123",
+            "https://example.com/foo/bar",
+            &no_headers(),
+            ts,
+        )
+        .unwrap();
         assert_eq!(c.name, "SID");
         assert_eq!(c.value, "abc123");
         assert_eq!(c.domain, "example.com");
@@ -776,7 +829,7 @@ mod tests {
         assert_eq!(c.same_site, SameSite::Unspecified);
 
         // default path when request path has only root
-        let c0 = parse_set_cookie("x=1", "https://example.com/", ts).unwrap();
+        let c0 = parse_set_cookie("x=1", "https://example.com/", &no_headers(), ts).unwrap();
         assert_eq!(c0.path, "/");
         assert_eq!(c0.same_site, SameSite::Unspecified);
 
@@ -784,6 +837,7 @@ mod tests {
         let c2 = parse_set_cookie(
             "id=1; Domain=EXAMPLE.com; Path=/; Secure; Max-Age=10; SameSite=Strict",
             "https://example.com/anything",
+            &no_headers(),
             ts,
         )
         .unwrap();
@@ -799,6 +853,7 @@ mod tests {
         let c3 = parse_set_cookie(
             "foo=bar; Path=not/a/slash",
             "https://example.com/some/path",
+            &no_headers(),
             ts,
         )
         .unwrap();
@@ -813,6 +868,7 @@ mod tests {
         let base = parse_set_cookie(
             "a=1; Domain=example.com; Path=/sub",
             "https://example.com/",
+            &no_headers(),
             ts,
         )
         .unwrap();
@@ -829,15 +885,17 @@ mod tests {
     #[test]
     fn cookie_expiration_checks() {
         let ts = chrono::Utc::now();
-        let c = parse_set_cookie("x=1; Max-Age=1", "https://example.com/", ts).unwrap();
+        let c =
+            parse_set_cookie("x=1; Max-Age=1", "https://example.com/", &no_headers(), ts).unwrap();
         assert!(!c.is_expired_at(ts));
         assert!(c.is_expired_at(ts + chrono::Duration::seconds(2)));
-        let c2 = parse_set_cookie("y=1; Max-Age=0", "https://example.com/", ts).unwrap();
+        let c2 =
+            parse_set_cookie("y=1; Max-Age=0", "https://example.com/", &no_headers(), ts).unwrap();
         assert!(c2.is_expired_at(ts));
         // expires attribute parsing using httpdate formatting
         let exp_str = httpdate::fmt_http_date(std::time::SystemTime::now());
         let header = format!("z=1; Expires={}", exp_str);
-        let c3 = parse_set_cookie(&header, "https://example.com/", ts).unwrap();
+        let c3 = parse_set_cookie(&header, "https://example.com/", &no_headers(), ts).unwrap();
         assert!(c3.expiration.is_some());
     }
 
@@ -870,6 +928,7 @@ mod tests {
         let cookie = parse_set_cookie(
             &format!("sid=abc; Expires={expires}"),
             "https://example.com/",
+            &no_headers(),
             ts,
         )
         .unwrap();
@@ -895,6 +954,7 @@ mod tests {
         let cookie = parse_set_cookie(
             &format!("sid=abc; Expires={expires}"),
             "https://example.com/",
+            &no_headers(),
             ts,
         )
         .unwrap();
@@ -943,13 +1003,77 @@ mod tests {
         assert!(!c.path_matches("/bar"));
     }
 
+    /// Where a host-only cookie's domain comes from, form by form.
+    ///
+    /// The case this replaces asserted that `not-a-uri` gave a domain of `""`
+    /// and called it "falls back to empty string". `""` is a host name, and
+    /// every later `domain_matches` compared against it: the fallback was the
+    /// defect, not the tolerance. § 3.3 has three answers here and the third
+    /// is that nothing named a host, which is `None` and not a cookie.
     #[test]
-    fn parse_set_cookie_bad_uri_domain() {
+    fn a_host_only_cookies_domain_is_the_host_the_request_addressed() {
         let ts = chrono::Utc::now();
-        let c = parse_set_cookie("n=1", "not-a-uri", ts).unwrap();
-        // domain falls back to empty string
-        assert_eq!(c.domain, "");
+        let host = |h: &str| {
+            let mut m = hyper::HeaderMap::new();
+            m.insert("host", hyper::header::HeaderValue::from_str(h).unwrap());
+            m
+        };
+
+        // Absolute-form: the target's own authority.
+        let c = parse_set_cookie("n=1", "https://Example.COM/x", &no_headers(), ts).unwrap();
+        assert_eq!(c.domain, "example.com");
+        assert!(c.host_only);
         assert_eq!(c.same_site, SameSite::Unspecified);
+
+        // Origin-form: `Host`, which is what that field is for. This was `""`.
+        let c = parse_set_cookie("n=1", "/x", &host("example.com:8443"), ts).unwrap();
+        assert_eq!(c.domain, "example.com");
+
+        // Authority-form: § 3.3 makes the target the authority, so a target
+        // that is only a host names that host.
+        let c = parse_set_cookie("n=1", "not-a-uri", &no_headers(), ts).unwrap();
+        assert_eq!(c.domain, "not-a-uri");
+
+        // A `://` inside a query parameter is data. This bound a host-only
+        // cookie to a host the message never addressed, out of a value the
+        // sender does not control.
+        let c = parse_set_cookie(
+            "n=1",
+            "/login?next=https://evil.example/",
+            &host("example.com"),
+            ts,
+        )
+        .unwrap();
+        assert_eq!(c.domain, "example.com");
+
+        // Nothing names a host: no scope, so no cookie for the store to hold.
+        assert!(parse_set_cookie("n=1", "/login", &no_headers(), ts).is_none());
+        // Unless the cookie names its own.
+        let c = parse_set_cookie("n=1; Domain=example.com", "/login", &no_headers(), ts).unwrap();
+        assert_eq!(c.domain, "example.com");
+        assert!(!c.host_only);
+    }
+
+    /// § 5.4's third requirement, and the third state the request-target has.
+    #[test]
+    fn the_secure_only_requirement_needs_a_scheme_to_fail() {
+        use crate::helpers::request_target::ConnectionSecurity::{Insecure, Secure, Unstated};
+        let ts = chrono::Utc::now();
+        let secure = parse_set_cookie("n=1; Secure", "https://a.example/", &no_headers(), ts)
+            .expect("a cookie");
+        let plain =
+            parse_set_cookie("n=1", "https://a.example/", &no_headers(), ts).expect("a cookie");
+
+        assert!(secure.channel_allows(Secure));
+        assert!(!secure.channel_allows(Insecure));
+        // The one that matters: no scheme is no evidence, not evidence of
+        // clear text.
+        assert!(secure.channel_allows(Unstated));
+
+        // A cookie without the attribute has no requirement to fail.
+        for s in [Secure, Insecure, Unstated] {
+            assert!(plain.channel_allows(s));
+        }
     }
 
     #[test]
@@ -998,13 +1122,16 @@ mod tests {
     #[test]
     fn samesite_values_parsed() {
         let ts = chrono::Utc::now();
-        let c_strict = parse_set_cookie("x=1; SameSite=Strict", "https://a/", ts).unwrap();
+        let c_strict =
+            parse_set_cookie("x=1; SameSite=Strict", "https://a/", &no_headers(), ts).unwrap();
         assert_eq!(c_strict.same_site, SameSite::Strict);
-        let c_lax = parse_set_cookie("x=1; SameSite=Lax", "https://a/", ts).unwrap();
+        let c_lax = parse_set_cookie("x=1; SameSite=Lax", "https://a/", &no_headers(), ts).unwrap();
         assert_eq!(c_lax.same_site, SameSite::Lax);
-        let c_none = parse_set_cookie("x=1; SameSite=None", "https://a/", ts).unwrap();
+        let c_none =
+            parse_set_cookie("x=1; SameSite=None", "https://a/", &no_headers(), ts).unwrap();
         assert_eq!(c_none.same_site, SameSite::None);
-        let c_weird = parse_set_cookie("x=1; SameSite=Weird", "https://a/", ts).unwrap();
+        let c_weird =
+            parse_set_cookie("x=1; SameSite=Weird", "https://a/", &no_headers(), ts).unwrap();
         assert_eq!(c_weird.same_site, SameSite::Unspecified);
     }
 

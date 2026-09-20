@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::request_target::{target_uri_host, target_uri_security};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::{COOKIE_SCOPE_IGNORED, RFC_6265_5_3, RFC_6265_5_4};
@@ -105,16 +106,21 @@ impl Rule for CookieDomainMatching {
             }
 
             let req_uri = &tx.request.uri;
-            let scheme = if req_uri.to_ascii_lowercase().starts_with("https://") {
-                "https"
-            } else {
-                "http"
-            };
+            // Three-valued, because the request-target is: an origin-form
+            // target — the ordinary HTTP/1.1 shape — states no scheme, and
+            // reading that as `http` drops every `Secure` cookie out of the
+            // walk below on a request that may well have crossed TLS.
+            let security = target_uri_security(req_uri);
 
             // host and path information used for matching
-            let req_host =
-                crate::helpers::request_target::extract_host_from_request_target(req_uri)
-                    .unwrap_or_default();
+            // § 3.3 puts the target URI's authority in the request-target only
+            // when the form carries one; for an origin-form target it is in
+            // `Host`, which is what that field is for. Reading the target
+            // string alone and defaulting to `""` makes every stored cookie
+            // fail to domain-match a host that was never in question.
+            let Some(req_host) = target_uri_host(req_uri, &tx.request.headers) else {
+                return Vec::new();
+            };
             let req_path =
                 crate::helpers::request_target::extract_path_from_request_target(req_uri)
                     .unwrap_or_else(|| "/".into());
@@ -144,7 +150,7 @@ impl Rule for CookieDomainMatching {
                     // cookie value matches; now classify according to domain/path
                     if !c.domain_matches(&req_host) {
                         domain_mismatch = true;
-                    } else if c.path_matches(&req_path) && (!c.secure || scheme == "https") {
+                    } else if c.path_matches(&req_path) && c.channel_allows(security) {
                         valid_match = true;
                     }
                 }
@@ -571,5 +577,111 @@ mod tests {
         )
         .expect("a cookie whose Domain does not cover the request host is reported");
         assert_eq!(v.violation, "cookie_scope_ignored");
+    }
+    fn make_origin_form_tx(
+        path: &str,
+        host: Option<&str>,
+        cookie: &str,
+    ) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.uri = path.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("cookie", cookie)]);
+        if let Some(h) = host {
+            tx.request
+                .headers
+                .insert("host", hyper::header::HeaderValue::from_str(h).unwrap());
+        }
+        tx
+    }
+
+    /// The host is in `Host` when the request-target is in origin-form, which
+    /// is what §3.3 reconstructs and what that field exists for.
+    ///
+    /// Read from the target string alone the host was `""`, and `""`
+    /// domain-matches nothing — so a client echoing a cookie the server had
+    /// just set was told the cookie "was set for a different domain and should
+    /// not be sent to host ''". That is the ordinary HTTP/1.1 exchange, and
+    /// the empty name in the sentence was the tell.
+    #[test]
+    fn an_origin_form_target_is_judged_against_the_host_field() {
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://example.com/", Some("sid=abc; Path=/"), Some(ts));
+        let mut tx = make_origin_form_tx("/account", Some("example.com"), "sid=abc");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieDomainMatching,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        );
+        assert!(
+            found.is_empty(),
+            "a cookie echoed to the host that set it: {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// And the finding this rule exists for still lands on the same shape, so
+    /// the repair above is a host being read and not a rule being silenced.
+    #[test]
+    fn an_origin_form_target_still_reports_a_cookie_for_another_host() {
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://other.example/", Some("sid=abc; Path=/"), Some(ts));
+        let mut tx = make_origin_form_tx("/account", Some("example.com"), "sid=abc");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieDomainMatching,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].violation, "cookie_scope_ignored");
+        assert!(
+            found[0].message.contains("example.com"),
+            "the sentence names the host the request addressed: {}",
+            found[0].message
+        );
+    }
+
+    /// With neither source naming a host, the scope is unknown and there is
+    /// nothing to judge. `""` was the third answer written as the second.
+    #[test]
+    fn an_origin_form_target_with_no_host_field_is_not_judged() {
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://other.example/", Some("sid=abc; Path=/"), Some(ts));
+        let mut tx = make_origin_form_tx("/account", None, "sid=abc");
+        tx.request.headers.remove("host");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieDomainMatching,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        );
+        assert!(found.is_empty(), "{found:?}");
+    }
+
+    /// A `Secure` cookie on a target that states no scheme is not a `Secure`
+    /// cookie in the clear: the walk keeps it, so the domain question is still
+    /// asked of it.
+    #[test]
+    fn a_secure_cookie_is_still_walked_when_the_target_states_no_scheme() {
+        let ts = Utc::now();
+        let prev = make_resp_tx(
+            "https://other.example/",
+            Some("sid=abc; Secure; Path=/"),
+            Some(ts),
+        );
+        let mut tx = make_origin_form_tx("/account", Some("example.com"), "sid=abc");
+        tx.timestamp = ts + chrono::Duration::seconds(1);
+        let found = crate::test_helpers::run_rule_all(
+            &CookieDomainMatching,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].violation, "cookie_scope_ignored");
     }
 }

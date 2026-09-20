@@ -1179,7 +1179,7 @@ sources:
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 210
+      line: 216
     - file: lint-http-rules/src/violations/cookie.rs
       line: 677
   - label: cookie_same_site_enforced (2)
@@ -1187,13 +1187,13 @@ sources:
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 202
+      line: 208
   - label: cookie_same_site_enforced (3)
     section: § 4.1.2.7
     snippet: If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
-      line: 220
+      line: 226
 - label: draft-thomson-hybi-http-timeout-03
   url: https://datatracker.ietf.org/doc/html/draft-thomson-hybi-http-timeout-03
   fragments:
@@ -1991,7 +1991,7 @@ sources:
     - file: lint-http-rules/src/helpers/authority.rs
       line: 160
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 134
+      line: 226
   - label: reg-name
     section: § 3.2.2
     snippet: reg-name    = *( unreserved / pct-encoded / sub-delims )
@@ -2229,7 +2229,9 @@ sources:
     snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 135
+      line: 131
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 227
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 476
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
@@ -3001,12 +3003,6 @@ sources:
       line: 287
   - label: cookie (7)
     section: § 5.4
-    snippet: If the cookie's secure-only-flag is true, then the request-uri's scheme must denote a "secure" protocol (as defined by the user agent).
-    cited_by:
-    - file: lint-http-rules/src/violations/cookie.rs
-      line: 582
-  - label: cookie (8)
-    section: § 5.4
     snippet: The request-uri's path path-matches the cookie's path.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
@@ -3058,7 +3054,7 @@ sources:
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_matching.rs
-      line: 162
+      line: 168
   - label: cookie_domain_valid
     section: § 5.2
     snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
@@ -3078,13 +3074,13 @@ sources:
     snippet: The Secure attribute limits the scope of the cookie to "secure" channels
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
-      line: 131
+      line: 136
   - label: cookie_lifecycle (2)
     section: § 4.2.1
     snippet: cookie-string = cookie-pair *( ";" SP cookie-pair )
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
-      line: 255
+      line: 278
     - file: lint-http-rules/src/rules/cookie_pair_valid.rs
       line: 137
   - label: cookie_lifecycle (3)
@@ -3092,7 +3088,7 @@ sources:
     snippet: The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
-      line: 299
+      line: 322
     - file: lint-http-rules/src/violations/cookie.rs
       line: 619
   - label: cookie_lifecycle (4)
@@ -3100,13 +3096,13 @@ sources:
     snippet: Cookies with longer paths are listed before cookies with shorter paths.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
-      line: 273
+      line: 296
   - label: cookie_lifecycle (5)
     section: § 5.4
     snippet: 'The user agent MUST use an algorithm equivalent to the following algorithm to compute the "cookie-string" from a cookie store and a request-uri:'
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
-      line: 71
+      line: 73
   - label: cookie_path_valid
     section: § 5.2
     snippet: If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows.
@@ -3118,7 +3114,7 @@ sources:
     snippet: 'Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 99
+      line: 101
     - file: lint-http-rules/src/violations/cookie.rs
       line: 207
     - file: lint-http-rules/src/violations/cookie.rs
@@ -3142,13 +3138,13 @@ sources:
     snippet: cookie-av         = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 218
+      line: 242
   - label: lint-http-rules/src/helpers/cookie.rs (3)
     section: § 4.1.1
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 250
+      line: 274
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 199
     - file: lint-http-rules/src/rules/cookie_pair_valid.rs
@@ -3160,19 +3156,19 @@ sources:
     snippet: cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE ) cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 472
+      line: 511
   - label: lint-http-rules/src/helpers/cookie.rs (5)
     section: § 4.1.1
     snippet: set-cookie-string = cookie-pair *( ";" SP cookie-av )
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 280
+      line: 304
   - label: no-such-date
     section: § 5.1.1
     snippet: If no such date exists, abort these steps and fail to parse the cookie-date.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 670
+      line: 711
     - file: lint-http-rules/src/violations/cookie.rs
       line: 549
   - label: lint-http-rules/src/helpers/cookie.rs (6)
@@ -3180,97 +3176,97 @@ sources:
     snippet: If the year-value is greater than or equal to 70 and less than or
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 647
+      line: 688
   - label: lint-http-rules/src/helpers/cookie.rs (7)
     section: § 5.1.1
     snippet: The user agent MUST use an algorithm equivalent to the following algorithm to parse a cookie-date.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 566
+      line: 607
   - label: lint-http-rules/src/helpers/cookie.rs (8)
     section: § 5.1.1
     snippet: day-of-month    = 1*2DIGIT ( non-digit *OCTET )
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 614
+      line: 655
   - label: lint-http-rules/src/helpers/cookie.rs (9)
     section: § 5.1.1
     snippet: delimiter       = %x09 / %x20-2F / %x3B-40 / %x5B-60 / %x7B-7E
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 569
+      line: 610
   - label: lint-http-rules/src/helpers/cookie.rs (10)
     section: § 5.1.1
     snippet: hms-time        = time-field ":" time-field ":" time-field
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 607
+      line: 648
   - label: lint-http-rules/src/helpers/cookie.rs (11)
     section: § 5.1.1
     snippet: month           = ( "jan" / "feb" / "mar" / "apr" /
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 621
+      line: 662
   - label: lint-http-rules/src/helpers/cookie.rs (12)
     section: § 5.1.1
     snippet: the day-of-month-value is less than 1 or greater than 31,
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 654
+      line: 695
   - label: lint-http-rules/src/helpers/cookie.rs (13)
     section: § 5.1.1
     snippet: year            = 2*4DIGIT ( non-digit *OCTET )
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 631
+      line: 672
   - label: cookie domain-match
     section: § 5.1.3
     snippet: A string domain-matches a given domain string if at least one of the following conditions hold
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 169
+      line: 171
   - label: cookie path-match
     section: § 5.1.4
     snippet: A request-path path-matches a given cookie-path if at least one of the following conditions holds
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 189
+      line: 213
   - label: lint-http-rules/src/helpers/cookie.rs (14)
     section: § 5.1.4
     snippet: If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 335
+      line: 363
   - label: lint-http-rules/src/helpers/cookie.rs (15)
     section: § 5.1.4
     snippet: Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/").
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 339
+      line: 367
   - label: lint-http-rules/src/helpers/cookie.rs (16)
     section: § 5.1.4
     snippet: 'The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 322
+      line: 350
   - label: lint-http-rules/src/helpers/cookie.rs (17)
     section: § 5.1.4
     snippet: output %x2F ("/") and skip the remaining steps.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 331
+      line: 359
   - label: lint-http-rules/src/helpers/cookie.rs (18)
     section: § 5.2.1
     snippet: If the attribute-name case-insensitively matches the string "Expires", the user agent MUST process the cookie-av as follows.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 226
+      line: 250
   - label: cookie Path attribute
     section: § 5.2.4
     snippet: 'If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 385
+      line: 418
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 431
     - file: lint-http-rules/src/violations/cookie.rs
@@ -3279,20 +3275,40 @@ sources:
       line: 182
     - file: lint-http-rules/src/violations/cookie.rs
       line: 195
+  - label: the host-only domain
+    section: § 5.3
+    snippet: Set the cookie's domain to the canonicalized request-host.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 342
   - label: lint-http-rules/src/helpers/cookie.rs (19)
     section: § 5.3
     snippet: Set the cookie's host-only-flag to true.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 304
+      line: 341
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 435
+      line: 468
+  - label: the secure-only requirement
+    section: § 5.4
+    snippet: If the cookie's secure-only-flag is true, then the request-uri's scheme must denote a "secure" protocol (as defined by the user agent).
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 205
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 582
   - label: lint-http-rules/src/helpers/cookie.rs (20)
     section: § 5.4
     snippet: The cookie's host-only-flag is true and the canonicalized request-host is identical to the cookie's domain.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 180
+      line: 182
+  - label: which schemes are secure
+    section: § 5.4
+    snippet: The notion of a "secure" protocol is not defined by this document.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 206
   - label: singleton_fields_not_repeated
     section: § 5.4
     snippet: When the user agent generates an HTTP request, the user agent MUST NOT attach more than one Cookie header field.
@@ -9444,6 +9460,16 @@ sources:
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 85
   - label: lint-http-rules/src/helpers/request_target.rs
+    section: § 4.2.2
+    snippet: Resources made available via the "https" scheme have no shared identity with the "http" scheme.  They are distinct origins with separate namespaces.
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 167
+    - file: lint-http-rules/src/rules/referer_uri_valid.rs
+      line: 520
+    - file: lint-http-rules/src/violations/referer.rs
+      line: 123
+  - label: lint-http-rules/src/helpers/request_target.rs (2)
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
     cited_by:
@@ -9453,7 +9479,7 @@ sources:
       line: 273
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 221
-  - label: lint-http-rules/src/helpers/request_target.rs (2)
+  - label: lint-http-rules/src/helpers/request_target.rs (3)
     section: § 7.2
     snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
     cited_by:
@@ -9465,7 +9491,7 @@ sources:
       line: 59
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 435
-  - label: lint-http-rules/src/helpers/request_target.rs (3)
+  - label: lint-http-rules/src/helpers/request_target.rs (4)
     section: § 7.2
     snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
     cited_by:
@@ -10570,14 +10596,6 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 518
   - label: referer_uri_valid (7)
-    section: § 4.2.2
-    snippet: Resources made available via the "https" scheme have no shared identity with the "http" scheme.  They are distinct origins with separate namespaces.
-    cited_by:
-    - file: lint-http-rules/src/rules/referer_uri_valid.rs
-      line: 520
-    - file: lint-http-rules/src/violations/referer.rs
-      line: 123
-  - label: referer_uri_valid (8)
     section: § 4.2.2
     snippet: The "https" URI scheme is hereby defined for minting identifiers within the hierarchical namespace governed by a potential origin server listening for TCP connections on a given port and capable of establishing a TLS ([TLS13]) connection that has been secured for HTTP communication.
     cited_by:
@@ -12573,6 +12591,8 @@ sources:
       line: 187
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 54
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 130
   - label: lint-http-proxy/src/proxy/http.rs (4)
     section: § 3.3
     snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
@@ -12591,6 +12611,8 @@ sources:
       line: 292
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 53
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 165
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 168
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
@@ -12612,11 +12634,19 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 88
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 161
+      line: 253
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 84
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 290
+  - label: the scheme comes from the connection
+    section: § 3.3
+    snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 166
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 343
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -12657,12 +12687,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 156
-  - label: redirect_chain_valid
-    section: § 3.3
-    snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
-    cited_by:
-    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 343
   - label: Content-Length not in a transfer-coded message
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.

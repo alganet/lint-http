@@ -55,19 +55,19 @@ enabled = true
 ### ✅ Good — different non-secure cookie over HTTP
 
 ```http
-> GET / HTTP/1.1
+> GET http://example.com/ HTTP/1.1
 > Host: example.com
 
 < HTTP/1.1 200 OK
 < Set-Cookie: id=secure; Secure; Path=/
 
-> GET /foo HTTP/1.1
+> GET http://example.com/foo HTTP/1.1
 > Host: example.com
 
 < HTTP/1.1 200 OK
 < Set-Cookie: id=plain; Path=/foo
 
-> GET /foo HTTP/1.1
+> GET http://example.com/foo HTTP/1.1
 > Host: example.com
 > Cookie: id=plain           # only the non-secure value is sent over HTTP
 ```
@@ -125,7 +125,21 @@ enabled = true
 ### ❌ Bad — secure cookie over HTTP
 
 ```http
-> GET /login HTTP/1.1
+> GET http://example.com/login HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Set-Cookie: sid=123; Secure
+
+> GET http://example.com/dashboard HTTP/1.1
+> Host: example.com
+> Cookie: sid=123            # insecure transport
+```
+
+### ✅ Good — a Secure cookie on a target that states no scheme
+
+```http
+> GET https://example.com/login HTTP/1.1
 > Host: example.com
 
 < HTTP/1.1 200 OK
@@ -133,5 +147,5 @@ enabled = true
 
 > GET /dashboard HTTP/1.1
 > Host: example.com
-> Cookie: sid=123            # insecure transport
+> Cookie: sid=123            # origin-form: the scheme is the connection's, not the target's
 ```

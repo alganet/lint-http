@@ -113,6 +113,98 @@ pub fn extract_authority_from_request_target(s: &str) -> Option<String> {
     Some(s_trim.to_string())
 }
 
+/// The host of the **target URI**, which for the ordinary HTTP/1.1 request is
+/// in `Host` and not in the request-target.
+///
+/// [`extract_host_from_request_target`] answers the narrower question of what
+/// the target *string* carries, and returns `None` for the three forms that
+/// carry no authority. A caller that then writes `.unwrap_or_default()` has
+/// turned "this target names no host" into "this request addressed the host
+/// whose name is the empty string", and every comparison against it is false:
+/// a cookie store keyed by host matches nothing, and a rule that reads a
+/// non-match as a defect reports one on every request.
+///
+/// `None` here is the answer [`target_uri_authority`] gives for the same
+/// reason — neither source has an authority — plus the case where the
+/// authority carries no host to read.
+// cite(RFC 9112 § 3.3): "If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field."
+// cite(RFC 3986 § 6.2.2.1): "the scheme and host are case-insensitive and therefore should be normalized to lowercase"
+pub fn target_uri_host(request_target: &str, request_headers: &hyper::HeaderMap) -> Option<String> {
+    let authority = target_uri_authority(request_target, request_headers)?;
+    let (_, host_and_port) = split_userinfo(&authority);
+    let (host, _) = split_host_and_port(host_and_port);
+    if host.is_empty() {
+        return None;
+    }
+    Some(host.to_ascii_lowercase())
+}
+
+/// What the request-target says about the security of the connection the
+/// request arrived on — which, for three of its four forms, is nothing.
+///
+/// **This is [`target_uri_authority`]'s question about the other component
+/// § 3.3 reconstructs, and it has no `Host` to fall back on.** The authority is
+/// missing from a target only when a field carries it instead; the scheme is
+/// missing whenever the target is not in absolute form, and what would supply
+/// it is the connection — secured or not — which no captured field records. So
+/// the third answer is not a degenerate case to be folded into one of the other
+/// two: it is the answer for the ordinary HTTP/1.1 request, whose target is in
+/// origin-form and carries a path and nothing else.
+///
+/// A caller that folds [`ConnectionSecurity::Unstated`] into
+/// [`ConnectionSecurity::Insecure`] says the request was in the clear on the
+/// evidence that the sender wrote a well-formed origin-form target. Over HTTP/2
+/// and HTTP/3 the question does not arise for a different reason than it does
+/// for the authority: `:scheme` reaches the capture inside the request-target,
+/// so those requests are in absolute form and answer.
+///
+/// [`scheme_authority_marker`] is what asks the form, because it takes only a
+/// `://` in the first component: a CONNECT target naming a host called `http`
+/// is authority-form and states no scheme, and a `://` inside a query parameter
+/// is data.
+// cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
+// cite(RFC 9112 § 3.3, label: the scheme comes from the connection): "Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http"."
+// cite(RFC 9110 § 4.2.2): "Resources made available via the "https" scheme have no shared identity with the "http" scheme.  They are distinct origins with separate namespaces."
+pub fn target_uri_security(request_target: &str) -> ConnectionSecurity {
+    let s = trim_ows(request_target);
+    let Some(marker) = scheme_authority_marker(s) else {
+        return ConnectionSecurity::Unstated;
+    };
+    let scheme = &s[..marker];
+    if scheme.eq_ignore_ascii_case("https") {
+        ConnectionSecurity::Secure
+    } else if scheme.eq_ignore_ascii_case("http") {
+        ConnectionSecurity::Insecure
+    } else {
+        // A scheme this specification says nothing about. `http` and `https`
+        // are the two whose security § 4.2 defines, and reading any other name
+        // as one of them is a guess about a namespace we were not given.
+        ConnectionSecurity::Unstated
+    }
+}
+
+/// The three answers [`target_uri_security`] has, kept apart because a rule
+/// that concludes something adverse from "not secure" needs the third one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionSecurity {
+    /// The target is in absolute form with an `https` scheme.
+    Secure,
+    /// The target is in absolute form with an `http` scheme.
+    Insecure,
+    /// The target states no scheme at all — origin-form, authority-form or
+    /// asterisk-form — or names a scheme other than the two § 4.2 defines.
+    Unstated,
+}
+
+impl ConnectionSecurity {
+    /// Whether this is positive evidence that the request crossed an unsecured
+    /// connection. [`Self::Unstated`] is not: it is the absence of evidence,
+    /// and the only reading a request-target with no scheme supports.
+    pub fn is_known_insecure(self) -> bool {
+        self == Self::Insecure
+    }
+}
+
 /// Extract the host portion (without port) from an absolute URI or
 /// request-target. Only absolute-form URIs (`scheme://host...`) contain a
 /// host; origin-form targets (starting with `/`) and the special `*` or
@@ -488,6 +580,95 @@ mod tests {
         // with a 400, and neither line is the authority.
         assert_eq!(
             target_uri_authority("/path", &host(&["a.example", "b.example"])),
+            None
+        );
+    }
+    /// The scheme is in the request-target for one of its four forms, and the
+    /// third answer is what the other three get.
+    ///
+    /// The case that matters is `/path`: the ordinary HTTP/1.1 request-target,
+    /// which three rules in this crate read as `http` and accused a conforming
+    /// user agent on.
+    #[test]
+    fn a_target_states_its_scheme_only_in_absolute_form() {
+        use ConnectionSecurity::{Insecure, Secure, Unstated};
+
+        assert_eq!(target_uri_security("https://example.com/p"), Secure);
+        assert_eq!(target_uri_security("HTTPS://example.com/p"), Secure);
+        assert_eq!(target_uri_security("http://example.com/p"), Insecure);
+        assert_eq!(target_uri_security("HTTP://example.com/p"), Insecure);
+
+        // The three forms that carry no scheme.
+        assert_eq!(target_uri_security("/path"), Unstated);
+        assert_eq!(target_uri_security("*"), Unstated);
+        assert_eq!(target_uri_security("example.com:443"), Unstated);
+
+        // An authority-form CONNECT target whose host is spelled like a
+        // scheme. `scheme_authority_marker` is what keeps this from reading
+        // one, because there is no `://`.
+        assert_eq!(target_uri_security("http:443"), Unstated);
+        assert_eq!(target_uri_security("https:443"), Unstated);
+
+        // A `://` past the first component is data, and the everyday case is a
+        // URL in a query parameter. Reading a scheme out of it would call an
+        // unknown channel secure.
+        assert_eq!(
+            target_uri_security("/login?next=https://example.com/"),
+            Unstated
+        );
+        assert_eq!(
+            target_uri_security("http://a.example/r?to=https://b.example/"),
+            Insecure
+        );
+
+        // A scheme § 4.2 says nothing about is not evidence either way.
+        assert_eq!(target_uri_security("ftp://example.com/p"), Unstated);
+        assert_eq!(target_uri_security("wss://example.com/p"), Unstated);
+    }
+
+    /// `None` and `Some("")` are the two answers a caller kept collapsing, and
+    /// only one of them is a host.
+    #[test]
+    fn the_target_uri_host_comes_from_host_when_the_target_has_none() {
+        let host = |lines: &[&str]| {
+            let mut h = hyper::HeaderMap::new();
+            for l in lines {
+                h.append(
+                    hyper::header::HeaderName::from_static("host"),
+                    hyper::header::HeaderValue::from_str(l).expect("a test Host value"),
+                );
+            }
+            h
+        };
+
+        assert_eq!(
+            target_uri_host("/account", &host(&["Example.COM:8080"])),
+            Some("example.com".into())
+        );
+        assert_eq!(
+            target_uri_host("*", &host(&["example.com"])),
+            Some("example.com".into())
+        );
+        // The target's own authority wins, and its userinfo and port are not
+        // the host.
+        assert_eq!(
+            target_uri_host(
+                "https://u:p@Origin.Example:443/x",
+                &host(&["other.example"])
+            ),
+            Some("origin.example".into())
+        );
+        // An IP-literal keeps the colons that are inside its brackets.
+        assert_eq!(
+            target_uri_host("/x", &host(&["[2001:db8::1]:8080"])),
+            Some("[2001:db8::1]".into())
+        );
+
+        // Nothing names a host. Not the empty string: nothing.
+        assert_eq!(target_uri_host("/account", &host(&[])), None);
+        assert_eq!(target_uri_host("/account", &host(&[""])), None);
+        assert_eq!(
+            target_uri_host("/account", &host(&["a.example", "b.example"])),
             None
         );
     }
