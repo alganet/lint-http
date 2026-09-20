@@ -10,7 +10,7 @@ SPDX-License-Identifier: ISC
 
 Validates the `TE` request header field — the transfer codings a client is able to accept in a response, and whether it will keep a trailer section.
 
-The field is `TE = [ t-codings *( OWS "," OWS t-codings ) ]` (RFC 9110 §A) and a member is `t-codings = "trailers" / ( transfer-coding [ weight ] )` (§10.1.4). `trailers` is a keyword occupying the whole of its alternative, so it takes neither a parameter nor a weight — the alternative that admits either is the other one. A coding may carry `transfer-parameter = token BWS "=" BWS ( token / quoted-string )` parameters and a `weight`, whose `q` is a `qvalue`: 0 or 1 with at most three digits after the point (§12.4.2), matched case-insensitively because RFC 9112 §7.3 says the pseudo-parameter's name is. Whitespace around a *parameter's* `=` is `BWS`, which the production admits for historical reasons only and which a sender MUST NOT generate (§5.6.3); around the *weight's* `=` it is not admitted at all, since `weight = OWS ";" OWS "q=" qvalue` prints `q=` as one literal — the same three characters of whitespace, two productions, and only one of them has a sentence about bad whitespace to quote. No member may be empty (§5.6.1.1) — `TE: deflate,,gzip` is a list a sender must not generate — while an **empty field value** is a different thing and is not reported: `TE:` is a list of no members, and RFC 9112 §7.4 prints it as one of its three examples and says what it means (only `chunked` is acceptable).
+The field is `TE = [ t-codings *( OWS "," OWS t-codings ) ]` (RFC 9110 §A) and a member is `t-codings = "trailers" / ( transfer-coding [ weight ] )` (§10.1.4). `trailers` is a keyword occupying the whole of its alternative, so it takes neither a parameter nor a weight — the alternative that admits either is the other one. A coding may carry `transfer-parameter = token BWS "=" BWS ( token / quoted-string )` parameters and a `weight`, whose `q` is a `qvalue`: 0 or 1 with at most three digits after the point (§12.4.2), matched case-insensitively because RFC 9112 §7.3 says the pseudo-parameter's name is. Whitespace around a *parameter's* `=` is `BWS`, which the production admits for historical reasons only and which a sender MUST NOT generate (§5.6.3); around the *weight's* `=` it is not admitted at all, since `weight = OWS ";" OWS "q=" qvalue` prints `q=` as one literal — the same three characters of whitespace, two productions, and only one of them has a sentence about bad whitespace to quote. A member may carry **one** weight: `[ weight ]` brackets a single construct, and a `q` is the rank rather than a `transfer-parameter` — RFC 9112 §7.3 calls it a pseudo-parameter and tells future transfer codings not to define one by that name — so `TE: gzip;q=0.5;q=0.8` states a preference twice and draws the duplicate-weight entry the four content-negotiation fields already use. No member may be empty (§5.6.1.1) — `TE: deflate,,gzip` is a list a sender must not generate — while an **empty field value** is a different thing and is not reported: `TE:` is a list of no members, and RFC 9112 §7.4 prints it as one of its three examples and says what it means (only `chunked` is acceptable).
 
 **The coding name itself is not measured here.** `transfer-coding` is a `token`, and `transfer_coding_registered` is the rule that reads the names `TE` and `Transfer-Encoding` carry: it reports a name that is not a token, a member naming no coding at all, an unrecognized name, and `chunked` in `TE` — which RFC 9112 §7.4 forbids outright, since a client cannot decline a coding that is always acceptable. This rule owns what follows the name.
 
@@ -37,6 +37,7 @@ Scope: this rule reads a request's header section, and a response's only to repo
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
 - [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
 - [transfer_coding_parameter_missing](../violations/transfer_coding_parameter_missing.md) — A coding writes a ';' with no parameter after it
+- [weight_duplicated](../violations/weight_duplicated.md) — Member carries more than one weight
 - [weight_equals_whitespace_forbidden](../violations/weight_equals_whitespace_forbidden.md) — Whitespace is written beside the weight's '='
 
 ## Specifications
@@ -99,6 +100,15 @@ GET /resource HTTP/1.1
 Host: example.com
 Connection: TE
 TE: trailers;q=0.5
+```
+
+### ❌ Bad (two weights on one coding)
+
+```http
+GET /resource HTTP/1.1
+Host: example.com
+Connection: TE
+TE: deflate;q=0.5;q=0.8
 ```
 
 ### ❌ Bad (an empty list element)

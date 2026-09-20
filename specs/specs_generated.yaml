@@ -5970,7 +5970,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 157
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 215
+      line: 221
   - label: accept_and_content_type_negotiation (7)
     section: § 12.5.1
     snippet: If more than one media range applies to a given type, the most specific reference has precedence.
@@ -5984,7 +5984,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 258
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 442
+      line: 400
+    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
+      line: 483
   - label: accept_and_content_type_negotiation (9)
     section: § 12.5.1
     snippet: The "Accept" header field can be used by user agents to specify their preferences regarding response media types.
@@ -5992,7 +5994,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 80
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 133
+      line: 134
   - label: accept_and_content_type_negotiation (10)
     section: § 12.5.1
     snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
@@ -6018,7 +6020,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 246
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 247
+      line: 253
   - label: accept_and_content_type_negotiation (13)
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
@@ -6054,7 +6056,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 361
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 441
+      line: 482
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 226
     - file: lint-http-rules/src/violations/qvalue.rs
@@ -6068,15 +6070,15 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 211
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 454
+      line: 495
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 166
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 313
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 144
+      line: 145
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 328
+      line: 356
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 121
     - file: lint-http-rules/src/violations/qvalue.rs
@@ -6300,39 +6302,45 @@ sources:
     snippet: A sender of qvalue MUST NOT generate more than three digits after the decimal point.
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 467
+      line: 508
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 339
+      line: 367
   - label: accept_header_media_type_syntax (2)
     section: § 12.5.1
     snippet: Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2).
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 216
+      line: 222
   - label: accept_header_media_type_syntax (3)
+    section: § 12.5.1
+    snippet: 'Note: Use of the "q" parameter name to control content negotiation would interfere with any media type parameter having the same name. Hence, the media type registry disallows parameters named "q".'
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
+      line: 399
+  - label: accept_header_media_type_syntax (4)
     section: § 12.5.1
     snippet: Senders using weights SHOULD send "q" last (after all media-range parameters).
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 372
-  - label: accept_header_media_type_syntax (4)
+      line: 378
+  - label: accept_header_media_type_syntax (5)
     section: § 12.5.1
     snippet: The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields.
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 371
-  - label: accept_header_media_type_syntax (5)
+      line: 377
+  - label: accept_header_media_type_syntax (6)
     section: § 12.5.1
     snippet: When sent by a server in a response, Accept provides information about which content types are preferred in the content of a subsequent request to the same resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 134
-  - label: accept_header_media_type_syntax (6)
+      line: 135
+  - label: accept_header_media_type_syntax (7)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 262
+      line: 268
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 48
   - label: accept_language_weight_valid
@@ -7416,9 +7424,9 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 225
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 498
+      line: 526
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 591
+      line: 624
   - label: context_fields_direction (6)
     section: § 10.1.5
     snippet: The "User-Agent" header field contains information about the user agent originating the request
@@ -7916,9 +7924,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 238
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 236
+      line: 242
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 562
+      line: 603
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 379
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -8220,7 +8228,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 150
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 586
+      line: 627
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 335
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
@@ -8408,7 +8416,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 257
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 584
+      line: 625
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 133
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -8452,7 +8460,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 258
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 585
+      line: 626
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 182
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
@@ -8568,7 +8576,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 41
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 84
+      line: 85
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 5.6.1
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
@@ -8994,7 +9002,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 237
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 561
+      line: 602
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 181
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -9112,7 +9120,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 247
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 100
+      line: 101
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 220
   - label: lint-http-rules/src/helpers/media_type.rs (2)
@@ -9122,7 +9130,7 @@ sources:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 331
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 485
+      line: 526
     - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
       line: 291
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -9152,7 +9160,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 110
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 418
+      line: 459
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 566
   - label: parameter-value grammar
@@ -9180,7 +9188,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 81
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
-      line: 235
+      line: 241
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 564
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -9886,7 +9894,9 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 275
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 165
+      line: 166
+    - file: lint-http-rules/src/rules/te_header_valid.rs
+      line: 196
     - file: lint-http-rules/src/violations/te.rs
       line: 144
   - label: no_connection_specific_fields (2)
@@ -9896,9 +9906,9 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 276
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 122
+      line: 123
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 258
+      line: 267
   - label: options_method_capabilities
     section: § 10.2.1
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
@@ -10056,7 +10066,7 @@ sources:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 131
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 223
+      line: 232
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 75
   - label: range_and_content_range_consistent
@@ -11058,7 +11068,7 @@ sources:
     snippet: A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 245
+      line: 254
     - file: lint-http-rules/src/violations/te.rs
       line: 170
   - label: te_header_valid (2)
@@ -11066,7 +11076,7 @@ sources:
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 85
+      line: 86
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 522
   - label: te_header_valid (3)
@@ -11074,21 +11084,21 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 285
+      line: 295
   - label: te_header_valid (4)
     section: § A
     snippet: TE = [ t-codings *( OWS "," OWS t-codings ) ]
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 98
+      line: 99
   - label: transfer-coding
     section: § A
     snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 143
+      line: 144
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 188
+      line: 189
     - file: lint-http-rules/src/violations/transfer_coding.rs
       line: 66
   - label: timing_allow_origin_valid
@@ -12711,30 +12721,36 @@ sources:
       line: 118
   - label: te_header_valid
     section: § 7.3
+    snippet: Future registrations of transfer codings SHOULD NOT define parameters called "q" (case-insensitively) in order to avoid ambiguities.
+    cited_by:
+    - file: lint-http-rules/src/rules/te_header_valid.rs
+      line: 338
+  - label: te_header_valid (2)
+    section: § 7.3
     snippet: The TE header field (Section 10.1.4 of [HTTP]) uses a pseudo-parameter named "q" as the rank value when multiple transfer codings are acceptable.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 319
-  - label: te_header_valid (2)
+      line: 329
+  - label: te_header_valid (3)
     section: § 7.4
     snippet: If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 99
+      line: 100
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 521
-  - label: te_header_valid (3)
+  - label: te_header_valid (4)
     section: § 7.4
     snippet: Since the TE header field only applies to the immediate connection, a sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1 of [HTTP]) in order to prevent the TE header field from being forwarded by intermediaries that do not support its semantics.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 246
-  - label: te_header_valid (4)
+      line: 255
+  - label: te_header_valid (5)
     section: § 7.4
     snippet: When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 320
+      line: 330
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 407
   - label: transfer_coding
@@ -12995,7 +13011,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 183
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 224
+      line: 233
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 77
     - file: lint-http-rules/src/violations/field.rs
@@ -13055,7 +13071,7 @@ sources:
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 225
+      line: 234
     - file: lint-http-rules/src/violations/te.rs
       line: 96
 - label: RFC 9114
@@ -13416,7 +13432,7 @@ sources:
     snippet: An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 226
+      line: 235
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 79
     - file: lint-http-rules/src/violations/field.rs

@@ -216,6 +216,20 @@ defects! {
     /// the fields carrying a construct, written from the rules that carry it,
     /// can only count the fields somebody already built a reader for. The list
     /// belongs to the specification and is now taken from there.
+    ///
+    /// **And then the list was right and the declarers were three.** A sentence
+    /// naming five sections sat above a set of three rules for as long as the
+    /// correction above had been in place: `Accept` answered a second `q` with
+    /// [`MEDIA_RANGE_PARAMETER_FORBIDDEN`](crate::violations::media_range::MEDIA_RANGE_PARAMETER_FORBIDDEN),
+    /// which named a construct § 12.5.1 says cannot be there — the media type
+    /// registry disallows a parameter called `q`, and a recipient reads any
+    /// parameter so named as the weight wherever it sits — and `TE` said
+    /// nothing at all, its parameter walk judging one segment at a time with no
+    /// count of how many were weights. Both now report here, and
+    /// `the_bracket_is_read_by_every_field_that_prints_it` is the census as a
+    /// test: the prose names the sections and the assertion names the rules, so
+    /// a sixth field cannot be written down without a reader or read without
+    /// being written down.
     /// `every_violation_spec_is_declared_by_its_rule` compares a def's
     /// references against *each* declaring rule's, so a shared entry may only
     /// name a sentence every declarer states, and no rule here states another
@@ -273,7 +287,7 @@ mod tests {
     }
 
     /// The one entry in this subject that names no sentence, and the assertion
-    /// is what keeps the reason honest: four sections print `[ weight ]`, one
+    /// is what keeps the reason honest: five sections print `[ weight ]`, one
     /// per field, and a shared entry may only cite what every declarer states.
     /// If a single sentence is ever found that bounds the repetition for all of
     /// them, this is the test that has to change first.
@@ -281,5 +295,40 @@ mod tests {
     fn the_bracket_is_written_once_per_field_so_the_entry_names_none_of_them() {
         assert!(WEIGHT_DUPLICATED.spec.is_empty());
         assert!(!WEIGHT_MISSING.spec.is_empty());
+    }
+
+    /// The doc above names five sections; this names the five rules, and the
+    /// two lists are one claim read from opposite ends. It was three for as
+    /// long as nobody read it that way: a count of the fields sharing an entry
+    /// taken from the entry's prose says what the specification prints, and a
+    /// count taken from the catalogue says what somebody built — and only
+    /// comparing them says which fields write the construct and do not report
+    /// it.
+    ///
+    /// Equality and not a floor. A sixth declarer is a field whose production
+    /// was never checked for the bracket, and a fifth is one that lost its
+    /// reader; both are the finding, so neither direction may pass quietly.
+    #[test]
+    fn the_bracket_is_read_by_every_field_that_prints_it() {
+        let mut declarers: Vec<&str> = crate::rules::all_rules()
+            .filter(|r| r.violations().iter().any(|d| d.id == WEIGHT_DUPLICATED.id))
+            .map(|r| r.id())
+            .collect();
+        declarers.sort_unstable();
+        assert_eq!(
+            declarers,
+            [
+                // RFC 9110 § 12.5.2
+                "accept_charset_valid",
+                // RFC 9110 § 12.5.3
+                "accept_encoding_parameter_valid",
+                // RFC 9110 § 12.5.1
+                "accept_header_media_type_syntax",
+                // RFC 9110 § 12.5.4
+                "accept_language_weight_valid",
+                // RFC 9110 § 10.1.4, through `t-codings`
+                "te_header_valid",
+            ],
+        );
     }
 }

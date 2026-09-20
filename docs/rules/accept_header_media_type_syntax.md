@@ -14,6 +14,8 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 
 **A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.
 
+**A second `q` is not one of those parameters.** §12.5.1 records that the media type registry disallows a parameter named `q`, and the sentence above it has a recipient read any parameter of that name as the weight wherever it sits — so `text/html;q=0.5;q=0.8` holds two weights and no parameter at all, and `[ weight ]` brackets one. It draws the duplicate-weight entry the other four fields carrying a weight already use. Reported as a parameter past the weight, it sent the sender after an extension grammar they were not writing.
+
 **Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.
 
 **Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.
@@ -42,6 +44,7 @@ Check that an `Accept` header reads as `#( media-range [ weight ] )`: each membe
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
 - [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
+- [weight_duplicated](../violations/weight_duplicated.md) — Member carries more than one weight
 - [weight_equals_whitespace_forbidden](../violations/weight_equals_whitespace_forbidden.md) — Whitespace is written beside the weight's '='
 
 ## Specifications
@@ -110,6 +113,12 @@ Accept: text/html; q=1.0000
 
 ```http
 Accept: text/html; q=0.5; charset=utf-8
+```
+
+### ❌ Bad (a second "q" is a second weight, not a parameter)
+
+```http
+Accept: text/html; q=0.5; q=0.8
 ```
 
 ### ❌ Bad (a parameter is a name, an "=", and a value)

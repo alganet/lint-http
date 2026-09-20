@@ -20,7 +20,7 @@ use crate::violations::quoted_string::{
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::qvalue::{
-    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
+    QVALUE_MALFORMED, RFC_9110_12_4_2, WEIGHT_DUPLICATED, WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
 };
 use crate::violations::te::{
     RFC_9110_10_1_4, RFC_9110_A, TE_CONNECTION_OPTION_MISSING, TE_TRAILERS_PARAMETER_FORBIDDEN,
@@ -51,6 +51,7 @@ use crate::violations::ViolationDef;
 /// of their own.
 static DECLARED: &[&ViolationDef] = &[
     &BWS_FORBIDDEN,
+    &WEIGHT_DUPLICATED,
     &WEIGHT_EQUALS_WHITESPACE_FORBIDDEN,
     &TRANSFER_CODING_PARAMETER_MISSING,
     &TE_TRAILERS_PARAMETER_FORBIDDEN,
@@ -186,8 +187,16 @@ impl TeHeaderValid {
             // question; this one owns what follows the name.
             //
             // cite(RFC 9110 § A): "transfer-coding = token *( OWS ";" OWS transfer-parameter )"
+            // The weight is the one thing a member may carry once, and the walk
+            // below is the only place that can see twice: `check_parameter`
+            // reads one segment and a second `q` is a well-formed weight read on
+            // its own. The count is the caller's because the bracket is the
+            // member's.
+            //
+            // cite(RFC 9110 § A): "t-codings = "trailers" / ( transfer-coding [ weight ] )"
+            let mut weight_seen = false;
             for parameter in segments.iter().skip(1) {
-                if let Some(v) = self.check_parameter(member, parameter, ctx) {
+                if let Some(v) = self.check_parameter(member, parameter, &mut weight_seen, ctx) {
                     out.push(v);
                     continue 'member;
                 }
@@ -260,6 +269,7 @@ impl TeHeaderValid {
         &self,
         member: &str,
         parameter: &str,
+        weight_seen: &mut bool,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The `"="` is not optional in either production, so a segment written
@@ -319,6 +329,24 @@ impl TeHeaderValid {
         // cite(RFC 9112 § 7.3): "The TE header field (Section 10.1.4 of [HTTP]) uses a pseudo-parameter named "q" as the rank value when multiple transfer codings are acceptable."
         // cite(RFC 9112 § 7.4): "When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP])."
         if name.eq_ignore_ascii_case("q") {
+            // Two of them is a preference the sender stated twice, and the bracket
+            // admits one. Asked before the value is read, because what makes this a
+            // second weight rather than a second parameter is the name: § 7.3 tells
+            // future transfer codings not to define one called `q` precisely so that
+            // the name can be read as the rank and nothing else.
+            //
+            // cite(RFC 9112 § 7.3): "Future registrations of transfer codings SHOULD NOT define parameters called "q" (case-insensitively) in order to avoid ambiguities."
+            if *weight_seen {
+                return Some(ctx.by_client().report_with(
+                    &WEIGHT_DUPLICATED,
+                    format!(
+                        "More than one weight in TE member '{}': §10.1.4 brackets one",
+                        shown_in_finding(member)
+                    ),
+                ));
+            }
+            *weight_seen = true;
+
             // The weight is not a `transfer-parameter`, so the `BWS` its neighbours may
             // carry is not admitted here at all: `weight` prints `"q="` as one literal
             // with nothing optional inside it. Reporting this as bad whitespace would
@@ -457,7 +485,7 @@ impl RuleMeta for TeHeaderValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validates the `TE` request header field — the transfer codings a client is able to accept in a response, and whether it will keep a trailer section.\n\nThe field is `TE = [ t-codings *( OWS \",\" OWS t-codings ) ]` (RFC 9110 §A) and a member is `t-codings = \"trailers\" / ( transfer-coding [ weight ] )` (§10.1.4). `trailers` is a keyword occupying the whole of its alternative, so it takes neither a parameter nor a weight — the alternative that admits either is the other one. A coding may carry `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )` parameters and a `weight`, whose `q` is a `qvalue`: 0 or 1 with at most three digits after the point (§12.4.2), matched case-insensitively because RFC 9112 §7.3 says the pseudo-parameter's name is. Whitespace around a *parameter's* `=` is `BWS`, which the production admits for historical reasons only and which a sender MUST NOT generate (§5.6.3); around the *weight's* `=` it is not admitted at all, since `weight = OWS \";\" OWS \"q=\" qvalue` prints `q=` as one literal — the same three characters of whitespace, two productions, and only one of them has a sentence about bad whitespace to quote. No member may be empty (§5.6.1.1) — `TE: deflate,,gzip` is a list a sender must not generate — while an **empty field value** is a different thing and is not reported: `TE:` is a list of no members, and RFC 9112 §7.4 prints it as one of its three examples and says what it means (only `chunked` is acceptable).\n\n**The coding name itself is not measured here.** `transfer-coding` is a `token`, and `transfer_coding_registered` is the rule that reads the names `TE` and `Transfer-Encoding` carry: it reports a name that is not a token, a member naming no coding at all, an unrecognized name, and `chunked` in `TE` — which RFC 9112 §7.4 forbids outright, since a client cannot decline a coding that is always acceptable. This rule owns what follows the name.\n\nA sender of `TE` MUST also send a `TE` connection option within `Connection` (§10.1.4), which is what stops an intermediary from forwarding a field that applies to one hop. **That requirement is asked only of the versions of HTTP that have a `Connection` field.** HTTP/2 and HTTP/3 convey connection-specific metadata by other means, and an endpoint MUST NOT generate a message carrying the field at all (RFC 9113 §8.2.2, RFC 9114 §4.2) — so a request over those versions is not reported for omitting an option it is not allowed to send. What a `TE` value may hold there — `trailers` and nothing else — is those documents' requirement rather than this rule's; `no_connection_specific_fields` reports it for both of them.\n\nScope: this rule reads a request's header section, and a response's only to report that the field is there. Where the field appears on several lines in one section they are one value (§5.2), so an empty member written at a line boundary is an empty member. A value carrying an octet outside US-ASCII is measured rather than skipped: `obs-text` is an octet `field-content` admits and neither `token` nor `qvalue` does, so it is reported at the parameter that carried it instead of turning the whole field — and the connection-option requirement with it — into silence. Whether `TE` may appear in a **trailer** section is §6.5.1's question and `trailer_fields_valid`'s, which holds the table `TE` is listed in.\n\n**A response carrying `TE` is reported, and RFC 9110 states no prohibition.** §10.1 gathers the request context fields and §10.1.4 defines this one as describing the client's capabilities; no sentence gives a `TE` in a response a meaning, and none forbids one in so many words either. The finding says that and no more. **It is asked only of a response carried by HTTP/1.x.** Over HTTP/2 and HTTP/3 there is a MUST NOT — a response is not the request their exception is written for, so the field is connection-specific there and the message is malformed — and `no_connection_specific_fields` reports it on each with that version's own sentence, which is the stronger of the two readings. Reporting it here as well would be two findings for one field."
+        "Validates the `TE` request header field — the transfer codings a client is able to accept in a response, and whether it will keep a trailer section.\n\nThe field is `TE = [ t-codings *( OWS \",\" OWS t-codings ) ]` (RFC 9110 §A) and a member is `t-codings = \"trailers\" / ( transfer-coding [ weight ] )` (§10.1.4). `trailers` is a keyword occupying the whole of its alternative, so it takes neither a parameter nor a weight — the alternative that admits either is the other one. A coding may carry `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )` parameters and a `weight`, whose `q` is a `qvalue`: 0 or 1 with at most three digits after the point (§12.4.2), matched case-insensitively because RFC 9112 §7.3 says the pseudo-parameter's name is. Whitespace around a *parameter's* `=` is `BWS`, which the production admits for historical reasons only and which a sender MUST NOT generate (§5.6.3); around the *weight's* `=` it is not admitted at all, since `weight = OWS \";\" OWS \"q=\" qvalue` prints `q=` as one literal — the same three characters of whitespace, two productions, and only one of them has a sentence about bad whitespace to quote. A member may carry **one** weight: `[ weight ]` brackets a single construct, and a `q` is the rank rather than a `transfer-parameter` — RFC 9112 §7.3 calls it a pseudo-parameter and tells future transfer codings not to define one by that name — so `TE: gzip;q=0.5;q=0.8` states a preference twice and draws the duplicate-weight entry the four content-negotiation fields already use. No member may be empty (§5.6.1.1) — `TE: deflate,,gzip` is a list a sender must not generate — while an **empty field value** is a different thing and is not reported: `TE:` is a list of no members, and RFC 9112 §7.4 prints it as one of its three examples and says what it means (only `chunked` is acceptable).\n\n**The coding name itself is not measured here.** `transfer-coding` is a `token`, and `transfer_coding_registered` is the rule that reads the names `TE` and `Transfer-Encoding` carry: it reports a name that is not a token, a member naming no coding at all, an unrecognized name, and `chunked` in `TE` — which RFC 9112 §7.4 forbids outright, since a client cannot decline a coding that is always acceptable. This rule owns what follows the name.\n\nA sender of `TE` MUST also send a `TE` connection option within `Connection` (§10.1.4), which is what stops an intermediary from forwarding a field that applies to one hop. **That requirement is asked only of the versions of HTTP that have a `Connection` field.** HTTP/2 and HTTP/3 convey connection-specific metadata by other means, and an endpoint MUST NOT generate a message carrying the field at all (RFC 9113 §8.2.2, RFC 9114 §4.2) — so a request over those versions is not reported for omitting an option it is not allowed to send. What a `TE` value may hold there — `trailers` and nothing else — is those documents' requirement rather than this rule's; `no_connection_specific_fields` reports it for both of them.\n\nScope: this rule reads a request's header section, and a response's only to report that the field is there. Where the field appears on several lines in one section they are one value (§5.2), so an empty member written at a line boundary is an empty member. A value carrying an octet outside US-ASCII is measured rather than skipped: `obs-text` is an octet `field-content` admits and neither `token` nor `qvalue` does, so it is reported at the parameter that carried it instead of turning the whole field — and the connection-option requirement with it — into silence. Whether `TE` may appear in a **trailer** section is §6.5.1's question and `trailer_fields_valid`'s, which holds the table `TE` is listed in.\n\n**A response carrying `TE` is reported, and RFC 9110 states no prohibition.** §10.1 gathers the request context fields and §10.1.4 defines this one as describing the client's capabilities; no sentence gives a `TE` in a response a meaning, and none forbids one in so many words either. The finding says that and no more. **It is asked only of a response carried by HTTP/1.x.** Over HTTP/2 and HTTP/3 there is a MUST NOT — a response is not the request their exception is written for, so the field is connection-specific there and the message is malformed — and `no_connection_specific_fields` reports it on each with that version's own sentence, which is the stronger of the two readings. Reporting it here as well would be two findings for one field."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -535,6 +563,11 @@ impl RuleMeta for TeHeaderValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(a weight on the trailers keyword)"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: TE\nTE: trailers;q=0.5",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(two weights on one coding)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: TE\nTE: deflate;q=0.5;q=0.8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -904,6 +937,13 @@ mod tests {
     #[case(b"deflate;q=1.0000", "qvalue")]
     #[case(b"deflate;q=.5", "qvalue")]
     #[case(b"deflate;q=\"0.5\"", "qvalue")]
+    // `[ weight ]` brackets one, and the count is the member's rather than the
+    // segment's: read one at a time, a second `q=0.8` is a well-formed weight
+    // and nothing said so. A `transfer-parameter` named `q` is what § 7.3 tells
+    // future codings not to define, so the name is the whole of the test.
+    #[case(b"gzip;q=0.5;q=0.8", "More than one weight")]
+    #[case(b"gzip;q=0.5;Q=0.8", "More than one weight")]
+    #[case(b"gzip;ext=x;q=0.5;q=0.8", "More than one weight")]
     fn a_parameter_the_production_does_not_generate_is_reported(
         #[case] value: &[u8],
         #[case] expected: &str,
@@ -1104,11 +1144,28 @@ mod tests {
     /// them was labelled for a finding the rule cannot emit: `TE: x!bad` under
     /// "(invalid token)", where `!` is a `tchar` and the value is a conforming coding
     /// name.
+    ///
+    /// **Drawing something was the whole test, and a label is a claim about
+    /// which something.** A snippet published under one label and reported
+    /// under a different entry passed here, which is how a NonCompliant example
+    /// can stop demonstrating what it was written for without any number
+    /// moving. Each one now names a fragment of the sentence it must draw, the
+    /// way `accept_header_media_type_syntax` already asks it — and an example
+    /// added without an entry is a failure rather than a pass.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
         use crate::rules::{Compliance, RuleMeta as _};
 
         let rule = TeHeaderValid;
+        // The published snippet, and a fragment of the finding it is published
+        // to demonstrate.
+        let reasons: [(&str, &str); 5] = [
+            ("TE: deflate;q=0.8", "without a 'TE' connection option"),
+            ("TE: trailers;q=0.5", "trailers"),
+            ("TE: deflate;q=0.5;q=0.8", "More than one weight"),
+            ("TE: deflate,,gzip", "empty member"),
+            ("TE: trailers", "response"),
+        ];
         let mut saw_a_finding = false;
         for ex in rule.examples() {
             let mut lines = ex.snippet.lines();
@@ -1164,9 +1221,28 @@ mod tests {
                     ex.snippet
                 ),
                 Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    // The `TE` line is what the label is about; the rest of the
+                    // snippet is the message it had to be written into.
+                    let te_line = ex
+                        .snippet
+                        .lines()
+                        .find(|l| l.to_ascii_lowercase().starts_with("te:"))
+                        .unwrap_or_else(|| {
+                            panic!("NonCompliant example has no TE line: {:?}", ex.snippet)
+                        });
+                    let expected = *reasons
+                        .iter()
+                        .find(|(s, _)| *s == te_line)
+                        .map(|(_, reason)| reason)
+                        .unwrap_or_else(|| {
+                            panic!("NonCompliant example {te_line:?} has no expected finding here")
+                        });
                     assert!(
-                        found.is_some(),
-                        "rule accepts its NonCompliant example {:?}",
+                        found.message.contains(expected),
+                        "NonCompliant example {:?} should fail with {expected:?}: {found:?}",
                         ex.snippet
                     );
                     saw_a_finding = true;
