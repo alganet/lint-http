@@ -6063,12 +6063,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/accept_charset_valid.rs
       line: 188
+    - file: lint-http-rules/src/rules/charset_registered.rs
+      line: 358
   - label: accept_charset_valid (4)
     section: § 12.5.2
     snippet: Charset names are defined in Section 8.3.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_charset_valid.rs
       line: 262
+    - file: lint-http-rules/src/rules/charset_registered.rs
+      line: 359
   - label: accept_charset_valid (5)
     section: § 12.5.2
     snippet: The "Accept-Charset" header field can be sent by a user agent to indicate its preferences for charsets in textual response content.
@@ -6083,6 +6087,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/accept_charset_valid.rs
       line: 242
+    - file: lint-http-rules/src/rules/charset_registered.rs
+      line: 380
   - label: accept_encoding_parameter_valid
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
@@ -6826,7 +6832,7 @@ sources:
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
     cited_by:
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 122
+      line: 123
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 118
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -6842,7 +6848,9 @@ sources:
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 79
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 298
+      line: 299
+    - file: lint-http-rules/src/rules/charset_registered.rs
+      line: 389
   - label: compression_and_transfer_encoding_consistent
     section: § 10.1.4
     snippet: transfer-coding    = token *( OWS ";" OWS transfer-parameter )
@@ -8878,7 +8886,7 @@ sources:
     - file: lint-http-rules/src/helpers/shown.rs
       line: 43
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 334
+      line: 335
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 277
     - file: lint-http-rules/src/rules/content_type_valid.rs
@@ -9094,7 +9102,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 259
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 202
+      line: 203
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 291
   - label: lint-http-rules/src/helpers/media_type.rs (4)
