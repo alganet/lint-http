@@ -1008,7 +1008,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "server_timing_param_value_empty",
     "status_101_forbidden",
     "status_206_multipart_forbidden",
-    "status_304_metadata_forbidden",
     "status_416_unsolicited",
     "status_417_ignored",
     "status_trailers_forbidden",

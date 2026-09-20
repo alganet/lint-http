@@ -752,6 +752,9 @@ enabled = true
 [rules.status_200_vs_204_body_consistent]
 enabled = true
 
+[rules.status_304_representation_metadata]
+enabled = true
+
 [rules.status_3xx_vs_request_method]
 enabled = true
 

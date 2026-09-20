@@ -8,9 +8,7 @@ use crate::violations::content_coding::{
     CONTENT_CODING_REDUNDANT, CONTENT_CODING_WILDCARD_FORBIDDEN, RFC_9110_12_5_3, RFC_9110_8_4,
 };
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
-use crate::violations::status::{
-    RFC_9110_15_4_5, STATUS_304_METADATA_FORBIDDEN, STATUS_METADATA_REDUNDANT,
-};
+use crate::violations::status::STATUS_METADATA_REDUNDANT;
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -35,12 +33,20 @@ pub struct ContentEncodingAndTypeConsistent;
 /// because no production is broken by any of them.
 ///
 /// **The field on a response with no content is not this field's defect at
-/// all**, and it is two entries rather than one. The claim is about the status
-/// code — a coding header is unremarkable under any other one — so both live in
-/// [`status`](crate::violations::status): a 304 carrying representation metadata
-/// beyond the fields it owes, which § 15.4.5 states, and the same header on a
-/// `1xx` or `204`, which nothing states and this crate reports anyway. Splitting
-/// them is what keeps the stated finding out of the inference's reach.
+/// all.** The claim is about the status code — a coding header is unremarkable
+/// under any other one — so the entry lives in
+/// [`status`](crate::violations::status) rather than here. What is left of it in
+/// this rule is the `1xx`/`204` half, which nothing states and this crate
+/// reports anyway.
+///
+/// **The 304 half left with the entry it earned.** § 15.4.5 forbids
+/// *representation metadata*, which is a class of five fields and not this one,
+/// and a rule that reads `Content-Encoding` can answer for one member of it:
+/// the member no 304 in the wild sends. `status_304_representation_metadata`
+/// reads the class and declares
+/// [`STATUS_304_METADATA_FORBIDDEN`](crate::violations::status::STATUS_304_METADATA_FORBIDDEN).
+/// Keeping a second report site here would draw one entry twice on a 304
+/// carrying two of them.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -48,7 +54,6 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_EMPTY,
     &CONTENT_CODING_WILDCARD_FORBIDDEN,
     &CONTENT_CODING_REDUNDANT,
-    &STATUS_304_METADATA_FORBIDDEN,
     &STATUS_METADATA_REDUNDANT,
 ];
 
@@ -74,14 +79,15 @@ impl RuleMeta for ContentEncodingAndTypeConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.\n\nResponses that carry no content (1xx, 204, 304) are flagged for sending `Content-Encoding` at all, and **the two cases are reported separately** because their evidence differs in kind. A 304 answers to RFC 9110 §15.4.5, which tells a sender not to generate representation metadata beyond a listed set. A 1xx or 204 answers to nothing: no sentence says it, and §15.3.5 leans the other way — a 204's metadata \"refer to the target resource and its selected representation after the requested action was applied\", which makes describing a representation the client is not receiving a defensible thing to do. The inference is kept because in traffic it is far more often a proxy adding a coding header to a response it never encoded, and it is a separate violation id so that an operator who disagrees can silence it without losing the finding the document does state.\n\nRepeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.\n\n**Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only.\n\n**The value is read as octets and over the whole field section.** Every character of a `token` is visible US-ASCII, so an `obs-text` octet in a coding name is reported for what it is — a character the production does not admit, named as the byte it is — rather than as a verdict about the field's encoding. It used to be the second: a value the string reader refused was reported as *not valid UTF-8*, which is a claim about the whole value where the defect is one character of one member. The lines of a section are joined first, because `#content-coding` makes them one list."
+        "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.\n\nA 1xx or 204 that carries `Content-Encoding` is flagged for sending it at all, and the finding answers to nothing: no sentence says it, and §15.3.5 leans the other way — a 204's metadata \"refer to the target resource and its selected representation after the requested action was applied\", which makes describing a representation the client is not receiving a defensible thing to do. The inference is kept because in traffic it is far more often a proxy adding a coding header to a response it never encoded, and it is a violation id of its own so that an operator who disagrees can silence it alone.
+
+**A 304 is in that status set and draws nothing here.** §15.4.5's SHOULD NOT is written against *representation metadata* — a class §8.2 defines and §8.3 to §8.7 enumerate — so this rule could only ever answer for one member of it. `status_304_representation_metadata` reads the class and owns the entry; the field is still skipped by the grammar checks here, because the advice both rules give is to take it off the message.\n\nRepeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.\n\n**Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only.\n\n**The value is read as octets and over the whole field section.** Every character of a `token` is visible US-ASCII, so an `obs-text` octet in a coding name is reported for what it is — a character the production does not admit, named as the byte it is — rather than as a verdict about the field's encoding. It used to be the second: a value the string reader refused was reported as *not valid UTF-8*, which is a claim about the whole value where the defect is one character of one member. The lines of a section are joined first, because `#content-coding` makes them one list."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9110_8_4,
             RFC_9110_12_5_3,
-            RFC_9110_15_4_5,
             RFC_9110_15_3_5,
             RFC_9110_5_6_2,
             RFC_9110_5_6_1_1,
@@ -92,11 +98,11 @@ impl RuleMeta for ContentEncodingAndTypeConsistent {
         DECLARED
     }
 
-    /// **Both halves may state a coding, and the two no-body verdicts are the
+    /// **Both halves may state a coding, and the no-body verdict is the
     /// origin's alone.** The `Content-Encoding` walk runs over the request's
     /// field section and then the response's, blaming whichever wrote the
-    /// member it stopped on; the `304`/no-content findings above it are read
-    /// off a status line, which only a server writes.
+    /// member it stopped on; the no-content finding above it is read off a
+    /// status line, which only a server writes.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -301,15 +307,6 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     let mut side: Vec<Violation> = Vec::new();
                     // No-body statuses should not carry Content-Encoding
                     let status = resp.status;
-                    // These three statuses reach the same verdict by different routes, and only
-                    // one of them is a stated requirement.
-                    //
-                    // 304 is the grounded case: Content-Encoding is representation metadata,
-                    // it is not among the fields a 304 is told to send, and it does not guide
-                    // cache updates — so the sentence below covers it directly (a SHOULD NOT,
-                    // which is why the message says "should not").
-                    // cite(RFC 9110 § 15.4.5): "a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates"
-                    //
                     // 1xx and 204 are the linter's inference: those responses carry no content,
                     // so a coding describing how the content was encoded has nothing to
                     // describe. No sentence says this, and for 204 the spec arguably leans the
@@ -319,36 +316,36 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // misconfiguration; recorded as the possible false positive it is.
                     // cite(RFC 9110 § 15.3.5): "Metadata in the response header fields refer to the target resource and its selected representation after the requested action was applied."
                     //
-                    // **The two verdicts are two entries**, because their evidence differs in
-                    // kind: one quotes a SHOULD NOT and the other quotes nothing, and one id
-                    // over both would put § 15.4.5 behind the inference. It also gives an
-                    // operator who disagrees with the inference something to silence that does
-                    // not take the stated finding with it.
+                    // **The 304 is in the status set below and draws nothing here**, and the
+                    // reason is that its verdict is not about this field. § 15.4.5's SHOULD NOT
+                    // is written against *representation metadata* — a class § 8.2 defines and
+                    // § 8.3 to § 8.7 enumerate — so a rule that reads `Content-Encoding` can
+                    // only ever answer for one member of it, and answered for the one member no
+                    // 304 in the wild sends. `status_304_representation_metadata` reads the
+                    // class, and `status_304_metadata_forbidden` is declared there and not here:
+                    // one entry with a report site in each rule would draw itself twice on a 304
+                    // carrying both fields.
                     let is_no_body_status =
-                        (100..200).contains(&status) || status == 204 || status == 304;
+                        (100..200).contains(&status) || status == 304 || status == 204;
                     // The one place this side still stops early, and on
                     // purpose: the advice is to take the field off the message
                     // altogether, so the grammar of a value that is not to be
-                    // sent is not a second thing to fix.
+                    // sent is not a second thing to fix. That reasoning is the
+                    // 304's too — the other rule gives the same advice about the
+                    // same field — which is why it stays in the set here even
+                    // though the finding is no longer made here.
                     if is_no_body_status && resp.headers.contains_key("content-encoding") {
-                        side.push(if status == 304 {
-                            ctx.by_server().report_with(
-                                &STATUS_304_METADATA_FORBIDDEN,
-                                "304 Not Modified sends Content-Encoding, which is representation \
-                             metadata and not one of the fields the status code is required to \
-                             carry: the response exists to transfer as little as possible"
-                                    .into(),
-                            )
-                        } else {
-                            ctx.by_server().report_with(
+                        if status != 304 {
+                            side.push(ctx.by_server().report_with(
                                 &STATUS_METADATA_REDUNDANT,
                                 format!(
-                                "Response {status} is terminated by the end of its header section \
-                                 and carries no content, so the Content-Encoding beside it names a \
-                                 coding applied to nothing the client will receive"
-                            ),
-                            )
-                        });
+                                    "Response {status} is terminated by the end of its header \
+                                     section and carries no content, so the Content-Encoding \
+                                     beside it names a coding applied to nothing the client will \
+                                     receive"
+                                ),
+                            ));
+                        }
                     } else {
                         let mut seen = std::collections::HashSet::new();
                         if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
@@ -781,36 +778,49 @@ mod tests {
         Ok(())
     }
 
-    /// The status code is the subject and the two verdicts are two entries: the
-    /// 304 quotes a SHOULD NOT and the other two quote nothing, so an operator
-    /// who reads the inference as a false positive can silence it and keep the
-    /// finding the document states. They rank differently for the same reason.
+    /// The status code is the subject, and the inference this rule keeps names
+    /// no sentence — which is what separates it from the 304's verdict, now made
+    /// by `status_304_representation_metadata` against the whole class of
+    /// representation header fields.
+    ///
+    /// **The 304 row asserts a silence and it is the point of the table.** The
+    /// same message under a `100` or a `204` draws the inference; under a `304`
+    /// this rule says nothing, because answering there with a claim about
+    /// `Content-Encoding` alone is what left the stated finding unreachable for
+    /// every other member of the class.
     #[rstest]
-    #[case(100, "status_metadata_redundant", crate::lint::Severity::Info)]
-    #[case(204, "status_metadata_redundant", crate::lint::Severity::Info)]
-    #[case(304, "status_304_metadata_forbidden", crate::lint::Severity::Warn)]
+    #[case(100, Some("status_metadata_redundant"))]
+    #[case(204, Some("status_metadata_redundant"))]
+    #[case(304, None)]
     fn a_bodyless_response_carrying_a_coding_answers_to_its_status(
         #[case] status: u16,
-        #[case] violation: &str,
-        #[case] severity: crate::lint::Severity,
+        #[case] violation: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ContentEncodingAndTypeConsistent;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip")]);
 
-        let v = crate::test_helpers::run_rule(
+        let found = crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        )
-        .expect("a finding");
-        assert_eq!(v.violation, violation, "{status}");
-        assert_eq!(v.severity, severity, "{status}");
-        // Only the 304 names a sentence; the inference names none, which is the
-        // whole difference between the two entries.
-        assert_eq!(v.cite.is_some(), status == 304, "{status}: {}", v.message);
+        );
+        match violation {
+            None => assert!(
+                found.is_empty(),
+                "{status}: expected silence, got {found:?}"
+            ),
+            Some(id) => {
+                assert_eq!(found.len(), 1, "{status}: {found:?}");
+                assert_eq!(found[0].violation, id, "{status}");
+                assert_eq!(found[0].severity, crate::lint::Severity::Info, "{status}");
+                // The inference names no sentence, which is why it is a
+                // separate entry from the one § 15.4.5 states.
+                assert!(found[0].cite.is_none(), "{status}: {}", found[0].message);
+            }
+        }
         Ok(())
     }
 }

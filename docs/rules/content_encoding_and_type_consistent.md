@@ -10,7 +10,9 @@ SPDX-License-Identifier: ISC
 
 Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.
 
-Responses that carry no content (1xx, 204, 304) are flagged for sending `Content-Encoding` at all, and **the two cases are reported separately** because their evidence differs in kind. A 304 answers to RFC 9110 §15.4.5, which tells a sender not to generate representation metadata beyond a listed set. A 1xx or 204 answers to nothing: no sentence says it, and §15.3.5 leans the other way — a 204's metadata "refer to the target resource and its selected representation after the requested action was applied", which makes describing a representation the client is not receiving a defensible thing to do. The inference is kept because in traffic it is far more often a proxy adding a coding header to a response it never encoded, and it is a separate violation id so that an operator who disagrees can silence it without losing the finding the document does state.
+A 1xx or 204 that carries `Content-Encoding` is flagged for sending it at all, and the finding answers to nothing: no sentence says it, and §15.3.5 leans the other way — a 204's metadata "refer to the target resource and its selected representation after the requested action was applied", which makes describing a representation the client is not receiving a defensible thing to do. The inference is kept because in traffic it is far more often a proxy adding a coding header to a response it never encoded, and it is a violation id of its own so that an operator who disagrees can silence it alone.
+
+**A 304 is in that status set and draws nothing here.** §15.4.5's SHOULD NOT is written against *representation metadata* — a class §8.2 defines and §8.3 to §8.7 enumerate — so this rule could only ever answer for one member of it. `status_304_representation_metadata` reads the class and owns the entry; the field is still skipped by the grammar checks here, because the advice both rules give is to take it off the message.
 
 Repeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.
 
@@ -23,7 +25,6 @@ Repeating a coding is likewise a judgement call rather than a conformance failur
 - [content_coding_redundant](../violations/content_coding_redundant.md) — One coding is named twice in one field
 - [content_coding_wildcard_forbidden](../violations/content_coding_wildcard_forbidden.md) — The Accept-Encoding wildcard is written where a coding belongs
 - [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
-- [status_304_metadata_forbidden](../violations/status_304_metadata_forbidden.md) — A 304 sends representation metadata beyond the fields it owes
 - [status_metadata_redundant](../violations/status_metadata_redundant.md) — A response that cannot carry content sends representation metadata
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
@@ -33,7 +34,6 @@ Repeating a coding is likewise a judgement call rather than a conformance failur
 
 - [RFC 9110 §8.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4): `Content-Encoding = #content-coding`, and the reservation of `identity` for Accept-Encoding — the reason it is flagged here
 - [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): The wider Accept-Encoding grammar (`codings = content-coding / "identity" / "*"`), which is why the two headers are checked against different vocabularies
-- [RFC 9110 §15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5): 304 Not Modified — the fields a 304 MUST send, the SHOULD NOT against any other representation metadata unless it guides cache updates, and the response being terminated by the end of the header section
 - [RFC 9110 §15.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5): 204 No Content — the response is terminated by the end of its header section and cannot contain content, and its metadata refers to the target resource and its selected representation after the action was applied
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element

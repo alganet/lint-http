@@ -6379,7 +6379,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 152
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 155
+      line: 161
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 141
   - label: compression_and_transfer_encoding_consistent (5)
@@ -6641,13 +6641,7 @@ sources:
     snippet: Metadata in the response header fields refer to the target resource and its selected representation after the requested action was applied.
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 320
-  - label: content_encoding_and_type_consistent (2)
-    section: § 15.4.5
-    snippet: a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates
-    cited_by:
-    - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 311
+      line: 317
   - label: content_encoding_registered
     section: § 12.5.3
     snippet: codings = content-coding / "identity" / "*"
@@ -7393,7 +7387,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 202
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 241
+      line: 247
     - file: lint-http-rules/src/rules/host_header.rs
       line: 224
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
@@ -7829,7 +7823,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 364
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 239
+      line: 245
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 239
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -7877,7 +7871,7 @@ sources:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 92
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 240
+      line: 246
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 226
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
@@ -9186,6 +9180,8 @@ sources:
       line: 261
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 147
+    - file: lint-http-rules/src/rules/status_304_representation_metadata.rs
+      line: 154
   - label: no_body_for_1xx_204_304 (6)
     section: § 8.6
     snippet: A server MUST NOT send a Content-Length header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -10073,30 +10069,24 @@ sources:
     - file: lint-http-rules/src/violations/status.rs
       line: 857
   - label: status (8)
-    section: § 15.4.5
-    snippet: Since the goal of a 304 response is to minimize information transfer when the recipient already has one or more cached representations, a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates (e.g., Last-Modified might be useful if the response does not have an ETag field).
-    cited_by:
-    - file: lint-http-rules/src/violations/status.rs
-      line: 553
-  - label: status (9)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
       line: 309
-  - label: status (10)
+  - label: status (9)
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
       line: 782
-  - label: status (11)
+  - label: status (10)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
       line: 415
-  - label: status (12)
+  - label: status (11)
     section: § 7.8
     snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
     cited_by:
@@ -10166,6 +10156,26 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 179
+  - label: status_304_representation_metadata
+    section: § 15.4.5
+    snippet: Since the goal of a 304 response is to minimize information transfer when the recipient already has one or more cached representations, a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates (e.g., Last-Modified might be useful if the response does not have an ETag field).
+    cited_by:
+    - file: lint-http-rules/src/rules/status_304_representation_metadata.rs
+      line: 139
+    - file: lint-http-rules/src/violations/status.rs
+      line: 553
+  - label: status_304_representation_metadata (2)
+    section: § 15.4.5
+    snippet: 'The server generating a 304 response MUST generate any of the following header fields that would have been sent in a 200 (OK) response to the same request:'
+    cited_by:
+    - file: lint-http-rules/src/rules/status_304_representation_metadata.rs
+      line: 144
+  - label: status_304_representation_metadata (3)
+    section: § 8.2
+    snippet: Representation header fields provide metadata about the representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_304_representation_metadata.rs
+      line: 147
   - label: status_3xx_vs_request_method
     section: § 15.4
     snippet: 307 (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] were later added to unambiguously indicate method-preserving redirects, and status codes 301 and 302 have been adjusted to allow a POST request to be redirected as GET.

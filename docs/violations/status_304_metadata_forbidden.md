@@ -31,4 +31,4 @@ severity = "warn"
 
 ## Reported By
 
-- [content_encoding_and_type_consistent](../rules/content_encoding_and_type_consistent.md)
+- [status_304_representation_metadata](../rules/status_304_representation_metadata.md)
