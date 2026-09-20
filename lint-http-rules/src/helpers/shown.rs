@@ -163,8 +163,8 @@ mod tests {
         assert_eq!(shown_in_finding("it's"), "it\\'s");
     }
 
-    /// **The rendering round-trips, which is what makes the harness ratchet
-    /// legible.** A backslash the sender wrote comes back doubled, so a quote
+    /// **The rendering round-trips, so a reader can tell the two apart.** A
+    /// backslash the sender wrote comes back doubled, so a quote
     /// standing behind an even run of backslashes carried one on the wire and a
     /// quote behind an odd run cannot be produced at all. A reader counting
     /// that parity can tell an escaped quote from a quoted backslash, and
