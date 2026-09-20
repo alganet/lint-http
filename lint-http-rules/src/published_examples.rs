@@ -513,7 +513,25 @@ fn tokenize(snippet: &str) -> Option<Vec<Msg>> {
 /// line at all — the opening `HTTP/1.1 200 OK` of every cache example — carries
 /// this and has named no resource, and scoping history against it would compare
 /// a placeholder to a target the example did write.
-const UNSTATED_TARGET: &str = "http://example/";
+///
+/// **The value is part of the claim, not decoration.** This was
+/// `http://example/` — absolute form, which is the one target shape that
+/// *states* a scheme, and the scheme it stated was the insecure one. So every
+/// example whose snippet is a bare response — the opening `HTTP/1.1 200 OK` of
+/// every cache example, and every response-field example in the tree — was
+/// judged as though its request had crossed the network in the clear, on
+/// evidence no example gave. Nothing is wrong today because no rule yet reads
+/// a request-target's scheme against a *response* field; the first one to do
+/// so reports every one of those snippets, and the report is about this
+/// constant rather than about anything an author wrote.
+///
+/// Origin-form is what a snippet with no request line means — a path and
+/// nothing else, the shape of an ordinary HTTP/1.1 request to an origin
+/// server, from which no rule can read a transport or an authority. The path
+/// is distinctive rather than `/` because this is compared by equality: a
+/// story that writes `GET / HTTP/1.1` has named a resource, and a sentinel
+/// spelled `/` would take that example's target for a placeholder.
+const UNSTATED_TARGET: &str = "/.unstated-request-target";
 
 fn fresh_tx() -> HttpTransaction {
     let mut tx = HttpTransaction::new(
