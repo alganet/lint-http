@@ -565,7 +565,7 @@ defects! {
     // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
     CACHE_CONTROL_S_MAXAGE_IGNORED = {
         id: "cache_control_s_maxage_ignored",
-        title: "A cache s-maxage does not address used it for freshness",
+        title: "A cache that s-maxage does not address used it for freshness",
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_9111_5_2_2_10],

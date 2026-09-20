@@ -14,7 +14,7 @@ This rule watches a series of transactions from the same client and examines the
 
 ## Violations
 
-- [cache_control_s_maxage_ignored](../violations/cache_control_s_maxage_ignored.md) — A cache s-maxage does not address used it for freshness
+- [cache_control_s_maxage_ignored](../violations/cache_control_s_maxage_ignored.md) — A cache that s-maxage does not address used it for freshness
 
 ## Specifications
 

@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # cache_control_s_maxage_ignored
 
-A cache s-maxage does not address used it for freshness
+A cache that s-maxage does not address used it for freshness
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.cache_control_s_maxage_ignored]
-# A cache s-maxage does not address used it for freshness
+# A cache that s-maxage does not address used it for freshness
 severity = "warn"
 ```
 
