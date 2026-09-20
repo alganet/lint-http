@@ -62,38 +62,65 @@ pub fn describe_octet(b: u8) -> String {
 /// deliberate -- naming the offending octet is [`describe_octet`]'s job, and the
 /// findings that turn on one call it.
 ///
-/// **The DQUOTE is shown as written, and it is the one character `escape_debug`
-/// gets wrong here.** That function renders a Rust string *literal*, where the
-/// quote has to be escaped because it would otherwise end the literal. A finding
-/// is not a literal: it is a sentence quoting octets an operator is about to go
-/// and grep the response for, and there is no delimiter for a quote to end. So
-/// escaping it bought nothing and cost the only thing the rendering is for --
+/// **Both quotes are shown as written, and they are the two characters
+/// `escape_debug` gets wrong here.** That function renders a Rust *literal*,
+/// where a quote has to be escaped because it would otherwise end the literal —
+/// the DQUOTE ends a string literal and the apostrophe ends a `char` one. A
+/// finding is neither: it is a sentence quoting octets an operator is about to
+/// go and grep the response for, and there is no literal for a quote to end. So
+/// escaping them bought nothing and cost the only thing the rendering is for --
 /// `ETag`, `alt-authority`, every auth-param and every media-type parameter are
 /// written in a production that *requires* DQUOTE, and a `Report-To` or a `P3P`
 /// is a value made of almost nothing else, so the string the message showed was
 /// reliably not the string in the response.
 ///
+/// **The apostrophe is the same argument and was left for a second reading,
+/// which measured it.** A field whose value is JSON is written with DQUOTE by
+/// every serializer that emits JSON and with `'` by every hand that writes one
+/// out, and the second is common enough on the web to reach three entries on
+/// one origin: a `NEL` and a `Report-To` spelled `{'report_to':'default'}` drew
+/// `nel_malformed` and `report_to_malformed`, whose whole finding is *that the
+/// apostrophes belong to no JSON string* — and the sentence naming them wrote a
+/// backslash before each one, so the value an operator was told to go and fix
+/// was shown as carrying octets nobody sent, and the defect it was shown as
+/// carrying was stray backslashes.
+///
+/// A message's own punctuation is not an argument against this. The sentences
+/// that wrap a value delimit it with apostrophes, so an apostrophe inside one
+/// blurs where the value ends — and that was already true of the DQUOTE for
+/// every sentence that delimits with DQUOTE, and is true of SP and `,` for all
+/// of them. Prose punctuation is not a grammar, and a reader who cannot tell
+/// where the value ends is better served than one who is shown a value that is
+/// not the one on the wire.
+///
 /// **The backslash still is escaped, and that is why the split below is on the
-/// quote alone.** A lone `\` in a message reads as an escape nobody wrote, which
-/// is the case the paragraph above this one argues and is untouched; so is every
+/// quotes alone.** A lone `\` in a message reads as an escape nobody wrote,
+/// which is the case the paragraphs above argue and is untouched; so is every
 /// control octet. What that leaves is a rendering that round-trips: a backslash
 /// the sender wrote comes back doubled, so a quote behind an even run of them is
 /// a quote the wire carried behind a real backslash, and a quote behind an odd
 /// run cannot occur at all.
 ///
-/// **Split on the DQUOTE and hand the runs between to [`str::escape_debug`]
-/// unchanged**, rather than escaping each `char` and skipping the quote. The two
-/// are not the same function, and the difference is every decision that is not
-/// being changed here: the apostrophe, which both the old rendering and this one
-/// escape, is escaped by [`str::escape_debug`] and would keep being escaped
-/// either way -- but a `char` walk would also have to re-derive the leading
-/// grapheme-extended rule, and a rendering that changes one character should
-/// change one character. This form cannot change a second by accident.
+/// **Keep the quote, hand the runs between quotes to [`str::escape_debug`]
+/// unchanged**, rather than escaping each `char` and skipping the quotes. The
+/// two are not the same function: a `char` walk would have to re-derive the
+/// leading grapheme-extended rule that `escape_debug` applies to the front of a
+/// string, and the run form applies it to the front of each run, which is what
+/// the single-quote split did before this and is unchanged by widening it to
+/// two.
 pub fn shown_in_finding(s: &str) -> String {
-    s.split('"')
-        .map(|run| run.escape_debug().to_string())
-        .collect::<Vec<_>>()
-        .join("\"")
+    let shown_as_written = |c: char| c == '"' || c == '\'';
+    let mut out = String::with_capacity(s.len());
+    let mut run = 0;
+    for (i, c) in s.char_indices() {
+        if shown_as_written(c) {
+            out.push_str(&s[run..i].escape_debug().to_string());
+            out.push(c);
+            run = i + c.len_utf8();
+        }
+    }
+    out.push_str(&s[run..].escape_debug().to_string());
+    out
 }
 
 /// [`describe_octet`] for a `char` that came from an octet.
@@ -121,15 +148,23 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    /// The quote is the character this rendering exists to get right, and each
-    /// row is a production that requires one: an `entity-tag`, an
-    /// `alt-authority`, an `auth-param`, and a field whose value is JSON.
+    /// A quote is the thing this rendering exists to get right, and each row is
+    /// a production that requires one: an `entity-tag`, an `alt-authority`, an
+    /// `auth-param`, and a field whose value is JSON — written with DQUOTE by
+    /// anything that serializes JSON, and with the apostrophe by the hands that
+    /// write one out, which is the shape three entries meet on the counted web.
     #[rstest]
     #[case("\"abc\"", "\"abc\"")]
     #[case("W/\"abc\"", "W/\"abc\"")]
     #[case("h3=\":443\"; ma=2592000", "h3=\":443\"; ma=2592000")]
     #[case("Basic realm=\"simple\"", "Basic realm=\"simple\"")]
     #[case("{\"group\":\"default\"}", "{\"group\":\"default\"}")]
+    #[case("{'group':'default'}", "{'group':'default'}")]
+    #[case(
+        "{'report_to':'default','max_age': 604800,'failure_fraction':0.01}",
+        "{'report_to':'default','max_age': 604800,'failure_fraction':0.01}"
+    )]
+    #[case("it's", "it's")]
     fn a_quote_the_sender_wrote_is_shown_as_the_sender_wrote_it(
         #[case] wire: &str,
         #[case] shown: &str,
@@ -150,17 +185,35 @@ mod tests {
         assert_eq!(shown_in_finding(wire), shown);
     }
 
-    /// **Exactly one character changed, and this is the assertion that says
-    /// so.** The apostrophe is escaped, as it was before -- which is the
-    /// opposite of what the first draft of this function's doc claimed, and the
-    /// claim was wrong about `str::escape_debug` rather than about the change.
-    /// Pinned because a value carrying an apostrophe is common and the
-    /// messages that wrap a value delimit it with one, so a later reader has
-    /// every reason to think this rendering ought to leave it alone; it does
-    /// not, it never did, and that is a separate question from the DQUOTE.
-    #[test]
-    fn an_apostrophe_is_escaped_now_exactly_as_it_was_before() {
-        assert_eq!(shown_in_finding("it's"), "it\\'s");
+    /// **Neither quote is escaped, and this is the assertion that says which
+    /// characters that covers.** The apostrophe was pinned as escaped for one
+    /// reading, on the ground that changing one character at a time is how a
+    /// rendering stays reviewable -- and the pin is what made the question
+    /// answerable: it named the apostrophe as the remaining case, which then
+    /// turned out to be nine findings on the counted web rather than a
+    /// hypothetical. The rendering escapes what would corrupt or mislead, which
+    /// is the backslash and the control octets, and nothing else.
+    #[rstest]
+    #[case("it's", "it's")]
+    #[case("'", "'")]
+    #[case("''", "''")]
+    #[case("a\"b'c", "a\"b'c")]
+    fn neither_quote_is_escaped(#[case] wire: &str, #[case] shown: &str) {
+        assert_eq!(shown_in_finding(wire), shown);
+    }
+
+    /// **The parity argument holds for the apostrophe exactly as for the
+    /// DQUOTE**, and it is what lets a reader tell a wire backslash before a
+    /// quote from a quote the renderer escaped: the first comes back doubled and
+    /// the second cannot be produced at all.
+    #[rstest]
+    #[case("a\\'b", "a\\\\'b")]
+    #[case("'\\'", "'\\\\'")]
+    fn a_wire_backslash_before_an_apostrophe_comes_back_doubled(
+        #[case] wire: &str,
+        #[case] shown: &str,
+    ) {
+        assert_eq!(shown_in_finding(wire), shown);
     }
 
     /// **The rendering round-trips, so a reader can tell the two apart.** A
