@@ -11,82 +11,13 @@ use crate::violations::token::{
 };
 use crate::violations::ViolationDef;
 
-#[derive(Debug, Clone)]
-pub struct MethodTokenConfig {
-    pub registered_methods: Vec<String>,
-}
-
-/// Reads the `registered_methods` array this rule cannot supply for itself.
-///
-/// The convention this rule reports against is stated about *standardized* methods,
-/// and the eight RFC 9110 defines are only the ones that document happens to define:
-/// the rest are registered elsewhere, in an IANA registry that grows by IETF Review.
-/// A list compiled in here would be a snapshot of that registry presented as though
-/// it were the grammar -- and the grammar admits every one of the spellings this rule
-/// reports, which is the whole reason the finding needs a set of names to lean on.
-///
-/// The array is also where a deployment writes down its own uppercase-by-convention
-/// methods. A private `PURGE` is a method no registry knows, so `purge` draws nothing
-/// until this array says the deployment expects to see that name.
-// cite(RFC 9110 § 16.1.1): "The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names."
-// cite(RFC 9110 § 16.1.1): "Values to be added to this namespace require IETF Review"
-// cite(RFC 9110 § 9.1): "All such methods ought to be registered within the "Hypertext Transfer Protocol (HTTP) Method Registry", as described in Section 16.1."
-fn parse_method_token_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<MethodTokenConfig> {
-    let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
-        anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'registered_methods' array listing the method names this deployment expects to see spelled as they are defined. Example in config_example.toml",
-            rule_id
-        )
-    })?;
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let value = table.get("registered_methods").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires a 'registered_methods' array listing standardized method names (e.g., ['GET','HEAD','POST','PUT'])",
-            rule_id
-        )
-    })?;
-
-    let arr = value.as_array().ok_or_else(|| {
-        anyhow::anyhow!("'registered_methods' must be an array of strings (e.g., ['GET','HEAD'])")
-    })?;
-
-    // No sentence forbids an empty array. It is refused because the branch it feeds
-    // would then be unreachable, and a rule that silently checks two of its three
-    // questions reads as a linter that agrees rather than one that was switched off.
-    //
-    // Which is also why an absent or empty array stops the rule outright rather than
-    // only the branch that reads it: the two grammar questions never touch these names,
-    // so silencing just the third would leave a configuration error looking like a
-    // clean run. A deployment that wants only the grammar half turns the rule off.
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!(
-            "'registered_methods' array cannot be empty"
-        ));
-    }
-
-    let mut registered_methods = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!(
-                "'registered_methods' array item at index {} must be a string",
-                i
-            )
-        })?;
-        // Kept exactly as written. These names are the spelling a request is measured
-        // against, so folding them here would delete the difference the rule exists to
-        // report.
-        registered_methods.push(s.to_string());
-    }
-
-    Ok(MethodTokenConfig { registered_methods })
-}
-
+/// The array this rule cannot supply for itself is read by
+/// [`crate::helpers::rule_config::registered_methods`], which is where the
+/// registry argument for requiring it is written down. It moved to the shelf
+/// when a second and third reader appeared: Fetch § 3.3.4 gives two CORS fields
+/// the same `method` production, so the same array now decides the same
+/// question in three places and a copy per rule is three chances to disagree
+/// about what an operator's configuration means.
 pub struct RequestMethodTokenValid;
 
 /// The two grammar questions this rule asks are `token`'s, and the third is its
@@ -216,7 +147,7 @@ registered_methods = [
     /// where the `.ok()?` below turns a missing or malformed array into silence
     /// rather than into the startup error every sibling gives.
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_method_token_config(cfg, self.id())?;
+        let config = crate::helpers::rule_config::registered_methods(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
@@ -322,7 +253,7 @@ impl Rule for RequestMethodTokenValid {
                 return None;
             }
 
-            let config: &MethodTokenConfig = ctx.state();
+            let config: &crate::helpers::rule_config::RegisteredMethods = ctx.state();
 
             // `token` is `1*tchar` -- one character at minimum, transcribed in full at
             // `helpers::token::is_tchar`. A character scan answers `None` for the empty
@@ -591,7 +522,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = "GET".to_string();
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        assert!(parse_method_token_config(&cfg, rule.id()).is_err());
+        assert!(crate::helpers::rule_config::registered_methods(&cfg, rule.id()).is_err());
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -617,7 +548,7 @@ mod tests {
         cfg.rules
             .insert(rule.id().to_string(), toml::Value::Table(table));
 
-        let err = parse_method_token_config(&cfg, rule.id())
+        let err = crate::helpers::rule_config::registered_methods(&cfg, rule.id())
             .expect_err("the array is required and typed");
         assert!(err.to_string().contains(expected), "{}", err);
     }

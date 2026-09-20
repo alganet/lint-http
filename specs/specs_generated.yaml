@@ -5921,7 +5921,7 @@ sources:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 232
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 366
+      line: 297
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 347
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
@@ -6159,9 +6159,9 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 343
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 252
+      line: 183
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 342
+      line: 273
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 371
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -6199,7 +6199,7 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 266
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 308
+      line: 239
   - label: alt_svc_header_syntax
     section: § 3.7
     snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
@@ -8822,8 +8822,6 @@ sources:
       line: 234
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 46
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 31
   - label: lint-http-rules/src/helpers/rule_config.rs (2)
     section: § 16.1.1
     snippet: Values to be added to this namespace require IETF Review
@@ -8832,8 +8830,6 @@ sources:
       line: 235
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 49
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 32
   - label: lint-http-rules/src/helpers/status.rs
     section: § 15.1
     snippet: Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls
@@ -9856,24 +9852,18 @@ sources:
       line: 515
   - label: request_method_token_valid
     section: § 9.1
-    snippet: All such methods ought to be registered within the "Hypertext Transfer Protocol (HTTP) Method Registry", as described in Section 16.1.
-    cited_by:
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 33
-  - label: request_method_token_valid (2)
-    section: § 9.1
     snippet: An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code.
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 374
+      line: 305
     - file: lint-http-rules/src/violations/method.rs
       line: 457
-  - label: request_method_token_valid (3)
+  - label: request_method_token_valid (2)
     section: § 9.1
     snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 367
+      line: 298
   - label: request_target
     section: § 7.1
     snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
@@ -12166,7 +12156,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 378
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 309
+      line: 240
   - label: http2_pseudo_headers_valid (5)
     section: § 8.3.1
     snippet: The ":scheme" pseudo-header field includes the scheme portion of the request target.
@@ -12631,7 +12621,7 @@ sources:
     snippet: '":method":  Contains the HTTP method (Section 9 of [HTTP])'
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 310
+      line: 241
   - label: request_target
     section: § 4.3.1
     snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f).
