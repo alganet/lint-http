@@ -24,7 +24,7 @@
 //! So, measured rather than recalled — every rule declaring either entry
 //! below: `age_header_numeric`, `cache_control_directive_valid` (`max-age`,
 //! `s-maxage`, and RFC 5861's `stale-while-revalidate` and `stale-if-error`),
-//! `alt_svc_h3_advertisement_valid` (`ma`), `keep_alive_header_valid`
+//! `alt_svc_header_syntax` (`ma`), `keep_alive_header_valid`
 //! (`timeout`), `strict_transport_security_valid` (`max-age`) and
 //! `cors_response_header_syntax` (`Access-Control-Max-Age`).
 //!

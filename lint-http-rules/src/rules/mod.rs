@@ -2179,16 +2179,23 @@ enabled = "true"
         // Walks that are a *lookup* rather than a judgement: the loop steps
         // over every part whose name is not the one it came for, so what it
         // returns is one answer about one named part and not a verdict on the
-        // repetition. `h3_ma_defect` searches an `alt-value`'s parameters for
-        // `ma` and reads only that; the parts it steps over are
-        // `alt_svc_header_syntax`'s subject and are reported there. A repeated
-        // `ma` is one repair, which a test in that file pins.
+        // repetition.
         //
-        // Named per file, which is coarser than the shape and is the cost:
-        // a real member walk added to this file would be excluded with it.
-        // Measured rather than assumed — emptying this list fails the
-        // assertion below naming this file and no other.
-        const LOOKS_UP_ONE_NAMED_PART: [&str; 1] = ["alt_svc_h3_advertisement_valid.rs"];
+        // **Empty, and it is a measurement rather than an oversight.** The one
+        // entry this ever held was `alt_svc_h3_advertisement_valid.rs`, whose
+        // `h3_ma_defect` searched an `alt-value`'s parameters for `ma` and read
+        // only that. The lifetime that search was for belongs to the field
+        // rather than to HTTP/3, so it moved to `alt_svc_header_syntax`, where
+        // it is read inside a walk that collects every parameter -- which is
+        // the shape this test asks for, and why the exemption stopped being
+        // needed rather than being argued away. The list stays named so that a
+        // future lookup-shaped walk is excused here with its own argument
+        // instead of being folded into `ANSWERS_PER_MESSAGE`, which says
+        // something different.
+        //
+        // Named per file, which is coarser than the shape and is the cost: a
+        // real member walk added to an excused file would be excluded with it.
+        const LOOKS_UP_ONE_NAMED_PART: [&str; 0] = [];
         // The helpers that yield a list's members, and the ones that do not.
         // Every `pub fn` of the two modules these come from is in one list or
         // the other, checked below, so a new member helper cannot be added
