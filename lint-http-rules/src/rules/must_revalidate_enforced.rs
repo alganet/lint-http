@@ -274,9 +274,14 @@ impl Rule for MustRevalidateEnforced {
             // below names a body that never crossed the wire.
             // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
             // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            // `!= "HEAD"` and not a case-folded compare: § 9.1 makes the method
+            // token case-sensitive, and the search above already reads it that
+            // way. A guard that folded here would answer a question its own
+            // search had answered differently.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
             let a_304_would_have_spared_content =
                 tx.response.as_ref().is_some_and(|resp| resp.status == 200)
-                    && !tx.request.method.eq_ignore_ascii_case("HEAD");
+                    && tx.request.method != "HEAD";
 
             if current_age >= freshness_lifetime
                 && !has_conditional

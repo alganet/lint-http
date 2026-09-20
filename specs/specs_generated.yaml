@@ -6281,6 +6281,10 @@ sources:
       line: 282
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 429
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 281
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 246
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 249
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
@@ -11999,7 +12003,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 292
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 246
+      line: 251
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 744
   - label: lint-http-rules/src/helpers/cache_control.rs (15)
@@ -12011,7 +12015,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 293
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 262
+      line: 267
   - label: lint-http-rules/src/helpers/cache_control.rs (16)
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
@@ -12187,7 +12191,7 @@ sources:
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 288
+      line: 293
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 684
   - label: pragma_token_valid
