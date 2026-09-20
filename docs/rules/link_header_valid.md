@@ -61,6 +61,8 @@ Parses the `Link` field of a request and of a response — every field line of o
 - [link_target_delimiter_missing](../violations/link_target_delimiter_missing.md) — Link member's target is not inside angle brackets
 - [link_type_malformed](../violations/link_type_malformed.md) — Link type attribute does not derive from type-name "/" subtype-name
 - [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
 - [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
 - [quoted_string_delimiter_missing](../violations/quoted_string_delimiter_missing.md) — Quoted-string is missing one of its DQUOTEs
@@ -101,6 +103,7 @@ Parses the `Link` field of a request and of a response — every field line of o
 - [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 - [RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2): Repeated `Link` field lines are one list. RFC 8288 §3.5 shows the same thing from the other side, printing a two-member field value and the two field lines it is equivalent to
 - [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters — the limited set a URI is composed from, every other octet being percent-encoded before the reference is formed
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
 - [RFC 3986 §3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3): `URI` — the production `ext-rel-type` is, and the reason a relation type with a scheme is read as one instead of being measured against `tchar`. `URI-Reference` (§4.1) is the target's
 - [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
 - [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere

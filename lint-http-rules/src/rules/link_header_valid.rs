@@ -37,7 +37,8 @@ use crate::violations::token::{
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::uri::{
-    host_and_port as host_and_port_defect, scheme_name, RFC_3986_2, RFC_3986_3_1, RFC_3986_3_2_2,
+    host_and_port as host_and_port_defect, scheme_name, PERCENT_ENCODING_DIGITS_MISSING,
+    PERCENT_ENCODING_MALFORMED, RFC_3986_2, RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2,
     RFC_3986_3_2_3, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
     URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
     URI_HOST_EMPTY, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
@@ -111,6 +112,8 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_PAIR_MALFORMED,
     &BWS_FORBIDDEN,
     &URI_CHARACTER_FORBIDDEN,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
@@ -446,6 +449,7 @@ impl RuleMeta for LinkHeaderValid {
             RFC_9110_5_6_4,
             RFC_9110_5_2,
             RFC_3986_2,
+            RFC_3986_2_1,
             RFC_3986_3,
             RFC_3986_3_1,
             RFC_3986_3_2_2,
@@ -858,6 +862,40 @@ fn link_target_defect(target: &str) -> Option<Defect> {
                 "target '{}' holds {}, which no URI-Reference admits",
                 shown_in_finding(target),
                 describe_char(c)
+            ),
+        ));
+    }
+
+    // `%` passed the alphabet check because it opens a triplet; whether it
+    // actually does is the triplet's own production, and the helper carries it.
+    // The sentence above converts an IRI to a URI before writing it, and
+    // percent-encoding is how that conversion writes anything outside the
+    // alphabet — so a triplet that is not one is the conversion having gone
+    // wrong, in the field whose value most often came from an IRI.
+    if let Some(defect) = crate::helpers::percent_encoding::percent_encoding_defect(target) {
+        return Some(Defect::named(
+            crate::violations::uri::percent_encoding(defect),
+            format!(
+                "target '{}': {}",
+                shown_in_finding(target),
+                defect.message()
+            ),
+        ));
+    }
+
+    // Only the `URI` alternative has a scheme; the helper is a no-op on a
+    // `relative-ref`, which is why nothing here gates on which alternative the
+    // value took. The three defects are RFC 3986 § 3.1's and the ids are the
+    // production's — the same three this rule already reports of a relation
+    // type, which is an absolute URI by § 3.3 and reaches them from the other
+    // side of the same member.
+    if let Some(defect) = crate::helpers::scheme::scheme_if_present(target) {
+        return Some(Defect::named(
+            scheme_name(defect),
+            format!(
+                "target '{}' has a scheme that is not one: {}",
+                shown_in_finding(target),
+                defect.message()
             ),
         ));
     }
@@ -1690,6 +1728,11 @@ mod tests {
     #[case(b"<https://[2001:db8::1]:8443/p>; rel=next")]
     #[case(b"<https://example.test:8443/p>; rel=next")]
     #[case(b"<file:///etc/hosts>; rel=next")]
+    // A relative reference has no scheme to be wrong about, and the helper is a
+    // no-op on one; a `urn:` names no authority at all. Both must reach the
+    // readings above and come back with nothing.
+    #[case(b"</p%20q>; rel=next")]
+    #[case(b"<urn:isbn:0451450523>; rel=next")]
     #[case(b"<>; rel=next")]
     #[case(b"<https://example.com/>; rel=\"next\"; title=\"Home\"")]
     #[case(b"<https://example.com/>; rel=next; title=\"a;b\"")]
@@ -2018,6 +2061,23 @@ mod tests {
         "uri_port_character_forbidden"
     )]
     #[case(b"<http:///p>; rel=next", "uri_host_empty")]
+    // The target's other two borrowed productions. The scheme's three ids are
+    // the ones this rule already reports of a relation type, reached from the
+    // other side of the same member.
+    #[case(b"<http://example.test/%zz>; rel=next", "percent_encoding_malformed")]
+    #[case(
+        b"<http://example.test/%2>; rel=next",
+        "percent_encoding_digits_missing"
+    )]
+    #[case(
+        b"<ht_tp://example.test/p>; rel=next",
+        "uri_scheme_character_forbidden"
+    )]
+    #[case(
+        b"<1http://example.test/p>; rel=next",
+        "uri_scheme_leading_letter_missing"
+    )]
+    #[case(b"<://example.test/p>; rel=next", "uri_scheme_empty")]
     fn a_link_value_borrows_every_production_it_is_made_of(#[case] value: &[u8], #[case] id: &str) {
         let headers = crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]);
         let mut found = judge(&headers, "Response", true);
