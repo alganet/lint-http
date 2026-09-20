@@ -3782,6 +3782,12 @@ enabled = "true"
     /// not two new seams but two old ones the response-side reader had not
     /// reached yet.
     ///
+    /// **118, and the new id joined a group that was already here.** § 11.5's
+    /// realm is an `auth-param`, so `auth_param_realm_quoting_invalid` is
+    /// declared by the same three rules that already share the five other
+    /// `auth_param_*` ids — one production, four fields, one reading of it. A
+    /// sixth entry over the same seam is not a sixth seam.
+    ///
     /// **117, and exactly one id moved.** Fetch § 3.3.4 writes nine
     /// productions and two of them are `method`, so the two rules that read the
     /// CORS block declare `method_case_invalid` beside
@@ -3798,7 +3804,7 @@ enabled = "true"
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 117;
+        const CEILING: usize = 118;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();

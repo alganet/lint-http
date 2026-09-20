@@ -6,7 +6,8 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::auth_param::{
     AUTH_PARAM_EQUALS_MISSING, AUTH_PARAM_NAME_CHARACTER_FORBIDDEN, AUTH_PARAM_NAME_EMPTY,
-    AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+    AUTH_PARAM_REALM_QUOTING_INVALID, AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+    RFC_9110_11_5,
 };
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::credentials::{
@@ -75,6 +76,7 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTH_PARAM_VALUE_EMPTY,
     &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
+    &AUTH_PARAM_REALM_QUOTING_INVALID,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
@@ -126,6 +128,7 @@ impl RuleMeta for AuthorizationCredentialsValid {
             RFC_9110_11_6_2,
             RFC_9110_11_4,
             RFC_9110_11_2,
+            RFC_9110_11_5,
             // The `#` on `#auth-param` is the list construct, and its members
             // answer to § 5.6.1.1 like every other list's.
             RFC_9110_5_6_1_1,
@@ -293,6 +296,32 @@ mod tests {
             );
         }
         tx
+    }
+
+    /// § 11.5's MUST about a realm's spelling, read on the side that sends
+    /// credentials — and the one scheme that declines.
+    ///
+    /// **§ 11.5 binds "a sender" and says nothing about a direction**, so a
+    /// client writing `realm=foo` in an `Authorization` breaks the same
+    /// sentence a server writing it in a `WWW-Authenticate` does. The exception
+    /// is `Digest`, whose own document says the identical thing about `realm`
+    /// and six parameters beside it: RFC 7616 § 3.4 is the more specific
+    /// sentence for that credential and `digest_auth_valid` reports it, so this
+    /// reading stands aside rather than putting a second finding on one value
+    /// with one repair. The decline is directed — it is about a Digest
+    /// *credential*, not about the scheme — because that reader never looks at
+    /// a response, so a `Digest` challenge stays this reading's.
+    #[rstest]
+    #[case("Custom realm=foo", Some("auth_param_realm_quoting_invalid"))]
+    #[case("Custom realm=\"foo\"", None)]
+    #[case("Digest username=\"u\", realm=foo, nonce=\"n\"", None)]
+    #[case("Digest username=\"u\", realm=\"r\", nonce=\"n\"", None)]
+    fn a_realm_in_credentials_is_quoted_unless_another_document_owns_it(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let v = judge(&with_authorization(&[value]));
+        assert_eq!(v.map(|v| v.violation), expected.map(str::to_string));
     }
 
     /// **Both fields § 11 writes as `credentials`, and each finding names the

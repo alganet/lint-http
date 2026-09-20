@@ -15,6 +15,7 @@ The `Authorization` and `Proxy-Authorization` request header fields both carry c
 - [auth_param_equals_missing](../violations/auth_param_equals_missing.md) — An authentication parameter is written without its '='
 - [auth_param_name_character_forbidden](../violations/auth_param_name_character_forbidden.md) — An authentication parameter name holds a character outside token
 - [auth_param_name_empty](../violations/auth_param_name_empty.md) — An authentication parameter has an empty name
+- [auth_param_realm_quoting_invalid](../violations/auth_param_realm_quoting_invalid.md) — A realm is written in the syntax its section refuses
 - [auth_param_value_character_forbidden](../violations/auth_param_value_character_forbidden.md) — An authentication parameter value holds a character outside token
 - [auth_param_value_empty](../violations/auth_param_value_empty.md) — An authentication parameter is written with no value after its '='
 - [auth_scheme_character_forbidden](../violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
@@ -32,6 +33,7 @@ The `Authorization` and `Proxy-Authorization` request header fields both carry c
 - [RFC 9110 §11.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2): Authorization — the field's value *consists of* credentials, which is stricter than § 11.4's optional second half
 - [RFC 9110 §11.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.4): Credentials — `credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]`, the request-side mirror of `challenge`
 - [RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2): Authentication Parameters — `auth-scheme = token`, `auth-param = token BWS "=" BWS ( token / quoted-string )`, and `token68`'s alphabet
+- [RFC 9110 §11.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5): Establishing a Protection Space (Realm) — a realm names one protection space, each with its own authentication scheme, and a response may carry several challenges of one scheme with different realms; the section closes by admitting one spelling of the value
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 - [RFC 7617](https://www.rfc-editor.org/rfc/rfc7617.html): Basic Authentication

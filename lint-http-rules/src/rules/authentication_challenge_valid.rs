@@ -4,7 +4,8 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::challenge::{CHALLENGE_REALM_AMBIGUOUS, RFC_9110_11_5};
+use crate::violations::auth_param::RFC_9110_11_5;
+use crate::violations::challenge::CHALLENGE_REALM_AMBIGUOUS;
 use crate::violations::ViolationDef;
 
 pub struct AuthenticationChallengeValid;

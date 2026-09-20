@@ -6,7 +6,8 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::auth_param::{
     AUTH_PARAM_EQUALS_MISSING, AUTH_PARAM_NAME_CHARACTER_FORBIDDEN, AUTH_PARAM_NAME_EMPTY,
-    AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+    AUTH_PARAM_REALM_QUOTING_INVALID, AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+    RFC_9110_11_5,
 };
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::challenge::{
@@ -65,6 +66,7 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTH_PARAM_VALUE_EMPTY,
     &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
+    &AUTH_PARAM_REALM_QUOTING_INVALID,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
@@ -97,6 +99,7 @@ impl RuleMeta for ProxyAuthenticateChallengeSyntax {
             RFC_9110_11_6_1,
             RFC_9110_11_3,
             RFC_9110_11_2,
+            RFC_9110_11_5,
             RFC_9110_5_6_4,
         ]
     }

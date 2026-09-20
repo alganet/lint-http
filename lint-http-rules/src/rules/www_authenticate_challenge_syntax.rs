@@ -6,7 +6,8 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::auth_param::{
     AUTH_PARAM_EQUALS_MISSING, AUTH_PARAM_NAME_CHARACTER_FORBIDDEN, AUTH_PARAM_NAME_EMPTY,
-    AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+    AUTH_PARAM_REALM_QUOTING_INVALID, AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+    RFC_9110_11_5,
 };
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::challenge::{
@@ -41,6 +42,7 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTH_PARAM_VALUE_EMPTY,
     &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
+    &AUTH_PARAM_REALM_QUOTING_INVALID,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
@@ -66,6 +68,7 @@ impl RuleMeta for WwwAuthenticateChallengeSyntax {
             RFC_9110_11_6_1,
             RFC_9110_11_3,
             RFC_9110_11_2,
+            RFC_9110_11_5,
             RFC_9110_5_6_4,
         ]
     }
@@ -110,6 +113,11 @@ impl RuleMeta for WwwAuthenticateChallengeSyntax {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"unfinished",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the realm derives from `auth-param`, and § 11.5 admits one spelling of it)"),
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=example",
             },
         ]
     }
@@ -712,15 +720,44 @@ mod tests {
         assert!(v.is_none());
     }
 
-    #[test]
-    fn realm_token_unquoted_is_accepted() {
+    /// **This test asserted the opposite, and the assertion was the defect.**
+    /// `Basic realm=token123` derives from `auth-param` — the production offers
+    /// `token / quoted-string` and this is the first alternative — so a reader
+    /// checking only the grammar is right to pass it, and that is what the test
+    /// was checking. § 11.5 is a second sentence about the same value: "For
+    /// historical reasons, a sender MUST only generate the quoted-string
+    /// syntax", and it takes the choice away for this one parameter.
+    ///
+    /// The row below it is the ordering that keeps the historical reason from
+    /// masking the grammar: `realm=a[b]` is unquoted *and* holds an octet no
+    /// `token` admits, and the character is what a recipient chokes on.
+    #[rstest]
+    #[case("Basic realm=token123", Some("auth_param_realm_quoting_invalid"))]
+    #[case("Basic realm=\"token123\"", None)]
+    // The realm of a challenge, whatever scheme offers it. § 3.4's reader walks
+    // requests, so a `Digest` challenge is this reading's alone.
+    #[case(
+        "Digest realm=r, nonce=\"n\"",
+        Some("auth_param_realm_quoting_invalid")
+    )]
+    // A defect of the production outranks it, and the walk holds the realm back
+    // until every member has been read for exactly this case.
+    #[case("Basic realm=a[b]", Some("auth_param_value_character_forbidden"))]
+    #[case(
+        "Basic realm=foo, bad@name=x",
+        Some("auth_param_name_character_forbidden")
+    )]
+    // Case-insensitive: the parameter name is a `token`, and § 11.2 gives a
+    // `token` no case.
+    #[case("Basic REALM=foo", Some("auth_param_realm_quoting_invalid"))]
+    fn realm_written_as_a_token_is_reported(#[case] value: &str, #[case] expected: Option<&str>) {
         let rule = WwwAuthenticateChallengeSyntax;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "www_authenticate_challenge_syntax",
         ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
-            &[("www-authenticate", "Basic realm=token123")],
+            &[("www-authenticate", value)],
         );
         let v = crate::test_helpers::run_rule(
             &rule,
@@ -728,7 +765,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_none());
+        assert_eq!(v.map(|v| v.violation), expected.map(str::to_string));
     }
 
     #[test]

@@ -1113,6 +1113,11 @@ severity = "error"
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.auth_param_realm_quoting_invalid]
+# A realm is written in the syntax its section refuses
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.auth_param_value_character_forbidden]
 # An authentication parameter value holds a character outside token
 # GRAMMAR obliges the sender, so this defaults to error.

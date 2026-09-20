@@ -378,6 +378,15 @@ pub enum AuthDefect<'a> {
         /// What it failed to be.
         defect: crate::helpers::quoted_string::QuotedStringDefect,
     },
+    /// A `realm` written as a `token` where § 11.5 admits only the
+    /// `quoted-string`. Carries the value as written.
+    ///
+    /// **The one variant here that is not a defect of the grammar**, and the
+    /// walk treats it accordingly: it is held back until every member has been
+    /// read and returned only if none of them failed the production. A value
+    /// outside both alternatives is a value a recipient cannot read at all,
+    /// and it is the one a sender fixes first.
+    RealmUnquoted(&'a str),
 }
 
 impl AuthDefect<'_> {
@@ -439,6 +448,11 @@ impl AuthDefect<'_> {
                 "Invalid quoted-string in {field} auth-param '{}': {}",
                 name,
                 defect.message(value)
+            ),
+            Self::RealmUnquoted(value) => format!(
+                "{field} writes its realm as the token '{}', and RFC 9110 \u{a7}11.5 admits only the quoted-string syntax for it (\"For historical reasons, a sender MUST only generate the quoted-string syntax\") \u{2014} write realm=\"{}\" instead",
+                crate::helpers::shown::shown_in_finding(value),
+                value
             ),
         }
     }
@@ -683,6 +697,33 @@ pub fn validate_scheme_tail(
         // commas have been through `split_and_group_challenges`, the credentials
         // side's have been through nothing.
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+        // § 11.5's MUST, held back until the grammar has finished.
+        //
+        // **A realm written as a `token` is not a defect of the production**,
+        // which offers `token / quoted-string` and derives `realm=foo` as
+        // readily as `realm="foo"`. So it cannot be returned where the walk
+        // returns everything else: a member that fails `auth-param` outright is
+        // what a sender fixes first, and reporting a historical spelling in its
+        // place would let the weakest claim in the walk mask the strongest.
+        // The value is remembered and returned below only if every member came
+        // through clean.
+        //
+        // **The first realm and not the last**, on the same footing as every
+        // other arm here: one value, one finding, and the one a reader meets
+        // first is the one the walk reaches first.
+        //
+        // Where the credential is a `Digest`, RFC 7616 § 3.4 says this about
+        // `realm` and six parameters beside it and `digest_auth_valid` reports
+        // it there, so the general reading declines rather than putting a
+        // second finding on one value with one repair. The direction is part of
+        // the guard and not an afterthought: that reader walks `Authorization`
+        // and `Proxy-Authorization` and never a response, so a *challenge*
+        // spelled `Digest realm=foo` is this reading's and nobody else's.
+        // cite(RFC 9110 § 11.5): "For historical reasons, a sender MUST only generate the quoted-string syntax."
+        let realm_is_answered_elsewhere =
+            side == Side::Credentials && scheme.eq_ignore_ascii_case("digest");
+        let mut unquoted_realm: Option<&str> = None;
+
         for param in split_commas_respecting_quotes(rest) {
             if members == MemberEmptiness::ReadHere && param.trim().is_empty() {
                 return Err(AuthDefect::ParameterMemberEmpty);
@@ -720,7 +761,16 @@ pub fn validate_scheme_tail(
                 }
             } else if let Some(inv) = crate::helpers::token::find_invalid_token_char(v) {
                 return Err(AuthDefect::ParameterValueCharacter(inv));
+            } else if unquoted_realm.is_none()
+                && !realm_is_answered_elsewhere
+                && name.eq_ignore_ascii_case("realm")
+            {
+                unquoted_realm = Some(v);
             }
+        }
+
+        if let Some(value) = unquoted_realm {
+            return Err(AuthDefect::RealmUnquoted(value));
         }
     }
 

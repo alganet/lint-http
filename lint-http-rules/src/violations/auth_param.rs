@@ -40,8 +40,26 @@
 
 use crate::lint::Severity;
 use crate::lint::Strength;
+use crate::rules::SpecRef;
 use crate::violations::auth_scheme::RFC_9110_11_2;
 use crate::violations::defects;
+
+/// The realm: what it names, and the one spelling a sender may write it in.
+///
+/// **It lives here rather than beside the challenge entries that also quote
+/// it**, because the section is about a parameter and not about a field.
+/// § 11.5 opens "The "realm" authentication parameter is reserved for use by
+/// authentication schemes that wish to indicate a scope of protection" and
+/// closes with a MUST about how to spell its value; a challenge is one of the
+/// four things that carry it, and [`challenge`](crate::violations::challenge)
+/// imports the reference from here for the entry that reads realms across a
+/// response.
+pub const RFC_9110_11_5: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5",
+    note: "Establishing a Protection Space (Realm) — a realm names one protection space, each with its own authentication scheme, and a response may carry several challenges of one scheme with different realms; the section closes by admitting one spelling of the value",
+};
 
 defects! {
     /// A member of an `#auth-param` list with no `=` in it: `Digest username`,
@@ -145,6 +163,51 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_11_2],
         strength: Strength::Grammar,
+    }
+
+    /// A `realm` written as a `token`: `Basic realm=foo`, where § 11.5 admits
+    /// only `realm="foo"`.
+    ///
+    /// **`_invalid` and not `_malformed`, because the value derives.**
+    /// `auth-param` offers `token / quoted-string` and produces the unquoted
+    /// spelling as readily as the quoted one; § 11.5 then removes the choice
+    /// for this one parameter, and says why in the same breath — "for
+    /// historical reasons". That is the sibling relation to
+    /// [`DIGEST_CREDENTIALS_QUOTING_INVALID`](crate::violations::digest_credentials::DIGEST_CREDENTIALS_QUOTING_INVALID),
+    /// which is RFC 7616 § 3.4 saying the identical thing about seven Digest
+    /// parameters at once, and which keeps the one value both sentences bind: a
+    /// realm in Digest credentials is answered by the document that defines
+    /// that credential, so one repair stays one finding.
+    ///
+    /// **The subject is the parameter and not the field, which is the whole of
+    /// why it is here.** § 11.5 binds "a sender" — every sender — and a realm
+    /// is written by a server in a `WWW-Authenticate` or `Proxy-Authenticate`
+    /// challenge and by a client in an `Authorization` or `Proxy-Authorization`
+    /// credential. All four are `auth-scheme [ 1*SP ( token68 / #auth-param ) ]`
+    /// and all four reach this through one reading of it. An id naming any one
+    /// of them would have been wrong for the other three.
+    ///
+    /// **The grammar outranks it.** A realm that is unquoted *and* holds an
+    /// octet no `token` admits is answered by
+    /// [`AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN`] instead: the historical reason
+    /// is a spelling a recipient may still read, and a value outside both
+    /// alternatives is not. So this is reported only where the parameters
+    /// carrying it are otherwise well formed.
+    ///
+    /// `error`, from the keyword as it binds the sender. What the next sentence
+    /// grants is the recipient's leniency and not the sender's — "Recipients
+    /// might have to support both token and quoted-string syntax for maximum
+    /// interoperability" describes what a parser has to survive, and says
+    /// nothing about what a sender may generate.
+    ///
+    // cite(RFC 9110 § 11.5): "For historical reasons, a sender MUST only generate the quoted-string syntax."
+    AUTH_PARAM_REALM_QUOTING_INVALID = {
+        id: "auth_param_realm_quoting_invalid",
+        title: "A realm is written in the syntax its section refuses",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_11_5],
+        strength: Strength::Must,
     }
 }
 

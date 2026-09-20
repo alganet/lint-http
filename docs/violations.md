@@ -45,6 +45,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [auth_param_equals_missing](violations/auth_param_equals_missing.md) — An authentication parameter is written without its '='
 - [auth_param_name_character_forbidden](violations/auth_param_name_character_forbidden.md) — An authentication parameter name holds a character outside token
 - [auth_param_name_empty](violations/auth_param_name_empty.md) — An authentication parameter has an empty name
+- [auth_param_realm_quoting_invalid](violations/auth_param_realm_quoting_invalid.md) — A realm is written in the syntax its section refuses
 - [auth_param_value_character_forbidden](violations/auth_param_value_character_forbidden.md) — An authentication parameter value holds a character outside token
 - [auth_param_value_empty](violations/auth_param_value_empty.md) — An authentication parameter is written with no value after its '='
 - [auth_scheme_character_forbidden](violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token

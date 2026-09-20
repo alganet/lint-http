@@ -36,7 +36,8 @@ use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::auth_param::{
     AUTH_PARAM_EQUALS_MISSING, AUTH_PARAM_NAME_CHARACTER_FORBIDDEN, AUTH_PARAM_NAME_EMPTY,
-    AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+    AUTH_PARAM_REALM_QUOTING_INVALID, AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+    RFC_9110_11_5,
 };
 use crate::violations::auth_scheme::AUTH_SCHEME_CHARACTER_FORBIDDEN;
 use crate::violations::list::LIST_MEMBER_EMPTY;
@@ -53,15 +54,6 @@ pub const RFC_9110_11_3: SpecRef = SpecRef {
 };
 
 /// The field as a list, which is what the two member defects are answered by.
-/// Protection spaces: what a `realm` names, and what a server is partitioning
-/// its resources into when it writes one.
-pub const RFC_9110_11_5: SpecRef = SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5",
-    note: "Establishing a Protection Space (Realm) — a realm names one protection space, each with its own authentication scheme, and a response may carry several challenges of one scheme with different realms",
-};
-
 pub const RFC_9110_11_6_1: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("11.6.1"),
@@ -174,6 +166,7 @@ pub fn challenge_defect(defect: AuthDefect<'_>) -> &'static ViolationDef {
         AuthDefect::ParameterNameCharacter(_) => &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
         AuthDefect::ParameterValueCharacter(_) => &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
         AuthDefect::ParameterQuotedValue { defect, .. } => quoted_string_defect(defect),
+        AuthDefect::RealmUnquoted(_) => &AUTH_PARAM_REALM_QUOTING_INVALID,
     }
 }
 
@@ -255,6 +248,10 @@ mod tests {
             (
                 AuthDefect::ParameterValueCharacter('@'),
                 "auth_param_value_character_forbidden",
+            ),
+            (
+                AuthDefect::RealmUnquoted("foo"),
+                "auth_param_realm_quoting_invalid",
             ),
             (
                 AuthDefect::ParameterQuotedValue {

@@ -21,6 +21,7 @@ The rule says nothing about which schemes are acceptable — that is `auth_schem
 - [auth_param_equals_missing](../violations/auth_param_equals_missing.md) — An authentication parameter is written without its '='
 - [auth_param_name_character_forbidden](../violations/auth_param_name_character_forbidden.md) — An authentication parameter name holds a character outside token
 - [auth_param_name_empty](../violations/auth_param_name_empty.md) — An authentication parameter has an empty name
+- [auth_param_realm_quoting_invalid](../violations/auth_param_realm_quoting_invalid.md) — A realm is written in the syntax its section refuses
 - [auth_param_value_character_forbidden](../violations/auth_param_value_character_forbidden.md) — An authentication parameter value holds a character outside token
 - [auth_param_value_empty](../violations/auth_param_value_empty.md) — An authentication parameter is written with no value after its '='
 - [auth_scheme_character_forbidden](../violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
@@ -39,6 +40,7 @@ The rule says nothing about which schemes are acceptable — that is `auth_schem
 - [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): `WWW-Authenticate = #challenge` — the list whose members are grouped into challenges before any of them is read
 - [RFC 9110 §11.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.3): Challenge and Response — `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]`
 - [RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2): Authentication Parameters — `auth-scheme = token`, `auth-param = token BWS "=" BWS ( token / quoted-string )`, and `token68`'s alphabet
+- [RFC 9110 §11.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5): Establishing a Protection Space (Realm) — a realm names one protection space, each with its own authentication scheme, and a response may carry several challenges of one scheme with different realms; the section closes by admitting one spelling of the value
 - [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 
 ## Configuration

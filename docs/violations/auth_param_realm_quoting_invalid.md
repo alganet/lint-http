@@ -4,9 +4,9 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# challenge_realm_ambiguous
+# auth_param_realm_quoting_invalid
 
-One realm is advertised by two authentication schemes
+A realm is written in the syntax its section refuses
 
 ## Message
 
@@ -14,7 +14,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ## Obligation
 
-**No sentence obliges the sender of this message.** Either nothing states a requirement about this defect, or the keyword in the text it cites binds the *recipient* and so says nothing about the peer being reported. The severity below is a judgement, argued in the catalogue entry.
+A **`MUST`** binding the sender of the message, so a finding here reports at `error` by default.
 
 ## Specifications
 
@@ -23,11 +23,14 @@ _Written where it is reported: this defect's message names the value that caused
 ## Configuration
 
 ```toml
-[violations.challenge_realm_ambiguous]
-# One realm is advertised by two authentication schemes
-severity = "warn"
+[violations.auth_param_realm_quoting_invalid]
+# A realm is written in the syntax its section refuses
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 ```
 
 ## Reported By
 
-- [authentication_challenge_valid](../rules/authentication_challenge_valid.md)
+- [authorization_credentials_valid](../rules/authorization_credentials_valid.md)
+- [proxy_authenticate_challenge_syntax](../rules/proxy_authenticate_challenge_syntax.md)
+- [www_authenticate_challenge_syntax](../rules/www_authenticate_challenge_syntax.md)
