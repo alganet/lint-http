@@ -110,14 +110,24 @@ defects! {
     /// rules reading a media type still trimmed this whitespace and published
     /// the leniency in their `description()`, so `expect_header_valid` was the
     /// only reporter and the level described a check that a `Content-Type`
-    /// never ran. Every reader of § 5.6.6's own `parameter` reports it now,
-    /// and the last one to arrive was `Content-Disposition`'s — it kept a hand
-    /// copy of the production that took the name and the value off the `=` with
-    /// `str::trim` before judging either, so the padding was gone before
-    /// anything could ask about it. **A reader of a production that prints
-    /// `BWS` is not one of them**: `transfer-parameter` and `auth-param` write
-    /// the whitespace into the grammar, so the value derives and the sentence
-    /// a sender breaks is § 5.6.3's — `bws_forbidden`, not this.
+    /// never ran. **Every rule that owns a field whose parameters are § 5.6.6's
+    /// reports it now** — `Content-Type`, `Accept`, `Accept-Patch`, `Expect`
+    /// and `Content-Disposition` — and the last to arrive was the last one
+    /// keeping a hand copy of the production: it took the name and the value
+    /// off the `=` with `str::trim` and judged what came back, so the padding
+    /// was gone before anything could ask about it.
+    ///
+    /// **Two kinds of reader are silent on purpose, and neither is an
+    /// oversight.** A rule reading a field another rule owns — `charset_
+    /// registered`, `multipart_boundary_syntax` and `accept_and_content_type_
+    /// negotiation` all read a `Content-Type` or an `Accept` — drops the flag
+    /// so one padded parameter is one finding rather than two. And a reader of
+    /// a production that *prints* `BWS` is answering a different sentence:
+    /// `transfer-parameter` and `auth-param` write the whitespace into the
+    /// grammar, so the value derives and what a sender breaks is § 5.6.3's
+    /// MUST NOT — `bws_forbidden`, not this. A field that restates the
+    /// production instead of borrowing it gets an entry of its own, which is
+    /// what `alt_svc_equals_whitespace_forbidden` is.
     ///
     /// The argument that closed it is the one the level was raised on: the
     /// production prints no `OWS` anywhere inside itself and § 5.6.6 says so
