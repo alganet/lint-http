@@ -78,6 +78,14 @@ impl LanguageTagDefect<'_> {
 /// element the sentence below admits no whitespace at all — so the honest answer
 /// is to measure what was passed.
 ///
+/// **And measuring it is not the same as classifying it.** With the trim gone,
+/// %xA0 reached the branch below and that branch asked `char::is_whitespace`,
+/// which is true of it — so the octet was reported as whitespace, under an
+/// entry whose title says so. It is `obs-text`. What the branch tests now is
+/// [`crate::helpers::headers::is_ows_or_ctl`], so an `obs-text` octet falls
+/// through to `BadCharacter` one line further down, where the entry's claim is
+/// about the alphabet and true of it.
+///
 /// Returns `Ok(())` if the tag looks like a valid language tag, or the named
 /// [`LanguageTagDefect`] otherwise.
 pub fn validate_language_tag(tag: &str) -> Result<(), LanguageTagDefect<'_>> {
@@ -86,9 +94,14 @@ pub fn validate_language_tag(tag: &str) -> Result<(), LanguageTagDefect<'_>> {
         return Err(LanguageTagDefect::Empty);
     }
 
-    // Reject control chars or whitespace inside tag
+    // Reject control chars or whitespace inside tag -- HTTP's two classes and
+    // not Rust's. `char::is_control` is true of U+0080-U+009F and
+    // `char::is_whitespace` of U+0085 and U+00A0, which as octets are
+    // `obs-text`: a character the sender chose, not one something between the
+    // peers put there. Those fall through to the `BadCharacter` branch below,
+    // whose entry says "outside letters, digits and hyphen" and is true of them.
     // cite(RFC 5646 § 2.1): "Whitespace is not permitted in a language tag."
-    if s.chars().any(|c| c.is_control() || c.is_whitespace()) {
+    if s.chars().any(crate::helpers::headers::is_ows_or_ctl) {
         return Err(LanguageTagDefect::WhitespaceOrControl);
     }
 
@@ -193,6 +206,34 @@ mod tests {
         assert!(validate_language_tag("en@US").is_err());
     }
 
+    /// The octet %xA0 is `obs-text`, and both directions of that are here.
+    /// `char::is_whitespace` is true of it and HTTP's `OWS` is not, so a reader
+    /// asking Rust reported a character the sender chose under an entry whose
+    /// title says whitespace. It is a `BadCharacter` — the alphabet is what it
+    /// is outside — and the ASCII cases beside it are what stop a fix that
+    /// answers `BadCharacter` for everything.
+    ///
+    /// Every `char` here stands for one octet, which is what
+    /// `field_line_as_written` produces; U+0085 is %x85 and U+00A0 is %xA0.
+    #[test]
+    fn an_obs_text_octet_is_a_character_the_sender_chose_and_not_whitespace() {
+        use LanguageTagDefect as D;
+        for c in ['\u{85}', '\u{a0}', '\u{90}'] {
+            assert_eq!(
+                validate_language_tag(&format!("en{c}US")),
+                Err(D::BadCharacter(c)),
+                "{c:?} is obs-text: outside the alphabet, not whitespace or a CTL"
+            );
+        }
+        for c in [' ', '\t', '\u{1}', '\u{7f}'] {
+            assert_eq!(
+                validate_language_tag(&format!("en{c}US")),
+                Err(D::WhitespaceOrControl),
+                "{c:?} is SP, HTAB or a CTL"
+            );
+        }
+    }
+
     #[test]
     fn invalid_hyphen_placement() {
         assert!(validate_language_tag("-en").is_err());
@@ -216,6 +257,10 @@ mod tests {
         use LanguageTagDefect as D;
         assert_eq!(validate_language_tag(""), Err(D::Empty));
         assert_eq!(validate_language_tag("en US"), Err(D::WhitespaceOrControl));
+        assert_eq!(
+            validate_language_tag("en\u{1}US"),
+            Err(D::WhitespaceOrControl)
+        );
         assert_eq!(validate_language_tag("en_US"), Err(D::BadCharacter('_')));
         assert_eq!(validate_language_tag("-en"), Err(D::HyphenPlacement));
         assert_eq!(validate_language_tag("en-"), Err(D::HyphenPlacement));

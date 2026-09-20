@@ -345,6 +345,35 @@ pub fn trim_ows(s: &str) -> &str {
     s.trim_matches(|c| c == ' ' || c == '\t')
 }
 
+/// Whether an as-written octet is whitespace or a `CTL` *as HTTP defines those*.
+///
+/// The companion to [`trim_ows`], for the readers that report an octet rather
+/// than remove it. A `char` reaching this function is an octet — either it came
+/// through `to_str`, which refuses everything outside HTAB and %x20-%x7E, or it
+/// came through an as-written reader, which maps one octet to one `char` and so
+/// never produces anything above U+00FF — and over ASCII the Unicode predicates
+/// agree with the set below exactly. Above it they agree with nothing HTTP
+/// defines: `char::is_control` is true of U+0080-U+009F and
+/// `char::is_whitespace` of U+0085 and U+00A0, which as octets are `obs-text`.
+///
+/// What the answer is for is the sentence an entry makes. Whitespace and a
+/// `CTL` are what something between the peers did to a value; an `obs-text`
+/// octet is a character the sender chose and the production does not admit,
+/// which is a different entry's claim. A reader that asks Rust hands the first
+/// entry a value the second one describes, and the entry's title — "holds
+/// whitespace or a control character" — is then false of the octet it names.
+///
+/// HTAB is itself below %x20 and so already in the `CTL` half; it is spelled
+/// out anyway, because what a caller is testing for is the two named classes
+/// and not their arithmetic.
+///
+/// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+/// cite(RFC 5234 § B.1): "CTL            =  %x00-1F / %x7F"
+pub fn is_ows_or_ctl(c: char) -> bool {
+    let octet = c as u32;
+    c == ' ' || c == '\t' || octet < 0x20 || octet == 0x7f
+}
+
 /// The value § 5.2 recombines a repeated field into, rendered for a finding.
 ///
 /// [`singleton_field_preamble`] wants one string naming what a recipient joining
@@ -544,6 +573,40 @@ mod tests {
                 trim_ows(s),
                 "octet {b:#04x} reached `to_str` and the two trims disagree on it"
             );
+        }
+    }
+
+    /// The predicate over every octet, against the two productions rather than
+    /// against a second hand-written list. `OWS` is `*( SP / HTAB )` and `CTL`
+    /// is %x00-%x1F plus %x7F; everything else is out, and the octets that
+    /// matter are the ones where Rust says otherwise.
+    #[test]
+    fn is_ows_or_ctl_is_the_two_productions_over_every_octet() {
+        for b in 0u8..=0xFF {
+            let c = char::from(b);
+            let by_grammar = b == b' ' || b == b'\t' || b < 0x20 || b == 0x7f;
+            assert_eq!(
+                is_ows_or_ctl(c),
+                by_grammar,
+                "octet {b:#04x} is {} OWS or a CTL",
+                if by_grammar { "" } else { "not" }
+            );
+        }
+    }
+
+    /// The four octets a Rust predicate answers differently, named. Each is
+    /// `obs-text`: field content a recipient is told to treat as opaque data,
+    /// which is a character the sender wrote and not one something in between
+    /// put there.
+    #[test]
+    fn the_octets_rust_and_http_disagree_about_are_obs_text() {
+        for b in [0x85u8, 0xA0, 0x80, 0x9F] {
+            let c = char::from(b);
+            assert!(
+                c.is_whitespace() || c.is_control(),
+                "octet {b:#04x} is what Rust calls whitespace or a control"
+            );
+            assert!(!is_ows_or_ctl(c), "octet {b:#04x} is obs-text to HTTP");
         }
     }
 

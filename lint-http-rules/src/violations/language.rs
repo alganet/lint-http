@@ -81,9 +81,12 @@ defects! {
         strength: Strength::Grammar,
     }
 
-    /// A visible octet outside the alphanumerics and `-`: the underscore of
-    /// `en_US`, most often, which is the locale spelling of a different
-    /// ecosystem.
+    /// An octet outside the alphanumerics and `-`: the underscore of `en_US`,
+    /// most often, which is the locale spelling of a different ecosystem. Not
+    /// only a *visible* one — `obs-text` lands here too, because it is a
+    /// character the sender chose that the alphabet does not admit, which is
+    /// what this entry claims and what
+    /// `LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN` does not.
     ///
     // cite(RFC 5646 § 2.1): "alphanum      = (ALPHA / DIGIT)     ; letters and numbers"
     LANGUAGE_TAG_CHARACTER_FORBIDDEN = {

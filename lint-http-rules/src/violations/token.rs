@@ -109,24 +109,19 @@ defects! {
 /// here: it is the shape `token68`'s bearer-token entries settled, and the
 /// reason a coarse helper can feed a catalogue finer than itself.
 pub fn token_character(c: char) -> &'static ViolationDef {
-    // HTTP's two classes and not Rust's. A `char` reaching this function is an
-    // octet: either it came through `to_str`, which refuses everything outside
-    // HTAB and %x20-%x7E, or it came through an as-written reader, which maps
-    // one octet to one `char` and so never produces anything above U+00FF.
-    // Over ASCII the Unicode predicates agree with the sets below exactly, and
-    // above it they do not agree with anything HTTP defines: `char::is_control`
-    // is true of U+0080-U+009F and `char::is_whitespace` of U+0085 and U+00A0,
-    // which as octets are `obs-text` — the class § 5.6.2 puts at or above %x80
-    // and `TOKEN_CHARACTER_FORBIDDEN` names in as many words.
+    // HTTP's two classes and not Rust's, and the test is
+    // [`crate::helpers::headers::is_ows_or_ctl`] rather than a fourth private
+    // copy of it: three other subjects sorted the same question by asking Rust
+    // and each answered a `_whitespace_or_control_forbidden` entry about an
+    // `obs-text` octet — the class § 5.6.2 puts at or above %x80 and
+    // `TOKEN_CHARACTER_FORBIDDEN` names in as many words.
     //
     // What the split is for is the sentence each entry makes. Whitespace and a
     // `CTL` are what something between the peers did to a value; an `obs-text`
     // octet is a character a sender chose and the production does not admit,
     // which is the other entry's claim and a level quieter for saying so.
-    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
     // cite(RFC 9110 § 5.6.2): "Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}")."
-    let octet = c as u32;
-    match c == ' ' || c == '\t' || octet < 0x20 || octet == 0x7f {
+    match crate::helpers::headers::is_ows_or_ctl(c) {
         true => &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
         false => &TOKEN_CHARACTER_FORBIDDEN,
     }

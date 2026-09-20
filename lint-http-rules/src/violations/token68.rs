@@ -22,6 +22,7 @@
 //! the grammar.
 
 use crate::helpers::auth::BearerTokenDefect;
+use crate::helpers::headers::is_ows_or_ctl;
 use crate::lint::Severity;
 use crate::lint::Strength;
 use crate::violations::auth_scheme::RFC_9110_11_2;
@@ -105,12 +106,19 @@ defects! {
 /// same id `Basic` and the framework rule itself report. And the bad-character
 /// arm is sorted by the character: the reader finds one octet outside the
 /// alphabet, and *which* octet decides whether it is the one nobody typed.
+///
+/// The sort is [`is_ows_or_ctl`] and not `c.is_whitespace() || c.is_control()`,
+/// which is what it was. Those are Rust's classes, and they are true of U+0085,
+/// U+00A0 and U+0080-U+009F — octets HTTP calls `obs-text`. An `obs-text` octet
+/// in a `token68` is a character the sender chose and the alphabet does not
+/// admit, which is `TOKEN68_CHARACTER_FORBIDDEN`'s claim; sorting it into the
+/// other arm made that entry's own title false of the octet it named.
 pub fn bearer_token_defect(defect: BearerTokenDefect) -> &'static ViolationDef {
     match defect {
         BearerTokenDefect::Empty => &CREDENTIALS_MISSING,
         BearerTokenDefect::Whitespace => &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
         BearerTokenDefect::EmptyBody => &TOKEN68_BODY_EMPTY,
-        BearerTokenDefect::BadCharacter(c) if c.is_whitespace() || c.is_control() => {
+        BearerTokenDefect::BadCharacter(c) if is_ows_or_ctl(c) => {
             &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN
         }
         BearerTokenDefect::BadCharacter(_) => &TOKEN68_CHARACTER_FORBIDDEN,
@@ -141,6 +149,25 @@ mod tests {
             (
                 BearerTokenDefect::BadCharacter('\u{1}'),
                 "token68_whitespace_or_control_forbidden",
+            ),
+            (
+                BearerTokenDefect::BadCharacter('\u{7f}'),
+                "token68_whitespace_or_control_forbidden",
+            ),
+            // %x85 and %xA0 are `obs-text`. `char::is_whitespace` is true of
+            // both and HTTP's `OWS` is `*( SP / HTAB )`, so the arm that used
+            // to sort them answered an entry whose title is false of the octet.
+            (
+                BearerTokenDefect::BadCharacter('\u{85}'),
+                "token68_character_forbidden",
+            ),
+            (
+                BearerTokenDefect::BadCharacter('\u{a0}'),
+                "token68_character_forbidden",
+            ),
+            (
+                BearerTokenDefect::BadCharacter('\u{90}'),
+                "token68_character_forbidden",
             ),
             (BearerTokenDefect::BadPadding, "token68_padding_malformed"),
         ] {

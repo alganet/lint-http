@@ -1238,7 +1238,7 @@ sources:
     - file: lint-http-rules/src/helpers/domain.rs
       line: 31
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 166
+      line: 173
     - file: lint-http-rules/src/violations/domain.rs
       line: 95
   - label: lint-http-rules/src/helpers/domain.rs (2)
@@ -1246,7 +1246,7 @@ sources:
     snippet: end with a letter or digit, and have as interior characters only letters, digits, and hyphen.
     cited_by:
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 177
+      line: 184
   - label: lint-http-rules/src/helpers/domain.rs (3)
     section: § 2.3.4
     snippet: names 255 octets or less
@@ -1254,7 +1254,7 @@ sources:
     - file: lint-http-rules/src/helpers/domain.rs
       line: 26
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 157
+      line: 164
     - file: lint-http-rules/src/violations/domain.rs
       line: 58
 - label: RFC 1123
@@ -1265,7 +1265,7 @@ sources:
     snippet: the restriction on the first character is relaxed to allow either a letter or a digit.
     cited_by:
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 178
+      line: 185
 - label: RFC 2045
   url: https://www.rfc-editor.org/rfc/rfc2045.html
   fragments:
@@ -2119,7 +2119,7 @@ sources:
     snippet: language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*"
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 123
+      line: 136
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 322
 - label: RFC 4648
@@ -2180,6 +2180,12 @@ sources:
       line: 276
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 126
+  - label: lint-http-rules/src/helpers/headers.rs
+    section: § B.1
+    snippet: CTL            =  %x00-1F / %x7F
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 371
   - label: lint-http-rules/src/helpers/mailbox.rs
     section: § B.1
     snippet: WSP            =  SP / HTAB ; white space
@@ -2447,7 +2453,7 @@ sources:
     - file: lint-http-rules/src/violations/language.rs
       line: 74
     - file: lint-http-rules/src/violations/language.rs
-      line: 88
+      line: 91
   - label: language (3)
     section: § 2.1
     snippet: are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen
@@ -2455,47 +2461,47 @@ sources:
     - file: lint-http-rules/src/violations/language.rs
       line: 73
     - file: lint-http-rules/src/violations/language.rs
-      line: 101
+      line: 104
     - file: lint-http-rules/src/violations/language.rs
-      line: 113
+      line: 116
   - label: language (4)
     section: § 2.1
     snippet: privateuse    = "x" 1*("-" (1*8alphanum))
     cited_by:
     - file: lint-http-rules/src/violations/language.rs
-      line: 141
+      line: 144
   - label: lint-http-rules/src/helpers/language.rs
     section: § 2.1
     snippet: A language tag is composed from a sequence of one or more "subtags", each of which refines or narrows the range of language identified by the overall tag.
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 110
+      line: 123
   - label: lint-http-rules/src/helpers/language.rs (2)
     section: § 2.1
     snippet: All subtags have a maximum length of eight characters.
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 139
+      line: 152
   - label: lint-http-rules/src/helpers/language.rs (3)
     section: § 2.1
     snippet: Subtags, in turn, are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen ("-", [Unicode] U+002D).
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 96
+      line: 109
   - label: lint-http-rules/src/helpers/language.rs (4)
     section: § 2.1
     snippet: Whitespace is not permitted in a language tag.
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 90
+      line: 103
   - label: lint-http-rules/src/helpers/language.rs (5)
     section: § 2.1
     snippet: language      = 2*3ALPHA            ; shortest ISO 639 code
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 126
+      line: 139
     - file: lint-http-rules/src/violations/language.rs
-      line: 127
+      line: 130
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.html
   fragments:
@@ -7416,6 +7422,8 @@ sources:
       line: 176
     - file: lint-http-rules/src/helpers/headers.rs
       line: 343
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 370
     - file: lint-http-rules/src/helpers/list.rs
       line: 36
     - file: lint-http-rules/src/helpers/list.rs
@@ -7464,8 +7472,6 @@ sources:
       line: 171
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 80
-    - file: lint-http-rules/src/violations/token.rs
-      line: 126
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -8033,9 +8039,9 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 144
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 363
+      line: 392
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 445
+      line: 474
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 167
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
@@ -8339,7 +8345,7 @@ sources:
     snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 446
+      line: 475
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 41
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
@@ -8415,7 +8421,7 @@ sources:
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 443
+      line: 472
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 287
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
@@ -8425,7 +8431,7 @@ sources:
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 444
+      line: 473
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 453
   - label: lint-http-rules/src/helpers/headers.rs (8)
@@ -8497,7 +8503,7 @@ sources:
     - file: lint-http-rules/src/violations/token.rs
       line: 94
     - file: lint-http-rules/src/violations/token.rs
-      line: 127
+      line: 123
   - label: lint-http-rules/src/helpers/list.rs (4)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -10505,13 +10511,13 @@ sources:
     snippet: token68        = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/violations/token68.rs
-      line: 46
+      line: 47
     - file: lint-http-rules/src/violations/token68.rs
-      line: 60
+      line: 61
     - file: lint-http-rules/src/violations/token68.rs
-      line: 74
+      line: 75
     - file: lint-http-rules/src/violations/token68.rs
-      line: 89
+      line: 90
   - label: trace_method_echo
     section: § 11.6.2
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested.

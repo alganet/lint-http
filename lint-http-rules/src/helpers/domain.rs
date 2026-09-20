@@ -108,8 +108,15 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), CookieDomainDefect> {
         return Err(CookieDomainDefect::EmptyAfterLeadingDot);
     }
 
-    // No whitespace or control characters
-    if s.chars().any(|c| c.is_control() || c.is_whitespace()) {
+    // No whitespace or control characters -- HTTP's two classes and not Rust's.
+    // `char::is_control` is true of U+0080-U+009F and `char::is_whitespace` of
+    // U+0085 and U+00A0, and a `Domain` read as written carries one `char` per
+    // octet, so those are `obs-text`: octets a sender chose. They are no more
+    // legal in a name than a space is, but the entry here names whitespace and
+    // a `CTL` in as many words, and an `obs-text` octet is neither. Letting
+    // them through leaves them to `preferred_name_syntax_defect` below, whose
+    // label reader reports the character under the label's own entry.
+    if s.chars().any(crate::helpers::headers::is_ows_or_ctl) {
         return Err(CookieDomainDefect::WhitespaceOrControl);
     }
 
@@ -214,6 +221,42 @@ mod tests {
             assert!(res.is_ok(), "expected '{}' to be valid", input);
         } else {
             assert!(res.is_err(), "expected '{}' to be invalid", input);
+        }
+    }
+
+    /// Both directions of the octet class, at the branch that sorts them. A
+    /// `Domain` read as written carries one `char` per octet, so U+00A0 here is
+    /// the octet %xA0 — `obs-text`, which HTTP calls neither `OWS` nor a `CTL`.
+    /// It is still no name: the honest answer is the label's, one delegation
+    /// on, because the entry this branch reports names whitespace and a control
+    /// character in as many words.
+    #[rstest]
+    #[case('\u{85}', false)]
+    #[case('\u{a0}', false)]
+    #[case('\u{90}', false)]
+    #[case(' ', true)]
+    #[case('\t', true)]
+    #[case('\u{1}', true)]
+    #[case('\u{7f}', true)]
+    fn the_whitespace_branch_is_http_s_two_classes_and_not_rust_s(
+        #[case] octet: char,
+        #[case] expected_whitespace_or_control: bool,
+    ) {
+        let got = validate_cookie_domain(&format!("exa{octet}mple.com"));
+        assert_eq!(
+            got == Err(CookieDomainDefect::WhitespaceOrControl),
+            expected_whitespace_or_control,
+            "{octet:?}: got {got:?}"
+        );
+        assert!(got.is_err(), "{octet:?} is in no name either way");
+        if !expected_whitespace_or_control {
+            assert_eq!(
+                got,
+                Err(CookieDomainDefect::PreferredName(
+                    PreferredNameDefect::LabelBadCharacter
+                )),
+                "an obs-text octet is the label's defect, under the label's entry"
+            );
         }
     }
 
