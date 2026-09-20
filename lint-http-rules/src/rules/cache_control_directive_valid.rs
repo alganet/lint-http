@@ -144,7 +144,7 @@ impl CacheControlDirectiveValid {
                 saw_an_empty_member = true;
                 continue;
             }
-            if let Some(defect) = member_defect(member, side) {
+            for defect in member_defect(member, side) {
                 let message = format!(
                     "Invalid Cache-Control header in {}: {}",
                     side, defect.message
@@ -261,7 +261,7 @@ impl Rule for CacheControlDirectiveValid {
 /// the two Cache-Control syntax rules report identically. What this rule adds is
 /// the part that is its own: what each *named* directive's argument may say.
 // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
-fn member_defect(member: &str, side: &str) -> Option<Defect> {
+fn member_defect(member: &str, side: &str) -> Vec<Defect> {
     let directive = match crate::helpers::cache_control::read_member(member) {
         Ok(directive) => directive,
         // The three defects the reader names are the list's and the token's,
@@ -269,16 +269,18 @@ fn member_defect(member: &str, side: &str) -> Option<Defect> {
         // them. Their *sentences* were already one, because the reader words
         // them; what could not be shared until now is which defect they are.
         Err(defect) => {
-            return Some(Defect::named(
+            return vec![Defect::named(
                 cache_directive_member(defect),
                 defect.message(),
-            ))
+            )]
         }
     };
     let name = directive.name;
     // An empty argument is accepted for directives that take one; the `=` with
     // nothing after it is the leniency recorded in the token rule beside this.
-    let argument = directive.argument.filter(|a| !a.is_empty())?;
+    let Some(argument) = directive.argument.filter(|a| !a.is_empty()) else {
+        return Vec::new();
+    };
 
     match name.to_ascii_lowercase().as_str() {
         // Every directive whose subsection gives the argument the syntax
@@ -291,32 +293,37 @@ fn member_defect(member: &str, side: &str) -> Option<Defect> {
         | "max-stale"
         | "min-fresh"
         | "stale-while-revalidate"
-        | "stale-if-error" => delta_seconds_defect(name, argument, side),
+        | "stale-if-error" => delta_seconds_defect(name, argument, side)
+            .into_iter()
+            .collect(),
         "private" | "no-cache" => field_name_list_defect(name, argument),
         _ => {
             // For other directives, accept token or quoted-string and ensure token syntax if unquoted
             if argument.starts_with('"') {
                 if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(argument) {
-                    return Some(Defect::named(
+                    return vec![Defect::named(
                         quoted_string_defect(defect),
                         format!(
                             "Invalid quoted-string in directive {} value: {}",
                             name,
                             defect.message(argument)
                         ),
-                    ));
+                    )];
                 }
-                return None;
+                return Vec::new();
             }
-            crate::helpers::token::find_invalid_token_char(argument).map(|c| {
-                Defect::named(
-                    token_character(c),
-                    format!(
-                        "Directive {} value contains invalid character: '{}'",
-                        name, c
-                    ),
-                )
-            })
+            crate::helpers::token::find_invalid_token_char(argument)
+                .map(|c| {
+                    Defect::named(
+                        token_character(c),
+                        format!(
+                            "Directive {} value contains invalid character: '{}'",
+                            name, c
+                        ),
+                    )
+                })
+                .into_iter()
+                .collect()
         }
     }
 }
@@ -419,19 +426,22 @@ fn delta_seconds_defect(name: &str, argument: &str, side: &str) -> Option<Defect
     ))
 }
 
-fn field_name_list_defect(name: &str, argument: &str) -> Option<Defect> {
+fn field_name_list_defect(name: &str, argument: &str) -> Vec<Defect> {
     let list = if argument.starts_with('"') {
         match crate::helpers::quoted_string::unescape_quoted_string(argument) {
             Ok(inner) => inner,
+            // The quoting is what says where the list is, so a value that is
+            // not a `quoted-string` holds no members to walk. This one still
+            // ends the reading.
             Err(defect) => {
-                return Some(Defect::named(
+                return vec![Defect::named(
                     quoted_string_defect(defect),
                     format!(
                         "Invalid quoted-string in {} value: {}",
                         name,
                         defect.message(argument)
                     ),
-                ))
+                )]
             }
         }
     } else {
@@ -449,27 +459,49 @@ fn field_name_list_defect(name: &str, argument: &str) -> Option<Defect> {
     // cite(RFC 9110 § 5.6.1): "#element => [ element ] *( OWS "," OWS [ element ] )"
     let lists_no_field = list.trim().is_empty();
 
+    // Each name in this list is a field the sender chose to qualify the
+    // directive with, and each is corrected on its own, so the walk answers
+    // for every one of them. What is NOT a member's own defect is the hole
+    // between two commas: `no-cache="a,,b"` names one field the sender left
+    // blank however many times it did so, and the sentence names no field
+    // because there is no field to name.
+    let mut out: Vec<Defect> = Vec::new();
+    let mut saw_an_empty_field = false;
+
     for field in list.split(',') {
         let field = field.trim();
         if field.is_empty() {
-            let message = format!("Empty field-name in {} value", name);
-            return Some(match lists_no_field {
-                // Which of the two sentences governs is the directive name, and
-                // the caller has it: each subsection defines its own qualified
-                // form, so a finding here cites the paragraph the sender was
-                // reaching for.
-                true => Defect::named(qualified_form_lists_nothing(name), message),
-                false => Defect::named(&LIST_MEMBER_EMPTY, message),
-            });
+            saw_an_empty_field = true;
+            continue;
         }
         if let Some(c) = crate::helpers::token::find_invalid_token_char(field) {
-            return Some(Defect::named(
+            // The finding names the field-name it is about. Two names in one
+            // argument can fail on the same octet, and two copies of a sentence
+            // that said only which octet would leave a reader unable to tell
+            // how many names they have to change or which.
+            out.push(Defect::named(
                 token_character(c),
-                format!("{} includes invalid field-name character: '{}'", name, c),
+                format!(
+                    "{} lists a field-name '{}' with an invalid character: '{}'",
+                    name, field, c
+                ),
             ));
         }
     }
-    None
+
+    if saw_an_empty_field {
+        let message = format!("Empty field-name in {} value", name);
+        out.push(match lists_no_field {
+            // Which of the two sentences governs is the directive name, and
+            // the caller has it: each subsection defines its own qualified
+            // form, so a finding here cites the paragraph the sender was
+            // reaching for.
+            true => Defect::named(qualified_form_lists_nothing(name), message),
+            false => Defect::named(&LIST_MEMBER_EMPTY, message),
+        });
+    }
+
+    out
 }
 
 /// The entry for a qualified form that lists no field name, chosen by the
@@ -1186,6 +1218,67 @@ mod tests {
         );
         assert!(found[0].message.contains("max-age"), "{}", found[0].message);
         assert!(found[1].message.contains("private"), "{}", found[1].message);
+    }
+
+    /// The qualified form's argument is a list of its own, and each name in it
+    /// is a field the sender chose and corrects on its own. Walking to the
+    /// first bad one said `a b` was wrong and left `c@d` for the next run.
+    #[test]
+    fn every_field_name_a_qualified_directive_lists_is_read() {
+        let rule = CacheControlDirectiveValid;
+        let tx = make_resp("no-cache=\"a b, c@d\"");
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "token_whitespace_or_control_forbidden",
+                "token_character_forbidden"
+            ],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        // Each names the field-name it is about. Two names failing on the same
+        // octet would otherwise be one sentence written twice.
+        assert!(found[0].message.contains("'a b'"), "{}", found[0].message);
+        assert!(found[1].message.contains("'c@d'"), "{}", found[1].message);
+    }
+
+    /// Two field-names that fail on the *same* octet are still two names, and
+    /// the only thing telling them apart is the subject in the sentence.
+    #[test]
+    fn two_field_names_failing_alike_are_two_sentences() {
+        let rule = CacheControlDirectiveValid;
+        let tx = make_resp("private=\"a@b, c@d\"");
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_ne!(found[0].message, found[1].message, "{found:?}");
+    }
+
+    /// The hole between two commas belongs to the argument, not to a field
+    /// name: three of them are one blank the sender left.
+    #[test]
+    fn a_qualified_argument_states_its_empty_field_name_once() {
+        let rule = CacheControlDirectiveValid;
+        let tx = make_resp("no-cache=\"a,,,b\"");
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, vec!["list_member_empty"], "{found:?}");
     }
 
     /// The same reading of the same list its neighbour makes: however many gaps
