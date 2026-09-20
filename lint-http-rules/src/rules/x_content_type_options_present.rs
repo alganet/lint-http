@@ -4,14 +4,16 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::x_content_type_options::{
     FETCH_3_6, X_CONTENT_TYPE_OPTIONS_INVALID, X_CONTENT_TYPE_OPTIONS_MISSING,
 };
 use crate::violations::ViolationDef;
 
-/// The two things that can be wrong with a field that has one useful value:
-/// another value, or none.
+/// The three things that can be wrong with a field that has one useful value:
+/// another value, none, or two of them.
 static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
     &X_CONTENT_TYPE_OPTIONS_INVALID,
     &X_CONTENT_TYPE_OPTIONS_MISSING,
 ];
@@ -120,11 +122,11 @@ content_types = ["text/html", "text/javascript", "application/javascript", "appl
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if responses include the `X-Content-Type-Options: nosniff` header.\n\nThis security header prevents browsers from \"MIME-sniffing\" a response away from the declared `Content-Type`. This reduces exposure to drive-by download attacks and cross-site scripting (XSS) vulnerabilities where a browser might execute a file as HTML/JavaScript even if the server served it as an image or text.\n\nA header that is present but whose first value is not `nosniff` (matched case-insensitively, per the Fetch standard's determine-nosniff algorithm) is also flagged: it does not enable the protection."
+        "This rule checks if responses include the `X-Content-Type-Options: nosniff` header.\n\nThis security header prevents browsers from \"MIME-sniffing\" a response away from the declared `Content-Type`. This reduces exposure to drive-by download attacks and cross-site scripting (XSS) vulnerabilities where a browser might execute a file as HTML/JavaScript even if the server served it as an image or text.\n\nA header that is present but whose first value is not `nosniff` (matched case-insensitively, per the Fetch standard's determine-nosniff algorithm) is also flagged: it does not enable the protection.\n\nA response writing the field on more than one line is flagged too, whether or not the lines agree. Fetch \u{a7}3.6 defines the value as the single literal `nosniff` and gives it no comma-separated-list alternative, so RFC 9110 \u{a7}5.3's exception does not reach it; the splitting in *determine-nosniff* is a recipient recovering a first member from a value it should not have been sent, which is a recipient's rule and not a sender's licence. The repetition is reported in place of the value verdict, as it is for every other singleton field in this catalogue."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_3_6, MDN_X_CONTENT_TYPE_OPTIONS]
+        &[FETCH_3_6, RFC_9110_5_3, MDN_X_CONTENT_TYPE_OPTIONS]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -167,6 +169,16 @@ content_types = ["text/html", "text/javascript", "application/javascript", "appl
                 label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\nX-Content-Type-Options: sniff",
             },
+            // The third entry, and the one a reader is likeliest to think
+            // harmless: both lines say `nosniff`, so the protection is on and
+            // the defect is that the field was written twice. §5.3 does not ask
+            // whether the lines agree — the exception it grants turns on the
+            // field's definition, and this field has one literal and no list.
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\nX-Content-Type-Options: nosniff\nX-Content-Type-Options: nosniff",
+            },
         ]
     }
 }
@@ -189,6 +201,44 @@ impl Rule for XContentTypeOptionsPresent {
             let Some(resp) = &tx.response else {
                 return None;
             };
+
+            // The field is a singleton, so a second line is a defect before any
+            // value on it is read. Fetch § 3.6 writes one literal and no
+            // comma-separated-list alternative, which is what § 5.3's exception
+            // turns on; the splitting in *determine-nosniff* is a recipient
+            // recovering a first member from a value it should never have
+            // received, on the same footing as RFC 9111 § 5.1's first-member
+            // recovery for `Age` — a recipient's rule and not a sender's licence.
+            //
+            // **Reported instead of the value verdict, not beside it**, which is
+            // what every sibling singleton in this catalogue does and is the one
+            // place this field differs from them in what it costs. `values[0]` of
+            // the recombined value is determinate here, so the check below would
+            // still reach the right answer on two lines — but the repair an
+            // operator owes is the same either way and one field cannot be two
+            // findings, so the finding names the repetition, which is the defect
+            // that came first.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            let lines = resp
+                .headers
+                .get_all("x-content-type-options")
+                .iter()
+                .count();
+            if lines > 1 {
+                return Some(ctx.report_with(
+                    &FIELD_LINE_DUPLICATED,
+                    crate::helpers::headers::singleton_field_preamble(
+                        "X-Content-Type-Options",
+                        lines,
+                        &crate::helpers::headers::joined_field_lines_shown(
+                            &resp.headers,
+                            "x-content-type-options",
+                        ),
+                        "`X-Content-Type-Options = \"nosniff\"` (Fetch §3.6) is one literal \
+                         and not a list",
+                    ),
+                ));
+            }
 
             // A present header must actually enable the protection: browsers read the
             // first list element case-insensitively, so anything else means sniffing
@@ -257,6 +307,54 @@ mod tests {
     use crate::test_helpers::enable_rule;
     use rstest::rstest;
 
+    /// The repetition is reported *instead of* the value verdict, and one
+    /// finding is all that comes back.
+    ///
+    /// The two lines here disagree, so both questions have an answer: the
+    /// recombined `values[0]` is `sniff`, which does not opt in, and there are
+    /// two field lines where the grammar allows one. A single-finding closure
+    /// returning the first of them is only honest if there is exactly one, so
+    /// the count is asserted rather than left to `run_rule` to hide.
+    #[test]
+    fn two_disagreeing_lines_draw_the_repetition_and_nothing_else() {
+        let mut config = crate::config::Config::default();
+        config.rules.insert(
+            "x_content_type_options_present".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert(
+                    "content_types".into(),
+                    toml::Value::Array(vec![toml::Value::String("text/html".into())]),
+                );
+                t
+            }),
+        );
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[
+                ("content-type", "text/html"),
+                ("x-content-type-options", "sniff"),
+                ("x-content-type-options", "nosniff"),
+            ]),
+            body_length: None,
+            body_interrupted: false,
+            trailers: None,
+        });
+
+        let found = crate::test_helpers::run_rule_all(
+            &XContentTypeOptionsPresent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        assert_eq!(found.len(), 1, "one field, one finding: {found:?}");
+        assert_eq!(found[0].violation, "field_line_duplicated");
+    }
+
     #[rstest]
     #[case(200, vec![("content-type", "text/html")], vec!["text/html"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
     #[case(200, vec![("content-type", "text/javascript"), ("x-content-type-options", "nosniff")], vec!["text/javascript"], false, None)]
@@ -279,6 +377,13 @@ mod tests {
     #[case(200, vec![("content-type", "text/css")], vec!["text/css"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
     #[case(200, vec![("content-type", "text/css; charset=utf-8")], vec!["text/css"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
     #[case(200, vec![("content-type", "text/css"), ("x-content-type-options", "nosniff")], vec!["text/css"], false, None)]
+    // Two field lines are a defect before either value is read: Fetch §3.6
+    // gives the field one literal and no list alternative, so §5.3's exception
+    // does not reach it. The first pair is the shape a real origin sends —
+    // both lines agreeing, so nothing is lost but the line — and the second is
+    // the one that pins which finding wins when they disagree.
+    #[case(200, vec![("content-type", "text/html"), ("x-content-type-options", "nosniff"), ("x-content-type-options", "nosniff")], vec!["text/html"], true, Some("X-Content-Type-Options is written on 2 header lines, which recombine into the one value 'nosniff, nosniff'; the field is a singleton \u{2014} `X-Content-Type-Options = \"nosniff\"` (Fetch \u{a7}3.6) is one literal and not a list \u{2014} so a sender must not generate more than one field line for it (RFC 9110 \u{a7}5.3)"))]
+    #[case(200, vec![("content-type", "text/html"), ("x-content-type-options", "sniff"), ("x-content-type-options", "nosniff")], vec!["text/html"], true, Some("X-Content-Type-Options is written on 2 header lines, which recombine into the one value 'sniff, nosniff'; the field is a singleton \u{2014} `X-Content-Type-Options = \"nosniff\"` (Fetch \u{a7}3.6) is one literal and not a list \u{2014} so a sender must not generate more than one field line for it (RFC 9110 \u{a7}5.3)"))]
     fn check_response_cases(
         #[case] status: u16,
         #[case] header_pairs: Vec<(&str, &str)>,
@@ -327,13 +432,22 @@ mod tests {
 
         if expect_violation {
             let found = violation.expect("a finding");
-            // Two entries and two levels: a server that wrote the field meant
-            // to opt in and did not, a server that wrote nothing never did.
+            // Three entries and two levels: a server that wrote the field meant
+            // to opt in and did not, a server that wrote nothing never did, and
+            // a server that wrote it twice broke §5.3 before either value was
+            // read. The message tells them apart because each is worded by the
+            // entry it reports, and none of the three could be worded as
+            // another.
             let (id, severity) = if found.message.starts_with("Missing") {
                 (
                     "x_content_type_options_missing",
                     crate::lint::Severity::Info,
                 )
+            } else if found
+                .message
+                .starts_with("X-Content-Type-Options is written on")
+            {
+                ("field_line_duplicated", crate::lint::Severity::Error)
             } else {
                 (
                     "x_content_type_options_invalid",

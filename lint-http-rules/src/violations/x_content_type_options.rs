@@ -6,8 +6,14 @@
 //! and the responses that do not carry it.
 //!
 //! The field has a single conformant value and a single effect, so the two
-//! entries here are the only two things that can be wrong with it: a value
+//! entries here are the two things that can be wrong with its *value*: a value
 //! that is not `nosniff`, and no value at all.
+//!
+//! **A third thing can be wrong with the field and it is not an entry here.**
+//! A response may write it on more than one line, which `field_line_duplicated`
+//! reports from the same rule — the field is a singleton, and its repetition is
+//! a defect of § 5.3's rather than of this field's definition. It lives with
+//! every other singleton's repetition instead of being restated once per field.
 //!
 //! **Neither is a conformance finding**, and the entries rank apart for the
 //! reason that follows from it. Nothing requires a server to send the field —

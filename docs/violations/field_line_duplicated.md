@@ -57,5 +57,6 @@ severity = "error"
 - [sec_fetch_user_value_valid](../rules/sec_fetch_user_value_valid.md)
 - [singleton_fields_not_repeated](../rules/singleton_fields_not_repeated.md)
 - [strict_transport_security_valid](../rules/strict_transport_security_valid.md)
+- [x_content_type_options_present](../rules/x_content_type_options_present.md)
 - [x_frame_options_value_valid](../rules/x_frame_options_value_valid.md)
 - [x_xss_protection_value_valid](../rules/x_xss_protection_value_valid.md)
