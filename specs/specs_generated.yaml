@@ -13007,7 +13007,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 521
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 291
+      line: 315
   - label: lint-http-rules/src/helpers/structured_fields.rs (9)
     section: § 4.2
     snippet: The parsing algorithms for both types allow tab characters, since these might be used to combine field lines by some implementations.
@@ -13141,7 +13141,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 204
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 299
+      line: 323
   - label: lint-http-rules/src/helpers/structured_fields.rs (28)
     section: § 4.2.3
     snippet: Let bare_item be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
@@ -13410,37 +13410,37 @@ sources:
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 228
+      line: 252
   - label: structured_headers_valid (2)
     section: § 4.2
     snippet: Given an array of bytes as input_bytes that represent the chosen field's field-value (which is empty if that field is not present) and field_type (one of "dictionary", "list", or "item"), return the parsed field value.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 272
+      line: 296
   - label: structured_headers_valid (3)
     section: § 4.2
     snippet: If field_type is "dictionary", let output be the result of running Parsing a Dictionary (Section 4.2.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 311
+      line: 335
   - label: structured_headers_valid (4)
     section: § 4.2
     snippet: If field_type is "item", let output be the result of running Parsing an Item (Section 4.2.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 304
+      line: 328
   - label: structured_headers_valid (5)
     section: § 4.2
     snippet: If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 306
+      line: 330
   - label: structured_headers_valid (6)
     section: § 4.2.1
     snippet: No structured data has been found; return members (which is empty).
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 298
+      line: 322
 - label: RFC 9745
   url: https://www.rfc-editor.org/rfc/rfc9745.html
   fragments:

@@ -35,12 +35,31 @@ Reports a configured header field whose value fails RFC 9651 Structured Fields p
 ```toml
 [rules.structured_headers_valid]
 enabled = true
-# Fields the HTTP Field Name Registry gives a Structured Type and that no other
-# rule here owns. This rule cannot know which type a field was defined as, so it
-# accepts a value that parses as any of the three; where a field has its own
-# rule -- Priority, Permissions-Policy -- that rule knows the type and reports
-# more precisely, and listing it here only doubles the finding.
-headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
+# Every field the HTTP Field Name Registry lists as a Structured Field and that
+# no other rule here owns -- read off the registry rather than recalled, because
+# a list that names a criterion is a claim about a set and this one had drifted
+# to four of it. A field is on this list when the registry's "Structured Type"
+# column gives it one, or -- where that column is blank -- when the document the
+# registry points at declares the type itself: `Reporting-Endpoints` is
+# registered with an empty column and its own specification writes
+# `Reporting-Endpoints = sf-dictionary`. Registry membership is what bounds the
+# list; a field nobody registered is not on it however its draft describes the
+# value, which is why `Critical-CH` and the `Sec-CH-UA-*` client hints are absent.
+#
+# This rule cannot know which type a field was defined as, so it accepts a value
+# that parses as any of the three; where a field has its own rule -- Priority,
+# Permissions-Policy, the four `Sec-Fetch-*` and `Sec-Fetch-Storage-Access` --
+# that rule knows the type and reports more precisely, and listing it here only
+# doubles the finding.
+headers = ["Accept-CH", "Accept-Query", "Activate-Storage-Access",
+    "Available-Dictionary", "Cache-Group-Invalidation", "Cache-Groups",
+    "Cache-Status", "Capsule-Protocol", "CDN-Cache-Control", "Client-Cert",
+    "Client-Cert-Chain", "Concealed-Auth-Export", "Connect-UDP-Bind",
+    "Cross-Origin-Embedder-Policy-Report-Only",
+    "Cross-Origin-Opener-Policy-Report-Only", "Dictionary-ID",
+    "Incremental", "Proxy-Public-Address", "Proxy-Status",
+    "Reporting-Endpoints", "Signature", "Signature-Input",
+    "Unencoded-Digest", "Use-As-Dictionary", "Want-Unencoded-Digest"]
 ```
 
 ## Examples
@@ -66,6 +85,13 @@ Cache-Status: ExampleCache; fwd=stale; detail=%"caf%c3%a9"
 ```http
 HTTP/1.1 200 OK
 CDN-Cache-Control: Max-Age=60, stale-while-revalidate=30
+```
+
+### ❌ Bad a String is written with DQUOTE; nothing here starts an sf-item with an apostrophe
+
+```http
+HTTP/1.1 200 OK
+Reporting-Endpoints: csp-endpoint='/csp-reports'
 ```
 
 ### ❌ Bad a trailing comma leaves a member with nothing in it

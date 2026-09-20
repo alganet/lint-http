@@ -127,12 +127,31 @@ impl RuleMeta for StructuredHeadersValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-# Fields the HTTP Field Name Registry gives a Structured Type and that no other
-# rule here owns. This rule cannot know which type a field was defined as, so it
-# accepts a value that parses as any of the three; where a field has its own
-# rule -- Priority, Permissions-Policy -- that rule knows the type and reports
-# more precisely, and listing it here only doubles the finding.
-headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
+# Every field the HTTP Field Name Registry lists as a Structured Field and that
+# no other rule here owns -- read off the registry rather than recalled, because
+# a list that names a criterion is a claim about a set and this one had drifted
+# to four of it. A field is on this list when the registry's "Structured Type"
+# column gives it one, or -- where that column is blank -- when the document the
+# registry points at declares the type itself: `Reporting-Endpoints` is
+# registered with an empty column and its own specification writes
+# `Reporting-Endpoints = sf-dictionary`. Registry membership is what bounds the
+# list; a field nobody registered is not on it however its draft describes the
+# value, which is why `Critical-CH` and the `Sec-CH-UA-*` client hints are absent.
+#
+# This rule cannot know which type a field was defined as, so it accepts a value
+# that parses as any of the three; where a field has its own rule -- Priority,
+# Permissions-Policy, the four `Sec-Fetch-*` and `Sec-Fetch-Storage-Access` --
+# that rule knows the type and reports more precisely, and listing it here only
+# doubles the finding.
+headers = ["Accept-CH", "Accept-Query", "Activate-Storage-Access",
+    "Available-Dictionary", "Cache-Group-Invalidation", "Cache-Groups",
+    "Cache-Status", "Capsule-Protocol", "CDN-Cache-Control", "Client-Cert",
+    "Client-Cert-Chain", "Concealed-Auth-Export", "Connect-UDP-Bind",
+    "Cross-Origin-Embedder-Policy-Report-Only",
+    "Cross-Origin-Opener-Policy-Report-Only", "Dictionary-ID",
+    "Incremental", "Proxy-Public-Address", "Proxy-Status",
+    "Reporting-Endpoints", "Signature", "Signature-Input",
+    "Unencoded-Digest", "Use-As-Dictionary", "Want-Unencoded-Digest"]
 "#
     }
 
@@ -193,6 +212,11 @@ headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
                 compliance: Compliance::NonCompliant,
                 label: Some("an uppercase Dictionary key discards every directive beside it"),
                 snippet: "HTTP/1.1 200 OK\nCDN-Cache-Control: Max-Age=60, stale-while-revalidate=30\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a String is written with DQUOTE; nothing here starts an sf-item with an apostrophe"),
+                snippet: "HTTP/1.1 200 OK\nReporting-Endpoints: csp-endpoint='/csp-reports'\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -366,6 +390,94 @@ mod tests {
             }),
         );
         cfg
+    }
+
+    /// The names the shipped default carries, parsed out of `config_example()`
+    /// rather than retyped: a second copy of this list is a second thing to
+    /// drift, which is the defect the list itself had.
+    fn shipped_default_headers() -> Vec<String> {
+        let cfg: toml::Table = toml::from_str(StructuredHeadersValid.config_example())
+            .expect("the shipped config example is TOML");
+        cfg.get("headers")
+            .expect("the shipped config example sets `headers`")
+            .as_array()
+            .expect("`headers` is an array")
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .expect("every entry is a string")
+                    .to_ascii_lowercase()
+            })
+            .collect()
+    }
+
+    /// The list's comment states a criterion, so the list is a claim about a
+    /// set. It had drifted to four members of that set, and every field named
+    /// here was absent while the registry gave it a Structured Type.
+    #[rstest]
+    #[case("reporting-endpoints")]
+    #[case("signature")]
+    #[case("signature-input")]
+    #[case("client-cert")]
+    #[case("capsule-protocol")]
+    #[case("cross-origin-embedder-policy-report-only")]
+    #[case("cross-origin-opener-policy-report-only")]
+    #[case("incremental")]
+    #[case("use-as-dictionary")]
+    fn the_default_list_carries_the_field(#[case] name: &str) {
+        assert!(
+            shipped_default_headers().iter().any(|h| h == name),
+            "`{}` meets the criterion the list states and is not on it",
+            name
+        );
+    }
+
+    /// The other half of the same claim, and the half a list can only get wrong
+    /// by growing. Two kinds may not appear: a field no registry lists, however
+    /// its own draft describes the value; and a field another rule owns, where
+    /// listing it here doubles the finding and says less than that rule does.
+    #[rstest]
+    #[case("critical-ch")] // not registered at all
+    #[case("sec-ch-ua")] // not registered at all
+    #[case("nel")] // registered, but its value is a JSON object
+    #[case("referrer-policy")] // registered, but its value is a token list
+    #[case("priority")] // owned by priority_header_syntax
+    #[case("permissions-policy")] // owned by permissions_policy_directives_valid
+    #[case("sec-fetch-dest")] // owned by sec_fetch_dest_value_valid
+    #[case("sec-fetch-storage-access")] // owned by sec_fetch_storage_access_value_valid
+    #[case("content-digest")] // owned by digest_header_syntax
+    #[case("origin-agent-cluster")] // owned by origin_isolated_header_valid
+    #[case("cross-origin-opener-policy")] // owned by cross_origin_opener_policy_valid
+    fn the_default_list_leaves_the_field_out(#[case] name: &str) {
+        assert!(
+            !shipped_default_headers().iter().any(|h| h == name),
+            "`{}` does not meet the criterion the list states and is on it",
+            name
+        );
+    }
+
+    /// The shape the widened list actually reaches, written as five origins
+    /// send it: an apostrophe starts no `sf-item`, so the whole Dictionary is
+    /// discarded and the response configures no reporting endpoint at all.
+    #[test]
+    fn an_apostrophe_is_not_a_string_delimiter() {
+        let v = validate_structured_field(
+            "csp-report-to-endpoint='/w/api.php?action=cspreport&format=json';",
+        );
+        assert!(
+            v.is_some(),
+            "a single-quoted member value must fail all three readings"
+        );
+    }
+
+    /// And the half that must stay silent, because a rule that reported both
+    /// spellings would report the field's commonest legal form.
+    #[test]
+    fn a_dquoted_string_member_is_a_dictionary() {
+        assert!(
+            validate_structured_field("csp-endpoint=\"https://example.com/reports\"").is_none(),
+            "the legal spelling of the same member must draw nothing"
+        );
     }
 
     #[rstest]
@@ -842,12 +954,12 @@ mod tests {
     fn published_examples_are_judged_the_way_they_are_labelled() {
         use crate::rules::{Compliance, RuleMeta as _};
         let rule = StructuredHeadersValid;
-        let cfg = make_cfg_with_headers(&[
-            "accept-ch",
-            "cache-status",
-            "cdn-cache-control",
-            "proxy-status",
-        ]);
+        // The shipped default, not a copy of it. A second list here is a second
+        // thing to drift, and it did: this test held four names while the
+        // default had grown, so an example naming any other field was judged
+        // against a config that did not read the field it named.
+        let shipped = shipped_default_headers();
+        let cfg = make_cfg_with_headers(&shipped.iter().map(String::as_str).collect::<Vec<_>>());
 
         let mut saw_a_finding = false;
         for ex in rule.examples() {
