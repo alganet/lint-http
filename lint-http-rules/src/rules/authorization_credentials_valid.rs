@@ -83,7 +83,7 @@ impl RuleMeta for AuthorizationCredentialsValid {
     }
 
     fn description(&self) -> &'static str {
-        "The `Authorization` request header field carries credentials: an authentication scheme, then the authentication information that scheme defines. This rule reads that framework structure and reports a field that is empty, one whose `auth-scheme` carries a character no `token` admits, one that stops after the scheme where the scheme wants credentials, and a control octet in the credentials themselves. Every field line is read, because a sender wrote each — that a request carries more than one `Authorization` line is `singleton_fields_not_repeated`'s finding. What the credentials must *be* once the scheme is known belongs to the scheme's own rule; whether the scheme is one the deployment accepts belongs to `auth_scheme_registered`."
+        "The `Authorization` and `Proxy-Authorization` request header fields both carry credentials: an authentication scheme, then the authentication information that scheme defines. § 11.6.2 and § 11.7.2 write the same production for them and differ only in which hop consumes the value, so this rule reads that framework structure in either and names the field it read. It reports a field that is empty, one whose `auth-scheme` carries a character no `token` admits, one that stops after the scheme where the scheme wants credentials, and a control octet in the credentials themselves. Every field line is read, because a sender wrote each — that a request carries more than one line of either field is `singleton_fields_not_repeated`'s finding. What the credentials must *be* once the scheme is known belongs to the scheme's own rule; whether the scheme is one the deployment accepts belongs to `auth_scheme_registered`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -127,6 +127,11 @@ impl RuleMeta for AuthorizationCredentialsValid {
                 label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: B@sic abc",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the other field § 11 writes as `credentials`)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nProxy-Authorization: Basic",
+            },
         ]
     }
 }
@@ -147,26 +152,34 @@ impl Rule for AuthorizationCredentialsValid {
             // scheme's `token`, and each scheme's own credential grammar next
             // door.
             //
-            // `Authorization = credentials` is one value rather than a list, so
-            // the field lines are **not** combined -- and every one of them is
-            // read, because a sender wrote each and this rule measures what was
+            // The production is one value rather than a list, so the field
+            // lines are **not** combined -- and every one of them is read,
+            // because a sender wrote each and this rule measures what was
             // written. That a second line exists at all is
             // `singleton_fields_not_repeated`'s finding, and picking a line to
             // believe would make the rest of them unreadable rather than
             // reported.
-            for hv in tx.request.headers.get_all("authorization").iter() {
-                let s = crate::helpers::headers::field_line_as_written(hv);
-                // The Authorization value is credentials — an auth-scheme with its
-                // authentication information — which is the structure validated here.
-                // The "credentials must actually be present" half is scheme-derived
-                // (the framework grammar permits a bare scheme); the helper owns that
-                // reasoning and the §11.4 structure cite.
-                // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
-                if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(&s) {
-                    return Some(ctx.report_with(
-                        credentials_defect(defect),
-                        format!("Invalid Authorization header: {}", defect.message()),
-                    ));
+            //
+            // Both fields § 11 writes as `credentials`, because the framework's
+            // shape is what this rule reads and § 11.7.2 writes the same
+            // production for the proxy. Which hop the value addresses is not
+            // this reading's subject; the sentence names the field so a finding
+            // about one is not read as a finding about the other.
+            for field in crate::helpers::auth::CREDENTIALS_FIELDS {
+                for hv in tx.request.headers.get_all(field.key).iter() {
+                    let s = crate::helpers::headers::field_line_as_written(hv);
+                    // The value is credentials — an auth-scheme with its
+                    // authentication information — which is the structure validated here.
+                    // The "credentials must actually be present" half is scheme-derived
+                    // (the framework grammar permits a bare scheme); the helper owns that
+                    // reasoning and the §11.4 structure cite.
+                    // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
+                    if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(&s) {
+                        return Some(ctx.report_with(
+                            credentials_defect(defect),
+                            format!("Invalid {} header: {}", field.shown, defect.message()),
+                        ));
+                    }
                 }
             }
             None
@@ -205,6 +218,30 @@ mod tests {
             );
         }
         tx
+    }
+
+    /// **Both fields § 11 writes as `credentials`, and each finding names the
+    /// one it read.**
+    ///
+    /// `Proxy-Authorization: B@sic abc` drew nothing, where the identical value
+    /// in `Authorization` is a finding: § 11.7.2 writes the same production and
+    /// this module's own doc had said so, but the reader named one field. The
+    /// message is asserted because the sentence used to be written for that one
+    /// field, so a second reader through it would have reported a true finding
+    /// under the wrong field's name.
+    #[rstest]
+    #[case("authorization", "Authorization")]
+    #[case("proxy-authorization", "Proxy-Authorization")]
+    fn the_framework_is_read_in_both_fields_that_carry_it(#[case] key: &str, #[case] shown: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(key, "B@sic abc")]);
+        let found = judge(&tx).unwrap_or_else(|| panic!("nothing reported for {key}"));
+        assert_eq!(found.violation, "auth_scheme_character_forbidden");
+        assert!(
+            found.message.contains(shown),
+            "a finding about {key} says {:?}, which does not name the field it read",
+            found.message
+        );
     }
 
     /// Four names where the rule had one id, and the severity each carries.

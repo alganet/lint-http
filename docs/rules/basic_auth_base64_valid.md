@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters.
+Validate that `Basic` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617, in either field that carries them: RFC 7617 §2 prints `Proxy-Authorization: Basic ...` beside the `Authorization` spelling of the same value, so the two are one reading and the finding names which field it read. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters.
 
 ## Violations
 
@@ -53,4 +53,12 @@ Authorization: Basic not-base64
 GET /protected HTTP/1.1
 Host: example.com
 Authorization: Basic YWJj
+```
+
+### ❌ Bad (the same credential in the field RFC 7617 §2 prints it in for a proxy)
+
+```http
+GET /protected HTTP/1.1
+Host: example.com
+Proxy-Authorization: Basic YWJj
 ```

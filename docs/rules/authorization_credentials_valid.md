@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `Authorization` request header field carries credentials: an authentication scheme, then the authentication information that scheme defines. This rule reads that framework structure and reports a field that is empty, one whose `auth-scheme` carries a character no `token` admits, one that stops after the scheme where the scheme wants credentials, and a control octet in the credentials themselves. Every field line is read, because a sender wrote each — that a request carries more than one `Authorization` line is `singleton_fields_not_repeated`'s finding. What the credentials must *be* once the scheme is known belongs to the scheme's own rule; whether the scheme is one the deployment accepts belongs to `auth_scheme_registered`.
+The `Authorization` and `Proxy-Authorization` request header fields both carry credentials: an authentication scheme, then the authentication information that scheme defines. § 11.6.2 and § 11.7.2 write the same production for them and differ only in which hop consumes the value, so this rule reads that framework structure in either and names the field it read. It reports a field that is empty, one whose `auth-scheme` carries a character no `token` admits, one that stops after the scheme where the scheme wants credentials, and a control octet in the credentials themselves. Every field line is read, because a sender wrote each — that a request carries more than one line of either field is `singleton_fields_not_repeated`'s finding. What the credentials must *be* once the scheme is known belongs to the scheme's own rule; whether the scheme is one the deployment accepts belongs to `auth_scheme_registered`.
 
 ## Violations
 
@@ -60,4 +60,12 @@ Authorization: Basic
 GET /resource HTTP/1.1
 Host: example.com
 Authorization: B@sic abc
+```
+
+### ❌ Bad (the other field § 11 writes as `credentials`)
+
+```http
+GET /resource HTTP/1.1
+Host: example.com
+Proxy-Authorization: Basic
 ```

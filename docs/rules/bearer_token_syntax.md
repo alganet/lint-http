@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues.
+Validate `Bearer <token>` credentials, in either field that carries them — RFC 6750 §1 says the scheme is intended primarily for `WWW-Authenticate` and `Authorization` and in the same sentence declines to preclude its use for proxy authentication, so a `Proxy-Authorization` naming `Bearer` is read too and the finding names the field. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues.
 
 ## Violations
 
@@ -52,4 +52,11 @@ Authorization: Bearer a b
 ```http
 GET / HTTP/1.1
 Authorization: Bearer a@b
+```
+
+### ❌ Bad (the field RFC 6750 §1 declines to preclude the scheme from)
+
+```http
+GET / HTTP/1.1
+Proxy-Authorization: Bearer a@b
 ```

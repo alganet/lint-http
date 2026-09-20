@@ -3722,7 +3722,7 @@ sources:
     snippet: credentials = "Bearer" 1*SP b64token
     cited_by:
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
-      line: 115
+      line: 127
   - label: bearer b64token grammar
     section: § 2.1
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
@@ -4558,7 +4558,7 @@ sources:
     snippet: The value is computed based on user-id and password as defined below.
     cited_by:
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
-      line: 126
+      line: 137
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 2
     snippet: The user-id and password MUST NOT contain any control characters
@@ -6207,7 +6207,7 @@ sources:
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
     cited_by:
     - file: lint-http-rules/src/rules/authorization_credentials_valid.rs
-      line: 164
+      line: 176
     - file: lint-http-rules/src/violations/credentials.rs
       line: 84
   - label: cache_coherence
@@ -7691,9 +7691,9 @@ sources:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 173
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
-      line: 107
+      line: 118
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
-      line: 108
+      line: 120
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
       line: 176
     - file: lint-http-rules/src/violations/auth_scheme.rs

@@ -50,7 +50,7 @@ impl RuleMeta for BearerTokenSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\" / \"+\" / \"/\" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues."
+        "Validate `Bearer <token>` credentials, in either field that carries them — RFC 6750 §1 says the scheme is intended primarily for `WWW-Authenticate` and `Authorization` and in the same sentence declines to preclude its use for proxy authentication, so a `Proxy-Authorization` naming `Bearer` is read too and the finding names the field. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\" / \"+\" / \"/\" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -83,6 +83,11 @@ impl RuleMeta for BearerTokenSyntax {
                 label: Some("(invalid character `@`)"),
                 snippet: "GET / HTTP/1.1\nAuthorization: Bearer a@b",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the field RFC 6750 §1 declines to preclude the scheme from)"),
+                snippet: "GET / HTTP/1.1\nProxy-Authorization: Bearer a@b",
+            },
         ]
     }
 }
@@ -100,35 +105,47 @@ impl Rule for BearerTokenSyntax {
             // Read as octets: `b64token`'s alphabet is where an octet outside
             // visible US-ASCII belongs, and the reader that refused the value
             // outright reported it as the field's encoding instead.
-            for hv in tx.request.headers.get_all("authorization").iter() {
-                let s = crate::helpers::headers::field_line_as_written(hv);
-                let s = s.as_str();
+            // Both fields § 11 writes as `credentials`. RFC 6750 § 1 says the
+            // scheme is *intended primarily* for `WWW-Authenticate` and
+            // `Authorization` and in the same sentence declines to preclude its
+            // use for proxy authentication, so a `Proxy-Authorization` naming
+            // `Bearer` is a value this grammar describes and the recipient it
+            // addresses has to read it.
+            for field in crate::helpers::auth::CREDENTIALS_FIELDS {
+                for hv in tx.request.headers.get_all(field.key).iter() {
+                    let s = crate::helpers::headers::field_line_as_written(hv);
+                    let s = s.as_str();
 
-                // Split scheme and credentials. Auth-scheme names match case-insensitively.
-                // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                let mut parts = s.trim().splitn(2, char::is_whitespace);
-                let scheme = parts.next().unwrap_or("").trim();
-                if scheme.eq_ignore_ascii_case("bearer") {
-                    // `credentials = "Bearer" 1*SP b64token` requires a non-empty b64token
-                    // after the scheme, which is what the empty check and the helper call
-                    // enforce; the b64token grammar itself is owned by helpers::auth (§2.1).
-                    // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
-                    let creds = parts.next().map(|r| r.trim()).unwrap_or("");
-                    if creds.is_empty() {
-                        // The framework's defect and not this scheme's: what
-                        // must follow a scheme is `credentials`' sentence,
-                        // whichever scheme was named.
-                        return Some(ctx.report_with(
-                            &CREDENTIALS_MISSING,
-                            "Authorization: Bearer missing token".into(),
-                        ));
-                    }
+                    // Split scheme and credentials. Auth-scheme names match case-insensitively.
+                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                    let mut parts = s.trim().splitn(2, char::is_whitespace);
+                    let scheme = parts.next().unwrap_or("").trim();
+                    if scheme.eq_ignore_ascii_case("bearer") {
+                        // `credentials = "Bearer" 1*SP b64token` requires a non-empty b64token
+                        // after the scheme, which is what the empty check and the helper call
+                        // enforce; the b64token grammar itself is owned by helpers::auth (§2.1).
+                        // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
+                        let creds = parts.next().map(|r| r.trim()).unwrap_or("");
+                        if creds.is_empty() {
+                            // The framework's defect and not this scheme's: what
+                            // must follow a scheme is `credentials`' sentence,
+                            // whichever scheme was named.
+                            return Some(ctx.report_with(
+                                &CREDENTIALS_MISSING,
+                                format!("{}: Bearer missing token", field.shown),
+                            ));
+                        }
 
-                    if let Err(defect) = crate::helpers::auth::validate_bearer_token(creds) {
-                        return Some(ctx.report_with(
-                            bearer_token_defect(defect),
-                            format!("Invalid Bearer token: {}", defect.message()),
-                        ));
+                        if let Err(defect) = crate::helpers::auth::validate_bearer_token(creds) {
+                            return Some(ctx.report_with(
+                                bearer_token_defect(defect),
+                                format!(
+                                    "Invalid Bearer token in {}: {}",
+                                    field.shown,
+                                    defect.message()
+                                ),
+                            ));
+                        }
                     }
                 }
             }
@@ -190,6 +207,37 @@ mod tests {
         assert_eq!(v.violation, violation, "{}", v.message);
         assert_eq!(v.severity, severity, "{}", v.message);
         Ok(())
+    }
+
+    /// **Both fields § 11 writes as `credentials`, and each finding names the
+    /// one it read.**
+    ///
+    /// `Proxy-Authorization: Bearer a@b` drew nothing, where the identical
+    /// value in `Authorization` is a finding. RFC 6750 §1 puts the scheme in
+    /// the origin's two fields *primarily* and declines, in the same sentence,
+    /// to preclude it from proxy authentication, so the token's grammar is the
+    /// same one either recipient has to read. The message is asserted because
+    /// it named `Authorization` outright before there was a second field to
+    /// name.
+    #[rstest]
+    #[case("authorization", "Authorization")]
+    #[case("proxy-authorization", "Proxy-Authorization")]
+    fn the_token_is_read_in_both_fields_that_carry_it(#[case] key: &str, #[case] shown: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(key, "Bearer")]);
+        let v = crate::test_helpers::run_rule(
+            &BearerTokenSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["bearer_token_syntax"]),
+        )
+        .unwrap_or_else(|| panic!("nothing reported for {key}"));
+        assert_eq!(v.violation, "credentials_missing");
+        assert!(
+            v.message.contains(shown),
+            "a finding about {key} says {:?}, which does not name the field it read",
+            v.message
+        );
     }
 
     #[rstest]
