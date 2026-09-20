@@ -102,7 +102,7 @@ enabled = true
 # no cache answers an OPTIONS from a stored GET, so nothing was reused
 ```
 
-### ❌ Bad — stale entry reused without conditional request
+### ❌ Bad — a stale entry's validator held back
 
 ```http
 > GET /resource HTTP/1.1
@@ -115,5 +115,6 @@ enabled = true
 # several seconds later the client fetches again but omits validators
 > GET /resource HTTP/1.1
 > Host: example.com
-# violation: stale according to must-revalidate semantics
+# violation: the client held "v1" for a stale must-revalidate entry and
+# asked again without it, so a full body came back where a 304 would have done
 ```

@@ -143,8 +143,8 @@ impl RuleMeta for MustRevalidateEnforced {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— stale entry reused without conditional request"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# several seconds later the client fetches again but omits validators\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: stale according to must-revalidate semantics",
+                label: Some("— a stale entry's validator held back"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# several seconds later the client fetches again but omits validators\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: the client held \"v1\" for a stale must-revalidate entry and\n# asked again without it, so a full body came back where a 304 would have done",
             },
         ]
     }

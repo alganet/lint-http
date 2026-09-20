@@ -269,6 +269,49 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    /// The six rules named in this module's doc all report a peer on the near
+    /// side of a seam that cannot show a cache hit: a request reaching the
+    /// linter is one the cache did *not* answer, so no reuse was observed and
+    /// none may be claimed. Each rule's finding message was corrected to say
+    /// the narrower true thing, and each rule's own test pins its message.
+    ///
+    /// **A label is the same claim in the same voice, and nothing was reading
+    /// it.** `Compliance::NonCompliant` labels the snippet that draws the
+    /// finding, so it describes the finding — and two of them went on saying
+    /// "reused" beside a message forbidden to. This reads every one of them
+    /// rather than grepping for a spelling: the claim is what a non-compliant
+    /// label may not make, and the set of rules is the module's caller census,
+    /// so a rule added to that list is covered the day it joins it.
+    ///
+    /// Compliant labels are deliberately not read. A legal cache hit is reuse
+    /// and saying so is right; it is only the finding that may not claim one.
+    #[test]
+    fn no_finding_these_rules_publish_claims_a_reuse_was_seen() {
+        for id in [
+            "must_revalidate_enforced",
+            "no_cache_revalidation",
+            "cached_validators_reused",
+            "max_age_directive_valid",
+            "immutable_cache_never_stale",
+            "s_max_age_enforced",
+        ] {
+            let rule = crate::rules::RULES
+                .iter()
+                .find(|r| r.id() == id)
+                .unwrap_or_else(|| panic!("{id} is a registered rule"));
+            for ex in rule.examples() {
+                if ex.compliance != crate::rules::Compliance::NonCompliant {
+                    continue;
+                }
+                let label = ex.label.unwrap_or_default().to_lowercase();
+                assert!(
+                    !label.contains("reus"),
+                    "{id}: a non-compliant label claims a reuse this seam cannot witness: {label}"
+                );
+            }
+        }
+    }
+
     #[rstest]
     // The same method is the ordinary candidate.
     #[case("GET", "GET", true)]

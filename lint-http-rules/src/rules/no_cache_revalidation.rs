@@ -122,8 +122,8 @@ impl RuleMeta for NoCacheRevalidation {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— reused entry without revalidation"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, client repeats request but omits validator\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: cached response required conditional revalidation",
+                label: Some("— a no-cache entry's validator held back"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, client repeats request but omits validator\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: the client held \"v1\" and forwarded without it, so the origin\n# resent the body where a 304 would have done",
             },
         ]
     }

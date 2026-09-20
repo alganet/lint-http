@@ -83,7 +83,7 @@ enabled = true
 # no cache answers an OPTIONS from a stored GET, so nothing was reused
 ```
 
-### ❌ Bad — reused entry without revalidation
+### ❌ Bad — a no-cache entry's validator held back
 
 ```http
 > GET /resource HTTP/1.1
@@ -96,5 +96,6 @@ enabled = true
 # later, client repeats request but omits validator
 > GET /resource HTTP/1.1
 > Host: example.com
-# violation: cached response required conditional revalidation
+# violation: the client held "v1" and forwarded without it, so the origin
+# resent the body where a 304 would have done
 ```
