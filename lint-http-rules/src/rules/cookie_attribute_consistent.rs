@@ -16,7 +16,10 @@ use crate::violations::cookie::{
     RFC_6265_5_2_2, RFC_6265_5_2_3, RFC_6265_5_2_4,
 };
 use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
-use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
+use crate::violations::http_date::{
+    HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_EMPTY, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE,
+    RFC_5322_3_3, RFC_9110_5_6_7,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -28,9 +31,12 @@ pub struct CookieAttributeConsistent;
 /// What this rule reports that another reading already named.
 ///
 /// Five imports, each for a different reason. `sane-cookie-date` is RFC
-/// 6265's name for the timestamp RFC 9110 § 5.6.7 writes, so an `Expires` a
-/// recipient cannot read is the same defect a `Date` or a `Sunset` a recipient
-/// cannot read is. `cookie-name = token` imports the HTTP production by name,
+/// 6265's name for the timestamp RFC 9110 § 5.6.7 writes, so the four ways an
+/// `Expires` fails to be one a sender may generate are the four a `Date`, a
+/// `Last-Modified` or a `Sunset` fails them in, drawn from the same subject.
+/// What stays this field's own is the fifth answer — the value § 4.1.1 refuses
+/// and § 5.1.1 reads anyway, which no other dated field has a recipient
+/// algorithm for. `cookie-name = token` imports the HTTP production by name,
 /// so a name that is empty or holds a delimiter answers to `token` — the
 /// alphabets are not merely similar, they are the same set. `cookie-pair`'s
 /// own two failures — no `=` at all, and a `cookie-value` octet outside
@@ -47,6 +53,9 @@ pub struct CookieAttributeConsistent;
 /// the pairing that makes a `SameSite=None` cookie disappear.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
+    &HTTP_DATE_EMPTY,
+    &HTTP_DATE_OBSOLETE,
+    &HTTP_DATE_DAY_NAME_CONFLICTING,
     &COOKIE_PAIR_MISSING,
     &COOKIE_PAIR_EQUALS_MISSING,
     &COOKIE_VALUE_CHARACTER_FORBIDDEN,
@@ -275,37 +284,92 @@ impl CookieAttributeConsistent {
                     about("Set-Cookie attribute 'Expires' requires a HTTP-date value"),
                 ));
             };
-            // Two questions, and this used to ask only the first. § 4.1.1 writes
-            // `sane-cookie-date` as `rfc1123-date`, so § 5.6.7's parse answers
-            // whether the *sender* wrote the form it was asked for. It does not
-            // answer what the recipient makes of it: § 5.2.1 sends a user agent
-            // to § 5.1.1 for this attribute, and that algorithm reads hyphenated
-            // dates, two-digit years and an unrecognised zone alike.
+            // Two questions, and this used to ask the recipient's for both.
+            // § 4.1.1 writes `sane-cookie-date` as `rfc1123-date`, which is the
+            // one format § 5.6.7 lets a sender generate, so what the sender was
+            // asked for is `check_imf_fixdate` and its answer is a defect rather
+            // than a bool. `is_valid_http_date` stood here instead, and it is
+            // the recipient's question by construction — it accepts all three
+            // formats, because a recipient MUST — so the two spellings § 5.6.7
+            // retired passed through it as conforming and this field said
+            // nothing about them while every other dated field in the tree drew
+            // `http_date_obsolete`.
             //
-            // Asking only the grammar named every one of those `http_date_malformed`
-            // — an id whose sentence is that the field names no instant — while
-            // every user agent on the wire expired the cookie exactly when the
-            // server meant. The narrower id says the true half.
+            // The recipient's question is still asked, and it is the second one:
+            // § 5.2.1 sends a user agent to § 5.1.1 for this attribute, and that
+            // algorithm reads hyphenated dates, two-digit years and an
+            // unrecognised zone alike. Naming those `http_date_malformed` — an
+            // id whose sentence is that the field names no instant — was untrue
+            // while every user agent on the wire expired the cookie exactly when
+            // the server meant, and `cookie_expires_malformed` is that narrower
+            // half. It is reached from the one defect that leaves the value
+            // deriving from no format at all; the other three derive from one,
+            // so § 5.1.1 is not what is wrong with them.
+            //
             // cite(RFC 6265 § 4.1.1): "expires-av        = "Expires=" sane-cookie-date"
-            if crate::http_date::is_valid_http_date(value) {
+            // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
+            let Err(defect) = crate::http_date::check_imf_fixdate(value) else {
                 return None;
-            }
-            return Some(if crate::helpers::cookie::cookie_date_is_readable(value) {
-                ctx.report_with(
-                    &COOKIE_EXPIRES_MALFORMED,
+            };
+            return Some(match defect {
+                // An `Expires=` with nothing after the `=`. The bare attribute
+                // is `cookie_expires_missing` two branches up — § 4.1.1 prints
+                // the `=` between the name and the date, so writing neither and
+                // writing only the first are different things a sender did.
+                crate::http_date::HttpDateDefect::Empty => ctx.report_with(
+                    &HTTP_DATE_EMPTY,
+                    about("Set-Cookie attribute 'Expires' is written with no timestamp on it"),
+                ),
+                // RFC 850 or asctime. § 5.1.1 reads both and so does every user
+                // agent, which is exactly what this entry says: the recipient is
+                // obliged and the sender is refused. The same verdict
+                // `expires_date_syntax` reaches on the sibling field, from the
+                // same subject.
+                crate::http_date::HttpDateDefect::ObsoleteFormat => ctx.report_with(
+                    &HTTP_DATE_OBSOLETE,
                     about(&format!(
-                        "Set-Cookie attribute 'Expires' is not an rfc1123-date, though § 5.1.1 reads it: '{}'",
-                        value
+                        "Set-Cookie attribute 'Expires' is written in an obsolete date format; a \
+                         recipient must read it, and a sender must generate IMF-fixdate: '{value}'"
                     )),
-                )
-            } else {
-                ctx.report_with(
-                    &HTTP_DATE_MALFORMED,
+                ),
+                // The one value here that *does* derive from `rfc1123-date`, so
+                // `cookie_expires_malformed` would be false of it: what § 4.1.1
+                // gets is the form it asked for, and what RFC 5322 § 3.3 refuses
+                // is the weekday it names.
+                crate::http_date::HttpDateDefect::DayNameConflicting => ctx.report_with(
+                    &HTTP_DATE_DAY_NAME_CONFLICTING,
                     about(&format!(
-                        "Set-Cookie attribute 'Expires' is not a valid HTTP-date: '{}'",
-                        value
+                        "Set-Cookie attribute 'Expires' names a weekday its own date does not \
+                         fall on: '{value}'"
                     )),
-                )
+                ),
+                // Padding cannot arrive: `split_set_cookie` trims the attribute
+                // value before a rule sees it, so a `Expires= Sun, ...` reaches
+                // here as the date alone. The sentence below would still be the
+                // wrong one for it — the value derives from `IMF-fixdate` once
+                // the octets § 4.1.1 never printed are taken off — and making it
+                // answerable means the splitter handing the value over as
+                // written, which is every attribute's question and not this
+                // one's.
+                crate::http_date::HttpDateDefect::SurroundingWhitespace
+                | crate::http_date::HttpDateDefect::Unparsable => {
+                    if crate::helpers::cookie::cookie_date_is_readable(value) {
+                        ctx.report_with(
+                            &COOKIE_EXPIRES_MALFORMED,
+                            about(&format!(
+                                "Set-Cookie attribute 'Expires' is not an rfc1123-date, though \
+                                 § 5.1.1 reads it: '{value}'"
+                            )),
+                        )
+                    } else {
+                        ctx.report_with(
+                            &HTTP_DATE_MALFORMED,
+                            about(&format!(
+                                "Set-Cookie attribute 'Expires' is not a valid HTTP-date: '{value}'"
+                            )),
+                        )
+                    }
+                }
             });
         }
 
@@ -385,6 +449,7 @@ impl RuleMeta for CookieAttributeConsistent {
             DRAFT_IETF_HTTPBIS_RFC6265BIS,
             MDN_SET_COOKIE,
             RFC_9110_5_6_7,
+            RFC_5322_3_3,
             RFC_9110_5_6_2,
             RFC_1035_2_3_1,
         ]
@@ -752,8 +817,27 @@ mod tests {
     #[rstest]
     // rfc1123-date, so no finding at all.
     #[case("SID=1; Expires=Wed, 21 Oct 2015 07:28:00 GMT", None)]
-    // `obs-date`: § 5.6.7 still parses the rfc850 form, spelled-out day and all.
-    #[case("SID=1; Expires=Monday, 30-Aug-27 01:13:44 GMT", None)]
+    // `obs-date`, RFC 850's spelling. It parses, every user agent reads it and
+    // § 5.6.7 refuses a sender both of the formats that do — the answer
+    // `expires_date_syntax` reaches on the sibling field, from the same subject.
+    // This row asserted `None` for as long as the reading was a recipient's.
+    #[case(
+        "SID=1; Expires=Monday, 30-Aug-27 01:13:44 GMT",
+        Some("http_date_obsolete")
+    )]
+    // `obs-date`'s other half: asctime, whose zone is implicit and whose day of
+    // the month is space-padded.
+    #[case("SID=1; Expires=Sun Nov  6 08:49:37 1994", Some("http_date_obsolete"))]
+    // The one value here that *is* an rfc1123-date: § 4.1.1 got the form it asked
+    // for, and the sixth of November 1994 was a Sunday. `cookie_expires_malformed`
+    // would say the form is wrong, which is the false half.
+    #[case(
+        "SID=1; Expires=Mon, 06 Nov 1994 08:49:37 GMT",
+        Some("http_date_day_name_conflicting")
+    )]
+    // An `=` with nothing after it. The bare attribute is `cookie_expires_missing`
+    // below; this one wrote the delimiter and then no timestamp.
+    #[case("SID=1; Expires=", Some("http_date_empty"))]
     // `-` is a § 5.1.1 delimiter, so this is `30 Aug 2026` to every user agent.
     #[case(
         "SID=1; Expires=Sun, 30-Aug-2026 02:23:34 GMT",

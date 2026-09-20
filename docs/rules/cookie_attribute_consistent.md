@@ -36,7 +36,10 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 - [cookie_secure_missing](../violations/cookie_secure_missing.md) — A SameSite=None cookie is not Secure
 - [cookie_value_character_forbidden](../violations/cookie_value_character_forbidden.md) — Cookie value holds a character outside cookie-octet
 - [domain_name_whitespace_or_control_forbidden](../violations/domain_name_whitespace_or_control_forbidden.md) — Domain name holds whitespace or a control character
+- [http_date_day_name_conflicting](../violations/http_date_day_name_conflicting.md) — Timestamp names a weekday its own date does not fall on
+- [http_date_empty](../violations/http_date_empty.md) — A date field is written with no timestamp on it
 - [http_date_malformed](../violations/http_date_malformed.md) — Timestamp derives from no HTTP-date format
+- [http_date_obsolete](../violations/http_date_obsolete.md) — Timestamp is written in an obsolete date format
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
 - [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
@@ -51,6 +54,7 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 - [draft-ietf-httpbis-rfc6265bis](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis): `SameSite` value grammar and the `SameSite=None` requires `Secure` rule. No section: a draft renumbers between revisions
 - [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie): SameSite cookies (SameSite=None should be Secure) — browser compatibility guidance on `SameSite` usage
 - [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats — `HTTP-date = IMF-fixdate / obs-date`, the recipient's MUST to accept all three, and the sender's MUST to generate only the first
+- [RFC 5322 §3.3](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.3): Date and Time Specification — the semantics § 5.6.7 borrows, including the requirement that a date-time be semantically valid
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 1035 §2.3.1](https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.1): Preferred name syntax — labels start with a letter, end with a letter or digit, hold only letters, digits and hyphen, and run to 63 characters
 

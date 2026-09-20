@@ -32,6 +32,7 @@ severity = "error"
 ## Reported By
 
 - [conditional_date_syntax](../rules/conditional_date_syntax.md)
+- [cookie_attribute_consistent](../rules/cookie_attribute_consistent.md)
 - [date_and_time_headers_consistent](../rules/date_and_time_headers_consistent.md)
 - [last_modified_rfc1123_syntax](../rules/last_modified_rfc1123_syntax.md)
 - [warning_header_syntax](../rules/warning_header_syntax.md)
