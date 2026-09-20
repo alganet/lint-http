@@ -109,7 +109,24 @@ defects! {
 /// here: it is the shape `token68`'s bearer-token entries settled, and the
 /// reason a coarse helper can feed a catalogue finer than itself.
 pub fn token_character(c: char) -> &'static ViolationDef {
-    match c.is_whitespace() || c.is_control() {
+    // HTTP's two classes and not Rust's. A `char` reaching this function is an
+    // octet: either it came through `to_str`, which refuses everything outside
+    // HTAB and %x20-%x7E, or it came through an as-written reader, which maps
+    // one octet to one `char` and so never produces anything above U+00FF.
+    // Over ASCII the Unicode predicates agree with the sets below exactly, and
+    // above it they do not agree with anything HTTP defines: `char::is_control`
+    // is true of U+0080-U+009F and `char::is_whitespace` of U+0085 and U+00A0,
+    // which as octets are `obs-text` — the class § 5.6.2 puts at or above %x80
+    // and `TOKEN_CHARACTER_FORBIDDEN` names in as many words.
+    //
+    // What the split is for is the sentence each entry makes. Whitespace and a
+    // `CTL` are what something between the peers did to a value; an `obs-text`
+    // octet is a character a sender chose and the production does not admit,
+    // which is the other entry's claim and a level quieter for saying so.
+    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+    // cite(RFC 9110 § 5.6.2): "Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}")."
+    let octet = c as u32;
+    match c == ' ' || c == '\t' || octet < 0x20 || octet == 0x7f {
         true => &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
         false => &TOKEN_CHARACTER_FORBIDDEN,
     }
@@ -304,5 +321,41 @@ mod tests {
             TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN.default_severity
                 > TOKEN_CHARACTER_FORBIDDEN.default_severity
         );
+    }
+
+    /// The octets where Rust's classes and HTTP's disagree, which are the only
+    /// octets this mapping ever got wrong. A `char` here is an octet — `to_str`
+    /// refuses everything outside HTAB and %x20-%x7E, and an as-written reader
+    /// maps one octet to one `char` — so the question is which HTTP class the
+    /// octet is in, and above %x7F Rust's predicates answer about a codepoint
+    /// nobody sent.
+    #[test]
+    fn obs_text_is_a_character_a_sender_chose_and_not_whitespace() {
+        // %x80-%x9F are `char::is_control` and %x85 and %xA0 are
+        // `char::is_whitespace`; all of them are `obs-text`, which is the class
+        // `TOKEN_CHARACTER_FORBIDDEN` names at or above %x80 in its own words.
+        for octet in [0x80u8, 0x85, 0x9f, 0xa0, 0xff] {
+            let c = char::from(octet);
+            assert_eq!(
+                token_character(c).id,
+                "token_character_forbidden",
+                "{octet:#04x}"
+            );
+        }
+
+        // HTTP's whitespace is `OWS` and HTTP's `CTL` is %x00-%x1F and %x7F.
+        for octet in [b' ', b'\t', 0x00, 0x0a, 0x0d, 0x1f, 0x7f] {
+            let c = char::from(octet);
+            assert_eq!(
+                token_character(c).id,
+                "token_whitespace_or_control_forbidden",
+                "{octet:#04x}"
+            );
+        }
+
+        // A delimiter is the ordinary case and did not move.
+        for c in ['(', ')', ',', '/', ':', ';', '<', '=', '>', '?', '@', '"'] {
+            assert_eq!(token_character(c).id, "token_character_forbidden", "{c:?}");
+        }
     }
 }

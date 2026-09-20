@@ -7424,6 +7424,8 @@ sources:
       line: 171
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 80
+    - file: lint-http-rules/src/violations/token.rs
+      line: 126
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -8446,6 +8448,8 @@ sources:
       line: 56
     - file: lint-http-rules/src/violations/token.rs
       line: 94
+    - file: lint-http-rules/src/violations/token.rs
+      line: 127
   - label: lint-http-rules/src/helpers/list.rs (4)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
