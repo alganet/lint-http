@@ -40,6 +40,17 @@ pub struct LocationHeaderUriValid;
 /// `URI-reference` that no production refuses, which is why the entry for it
 /// lives with the field in [`crate::violations::location`] rather than with the
 /// grammar that has nothing to say about it.
+///
+/// **The last of the host ids are the mapper's closure, not this rule's reach.**
+/// `violations::uri::uri_host` can answer with any of them, and `severity_for`
+/// resolves a def by identity against this list — an id missing from it keeps
+/// the finding and silently drops the operator's `[violations.<id>]`, so the
+/// closure is what is declared. `uri_host_character_forbidden` is the one no
+/// input here can produce: every octet that would raise it is refused by the
+/// value's own alphabet check first, or splits the authority instead (`:` a
+/// port, `@` a userinfo, `/` `?` `#` the component's end, `[` and `]` the
+/// bracket arm). It is declared anyway, and this is the note saying the list is
+/// a claim about the mapper rather than about the values that reach it.
 static DECLARED: &[&ViolationDef] = &[
     &URI_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
