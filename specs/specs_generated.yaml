@@ -882,6 +882,44 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 620
+- label: Referrer Policy
+  url: https://www.w3.org/TR/referrer-policy/
+  type: text/html
+  fragments:
+  - label: referrer_policy_valid
+    section: § 11.1
+    snippet: As described in §8.1 Parse a referrer policy from a Referrer-Policy header and in the meta referrer algorithm, unknown
+    cited_by:
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 301
+  - label: policy-token grammar
+    section: § 4.1
+    snippet: policy-token = "no-referrer" / "no-referrer-when-downgrade" / "strict-origin" / "strict-origin-when-cross-origin" / "same-origin" / "origin" / "origin-when-cross-origin" / "unsafe-url"
+    cited_by:
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 45
+    - file: lint-http-rules/src/violations/referrer_policy.rs
+      line: 98
+  - label: referrer_policy_valid (2)
+    section: § 8.1
+    snippet: For each token in policy-tokens, if token is a referrer
+    cited_by:
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 46
+    - file: lint-http-rules/src/violations/referrer_policy.rs
+      line: 99
+  - label: referrer_policy_valid (3)
+    section: § 8.1
+    snippet: 'Given a Response response, the following steps return a referrer policy according to response’s `Referrer-Policy` header:'
+    cited_by:
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 179
+  - label: referrer_policy_valid (4)
+    section: § 8.2
+    snippet: If policy is not the empty string, then set request’s
+    cited_by:
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 302
 - label: Storage Access Headers
   url: https://privacycg.github.io/storage-access-headers/
   type: text/html
@@ -2180,6 +2218,8 @@ sources:
       line: 276
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 126
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 244
   - label: lint-http-rules/src/helpers/headers.rs
     section: § B.1
     snippet: CTL            =  %x00-1F / %x7F
@@ -7458,6 +7498,8 @@ sources:
       line: 314
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 367
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 188
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 662
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -7746,6 +7788,8 @@ sources:
       line: 429
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 475
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 270
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 36
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -7758,6 +7802,8 @@ sources:
       line: 118
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 350
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 271
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 262
   - label: lint-http-rules/src/helpers/auth.rs
@@ -7918,6 +7964,8 @@ sources:
       line: 291
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 366
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 220
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 279
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -7978,6 +8026,8 @@ sources:
       line: 307
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 375
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 231
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 502
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
@@ -8330,6 +8380,8 @@ sources:
       line: 213
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 224
+    - file: lint-http-rules/src/rules/referrer_policy_valid.rs
+      line: 205
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 469
   - label: lint-http-rules/src/helpers/headers.rs (3)

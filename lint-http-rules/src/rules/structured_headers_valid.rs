@@ -433,14 +433,22 @@ mod tests {
     }
 
     /// The other half of the same claim, and the half a list can only get wrong
-    /// by growing. Two kinds may not appear: a field no registry lists, however
-    /// its own draft describes the value; and a field another rule owns, where
-    /// listing it here doubles the finding and says less than that rule does.
+    /// by growing. **Three kinds may not appear**, and the third is the one
+    /// this comment used to fold into the other two: a field no registry lists,
+    /// however its own draft describes the value; a field another rule owns,
+    /// where listing it here doubles the finding and says less than that rule
+    /// does; and a field the registry lists whose value is not a Structured
+    /// Field at all, which this rule would report every well-formed instance of.
+    ///
+    /// The third kind is worth naming because it is not a decision — it is a
+    /// field nothing reads. It held two entries until `Referrer-Policy` gained
+    /// a rule of its own; `NEL` is what is left of it, and its value is a JSON
+    /// object no rule in this tree parses.
     #[rstest]
     #[case("critical-ch")] // not registered at all
     #[case("sec-ch-ua")] // not registered at all
-    #[case("nel")] // registered, but its value is a JSON object
-    #[case("referrer-policy")] // registered, but its value is a token list
+    #[case("nel")] // registered, and its value is a JSON object nothing reads
+    #[case("referrer-policy")] // owned by referrer_policy_valid
     #[case("priority")] // owned by priority_header_syntax
     #[case("permissions-policy")] // owned by permissions_policy_directives_valid
     #[case("sec-fetch-dest")] // owned by sec_fetch_dest_value_valid

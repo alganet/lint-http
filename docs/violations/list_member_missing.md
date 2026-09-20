@@ -38,6 +38,7 @@ severity = "warn"
 - [prefer_header_valid](../rules/prefer_header_valid.md)
 - [preference_applied_header_valid](../rules/preference_applied_header_valid.md)
 - [range_header_syntax](../rules/range_header_syntax.md)
+- [referrer_policy_valid](../rules/referrer_policy_valid.md)
 - [sec_websocket_headers_consistent](../rules/sec_websocket_headers_consistent.md)
 - [timing_allow_origin_valid](../rules/timing_allow_origin_valid.md)
 - [warning_header_syntax](../rules/warning_header_syntax.md)

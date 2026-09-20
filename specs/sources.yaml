@@ -124,6 +124,15 @@ sources:
     type: text/html
     # Editor's draft on purpose: this one has no TR rendition.
 
+  - label: Referrer Policy
+    url: https://www.w3.org/TR/referrer-policy/
+    type: text/html
+    # The TR rendition, for the reason Server Timing's note gives. Fetch and
+    # HTML both consume this document rather than restating it: the eight
+    # `policy-token` literals and the algorithm that turns a header into one of
+    # them are here and nowhere else, so a rule reading the field has to cite
+    # this or cite a document that does not contain the sentence.
+
   - label: Storage Access Headers
     url: https://privacycg.github.io/storage-access-headers/
     type: text/html

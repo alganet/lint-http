@@ -394,6 +394,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [referer_forbidden](violations/referer_forbidden.md) — A Referer names a secure resource on an unsecured request
 - [referer_fragment_forbidden](violations/referer_fragment_forbidden.md) — A Referer carries a fragment component
 - [referer_userinfo_forbidden](violations/referer_userinfo_forbidden.md) — A Referer carries the deprecated userinfo subcomponent
+- [referrer_policy_invalid](violations/referrer_policy_invalid.md) — Referrer-Policy names no referrer policy
 - [refresh_url_empty](violations/refresh_url_empty.md) — A Refresh value writes URL= with no URL
 - [refresh_url_malformed](violations/refresh_url_malformed.md) — A Refresh URL is not a valid URL string
 - [refresh_value_malformed](violations/refresh_value_malformed.md) — A Refresh value is neither of the two forms
