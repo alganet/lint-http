@@ -113,27 +113,43 @@ impl Rule for MaxAgeDirectiveValid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // locate most recent prior response with a usable max-age
-            let mut candidate: Option<(&crate::http_transaction::HttpTransaction, i64)> = None;
-
-            for past in history.iter() {
-                if let Some(resp) = &past.response {
-                    // The helper owns the directive parse. Two of its behaviours matter
-                    // here: it returns None when no-cache or no-store is also present —
-                    // which is what this rule wants, since under those directives
-                    // revalidating is required rather than wasteful — and it reads the
-                    // value with an integer parse, so a max-age too large for i64 yields
-                    // None and the resource is skipped rather than treated as long-lived.
-                    if let Some(max_age) =
-                        crate::helpers::cache_control::get_cache_control_max_age(&resp.headers)
-                    {
-                        candidate = Some((past, max_age));
-                        break;
-                    }
-                }
-            }
-
-            let (prev_tx, max_age) = candidate?;
+            // The most recent past response carrying a usable max-age **that this
+            // request could have been served from**. A response is not an entry
+            // because it stated a lifetime; § 3 decides whether one was stored and
+            // § 4 decides whether this request could have been answered from it,
+            // and both come before the arithmetic below.
+            //
+            // The conditions belong in the search rather than after it. Asked only
+            // for the newest response with a max-age, this took a stored OPTIONS as
+            // the entry a GET revalidated early, and a GET that really did hold a
+            // fresh GET entry went unreported because an OPTIONS sat in front of it.
+            // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
+            // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
+            // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless:"
+            //
+            // The helper owns the directive parse. Two of its behaviours matter
+            // here: it returns None when no-cache or no-store is also present —
+            // which is what this rule wants, since under those directives
+            // revalidating is required rather than wasteful — and it reads the
+            // value with an integer parse, so a max-age too large for i64 yields
+            // None and the resource is skipped rather than treated as long-lived.
+            let (prev_tx, max_age) = history.responses().find_map(|(prev_tx, resp)| {
+                let max_age =
+                    crate::helpers::cache_control::get_cache_control_max_age(&resp.headers)?;
+                (crate::helpers::stored_response::storage_allowed(
+                    &prev_tx.request.headers,
+                    resp.status,
+                    &resp.headers,
+                ) && crate::helpers::stored_response::method_allows(
+                    &prev_tx.request.method,
+                    &tx.request.method,
+                ) && crate::helpers::stored_response::selecting_fields_match(
+                    &prev_tx.request.headers,
+                    &resp.headers,
+                    &tx.request.headers,
+                ))
+                .then_some((prev_tx, max_age))
+            })?;
 
             // Seed the age from the stored response's Age field. The i64 parse is more
             // permissive than `delta-seconds` (it accepts a leading "+", which `1*DIGIT`
@@ -255,6 +271,126 @@ mod tests {
         .expect("a finding");
         assert_eq!(found.violation, "conditional_redundant");
         assert_eq!(found.party, Some(crate::lint::Party::Client));
+    }
+
+    /// RFC 9111 § 4: the method a response answered has to allow it to be used
+    /// for the request now presented. A stored `OPTIONS` is no entry for a `GET`
+    /// and a stored `GET` is none for an `OPTIONS`, so on neither pairing did a
+    /// client revalidate anything early — the origin answered because there was
+    /// nothing to answer from.
+    #[rstest::rstest]
+    #[case("GET", "GET", true)]
+    #[case("GET", "HEAD", true)]
+    #[case("OPTIONS", "GET", false)]
+    #[case("GET", "OPTIONS", false)]
+    #[case("GET", "PUT", false)]
+    fn an_entry_no_method_pairing_allows_was_not_revalidated_early(
+        #[case] stored: &str,
+        #[case] presented: &str,
+        #[case] expect_finding: bool,
+    ) {
+        let rule = MaxAgeDirectiveValid;
+        let base = Utc::now();
+        let mut prev = make_prev_with_headers(&[("cache-control", "max-age=600")], base);
+        prev.request.method = stored.to_string();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.method = presented.to_string();
+        tx.timestamp = base + chrono::Duration::seconds(10);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v1\"")]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
+        );
+        assert_eq!(v.is_some(), expect_finding, "{v:?}");
+    }
+
+    /// RFC 9111 § 4.1: the entry is stored for the variant the earlier request
+    /// selected. A request presenting a different value for a field the response
+    /// varies on could not have been answered from it, so its precondition
+    /// revalidated nothing and cost nothing.
+    #[rstest::rstest]
+    #[case(None, None, true)]
+    #[case(Some("gzip"), Some("gzip"), true)]
+    #[case(None, Some("gzip"), false)]
+    #[case(Some("gzip"), None, false)]
+    #[case(Some("gzip"), Some("br"), false)]
+    fn an_entry_stored_for_another_variant_was_not_revalidated_early(
+        #[case] stored: Option<&str>,
+        #[case] presented: Option<&str>,
+        #[case] expect_finding: bool,
+    ) {
+        fn asked(e: Option<&str>, cond: bool) -> Vec<(&str, &str)> {
+            let mut v: Vec<(&str, &str)> = e.map(|e| ("accept-encoding", e)).into_iter().collect();
+            if cond {
+                v.push(("if-none-match", "\"v1\""));
+            }
+            v
+        }
+        let rule = MaxAgeDirectiveValid;
+        let base = Utc::now();
+        let mut prev = make_prev_with_headers(
+            &[
+                ("cache-control", "max-age=600"),
+                ("vary", "Accept-Encoding"),
+            ],
+            base,
+        );
+        prev.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(stored, false));
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.method = "GET".to_string();
+        tx.timestamp = base + chrono::Duration::seconds(10);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(presented, true));
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
+        );
+        assert_eq!(v.is_some(), expect_finding, "{v:?}");
+    }
+
+    /// The pairing conditions are in the search, not after it, and this is the
+    /// direction that says so: a response the pairing refuses must be stepped
+    /// over rather than stopped at. A stored `OPTIONS` in front of a stored
+    /// `GET` hid the entry the `GET` really did leave, so filtering without
+    /// continuing the walk would trade a false positive for a false negative.
+    #[test]
+    fn a_refused_response_is_stepped_over_and_the_entry_behind_it_is_found() {
+        let rule = MaxAgeDirectiveValid;
+        let base = Utc::now();
+        let older = make_prev_with_headers(&[("cache-control", "max-age=600")], base);
+        let mut newer = make_prev_with_headers(
+            &[("cache-control", "max-age=600")],
+            base + chrono::Duration::seconds(1),
+        );
+        newer.request.method = "OPTIONS".to_string();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.method = "GET".to_string();
+        tx.timestamp = base + chrono::Duration::seconds(10);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v1\"")]);
+        // newest first, as the history contract requires.
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![newer, older]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
+        )
+        .expect("the GET entry behind the OPTIONS");
+        assert_eq!(v.violation, "conditional_redundant");
     }
 
     #[test]

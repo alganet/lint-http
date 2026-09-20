@@ -110,9 +110,36 @@ impl Rule for ImmutableCacheNeverStale {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             // The most recent prior response with an immutable directive that
-            // isn't simultaneously forbidding caching.
-            let (prev_tx, prev_resp) =
-                history.latest_response(|resp| header_has_immutable(&resp.headers))?;
+            // isn't simultaneously forbidding caching **and that this request
+            // could have been served from**. Carrying the directive does not make
+            // a response an entry: § 3 decides whether one was stored and § 4
+            // whether this request could have been answered from it, and a request
+            // that had no entry revalidated nothing early.
+            //
+            // The conditions belong in the search rather than after it. Asked only
+            // for the newest `immutable` response, this took a stored OPTIONS as
+            // the entry a GET revalidated, and a GET that really did hold a fresh
+            // `immutable` entry went unreported because an OPTIONS sat in front of it.
+            // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
+            // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
+            // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless:"
+            let (prev_tx, prev_resp) = history.responses().find(|(prev_tx, resp)| {
+                header_has_immutable(&resp.headers)
+                    && crate::helpers::stored_response::storage_allowed(
+                        &prev_tx.request.headers,
+                        resp.status,
+                        &resp.headers,
+                    )
+                    && crate::helpers::stored_response::method_allows(
+                        &prev_tx.request.method,
+                        &tx.request.method,
+                    )
+                    && crate::helpers::stored_response::selecting_fields_match(
+                        &prev_tx.request.headers,
+                        &resp.headers,
+                        &tx.request.headers,
+                    )
+            })?;
 
             // Advertised freshness lifetime. The max-age/Expires calculation
             // (RFC 9111 §4.2.1) is owned by the helper, which carries the cite.
@@ -183,6 +210,100 @@ mod tests {
     use crate::test_helpers::make_test_transaction_with_response;
     use chrono::Utc;
     use hyper::header::HeaderValue;
+
+    /// RFC 9111 § 4: a response is an entry for the request now presented only
+    /// where the method it answered allows it to be, and § 4.1 only where the
+    /// request selects the same variant. On a pairing neither allows, no stored
+    /// `immutable` response was revalidated early — there was none to revalidate.
+    #[rstest::rstest]
+    #[case("GET", "GET", None, None, true)]
+    #[case("GET", "HEAD", None, None, true)]
+    #[case("OPTIONS", "GET", None, None, false)]
+    #[case("GET", "OPTIONS", None, None, false)]
+    #[case("GET", "GET", Some("gzip"), Some("gzip"), true)]
+    #[case("GET", "GET", Some("gzip"), None, false)]
+    #[case("GET", "GET", None, Some("gzip"), false)]
+    fn an_entry_this_request_could_not_have_used_was_not_revalidated_early(
+        #[case] stored_method: &str,
+        #[case] presented_method: &str,
+        #[case] stored_encoding: Option<&str>,
+        #[case] presented_encoding: Option<&str>,
+        #[case] expect_finding: bool,
+    ) {
+        let rule = ImmutableCacheNeverStale;
+        let base = Utc::now();
+        let mut prev = make_test_transaction_with_response(
+            200,
+            &[
+                ("cache-control", "max-age=600, immutable"),
+                ("vary", "Accept-Encoding"),
+            ],
+        );
+        prev.request.method = stored_method.to_string();
+        prev.timestamp = base;
+        prev.request.headers = crate::test_helpers::make_headers_from_pairs(
+            &stored_encoding
+                .map(|e| ("accept-encoding", e))
+                .into_iter()
+                .collect::<Vec<_>>(),
+        );
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = presented_method.to_string();
+        tx.timestamp = base + chrono::Duration::seconds(10);
+        let mut presented: Vec<(&str, &str)> = presented_encoding
+            .map(|e| ("accept-encoding", e))
+            .into_iter()
+            .collect();
+        presented.push(("if-none-match", "\"v1\""));
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&presented);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "immutable_cache_never_stale",
+            ]),
+        );
+        assert_eq!(v.is_some(), expect_finding, "{v:?}");
+    }
+
+    /// The conditions are in the search, not after it: a response the pairing
+    /// refuses is stepped over, so the entry behind it is still found.
+    #[test]
+    fn a_refused_response_is_stepped_over_and_the_entry_behind_it_is_found() {
+        let rule = ImmutableCacheNeverStale;
+        let base = Utc::now();
+        let mut older = make_test_transaction_with_response(
+            200,
+            &[("cache-control", "max-age=600, immutable")],
+        );
+        older.request.method = "GET".to_string();
+        older.timestamp = base;
+        let mut newer = make_test_transaction_with_response(
+            200,
+            &[("cache-control", "max-age=600, immutable")],
+        );
+        newer.request.method = "OPTIONS".to_string();
+        newer.timestamp = base + chrono::Duration::seconds(1);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = "GET".to_string();
+        tx.timestamp = base + chrono::Duration::seconds(10);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v1\"")]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![newer, older]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "immutable_cache_never_stale",
+            ]),
+        )
+        .expect("the GET entry behind the OPTIONS");
+        assert_eq!(v.violation, "cache_control_immutable_ignored");
+    }
 
     #[test]
     fn header_has_immutable_variations() {

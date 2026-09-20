@@ -8,8 +8,18 @@
 //! Every stateful rule about cache reuse asks this before it asks anything
 //! else, because reuse of an entry that was never a candidate is not reuse at
 //! all: the origin answered, and the finding is about a message that was never
-//! served. Two rules ask it — `must_revalidate_enforced` and
-//! `no_cache_revalidation` — and only one of them had transcribed the answer.
+//! served. Six rules ask it, and this list is the module's own instrument:
+//! `must_revalidate_enforced`, `no_cache_revalidation` and
+//! `cached_validators_reused` report a client for declining a validator;
+//! `max_age_directive_valid`, `immutable_cache_never_stale` and
+//! `s_max_age_enforced` report one for revalidating too early. **The second
+//! three are here because the list was read as a census and was a record of
+//! who had transcribed the answer.** Each had found its earlier response by
+//! what the response *said* — a `max-age`, an `immutable`, an `s-maxage` — and
+//! reported the request without ever asking whether that response was an entry
+//! this request could have used, which is the whole of what this module is
+//! for. A rule that reconstructs a stored entry and is not named here is the
+//! next instance rather than an exception.
 //!
 //! This is shelved apart from [`cache_control`](super::cache_control) on
 //! purpose. That module reads a field and answers what it says; this one reads

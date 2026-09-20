@@ -85,29 +85,45 @@ impl Rule for SMaxAgeEnforced {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // locate the most recent prior response with both s-maxage and a
-            // larger max-age value.  s-maxage by itself is not actionable for this
-            // check; we need a "real" private freshness lifetime to compare.
-            let mut candidate: Option<(&crate::http_transaction::HttpTransaction, i64, i64)> = None;
-
-            for past in history.iter() {
-                if let Some(resp) = &past.response {
-                    if let Some(s_age) =
-                        crate::helpers::cache_control::get_cache_control_s_maxage(&resp.headers)
-                    {
-                        if let Some(max_age) =
-                            crate::helpers::cache_control::get_cache_control_max_age(&resp.headers)
-                        {
-                            if max_age > s_age {
-                                candidate = Some((past, s_age, max_age));
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            let (prev_tx, s_max_age, max_age) = candidate?;
+            // The most recent prior response carrying both s-maxage and a larger
+            // max-age **that this request could have been served from**. s-maxage
+            // by itself is not actionable for this check; we need a "real" private
+            // freshness lifetime to compare.
+            //
+            // Stating two lifetimes does not make a response an entry. § 3 decides
+            // whether one was stored and § 4 whether this request could have been
+            // answered from it, and a request with no entry behind it read no
+            // directive off one. The conditions belong in the search rather than
+            // after it: asked only for the newest response spelling both
+            // directives, this took a stored OPTIONS as the entry a GET
+            // revalidated, and a GET that really did hold such an entry went
+            // unreported because an OPTIONS sat in front of it.
+            // cite(RFC 9111 § 4): "the request method associated with the stored response allows it to be used for the presented request"
+            // cite(RFC 9111 § 4): "request header fields nominated by the stored response (if any) match those presented (see Section 4.1)"
+            // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless:"
+            let (prev_tx, s_max_age, max_age) =
+                history.responses().find_map(|(prev_tx, resp)| {
+                    let s_age =
+                        crate::helpers::cache_control::get_cache_control_s_maxage(&resp.headers)?;
+                    let max_age =
+                        crate::helpers::cache_control::get_cache_control_max_age(&resp.headers)?;
+                    (max_age > s_age
+                        && crate::helpers::stored_response::storage_allowed(
+                            &prev_tx.request.headers,
+                            resp.status,
+                            &resp.headers,
+                        )
+                        && crate::helpers::stored_response::method_allows(
+                            &prev_tx.request.method,
+                            &tx.request.method,
+                        )
+                        && crate::helpers::stored_response::selecting_fields_match(
+                            &prev_tx.request.headers,
+                            &resp.headers,
+                            &tx.request.headers,
+                        ))
+                    .then_some((prev_tx, s_age, max_age))
+                })?;
 
             // The age the stored response arrived with plus the time it has
             // since spent in our record — §4.2.3's algorithm minus the terms no
@@ -243,6 +259,103 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&["s_max_age_enforced"]),
         )
         .is_none());
+    }
+
+    /// RFC 9111 § 4: a response is an entry for the request now presented only
+    /// where the method it answered allows it to be, and § 4.1 only where the
+    /// request selects the same variant. On a pairing neither allows, no cache
+    /// read `s-maxage` off anything — there was no entry to read it off.
+    #[rstest::rstest]
+    #[case("GET", "GET", None, None, true)]
+    #[case("GET", "HEAD", None, None, true)]
+    #[case("OPTIONS", "GET", None, None, false)]
+    #[case("GET", "OPTIONS", None, None, false)]
+    #[case("GET", "GET", Some("gzip"), Some("gzip"), true)]
+    #[case("GET", "GET", Some("gzip"), None, false)]
+    #[case("GET", "GET", None, Some("gzip"), false)]
+    fn an_entry_this_request_could_not_have_used_gave_it_no_freshness(
+        #[case] stored_method: &str,
+        #[case] presented_method: &str,
+        #[case] stored_encoding: Option<&str>,
+        #[case] presented_encoding: Option<&str>,
+        #[case] expect_finding: bool,
+    ) {
+        let rule = SMaxAgeEnforced;
+        let base = Utc::now();
+        let mut prev = make_prev_with_headers(
+            &[
+                ("cache-control", "max-age=100, s-maxage=10"),
+                ("etag", "\"e\""),
+                ("vary", "Accept-Encoding"),
+            ],
+            base,
+        );
+        prev.request.method = stored_method.to_string();
+        prev.request.headers = crate::test_helpers::make_headers_from_pairs(
+            &stored_encoding
+                .map(|e| ("accept-encoding", e))
+                .into_iter()
+                .collect::<Vec<_>>(),
+        );
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.method = presented_method.to_string();
+        let mut presented: Vec<(&str, &str)> = presented_encoding
+            .map(|e| ("accept-encoding", e))
+            .into_iter()
+            .collect();
+        presented.push(("if-none-match", "\"e\""));
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&presented);
+        tx.timestamp = base + chrono::Duration::seconds(20);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["s_max_age_enforced"]),
+        );
+        assert_eq!(v.is_some(), expect_finding, "{v:?}");
+    }
+
+    /// The conditions are in the search, not after it: a response the pairing
+    /// refuses is stepped over, so the entry behind it is still found.
+    #[test]
+    fn a_refused_response_is_stepped_over_and_the_entry_behind_it_is_found() {
+        let rule = SMaxAgeEnforced;
+        let base = Utc::now();
+        let older = make_prev_with_headers(
+            &[
+                ("cache-control", "max-age=100, s-maxage=10"),
+                ("etag", "\"e\""),
+            ],
+            base,
+        );
+        let mut newer = make_prev_with_headers(
+            &[
+                ("cache-control", "max-age=100, s-maxage=10"),
+                ("etag", "\"e\""),
+            ],
+            base + chrono::Duration::seconds(1),
+        );
+        newer.request.method = "OPTIONS".to_string();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+        tx.request.method = "GET".to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"e\"")]);
+        tx.timestamp = base + chrono::Duration::seconds(20);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![newer, older]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["s_max_age_enforced"]),
+        )
+        .expect("the GET entry behind the OPTIONS");
+        assert_eq!(v.violation, "cache_control_s_maxage_ignored");
     }
 
     #[test]
