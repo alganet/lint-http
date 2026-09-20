@@ -98,13 +98,16 @@ defects! {
     ///
     /// One id for both directions, like the mismatch above: a request that
     /// frames itself twice and a response that does are the same message
-    /// written at opposite ends of the exchange.
+    /// written at opposite ends of the exchange. **Both are reported when both
+    /// are there**, so the sentence has to say which section it read and what
+    /// the two fields said — one id twice over one transaction is otherwise one
+    /// sentence printed twice.
     ///
     // cite(RFC 9112 § 6.2, label: Content-Length not in a transfer-coded message): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
     CONTENT_LENGTH_FORBIDDEN = {
         id: "content_length_forbidden",
         title: "Content-Length is sent in a message that is transfer-coded",
-        message: "Both Content-Length and Transfer-Encoding present",
+        message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9112_6_2],
         strength: Strength::Must,

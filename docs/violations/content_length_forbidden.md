@@ -10,7 +10,7 @@ Content-Length is sent in a message that is transfer-coded
 
 ## Message
 
-Both Content-Length and Transfer-Encoding present
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
 
 ## Obligation
 

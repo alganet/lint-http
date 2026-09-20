@@ -82,12 +82,21 @@ impl Rule for ContentLengthVsTransferEncoding {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // "in any message" is what puts both directions in scope; the same check runs
-            // over the response below, and both report the one id — the
-            // prohibition is quoted on `content_length_forbidden`.
+        // One finding per section, and neither answers for the other. "In any
+        // message" is what puts both directions in scope, and a request framing
+        // itself twice and a response framing itself twice are two messages, two
+        // senders and two repairs — so a client sending the pair no longer
+        // stands in for the origin that sent it back. Both report the one id,
+        // because the defect is the same one written at opposite ends of the
+        // exchange; the prohibition is quoted on `content_length_forbidden`.
+        //
+        // **A smuggling probe is exactly the transaction where both halves
+        // carry it.** A client that frames a request twice to find out how a
+        // chain resolves it is answered by an origin whose own response frames
+        // itself twice, and the second half was the silent one — `--about
+        // server` said nothing at all about a message the entry calls an attack
+        // primitive.
+        let section = |headers: &hyper::HeaderMap, side: &str| -> Option<String> {
             //
             // The recipient side is why this is worth more than a style note. The two
             // fields give conflicting framing, recipients are told to resolve the
@@ -97,25 +106,40 @@ impl Rule for ContentLengthVsTransferEncoding {
             // not merely as redundancy.
             // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
             // cite(RFC 9112 § 6.3): "An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding"
-            // Check request headers
-            if tx.request.headers.contains_key("content-length")
-                && tx.request.headers.contains_key("transfer-encoding")
+            // The section is named and both values are shown. With the two
+            // halves reported separately the entry's own static sentence would
+            // be one sentence printed twice, differing in nothing an operator
+            // reads — and the values are what says which line to delete.
+            if !headers.contains_key("content-length") || !headers.contains_key("transfer-encoding")
             {
-                return Some(ctx.by_client().report(&CONTENT_LENGTH_FORBIDDEN));
+                return None;
             }
-
-            // Check response headers if present
-            if let Some(resp) = &tx.response {
-                if resp.headers.contains_key("content-length")
-                    && resp.headers.contains_key("transfer-encoding")
-                {
-                    return Some(ctx.by_server().report(&CONTENT_LENGTH_FORBIDDEN));
-                }
-            }
-
-            None
+            Some(format!(
+                "{side} frames itself twice: Content-Length '{}' beside Transfer-Encoding '{}'. \
+                 A sender must not send Content-Length in a message that contains \
+                 Transfer-Encoding, and a chain that does not resolve the two consistently is \
+                 where request smuggling and response splitting live",
+                crate::helpers::headers::joined_field_lines_shown(headers, "content-length"),
+                crate::helpers::headers::joined_field_lines_shown(headers, "transfer-encoding"),
+            ))
         };
-        Vec::from_iter(finding())
+
+        let mut out = Vec::new();
+        if let Some(message) = section(&tx.request.headers, "Request") {
+            out.push(
+                ctx.by_client()
+                    .report_with(&CONTENT_LENGTH_FORBIDDEN, message),
+            );
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(message) = section(&resp.headers, "Response") {
+                out.push(
+                    ctx.by_server()
+                        .report_with(&CONTENT_LENGTH_FORBIDDEN, message),
+                );
+            }
+        }
+        out
     }
 }
 
@@ -210,6 +234,79 @@ mod tests {
             assert!(violation.is_none());
         }
         Ok(())
+    }
+
+    /// **Both sections are read, and the first no longer answers for the
+    /// second.** The body applied the check to the request and `return`ed, so a
+    /// transaction whose two halves each framed themselves twice reported the
+    /// client alone and `--about server` was silent. That is the transaction a
+    /// smuggling probe produces: the request is written to find out how a chain
+    /// resolves two framings, and the response that comes back carries the same
+    /// pair.
+    #[test]
+    fn a_transaction_framed_twice_at_both_ends_reports_both_senders() {
+        let both = &[("content-length", "10"), ("transfer-encoding", "chunked")];
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, both);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(both);
+        let found = crate::test_helpers::run_rule_all(
+            &ContentLengthVsTransferEncoding,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_length_vs_transfer_encoding",
+            ]),
+        );
+        assert_eq!(
+            found.len(),
+            2,
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        let parties: Vec<_> = found.iter().filter_map(|v| v.party).collect();
+        assert!(parties.contains(&crate::lint::Party::Client), "{parties:?}");
+        assert!(parties.contains(&crate::lint::Party::Server), "{parties:?}");
+    }
+
+    /// The sentence names the section and both values. Two findings of one
+    /// entry on one transaction would otherwise be one sentence printed twice,
+    /// and an operator reading the report could not tell which message either
+    /// of them was about.
+    #[test]
+    fn the_finding_names_the_section_and_the_two_values() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("content-length", "0"),
+                ("transfer-encoding", "gzip, chunked"),
+            ],
+        );
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-length", "10"),
+            ("transfer-encoding", "chunked"),
+        ]);
+        let found = crate::test_helpers::run_rule_all(
+            &ContentLengthVsTransferEncoding,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_length_vs_transfer_encoding",
+            ]),
+        );
+        let messages: Vec<&String> = found.iter().map(|v| &v.message).collect();
+        assert!(
+            messages.iter().any(|m| m.starts_with(
+                "Request frames itself twice: Content-Length '10' beside Transfer-Encoding \
+                 'chunked'."
+            )),
+            "{messages:?}"
+        );
+        assert!(
+            messages.iter().any(|m| m.starts_with(
+                "Response frames itself twice: Content-Length '0' beside Transfer-Encoding \
+                 'gzip, chunked'."
+            )),
+            "{messages:?}"
+        );
     }
 
     #[test]
