@@ -560,6 +560,54 @@ defects! {
         strength: Strength::Should,
     }
 
+    /// A `304` that leaves out a header field the `200` it stands in for
+    /// carried.
+    ///
+    /// **§ 15.4.5 states a MUST and a SHOULD NOT about the same response, and
+    /// only the second had a reader.** [`STATUS_304_METADATA_FORBIDDEN`] is the
+    /// SHOULD NOT — no representation metadata beyond the listed fields — and
+    /// this is the MUST two paragraphs above it, which is where the list being
+    /// referred to comes from: `Content-Location`, `Date`, `ETag` and `Vary`,
+    /// then `Cache-Control` and `Expires` on a second line pointing at RFC
+    /// 9111. Six fields, one sentence, and a finding per field, because each is
+    /// a separate line to put back.
+    ///
+    /// **The sentence is conditional, and the condition is why the finding
+    /// needs two messages.** The MUST binds only for a field that *would have
+    /// been sent in a 200 (OK) response to the same request* — a `200` nobody
+    /// sent, about which the `304` alone says nothing at all. What makes it
+    /// answerable is an earlier `200` for the same resource answering *the same
+    /// request*: same method, same target, and the same header fields but for
+    /// the precondition that made this one conditional. Where no such exchange
+    /// was observed the antecedent is unreached and there is no finding, which
+    /// is why this entry is one of the few here that can be silent about a
+    /// response that plainly violates the sentence.
+    ///
+    /// **What it costs, for the one field the caching document is explicit
+    /// about.** RFC 9111 § 4.3.4 has a cache identify the stored responses a
+    /// `304` freshens by the validators the `304` carries, and where the new
+    /// response carries none and the stored one does, the cache MUST NOT use
+    /// the new response to update any stored response at all — so a `304` that
+    /// drops the `ETag` the `200` sent spends the round trip and freshens
+    /// nothing. The other five are the same shape one step weaker: § 15.4.5's
+    /// own first paragraph has the recipient use its stored representation *as
+    /// if it were the content of a 200 (OK) response*, and a field that `200`
+    /// would have carried is one the recipient is then missing from it.
+    ///
+    /// `error`, off the keyword: a MUST binding the server that generated the
+    /// response, and the repair is the sender's alone.
+    ///
+    // cite(RFC 9110 § 15.4.5): "The server generating a 304 response MUST generate any of the following header fields that would have been sent in a 200 (OK) response to the same request:"
+    // cite(RFC 9110 § 15.4.5): "the server is therefore redirecting the client to make use of that stored representation as if it were the content of a 200 (OK) response"
+    STATUS_304_FIELD_MISSING = {
+        id: "status_304_field_missing",
+        title: "A 304 omits a header field the 200 it stands in for carried",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_15_4_5],
+        strength: Strength::Must,
+    }
+
     /// Representation metadata on a response that cannot carry content at all —
     /// a `1xx` or a `204`, each terminated by the end of its header section.
     /// The field describes how content was encoded, and there is no content for

@@ -455,6 +455,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [status_206_unsolicited](violations/status_206_unsolicited.md) — 206 Partial Content answers a request that asked for no range
 - [status_301_ambiguous](violations/status_301_ambiguous.md) — A 301 answers a POST, leaving the redirected method undetermined
 - [status_302_ambiguous](violations/status_302_ambiguous.md) — A 302 answers a POST, leaving the redirected method undetermined
+- [status_304_field_missing](violations/status_304_field_missing.md) — A 304 omits a header field the 200 it stands in for carried
 - [status_304_metadata_forbidden](violations/status_304_metadata_forbidden.md) — A 304 sends representation metadata beyond the fields it owes
 - [status_304_missing](violations/status_304_missing.md) — A false precondition is answered with 200 rather than 304
 - [status_401_challenge_missing](violations/status_401_challenge_missing.md) — A 401 presents no challenge to authenticate against

@@ -1221,6 +1221,10 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         QueryType::ByResource,
     ),
     (&no_store_enforced::NoStoreEnforced, QueryType::ByResource),
+    (
+        &status_304_required_fields::Status304RequiredFields,
+        QueryType::ByResource,
+    ),
     (&oauth2_code_flow::Oauth2CodeFlow, QueryType::ByResource),
     (
         &range_request_and_caching::RangeRequestAndCaching,

@@ -1,0 +1,34 @@
+<!--
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+SPDX-License-Identifier: ISC
+-->
+
+# status_304_field_missing
+
+A 304 omits a header field the 200 it stands in for carried
+
+## Message
+
+_Written where it is reported: this defect's message names the value that caused it, so it is not fixed text._
+
+## Obligation
+
+A **`MUST`** binding the sender of the message, so a finding here reports at `error` by default.
+
+## Specifications
+
+- [RFC 9110 §15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5): 304 Not Modified — the fields a 304 MUST send, the SHOULD NOT against any other representation metadata unless it guides cache updates, and the response being terminated by the end of the header section
+
+## Configuration
+
+```toml
+[violations.status_304_field_missing]
+# A 304 omits a header field the 200 it stands in for carried
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+```
+
+## Reported By
+
+- [status_304_required_fields](../rules/status_304_required_fields.md)
