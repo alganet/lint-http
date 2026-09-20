@@ -32,6 +32,6 @@ severity = "error"
 ## Reported By
 
 - [age_header_numeric](../rules/age_header_numeric.md)
-- [alt_svc_h3_advertisement_valid](../rules/alt_svc_h3_advertisement_valid.md)
+- [alt_svc_header_syntax](../rules/alt_svc_header_syntax.md)
 - [cors_response_header_syntax](../rules/cors_response_header_syntax.md)
 - [strict_transport_security_valid](../rules/strict_transport_security_valid.md)

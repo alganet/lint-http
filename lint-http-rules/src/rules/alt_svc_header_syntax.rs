@@ -13,10 +13,13 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::alt_svc::{
     ALT_SVC_ALTERNATIVE_EQUALS_MISSING, ALT_SVC_AUTHORITY_CHARACTER_FORBIDDEN,
-    ALT_SVC_CLEAR_CONFLICTING, ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_PARAMETER_EMPTY,
-    ALT_SVC_PARAMETER_EQUALS_MISSING, ALT_SVC_PARAMETER_VALUE_EMPTY, ALT_SVC_PERSIST_INVALID,
-    ALT_SVC_PORT_EMPTY, ALT_SVC_PORT_INVALID, ALT_SVC_PORT_MISSING, ALT_SVC_PROTOCOL_ID_INVALID,
-    RFC_7838_3, RFC_7838_3_1, RFC_7838_8,
+    ALT_SVC_CLEAR_CONFLICTING, ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN, ALT_SVC_MA_INVALID,
+    ALT_SVC_PARAMETER_EMPTY, ALT_SVC_PARAMETER_EQUALS_MISSING, ALT_SVC_PARAMETER_VALUE_EMPTY,
+    ALT_SVC_PERSIST_INVALID, ALT_SVC_PORT_EMPTY, ALT_SVC_PORT_INVALID, ALT_SVC_PORT_MISSING,
+    ALT_SVC_PROTOCOL_ID_INVALID, RFC_7838_3, RFC_7838_3_1, RFC_7838_8,
+};
+use crate::violations::delta_seconds::{
+    DELTA_SECONDS_CHARACTER_FORBIDDEN, DELTA_SECONDS_EMPTY, RFC_9111_1_2_2,
 };
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
@@ -38,14 +41,14 @@ use crate::violations::uri::{
 };
 use crate::violations::ViolationDef;
 
-/// Twenty-eight defects over five subjects, and RFC 7838 defines twelve of them.
+/// Thirty-one defects over six subjects, and RFC 7838 defines thirteen of them.
 ///
-/// The twelve are the field's own: the alternation at the top of it, the two `=`
+/// The thirteen are the field's own: the alternation at the top of it, the two `=`
 /// delimiters it prints, the whitespace it prints nowhere near them, the two
 /// halves a parameter can be written without, the one parameter this document
-/// gives a value to, the single spelling it allows an ALPN protocol name, the
-/// three ways an `alt-authority` can name no port, and the octet § 8 tells a
-/// sender to write as an A-label. Everything else here is imported, and the
+/// gives a value to, the lifetime another states in seconds, the single
+/// spelling it allows an ALPN protocol name, the three ways an `alt-authority`
+/// can name no port, and the octet § 8 tells a sender to write as an A-label. Everything else here is imported, and the
 /// paragraph below is where each import comes from.
 ///
 /// § 1.1 says where the notation comes from and § 3 says where the productions
@@ -95,6 +98,7 @@ static DECLARED: &[&ViolationDef] = &[
     &ALT_SVC_PARAMETER_VALUE_EMPTY,
     &ALT_SVC_EQUALS_WHITESPACE_FORBIDDEN,
     &ALT_SVC_PERSIST_INVALID,
+    &ALT_SVC_MA_INVALID,
     &ALT_SVC_PROTOCOL_ID_INVALID,
     &ALT_SVC_PORT_MISSING,
     &ALT_SVC_PORT_EMPTY,
@@ -116,6 +120,8 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_HOST_BRACKET_FORBIDDEN,
     &URI_HOST_CHARACTER_FORBIDDEN,
     &URI_PORT_CHARACTER_FORBIDDEN,
+    &DELTA_SECONDS_EMPTY,
+    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
 ];
 
 /// One finding from the reading, and the entry it reports as.
@@ -154,6 +160,30 @@ impl Defect {
 // cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
 // cite(RFC 7838 § 3): "The field value consists either of a list of values, each of which indicates one alternative service, or the keyword "clear"."
 const CLEAR: &str = "clear";
+
+/// The two parameters § 3.1 defines, neither of them folded.
+///
+/// RFC 7838 prints `parameter = token "=" ( token / quoted-string )` and states
+/// nothing about comparing a parameter name without regard to case. RFC 9110
+/// § 5.6.6's *"Parameter names are case-insensitive"* governs the `parameters`
+/// production, which this field does not import -- it writes its own -- so it
+/// does not reach here. What a recipient does with `MA` or `Persist` is § 3's
+/// *"Unknown parameters MUST be ignored."*, so a finding about either would be
+/// describing something that does not happen.
+// cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
+// cite(RFC 7838 § 3): "Unknown parameters MUST be ignored."
+const MA: &str = "ma";
+const PERSIST: &str = "persist";
+
+/// The ceiling `ma` is measured against, and the one number in this file with
+/// no sentence behind it.
+///
+/// RFC 7838 places no upper bound on `ma` -- a run of forty digits derives from
+/// `delta-seconds` exactly as `3600` does -- so one year is this linter's guess
+/// at where a value stops being a policy and starts being a typo. It is why
+/// [`ALT_SVC_MA_INVALID`] carries no reference: both ends of that entry are
+/// readings of a value both of whose ends conform.
+const MAX_REASONABLE_MA: u64 = 365 * 24 * 3600;
 
 /// The whitespace neither `alternative` nor `parameter` prints around its `=`.
 ///
@@ -530,12 +560,101 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<Defect> {
     // entry at `info`, since being ignored leaves the alternative exactly as
     // persistent as one that never asked.
     // cite(RFC 7838 § 3.1): "Alternative services that are intended to be longer lived (such as those that are not specific to the client access network) can carry the "persist" parameter with a value "1" as a hint that the service is potentially useful beyond a network configuration change."
-    if name == "persist" && unquoted != "1" {
+    if name == PERSIST && unquoted != "1" {
         return Some(Defect::named(
             &ALT_SVC_PERSIST_INVALID,
             format!(
                 "Alt-Svc alt-value '{shown}' sets persist to '{}'. The registered syntax for this parameter is the single literal \"1\", and a client is required to ignore every other value -- so this alternative carries no persistence hint at all",
                 shown_in_finding(&unquoted)
+            ),
+        ));
+    }
+
+    // § 3.1's other parameter, read here for the same reason `persist` is: it
+    // is defined for an `alt-value`, and an `alt-value` is any `protocol-id
+    // "=" alt-authority`. **This used to be asked only where the protocol
+    // identifier was `h3`**, which made an advertisement that is stale on
+    // arrival a finding under one ALPN name and silence under every other --
+    // the parameter states a lifetime, and a lifetime does not become a
+    // different fact because the alternative beside it speaks a different
+    // protocol.
+    //
+    // Per parameter rather than once per field, which is the shape every other
+    // reading in this file has: a member naming a bad port and a member naming
+    // a bad lifetime are two corrections, and so are two members each naming
+    // one. `persist` directly above has always answered that way.
+    // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
+    if name == MA {
+        return ma_defect(shown, &unquoted);
+    }
+    None
+}
+
+/// What `ma` states, in the two ways it can fail to state anything.
+///
+/// The value has already derived from `( token / quoted-string )` by the time
+/// this is called, and **the two ways of writing nothing part company there**:
+/// a bare `ma=` derives from neither alternative and is
+/// [`ALT_SVC_PARAMETER_VALUE_EMPTY`] one level up, while `ma=""` is a perfectly
+/// good `quoted-string` whose content is not a `delta-seconds`. So the floor of
+/// `1*DIGIT` is still a reading this has to do, on a value the `parameter`
+/// production already accepted.
+///
+/// **`delta-seconds` is the production and not an integer type.** A leading
+/// `+` is read as 5 by every standard-library parser and derives from no
+/// `1*DIGIT`, so the characters are measured before the number is; conversely
+/// a run of digits longer than 64 bits is a conforming value RFC 9111 has a
+/// cache clamp rather than refuse, so it falls to the ceiling below rather than
+/// being called malformed.
+// cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
+// cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
+fn ma_defect(shown: &str, seconds: &str) -> Option<Defect> {
+    // The floor, and it is not the same finding as the alphabet: `1*DIGIT`
+    // states a count of at least one, so a value carrying no digit at all
+    // states no lifetime rather than stating one in the wrong characters.
+    // `.chars().all()` is vacuously true of the empty string, which is why this
+    // is asked first rather than left to the scan below.
+    // cite(RFC 9111 § 1.2.2, label: delta-seconds grammar): "delta-seconds  = 1*DIGIT"
+    if seconds.is_empty() {
+        return Some(Defect::named(
+            &DELTA_SECONDS_EMPTY,
+            format!(
+                "Alt-Svc alt-value '{shown}' has an 'ma' with no digits in it, so the advertisement states no freshness lifetime"
+            ),
+        ));
+    }
+    if !seconds.chars().all(|c| c.is_ascii_digit()) {
+        return Some(Defect::named(
+            &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+            format!(
+                "Alt-Svc alt-value '{shown}' has 'ma={}', which is no `delta-seconds`: a sign, a radix point or any other character leaves the freshness lifetime unstated",
+                shown_in_finding(seconds)
+            ),
+        ));
+    }
+
+    // At least one character and every one of them a digit by now, so the only
+    // way the parse fails is a run past 64 bits -- which is over the ceiling by
+    // any reading, and saying so is what the saturation means here.
+    let n = seconds.parse::<u64>().unwrap_or(u64::MAX);
+
+    // The two ends of one entry: a lifetime of zero and a lifetime past any
+    // deployment's horizon are both conforming `delta-seconds` and neither is a
+    // number a sender meant to write.
+    if n == 0 {
+        return Some(Defect::named(
+            &ALT_SVC_MA_INVALID,
+            format!(
+                "Alt-Svc alt-value '{shown}' is fresh for zero seconds, so the advertisement is stale as it arrives and a client has nothing to cache"
+            ),
+        ));
+    }
+    if n > MAX_REASONABLE_MA {
+        return Some(Defect::named(
+            &ALT_SVC_MA_INVALID,
+            format!(
+                "Alt-Svc alt-value '{shown}' states a freshness lifetime of {} seconds, past the {MAX_REASONABLE_MA} this linter reads as the edge of a policy rather than a typo",
+                shown_in_finding(seconds)
             ),
         ));
     }
@@ -721,7 +840,7 @@ impl RuleMeta for AltSvcHeaderSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Read an `Alt-Svc` response header field against the grammar RFC 7838 §3 prints for it:\n\n```\nAlt-Svc       = clear / 1#alt-value\nclear         = %s\"clear\"; \"clear\", case-sensitive\nalt-value     = alternative *( OWS \";\" OWS parameter )\nalternative   = protocol-id \"=\" alt-authority\nprotocol-id   = token ; percent-encoded ALPN protocol name\nalt-authority = quoted-string ; containing [ uri-host ] \":\" port\nparameter     = token \"=\" ( token / quoted-string )\n```\n\n**The alt-authority is a `quoted-string`, and the DQUOTEs are the production.** Every example in RFC 7838 carries them, and the section says why: *\"Note that the \"quoted-string\" syntax needs to be used because \":\" is not an allowed character in \"token\".\"* An unquoted `h2=example.com:443` is reported. Inside the quotes the content is asked for in prose rather than ABNF — *\"an OPTIONAL uri-host …, a colon (\":\"), and a port number\"* — so the host may be absent and the colon and the number may not.\n\n**`clear` is the whole field value or it is nothing.** The top production is an alternation, so a value holding the keyword beside an alternative derives from neither half; RFC 7838 §3 calls that *\"an invalid reply\"* in its own parenthetical. The keyword is `%s\"clear\"`, a case-sensitive string, so `CLEAR` is not it and is read as an `alt-value` instead.\n\n**A `protocol-id` is a percent-encoded ALPN protocol name, and three sentences constrain the spelling** — octets no `token` admits MUST be percent-encoded (including `%` itself, as `%25`), octets that *are* valid token characters MUST NOT be, and the hex digits MUST be uppercase. A `token` admits `%`, so a character scan sees none of these. They exist so that *\"recipients can apply simple string comparison to match protocol identifiers\"*, which two spellings of one name would defeat.\n\n**A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port` is `*DIGIT` — but that an ALPN protocol name identifies a suite carried over a transport whose port registry is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n\n**Parameters are read as `token \"=\" ( token / quoted-string )` and not looked up.** *\"Unknown parameters MUST be ignored\"*, so a name this rule does not recognise is not a defect. `persist` is the one exception, because §3.1 prints a syntax for it that is a single literal `\"1\"` and requires clients to ignore any other value. The `ma` parameter's own value is read by `alt_svc_h3_advertisement_valid`.\n\n**Whitespace beside an `=` is reported.** RFC 7838 writes `OWS` in exactly one place — around the semicolon before a parameter — and the `#rule` it imports writes it around the commas. Both are gone by the time a half is read, so whitespace still touching an `=` is admitted by nothing. This is the opposite of a `BWS`, which is whitespace a grammar prints in order to tolerate.\n\n**What this rule declines.** RFC 7838 §3 says that over HTTP/2 *\"servers SHOULD instead send an ALTSVC frame\"*, and the next sentence says *\"Alt-Svc header fields remain valid in responses delivered over HTTP/2\"*. The frame is not in a capture, HTTP/3 has no such frame at all and RFC 9114 §3.1.1 has an HTTP/3 server use this field, so the SHOULD is not reported. Nothing here reads *which* protocol a well-spelled `protocol-id` names — `alt_svc_protocol_registered` decodes it back into its ALPN protocol name and asks that against a configured list."
+        "Read an `Alt-Svc` response header field against the grammar RFC 7838 §3 prints for it:\n\n```\nAlt-Svc       = clear / 1#alt-value\nclear         = %s\"clear\"; \"clear\", case-sensitive\nalt-value     = alternative *( OWS \";\" OWS parameter )\nalternative   = protocol-id \"=\" alt-authority\nprotocol-id   = token ; percent-encoded ALPN protocol name\nalt-authority = quoted-string ; containing [ uri-host ] \":\" port\nparameter     = token \"=\" ( token / quoted-string )\n```\n\n**The alt-authority is a `quoted-string`, and the DQUOTEs are the production.** Every example in RFC 7838 carries them, and the section says why: *\"Note that the \"quoted-string\" syntax needs to be used because \":\" is not an allowed character in \"token\".\"* An unquoted `h2=example.com:443` is reported. Inside the quotes the content is asked for in prose rather than ABNF — *\"an OPTIONAL uri-host …, a colon (\":\"), and a port number\"* — so the host may be absent and the colon and the number may not.\n\n**`clear` is the whole field value or it is nothing.** The top production is an alternation, so a value holding the keyword beside an alternative derives from neither half; RFC 7838 §3 calls that *\"an invalid reply\"* in its own parenthetical. The keyword is `%s\"clear\"`, a case-sensitive string, so `CLEAR` is not it and is read as an `alt-value` instead.\n\n**A `protocol-id` is a percent-encoded ALPN protocol name, and three sentences constrain the spelling** — octets no `token` admits MUST be percent-encoded (including `%` itself, as `%25`), octets that *are* valid token characters MUST NOT be, and the hex digits MUST be uppercase. A `token` admits `%`, so a character scan sees none of these. They exist so that *\"recipients can apply simple string comparison to match protocol identifiers\"*, which two spellings of one name would defeat.\n\n**A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port` is `*DIGIT` — but that an ALPN protocol name identifies a suite carried over a transport whose port registry is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n\n**Parameters are read as `token \"=\" ( token / quoted-string )` and not looked up.** *\"Unknown parameters MUST be ignored\"*, so a name this rule does not recognise is not a defect. **The two §3.1 defines are the exceptions**, and both are read on whatever alternative carries them: `persist` prints a syntax that is the single literal `\"1\"` and requires clients to ignore any other value, and `ma` carries a `delta-seconds` — `1*DIGIT` (RFC 9111 §1.2.2), **the production and not an integer type**. So `ma=+5` is reported although every standard-library parser reads it as 5, while a run of digits longer than 64 bits is a conforming value §1.2.2 has a cache clamp rather than refuse and falls to the ceiling below instead of being called malformed. `ma=0` is fresh for zero seconds — stale as it arrives — and `ma=\"\"` is a well-formed `quoted-string` that states no lifetime, which is a different finding from the bare `ma=` that derives from neither half of the value production.\n\n**The ceiling is a heuristic and is the one number here with no sentence behind it.** RFC 7838 places no upper bound on `ma`; one year (31 536 000 seconds) is this linter's guess at where a value stops being a policy and starts being a typo.\n\n**Neither name is folded.** RFC 7838 states no case-insensitivity for a parameter name and §3 has a client ignore a name it does not know, so `MA=0` and `Persist=2` invalidate nothing and reporting them would describe something that does not happen.\n\n**Whitespace beside an `=` is reported.** RFC 7838 writes `OWS` in exactly one place — around the semicolon before a parameter — and the `#rule` it imports writes it around the commas. Both are gone by the time a half is read, so whitespace still touching an `=` is admitted by nothing. This is the opposite of a `BWS`, which is whitespace a grammar prints in order to tolerate.\n\n**What this rule declines.** RFC 7838 §3 says that over HTTP/2 *\"servers SHOULD instead send an ALTSVC frame\"*, and the next sentence says *\"Alt-Svc header fields remain valid in responses delivered over HTTP/2\"*. The frame is not in a capture, HTTP/3 has no such frame at all and RFC 9114 §3.1.1 has an HTTP/3 server use this field, so the SHOULD is not reported. Nothing here reads *which* protocol a well-spelled `protocol-id` names — `alt_svc_protocol_registered` decodes it back into its ALPN protocol name and asks that against a configured list."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -740,6 +859,7 @@ impl RuleMeta for AltSvcHeaderSyntax {
             RFC_3986_3_2_2,
             RFC_3986_3_2_3,
             RFC_6335_6,
+            RFC_9111_1_2_2,
         ]
     }
 
@@ -757,12 +877,12 @@ impl RuleMeta for AltSvcHeaderSyntax {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Alt-Svc: h2=\":443\"; ma=2592000\nAlt-Svc: h2=\"new.example.org:80\"\nAlt-Svc: h2=\"alt.example.com:8000\", h2=\":443\"\nAlt-Svc: h2=\"[::1]:443\"; persist=1\nAlt-Svc: clear\nAlt-Svc: w%3Dx%3Ay#z=\":443\"",
+                snippet: "Alt-Svc: h2=\":443\"; ma=2592000\nAlt-Svc: h2=\"new.example.org:80\"\nAlt-Svc: h2=\"alt.example.com:8000\", h2=\":443\"\nAlt-Svc: h2=\"[::1]:443\"; persist=1\nAlt-Svc: clear\nAlt-Svc: w%3Dx%3Ay#z=\":443\"\nAlt-Svc: h2=\":443\"; MA=0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Alt-Svc: h2=example.com:443       # alt-authority is a quoted-string\nAlt-Svc: h2=\"example.com\"         # the colon and the port are not optional\nAlt-Svc: h2=\"example.com:\"        # the delimiter and no port number\nAlt-Svc: h2=\"example.com:notaport\" # port is *DIGIT\nAlt-Svc: h2=\"exämple.com:443\"      # the authority is US-ASCII; an IDN is A-labels\nAlt-Svc: h2=\":99999\"              # a port registry is sixteen bits wide\nAlt-Svc: h2example.com:443        # no '=' in the alternative\nAlt-Svc: h@=\":443\"                # '@' is no tchar\nAlt-Svc: x%3dy=\":443\"             # hex digits are uppercase\nAlt-Svc: %68%32=\":443\"            # a tchar is not percent-encoded\nAlt-Svc: clear, h2=\":443\"         # clear beside an alternative\nAlt-Svc: h2 = \":443\"              # no OWS beside the '='\nAlt-Svc: h2=\":443\";;ma=3600       # a repetition with no parameter in it\nAlt-Svc: h2=\":443\"; ma            # a parameter is a name, an '=' and a value\nAlt-Svc: h2=\":443\"; persist=2     # persist's only value is \"1\"\nAlt-Svc: ,                        # empty list element",
+                snippet: "Alt-Svc: h2=example.com:443       # alt-authority is a quoted-string\nAlt-Svc: h2=\"example.com\"         # the colon and the port are not optional\nAlt-Svc: h2=\"example.com:\"        # the delimiter and no port number\nAlt-Svc: h2=\"example.com:notaport\" # port is *DIGIT\nAlt-Svc: h2=\"exämple.com:443\"      # the authority is US-ASCII; an IDN is A-labels\nAlt-Svc: h2=\":99999\"              # a port registry is sixteen bits wide\nAlt-Svc: h2example.com:443        # no '=' in the alternative\nAlt-Svc: h@=\":443\"                # '@' is no tchar\nAlt-Svc: x%3dy=\":443\"             # hex digits are uppercase\nAlt-Svc: %68%32=\":443\"            # a tchar is not percent-encoded\nAlt-Svc: clear, h2=\":443\"         # clear beside an alternative\nAlt-Svc: h2 = \":443\"              # no OWS beside the '='\nAlt-Svc: h2=\":443\";;ma=3600       # a repetition with no parameter in it\nAlt-Svc: h2=\":443\"; ma            # a parameter is a name, an '=' and a value\nAlt-Svc: h2=\":443\"; persist=2     # persist's only value is \"1\"\nAlt-Svc: h2=\":443\"; ma=0          # fresh for zero seconds\nAlt-Svc: h2=\":443\"; ma=+5         # 1*DIGIT writes no sign\nAlt-Svc: h2=\":443\"; ma=\"\"         # a quoted-string stating no lifetime\nAlt-Svc: ,                        # empty list element",
             },
         ]
     }
@@ -1090,6 +1210,40 @@ mod tests {
         "sets persist to \'0\'",
         "alt_svc_persist_invalid"
     )]
+    // The lifetime `persist` shares its subsection with, on the alternative
+    // that is not `h3`. Every row here used to be silence: the reading sat
+    // behind a gate on the protocol identifier, so the same value was a finding
+    // under one ALPN name and nothing under all the others.
+    #[case("h2=\":443\"; ma=0", "fresh for zero seconds", "alt_svc_ma_invalid")]
+    #[case(
+        "h2=\":443\"; ma=\"0\"",
+        "fresh for zero seconds",
+        "alt_svc_ma_invalid"
+    )]
+    #[case("h2=\":443\"; ma=31536001", "past the 31536000", "alt_svc_ma_invalid")]
+    // Every character is a digit and the run is longer than 64 bits -- a value
+    // § 1.2.2 has a cache clamp rather than reject, so it is reported for the
+    // ceiling it exceeds and not as characters the production refuses.
+    #[case(
+        "h2=\":443\"; ma=99999999999999999999999",
+        "past the 31536000",
+        "alt_svc_ma_invalid"
+    )]
+    #[case(
+        "h2=\":443\"; ma=+5",
+        "which is no `delta-seconds`",
+        "delta_seconds_character_forbidden"
+    )]
+    #[case(
+        "h2=\":443\"; ma=abc",
+        "which is no `delta-seconds`",
+        "delta_seconds_character_forbidden"
+    )]
+    // The two ways of writing nothing, which are two findings: `ma=` derives
+    // from neither half of `( token / quoted-string )` and is the parameter's
+    // defect, while `ma=""` is a well-formed `quoted-string` whose content is
+    // not a `delta-seconds`.
+    #[case("h2=\":443\"; ma=\"\"", "no digits in it", "delta_seconds_empty")]
     #[case(
         "h2=\":443\"; ;",
         "semicolon with no parameter after it",
@@ -1240,6 +1394,35 @@ mod tests {
         assert!(v.message.contains("0xE9"), "{}", v.message);
         assert!(v.message.contains("A-labels"), "{}", v.message);
         assert_eq!(v.violation, "alt_svc_authority_character_forbidden");
+    }
+
+    /// The whole of what moved, stated as the rows that could not both hold
+    /// before: one value, three protocol identifiers, one finding.
+    ///
+    /// RFC 7838 § 3.1 defines `ma` for an `alt-value`, and an `alt-value` is
+    /// any `protocol-id "=" alt-authority` — so a lifetime of zero seconds is
+    /// the same fact about the same parameter whichever ALPN name stands to the
+    /// left of the `=`. The reading used to sit behind a gate on that name, in
+    /// the rule that answers for HTTP/3, which made the `h3` row a `warn` and
+    /// the other two silence.
+    #[rstest]
+    #[case("h3")]
+    #[case("h2")]
+    #[case("xproto")]
+    fn the_lifetime_is_read_on_whatever_alternative_carries_it(#[case] protocol: &str) {
+        let m = message(&format!("{protocol}=\":443\"; ma=0"));
+        assert!(m.contains("fresh for zero seconds"), "{protocol}: {m}");
+    }
+
+    /// And neither name § 3.1 defines is folded, which is the same answer for
+    /// both: § 3 has a client ignore a parameter name it does not know, so a
+    /// finding about `MA` or `Persist` would describe something that does not
+    /// happen.
+    #[rstest]
+    #[case("h2=\":443\"; MA=0")]
+    #[case("h2=\":443\"; Persist=2")]
+    fn a_parameter_name_this_document_does_not_define_is_ignored(#[case] header: &str) {
+        assert!(run(&[("alt-svc", header)]).is_none(), "{header}");
     }
 
     /// The field's two alternatives are combined differently: a list is one

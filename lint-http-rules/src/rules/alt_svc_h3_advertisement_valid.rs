@@ -7,18 +7,13 @@ use crate::helpers::list::{
     list_members_as_written, quoting_is_balanced, split_semicolons_respecting_quotes,
 };
 use crate::helpers::shown::shown_in_finding;
-use crate::helpers::word::token_or_quoted_string;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::alpn::{ALPN_PROTOCOL_NAME_OBSOLETE, RFC_9114_3_1_1};
-use crate::violations::alt_svc::ALT_SVC_MA_INVALID;
-use crate::violations::delta_seconds::{
-    DELTA_SECONDS_CHARACTER_FORBIDDEN, DELTA_SECONDS_EMPTY, RFC_9111_1_2_2,
-};
 use crate::violations::ViolationDef;
 
-/// Alt-Svc advertising `h3` must use the final protocol ID (not draft versions),
-/// with a reasonable `ma` (max-age) value (RFC 9114 §3.1.1, RFC 7838).
+/// Alt-Svc advertising HTTP/3 must name the shipped `h3` ALPN token rather than
+/// a draft one (RFC 9114 § 3.1.1).
 pub struct AltSvcH3AdvertisementValid;
 
 /// The alternative of the field's top production that is not a list.
@@ -30,21 +25,6 @@ pub struct AltSvcH3AdvertisementValid;
 // cite(RFC 7838 § 3, label: Alt-Svc grammar): "Alt-Svc       = clear / 1#alt-value"
 // cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
 const CLEAR: &str = "clear";
-
-/// The one `ma` this document defines, and it is not folded.
-///
-/// RFC 7838 prints `parameter = token "=" ( token / quoted-string )` and states
-/// nothing about comparing a parameter name without regard to case. RFC 9110
-/// § 5.6.6's *"Parameter names are case-insensitive"* governs the `parameters`
-/// production, which this field does not import — it writes its own — so it does
-/// not reach here, and `alt_svc_header_syntax` already compares `persist`
-/// case-sensitively for the same reason. What a recipient does with `MA` is
-/// § 3's *"Unknown parameters MUST be ignored."*, so a finding about `MA=0`
-/// invalidating an advertisement would be describing something that does not
-/// happen.
-// cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
-// cite(RFC 7838 § 3): "Unknown parameters MUST be ignored."
-const MA: &str = "ma";
 
 /// The ALPN protocol name HTTP/3 shipped under, spelled as § 3.1.1 spells it.
 ///
@@ -58,11 +38,6 @@ const MA: &str = "ma";
 // cite(RFC 7838 § 3): "With these constraints, recipients can apply simple string comparison to match protocol identifiers."
 const FINAL_H3: &str = "h3";
 
-/// Maximum reasonable max-age: 1 year in seconds. RFC 7838 sets **no** upper
-/// bound on `ma`; this is a linter heuristic to flag likely misconfiguration,
-/// not a spec limit — hence uncited (recorded in the audit ledger, §4.1).
-const MAX_REASONABLE_MA: u64 = 365 * 24 * 3600;
-
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
@@ -72,53 +47,21 @@ const RFC_7838_3: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
     note: "Alt-Svc — the field's grammar, the `parameter` production, and the requirement that a recipient ignore a parameter name it does not know",
 };
-const RFC_7838_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7838",
-    section: Some("3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
-    note:
-        "Caching Alt-Svc Header Field Values — what the `ma` parameter's delta-seconds value means",
-};
 
-/// The two halves of `1*DIGIT`, and what a conforming value can still be.
+/// The one thing this rule reports, and it is neither the field's nor a
+/// parameter's.
 ///
-/// RFC 7838 § 3.1 gives `ma` a `delta-seconds` value by importing the
-/// production, so both ways of failing it are the production's defects and
-/// neither is this field's — the same arithmetic `Age` and `max-age` carry, in
-/// a parameter of an alternative service. What `ma` *means* is the field's, and
-/// it is one entry rather than two: a lifetime of zero and a lifetime so long it
-/// is a typo are both conforming values that state nothing a client can use, and
-/// the number written is not the number meant either way.
+/// What is wrong with `h3-29` is the ALPN protocol *name* it decodes to, which
+/// is the same name whether an `Alt-Svc`, an ALTSVC frame or a ClientHello
+/// carried it — so it reports through [`alpn`](crate::violations::alpn), beside
+/// the two other ways a name identifies nothing anyone will answer to.
 ///
-/// **The draft token is neither the field's nor the parameter's**: what is wrong
-/// with `h3-29` is the ALPN protocol *name* it decodes to, which is the same
-/// name whether an `Alt-Svc`, an ALTSVC frame or a ClientHello carried it — so
-/// it reports through [`alpn`](crate::violations::alpn), beside the two other
-/// ways a name identifies nothing anyone will answer to.
-static DECLARED: &[&ViolationDef] = &[
-    &ALT_SVC_MA_INVALID,
-    &DELTA_SECONDS_EMPTY,
-    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
-    &ALPN_PROTOCOL_NAME_OBSOLETE,
-];
-
-/// One finding from the reading, and the entry it reports as.
-///
-/// The shape `expect_header_valid` settled and `alt_svc_header_syntax` still
-/// carries one file over — **without the `Option` here**, now that what `ma`
-/// means has a subject of its own and every arm of this judge names an entry.
-struct Defect {
-    def: &'static ViolationDef,
-    message: String,
-}
-
-impl Defect {
-    /// A defect the catalogue names.
-    fn named(def: &'static ViolationDef, message: String) -> Self {
-        Self { def, message }
-    }
-}
-
+/// **The `ma` parameter left this rule.** RFC 7838 § 3.1 defines that lifetime
+/// for an `alt-value`, not for an HTTP/3 one, so reading it behind the `h3`
+/// gate made the same value a finding under one ALPN name and silence under
+/// every other. `alt_svc_header_syntax` reads it now, on every alternative,
+/// beside the `persist` that shares its subsection.
+static DECLARED: &[&ViolationDef] = &[&ALPN_PROTOCOL_NAME_OBSOLETE];
 impl RuleMeta for AltSvcH3AdvertisementValid {
     fn id(&self) -> &'static str {
         "alt_svc_h3_advertisement_valid"
@@ -134,11 +77,11 @@ impl RuleMeta for AltSvcH3AdvertisementValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reads the `Alt-Svc` response header field for the entries that advertise HTTP/3, and asks two things of each: that it names the shipped protocol, and that the freshness lifetime it carries is one.\n\n**The protocol identifier.** RFC 9114 §3.1.1: *\"An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the \"h3\" ALPN token.\"* A draft-era token — `h3-29`, `h3-Q050`, `h3-27` — is a different ALPN protocol name, so a client that speaks HTTP/3 and not that draft finds nothing it can use at the alternative. **It is reported only where the field names no `h3` at all**, because that sentence asks an origin to advertise an equivalent HTTP/3 endpoint using `h3`, and a field carrying `h3` has done so — the draft alternative beside it is one a client that knows only `h3` never looks at. `Alt-Svc: h3=\":443\", h3-29=\":443\"` is the shape almost every draft advertisement on the web is written in and draws nothing; `Alt-Svc: h3-29=\":443\"` is the whole HTTP/3 offer written under a name nothing current negotiates, and draws the finding. **The `h3` is looked for byte-exactly** where the draft scan folds case, and the asymmetry runs the right way in both places: the fold only widens what is reported, and `H3` is not `h3` to a recipient doing §3's *\"simple string comparison\"*, so `H3=\":443\", h3-29=\":443\"` still offers HTTP/3 under the draft name alone.\n\n**The `ma` parameter.** RFC 7838 §3.1 gives it a `delta-seconds` value, and `delta-seconds` is `1*DIGIT` (RFC 9111 §1.2.2) — **the production, not an integer type**. A leading `+` is not part of it, so `ma=+5` is reported even though every standard-library parser reads it as 5; conversely a run of digits longer than 64 bits is a conforming value that RFC 9111 §1.2.2 tells a cache to clamp rather than reject, so it is measured against this rule's ceiling instead of being called malformed. `ma=0` is fresh for zero seconds — the advertisement is stale as it arrives — and is reported as the likely misconfiguration it is.\n\n**The ceiling is a heuristic and is the one thing here with no sentence behind it.** RFC 7838 places no upper bound on `ma`. One year (31 536 000 seconds) is this linter's guess at where a value stops being a policy and starts being a typo.\n\n**The parameter name is compared case-sensitively, and the protocol identifier is not.** RFC 7838 prints `parameter = token \"=\" ( token / quoted-string )` and states no case-insensitivity for the name; RFC 9110 §5.6.6's *\"Parameter names are case-insensitive\"* governs the `parameters` production, which this field does not import. So `MA=0` is a parameter name a client is required to ignore (*\"Unknown parameters MUST be ignored.\"*), and reporting it as invalidating an advertisement would describe something that does not happen. The **protocol identifier** is folded to lowercase, deliberately and against §3's *\"simple string comparison\"*: the fold only ever widens what this rule reports, so `H3-29` is still named as a draft token and `H3=…; ma=0` is still measured.\n\n**What this rule leaves to its two siblings.** Everything about the field's shape is `alt_svc_header_syntax`'s, on every protocol rather than on `h3` alone: an empty list element, an `alternative` with no `=`, an empty `protocol-id`, a percent-encoding this field's one-spelling constraints forbid, a `parameter` with no value or a value that is neither a `token` nor a well-formed `quoted-string`, and an unterminated DQUOTE — which this rule treats as making the whole value unreadable rather than guessing at where its members end. Whether the ALPN name is registered is `alt_svc_protocol_registered`'s.\n\nThe field lines are joined before they are read (RFC 9110 §5.3), because `1#alt-value` is the list that licenses the join, and the value is read one `char` per octet so that an `obs-text` octet is measured rather than hiding the line it is written on."
+        "Reads the `Alt-Svc` response header field and asks one thing of it: that an HTTP/3 endpoint is advertised under a name a current client answers to.\n\nRFC 9114 §3.1.1: *\"An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the \"h3\" ALPN token.\"* A draft-era token — `h3-29`, `h3-Q050`, `h3-27` — is a different ALPN protocol name, so a client that speaks HTTP/3 and not that draft finds nothing it can use at the alternative. **It is reported only where the field names no `h3` at all**, because that sentence asks an origin to advertise an equivalent HTTP/3 endpoint using `h3`, and a field carrying `h3` has done so — the draft alternative beside it is one a client that knows only `h3` never looks at. `Alt-Svc: h3=\":443\", h3-29=\":443\"` is the shape almost every draft advertisement on the web is written in and draws nothing; `Alt-Svc: h3-29=\":443\"` is the whole HTTP/3 offer written under a name nothing current negotiates, and draws the finding.\n\n**The `h3` is looked for byte-exactly** where the draft scan folds case, and the asymmetry runs the right way in both places: the fold only widens what is reported, and `H3` is not `h3` to a recipient doing §3\'s *\"simple string comparison\"*, so `H3=\":443\", h3-29=\":443\"` still offers HTTP/3 under the draft name alone.\n\n**Everything else about the field is `alt_svc_header_syntax`\'s**, on every protocol rather than on `h3` alone: the shape of a member and of a parameter, and — since the lifetime RFC 7838 §3.1 defines belongs to an `alt-value` and not to an HTTP/3 one — the `ma` parameter, which this rule used to read behind the `h3` gate and no longer does. Whether the ALPN name is registered is `alt_svc_protocol_registered`\'s.\n\nThe field lines are joined before they are read (RFC 9110 §5.3), because `1#alt-value` is the list that licenses the join, and the value is read one `char` per octet so that an `obs-text` octet is measured rather than hiding the line it is written on."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9114_3_1_1, RFC_7838_3, RFC_7838_3_1, RFC_9111_1_2_2]
+        &[RFC_9114_3_1_1, RFC_7838_3]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -154,25 +97,13 @@ impl RuleMeta for AltSvcH3AdvertisementValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("The shipped ALPN token, with a freshness lifetime"),
+                label: Some("The shipped ALPN token"),
                 snippet: "Alt-Svc: h3=\":443\"; ma=2592000",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("No `ma` at all: the parameter is optional"),
-                snippet: "Alt-Svc: h3=\":443\"",
             },
             Example {
                 compliance: Compliance::Compliant,
                 label: Some("An `h3` entry beside another protocol's"),
                 snippet: "Alt-Svc: h2=\":443\", h3=\":443\"; ma=3600",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "A parameter name this document does not define is ignored, not folded",
-                ),
-                snippet: "Alt-Svc: h3=\":443\"; MA=0",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -186,18 +117,8 @@ impl RuleMeta for AltSvcH3AdvertisementValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("Fresh for zero seconds: stale as it arrives"),
-                snippet: "Alt-Svc: h3=\":443\"; ma=0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Beyond the one-year ceiling this linter guesses at"),
-                snippet: "Alt-Svc: h3=\":443\"; ma=99999999",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("No `delta-seconds`: `1*DIGIT` writes no sign"),
-                snippet: "Alt-Svc: h3=\":443\"; ma=+5",
+                label: Some("Two draft tokens, and no final one beside them"),
+                snippet: "Alt-Svc: h3-29=\":443\", h3-27=\":443\"",
             },
         ]
     }
@@ -230,7 +151,6 @@ impl Rule for AltSvcH3AdvertisementValid {
         let finding = || -> Option<Vec<Violation>> {
             let resp = tx.response.as_ref()?;
             let mut out: Vec<Violation> = Vec::new();
-            let mut ma_reported = false;
 
             // The field probe before the config, and the value read as the sender
             // wrote it — one `char` per octet. The `to_str()` + `continue` this
@@ -280,7 +200,7 @@ impl Rule for AltSvcH3AdvertisementValid {
                     continue;
                 }
                 let parts = split_semicolons_respecting_quotes(member);
-                let (alternative, parameters) = parts
+                let (alternative, _parameters) = parts
                     .split_first()
                     .expect("the splitter yields at least one segment");
                 let Some((protocol_id, _)) = alternative.split_once('=') else {
@@ -327,18 +247,6 @@ impl Rule for AltSvcH3AdvertisementValid {
                     }
                     continue;
                 }
-
-                // Only validate parameters for actual h3 entries
-                if proto_lower != "h3" {
-                    continue;
-                }
-
-                if !ma_reported {
-                    if let Some(defect) = h3_ma_defect(parameters) {
-                        out.push(ctx.report_with(defect.def, defect.message));
-                        ma_reported = true;
-                    }
-                }
             }
 
             Some(out)
@@ -381,107 +289,6 @@ fn advertises_final_h3(value: &str) -> bool {
     })
 }
 
-/// The reason this h3 entry's `ma` parameter does not advertise a freshness
-/// lifetime, or `None`.
-///
-/// `parameters` are the segments after the `alternative`, already split on the
-/// semicolons a `quoted-string` does not swallow.
-///
-/// The value half is `( token / quoted-string )` and is read by the shared
-/// reader that owns the alternation, so `ma="86400"` and `ma=86400` are the
-/// same value and `ma="864\00"` is the value `86400` — which the hand-written
-/// `starts_with('"') && ends_with('"')` strip this replaced could not say, and
-/// which it read as the two-character-shorter string on an unbalanced quote.
-///
-/// A `parameter` this rule cannot read at all — no `=`, an empty value, a
-/// malformed `quoted-string` — is `alt_svc_header_syntax`'s finding, on
-/// every protocol rather than on `h3` alone, so it is passed over here rather
-/// than reported twice in different words.
-// cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
-// cite(RFC 7838 § 3): "Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value."
-fn h3_ma_defect(parameters: &[&str]) -> Option<Defect> {
-    for parameter in parameters {
-        // Whitespace beside the '=' leaves it in the name, so `ma = 0` does not
-        // match and is not measured here. That is the right answer rather than a
-        // gap: `alternative` and `parameter` print no `OWS` around their
-        // delimiters, so such a segment derives from no `parameter` at all and
-        // is already reported as that by `alt_svc_header_syntax`.
-        let Some((name, value)) = parameter.split_once('=') else {
-            continue;
-        };
-        if name != MA {
-            continue;
-        }
-        let Ok(seconds) = token_or_quoted_string(value) else {
-            continue;
-        };
-
-        // `ma` carries a delta-seconds count — how long the advertisement stays
-        // fresh — and `delta-seconds` is `1*DIGIT`. That is the production, not
-        // an integer type: `parse::<u64>()` accepts a leading '+', which no
-        // `1*DIGIT` writes, and refuses a run of digits longer than 64 bits,
-        // which is a conforming value the document tells a cache how to handle.
-        // So the characters are measured against the production first and only
-        // then read as a number.
-        // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
-        // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
-        //
-        // The floor and the alphabet are two entries of the subject, so they are
-        // two branches here: `ma=""` states no time at all, and `ma=+5` states
-        // one in characters the production does not write. One `String` could
-        // not have told them apart, which is the same split `Content-Length`
-        // needed when its own `1*DIGIT` was read.
-        if seconds.is_empty() {
-            return Some(Defect::named(
-                &DELTA_SECONDS_EMPTY,
-                "Alt-Svc h3 entry has an 'ma' with no digits in it, so the advertisement states no freshness lifetime".into(),
-            ));
-        }
-        if !seconds.chars().all(|c| c.is_ascii_digit()) {
-            return Some(Defect::named(
-                &DELTA_SECONDS_CHARACTER_FORBIDDEN,
-                format!(
-                    "Alt-Svc h3 entry has 'ma={}', which is no `delta-seconds`: a sign, a radix point or any other character leaves the freshness lifetime unstated",
-                    shown_in_finding(&seconds)
-                ),
-            ));
-        }
-
-        // Every character is a digit by now, so the only way the parse fails is
-        // a run longer than 64 bits — a value the document has a cache clamp
-        // rather than reject, and one this rule's ceiling already covers.
-        // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
-        // cite(RFC 9111 § 1.2.2): "or the greatest positive integer it can conveniently represent."
-        let n = seconds.parse::<u64>().unwrap_or(u64::MAX);
-
-        // The two ends of one entry: a lifetime of zero and a lifetime past any
-        // deployment's horizon are both conforming `delta-seconds` and neither
-        // is a number a sender meant to write.
-        if n == 0 {
-            return Some(Defect::named(
-                &ALT_SVC_MA_INVALID,
-                "Alt-Svc h3 entry has 'ma=0' which immediately invalidates the advertisement (RFC 7838 §3.1)"
-                    .into(),
-            ));
-        }
-        // Heuristic ceiling, not spec-derived: RFC 7838 places no upper bound
-        // on `ma` (see MAX_REASONABLE_MA). Flags likely misconfiguration only,
-        // which is why the entry it reports carries no reference.
-        if n > MAX_REASONABLE_MA {
-            return Some(Defect::named(
-                &ALT_SVC_MA_INVALID,
-                format!(
-                    "Alt-Svc h3 entry has unreasonably large 'ma={}' (exceeds 1 year / {} seconds)",
-                    shown_in_finding(&seconds),
-                    MAX_REASONABLE_MA
-                ),
-            ));
-        }
-    }
-
-    None
-}
-
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
 static REGISTRATION: &dyn crate::rules::Rule = &AltSvcH3AdvertisementValid;
@@ -492,65 +299,36 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    // No violation cases
+    // Nothing to read, or an HTTP/3 endpoint under the name it shipped with.
     #[case(None, false)]
     #[case(Some("h3=\":443\"; ma=2592000"), false)]
     #[case(Some("h3=\":443\""), false)]
     #[case(Some("h3=example.com:443; ma=86400"), false)]
     #[case(Some("h2=\":443\", h3=\":443\"; ma=3600"), false)]
-    #[case(Some("h3=\":443\"; ma=\"86400\""), false)]
     #[case(Some("h2=\":443\""), false)]
     #[case(Some("clear"), false)]
-    #[case(Some("h3=\":443\"; ma=31536000"), false)]
     // Draft version violations
     #[case(Some("h3-29=\":443\""), true)]
     #[case(Some("h3-Q050=\":443\""), true)]
     #[case(Some("h3-27=\":443\"; ma=3600"), true)]
     #[case(Some("h2=\":443\", h3-29=\":443\""), true)]
-    // ma=0 violation
-    #[case(Some("h3=\":443\"; ma=0"), true)]
-    #[case(Some("h3=\":443\"; ma=\"0\""), true)]
-    // Unreasonably large ma
-    #[case(Some("h3=\":443\"; ma=99999999"), true)]
-    #[case(Some("h3=\":443\"; ma=31536001"), true)]
-    // No `delta-seconds`: the production is `1*DIGIT` and nothing else.
-    #[case(Some("h3=\":443\"; ma=abc"), true)]
-    // `parse::<u64>()` read this as 5; no `1*DIGIT` writes a sign.
-    #[case(Some("h3=\":443\"; ma=+5"), true)]
-    #[case(Some("h3=\":443\"; ma=8.6e4"), true)]
-    // Every character is a digit and the run is longer than 64 bits — a value
-    // §1.2.2 has a cache clamp rather than reject. Reported for the ceiling,
-    // which is what it exceeds, and not as "non-numeric".
-    #[case(Some("h3=\":443\"; ma=99999999999999999999999"), true)]
-    // A `quoted-pair` is the octet after the backslash, so this is 86400.
-    #[case(Some("h3=\":443\"; ma=\"864\\00\""), false)]
-    // An empty value derives from neither half of `( token / quoted-string )`,
-    // and saying so is `alt_svc_header_syntax`'s finding on every
-    // protocol rather than this rule's on `h3`.
-    #[case(Some("h3=\":443\"; ma="), false)]
     // The protocol-id fold, which widens: a case-variant draft token is still
-    // named, and a case-variant `h3` is still measured.
+    // named. A case-variant `h3` is not the shipped token to a recipient doing
+    // §3's simple string comparison, so it stands in for nothing.
     #[case(Some("H3=\":443\"; ma=86400"), false)]
-    #[case(Some("H3=\":443\"; ma=0"), true)]
-    // The parameter name is **not** folded. RFC 7838 states no
-    // case-insensitivity for it and §3 has a client ignore a name it does not
-    // know, so `MA=0` invalidates nothing and reporting it would describe
-    // something that does not happen.
-    #[case(Some("h3=\":443\"; MA=86400"), false)]
-    #[case(Some("h3=\":443\"; MA=0"), false)]
-    // Whitespace beside the '=' leaves it in the name; the segment derives from
-    // no `parameter` and the syntax rule is what reports it.
+    // Every way an `ma` can fail to state a lifetime is `alt_svc_header_syntax`'s
+    // finding now, on every alternative rather than on `h3` alone. None of them
+    // is this rule's, and a draft token is the only thing it still answers for.
+    #[case(Some("h3=\":443\"; ma=0"), false)]
+    #[case(Some("h3=\":443\"; ma=99999999"), false)]
+    #[case(Some("h3=\":443\"; ma=+5"), false)]
+    #[case(Some("h3=\":443\"; ma=\"\""), false)]
+    #[case(Some("h3=\":443\"; ma="), false)]
     #[case(Some("h3=\":443\"; ma = 0"), false)]
-    // An unterminated DQUOTE makes every separator after it a guess.
-    #[case(Some("h3=\":443\"; ma=\"0"), false)]
     // Persist param without ma (valid, defaults to 24h)
     #[case(Some("h3=\":443\"; persist=1"), false)]
     // Multiple params including valid ma
     #[case(Some("h3=\":443\"; persist=1; ma=86400"), false)]
-    // Boundary: ma=1 is valid (positive)
-    #[case(Some("h3=\":443\"; ma=1"), false)]
-    // Negative ma value (non-numeric)
-    #[case(Some("h3=\":443\"; ma=-1"), true)]
     // CLEAR directive (case-insensitive)
     #[case(Some("CLEAR"), false)]
     // Draft with numeric suffix only
@@ -676,62 +454,6 @@ mod tests {
         assert!(v[0].message.contains("h3-29"), "{}", v[0].message);
     }
 
-    /// The two kinds of finding cannot mask each other. An `ma` defect on an
-    /// `h3` entry used to end the read, so a draft token written after it went
-    /// unreported — the value below names an advertisement stale on arrival and
-    /// one no client can negotiate, and only the first was said.
-    ///
-    /// **The value is spelled `H3` on purpose, and it is the only spelling that
-    /// can still make both findings at once.** `ma` is read on an entry whose
-    /// `protocol-id` folds to `h3`, and the draft token is reported only where
-    /// no entry spells `h3` byte-exactly — so on `h3=":443"; ma=0,
-    /// h3-27=":443"` the final token is advertised and the draft is no longer a
-    /// finding at all. `H3` sits between the two: folded, it is an `h3` entry
-    /// whose `ma` is measured; unfolded, it is not the token §3.1.1 asks for,
-    /// so the draft beside it is still the whole HTTP/3 offer.
-    #[test]
-    fn an_ma_finding_does_not_hide_a_draft_token_behind_it() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "H3=\":443\"; ma=0, h3-27=\":443\"")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule_all(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        );
-        let ids: Vec<&str> = v.iter().map(|f| f.violation.as_str()).collect();
-        assert_eq!(
-            ids,
-            ["alt_svc_ma_invalid", ALPN_PROTOCOL_NAME_OBSOLETE.id],
-            "{:?}",
-            v
-        );
-    }
-
-    /// The `ma` findings keep the at-most-one shape the whole rule used to
-    /// have. Two `h3` entries with the same defective value are one repair, and
-    /// saying it twice would be the same sentence about the same mistake.
-    #[test]
-    fn a_repeated_ma_defect_is_reported_once() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h3=\":443\"; ma=0, h3=\":8443\"; ma=0")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule_all(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        );
-        assert_eq!(v.len(), 1, "{:?}", v);
-    }
-
     #[test]
     fn draft_version_message_includes_protocol() {
         let rule = AltSvcH3AdvertisementValid;
@@ -753,164 +475,6 @@ mod tests {
         // be the same defect in an ALTSVC frame or a ClientHello.
         assert_eq!(v.violation, "alpn_protocol_name_obsolete");
         assert_eq!(v.severity, crate::lint::Severity::Warn);
-    }
-
-    #[test]
-    fn ma_zero_message_mentions_invalidation() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h3=\":443\"; ma=0")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        )
-        .unwrap();
-        assert!(v.message.contains("ma=0"));
-        // Both ends of the lifetime report one entry; the message is where they
-        // differ.
-        assert_eq!(v.violation, "alt_svc_ma_invalid");
-    }
-
-    #[test]
-    fn large_ma_message_mentions_exceeds() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h3=\":443\"; ma=99999999")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        )
-        .unwrap();
-        assert!(v.message.contains("unreasonably large"));
-        assert_eq!(v.violation, "alt_svc_ma_invalid");
-    }
-
-    /// The message is pinned whole: it is assembled from a prefix and the value
-    /// it names, and an `is_some` assertion cannot see the two disagree.
-    #[test]
-    fn a_value_that_is_no_delta_seconds_names_the_production() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h3=\":443\"; ma=abc")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        )
-        .unwrap();
-        assert_eq!(v.violation, "delta_seconds_character_forbidden");
-        assert_eq!(
-            v.message,
-            "Alt-Svc h3 entry has 'ma=abc', which is no `delta-seconds`: a sign, a radix point or any other character leaves the freshness lifetime unstated"
-        );
-    }
-
-    /// The sign is the finding, and the reason it is one is that the check is
-    /// the production rather than an integer type.
-    #[test]
-    fn a_leading_plus_is_no_delta_seconds() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h3=\":443\"; ma=+5")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        )
-        .unwrap();
-        assert!(v.message.contains("'ma=+5'"), "{}", v.message);
-        assert_eq!(v.violation, "delta_seconds_character_forbidden");
-        // `parse::<u64>()` reads this as 5 and would have said nothing.
-        assert_eq!("+5".parse::<u64>(), Ok(5));
-    }
-
-    /// The floor of `1*DIGIT` is the other half of the subject, and a
-    /// `quoted-string` is the one spelling that reaches it: `ma=` alone is a
-    /// `parameter` with no value, which is the syntax rule's finding.
-    #[test]
-    fn an_empty_quoted_value_states_no_time_at_all() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h3=\":443\"; ma=\"\"")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        )
-        .expect("a finding");
-        assert_eq!(v.violation, "delta_seconds_empty");
-        assert_eq!(
-            v.message,
-            "Alt-Svc h3 entry has an 'ma' with no digits in it, so the advertisement states no freshness lifetime"
-        );
-    }
-
-    /// A run of digits too long for 64 bits is a conforming `delta-seconds`, so
-    /// it is reported for the ceiling it exceeds and not as a malformed value.
-    #[test]
-    fn an_overlong_digit_run_is_measured_against_the_ceiling() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h3=\":443\"; ma=99999999999999999999999")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        )
-        .unwrap();
-        assert!(v.message.contains("unreasonably large"), "{}", v.message);
-        assert!(!v.message.contains("delta-seconds"), "{}", v.message);
-    }
-
-    /// The value arrives through the shared `( token / quoted-string )` reader,
-    /// so the DQUOTEs are syntax and a `quoted-pair` is the octet after the
-    /// backslash. The strip this replaced took the first and last characters.
-    #[test]
-    fn a_quoted_ma_is_read_by_the_shared_reader() {
-        let rule = AltSvcH3AdvertisementValid;
-        for (header, expect_finding) in [
-            ("h3=\":443\"; ma=\"864\\00\"", false),
-            ("h3=\":443\"; ma=\"0\"", true),
-        ] {
-            let tx = crate::test_helpers::make_test_transaction_with_response(
-                200,
-                &[("alt-svc", header)],
-            );
-            let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-            let v = crate::test_helpers::run_rule(
-                &rule,
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            );
-            assert_eq!(v.is_some(), expect_finding, "{header}: {v:?}");
-        }
     }
 
     #[test]
@@ -941,23 +505,6 @@ mod tests {
             &config,
         );
         assert!(v.is_some());
-    }
-
-    #[test]
-    fn h2_with_bad_ma_is_not_flagged() {
-        let rule = AltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h2=\":443\"; ma=0")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        );
-        assert!(v.is_none());
     }
 
     /// A parameter this rule cannot read is the syntax rule's finding on every

@@ -28,7 +28,11 @@ parameter     = token "=" ( token / quoted-string )
 
 **A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port` is `*DIGIT` — but that an ALPN protocol name identifies a suite carried over a transport whose port registry is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.
 
-**Parameters are read as `token "=" ( token / quoted-string )` and not looked up.** *"Unknown parameters MUST be ignored"*, so a name this rule does not recognise is not a defect. `persist` is the one exception, because §3.1 prints a syntax for it that is a single literal `"1"` and requires clients to ignore any other value. The `ma` parameter's own value is read by `alt_svc_h3_advertisement_valid`.
+**Parameters are read as `token "=" ( token / quoted-string )` and not looked up.** *"Unknown parameters MUST be ignored"*, so a name this rule does not recognise is not a defect. **The two §3.1 defines are the exceptions**, and both are read on whatever alternative carries them: `persist` prints a syntax that is the single literal `"1"` and requires clients to ignore any other value, and `ma` carries a `delta-seconds` — `1*DIGIT` (RFC 9111 §1.2.2), **the production and not an integer type**. So `ma=+5` is reported although every standard-library parser reads it as 5, while a run of digits longer than 64 bits is a conforming value §1.2.2 has a cache clamp rather than refuse and falls to the ceiling below instead of being called malformed. `ma=0` is fresh for zero seconds — stale as it arrives — and `ma=""` is a well-formed `quoted-string` that states no lifetime, which is a different finding from the bare `ma=` that derives from neither half of the value production.
+
+**The ceiling is a heuristic and is the one number here with no sentence behind it.** RFC 7838 places no upper bound on `ma`; one year (31 536 000 seconds) is this linter's guess at where a value stops being a policy and starts being a typo.
+
+**Neither name is folded.** RFC 7838 states no case-insensitivity for a parameter name and §3 has a client ignore a name it does not know, so `MA=0` and `Persist=2` invalidate nothing and reporting them would describe something that does not happen.
 
 **Whitespace beside an `=` is reported.** RFC 7838 writes `OWS` in exactly one place — around the semicolon before a parameter — and the `#rule` it imports writes it around the commas. Both are gone by the time a half is read, so whitespace still touching an `=` is admitted by nothing. This is the opposite of a `BWS`, which is whitespace a grammar prints in order to tolerate.
 
@@ -40,6 +44,7 @@ parameter     = token "=" ( token / quoted-string )
 - [alt_svc_authority_character_forbidden](../violations/alt_svc_authority_character_forbidden.md) — Alt-Svc alt-authority holds an octet no production of it admits
 - [alt_svc_clear_conflicting](../violations/alt_svc_clear_conflicting.md) — Alt-Svc carries the clear keyword beside an alternative service
 - [alt_svc_equals_whitespace_forbidden](../violations/alt_svc_equals_whitespace_forbidden.md) — Alt-Svc writes whitespace beside an '=' its grammar prints bare
+- [alt_svc_ma_invalid](../violations/alt_svc_ma_invalid.md) — Alt-Svc states a freshness lifetime that cannot be what was meant
 - [alt_svc_parameter_empty](../violations/alt_svc_parameter_empty.md) — Alt-Svc writes a semicolon with no parameter behind it
 - [alt_svc_parameter_equals_missing](../violations/alt_svc_parameter_equals_missing.md) — Alt-Svc parameter has no '=' and no value
 - [alt_svc_parameter_value_empty](../violations/alt_svc_parameter_value_empty.md) — Alt-Svc parameter is written with no value after its '='
@@ -48,6 +53,8 @@ parameter     = token "=" ( token / quoted-string )
 - [alt_svc_port_invalid](../violations/alt_svc_port_invalid.md) — Alt-Svc alt-authority names a port no transport has
 - [alt_svc_port_missing](../violations/alt_svc_port_missing.md) — Alt-Svc alt-authority names no port
 - [alt_svc_protocol_id_invalid](../violations/alt_svc_protocol_id_invalid.md) — Alt-Svc protocol-id is not the one spelling this field allows for its ALPN name
+- [delta_seconds_character_forbidden](../violations/delta_seconds_character_forbidden.md) — A time in seconds holds an octet DIGIT does not admit
+- [delta_seconds_empty](../violations/delta_seconds_empty.md) — A time in seconds is stated with no digits
 - [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [list_member_missing](../violations/list_member_missing.md) — List with a one-element floor holds no element
 - [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
@@ -81,6 +88,7 @@ parameter     = token "=" ( token / quoted-string )
 - [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere
 - [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string
 - [RFC 6335 §6](https://www.rfc-editor.org/rfc/rfc6335.html#section-6): Port Number Ranges: the sixteen-bit namespace that bounds the port, and the reserved edge values that are not thereby invalid
+- [RFC 9111 §1.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2): `delta-seconds = 1*DIGIT` — the production every field carrying a time in seconds writes its value in, and the clamp that makes an over-long run of digits conforming
 
 ## Configuration
 
@@ -100,6 +108,7 @@ Alt-Svc: h2="alt.example.com:8000", h2=":443"
 Alt-Svc: h2="[::1]:443"; persist=1
 Alt-Svc: clear
 Alt-Svc: w%3Dx%3Ay#z=":443"
+Alt-Svc: h2=":443"; MA=0
 ```
 
 ### ❌ Bad
@@ -120,5 +129,8 @@ Alt-Svc: h2 = ":443"              # no OWS beside the '='
 Alt-Svc: h2=":443";;ma=3600       # a repetition with no parameter in it
 Alt-Svc: h2=":443"; ma            # a parameter is a name, an '=' and a value
 Alt-Svc: h2=":443"; persist=2     # persist's only value is "1"
+Alt-Svc: h2=":443"; ma=0          # fresh for zero seconds
+Alt-Svc: h2=":443"; ma=+5         # 1*DIGIT writes no sign
+Alt-Svc: h2=":443"; ma=""         # a quoted-string stating no lifetime
 Alt-Svc: ,                        # empty list element
 ```

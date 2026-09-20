@@ -32,7 +32,7 @@ severity = "error"
 ## Reported By
 
 - [age_header_numeric](../rules/age_header_numeric.md)
-- [alt_svc_h3_advertisement_valid](../rules/alt_svc_h3_advertisement_valid.md)
+- [alt_svc_header_syntax](../rules/alt_svc_header_syntax.md)
 - [cache_control_directive_valid](../rules/cache_control_directive_valid.md)
 - [cors_response_header_syntax](../rules/cors_response_header_syntax.md)
 - [keep_alive_header_valid](../rules/keep_alive_header_valid.md)

@@ -26,4 +26,4 @@ severity = "warn"
 
 ## Reported By
 
-- [alt_svc_h3_advertisement_valid](../rules/alt_svc_h3_advertisement_valid.md)
+- [alt_svc_header_syntax](../rules/alt_svc_header_syntax.md)

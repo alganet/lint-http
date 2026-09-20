@@ -915,7 +915,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "cookie_same_site_missing",
     "credentials_control_character_forbidden",
     "credentials_empty",
-    "delta_seconds_empty",
     "digest_credentials_nc_malformed",
     "digest_credentials_parameter_empty",
     "digest_equals_missing",
