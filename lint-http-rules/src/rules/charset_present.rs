@@ -39,7 +39,9 @@ impl RuleMeta for CharsetPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\nThe parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `content_type_valid`'s finding, not an absent charset."
+        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\n**A response with no content to render is skipped**: `1xx`, `204`, `205` and `304`. The hazard this rule names is a recipient guessing the encoding of text it is about to render, and none of those messages carries any â the field beside them describes something the recipient is not receiving. A `304` is the case where the advice was not merely idle but contradictory, since §15.4.5 tells the sender not to generate representation metadata on one at all and `status_304_representation_metadata` reports it. **A response to `HEAD` is deliberately not skipped**: §8.2 makes its representation header fields describe the data a `GET` would have enclosed, so a charset absent there is absent from the representation.
+
+The parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `content_type_valid`'s finding, not an absent charset."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -92,6 +94,34 @@ impl Rule for CharsetPresent {
             let Some(resp) = &tx.response else {
                 return None;
             };
+
+            // A message with no content has no text for a recipient to render, so
+            // the hazard this rule names is not reachable from it and the advice
+            // improves a field describing nothing. The sibling that reads the same
+            // field for its *presence*, `content_type_present`, has asked this
+            // since a 205 was reported for omitting a Content-Type it had nothing
+            // to describe; this rule never asked it at all.
+            // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
+            // cite(RFC 9110 § 15.3.6): "Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response."
+            //
+            // **The 304 is the case that makes it a contradiction rather than
+            // merely idle advice.** § 15.4.5 tells the sender not to generate
+            // representation metadata on one at all, and
+            // `status_304_representation_metadata` says so, so a report carrying
+            // both told an operator to take the field off and to improve it.
+            //
+            // **A HEAD response is deliberately not in this set**, and the
+            // difference is a sentence rather than a preference: § 8.2 makes the
+            // representation header fields of a HEAD response describe the data a
+            // GET would have enclosed, so a charset absent there is absent from
+            // the representation itself and an operator can act on it. § 6.3
+            // groups HEAD with these statuses for *framing*, which is a different
+            // question from whether the field describes anything.
+            // cite(RFC 9110 § 8.2): "In a response to a HEAD request, the representation header fields describe the representation data that would have been enclosed in the content if the same request had been a GET."
+            let status = resp.status;
+            if (100..200).contains(&status) || status == 204 || status == 205 || status == 304 {
+                return None;
+            }
 
             if let Some(ct_str) =
                 crate::helpers::headers::get_header_str(&resp.headers, "content-type")
@@ -248,5 +278,53 @@ mod tests {
             assert!(violation.is_none());
         }
         Ok(())
+    }
+
+    /// A message with no content has no text to render, so `text/html` without
+    /// a charset beside it describes something the recipient is not receiving.
+    ///
+    /// **The `304` row is the one that was a contradiction and not merely idle
+    /// advice**: § 15.4.5 tells the sender not to generate the field at all, and
+    /// `status_304_representation_metadata` says so, so one report carried both
+    /// "take it off" and "improve it".
+    #[rstest]
+    #[case(100)]
+    #[case(204)]
+    #[case(205)]
+    #[case(304)]
+    fn a_response_with_no_content_is_not_asked_for_a_charset(#[case] status: u16) {
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            status,
+            &[("content-type", "text/html")],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &CharsetPresent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["charset_present"]),
+        );
+        assert!(found.is_empty(), "{status}: {found:?}");
+    }
+
+    /// A response to `HEAD` is not in that set, and the difference is § 8.2
+    /// rather than a preference: its representation header fields describe the
+    /// data a `GET` would have enclosed, so the charset is absent from the
+    /// representation and an operator can act on it. § 6.3 groups `HEAD` with
+    /// those statuses for *framing*, which is a different question.
+    #[test]
+    fn a_head_response_is_still_asked_for_a_charset() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "text/html")],
+        );
+        tx.request.method = "HEAD".into();
+        let found = crate::test_helpers::run_rule_all(
+            &CharsetPresent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["charset_present"]),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].violation, "content_type_charset_missing");
     }
 }

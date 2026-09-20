@@ -948,7 +948,7 @@ sources:
     snippet: Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 148
+      line: 178
 - label: MDN X-XSS-Protection
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
   fragments:
@@ -6317,11 +6317,27 @@ sources:
     - file: lint-http-rules/src/violations/charset.rs
       line: 48
   - label: charset_present
+    section: § 15.3.6
+    snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
+    cited_by:
+    - file: lint-http-rules/src/rules/charset_present.rs
+      line: 105
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 123
+    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
+      line: 185
+  - label: charset_present (2)
+    section: § 8.2
+    snippet: In a response to a HEAD request, the representation header fields describe the representation data that would have been enclosed in the content if the same request had been a GET.
+    cited_by:
+    - file: lint-http-rules/src/rules/charset_present.rs
+      line: 120
+  - label: charset_present (3)
     section: § 8.3.2
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 111
+      line: 141
     - file: lint-http-rules/src/violations/content_type.rs
       line: 76
   - label: charset_registered
@@ -6759,14 +6775,6 @@ sources:
     - file: lint-http-rules/src/violations/content_range.rs
       line: 252
   - label: content_type_present
-    section: § 15.3.6
-    snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
-    cited_by:
-    - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 123
-    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
-      line: 185
-  - label: content_type_present (2)
     section: § 8.3
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
     cited_by:
@@ -6776,7 +6784,7 @@ sources:
       line: 162
     - file: lint-http-rules/src/violations/content_type.rs
       line: 57
-  - label: content_type_present (3)
+  - label: content_type_present (2)
     section: § 8.3
     snippet: Content-Type = media-type
     cited_by:
@@ -6784,7 +6792,7 @@ sources:
       line: 191
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 224
-  - label: content_type_present (4)
+  - label: content_type_present (3)
     section: § 8.3
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
     cited_by:
@@ -6794,13 +6802,13 @@ sources:
       line: 200
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 171
-  - label: content_type_present (5)
+  - label: content_type_present (4)
     section: § 8.3
     snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 198
-  - label: content_type_present (6)
+  - label: content_type_present (5)
     section: § 9.3.2
     snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
     cited_by:
@@ -8569,7 +8577,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 307
     - file: lint-http-rules/src/rules/charset_present.rs
-      line: 103
+      line: 133
     - file: lint-http-rules/src/rules/content_type_registered.rs
       line: 167
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -11370,6 +11378,20 @@ sources:
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.html
   fragments:
+  - label: charset_present
+    section: § 6.3
+    snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
+    cited_by:
+    - file: lint-http-rules/src/rules/charset_present.rs
+      line: 104
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 115
+    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
+      line: 178
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 141
+    - file: lint-http-rules/src/violations/method.rs
+      line: 418
   - label: chunked last, unconditionally
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.
@@ -11457,18 +11479,6 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 199
   - label: content_type_present (2)
-    section: § 6.3
-    snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
-    cited_by:
-    - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 115
-    - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
-      line: 178
-    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 141
-    - file: lint-http-rules/src/violations/method.rs
-      line: 418
-  - label: content_type_present (3)
     section: § 6.3
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
     cited_by:
