@@ -1878,7 +1878,7 @@ mod tests {
     )]
     #[case(
         b"</a>; title=\"Home\"",
-        "member 1 '</a>; title=\\\"Home\\\"' carries no 'rel' parameter, and a link-value must have one"
+        "member 1 '</a>; title=\"Home\"' carries no 'rel' parameter, and a link-value must have one"
     )]
     #[case(
         b"</a>; rel",
@@ -1971,12 +1971,18 @@ mod tests {
     #[rstest]
     #[case(b"</a>; rel=", "nothing after the \"=\", where the grammar has a word")]
     #[case(b"</a>; rel=n\xe9xt", "value contains 0xE9")]
-    // The DQUOTE the value opens with is escaped on its way into the finding —
-    // it is the character being reported, and unescaped it reads as the message
-    // quoting something.
+    // The DQUOTE the value opens with is shown as the sender wrote it. This
+    // case used to demand the opposite, on the reading that an unescaped quote
+    // "reads as the message quoting something" — but the message delimits the
+    // value with an apostrophe, so there is nothing for a quote to close, and
+    // what escaping it cost was the point of showing the value at all: an
+    // operator greps the response for `title="unterminated` and a message
+    // spelling it `title=\"unterminated` sends them after a string no response
+    // holds. The octet a finding must not paste in raw is one that corrupts the
+    // sentence — a control octet — and the DQUOTE is not one of those.
     #[case(
         b"</a>; rel=next; title=\"unterminated",
-        "Quoted-string not properly quoted: '\\\"unterminated'"
+        "Quoted-string not properly quoted: '\"unterminated'"
     )]
     fn link_param_defects_carry_the_shared_parsers_reason(
         #[case] value: &[u8],

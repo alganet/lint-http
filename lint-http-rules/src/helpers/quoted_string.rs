@@ -633,14 +633,23 @@ mod tests {
             .contains("Unescaped quote"));
     }
 
-    /// Three of the four `quoted-string` defects are about an octet that would
+    /// Two of the four `quoted-string` defects are about an octet that would
     /// corrupt the sentence reporting it. Each message names the octet instead
     /// of carrying it.
+    ///
+    /// **It used to say three, and the third was the DQUOTE.** The octets that
+    /// have to be named rather than pasted are the ones that damage the message
+    /// — a control octet truncates the line a reader sees, and a lone backslash
+    /// reads as an escape nobody wrote. A DQUOTE does neither: the message
+    /// delimits the value with an apostrophe, so a quote inside it closes
+    /// nothing, and escaping it made the shown value differ from the wire in
+    /// exactly the fields whose grammar *requires* a quote. So the quote is now
+    /// shown as written, and this test pins which of the two claims survived.
     #[test]
     fn a_quoted_string_finding_does_not_paste_in_the_octet_it_is_about() {
         // A control octet: raw, it truncated the line a reader saw.
         let m = validate_quoted_string("\"a\u{1}b\"").expect_err("a control octet is reported");
-        assert_eq!(m, "Control character in quoted-string: '\\\"a\\u{1}b\\\"'");
+        assert_eq!(m, "Control character in quoted-string: '\"a\\u{1}b\"'");
         assert!(!m.contains('\u{1}'), "{m}");
 
         // A final DQUOTE escaped by the backslash before it: the value never
@@ -649,11 +658,11 @@ mod tests {
         assert!(m.contains("not properly quoted"), "{m}");
         assert!(m.contains("\\\\"), "{m}");
 
-        // A DQUOTE that closes the value early: unescaped, the message reads as
-        // quoting something.
+        // A DQUOTE that closes the value early is shown where it was written,
+        // so the string in the message is the string in the response.
         let m = validate_quoted_string("\"a\"b\"").expect_err("an unescaped quote is reported");
         assert!(m.contains("Unescaped quote"), "{m}");
-        assert!(m.contains("\\\"a\\\"b\\\""), "{m}");
+        assert!(m.contains("\"a\"b\""), "{m}");
 
         // An unquoted value is escaped by the same rule, and `obs-text` stays
         // legible: naming the octet is `describe_octet`'s job, not this one's.
