@@ -2141,7 +2141,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 162
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 263
+      line: 276
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 126
   - label: lint-http-rules/src/helpers/mailbox.rs
@@ -6871,7 +6871,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 32
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 213
+      line: 224
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 497
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -7961,7 +7961,7 @@ sources:
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 153
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 237
+      line: 248
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 144
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
@@ -9205,7 +9205,7 @@ sources:
     snippet: t-codings = "trailers" / ( transfer-coding [ weight ] )
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 261
+      line: 274
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 164
     - file: lint-http-rules/src/violations/te.rs
@@ -9215,7 +9215,7 @@ sources:
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 262
+      line: 275
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 121
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -12148,7 +12148,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 301
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 348
+      line: 372
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 183
     - file: lint-http-rules/src/rules/te_header_valid.rs

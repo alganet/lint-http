@@ -160,16 +160,26 @@ impl NoConnectionSpecificFields {
         direction: Direction,
         headers: &hyper::HeaderMap,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         // Presence is the whole defect, so the value is never read: what both
         // documents forbid is generating a message that *contains* the field.
         // Whether the value derives from the field's own production is the
         // question of the rule that owns that field, and it is a question about
         // a message this one has already called malformed. Both prohibitions
         // are quoted on the entry, which names both sections.
+        //
+        // **Every name in the table is asked, not the first that answers.** The
+        // five are five separate fields with five separate definitions, and
+        // §8.2.2's `MUST remove connection-specific header fields` is one
+        // removal per field: a gateway that forwarded `Connection` and
+        // `Keep-Alive` into an HTTP/2 message left two fields behind and has two
+        // to take out. Reporting the first stated a true thing about one field
+        // and nothing at all about the other, and the finding names the field,
+        // so the second one's sentence is a sentence the operator has not read.
+        let mut out = Vec::new();
         for &name in CONNECTION_SPECIFIC_FIELDS {
             if headers.contains_key(name) {
-                return Some(ctx.by(direction.party()).report_with(
+                out.push(ctx.by(direction.party()).report_with(
                     &FIELD_CONNECTION_SPECIFIC_FORBIDDEN,
                     format!(
                         "{} {} carries the connection-specific header field '{}'; \
@@ -183,7 +193,8 @@ impl NoConnectionSpecificFields {
             }
         }
 
-        self.check_te(governing, direction, headers, ctx)
+        out.extend(self.check_te(governing, direction, headers, ctx));
+        out
     }
 
     /// The one field both documents take back out of the set, and only for one
@@ -202,7 +213,7 @@ impl NoConnectionSpecificFields {
         direction: Direction,
         headers: &hyper::HeaderMap,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         // A response is not the request the exception is written for, so the
         // field is connection-specific there like the five above it and the
         // value is beside the point. § 10.1.4 is what makes that reading the
@@ -213,7 +224,7 @@ impl NoConnectionSpecificFields {
         // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
         if direction == Direction::Response {
             if headers.contains_key("te") {
-                return Some(ctx.by(direction.party()).report_with(
+                return vec![ctx.by(direction.party()).report_with(
                     &FIELD_CONNECTION_SPECIFIC_FORBIDDEN,
                     format!(
                         "{} response carries a TE header field; the exception {} makes is \
@@ -221,9 +232,9 @@ impl NoConnectionSpecificFields {
                          like any other and the message is malformed",
                         governing.version, governing.section
                     ),
-                ));
+                )];
             }
-            return None;
+            return Vec::new();
         }
 
         // Read as the sender wrote it: every `TE` line of this section joined
@@ -235,7 +246,9 @@ impl NoConnectionSpecificFields {
         // sentence above forbids.
         //
         // cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
-        let value = combined_field_value_as_written(headers, "te")?;
+        let Some(value) = combined_field_value_as_written(headers, "te") else {
+            return Vec::new();
+        };
 
         // The quote-aware walk, because `t-codings` puts a `quoted-string` inside
         // its own element: a `transfer-parameter`'s value may be one, and a
@@ -261,21 +274,32 @@ impl NoConnectionSpecificFields {
         // cite(RFC 9110 § A, label: t-codings): "t-codings = "trailers" / ( transfer-coding [ weight ] )"
         // cite(RFC 9110 § A): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
         // cite(RFC 5234 § 2.3): "ABNF strings are case insensitive and the character set for these strings is US-ASCII."
-        let member = crate::helpers::list::list_members_as_written(&value)
+        //
+        // **Every member is measured, not the first that is not `trailers`.**
+        // The prohibition is written about a value the field contains, and a
+        // `#`-list contains one value per member: `TE: gzip, deflate` on one of
+        // these versions holds two of them, and the entry is
+        // `te_member_forbidden` — its subject is the member, and each one is
+        // separately removable. Answering with the first said nothing about the
+        // rest, and the finding names the member it read, so the members behind
+        // it had no sentence at all.
+        crate::helpers::list::list_members_as_written(&value)
             .into_iter()
             .filter(|member| !member.is_empty())
-            .find(|member| !member.eq_ignore_ascii_case("trailers"))?;
-
-        Some(ctx.by(direction.party()).report_with(
-            &TE_MEMBER_FORBIDDEN,
-            format!(
-                "{} request's TE header field holds '{}'; the only value {} permits it \
-                 to contain is 'trailers'",
-                governing.version,
-                member.escape_debug(),
-                governing.section
-            ),
-        ))
+            .filter(|member| !member.eq_ignore_ascii_case("trailers"))
+            .map(|member| {
+                ctx.by(direction.party()).report_with(
+                    &TE_MEMBER_FORBIDDEN,
+                    format!(
+                        "{} request's TE header field holds '{}'; the only value {} permits \
+                         it to contain is 'trailers'",
+                        governing.version,
+                        member.escape_debug(),
+                        governing.section
+                    ),
+                )
+            })
+            .collect()
     }
 }
 
@@ -411,10 +435,12 @@ impl Rule for NoConnectionSpecificFields {
             return Vec::new();
         }
 
-        // One finding per section. A connection-specific field in the request was
-        // written by the client and one in the response by the origin; the
-        // prohibition binds each of them separately, and the repair is in a
-        // different message for each.
+        // Each section on its own, and every field within it. A
+        // connection-specific field in the request was written by the client and
+        // one in the response by the origin; the prohibition binds each of them
+        // separately, and the repair is in a different message for each. Within
+        // one section it binds each *field* separately too, which is what
+        // `check_field_section` collects.
         let mut out = Vec::new();
         if let Some(governing) = request {
             out.extend(self.check_field_section(
@@ -463,6 +489,25 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
         )
+    }
+
+    /// Every finding a request section yields, in order. `run_rule` takes the
+    /// first of however many, which is exactly what a rule answering once about
+    /// a table of fields already satisfies.
+    fn all_of_request(version: &str, headers: &[(&str, &str)]) -> Vec<Violation> {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.version = version.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(headers);
+        crate::test_helpers::run_rule_all(
+            &RULE,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+    }
+
+    fn messages(found: &[Violation]) -> Vec<&String> {
+        found.iter().map(|v| &v.message).collect()
     }
 
     /// A transaction whose two sections carry their own versions, which is the
@@ -822,13 +867,74 @@ mod tests {
 
     // --- Order, scope, config ---
 
-    /// The five names are read before the exception, so a request carrying both
-    /// is reported for the field that has no exception at all.
+    /// Every name in the table, and then the exception. The five are read
+    /// first, but reading them is not answering: a request carrying `Connection`
+    /// *and* a `TE` holding something other than the keyword has two fields to
+    /// repair, under two entries, and the sentence for each names its own field.
     #[test]
-    fn a_connection_specific_field_is_reported_before_the_te_value() {
-        let v = request("HTTP/2.0", &[("connection", "keep-alive"), ("te", "gzip")])
-            .expect("violation");
-        assert!(v.message.contains("'connection'"), "{}", v.message);
+    fn a_connection_specific_field_and_a_te_value_are_both_reported() {
+        let found = all_of_request("HTTP/2.0", &[("connection", "keep-alive"), ("te", "gzip")]);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["field_connection_specific_forbidden", "te_member_forbidden"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(
+            found[0].message.contains("'connection'"),
+            "{}",
+            found[0].message
+        );
+        assert!(found[1].message.contains("'gzip'"), "{}", found[1].message);
+    }
+
+    /// **The table is a list of independent fields and each one is asked.** The
+    /// loop `return`ed at the first name it found, so a gateway that left both
+    /// `Connection` and `Keep-Alive` on an HTTP/2 message was told about one of
+    /// them — and the finding names the field, so the other had no sentence
+    /// anywhere in the report.
+    #[rstest]
+    #[case("HTTP/2.0")]
+    #[case("HTTP/3.0")]
+    fn each_connection_specific_field_in_a_section_is_its_own_finding(#[case] version: &str) {
+        let found = all_of_request(
+            version,
+            &[
+                ("connection", "keep-alive"),
+                ("keep-alive", "timeout=5"),
+                ("upgrade", "websocket"),
+            ],
+        );
+        assert_eq!(found.len(), 3, "{:?}", messages(&found));
+        for name in ["'connection'", "'keep-alive'", "'upgrade'"] {
+            assert!(
+                found.iter().any(|v| v.message.contains(name)),
+                "no finding names {name}: {:?}",
+                messages(&found)
+            );
+        }
+    }
+
+    /// **A `#`-list holds one value per member, and the prohibition is about a
+    /// value.** `find` answered with the first member that was not the keyword,
+    /// so the members behind it were never measured — and `te_member_forbidden`
+    /// names the member, which is what makes the silence unreadable rather than
+    /// merely incomplete.
+    #[rstest]
+    #[case("HTTP/2.0")]
+    #[case("HTTP/3.0")]
+    fn each_te_member_other_than_the_keyword_is_its_own_finding(#[case] version: &str) {
+        let found = all_of_request(version, &[("te", "gzip, trailers, deflate")]);
+        assert_eq!(found.len(), 2, "{:?}", messages(&found));
+        assert!(found.iter().all(|v| v.violation == "te_member_forbidden"));
+        for member in ["'gzip'", "'deflate'"] {
+            assert!(
+                found.iter().any(|v| v.message.contains(member)),
+                "no finding names {member}: {:?}",
+                messages(&found)
+            );
+        }
     }
 
     #[test]
