@@ -222,10 +222,12 @@ defects! {
     /// which § 7.8 does not. That the placement is itself a defect is
     /// `trailer_fields_valid`'s finding rather than this entry's.
     ///
-    /// `warn`, where the `101` pair is `error`: this response is ordinary HTTP a
-    /// client can read to the end, and what it loses is the advice — the request
-    /// can be made again over a protocol the client guesses at or gives up on.
-    /// The conversation continues, badly.
+    /// `error`, with the `101` pair: § 15.5.22 states it as a MUST binding the
+    /// server that sent the response, and the test below holds this status's
+    /// pair at the same rank as that one. That the response is ordinary HTTP a
+    /// client can read to the end bounds the cost rather than the rank — what it
+    /// loses is the advice, and the request can be made again over a protocol
+    /// the client guesses at or gives up on. The conversation continues, badly.
     ///
     // cite(RFC 9110 § 15.5.22): "The server MUST send an Upgrade header field in a 426 response to indicate the required protocol(s) (Section 7.8)."
     UPGRADE_426_MISSING = {

@@ -1023,6 +1023,26 @@ mod tests {
     /// between this gate and the text it is checking, to learn something the
     /// text says directly.
     fn cites_by_violation() -> Vec<(String, String, String)> {
+        let mut out = Vec::new();
+        for (id, block) in violation_comment_blocks() {
+            for line in &block {
+                if let Some((source, text)) = parse_cite(line) {
+                    out.push((id.clone(), source.to_string(), text.to_string()));
+                }
+            }
+        }
+        out
+    }
+
+    /// Every entry in `src/violations/`, with the comment block written above
+    /// it, in the order it is written.
+    ///
+    /// Returns `(id, the comment lines, trimmed)`, doc comments and plain ones
+    /// alike: the two readers below want different halves of the same block —
+    /// [`cites_by_violation`] the `cite` lines, [`level_paragraphs`] the prose —
+    /// and a second walk of the same text is a second place for the walk to be
+    /// wrong.
+    fn violation_comment_blocks() -> Vec<(String, Vec<String>)> {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/violations");
         let mut out = Vec::new();
         let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
@@ -1067,18 +1087,66 @@ mod tests {
                 // Walk the contiguous comment block above the entry. A blank
                 // line ends it: two entries are always separated by one, so
                 // this cannot reach past the entry above.
+                let mut block: Vec<String> = Vec::new();
                 for line in lines[..i].iter().rev() {
                     let trimmed = line.trim();
                     if !trimmed.starts_with("//") {
                         break;
                     }
-                    if let Some((source, text)) = parse_cite(trimmed) {
-                        out.push((id.to_string(), source.to_string(), text.to_string()));
-                    }
+                    block.push(trimmed.to_string());
                 }
+                block.reverse();
+                out.push((id.to_string(), block));
             }
         }
         out
+    }
+
+    /// Every paragraph of an entry's doc block that opens by naming a level,
+    /// as `(id, the paragraph, the level it names)`.
+    ///
+    /// The house shape for arguing a severity is a paragraph that opens with
+    /// the level in backticks and a comma or a colon after it — *`error`, off
+    /// the keyword* — optionally inside the `**` of a lead sentence. Two
+    /// hundred and twenty-nine of the entries here carry one.
+    ///
+    /// A level named anywhere *else* in a paragraph is not one of these: an
+    /// entry may say what a sibling ranks at, or why it is not the rank below,
+    /// and that is prose about another entry rather than a claim about this
+    /// one. The opening is what makes it a claim about this one.
+    fn level_paragraphs() -> Vec<(String, String, &'static str)> {
+        let mut out = Vec::new();
+        for (id, block) in violation_comment_blocks() {
+            let prose: Vec<&str> = block
+                .iter()
+                .map(|l| l.strip_prefix("///").map(str::trim).unwrap_or(""))
+                .collect();
+            let mut paragraph = String::new();
+            for line in prose.iter().chain(std::iter::once(&"")) {
+                if line.is_empty() {
+                    if let Some(level) = opens_with_a_level(&paragraph) {
+                        out.push((id.clone(), std::mem::take(&mut paragraph), level));
+                    }
+                    paragraph.clear();
+                    continue;
+                }
+                if !paragraph.is_empty() {
+                    paragraph.push(' ');
+                }
+                paragraph.push_str(line);
+            }
+        }
+        out
+    }
+
+    /// The level a paragraph opens by naming, or `None` for a paragraph that
+    /// opens with anything else.
+    fn opens_with_a_level(paragraph: &str) -> Option<&'static str> {
+        let text = paragraph.trim_start_matches('*').trim_start();
+        ["error", "warn", "info"].into_iter().find(|level| {
+            text.strip_prefix(&format!("`{level}`"))
+                .is_some_and(|rest| rest.starts_with([',', ':', '.']))
+        })
     }
 
     /// The token a citation comment opens with, assembled rather than spelled.
@@ -1267,6 +1335,77 @@ mod tests {
             "{} defects disagree with what they say their sentence obliges:\n{}",
             wrong.len(),
             wrong.join("\n"),
+        );
+    }
+
+    /// **Gate A again, on the prose**: the paragraph that argues an entry's
+    /// level names the level the entry ships.
+    ///
+    /// Gate A above reads `strength`, `departure` and `default_severity`, which
+    /// are values. The argument a reader actually reads is the paragraph, and
+    /// nothing read that: a severity that moves leaves the paragraph behind
+    /// arguing the rank the entry used to have. Three did, and all three were
+    /// pinned at `error` by a test in their own subject file while their own
+    /// paragraph still opened `warn` and gave the reason for it — the same
+    /// failure Gate A's second direction exists to catch, in the half of the
+    /// entry Gate A cannot see.
+    ///
+    /// The paragraph is where the next reader looks. A session deciding whether
+    /// an entry ranks too high reads the entry, not the test below it, and a
+    /// stale paragraph is an argument for a change the tree has already made.
+    ///
+    /// **A textual read, like `every_defect_comes_from_the_macro`**, and for its
+    /// reason: the claim is about the comment above an entry, and a comment is
+    /// reachable from no type.
+    #[test]
+    fn a_level_paragraph_names_the_level_the_entry_ships() {
+        let mut wrong = Vec::new();
+        for (id, paragraph, level) in level_paragraphs() {
+            let def = by_id(&id).unwrap_or_else(|| panic!("{id} is in no catalogue"));
+            if level != def.default_severity.name() {
+                wrong.push(format!(
+                    "{id}: reports at {} and its own paragraph argues {level}: {}",
+                    def.default_severity.name(),
+                    paragraph.chars().take(90).collect::<String>(),
+                ));
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "{} defects argue a level they do not report at:\n{}",
+            wrong.len(),
+            wrong.join("\n"),
+        );
+    }
+
+    /// The paragraph reader, pinned against text written here rather than
+    /// against the catalogue — `the_keyword_scan_reads_case_and_word_boundaries`
+    /// above exists for this reason and this follows it.
+    #[test]
+    fn a_level_paragraph_is_one_that_opens_with_the_level() {
+        assert_eq!(
+            opens_with_a_level("`error`, off the keyword"),
+            Some("error")
+        );
+        assert_eq!(
+            opens_with_a_level("`warn`: the SHOULD is the sender's"),
+            Some("warn")
+        );
+        assert_eq!(
+            opens_with_a_level("**`info`.** Nothing is lost"),
+            Some("info")
+        );
+        // A level named about a sibling, which is prose about another entry.
+        assert_eq!(
+            opens_with_a_level("The entry beside this one is an `error`, and this is not"),
+            None,
+        );
+        // The word without the backticks is English, not a claim about a level.
+        assert_eq!(opens_with_a_level("error, in the sense of a mistake"), None);
+        // The level with nothing after it opens a sentence about something else.
+        assert_eq!(
+            opens_with_a_level("`warn` and `error` both reach an operator"),
+            None
         );
     }
 

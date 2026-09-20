@@ -86,11 +86,14 @@ defects! {
     /// requirement past the grammar, which is the line
     /// `docs/development.md` draws between the two words.
     ///
-    /// `warn`, where the absent field is an `error`. The handshake still
-    /// completes: § 4.2.2 hashes the field as a string rather than the octets
-    /// it decodes to, so a server answers a twelve-octet key with a perfectly
-    /// valid accept value. What is lost is what the length is *for* — a nonce
-    /// wide enough that a `101` cannot be replayed out of a cache.
+    /// `error`, with the absent field: § 4.1 states both sentences with `MUST`
+    /// and states both about the request the client wrote, and the test below
+    /// holds the two ids at one rank. That the handshake still completes bounds
+    /// the cost rather than the rank — § 4.2.2 hashes the field as a string
+    /// rather than the octets it decodes to, so a server answers a twelve-octet
+    /// key with a perfectly valid accept value, and what is lost is what the
+    /// length is *for*: a nonce wide enough that a `101` cannot be replayed out
+    /// of a cache.
     ///
     // cite(RFC 6455 § 4.1): "The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded (see Section 4 of [RFC4648])."
     SEC_WEBSOCKET_KEY_LENGTH_INVALID = {

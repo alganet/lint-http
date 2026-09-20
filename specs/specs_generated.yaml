@@ -3750,7 +3750,7 @@ sources:
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded (see Section 4 of [RFC4648]).
     cited_by:
     - file: lint-http-rules/src/violations/sec_websocket_key.rs
-      line: 95
+      line: 98
   - label: sec_websocket_protocol
     section: § 4.2.2
     snippet: The empty string is not the same as the null value for these purposes and is not a legal value for this field.
@@ -7062,7 +7062,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 260
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 81
+      line: 83
   - label: conditional_headers_consistent (6)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
@@ -7090,7 +7090,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 62
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 149
+      line: 151
   - label: conditional_request_handling
     section: § 13.1.1
     snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match (Section 8.8.3.2), since the client intends this precondition to prevent the method from being applied if there have been any changes to the representation data.
@@ -10306,7 +10306,7 @@ sources:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 322
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 125
+      line: 127
   - label: range_request_and_caching (3)
     section: § 14.4
     snippet: The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation.
@@ -10992,9 +10992,9 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 140
     - file: lint-http-rules/src/violations/upgrade.rs
-      line: 230
+      line: 232
     - file: lint-http-rules/src/violations/upgrade.rs
-      line: 251
+      line: 253
   - label: status_426_upgrade_valid (3)
     section: § 7.8
     snippet: A server MAY send an Upgrade header field in any other response to advertise that it implements support for upgrading to the listed protocols, in order of descending preference, when appropriate for a future request.

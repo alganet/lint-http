@@ -72,11 +72,13 @@ defects! {
     /// with the *strong* comparison function, which a weak tag can never
     /// satisfy.
     ///
-    /// `warn`, and the evaluation rule is why it is not `error`: the condition
-    /// is simply false, the recipient ignores the `Range`, and the whole
-    /// representation comes back. The cost is a transfer the field existed to
-    /// avoid — the same cost as writing no `If-Range` at all — rather than a
-    /// range spliced out of the wrong representation.
+    /// `error`, off the keyword: a MUST NOT binding the client that wrote the
+    /// field, and the test below keeps every one of § 13.1.5's client-side MUST
+    /// NOTs at one level. What the evaluation rule bounds is the cost and not
+    /// the rank — the condition is simply false, the recipient ignores the
+    /// `Range`, and the whole representation comes back, which is a transfer the
+    /// field existed to avoid rather than a range spliced out of the wrong
+    /// representation.
     ///
     // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
     IF_RANGE_VALIDATOR_WEAK_FORBIDDEN = {
