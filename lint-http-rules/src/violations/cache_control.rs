@@ -144,6 +144,14 @@ pub const RFC_9111_5_2_1_3: SpecRef = SpecRef {
 };
 
 /// The `max-age` response directive, and the form its argument takes.
+/// The field's general directive syntax: the production every directive is a
+/// `token` and an optional argument of.
+pub const RFC_9111_5_2: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
+    note: "Cache-Control directives and general directive syntax — `cache-directive = token [ \"=\" ( token / quoted-string ) ]`, the production an argument's presence and form derive from",
+};
 pub const RFC_9111_5_2_2_1: SpecRef = SpecRef {
     spec: "RFC 9111",
     section: Some("5.2.2.1"),
@@ -191,8 +199,9 @@ defects! {
     /// Not the empty *element*: `no-cache=","` is a list with two blanks in it,
     /// which is [`list_member_empty`](crate::violations::list)'s sender MUST
     /// NOT and a different mistake. And not `no-cache=` either — a `=` with
-    /// nothing after it is the leniency the two `Cache-Control` rules record
-    /// between them, one level below this entry.
+    /// nothing after it derives from no `cache-directive` at all, one level
+    /// below this entry, and is
+    /// [`CACHE_CONTROL_DIRECTIVE_VALUE_EMPTY`]'s.
     ///
     // cite(RFC 9111 § 5.2.2.4): "The qualified form of the no-cache response directive, with an argument that lists one or more field names"
     CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY = {
@@ -218,6 +227,49 @@ defects! {
         message: "",
         default_severity: Severity::Info,
         spec: &[RFC_9111_5_2_2_7],
+    }
+
+    /// `max-age=`: an `=` written with nothing after it.
+    ///
+    /// **The optional group is around the whole of `"=" ( token / quoted-string
+    /// )`, not around the value alone.** So a directive may write no `=`, and a
+    /// directive that writes one owes a `token` — which is `1*tchar` — or a
+    /// `quoted-string`, which is at minimum two quote characters. The empty
+    /// string is neither, and `foo=""` is the spelling that does derive.
+    ///
+    /// **This entry is the answer to a `None` in a mapping**, the same one
+    /// [`ALT_SVC_PARAMETER_VALUE_EMPTY`](crate::violations::alt_svc) and
+    /// `keep_alive_parameter_value_empty` answer for their own fields: the
+    /// shared reader of `( token / quoted-string )` returns no id for an empty
+    /// value on purpose, because what an empty value *means* belongs to the
+    /// field that wrote it. Here it means a directive that named itself and
+    /// then said nothing — a `max-age=` states no freshness lifetime while
+    /// looking configured, and a cache reading it has to ignore the directive.
+    ///
+    /// **It is one entry rather than one per directive**, and reported by the
+    /// rule that owns the general syntax rather than by the one that reads each
+    /// directive's argument. The value is empty whatever the name in front of
+    /// it, so the more specific reading has nothing to add: there is no form
+    /// the argument should have taken to compare it against. That is why
+    /// `max-age=` does not also draw `delta_seconds_empty`, which is the entry
+    /// for a field whose *whole value* is a `delta-seconds` with no digits.
+    ///
+    /// **This was a recorded leniency until it was measured.** Both
+    /// `Cache-Control` rules accepted the shape deliberately, on the argument
+    /// that under-reporting is a linter's safe direction; what the argument did
+    /// not survive is that five sibling fields report the identical shape at
+    /// `error`, and that no origin in a corpus of 972 `Cache-Control` field
+    /// lines writes it — so the leniency protected nothing that exists and cost
+    /// the catalogue its consistency.
+    ///
+    // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
+    CACHE_CONTROL_DIRECTIVE_VALUE_EMPTY = {
+        id: "cache_control_directive_value_empty",
+        title: "Cache-Control directive writes an '=' and no value after it",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9111_5_2],
+        strength: Strength::Grammar,
     }
 
     /// `max-age="60"`: a `delta-seconds` argument written as a `quoted-string`.

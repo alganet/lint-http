@@ -276,8 +276,13 @@ fn member_defect(member: &str, side: &str) -> Vec<Defect> {
         }
     };
     let name = directive.name;
-    // An empty argument is accepted for directives that take one; the `=` with
-    // nothing after it is the leniency recorded in the token rule beside this.
+    // An empty argument is not read here, and it is not a silence: `foo=`
+    // derives from no `cache-directive` whatever name is in front of it, and
+    // the token rule beside this reports it as
+    // `cache_control_directive_value_empty`. Nothing is left for this rule to
+    // add — the value is empty however the directive would have used it, so
+    // there is no form to compare it against — and reading it here as well
+    // would draw one value twice.
     let Some(argument) = directive.argument.filter(|a| !a.is_empty()) else {
         return Vec::new();
     };

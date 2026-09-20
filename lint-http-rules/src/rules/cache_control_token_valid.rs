@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cache_control::{CACHE_CONTROL_DIRECTIVE_VALUE_EMPTY, RFC_9111_5_2};
 use crate::violations::list::{cache_directive_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -32,6 +33,7 @@ pub struct CacheControlTokenValid;
 /// a rule-shaped catalogue could not reach.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
+    &CACHE_CONTROL_DIRECTIVE_VALUE_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -40,16 +42,6 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
-
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
-    note: "Cache-Control directives and general directive syntax",
-};
 
 impl CacheControlTokenValid {
     /// Every defect in one message's `Cache-Control` field.
@@ -160,7 +152,7 @@ impl RuleMeta for CacheControlTokenValid {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Cache-Control: =abc\nCache-Control: ma x-age=1\nCache-Control: private=Set Cookie\nCache-Control: private=bad@val",
+                snippet: "Cache-Control: =abc\nCache-Control: ma x-age=1\nCache-Control: private=Set Cookie\nCache-Control: private=bad@val\nCache-Control: max-age=",
             },
         ]
     }
@@ -210,14 +202,32 @@ fn member_defect(member: &str) -> Option<(&'static ViolationDef, String)> {
     // that owns it; what stays here is what this field says about each answer.
     match crate::helpers::word::token_or_quoted_string(argument) {
         Ok(_) => None,
-        // Leniency, recorded rather than changed: `foo=` does not match the
-        // grammar above — once "=" is present the optional group requires a
-        // token (`1*tchar`) or a quoted-string, neither of which can be empty.
-        // The rule accepts it anyway, so it under-reports this one shape. That
-        // is the safe direction for a linter, and tightening it would be a
-        // behavior change. (`foo=""` is genuinely valid: quoted-string permits
-        // empty content.)
-        Err(crate::helpers::word::WordDefect::Empty) => None,
+        // `foo=` does not match the grammar above: once "=" is present the
+        // optional group requires a `token` (`1*tchar`) or a `quoted-string`,
+        // and neither derives the empty string. (`foo=""` is genuinely valid —
+        // a `quoted-string` permits empty content — and reaches the `Ok` arm.)
+        //
+        // **This was a recorded leniency, and what retired it was measuring
+        // it.** The argument on record was that under-reporting is a linter's
+        // safe direction; against that, five sibling fields report this exact
+        // shape at `error` from the same `( token / quoted-string )` reader,
+        // and no origin in a corpus of 972 `Cache-Control` field lines writes
+        // it. A leniency that spares nobody buys nothing and costs the
+        // catalogue one answer to one question.
+        //
+        // The shared mapping returns no id for an empty value on purpose,
+        // because what it *means* is the field's to say; here it means a
+        // directive that named itself and stated nothing, which for the six
+        // that carry a `delta-seconds` is a lifetime left unstated by a
+        // response that looks configured.
+        Err(crate::helpers::word::WordDefect::Empty) => Some((
+            &CACHE_CONTROL_DIRECTIVE_VALUE_EMPTY,
+            format!(
+                "directive '{}' writes an '=' with nothing after it; the optional group is \
+                 `\"=\" ( token / quoted-string )` and neither derives the empty string",
+                crate::helpers::shown::shown_in_finding(name)
+            ),
+        )),
         Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => Some((
             quoted_string_defect(defect),
             format!(
@@ -468,17 +478,37 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn empty_directive_value_is_accepted() -> anyhow::Result<()> {
+    /// The `=` is inside the optional group with the value, so a directive may
+    /// write neither and may not write only the first. `foo=""` is the
+    /// spelling that does derive, and it is the row that keeps this from
+    /// becoming a check for the character rather than for the production.
+    #[rstest]
+    #[case("foo=", Some("cache_control_directive_value_empty"))]
+    #[case("max-age=", Some("cache_control_directive_value_empty"))]
+    #[case("no-cache=", Some("cache_control_directive_value_empty"))]
+    #[case("foo=\"\"", None)]
+    #[case("no-store", None)]
+    #[case("max-age=60", None)]
+    fn a_directive_that_writes_an_equals_owes_a_value(
+        #[case] value: &str,
+        #[case] id: Option<&str>,
+    ) -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
-        let tx = make_req("foo=");
+        let tx = make_req(value);
         let v = one_finding(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none());
+        assert_eq!(v.as_ref().map(|v| v.violation.as_str()), id, "{value}");
+        if let Some(v) = v {
+            assert!(
+                v.message.contains(value.trim_end_matches('=')),
+                "{}",
+                v.message
+            );
+        }
         Ok(())
     }
 

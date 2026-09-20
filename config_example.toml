@@ -1157,6 +1157,11 @@ severity = "error"
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.cache_control_directive_value_empty]
+# Cache-Control directive writes an '=' and no value after it
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.cache_control_freshness_conflicting]
 # A Cache-Control freshness directive is given more than one value
 severity = "warn"

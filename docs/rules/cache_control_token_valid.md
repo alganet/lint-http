@@ -12,6 +12,7 @@ Validate `Cache-Control` directive names and unquoted values follow the `token` 
 
 ## Violations
 
+- [cache_control_directive_value_empty](../violations/cache_control_directive_value_empty.md) — Cache-Control directive writes an '=' and no value after it
 - [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
 - [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
@@ -23,7 +24,7 @@ Validate `Cache-Control` directive names and unquoted values follow the `token` 
 
 ## Specifications
 
-- [RFC 9111 §5.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2): Cache-Control directives and general directive syntax
+- [RFC 9111 §5.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2): Cache-Control directives and general directive syntax — `cache-directive = token [ "=" ( token / quoted-string ) ]`, the production an argument's presence and form derive from
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
@@ -53,4 +54,5 @@ Cache-Control: =abc
 Cache-Control: ma x-age=1
 Cache-Control: private=Set Cookie
 Cache-Control: private=bad@val
+Cache-Control: max-age=
 ```
