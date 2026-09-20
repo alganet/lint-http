@@ -187,8 +187,8 @@ fn duplicated_date_line(
     // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
     // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates)."
     let lines = req.headers.get_all(name).iter().count();
-    (lines > 1).then(|| {
-        ctx.report_with(
+    if lines > 1 {
+        return Some(ctx.report_with(
             &FIELD_LINE_DUPLICATED,
             format!(
                 "{}. The combined value is a list of dates, which the recipient MUST ignore — so the request is conditional on nothing",
@@ -199,8 +199,9 @@ fn duplicated_date_line(
                     "the field is one HTTP-date and has no comma-separated-list alternative",
                 )
             ),
-        )
-    })
+        ));
+    }
+    None
 }
 
 /// What becomes of an `If-Modified-Since` a recipient is required to discard.
@@ -224,15 +225,16 @@ fn if_modified_since_fate(
     // (The cited sentence bundles three ignore-conditions; this rule enforces the
     // method one and, above, the multiplicity one. The not-a-valid-HTTP-date clause
     // is owned by the date-format rule.)
-    let meaningful_method =
-        req.method.eq_ignore_ascii_case("GET") || req.method.eq_ignore_ascii_case("HEAD");
-    (!meaningful_method).then(|| {
-        ctx.report_with(
-            &CONDITIONAL_DATE_IGNORED,
-            "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods"
-                .into(),
-        )
-    })
+    // Written as an `if` around the `report_with` rather than a multi-line
+    // `bool::then`, and that is a measurement convention rather than a taste:
+    // coverage tiers a report site by the function region covering its line, so
+    // a call sitting alone inside a closure is credited only when the finding
+    // fires — and "the reading ran and correctly stayed quiet" then reads
+    // exactly like "nothing ever reached this".
+    if !(req.method.eq_ignore_ascii_case("GET") || req.method.eq_ignore_ascii_case("HEAD")) {
+        return Some(ctx.report_with(&CONDITIONAL_DATE_IGNORED, "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into()));
+    }
+    None
 }
 
 /// The `If-Range` value measured against the alternative it chose.

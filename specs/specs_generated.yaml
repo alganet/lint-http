@@ -6473,7 +6473,7 @@ sources:
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 219
+      line: 220
     - file: lint-http-rules/src/violations/conditional.rs
       line: 89
   - label: conditional_headers_consistent (2)
@@ -6483,7 +6483,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 187
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 223
+      line: 224
     - file: lint-http-rules/src/violations/conditional.rs
       line: 112
   - label: conditional_headers_consistent (3)
@@ -6491,7 +6491,7 @@ sources:
     snippet: A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 359
+      line: 361
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 225
     - file: lint-http-rules/src/violations/conditional.rs
@@ -6507,7 +6507,7 @@ sources:
     snippet: A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 254
+      line: 256
     - file: lint-http-rules/src/violations/if_range.rs
       line: 81
   - label: conditional_headers_consistent (6)
@@ -6515,7 +6515,7 @@ sources:
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 371
+      line: 373
     - file: lint-http-rules/src/violations/if_range.rs
       line: 55
   - label: conditional_headers_consistent (7)
@@ -6523,7 +6523,7 @@ sources:
     snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 269
+      line: 271
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 345
   - label: If-Range grammar
@@ -6531,7 +6531,7 @@ sources:
     snippet: If-Range = entity-tag / HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 268
+      line: 270
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 62
     - file: lint-http-rules/src/violations/if_range.rs
