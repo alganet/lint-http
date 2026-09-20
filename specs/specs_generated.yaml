@@ -1114,6 +1114,14 @@ sources:
       line: 210
     - file: lint-http-rules/src/violations/nel.rs
       line: 135
+  - label: NEL sends its reports to an endpoint group
+    section: § 4.1.1
+    snippet: The report_to member specifies the endpoint group that reports for this NEL policy will be sent to.
+    cited_by:
+    - file: lint-http-rules/src/rules/report_to_groups_valid.rs
+      line: 151
+    - file: lint-http-rules/src/violations/report_to.rs
+      line: 102
 - label: Storage Access Headers
   url: https://privacycg.github.io/storage-access-headers/
   type: text/html
@@ -1223,7 +1231,7 @@ sources:
     - file: lint-http-rules/src/rules/nel_policy_valid.rs
       line: 167
     - file: lint-http-rules/src/rules/report_to_groups_valid.rs
-      line: 118
+      line: 124
   - label: nel_policy_valid (2)
     section: § 4
     snippet: run the resulting octet sequence through a JSON parser.
@@ -1231,13 +1239,13 @@ sources:
     - file: lint-http-rules/src/rules/nel_policy_valid.rs
       line: 184
     - file: lint-http-rules/src/rules/report_to_groups_valid.rs
-      line: 155
+      line: 184
   - label: Report-To grammar
     section: § 2
     snippet: 'json-field-value = #json-field-item'
     cited_by:
     - file: lint-http-rules/src/violations/report_to.rs
-      line: 130
+      line: 146
 - label: MDN Content-Type
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
   fragments:
@@ -1268,28 +1276,28 @@ sources:
     snippet: allows website administrators to define named groups of endpoints that can be used as the destination for warning and error reports
     cited_by:
     - file: lint-http-rules/src/violations/report_to.rs
-      line: 86
+      line: 101
   - label: report_to_groups_valid
     snippet: It is a deprecated part of an earlier iteration of the
     cited_by:
     - file: lint-http-rules/src/rules/report_to_groups_valid.rs
-      line: 135
+      line: 141
     - file: lint-http-rules/src/violations/report_to.rs
-      line: 85
+      line: 100
   - label: report_to_groups_valid (2)
     snippet: One or more endpoint-group definitions, defined as a JSON array that omits the surrounding
     cited_by:
     - file: lint-http-rules/src/rules/report_to_groups_valid.rs
-      line: 154
+      line: 183
     - file: lint-http-rules/src/violations/report_to.rs
-      line: 129
+      line: 145
   - label: report_to_groups_valid (3)
     snippet: This header has been replaced by the
     cited_by:
     - file: lint-http-rules/src/rules/report_to_groups_valid.rs
-      line: 134
+      line: 140
     - file: lint-http-rules/src/violations/report_to.rs
-      line: 84
+      line: 99
 - label: MDN X-XSS-Protection
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
   fragments:
@@ -8836,7 +8844,7 @@ sources:
     - file: lint-http-rules/src/rules/referrer_policy_valid.rs
       line: 205
     - file: lint-http-rules/src/rules/report_to_groups_valid.rs
-      line: 119
+      line: 125
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 469
   - label: lint-http-rules/src/helpers/headers.rs (3)

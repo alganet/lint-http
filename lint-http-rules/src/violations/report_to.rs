@@ -33,6 +33,7 @@ use crate::lint::Severity;
 use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+use crate::violations::nel::NEL_4_1_1;
 
 /// The one page that still describes the field: that it has been replaced,
 /// what it was for, and the shape of its value.
@@ -73,8 +74,22 @@ defects! {
     /// The groups a sender declares here are the ones its `Content-Security-
     /// Policy` `report-to` directive and its `NEL` `report_to` member name, so
     /// telling an origin to drop the field without naming where the groups go
-    /// would break the reporting it still has. The finding names
-    /// `Reporting-Endpoints` because that is the field the groups move to.
+    /// would break the reporting it still has.
+    ///
+    /// **And the move serves one of those two and not the other, which is why
+    /// the finding reads the response before it names a destination.**
+    /// `Reporting-Endpoints` declares *endpoints* — a name against a single
+    /// URL — where this field declares *endpoint groups*, and a `NEL` policy
+    /// sends its reports to an endpoint group. Network Error Logging names no
+    /// field other than this one to declare such a group in: the document
+    /// cited below does not contain the string `Reporting-Endpoints` at all,
+    /// and its own worked example writes `Report-To` and `NEL` in the same
+    /// response. So an origin sending `NEL` that moved its groups and dropped
+    /// this field would be left with a policy pointing at nothing — the one
+    /// outcome this entry exists to prevent. The sentence names
+    /// `Reporting-Endpoints` as the destination for the `Content-Security-
+    /// Policy` groups, and where a `NEL` is beside the field it says the field
+    /// stays.
     ///
     /// `info`. A browser that still reads `Report-To` behaves correctly and one
     /// that reads only `Reporting-Endpoints` behaves correctly; nothing is
@@ -84,12 +99,13 @@ defects! {
     // cite(MDN Report-To): "This header has been replaced by the"
     // cite(MDN Report-To): "It is a deprecated part of an earlier iteration of the"
     // cite(MDN Report-To): "allows website administrators to define named groups of endpoints that can be used as the destination for warning and error reports"
+    // cite(Network Error Logging § 4.1.1, label: NEL sends its reports to an endpoint group): "The report_to member specifies the endpoint group that reports for this NEL policy will be sent to."
     REPORT_TO_OBSOLETE = {
         id: "report_to_obsolete",
         title: "A response declares its endpoint groups in a field that has been replaced",
         message: "",
         default_severity: Severity::Info,
-        spec: &[MDN_REPORT_TO],
+        spec: &[MDN_REPORT_TO, NEL_4_1_1],
     }
 
     /// A `Report-To` field value that does not parse as HTTP-JFV's list of

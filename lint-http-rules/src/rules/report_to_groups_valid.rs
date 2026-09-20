@@ -5,6 +5,7 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::nel::JFV_4;
+use crate::violations::nel::NEL_4_1_1;
 use crate::violations::report_to::{JFV_2, MDN_REPORT_TO, REPORT_TO_MALFORMED, REPORT_TO_OBSOLETE};
 use crate::violations::ViolationDef;
 
@@ -43,11 +44,11 @@ impl RuleMeta for ReportToGroupsValid {
     }
 
     fn description(&self) -> &'static str {
-        "This rule reads the `Report-To` response header — the named endpoint groups an origin declares as the destination for its CSP violation reports, network errors and deprecation reports — and reports two things about it.\n\n**No specification defines the field any more.** The W3C Reporting API once did; the document at that URL now defines `Reporting-Endpoints` and no longer contains the string `Report-To` at all. So there is no current specification to read the field against and no superseded one that says what replaced it, and MDN's page — which marks the field Deprecated and Non-standard and says in as many words that `Reporting-Endpoints` replaced it — is the document this rule cites. That is the footing `x_xss_protection_value_valid` already stands on: a field deployments send in quantity and no standards document defines.\n\n**The finding is a move, not a deletion.** The group names declared here are exactly the names a `Content-Security-Policy` `report-to` directive and a `NEL` policy's `report_to` member point at, so an origin that simply drops the field loses the reporting it still has. The message names `Reporting-Endpoints` for that reason.\n\n**The syntax is `NEL`'s syntax.** MDN writes the value as one or more endpoint-group definitions \"defined as a JSON array that omits the surrounding `[` and `]` markers\", which is HTTP-JFV §4: combine the field lines, add the brackets back, run a JSON parser. A value that does not survive that is `report_to_malformed`, and it costs the origin every group in the field rather than the malformed one — the array is one JSON document, so a parser that refuses it declares nothing.\n\n**Joining the lines is not a nicety.** A response declaring two groups commonly writes them on two field lines — major CDNs do — and a rule reading only the first line would report half a well-formed array as a broken one. The lines are joined before anything parses them, as HTTP-JFV §4's own first step requires and RFC 9110 §5.3 licenses.\n\n**The delimiter is what real origins get wrong, and they get it wrong twice.** JSON writes a string with DQUOTE, so `{'group':'default','max_age':3600}` is refused entire — and an origin whose templating wrote `Report-To` with apostrophes wrote its `NEL` the same way. `nel_malformed` reports that one. Both findings are needed for either to be actionable: repairing the policy alone leaves it naming a group that a still-unparseable `Report-To` never declared.\n\n**Members are not read.** MDN names `group`, `max_age` and `endpoints` and marks none of them required, and the draft that did state requirements is a snapshot the W3C has replaced. An entry claiming a member is REQUIRED would rest on no document in force, so the reading stops at the parse."
+        "This rule reads the `Report-To` response header — the named endpoint groups an origin declares as the destination for its CSP violation reports, network errors and deprecation reports — and reports two things about it.\n\n**No specification defines the field any more.** The W3C Reporting API once did; the document at that URL now defines `Reporting-Endpoints` and no longer contains the string `Report-To` at all. So there is no current specification to read the field against and no superseded one that says what replaced it, and MDN's page — which marks the field Deprecated and Non-standard and says in as many words that `Reporting-Endpoints` replaced it — is the document this rule cites. That is the footing `x_xss_protection_value_valid` already stands on: a field deployments send in quantity and no standards document defines.\n\n**The finding is a move, not a deletion — and the destination depends on what else the response carries.** The group names declared here are exactly the names a `Content-Security-Policy` `report-to` directive and a `NEL` policy's `report_to` member point at, so an origin that simply drops the field loses the reporting it still has. `Reporting-Endpoints` serves the first of those two: it declares *endpoints*, a name against a single URL, where this field declares *endpoint groups*, and a `NEL` policy sends its reports to an endpoint group. Network Error Logging names no field other than this one to declare a group in — the document does not contain the string `Reporting-Endpoints`, and its own worked example writes `Report-To` and `NEL` in the same response. So the message reads the response first: it names `Reporting-Endpoints` as where the `Content-Security-Policy` groups go, and where a `NEL` is beside the field it says the field stays.\n\n**The syntax is `NEL`'s syntax.** MDN writes the value as one or more endpoint-group definitions \"defined as a JSON array that omits the surrounding `[` and `]` markers\", which is HTTP-JFV §4: combine the field lines, add the brackets back, run a JSON parser. A value that does not survive that is `report_to_malformed`, and it costs the origin every group in the field rather than the malformed one — the array is one JSON document, so a parser that refuses it declares nothing.\n\n**Joining the lines is not a nicety.** A response declaring two groups commonly writes them on two field lines — major CDNs do — and a rule reading only the first line would report half a well-formed array as a broken one. The lines are joined before anything parses them, as HTTP-JFV §4's own first step requires and RFC 9110 §5.3 licenses.\n\n**The delimiter is what real origins get wrong, and they get it wrong twice.** JSON writes a string with DQUOTE, so `{'group':'default','max_age':3600}` is refused entire — and an origin whose templating wrote `Report-To` with apostrophes wrote its `NEL` the same way. `nel_malformed` reports that one. Both findings are needed for either to be actionable: repairing the policy alone leaves it naming a group that a still-unparseable `Report-To` never declared.\n\n**Members are not read.** MDN names `group`, `max_age` and `endpoints` and marks none of them required, and the draft that did state requirements is a snapshot the W3C has replaced. An entry claiming a member is REQUIRED would rest on no document in force, so the reading stops at the parse."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[MDN_REPORT_TO, JFV_2, JFV_4, RFC_9110_5_3]
+        &[MDN_REPORT_TO, NEL_4_1_1, JFV_2, JFV_4, RFC_9110_5_3]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -73,6 +74,11 @@ impl RuleMeta for ReportToGroupsValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(a well-formed value, in a field that has been replaced)"),
                 snippet: "HTTP/1.1 200 OK\nReport-To: {\"group\":\"csp-endpoint\",\"max_age\":10886400,\"endpoints\":[{\"url\":\"https://example.com/csp-reports\"}]}",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(NEL beside it sends to an endpoint group, so the field stays)"),
+                snippet: "HTTP/1.1 200 OK\nReport-To: {\"group\":\"network-errors\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://example.com/upload-reports\"}]}\nNEL: {\"report_to\":\"network-errors\",\"max_age\":2592000}",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -133,15 +139,38 @@ impl Rule for ReportToGroupsValid {
         //
         // cite(MDN Report-To): "This header has been replaced by the"
         // cite(MDN Report-To): "It is a deprecated part of an earlier iteration of the"
+        // Which destination the sentence may name is a question about this
+        // response, not about the field. `Reporting-Endpoints` declares
+        // endpoints -- a name against one URL -- and a `NEL` policy sends its
+        // reports to an endpoint *group*, which only this field declares. So a
+        // `NEL` beside the field makes "move the groups and drop this" the one
+        // repair that would leave the sender worse off than it is, and the
+        // reading that decides it is the presence of the field, which is all
+        // this seam can see.
+        //
+        // cite(Network Error Logging § 4.1.1): "The report_to member specifies the endpoint group that reports for this NEL policy will be sent to."
+        let nel_beside_it = resp.headers.contains_key("nel");
         out.push(ctx.report_with(
             &REPORT_TO_OBSOLETE,
-            format!(
-                "Report-To '{}' declares this origin's endpoint groups in a field that has been \
-                 replaced by Reporting-Endpoints; the group names are what a Content-Security-\
-                 Policy report-to directive and a NEL report_to member point at, so they move to \
-                 that field rather than being dropped",
-                crate::helpers::shown::shown_in_finding(&value)
-            ),
+            if nel_beside_it {
+                format!(
+                    "Report-To '{}' declares this origin's endpoint groups in a field that has \
+                     been replaced by Reporting-Endpoints; a Content-Security-Policy report-to \
+                     directive's groups move to that field, but the NEL beside it sends its \
+                     reports to an endpoint group and Network Error Logging names no field other \
+                     than this one to declare a group in, so dropping this field would leave that \
+                     policy pointing at nothing",
+                    crate::helpers::shown::shown_in_finding(&value)
+                )
+            } else {
+                format!(
+                    "Report-To '{}' declares this origin's endpoint groups in a field that has \
+                     been replaced by Reporting-Endpoints; the group names are what a Content-\
+                     Security-Policy report-to directive points at, so they move to that field \
+                     rather than being dropped",
+                    crate::helpers::shown::shown_in_finding(&value)
+                )
+            },
         ));
 
         // § 4's other two steps, in its order: bracket the value, then run a
@@ -243,6 +272,66 @@ mod tests {
     #[test]
     fn a_response_without_the_field_draws_nothing() {
         assert!(ids_for(&[]).is_empty());
+    }
+
+    /// The `report_to_obsolete` sentence for one `Report-To` line, with or
+    /// without a `NEL` in the same header section.
+    fn obsolete_message(value: &str, nel: Option<&str>) -> String {
+        let mut headers: Vec<(&str, &str)> = vec![("report-to", value)];
+        if let Some(nel) = nel {
+            headers.push(("nel", nel));
+        }
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &headers);
+        let rule = ReportToGroupsValid;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let said: Vec<&crate::lint::Violation> = found
+            .iter()
+            .filter(|f| f.violation == "report_to_obsolete")
+            .collect();
+        assert_eq!(said.len(), 1, "one field, one finding: {found:?}");
+        said[0].message.clone()
+    }
+
+    /// **The repair the sentence names is not the same repair for both of the
+    /// fields that point here, and this is the pair that holds it.**
+    ///
+    /// `Reporting-Endpoints` declares endpoints; a `NEL` policy sends its
+    /// reports to an endpoint *group*, which no field but `Report-To`
+    /// declares. So the sentence an origin reads has to depend on whether a
+    /// `NEL` is beside the field: told to move the groups and drop this, an
+    /// origin sending `NEL` would be left with a policy pointing at nothing.
+    ///
+    /// Both directions, because a branch tested one way is a branch that
+    /// cannot be seen to branch.
+    #[test]
+    fn the_destination_the_sentence_names_depends_on_a_nel_beside_the_field() {
+        let value = r#"{"group":"network-errors","max_age":2592000,"endpoints":[{"url":"https://e.example/r"}]}"#;
+
+        let alone = obsolete_message(value, None);
+        assert!(alone.contains("move to that field"), "{alone}");
+        assert!(
+            !alone.contains("NEL"),
+            "no NEL here, so the sentence may not reason about one: {alone}"
+        );
+
+        let beside = obsolete_message(
+            value,
+            r#"{"report_to":"network-errors","max_age":2592000}"#.into(),
+        );
+        assert!(
+            beside.contains("endpoint group") && beside.contains("NEL"),
+            "{beside}"
+        );
+        assert!(
+            !beside.contains("move to that field rather than being dropped"),
+            "the field stays when a NEL is beside it: {beside}"
+        );
+        assert_ne!(alone, beside);
     }
 
     /// The field being present is the whole of `report_to_obsolete`'s

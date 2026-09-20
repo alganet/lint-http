@@ -12,7 +12,7 @@ This rule reads the `Report-To` response header — the named endpoint groups an
 
 **No specification defines the field any more.** The W3C Reporting API once did; the document at that URL now defines `Reporting-Endpoints` and no longer contains the string `Report-To` at all. So there is no current specification to read the field against and no superseded one that says what replaced it, and MDN's page — which marks the field Deprecated and Non-standard and says in as many words that `Reporting-Endpoints` replaced it — is the document this rule cites. That is the footing `x_xss_protection_value_valid` already stands on: a field deployments send in quantity and no standards document defines.
 
-**The finding is a move, not a deletion.** The group names declared here are exactly the names a `Content-Security-Policy` `report-to` directive and a `NEL` policy's `report_to` member point at, so an origin that simply drops the field loses the reporting it still has. The message names `Reporting-Endpoints` for that reason.
+**The finding is a move, not a deletion — and the destination depends on what else the response carries.** The group names declared here are exactly the names a `Content-Security-Policy` `report-to` directive and a `NEL` policy's `report_to` member point at, so an origin that simply drops the field loses the reporting it still has. `Reporting-Endpoints` serves the first of those two: it declares *endpoints*, a name against a single URL, where this field declares *endpoint groups*, and a `NEL` policy sends its reports to an endpoint group. Network Error Logging names no field other than this one to declare a group in — the document does not contain the string `Reporting-Endpoints`, and its own worked example writes `Report-To` and `NEL` in the same response. So the message reads the response first: it names `Reporting-Endpoints` as where the `Content-Security-Policy` groups go, and where a `NEL` is beside the field it says the field stays.
 
 **The syntax is `NEL`'s syntax.** MDN writes the value as one or more endpoint-group definitions "defined as a JSON array that omits the surrounding `[` and `]` markers", which is HTTP-JFV §4: combine the field lines, add the brackets back, run a JSON parser. A value that does not survive that is `report_to_malformed`, and it costs the origin every group in the field rather than the malformed one — the array is one JSON document, so a parser that refuses it declares nothing.
 
@@ -30,6 +30,7 @@ This rule reads the `Report-To` response header — the named endpoint groups an
 ## Specifications
 
 - [MDN Report-To](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Report-To): Report-To — a response header marked Deprecated and Non-standard, replaced by `Reporting-Endpoints`, whose value is one or more endpoint-group definitions written as a JSON array with the surrounding brackets omitted
+- [Network Error Logging §4.1.1](https://www.w3.org/TR/network-error-logging/#the-report_to-member): The report_to member — REQUIRED to register a NEL policy, OPTIONAL to remove one, and a MUST that its value is a string
 - [draft-reschke-http-jfv-07 §2](https://datatracker.ietf.org/doc/html/draft-reschke-http-jfv-07#section-2): Syntax — `json-field-value = #json-field-item`, the comma-separated list of JSON texts that a field deferring to this draft carries
 - [draft-reschke-http-jfv-07 §4](https://datatracker.ietf.org/doc/html/draft-reschke-http-jfv-07#section-4): Recipient Requirements — combine the field lines, add a leading "[" and a trailing "]", run a JSON parser; pinned to -07 because the unversioned draft is now a stub with no § 4 in it
 - [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Why several field lines are one value here: HTTP-JFV § 4 combines them before parsing, which is this section's list rule
@@ -55,6 +56,14 @@ Reporting-Endpoints: csp-endpoint="https://example.com/csp-reports"
 ```http
 HTTP/1.1 200 OK
 Report-To: {"group":"csp-endpoint","max_age":10886400,"endpoints":[{"url":"https://example.com/csp-reports"}]}
+```
+
+### ❌ Bad (NEL beside it sends to an endpoint group, so the field stays)
+
+```http
+HTTP/1.1 200 OK
+Report-To: {"group":"network-errors","max_age":2592000,"endpoints":[{"url":"https://example.com/upload-reports"}]}
+NEL: {"report_to":"network-errors","max_age":2592000}
 ```
 
 ### ❌ Bad (JSON writes a string with DQUOTE, so no group is declared at all)
