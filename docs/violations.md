@@ -493,6 +493,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [strict_transport_security_directive_value_forbidden](violations/strict_transport_security_directive_value_forbidden.md) — A valueless directive is written with a value
 - [strict_transport_security_directive_value_missing](violations/strict_transport_security_directive_value_missing.md) — A directive that requires a value carries none
 - [strict_transport_security_empty](violations/strict_transport_security_empty.md) — The policy is written with nothing in it
+- [strict_transport_security_forbidden](violations/strict_transport_security_forbidden.md) — A policy is sent on a response the transport never secured
 - [strict_transport_security_max_age_missing](violations/strict_transport_security_max_age_missing.md) — The policy states no max-age
 - [structured_field_character_forbidden](violations/structured_field_character_forbidden.md) — Structured field holds an octet outside US-ASCII
 - [structured_field_empty](violations/structured_field_empty.md) — Structured field is written with nothing on it

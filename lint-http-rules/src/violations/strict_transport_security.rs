@@ -18,6 +18,13 @@
 //! and `Alt-Svc`'s `ma` do. What stays here is the directive: that it is
 //! required, that it may appear once, and that it has to carry a value at all.
 //!
+//! **One of them is not about the policy at all.** § 7.2's last sentence
+//! forbids the *field* on a response whose request did not arrive over secure
+//! transport, whatever the directives say, so the subject of that entry is the
+//! response and the value is beside the point. It is kept here rather than
+//! beside the transport helpers for the reason every subject here is a field:
+//! what an operator greps for is the field name.
+//!
 //! **A value a reader cannot hold is not an entry**, for the reason
 //! `delta_seconds` records: the production sets no ceiling and a recipient
 //! meeting an unrepresentable value is told to clamp it, so a forty-digit
@@ -52,6 +59,15 @@ pub const RFC_6797_6_1_2: SpecRef = SpecRef {
     section: Some("6.1.2"),
     url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2",
     note: "The includeSubDomains Directive",
+};
+
+/// What an HSTS Host owes a request that did not arrive over secure transport:
+/// a redirect it SHOULD send, and a field it MUST NOT.
+pub const RFC_6797_7_2: SpecRef = SpecRef {
+    spec: "RFC 6797",
+    section: Some("7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-7.2",
+    note: "HTTP Request Type",
 };
 
 defects! {
@@ -163,6 +179,47 @@ defects! {
         spec: &[RFC_6797_6_1_2],
         strength: Strength::Unstated,
     }
+
+    /// A policy on a response the request never secured — and so a policy the
+    /// recipient throws away unread.
+    ///
+    /// **The finding is about the response's place, not about its value.** A
+    /// sender here has usually written the field correctly and believes it set
+    /// a policy; what is wrong is which response carries it. § 8.1 spends its
+    /// last bullet saying what becomes of it — the UA *ignores any present STS
+    /// header field(s)* — so the deployment is not weakly protected but
+    /// unprotected, with a header in its response that reads to every scanner
+    /// and every operator as though it were doing something.
+    ///
+    /// **`error` and `Must`, from the sentence that binds the sender.** § 8.1's
+    /// keyword binds the *recipient* and would settle nothing about the party
+    /// being reported; § 7.2 ends with the same requirement stated to the host
+    /// — and the level comes from there, exactly as it does for
+    /// [`REFERER_FORBIDDEN`](crate::violations::referer::REFERER_FORBIDDEN),
+    /// the entry this one is shaped after. § 7.2's other sentence to the host,
+    /// the SHOULD about redirecting to `https`, is a different obligation with
+    /// no reader here: this entry says the field must not be sent, never that
+    /// a redirect must be.
+    ///
+    /// **A request whose transport is unknown draws nothing**, and that is a
+    /// limit worth stating on the page rather than in the rule alone. Only an
+    /// absolute-form request-target carries a scheme; an origin-form target
+    /// carries a path, an authority-form one a host, and no captured field
+    /// records the connection that would have completed either. So silence on
+    /// those is the capture's limit and never a verdict — which is why
+    /// [`ConnectionSecurity`](crate::helpers::request_target::ConnectionSecurity)
+    /// keeps three answers and this entry reads only the third of them.
+    ///
+    // cite(RFC 6797 § 7.2): "An HSTS Host MUST NOT include the STS header field in HTTP responses conveyed over non-secure transport."
+    // cite(RFC 6797 § 8.1): "If an HTTP response is received over insecure transport, the UA MUST ignore any present STS header field(s)."
+    STRICT_TRANSPORT_SECURITY_FORBIDDEN = {
+        id: "strict_transport_security_forbidden",
+        title: "A policy is sent on a response the transport never secured",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_6797_7_2],
+        strength: Strength::Must,
+    }
 }
 
 #[cfg(test)]
@@ -182,6 +239,7 @@ mod tests {
             &STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
             &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
             &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
+            &STRICT_TRANSPORT_SECURITY_FORBIDDEN,
         ] {
             assert!(!def.spec.is_empty(), "{}", def.id);
         }

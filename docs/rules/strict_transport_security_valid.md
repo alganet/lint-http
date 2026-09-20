@@ -24,6 +24,7 @@ The `Strict-Transport-Security` response header signals HSTS policies. This rule
 - [strict_transport_security_directive_value_forbidden](../violations/strict_transport_security_directive_value_forbidden.md) — A valueless directive is written with a value
 - [strict_transport_security_directive_value_missing](../violations/strict_transport_security_directive_value_missing.md) — A directive that requires a value carries none
 - [strict_transport_security_empty](../violations/strict_transport_security_empty.md) — The policy is written with nothing in it
+- [strict_transport_security_forbidden](../violations/strict_transport_security_forbidden.md) — A policy is sent on a response the transport never secured
 - [strict_transport_security_max_age_missing](../violations/strict_transport_security_max_age_missing.md) — The policy states no max-age
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
@@ -35,6 +36,7 @@ The `Strict-Transport-Security` response header signals HSTS policies. This rule
 - [RFC 6797 §6.1.1](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.1): The max-age Directive
 - [RFC 6797 §6.1.2](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2): The includeSubDomains Directive
 - [RFC 6797 §7.1](https://www.rfc-editor.org/rfc/rfc6797.html#section-7.1): HTTP-over-Secure-Transport Request Type — the sentence obliging an HSTS Host that includes the field to include only one of it
+- [RFC 6797 §7.2](https://www.rfc-editor.org/rfc/rfc6797.html#section-7.2): HTTP Request Type
 - [RFC 6797 §8.1](https://www.rfc-editor.org/rfc/rfc6797.html#section-8.1): Strict-Transport-Security Response Header Field Processing — the UA processes only the first of several STS header fields
 - [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 - [RFC 9111 §1.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2): `delta-seconds = 1*DIGIT` — the production every field carrying a time in seconds writes its value in, and the clamp that makes an over-long run of digits conforming
@@ -106,6 +108,26 @@ Strict-Transport-Security: max-age=63072000; includeSubDomains=1
 
 ```http
 Strict-Transport-Security: max-age=15552000;
+```
+
+### ✅ Good — the transport the policy is about, stated by the request-target
+
+```http
+GET https://example.com/ HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Strict-Transport-Security: max-age=63072000
+```
+
+### ❌ Bad — a policy on a response the request never secured; a UA ignores it, so the host is not protected at all
+
+```http
+GET http://example.com/ HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Strict-Transport-Security: max-age=63072000; includeSubDomains
 ```
 
 ### ❌ Bad — two policies, of which a UA reads the ten-minute one and discards the other

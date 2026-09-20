@@ -4174,59 +4174,75 @@ sources:
     snippet: All directives MUST appear only once in an STS header field.
     cited_by:
     - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 121
+      line: 137
   - label: max-age is required
     section: § 6.1.1
     snippet: The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field, during which the UA regards the host (from whom the message was received) as a Known HSTS Host.
     cited_by:
     - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 106
+      line: 122
   - label: strict_transport_security (2)
     section: § 6.1.2
     snippet: The OPTIONAL "includeSubDomains" directive is a valueless directive which, if present (i.e., it is "asserted"), signals the UA that the HSTS Policy applies to this HSTS Host as well as any subdomains of the host's domain name.
     cited_by:
     - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 157
+      line: 173
   - label: strict_transport_security_valid
     section: § 6.1
     snippet: UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification.
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 228
+      line: 243
   - label: strict_transport_security_valid (2)
     section: § 6.1
     snippet: directive-name            = token
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 421
+      line: 509
   - label: strict_transport_security_valid (3)
     section: § 6.1
     snippet: directive-value           = token | quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 450
+      line: 538
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 530
+      line: 618
   - label: max-age carries a value
     section: § 6.1.1
     snippet: 'The syntax of the max-age directive''s REQUIRED value (after quoted-string unescaping, if necessary) is defined as:'
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 451
+      line: 539
     - file: lint-http-rules/src/violations/strict_transport_security.rs
-      line: 137
+      line: 153
   - label: strict_transport_security_valid (4)
     section: § 7.1
     snippet: If an STS header field is included, the HSTS Host MUST include only one such header field.
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 252
+      line: 267
   - label: strict_transport_security_valid (5)
+    section: § 7.2
+    snippet: An HSTS Host MUST NOT include the STS header field in HTTP responses conveyed over non-secure transport.
+    cited_by:
+    - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
+      line: 419
+    - file: lint-http-rules/src/violations/strict_transport_security.rs
+      line: 213
+  - label: strict_transport_security_valid (6)
     section: § 8.1
     snippet: If a UA receives more than one STS header field in an HTTP response message over secure transport, then the UA MUST process only the first such header field.
     cited_by:
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 253
+      line: 268
+  - label: strict_transport_security_valid (7)
+    section: § 8.1
+    snippet: If an HTTP response is received over insecure transport, the UA MUST ignore any present STS header field(s).
+    cited_by:
+    - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
+      line: 420
+    - file: lint-http-rules/src/violations/strict_transport_security.rs
+      line: 214
 - label: RFC 6838
   url: https://www.rfc-editor.org/rfc/rfc6838.html
   fragments:
@@ -8994,7 +9010,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 464
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
-      line: 254
+      line: 269
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 134
     - file: lint-http-rules/src/rules/x_content_type_options_present.rs

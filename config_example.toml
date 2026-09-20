@@ -3219,6 +3219,11 @@ severity = "error"
 # The policy is written with nothing in it
 severity = "warn"
 
+[violations.strict_transport_security_forbidden]
+# A policy is sent on a response the transport never secured
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.strict_transport_security_max_age_missing]
 # The policy states no max-age
 # MUST obliges the sender, so this defaults to error.

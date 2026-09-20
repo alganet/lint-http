@@ -14,10 +14,11 @@ use crate::violations::quoted_string::{
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::strict_transport_security::{
-    RFC_6797_6_1, RFC_6797_6_1_1, RFC_6797_6_1_2, STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
-    STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY, STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
+    RFC_6797_6_1, RFC_6797_6_1_1, RFC_6797_6_1_2, RFC_6797_7_2,
+    STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED, STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY,
+    STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
     STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING, STRICT_TRANSPORT_SECURITY_EMPTY,
-    STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING,
+    STRICT_TRANSPORT_SECURITY_FORBIDDEN, STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
@@ -65,6 +66,7 @@ static DECLARED: &[&ViolationDef] = &[
     &STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
     &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
     &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
+    &STRICT_TRANSPORT_SECURITY_FORBIDDEN,
     &DELTA_SECONDS_EMPTY,
     &DELTA_SECONDS_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -124,6 +126,7 @@ impl RuleMeta for StrictTransportSecurityValid {
             RFC_6797_6_1_1,
             RFC_6797_6_1_2,
             RFC_6797_7_1,
+            RFC_6797_7_2,
             RFC_6797_8_1,
             RFC_9110_5_3,
             RFC_9111_1_2_2,
@@ -192,6 +195,18 @@ impl RuleMeta for StrictTransportSecurityValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("— a trailing `;` opens a directive the sender never wrote"),
                 snippet: "Strict-Transport-Security: max-age=15552000;",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— the transport the policy is about, stated by the request-target"),
+                snippet: "GET https://example.com/ HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nStrict-Transport-Security: max-age=63072000",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— a policy on a response the request never secured; a UA ignores it, so the host is not protected at all",
+                ),
+                snippet: "GET http://example.com/ HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nStrict-Transport-Security: max-age=63072000; includeSubDomains",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -368,8 +383,81 @@ impl Rule for StrictTransportSecurityValid {
                 out
             }
         };
-        finding()
+        // Beside what the value reading collected, and ahead of it. The two
+        // are independent repairs: a policy in the wrong place is still
+        // spelled however it is spelled, and the same spelling is on the
+        // `https` responses this transaction cannot see. Masking either with
+        // the other would send an operator to make one of two edits.
+        let mut out = policy_on_unsecured_transport(tx, ctx);
+        out.extend(finding());
+        out
     }
+}
+
+/// The one thing this rule reads about the *response's place* rather than
+/// about its value: whether a policy was sent at all on a transaction the
+/// request-target says was not secured.
+///
+/// **Ahead of every other reading here, and not instead of any of them.**
+/// § 7.2's sentence is about the field being present, so it is answered before
+/// the value is looked at and it does not depend on the value being well
+/// formed — a malformed policy on an `http` response is in the wrong place
+/// *and* misspelled, and the sender has two edits to make. A repeated field
+/// draws this too, for the same reason: `field_line_duplicated` returns early
+/// out of the value reading, and a policy written twice on a response that may
+/// not carry one at all is still a policy that may not be carried.
+///
+/// **The third answer of [`target_uri_security`] is why this is a function and
+/// not a comparison.** Only an absolute-form request-target states a scheme.
+/// An origin-form target carries a path, an authority-form one a host, and
+/// over HTTP/1.1 to an origin server that is the ordinary shape — so a
+/// reading spelled "not `https`" condemns most of the web on the strength of
+/// evidence it does not have. [`ConnectionSecurity::is_known_insecure`] is the
+/// question that has an answer here, and `Unstated` is a silence this rule
+/// owes rather than a verdict it withholds.
+///
+// cite(RFC 6797 § 7.2): "An HSTS Host MUST NOT include the STS header field in HTTP responses conveyed over non-secure transport."
+// cite(RFC 6797 § 8.1): "If an HTTP response is received over insecure transport, the UA MUST ignore any present STS header field(s)."
+fn policy_on_unsecured_transport(
+    tx: &crate::http_transaction::HttpTransaction,
+    ctx: &crate::rules::RuleContext<'_>,
+) -> Vec<Violation> {
+    let Some(resp) = tx.response.as_ref() else {
+        return Vec::new();
+    };
+    if !crate::helpers::request_target::target_uri_security(&tx.request.uri).is_known_insecure() {
+        return Vec::new();
+    }
+    let lines =
+        crate::helpers::headers::field_lines_as_written(&resp.headers, "strict-transport-security");
+    if lines.is_empty() {
+        return Vec::new();
+    }
+    // The value is named because the operator has to find the line, and it is
+    // named whole rather than summarised: what is wrong with it is not
+    // anything inside it, so there is no component to point at. Several lines
+    // are shown as several, because a sender that writes two of them on an
+    // `http` response has written two things that must not be there.
+    let shown: Vec<String> = lines
+        .iter()
+        .map(|l| {
+            format!(
+                "'{}'",
+                crate::helpers::shown::shown_in_finding(crate::helpers::headers::trim_ows(l))
+            )
+        })
+        .collect();
+    vec![ctx.report_with(
+        &STRICT_TRANSPORT_SECURITY_FORBIDDEN,
+        format!(
+            "Strict-Transport-Security ({}) is sent on a response to an http:// \
+             request; an HSTS Host must not include the field over non-secure \
+             transport (RFC 6797 §7.2) and a user agent ignores any it receives \
+             there (§8.1), so this policy is not in force. Send it on the https \
+             responses instead, and redirect this request to https",
+            shown.join(", ")
+        ),
+    )]
 }
 
 /// What is wrong with one `directive`, if anything, and what it tells the
@@ -553,8 +641,15 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    /// **On an `https` target, and the default is why that has to be said.**
+    /// `make_test_transaction` builds a request to `http://example/`, which is
+    /// absolute-form with an insecure scheme — the one record on which a
+    /// perfectly spelled policy is still a defect. Every row below is about
+    /// the *value*, so the fixture states a transport on which the value is
+    /// the only thing left to be wrong about. `on_target` is where the other
+    /// reading is tested.
     fn make_resp(val: &str) -> crate::http_transaction::HttpTransaction {
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = on_target("https://example/", val);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
@@ -568,6 +663,114 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    /// One transaction, with the request-target and the policy both stated.
+    fn on_target(target: &str, val: &str) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.uri = target.to_string();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[(
+                "strict-transport-security",
+                val,
+            )]),
+            body_length: None,
+            body_interrupted: false,
+            trailers: None,
+        });
+        tx
+    }
+
+    /// Every id this rule draws on one transaction, not the first of them.
+    fn ids(tx: &crate::http_transaction::HttpTransaction) -> Vec<String> {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "strict_transport_security_valid",
+        ]);
+        let mut out: Vec<String> = crate::test_helpers::run_rule_all(
+            &StrictTransportSecurityValid,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .into_iter()
+        .map(|v| v.violation)
+        .collect();
+        out.sort();
+        out
+    }
+
+    /// § 7.2's requirement is answered from the request-target and from
+    /// nothing else, so the rows here are the three answers a target has —
+    /// and the third one is the reason there are three. An origin-form target
+    /// is what an ordinary HTTP/1.1 request to an origin server carries, and
+    /// a reading spelled "not https" reports every one of them on evidence it
+    /// does not have. The policy is conforming in every row, so the id below
+    /// is the only one that can appear.
+    #[rstest]
+    #[case::absolute_http("http://example.com/", true)]
+    #[case::absolute_http_uppercase("HTTP://example.com/", true)]
+    #[case::absolute_https("https://example.com/", false)]
+    #[case::absolute_https_uppercase("HTTPS://example.com/", false)]
+    #[case::origin_form("/index.html", false)]
+    #[case::authority_form("example.com:443", false)]
+    #[case::asterisk_form("*", false)]
+    #[case::a_scheme_this_document_does_not_define("ftp://example.com/", false)]
+    #[case::a_scheme_named_in_the_query_only("/login?next=http://evil.example/", false)]
+    fn a_policy_is_forbidden_where_the_target_states_an_insecure_scheme(
+        #[case] target: &str,
+        #[case] forbidden: bool,
+    ) {
+        let got = ids(&on_target(target, "max-age=63072000; includeSubDomains"));
+        assert_eq!(
+            got.contains(&"strict_transport_security_forbidden".to_string()),
+            forbidden,
+            "target: {target}, drew: {got:?}"
+        );
+    }
+
+    /// Beside the value findings and not instead of them. This is the value
+    /// one origin serves on plain `http`: a hyphen where the `=` goes, so no
+    /// directive named `max-age` is written at all. The two are separate
+    /// edits — the field is in the wrong place, and the spelling is still
+    /// wrong on the `https` responses this transaction cannot see — so an
+    /// operator who is told only one of them makes one of two changes.
+    #[test]
+    fn a_misplaced_policy_and_a_misspelled_one_are_two_findings() {
+        let tx = on_target(
+            "http://example.com/",
+            "max-age-16000000; includeSubDomains; preload;",
+        );
+        assert_eq!(
+            ids(&tx),
+            vec![
+                "strict_transport_security_forbidden".to_string(),
+                "strict_transport_security_max_age_missing".to_string(),
+            ]
+        );
+    }
+
+    /// A repeated field over insecure transport draws both too, and this is
+    /// the row that holds the ordering: the value reading returns early on a
+    /// second line, so a transport check written inside it would never be
+    /// reached here.
+    #[test]
+    fn a_policy_written_twice_where_it_may_not_be_written_at_all_draws_both() {
+        let mut tx = on_target("http://example.com/", "max-age=1");
+        if let Some(resp) = tx.response.as_mut() {
+            resp.headers = crate::test_helpers::make_headers_from_pairs(&[
+                ("strict-transport-security", "max-age=1"),
+                ("strict-transport-security", "max-age=2"),
+            ]);
+        }
+        assert_eq!(
+            ids(&tx),
+            vec![
+                "field_line_duplicated".to_string(),
+                "strict_transport_security_forbidden".to_string(),
+            ]
+        );
     }
 
     #[rstest]
@@ -1094,7 +1297,10 @@ mod tests {
     /// and it is what the rule says.
     #[test]
     fn a_line_nobody_reads_is_not_a_policy_missing_its_lifetime() {
-        let mut tx = crate::test_helpers::make_test_transaction();
+        // On an `https` target: what is read here is the value, and the
+        // fixture's default target is absolute-form `http`, on which a policy
+        // is forbidden outright and would be the first finding.
+        let mut tx = on_target("https://example/", "max-age=1");
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
@@ -1129,6 +1335,9 @@ mod tests {
 
         // In a directive name it is a `token` defect, with the octet named.
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        // As above: a value reading needs a transport on which the value is
+        // the only thing left to be wrong about.
+        tx.request.uri = "https://example/".to_string();
         let mut hm = hyper::HeaderMap::new();
         hm.insert(
             "strict-transport-security",
@@ -1152,6 +1361,7 @@ mod tests {
         // reader used to report the whole header for an octet the production
         // generates.
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.uri = "https://example/".to_string();
         let mut hm = hyper::HeaderMap::new();
         hm.insert(
             "strict-transport-security",
@@ -1181,6 +1391,8 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::empty();
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        // As above: `https`, so the repetition is the only thing being read.
+        tx.request.uri = "https://example/".to_string();
         tx.response.as_mut().expect("a response").headers =
             crate::test_helpers::make_headers_from_pairs(&[
                 ("strict-transport-security", "max-age=600"),
@@ -1202,6 +1414,7 @@ mod tests {
         // well formed on their own — so nothing but the repetition is wrong,
         // and one line of the same shape says nothing.
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.uri = "https://example/".to_string();
         tx.response.as_mut().expect("a response").headers =
             crate::test_helpers::make_headers_from_pairs(&[(
                 "strict-transport-security",
