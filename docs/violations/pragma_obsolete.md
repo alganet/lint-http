@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # pragma_obsolete
 
-A response carries a field this specification deprecates
+A message carries a field this specification deprecates
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.pragma_obsolete]
-# A response carries a field this specification deprecates
+# A message carries a field this specification deprecates
 severity = "info"
 ```
 

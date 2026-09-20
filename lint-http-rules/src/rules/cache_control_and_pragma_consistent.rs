@@ -7,9 +7,9 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::pragma::{PRAGMA_CONFLICTING, PRAGMA_OBSOLETE, RFC_9111_5_4};
 use crate::violations::ViolationDef;
 
-/// Two entries, both about the deprecated field being there: on a response,
-/// where it never had a meaning, and in a request whose `Cache-Control`
-/// overrides it.
+/// Two entries, and only one of them is about a contradiction. The deprecation
+/// is about the field being there at all, in either direction; the conflict is
+/// about a request asking for two opposite things.
 static DECLARED: &[&ViolationDef] = &[&PRAGMA_OBSOLETE, &PRAGMA_CONFLICTING];
 
 pub struct CacheControlAndPragmaConsistent;
@@ -28,7 +28,7 @@ impl RuleMeta for CacheControlAndPragmaConsistent {
     }
 
     fn description(&self) -> &'static str {
-        "Flags contradictions between `Pragma` and `Cache-Control` in requests (for example, `Pragma: no-cache` together with `Cache-Control: only-if-cached`), and warns when `Pragma` appears in responses since its meaning there is unspecified. This helps avoid ambiguous or conflicting cache directives that can lead to cache-serving mistakes."
+        "Reports the deprecated `Pragma` field wherever it appears, and one contradiction it takes part in.\n\n**The deprecation is not direction-specific.** RFC 9111 § 5.4 opens by naming the `Pragma` *request* header field and closes with \"this specification deprecates Pragma\"; the field registry in § 11 records its status as `deprecated` with no direction attached. So a request carrying one is reported, which is the deprecated thing being done, and a response carrying one is reported too — there the field was never given a meaning at all, which § 5.4's Note states when it says `Pragma: no-cache` cannot stand in for `Cache-Control: no-cache` in a response. One entry, one retired field, and the message names which side wrote it.\n\n**The contradiction is a heuristic and says so.** `Pragma: no-cache` asks a cache to validate with the origin and `Cache-Control: only-if-cached` asks it to answer from what it holds or fail, so a request carrying both asks for opposite things. No sentence forbids the combination.\n\nWhat a `Pragma` value may contain is `pragma_token_valid`'s question, not this rule's."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -39,11 +39,11 @@ impl RuleMeta for CacheControlAndPragmaConsistent {
         DECLARED
     }
 
-    /// **One requirement per direction, so one answer per site.** The conflict
-    /// this rule opens with is between a request's `Pragma` and its own
-    /// `Cache-Control`, written by whoever sent the request; the deprecation
-    /// finding after it is about a `Pragma` in a *response*, which no
-    /// specification ever gave a meaning to and the origin sent anyway.
+    /// **One sender per site, and the field is written by both of them.** The
+    /// conflict is between a request's `Pragma` and its own `Cache-Control`,
+    /// which is the client's; the deprecation is about whichever section the
+    /// field arrived in, so it answers against the client for a request and the
+    /// origin for a response.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -58,7 +58,12 @@ impl RuleMeta for CacheControlAndPragmaConsistent {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("— a request carries the deprecated field"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nPragma: no-cache\n\n# The direction § 5.4 defines, and the one it deprecates",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— and the two directives ask for opposite things"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nPragma: no-cache\nCache-Control: only-if-cached\n\n# Contradictory directives: 'no-cache' requests should not force 'only-if-cached'",
             },
             Example {
@@ -121,11 +126,37 @@ impl Rule for CacheControlAndPragmaConsistent {
             }
         }
 
-        // A Pragma in a response is deprecated, so flag any response Pragma. §5.4 also carries a
-        // gutter Note that "Pragma: no-cache" in responses "was never specified" and so cannot
-        // reliably replace Cache-Control: no-cache — that Note can't be machine-cited (its `|`
-        // gutter markers break extraction), so it is paraphrased in the message, not cited.
+        // The field is deprecated wherever it arrives, and for as long as this
+        // site asked only about the response, the direction § 5.4 is written
+        // about drew nothing at all. The section opens by naming the *request*
+        // header field — that is the sentence quoted here — and closes by
+        // deprecating it; the registry table in § 11 records the field's status
+        // as `deprecated` with no direction attached. A request carrying a
+        // `Pragma` is the deprecated thing being done, and three on the counted
+        // web do it (two browser reloads and a `git` fetch) with nothing said.
+        //
+        // `pragma_token_valid` reads the value on both sides and defers the
+        // question of whether the field belongs at all to this rule, so a
+        // direction missing here was a direction nothing asked about.
+        //
+        // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
         // cite(RFC 9111 § 5.4): "However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma."
+        if tx.request.headers.contains_key("pragma") {
+            out.push(ctx.by_client().report_with(
+                &PRAGMA_OBSOLETE,
+                "Request contains a 'Pragma' header field; the field was defined so an HTTP/1.0 \
+                 client could ask for 'no-cache' before 'Cache-Control' existed, and RFC 9111 \
+                 § 5.4 deprecates it — send the request directive in 'Cache-Control' instead"
+                    .into(),
+            ));
+        }
+
+        // The same deprecation on the other side, where a second argument sits
+        // on top of it: § 5.4 defines the field for requests, so a response
+        // carrying one is not merely deprecated but undefined in the direction
+        // it arrived in. § 5.4's gutter Note says so — it cannot be
+        // machine-cited, because the `|` gutter markers break extraction, so it
+        // is paraphrased in the message rather than quoted.
         if let Some(resp) = &tx.response {
             if resp.headers.contains_key("pragma") {
                 out.push(ctx.by_server().report_with(&PRAGMA_OBSOLETE, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead".into()));
@@ -145,15 +176,30 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    /// A request carrying `Pragma` and what the rule says about it, entry by
+    /// entry.
+    ///
+    /// **The case for `Pragma` alone used to assert silence**, and that was the
+    /// belief this rule was built on: that the field is reportable only where a
+    /// `Cache-Control` contradicts it. § 5.4 names the request field and
+    /// deprecates it, so the field alone is the finding, and the contradiction
+    /// is a second one on top.
+    ///
+    /// The entries are compared as a set rather than through a single finding:
+    /// this rule answers per requirement and a request can break both at once,
+    /// so a helper that takes the first of however many cannot tell the two
+    /// apart.
     #[rstest]
-    #[case(Some("no-cache"), Some("only-if-cached"), true)]
-    #[case(Some("no-cache"), Some("no-cache"), false)]
-    #[case(Some("no-cache"), None, false)]
-    #[case(None, Some("only-if-cached"), false)]
+    #[case(Some("no-cache"), Some("only-if-cached"), &["pragma_obsolete", "pragma_conflicting"][..])]
+    #[case(Some("no-cache"), Some("no-cache"), &["pragma_obsolete"][..])]
+    #[case(Some("no-cache"), None, &["pragma_obsolete"][..])]
+    #[case(Some("private"), None, &["pragma_obsolete"][..])]
+    #[case(None, Some("only-if-cached"), &[][..])]
+    #[case(None, None, &[][..])]
     fn request_pragma_and_cache_control_cases(
         #[case] pragma_val: Option<&str>,
         #[case] cc_val: Option<&str>,
-        #[case] expect_violation: bool,
+        #[case] expected: &[&str],
     ) -> anyhow::Result<()> {
         let rule = CacheControlAndPragmaConsistent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -161,6 +207,7 @@ mod tests {
         ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = None;
         // Build headers map and append values so both headers can coexist
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
         if let Some(p) = pragma_val {
@@ -177,20 +224,65 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = crate::test_helpers::run_rule(
+        let found = crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        if expect_violation {
-            assert!(v.is_some());
-            let m = v.unwrap().message;
-            assert!(m.contains("Pragma") || m.contains("Cache-Control"));
-        } else {
-            assert!(v.is_none());
-        }
+        let mut got: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        got.sort_unstable();
+        let mut want: Vec<&str> = expected.to_vec();
+        want.sort_unstable();
+        assert_eq!(got, want, "pragma={pragma_val:?} cache-control={cc_val:?}");
+        // Every finding about the request names the peer that wrote it.
+        assert!(found
+            .iter()
+            .all(|v| v.party == Some(crate::lint::Party::Client)));
         Ok(())
+    }
+
+    /// The field arrives in both sections and the entry answers for both, so a
+    /// transaction carrying one each is two findings and not one -- which is
+    /// also the only place the two parties can be told apart.
+    #[test]
+    fn a_pragma_in_each_section_is_two_findings_and_two_senders() {
+        let rule = CacheControlAndPragmaConsistent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "cache_control_and_pragma_consistent",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("pragma", "no-cache")],
+        );
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("pragma", "no-cache")]);
+
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(found.iter().all(|v| v.violation == "pragma_obsolete"));
+        assert_eq!(
+            found
+                .iter()
+                .filter(|v| v.party == Some(crate::lint::Party::Client))
+                .count(),
+            1
+        );
+        assert_eq!(
+            found
+                .iter()
+                .filter(|v| v.party == Some(crate::lint::Party::Server))
+                .count(),
+            1
+        );
+        // The two sentences are not interchangeable: an operator reading the
+        // report has to know which section to edit.
+        assert_ne!(found[0].message, found[1].message);
     }
 
     #[test]
@@ -246,8 +338,14 @@ mod tests {
         assert_eq!(v.severity, crate::lint::Severity::Warn);
     }
 
+    /// A value no recipient can read is still a field that arrived.
+    ///
+    /// The deprecation entry is about the field's *presence*, so it answers for
+    /// this one; the contradiction entry has to read `no-cache` out of the
+    /// value and cannot, so it declines. The encoding itself is
+    /// `pragma_token_valid`'s finding and is not reported twice here.
     #[test]
-    fn non_utf8_pragma_is_ignored() -> anyhow::Result<()> {
+    fn non_utf8_pragma_is_the_field_arriving_and_not_a_contradiction() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = CacheControlAndPragmaConsistent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -260,14 +358,14 @@ mod tests {
         hm.append("pragma", bad);
         tx.request.headers = hm;
 
-        // Non-UTF8 values are ignored by this consistency rule; syntax/token rules should report encoding problems.
-        let v = crate::test_helpers::run_rule(
+        let found = crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_none());
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, vec!["pragma_obsolete"]);
         Ok(())
     }
 
@@ -304,8 +402,14 @@ mod tests {
         Ok(())
     }
 
+    /// A request `Pragma` naming something other than `no-cache`.
+    ///
+    /// The contradiction needs the `no-cache` directive and this value has
+    /// none, so that entry stays silent; the deprecation does not read the
+    /// value at all, and the field is here. **This case asserted silence
+    /// outright** and was the second place the old reading was written down.
     #[test]
-    fn request_non_no_cache_pragma_no_violation() {
+    fn request_non_no_cache_pragma_is_the_deprecation_and_not_the_conflict() {
         let rule = CacheControlAndPragmaConsistent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "cache_control_and_pragma_consistent",
@@ -320,13 +424,14 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = crate::test_helpers::run_rule(
+        let found = crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_none());
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, vec!["pragma_obsolete"]);
     }
 
     #[test]

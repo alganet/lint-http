@@ -369,8 +369,8 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [percent_encoding_malformed](violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
 - [permissions_policy_allowlist_invalid](violations/permissions_policy_allowlist_invalid.md) — A directive's allowlist is none of the permitted forms
 - [permissions_policy_report_to_malformed](violations/permissions_policy_report_to_malformed.md) — A directive's report-to parameter is not a String
-- [pragma_conflicting](violations/pragma_conflicting.md) — A request asks for no-cache in the field its Cache-Control overrides
-- [pragma_obsolete](violations/pragma_obsolete.md) — A response carries a field this specification deprecates
+- [pragma_conflicting](violations/pragma_conflicting.md) — A request asks for no-cache and only-if-cached at once
+- [pragma_obsolete](violations/pragma_obsolete.md) — A message carries a field this specification deprecates
 - [prefer_preference_duplicated](violations/prefer_preference_duplicated.md) — A Prefer names one preference more than once
 - [prefer_preference_invalid](violations/prefer_preference_invalid.md) — A defined preference carries a value its production does not admit
 - [prefer_value_empty](violations/prefer_value_empty.md) — A Prefer member writes an = with no word after it

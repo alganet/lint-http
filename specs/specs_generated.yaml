@@ -11431,19 +11431,23 @@ sources:
     snippet: However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
-      line: 128
+      line: 143
     - file: lint-http-rules/src/violations/pragma.rs
-      line: 41
+      line: 53
   - label: cache_control_and_pragma_consistent (2)
     section: § 5.4
     snippet: The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
-      line: 95
+      line: 100
+    - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
+      line: 142
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
       line: 135
     - file: lint-http-rules/src/violations/pragma.rs
-      line: 64
+      line: 52
+    - file: lint-http-rules/src/violations/pragma.rs
+      line: 89
   - label: cache_control_directive_valid
     section: § 5.2
     snippet: For the cache directives defined below, no argument is defined (nor allowed) unless stated otherwise.

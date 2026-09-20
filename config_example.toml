@@ -2619,11 +2619,11 @@ severity = "warn"
 severity = "info"
 
 [violations.pragma_conflicting]
-# A request asks for no-cache in the field its Cache-Control overrides
+# A request asks for no-cache and only-if-cached at once
 severity = "warn"
 
 [violations.pragma_obsolete]
-# A response carries a field this specification deprecates
+# A message carries a field this specification deprecates
 severity = "info"
 
 [violations.prefer_preference_duplicated]

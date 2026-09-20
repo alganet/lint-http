@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # pragma_conflicting
 
-A request asks for no-cache in the field its Cache-Control overrides
+A request asks for no-cache and only-if-cached at once
 
 ## Message
 
@@ -24,7 +24,7 @@ Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which ar
 
 ```toml
 [violations.pragma_conflicting]
-# A request asks for no-cache in the field its Cache-Control overrides
+# A request asks for no-cache and only-if-cached at once
 severity = "warn"
 ```
 
