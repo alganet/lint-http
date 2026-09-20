@@ -85,7 +85,7 @@ impl RuleMeta for NoCacheRevalidation {
     }
 
     fn description(&self) -> &'static str {
-        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache` and that the request now presented was allowed to be answered from (§4): the same method, or a `HEAD` against a stored `GET`, presenting the same selecting header fields under the response's `Vary` (§4.1) — an entry stored for one variant could not have answered a request for another, so no validator was declined. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method, and a stored `GET` is no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method — where nothing could have been reused there is no reuse to report.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  **What this rule does not observe is the reuse itself.** §5.2.2.4 bars using a stored `no-cache` response *without forwarding it for validation*, and this implementation reads the seam between a client and an origin — a cache that had answered from its stored entry would have put nothing on that seam. Every request reaching this rule is one the cache declined to answer, so the forwarding the directive requires has happened, and §4.3 says a cache *can* use the conditional mechanism rather than that it must. The finding is therefore the narrower one the wire supports: a validator was held and not sent, costing a body where a `304` would have done. That is why it is a `warn` whose obligation is recorded as unstated — the `MUST NOT` is addressed to the cache, not to the client the finding names. **And the cost has to be one this exchange could have paid.** A `304` stands in for a `200` and for nothing else (RFC 9110 §15.4.5), so a request the origin refused — a `412`, a `400`, anything that never reached the representation — resent no body for a validator to have spared; and a `HEAD` answer carries no content at any status (RFC 9110 §9.3.2), so there too the precondition would have bought nothing. On those shapes the rule is silent, because the sentence would otherwise name a body that never crossed the wire. **And `no-store` beside it is answered first.** The two directives arrive together on more than half the responses that carry either — `no-cache, no-store, must-revalidate` is the line — and they say different things: `no-cache` forbids reuse without validation, while `no-store` (RFC 9111 §3, and §5.2.1.5 for the request's copy of it) forbids the storing that would have given the client something to validate. Where both are present nothing was stored, so the rule skips that response and looks past it for an entry an earlier exchange did leave. This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive."
+        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache` and that the request now presented was allowed to be answered from (§4): the same method, or a `HEAD` against a stored `GET`, presenting the same selecting header fields under the response's `Vary` (§4.1) — an entry stored for one variant could not have answered a request for another, so no validator was declined. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method, and a stored `GET` is no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method — where nothing could have been reused there is no reuse to report.  If that response also carried a validator and the current request is unconditional, the rule emits a warning. Unconditional here means carrying none of `If-None-Match`, `If-Modified-Since` or `If-Range`: the last is a third place to send the very entity tag the entry holds (RFC 9110 §13.1.5 writes `If-Range = entity-tag / HTTP-date`, and a client that has a tag must put that there rather than a date), so a client resuming a download has sent its validator and is not withholding one.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  **What this rule does not observe is the reuse itself.** §5.2.2.4 bars using a stored `no-cache` response *without forwarding it for validation*, and this implementation reads the seam between a client and an origin — a cache that had answered from its stored entry would have put nothing on that seam. Every request reaching this rule is one the cache declined to answer, so the forwarding the directive requires has happened, and §4.3 says a cache *can* use the conditional mechanism rather than that it must. The finding is therefore the narrower one the wire supports: a validator was held and not sent, costing a body where a `304` would have done. That is why it is a `warn` whose obligation is recorded as unstated — the `MUST NOT` is addressed to the cache, not to the client the finding names. **And the cost has to be one this exchange could have paid.** A `304` stands in for a `200` and for nothing else (RFC 9110 §15.4.5), so a request the origin refused — a `412`, a `400`, anything that never reached the representation — resent no body for a validator to have spared; and a `HEAD` answer carries no content at any status (RFC 9110 §9.3.2), so there too the precondition would have bought nothing. On those shapes the rule is silent, because the sentence would otherwise name a body that never crossed the wire. **And `no-store` beside it is answered first.** The two directives arrive together on more than half the responses that carry either — `no-cache, no-store, must-revalidate` is the line — and they say different things: `no-cache` forbids reuse without validation, while `no-store` (RFC 9111 §3, and §5.2.1.5 for the request's copy of it) forbids the storing that would have given the client something to validate. Where both are present nothing was stored, so the rule skips that response and looks past it for an entry an earlier exchange did leave. This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -119,6 +119,11 @@ impl RuleMeta for NoCacheRevalidation {
                 compliance: Compliance::Compliant,
                 label: Some("— a method the stored entry could not have answered"),
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, a different method on the same resource:\n> OPTIONS /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 405 Method Not Allowed\n\n# no cache answers an OPTIONS from a stored GET, so nothing was reused",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— the validator sent, as If-Range"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n< Accept-Ranges: bytes\n\n# later, the client resumes with the tag it was handed:\n> GET /resource HTTP/1.1\n> Host: example.com\n> Range: bytes=0-9\n> If-Range: \"v1\"\n\n< HTTP/1.1 200 OK\n< ETag: \"v2\"\n\n# If-Range carries the entity tag, so the client sent its validator; that\n# the tag no longer matches is why a whole representation came back",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -209,9 +214,20 @@ impl Rule for NoCacheRevalidation {
 
             // A conditional request (carrying a precondition header field) is the validation §5.2.2.4
             // requires; an unconditional one is evidence the entry may have been reused as-is.
+            //
+            // `If-Range` is here because the finding is about a validator the
+            // client HELD AND DID NOT SEND, and § 13.1.5 is a third place to
+            // send the very same one: its value *is* the entity tag, and a
+            // client that has one is required to put that rather than a date
+            // there. So a client resuming a download sends the tag it was
+            // handed, and a reading that knows only the two names § 4.3.1 gives
+            // a cache reports it for withholding what it just sent.
             // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
+            // cite(RFC 9110 § 13.1.5): "If-Range = entity-tag / HTTP-date"
+            // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
             let has_conditional = tx.request.headers.contains_key("if-none-match")
-                || tx.request.headers.contains_key("if-modified-since");
+                || tx.request.headers.contains_key("if-modified-since")
+                || tx.request.headers.contains_key("if-range");
 
             // The saving is the whole of what this entry still claims, so the
             // exchange has to be one that could have made it. A `304` stands in
@@ -229,7 +245,7 @@ impl Rule for NoCacheRevalidation {
 
             // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
             if !has_conditional && a_304_would_have_spared_content {
-                return Some(ctx.report_with(&CACHE_CONTROL_NO_CACHE_IGNORED, "An earlier response marked 'no-cache' carried a validator, and this request for it went out with no If-None-Match or If-Modified-Since. The response may not be reused without forwarding for validation, and this request is that forwarding; sending the validator with it would have let the origin answer 304 instead of resending the body".into()));
+                return Some(ctx.report_with(&CACHE_CONTROL_NO_CACHE_IGNORED, "An earlier response marked 'no-cache' carried a validator, and this request for it went out with no If-None-Match, If-Modified-Since or If-Range. The response may not be reused without forwarding for validation, and this request is that forwarding; sending the validator with it would have let the origin answer 304 instead of resending the body".into()));
             }
 
             None
@@ -432,6 +448,41 @@ mod tests {
             reports,
             "{method} answered {answered:?}: {v:?}"
         );
+    }
+
+    /// The entry says the client held a validator and sent none. § 13.1.5 is a
+    /// third place to send the same entity tag, so a client resuming a download
+    /// with the tag it was handed has sent it, whatever § 4.3.1 names.
+    /// `If-Match` and `If-Unmodified-Since` are not on that list on purpose:
+    /// they guard a request rather than offer the entry for revalidation, and a
+    /// `200` to one of them is still a body a `304` could have replaced.
+    #[rstest::rstest]
+    #[case(&[], true)]
+    #[case(&[("if-none-match", "\"v\"")], false)]
+    #[case(&[("if-modified-since", "Sun, 06 Nov 1994 08:49:37 GMT")], false)]
+    #[case(&[("range", "bytes=0-9"), ("if-range", "\"v\"")], false)]
+    #[case(&[("if-match", "\"v\"")], true)]
+    #[case(&[("if-unmodified-since", "Sun, 06 Nov 1994 08:49:37 GMT")], true)]
+    fn a_validator_sent_as_if_range_is_a_validator_sent(
+        #[case] asked: &[(&str, &str)],
+        #[case] reports: bool,
+    ) {
+        let rule = NoCacheRevalidation;
+        let base = chrono::Utc::now();
+        let mut prev = make_prev(&[("cache-control", "no-cache"), ("etag", "\"v\"")]);
+        prev.timestamp = base;
+        let mut tx = presented_exchange();
+        tx.timestamp = base + chrono::Duration::seconds(5);
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(asked);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
+        );
+        assert_eq!(v.is_some(), reports, "{asked:?}: {v:?}");
     }
 
     /// The same method on both sides is still not reuse when that method stores

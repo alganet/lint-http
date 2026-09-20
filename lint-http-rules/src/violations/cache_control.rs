@@ -672,6 +672,15 @@ defects! {
     ///
     // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
     // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+    /// **And `If-Range` is a third place to send the validator.** The claim
+    /// left is that the client *held* a tag and sent none, and § 13.1.5's field
+    /// carries an `entity-tag` — a client that has one is required to put that
+    /// there rather than a date. A client resuming a download therefore sends
+    /// the very tag this entry says it withheld, and a reading that knows only
+    /// the two names § 4.3.1 gives a cache reports it for doing so.
+    ///
+    // cite(RFC 9110 § 13.1.5): "If-Range = entity-tag / HTTP-date"
+    // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
     // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
     CACHE_CONTROL_MUST_REVALIDATE_IGNORED = {
         id: "cache_control_must_revalidate_ignored",
@@ -723,6 +732,15 @@ defects! {
     ///
     // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
     // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+    /// **And `If-Range` is a third place to send the validator.** The claim
+    /// left is that the client *held* a tag and sent none, and § 13.1.5's field
+    /// carries an `entity-tag` — a client that has one is required to put that
+    /// there rather than a date. A client resuming a download therefore sends
+    /// the very tag this entry says it withheld, and a reading that knows only
+    /// the two names § 4.3.1 gives a cache reports it for doing so.
+    ///
+    // cite(RFC 9110 § 13.1.5): "If-Range = entity-tag / HTTP-date"
+    // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
     // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
     CACHE_CONTROL_NO_CACHE_IGNORED = {
         id: "cache_control_no_cache_ignored",

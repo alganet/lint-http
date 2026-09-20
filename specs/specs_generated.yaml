@@ -5366,7 +5366,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 163
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 811
+      line: 829
   - label: immutable_cache_never_stale (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
@@ -5376,7 +5376,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 790
+      line: 808
 - label: RFC 8259
   url: https://www.rfc-editor.org/rfc/rfc8259.html
   fragments:
@@ -7087,8 +7087,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 274
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 256
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 226
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 62
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 682
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 742
     - file: lint-http-rules/src/violations/if_range.rs
       line: 158
   - label: conditional_request_handling
@@ -7398,9 +7406,9 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 445
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 260
+      line: 276
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 225
+      line: 241
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 138
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
@@ -7408,7 +7416,7 @@ sources:
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 674
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 725
+      line: 734
     - file: lint-http-rules/src/violations/method.rs
       line: 522
   - label: content_type_valid
@@ -7863,12 +7871,6 @@ sources:
       line: 395
     - file: lint-http-rules/src/violations/authority.rs
       line: 285
-  - label: if_range
-    section: § 13.1.5
-    snippet: A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
-    cited_by:
-    - file: lint-http-rules/src/violations/if_range.rs
-      line: 133
   - label: keep_alive_header_valid
     section: § 7.6.1
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
@@ -9494,7 +9496,7 @@ sources:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 226
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 876
+      line: 894
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -9884,19 +9886,33 @@ sources:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 267
   - label: must_revalidate_enforced
+    section: § 13.1.5
+    snippet: A client MUST NOT generate an If-Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
+    cited_by:
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 257
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 227
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 683
+    - file: lint-http-rules/src/violations/cache_control.rs
+      line: 743
+    - file: lint-http-rules/src/violations/if_range.rs
+      line: 133
+  - label: must_revalidate_enforced (2)
     section: § 15.4.5
     snippet: The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 259
+      line: 275
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 224
+      line: 240
     - file: lint-http-rules/src/rules/status_304_required_fields.rs
       line: 160
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 673
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 724
+      line: 733
   - label: no_body_for_1xx_204_304
     section: § 15.3.5
     snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -11693,7 +11709,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_present.rs
       line: 130
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 834
+      line: 852
   - label: cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -11733,9 +11749,9 @@ sources:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
       line: 138
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 197
+      line: 202
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 174
+      line: 179
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 108
   - label: cached_validators_reused (2)
@@ -11749,9 +11765,9 @@ sources:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
       line: 137
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 216
+      line: 221
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 193
+      line: 198
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 107
   - label: caching_directive_interaction
@@ -11773,7 +11789,7 @@ sources:
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 745
+      line: 763
   - label: caching_directive_interaction (3)
     section: § 5.2.2.9
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
@@ -11861,7 +11877,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 476
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 250
+      line: 266
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 4.2
     snippet: response_is_fresh = (freshness_lifetime > current_age)
@@ -11969,7 +11985,7 @@ sources:
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 157
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 768
+      line: 786
   - label: lint-http-rules/src/helpers/cache_control.rs (14)
     section: § 5.2.2.4
     snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
@@ -11977,9 +11993,9 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 292
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 230
+      line: 246
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 726
+      line: 744
   - label: lint-http-rules/src/helpers/cache_control.rs (15)
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
@@ -11989,7 +12005,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 293
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 246
+      line: 262
   - label: lint-http-rules/src/helpers/cache_control.rs (16)
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
@@ -12071,9 +12087,9 @@ sources:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
       line: 136
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 183
+      line: 188
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 164
+      line: 169
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 106
   - label: lint-http-rules/src/helpers/stored_response.rs (9)
@@ -12149,9 +12165,9 @@ sources:
     snippet: It then updates that request with one or more precondition header fields.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 242
+      line: 255
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 212
+      line: 225
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 98
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
@@ -12163,9 +12179,9 @@ sources:
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 272
+      line: 288
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 675
+      line: 684
   - label: pragma_token_valid
     section: § 5.4
     snippet: As a result, this specification deprecates Pragma.
