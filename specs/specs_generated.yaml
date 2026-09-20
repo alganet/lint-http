@@ -1506,7 +1506,7 @@ sources:
     snippet: This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 261
+      line: 271
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.html
   fragments:
@@ -2094,7 +2094,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 653
+      line: 674
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 249
     - file: lint-http-rules/src/violations/base64.rs
@@ -3722,13 +3722,13 @@ sources:
     snippet: credentials = "Bearer" 1*SP b64token
     cited_by:
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
-      line: 127
+      line: 125
   - label: bearer b64token grammar
     section: § 2.1
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 745
+      line: 766
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.html
   fragments:
@@ -4501,13 +4501,13 @@ sources:
     snippet: 'For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 310
+      line: 320
   - label: digest_auth_valid (2)
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 309
+      line: 319
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 147
   - label: digest_auth_valid (3)
@@ -4515,7 +4515,7 @@ sources:
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 201
+      line: 211
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 119
   - label: username-star
@@ -4523,19 +4523,25 @@ sources:
     snippet: If the userhash parameter value is set "false" and the username contains characters not allowed inside the ABNF quoted-string production, the user's name can be sent with this parameter, using the extended notation defined in [RFC5987].
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 349
+      line: 359
   - label: username-quoted
     section: § 3.4
     snippet: If the username contains characters not allowed inside the ABNF quoted-string production, the username* parameter can be used.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 217
+      line: 227
   - label: cnonce
     section: § 3.4
     snippet: This parameter MUST be used by all implementations.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 260
+      line: 270
+  - label: digest_auth_valid (4)
+    section: § 3.8
+    snippet: The Digest Authentication scheme can also be used for authenticating users to proxies, proxies to proxies, or proxies to origin servers by use of the Proxy-Authenticate and Proxy-Authorization header fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_auth_valid.rs
+      line: 178
   - label: digest_credentials
     section: § 3.4
     snippet: The values of the opaque and algorithm fields must be those supplied in the WWW-Authenticate response header field for the entity being requested.
@@ -4547,7 +4553,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 860
+      line: 881
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 233
 - label: RFC 7617
@@ -4558,13 +4564,13 @@ sources:
     snippet: The value is computed based on user-id and password as defined below.
     cited_by:
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
-      line: 137
+      line: 135
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 2
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 666
+      line: 687
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 61
   - label: basic-credentials base64
@@ -4572,13 +4578,13 @@ sources:
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 650
+      line: 671
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 658
+      line: 679
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 46
 - label: RFC 7838
@@ -4840,7 +4846,7 @@ sources:
     snippet: '"Authorization" (as used in HTTP Digest Authentication, defined in [RFC7616]),'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 350
+      line: 360
   - label: reserved
     section: § 3.2.1
     snippet: Extension character encodings (mime-charset) are reserved for future use.
@@ -6187,13 +6193,19 @@ sources:
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
     cited_by:
     - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
-      line: 151
+      line: 170
   - label: authentication_challenge_valid (2)
     section: § 11.5
     snippet: Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time.
     cited_by:
     - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
-      line: 123
+      line: 142
+  - label: authentication_challenge_valid (3)
+    section: § 11.5
+    snippet: The realm value is a string, generally assigned by the origin server, that can have additional semantics specific to the authentication scheme.
+    cited_by:
+    - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
+      line: 108
   - label: authentication_failure_loop
     section: § 15.5.2
     snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
@@ -6207,7 +6219,7 @@ sources:
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
     cited_by:
     - file: lint-http-rules/src/rules/authorization_credentials_valid.rs
-      line: 176
+      line: 174
     - file: lint-http-rules/src/violations/credentials.rs
       line: 84
   - label: cache_coherence
@@ -7687,15 +7699,15 @@ sources:
     snippet: It uses a case-insensitive token to identify the authentication scheme
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 553
+      line: 574
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 173
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
-      line: 118
+      line: 116
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
-      line: 120
+      line: 118
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 176
+      line: 186
     - file: lint-http-rules/src/violations/auth_scheme.rs
       line: 51
   - label: auth-param grammar
@@ -7703,9 +7715,9 @@ sources:
     snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 399
+      line: 420
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 817
+      line: 838
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 60
     - file: lint-http-rules/src/violations/challenge.rs
@@ -7721,19 +7733,19 @@ sources:
     snippet: token68    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 320
+      line: 341
   - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.3
     snippet: 'challenge   = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 356
+      line: 377
   - label: lint-http-rules/src/helpers/auth.rs (4)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 366
+      line: 387
     - file: lint-http-rules/src/violations/challenge.rs
       line: 88
   - label: lint-http-rules/src/helpers/auth.rs (5)
@@ -7741,7 +7753,7 @@ sources:
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 565
+      line: 586
     - file: lint-http-rules/src/violations/credentials.rs
       line: 68
     - file: lint-http-rules/src/violations/credentials.rs
@@ -7751,7 +7763,7 @@ sources:
     snippet: 'WWW-Authenticate = #challenge'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 186
+      line: 207
     - file: lint-http-rules/src/violations/challenge.rs
       line: 74
     - file: lint-http-rules/src/violations/challenge.rs
@@ -7761,13 +7773,13 @@ sources:
     snippet: Note that the parsing considerations for WWW-Authenticate apply to this header field as well
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 105
+      line: 126
   - label: lint-http-rules/src/helpers/auth.rs (8)
     section: § 11.7.1
     snippet: The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 267
+      line: 288
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 185
   - label: lint-http-rules/src/helpers/auth.rs (9)
@@ -7783,7 +7795,7 @@ sources:
     snippet: 1#element => element *( OWS "," OWS element )
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 187
+      line: 208
     - file: lint-http-rules/src/helpers/list.rs
       line: 35
     - file: lint-http-rules/src/helpers/list.rs
@@ -7815,7 +7827,7 @@ sources:
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 818
+      line: 839
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 141
     - file: lint-http-rules/src/helpers/cache_control.rs

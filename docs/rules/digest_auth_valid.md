@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Digest `Authorization` credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks `Authorization: Digest ...` request headers for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`).
+Digest credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks a `Digest` credential for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`), in either field that carries one: RFC 7616 §3.8 gives the scheme's proxy half a section of its own and says the client *"MUST then reissue the request with a Proxy-Authorization header field, with parameters as specified for the Authorization header field"*, so a `Proxy-Authorization: Digest ...` is read by the same parameters and each finding names the field it read.
 
 **`cnonce` and `nc` are demanded exactly where the credential's own `qop` makes the demand observable.** RFC 7616 §3.4 marks each *"MUST be used by all implementations"*; RFC 2617 computes a qop-less response without either and makes both conditional on a qop directive. A credential that carries `qop` is inside both documents' requirements at once — and both compute the `response` value over `cnonce` and `nc`, so their absence leaves the credential unverifiable by the recipient it was written for. A credential with no `qop` is RFC 2617's older shape and neither is demanded of it: RFC 7616 alone would ask for them, but rejecting the qop-less form outright would reject credentials the obsolete document defines and deployed servers still verify, and no observable line short of `qop` separates the two vintages.
 
@@ -93,4 +93,11 @@ Authorization: Digest username*=UTF-8''%c3%bcser, realm="test", nonce="abc", uri
 ```http
 GET /protected HTTP/1.1
 Authorization: Digest username*=UTF-8''%zz, realm="test", nonce="abc", uri="/protected", response="d41d8c"
+```
+
+### ❌ Bad (the field RFC 7616 §3.8 reissues the same parameters in)
+
+```http
+GET /protected HTTP/1.1
+Proxy-Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/protected"
 ```

@@ -110,42 +110,37 @@ impl Rule for BasicAuthBase64Valid {
             // `Authorization` spelling of the same credential, so the
             // user-id-and-password reading below is the scheme's in either
             // field and the value is built the same way for both.
-            for field in crate::helpers::auth::CREDENTIALS_FIELDS {
-                for hv in tx.request.headers.get_all(field.key).iter() {
-                    let s = crate::helpers::headers::field_line_as_written(hv);
-                    let s = s.as_str();
-                    // Scheme names match case-insensitively.
-                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                    let mut parts = s.splitn(2, char::is_whitespace);
-                    let scheme = parts.next().unwrap_or("").trim();
-                    if scheme.eq_ignore_ascii_case("Basic") {
-                        let creds = parts.next().unwrap_or("").trim();
-                        if creds.is_empty() {
-                            // The framework's defect rather than this
-                            // scheme's: a scheme with nothing after it is
-                            // what `credentials` says must not happen,
-                            // whichever scheme was named.
-                            return Some(ctx.report_with(
-                                &CREDENTIALS_MISSING,
-                                format!("Basic {} missing credentials", field.shown),
-                            ));
-                        }
-                        // The rule's own claim: the credential the client sends encodes a
-                        // user-id and password. How that value is built and checked — the
-                        // Base64 alphabet, the ":" separator, control characters — is owned
-                        // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
-                        // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
-                        if let Err(defect) = crate::helpers::auth::validate_basic_credentials(creds)
-                        {
-                            return Some(ctx.report_with(
-                                basic_credentials_defect(&defect),
-                                format!(
-                                    "Invalid Basic credentials in {}: {} (RFC 7617)",
-                                    field.shown,
-                                    defect.message()
-                                ),
-                            ));
-                        }
+            for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
+                let s = s.as_str();
+                // Scheme names match case-insensitively.
+                // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                let mut parts = s.splitn(2, char::is_whitespace);
+                let scheme = parts.next().unwrap_or("").trim();
+                if scheme.eq_ignore_ascii_case("Basic") {
+                    let creds = parts.next().unwrap_or("").trim();
+                    if creds.is_empty() {
+                        // The framework's defect rather than this
+                        // scheme's: a scheme with nothing after it is
+                        // what `credentials` says must not happen,
+                        // whichever scheme was named.
+                        return Some(ctx.report_with(
+                            &CREDENTIALS_MISSING,
+                            format!("Basic {shown} missing credentials"),
+                        ));
+                    }
+                    // The rule's own claim: the credential the client sends encodes a
+                    // user-id and password. How that value is built and checked — the
+                    // Base64 alphabet, the ":" separator, control characters — is owned
+                    // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
+                    // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
+                    if let Err(defect) = crate::helpers::auth::validate_basic_credentials(creds) {
+                        return Some(ctx.report_with(
+                            basic_credentials_defect(&defect),
+                            format!(
+                                "Invalid Basic credentials in {shown}: {} (RFC 7617)",
+                                defect.message()
+                            ),
+                        ));
                     }
                 }
             }

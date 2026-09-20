@@ -165,21 +165,18 @@ impl Rule for AuthorizationCredentialsValid {
             // production for the proxy. Which hop the value addresses is not
             // this reading's subject; the sentence names the field so a finding
             // about one is not read as a finding about the other.
-            for field in crate::helpers::auth::CREDENTIALS_FIELDS {
-                for hv in tx.request.headers.get_all(field.key).iter() {
-                    let s = crate::helpers::headers::field_line_as_written(hv);
-                    // The value is credentials — an auth-scheme with its
-                    // authentication information — which is the structure validated here.
-                    // The "credentials must actually be present" half is scheme-derived
-                    // (the framework grammar permits a bare scheme); the helper owns that
-                    // reasoning and the §11.4 structure cite.
-                    // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
-                    if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(&s) {
-                        return Some(ctx.report_with(
-                            credentials_defect(defect),
-                            format!("Invalid {} header: {}", field.shown, defect.message()),
-                        ));
-                    }
+            for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
+                // The value is credentials — an auth-scheme with its
+                // authentication information — which is the structure validated here.
+                // The "credentials must actually be present" half is scheme-derived
+                // (the framework grammar permits a bare scheme); the helper owns that
+                // reasoning and the §11.4 structure cite.
+                // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
+                if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(&s) {
+                    return Some(ctx.report_with(
+                        credentials_defect(defect),
+                        format!("Invalid {shown} header: {}", defect.message()),
+                    ));
                 }
             }
             None

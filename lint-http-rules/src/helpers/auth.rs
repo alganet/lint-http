@@ -94,6 +94,27 @@ pub const CREDENTIALS_FIELDS: [AuthField; 2] = [
     },
 ];
 
+/// Every line of every field § 11 writes as `credentials`, each paired with the
+/// name a finding about it has to say.
+///
+/// The production is one value rather than a list, so the lines are **not**
+/// combined: a sender wrote each, and that a request carries more than one line
+/// of a field is `singleton_fields_not_repeated`'s finding rather than a reason
+/// to pick one line to believe. The octets come back as written, which is the
+/// reading every caller wants and used to spell for itself.
+pub fn credentials_field_lines(
+    headers: &hyper::HeaderMap,
+) -> impl Iterator<Item = (&'static str, String)> + '_ {
+    CREDENTIALS_FIELDS.into_iter().flat_map(move |field| {
+        headers.get_all(field.key).into_iter().map(move |hv| {
+            (
+                field.shown,
+                crate::helpers::headers::field_line_as_written(hv),
+            )
+        })
+    })
+}
+
 /// The response fields whose value is `#challenge`.
 ///
 /// § 11.6.1 and § 11.7.1 write the same list of the same production, and

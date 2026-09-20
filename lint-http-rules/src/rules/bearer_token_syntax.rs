@@ -111,41 +111,34 @@ impl Rule for BearerTokenSyntax {
             // use for proxy authentication, so a `Proxy-Authorization` naming
             // `Bearer` is a value this grammar describes and the recipient it
             // addresses has to read it.
-            for field in crate::helpers::auth::CREDENTIALS_FIELDS {
-                for hv in tx.request.headers.get_all(field.key).iter() {
-                    let s = crate::helpers::headers::field_line_as_written(hv);
-                    let s = s.as_str();
+            for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
+                let s = s.as_str();
 
-                    // Split scheme and credentials. Auth-scheme names match case-insensitively.
-                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                    let mut parts = s.trim().splitn(2, char::is_whitespace);
-                    let scheme = parts.next().unwrap_or("").trim();
-                    if scheme.eq_ignore_ascii_case("bearer") {
-                        // `credentials = "Bearer" 1*SP b64token` requires a non-empty b64token
-                        // after the scheme, which is what the empty check and the helper call
-                        // enforce; the b64token grammar itself is owned by helpers::auth (§2.1).
-                        // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
-                        let creds = parts.next().map(|r| r.trim()).unwrap_or("");
-                        if creds.is_empty() {
-                            // The framework's defect and not this scheme's: what
-                            // must follow a scheme is `credentials`' sentence,
-                            // whichever scheme was named.
-                            return Some(ctx.report_with(
-                                &CREDENTIALS_MISSING,
-                                format!("{}: Bearer missing token", field.shown),
-                            ));
-                        }
+                // Split scheme and credentials. Auth-scheme names match case-insensitively.
+                // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                let mut parts = s.trim().splitn(2, char::is_whitespace);
+                let scheme = parts.next().unwrap_or("").trim();
+                if scheme.eq_ignore_ascii_case("bearer") {
+                    // `credentials = "Bearer" 1*SP b64token` requires a non-empty b64token
+                    // after the scheme, which is what the empty check and the helper call
+                    // enforce; the b64token grammar itself is owned by helpers::auth (§2.1).
+                    // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
+                    let creds = parts.next().map(|r| r.trim()).unwrap_or("");
+                    if creds.is_empty() {
+                        // The framework's defect and not this scheme's: what
+                        // must follow a scheme is `credentials`' sentence,
+                        // whichever scheme was named.
+                        return Some(ctx.report_with(
+                            &CREDENTIALS_MISSING,
+                            format!("{shown}: Bearer missing token"),
+                        ));
+                    }
 
-                        if let Err(defect) = crate::helpers::auth::validate_bearer_token(creds) {
-                            return Some(ctx.report_with(
-                                bearer_token_defect(defect),
-                                format!(
-                                    "Invalid Bearer token in {}: {}",
-                                    field.shown,
-                                    defect.message()
-                                ),
-                            ));
-                        }
+                    if let Err(defect) = crate::helpers::auth::validate_bearer_token(creds) {
+                        return Some(ctx.report_with(
+                            bearer_token_defect(defect),
+                            format!("Invalid Bearer token in {shown}: {}", defect.message()),
+                        ));
                     }
                 }
             }

@@ -89,7 +89,7 @@ impl RuleMeta for DigestAuthValid {
     }
 
     fn description(&self) -> &'static str {
-        "Digest `Authorization` credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks `Authorization: Digest ...` request headers for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`).\n\n**`cnonce` and `nc` are demanded exactly where the credential's own `qop` makes the demand observable.** RFC 7616 §3.4 marks each *\"MUST be used by all implementations\"*; RFC 2617 computes a qop-less response without either and makes both conditional on a qop directive. A credential that carries `qop` is inside both documents' requirements at once — and both compute the `response` value over `cnonce` and `nc`, so their absence leaves the credential unverifiable by the recipient it was written for. A credential with no `qop` is RFC 2617's older shape and neither is demanded of it: RFC 7616 alone would ask for them, but rejecting the qop-less form outright would reject credentials the obsolete document defines and deployed servers still verify, and no observable line short of `qop` separates the two vintages.\n\n**§3.4's two per-parameter quoting MUSTs are enforced in both directions.** A sender *\"MUST only generate the quoted string syntax\"* for `username`, `realm`, `nonce`, `uri`, `response`, `cnonce` and `opaque`, and *\"MUST NOT\"* for `algorithm`, `qop` and `nc` — for historical reasons, which is the point: recipients of each parameter were deployed against one spelling, so the wrong spelling is a credential some verifiers will not read. An unquoted `uri` was deliberately accepted here for a long time and no longer is. `username*`, `userhash` and unknown extension parameters are in neither list, so only the spelling they arrived in is judged.\n\nServers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed."
+        "Digest credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks a `Digest` credential for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`), in either field that carries one: RFC 7616 §3.8 gives the scheme's proxy half a section of its own and says the client *\"MUST then reissue the request with a Proxy-Authorization header field, with parameters as specified for the Authorization header field\"*, so a `Proxy-Authorization: Digest ...` is read by the same parameters and each finding names the field it read.\n\n**`cnonce` and `nc` are demanded exactly where the credential's own `qop` makes the demand observable.** RFC 7616 §3.4 marks each *\"MUST be used by all implementations\"*; RFC 2617 computes a qop-less response without either and makes both conditional on a qop directive. A credential that carries `qop` is inside both documents' requirements at once — and both compute the `response` value over `cnonce` and `nc`, so their absence leaves the credential unverifiable by the recipient it was written for. A credential with no `qop` is RFC 2617's older shape and neither is demanded of it: RFC 7616 alone would ask for them, but rejecting the qop-less form outright would reject credentials the obsolete document defines and deployed servers still verify, and no observable line short of `qop` separates the two vintages.\n\n**§3.4's two per-parameter quoting MUSTs are enforced in both directions.** A sender *\"MUST only generate the quoted string syntax\"* for `username`, `realm`, `nonce`, `uri`, `response`, `cnonce` and `opaque`, and *\"MUST NOT\"* for `algorithm`, `qop` and `nc` — for historical reasons, which is the point: recipients of each parameter were deployed against one spelling, so the wrong spelling is a credential some verifiers will not read. An unquoted `uri` was deliberately accepted here for a long time and no longer is. `username*`, `userhash` and unknown extension parameters are in neither list, so only the spelling they arrived in is judged.\n\nServers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -146,6 +146,11 @@ impl RuleMeta for DigestAuthValid {
                 label: Some("(a username* whose percent-escape is not hexadecimal)"),
                 snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username*=UTF-8''%zz, realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\"",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the field RFC 7616 §3.8 reissues the same parameters in)"),
+                snippet: "GET /protected HTTP/1.1\nProxy-Authorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\"",
+            },
         ]
     }
 }
@@ -165,8 +170,13 @@ impl Rule for DigestAuthValid {
             // name that is a `token`, a value that is a `quoted-string` -- and
             // the reader that refused the value outright reported it as the
             // field's encoding instead.
-            for hv in tx.request.headers.get_all("authorization").iter() {
-                let s = crate::helpers::headers::field_line_as_written(hv);
+            // Both fields § 11 writes as `credentials`. RFC 7616 § 3.8 gives
+            // the scheme's proxy half a section of its own and says the
+            // credential is the one § 3.4 already describes: the client "MUST
+            // then reissue the request with a Proxy-Authorization header field,
+            // with parameters as specified for the Authorization header field".
+            // cite(RFC 7616 § 3.8): "The Digest Authentication scheme can also be used for authenticating users to proxies, proxies to proxies, or proxies to origin servers by use of the Proxy-Authenticate and Proxy-Authorization header fields."
+            for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
                 let s = s.trim();
                 if s.is_empty() {
                     continue;
@@ -184,7 +194,7 @@ impl Rule for DigestAuthValid {
                     None => {
                         return Some(ctx.report_with(
                             &DIGEST_CREDENTIALS_PARAMETER_MISSING,
-                            "Authorization Digest scheme missing parameters".into(),
+                            format!("{shown} Digest scheme missing parameters"),
                         ))
                     }
                 };
@@ -233,14 +243,14 @@ impl Rule for DigestAuthValid {
 
                                     if is_empty {
                                         return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_EMPTY, format!(
-                                                "Digest Authorization sends required parameter '{}' with nothing in it",
+                                                "Digest {shown} sends required parameter '{}' with nothing in it",
                                                 k
                                             )))
                                     }
                                 }
                                 None => {
                                     return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_MISSING, format!(
-                                            "Digest Authorization is missing required parameter '{}' (RFC 7616 \u{a7}3.4)",
+                                            "Digest {shown} is missing required parameter '{}' (RFC 7616 \u{a7}3.4)",
                                             k
                                         )))
                                 }
@@ -263,7 +273,7 @@ impl Rule for DigestAuthValid {
                             for &k in &["cnonce", "nc"] {
                                 if !map.contains_key(k) {
                                     return Some(ctx.report_with(&DIGEST_CREDENTIALS_PARAMETER_MISSING, format!(
-                                            "Digest Authorization sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
+                                            "Digest {shown} sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
                                         )));
                                 }
                             }
@@ -316,12 +326,12 @@ impl Rule for DigestAuthValid {
                             let quoted = v.starts_with('"');
                             if MUST_QUOTE.contains(&k.as_str()) && !quoted {
                                 return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
-                                        "Digest Authorization sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
+                                        "Digest {shown} sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
                                     )));
                             }
                             if MUST_NOT_QUOTE.contains(&k.as_str()) && quoted {
                                 return Some(ctx.report_with(&DIGEST_CREDENTIALS_QUOTING_INVALID, format!(
-                                        "Digest Authorization sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
+                                        "Digest {shown} sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
                                     )));
                             }
 
@@ -353,7 +363,7 @@ impl Rule for DigestAuthValid {
                                     return Some(ctx.report_with(
                                         &EXT_VALUE_MALFORMED,
                                         format!(
-                                            "Digest Authorization sends username*='{v}', which \
+                                            "Digest {shown} sends username*='{v}', which \
                                              does not derive from ext-value: {why}"
                                         ),
                                     ));
@@ -364,7 +374,7 @@ impl Rule for DigestAuthValid {
                                     return Some(ctx.report_with(
                                         &EXT_VALUE_CHARSET_FORBIDDEN,
                                         format!(
-                                            "Digest Authorization sends username*='{v}', naming \
+                                            "Digest {shown} sends username*='{v}', naming \
                                              the character encoding '{charset}', which RFC 8187 \
                                              §3.2.1 reserves for future use and forbids a \
                                              producer to write; a recipient built to that \
@@ -430,6 +440,43 @@ static REGISTRATION: &dyn crate::rules::Rule = &DigestAuthValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// **Both fields RFC 7616 § 3.8 reissues the same parameters in, and each
+    /// finding names the one it read.**
+    ///
+    /// `Proxy-Authorization: Digest ...` missing `response` drew nothing, where
+    /// the identical credential in `Authorization` is a finding. § 3.8 does not
+    /// restate the parameters for the proxy exchange; it says the client
+    /// reissues "with parameters as specified for the Authorization header
+    /// field", so there is one reading and it was pointed at one field. The
+    /// message is asserted because every arm of it said "Digest Authorization"
+    /// outright.
+    #[rstest]
+    #[case("authorization", "Authorization")]
+    #[case("proxy-authorization", "Proxy-Authorization")]
+    fn a_digest_credential_is_read_in_both_fields_that_carry_it(
+        #[case] key: &str,
+        #[case] shown: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            key,
+            "Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\"",
+        )]);
+        let v = crate::test_helpers::run_rule(
+            &DigestAuthValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["digest_auth_valid"]),
+        )
+        .unwrap_or_else(|| panic!("nothing reported for {key}"));
+        assert_eq!(v.violation, "digest_credentials_parameter_missing");
+        assert!(
+            v.message.contains(shown),
+            "a finding about {key} says {:?}, which does not name the field it read",
+            v.message
+        );
+    }
 
     // The conforming fixtures write each parameter in the spelling §3.4's two
     // historical-reasons MUSTs assign it — the seven quoted, `algorithm`, `qop`
