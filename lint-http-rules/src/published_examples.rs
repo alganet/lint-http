@@ -969,7 +969,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "mailbox_trailing_character_forbidden",
     "media_type_empty",
     "media_type_name_empty",
-    "method_head_content_forbidden",
     "node_ipv6_address_malformed",
     "node_ipv6_brackets_missing",
     "node_ipv6_closing_bracket_missing",

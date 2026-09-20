@@ -93,3 +93,14 @@ Content-Length: 10
 
 abc
 ```
+
+### ❌ Bad (a HEAD response must send no content, and nothing here declares a length to notice it by)
+
+```http
+HEAD /x HTTP/1.1
+
+HTTP/1.1 200 OK
+Transfer-Encoding: chunked
+
+abc
+```

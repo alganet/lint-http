@@ -6184,9 +6184,11 @@ sources:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
       line: 161
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 170
+      line: 137
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 226
+      line: 209
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 241
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 174
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
@@ -7136,7 +7138,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 185
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 261
+      line: 276
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 213
   - label: content_location_and_uri_consistent
@@ -7271,6 +7273,8 @@ sources:
       line: 134
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 445
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 138
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 178
     - file: lint-http-rules/src/violations/method.rs
@@ -7612,7 +7616,7 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 143
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 146
+      line: 185
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 185
     - file: lint-http-rules/src/violations/method.rs
@@ -7664,7 +7668,7 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 440
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 158
+      line: 197
     - file: lint-http-rules/src/violations/method.rs
       line: 414
   - label: field-name grammar
@@ -9760,7 +9764,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 261
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 147
+      line: 186
     - file: lint-http-rules/src/rules/status_304_representation_metadata.rs
       line: 154
   - label: no_body_for_1xx_204_304 (6)
@@ -10520,7 +10524,7 @@ sources:
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
     cited_by:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 250
+      line: 265
   - label: retry_after_date_or_delay
     section: § 10.2.3
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
@@ -12060,7 +12064,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 178
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 141
+      line: 180
     - file: lint-http-rules/src/violations/method.rs
       line: 523
   - label: chunked last, unconditionally
@@ -12124,7 +12128,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 140
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 236
+      line: 251
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 210
   - label: content_transfer_encoding_valid
@@ -12148,7 +12152,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 144
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 206
+      line: 221
   - label: content_type_present (2)
     section: § 6.3
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
@@ -12156,7 +12160,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 165
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 256
+      line: 271
   - label: head_response_headers_match_get
     section: § 6.1
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
@@ -12368,7 +12372,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 135
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 237
+      line: 252
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 212
   - label: proxy_connection_discouraged
@@ -12398,7 +12402,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 157
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 241
+      line: 256
     - file: lint-http-rules/src/violations/content_length.rs
       line: 106
   - label: request_body_length_accuracy
@@ -12408,7 +12412,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 168
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 251
+      line: 266
     - file: lint-http-rules/src/violations/content_length.rs
       line: 76
   - label: request_body_length_accuracy (2)
@@ -12436,7 +12440,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 127
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 129
+      line: 168
   - label: request_target_form_valid
     section: § 3.2
     snippet: A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain.
@@ -12546,7 +12550,7 @@ sources:
     snippet: A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message.
     cited_by:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 207
+      line: 222
   - label: status_code_valid_range
     section: § 4
     snippet: A client SHOULD ignore the reason-phrase content because it is not a reliable channel for information

@@ -95,6 +95,11 @@ impl RuleMeta for ResponseBodyLengthAccuracy {
                 label: Some("(the response is incomplete, and must not be forwarded)"),
                 snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 10\n\nabc",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a HEAD response must send no content, and nothing here declares a length to notice it by)"),
+                snippet: "HEAD /x HTTP/1.1\n\nHTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\nabc",
+            },
         ]
     }
 }
@@ -114,6 +119,40 @@ impl Rule for ResponseBodyLengthAccuracy {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             let resp = tx.response.as_ref()?;
+
+            // § 9.3.2's MUST NOT is about *content*, and this is the only
+            // question in this rule that no declared length takes part in --
+            // which is why it is asked here, above the one that does. It used to
+            // sit below, inside the `head_request || bodiless_status` arm, and
+            // the `?` on the declared length above it meant a response whose
+            // framing came from anywhere else was never asked at all: 49 of the
+            // 127 HEAD responses on the wire this was measured against carry no
+            // `Content-Length`, and over HTTP/2 and HTTP/3 content arrives in
+            // DATA frames with no framing field in the message at all. A
+            // response that sent content and declared nothing read exactly like
+            // one that sent none.
+            //
+            // Compared exactly. `Head` is not HEAD, so a folded match would
+            // forbid a body the request was entitled to.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            //
+            // The three statuses are not read here. `no_body_for_1xx_204_304`
+            // reads the same octets for them and reads them without a declared
+            // length either, so keeping both would be two findings for one
+            // defect; what is left here is the half its status gate cannot
+            // reach, a response to HEAD carrying octets whatever its status.
+            if tx.request.method == "HEAD" && resp.body_length.is_some_and(|n| n > 0) {
+                return Some(ctx.report_with(
+                    &METHOD_HEAD_CONTENT_FORBIDDEN,
+                    format!(
+                        "A {} response to HEAD cannot contain a message body, but {} body \
+                         octets were received",
+                        resp.status,
+                        resp.body_length.unwrap_or(0)
+                    ),
+                ));
+            }
 
             // The whole `Content-Length` grammar used to be transcribed here --
             // `1*DIGIT`, the u128 ceiling, the multiple-values-differ check, the
@@ -162,41 +201,17 @@ impl Rule for ResponseBodyLengthAccuracy {
             // it: the octets it describes were never sent. `head_response_headers_match_get`
             // is the rule with two transactions to compare.
             //
-            // Compared exactly, and the comparison decides two things at once
-            // here: whether the length check is declined, and whether carrying
-            // octets is forbidden. `Head` is not HEAD, so a folded match would
-            // both excuse a wrong length and forbid a body the request was
-            // entitled to.
+            // Compared exactly: `Head` is not HEAD, so a folded match would
+            // excuse a length disagreement the response owes an answer for.
+            // The other half of what this comparison used to decide -- whether
+            // carrying octets is forbidden -- is asked above, where no declared
+            // length gates it.
             // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-            let head_request = tx.request.method == "HEAD";
-            let bodiless_status =
-                (100..200).contains(&resp.status) || resp.status == 204 || resp.status == 304;
-            if head_request || bodiless_status {
-                // Item 1 does still say something checkable about these, and
-                // exempting them from the comparison would have thrown it away: not
-                // that the declared length is wrong, but that there must be *no
-                // body at all*.
-                //
-                // Item 1 names two things, though, and only one of them is this
-                // rule's to report now. `no_body_for_1xx_204_304` reads the
-                // captured octets for the three statuses, and reads them without
-                // needing a `Content-Length` first -- which this rule does need, its
-                // whole entry point being a declared length. So the statuses are
-                // left to it, and what stays here is the half its status gate cannot
-                // reach: a response to HEAD that carries octets whatever its status.
-                // Keeping both would have been two findings for one defect.
-                if !bodiless_status && resp.body_length.is_some_and(|n| n > 0) {
-                    return Some(ctx.report_with(
-                        &METHOD_HEAD_CONTENT_FORBIDDEN,
-                        format!(
-                            "A {} response to {} cannot contain a message body, but {} body \
-                             octets were received",
-                            resp.status,
-                            tx.request.method,
-                            resp.body_length.unwrap_or(0)
-                        ),
-                    ));
-                }
+            if tx.request.method == "HEAD"
+                || (100..200).contains(&resp.status)
+                || resp.status == 204
+                || resp.status == 304
+            {
                 return None;
             }
 
@@ -609,10 +624,22 @@ mod tests {
                     let found = found.unwrap_or_else(|| {
                         panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
                     });
-                    assert!(
-                        found.message.contains("does not match captured body bytes"),
-                        "{found:?}"
-                    );
+                    // Which entry, and not merely that something fired. This
+                    // assertion was one blanket message string, which was true
+                    // for as long as the rule had exactly one non-compliant
+                    // example -- so the second one to arrive failed here for
+                    // drawing the *right* finding under the other of the two
+                    // entries this rule declares. An example demonstrates one
+                    // entry, and the rule's two are told apart by the same
+                    // question the code asks: § 9.3.2 refuses octets in a
+                    // response to HEAD whatever its length, and § 6.3 item 6
+                    // measures a declared length against them anywhere else.
+                    let expected = if method == "HEAD" {
+                        "method_head_content_forbidden"
+                    } else {
+                        "content_length_conflicting"
+                    };
+                    assert_eq!(found.violation, expected, "{found:?}");
                 }
             }
         }
@@ -658,6 +685,45 @@ mod tests {
             run(&tx).is_none(),
             "{method} -> {status} with Content-Length: {cl} declares a body it did not send"
         );
+    }
+
+    /// § 9.3.2's MUST NOT is about content, and a response frames content
+    /// however it likes -- so the question must not wait on a `Content-Length`.
+    /// It used to: the declared length was this closure's entry point and every
+    /// test above supplies one, so the gate over-reached invisibly. **49 of the
+    /// 127 HEAD responses on the counted wire carry no `Content-Length` at
+    /// all**, and each of these rows is one of their shapes: chunked framing,
+    /// close-delimited framing, and HTTP/2 or HTTP/3, where content arrives in
+    /// DATA frames and the message names no framing field anywhere. A server
+    /// that sent content in any of them read exactly like one that sent none.
+    #[rstest]
+    #[case::chunked(&[("transfer-encoding", "chunked")])]
+    #[case::close_delimited(&[])]
+    #[case::h2_data_frames(&[("content-type", "text/plain")])]
+    fn a_head_response_that_sent_octets_is_reported_without_a_declared_length(
+        #[case] headers: &[(&str, &str)],
+    ) {
+        let mut tx = resp_with(200, headers, Some(7));
+        tx.request.method = "HEAD".into();
+        let v = run(&tx).expect("a HEAD response carrying octets breaks § 9.3.2");
+        assert_eq!(v.violation, "method_head_content_forbidden");
+        assert!(v.message.contains("cannot contain a message body"), "{v:?}");
+    }
+
+    /// The other direction, and it is the one the hoist could have broken: a
+    /// HEAD response that declares nothing and sent nothing is what every
+    /// conformant HEAD of an empty resource looks like, and it must stay silent.
+    /// A count that is absent is not a count of zero -- nothing was captured, so
+    /// nothing is claimed either way.
+    #[rstest]
+    #[case(Some(0))]
+    #[case(None)]
+    fn a_head_response_with_no_octets_and_no_declared_length_is_silent(
+        #[case] body_length: Option<u64>,
+    ) {
+        let mut tx = resp_with(200, &[], body_length);
+        tx.request.method = "HEAD".into();
+        assert!(run(&tx).is_none(), "body_length {body_length:?}");
     }
 
     /// Item 1 still says something checkable about a HEAD response: not that the
