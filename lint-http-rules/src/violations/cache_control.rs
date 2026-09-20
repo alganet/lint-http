@@ -178,6 +178,15 @@ pub const RFC_9111_5_2_3: SpecRef = SpecRef {
     note: "Extension Directives — a cache MUST ignore what it does not recognise, and a new directive states whether it requires an argument, what a missing one means, and what a present one means where none is defined",
 };
 
+/// The namespace a directive name has to be in for any cache to act on it, and
+/// the bar a new name clears to get there.
+pub const RFC_9111_5_2_4: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.4",
+    note: "Cache Directive Registry — the \"Hypertext Transfer Protocol (HTTP) Cache Directive Registry\" defines the namespace for the cache directives, and a name enters it under IETF Review rather than by being sent",
+};
+
 /// The `immutable` extension: what it asks of a client, and the window it
 /// applies in.
 pub const RFC_8246_2: SpecRef = SpecRef {
@@ -206,6 +215,58 @@ pub const RFC_9110_15_1: SpecRef = SpecRef {
 };
 
 defects! {
+    /// A directive name that is in no cache's vocabulary, so the thing the
+    /// sender asked for does not happen.
+    ///
+    /// **This is not the grammar's finding and not the arity table's.**
+    /// `cache-directive = token [ "=" ( token / quoted-string ) ]` derives
+    /// `post-check=0` exactly as it derives `max-age=0`, and the reader that
+    /// asks whether a directive owes an argument answers only for the
+    /// directives RFC 9111 defines — everything else is an extension whose
+    /// arity is stated in a document that reader has not opened. Both are
+    /// right, and between them a name no specification anywhere defines is
+    /// well formed and unjudged.
+    ///
+    /// **What the finding rests on is the sentence that makes the name inert.**
+    /// A cache MUST ignore what it does not recognise, so an unregistered
+    /// directive is not a weaker instruction to a cache — it is no instruction
+    /// at all, and every cache behaves as though the sender had written
+    /// nothing. `Cache-Control: public, max-age=300, s-max-age=150` asks shared
+    /// caches for 150 seconds and gets 300, because `s-maxage` is the name and
+    /// `s-max-age` is not.
+    ///
+    /// **`_unregistered` and not `_invalid`**: the value breaks no production,
+    /// and a sender fixing it is not correcting syntax. It is either a name
+    /// that belongs in the registry and is not there yet, or — far more often
+    /// on the wire — a name that was never going to be, because it was a
+    /// vendor's private extension or a spelling mistake.
+    ///
+    /// **The `MUST` this entry quotes binds the recipient, so it states no
+    /// strength.** *"A cache MUST ignore unrecognized cache directives"* is an
+    /// instruction to caches, and a sender writing `post-check=0` has broken no
+    /// requirement addressed to it — RFC 9111 asks nothing of a sender about
+    /// which names it may use, and § 5.2.4's registration requirement binds a
+    /// registrant rather than a message. What the sentence establishes is the
+    /// *consequence*, which is the whole of what this entry reports: the name is
+    /// inert. That is why the finding is worth having and why its strength is
+    /// `Unstated` rather than borrowed from a keyword pointed the other way.
+    ///
+    /// **Ranked with the sibling it is the analogue of.**
+    /// [`alpn_protocol_name_unregistered`](crate::violations::alpn) is the same
+    /// reading of a different namespace — a name absent from the list a
+    /// deployment serves — and carries the same `warn`. Neither is a broken
+    /// message; both are a sender asking for something no recipient will do.
+    ///
+    // cite(RFC 9111 § 5.2.3): "The Cache-Control header field can be extended through the use of one or more extension cache directives.  A cache MUST ignore unrecognized cache directives."
+    // cite(RFC 9111 § 5.2.4): "The "Hypertext Transfer Protocol (HTTP) Cache Directive Registry" defines the namespace for the cache directives."
+    CACHE_CONTROL_DIRECTIVE_UNREGISTERED = {
+        id: "cache_control_directive_unregistered",
+        title: "A Cache-Control directive names nothing any cache implements",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2_3, RFC_9111_5_2_4],
+    }
+
     /// `no-cache=""`: the qualified form written with an argument that lists no
     /// field name at all.
     ///

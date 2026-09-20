@@ -76,6 +76,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [cache_control_argument_quoted_form_forbidden](violations/cache_control_argument_quoted_form_forbidden.md) — A Cache-Control delta-seconds argument is written in the quoted-string form
 - [cache_control_directive_argument_forbidden](violations/cache_control_directive_argument_forbidden.md) — A Cache-Control directive that defines no argument is written with one
 - [cache_control_directive_argument_missing](violations/cache_control_directive_argument_missing.md) — A Cache-Control directive that requires an argument carries none
+- [cache_control_directive_unregistered](violations/cache_control_directive_unregistered.md) — A Cache-Control directive names nothing any cache implements
 - [cache_control_directive_value_empty](violations/cache_control_directive_value_empty.md) — Cache-Control directive writes an '=' and no value after it
 - [cache_control_freshness_conflicting](violations/cache_control_freshness_conflicting.md) — A Cache-Control freshness directive is given more than one value
 - [cache_control_freshness_missing](violations/cache_control_freshness_missing.md) — A status no cache stores by default states no freshness

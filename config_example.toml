@@ -215,6 +215,40 @@ enabled = true
 [rules.cache_control_and_pragma_consistent]
 enabled = true
 
+[rules.cache_control_directive_registered]
+enabled = true
+# The "Hypertext Transfer Protocol (HTTP) Cache Directive Registry", which RFC
+# 9111 § 5.2.4 says defines the namespace for cache directives. A name outside
+# it is one every cache MUST ignore, so what the sender asked for does not
+# happen — `s-max-age=150` beside `max-age=300` gives shared caches 300.
+#
+# Unlike the ALPN list next door, this one ships complete: § 5.2.4 puts the
+# namespace under IETF Review, so a directive arrives with an RFC rather than
+# between two of them. The 16 below are the whole registry — RFC 9111's
+# fourteen, RFC 5861's two — plus RFC 8246's `immutable`.
+#
+# Extend it where a deployment runs a private directive its own caches
+# implement. Adding a name here is the claim that something on this path acts
+# on it, which is the claim the finding rests on.
+allowed = [
+    "max-age",
+    "max-stale",
+    "min-fresh",
+    "must-revalidate",
+    "must-understand",
+    "no-cache",
+    "no-store",
+    "no-transform",
+    "only-if-cached",
+    "private",
+    "proxy-revalidate",
+    "public",
+    "s-maxage",
+    "immutable",
+    "stale-if-error",
+    "stale-while-revalidate",
+]
+
 [rules.cache_control_directive_valid]
 enabled = true
 
@@ -1286,6 +1320,10 @@ severity = "warn"
 [violations.cache_control_directive_argument_missing]
 # A Cache-Control directive that requires an argument carries none
 severity = "error"
+
+[violations.cache_control_directive_unregistered]
+# A Cache-Control directive names nothing any cache implements
+severity = "warn"
 
 [violations.cache_control_directive_value_empty]
 # Cache-Control directive writes an '=' and no value after it

@@ -1401,7 +1401,7 @@ mod tests {
         assert!(!opens_a_cite(&prose));
     }
 
-    /// The 37 entries that quote an RFC 2119 keyword or an ABNF production and
+    /// The 44 entries that quote an RFC 2119 keyword or an ABNF production and
     /// state [`Strength::Unstated`] anyway.
     ///
     /// **Every one has been read, and each says on its own page what the
@@ -1426,6 +1426,7 @@ mod tests {
         "alt_svc_port_missing",
         "authority_value_conflicting",
         "cache_control_directive_argument_forbidden",
+        "cache_control_directive_unregistered",
         "cache_control_missing",
         "cache_control_must_revalidate_ignored",
         "cache_control_no_cache_ignored",
