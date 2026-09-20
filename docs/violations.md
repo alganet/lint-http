@@ -451,6 +451,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [status_103_ambiguous](violations/status_103_ambiguous.md) — A 103 stands where the one final response should be
 - [status_1xx_forbidden](violations/status_1xx_forbidden.md) — An interim response answers a client whose version has none
 - [status_200_ambiguous](violations/status_200_ambiguous.md) — A 200 carries no content, where a 204 would say so on purpose
+- [status_206_field_missing](violations/status_206_field_missing.md) — A 206 omits a header field the 200 it is a part of carried
 - [status_206_multipart_forbidden](violations/status_206_multipart_forbidden.md) — A multipart 206 answers a request that asked for a single range
 - [status_206_unsolicited](violations/status_206_unsolicited.md) — 206 Partial Content answers a request that asked for no range
 - [status_301_ambiguous](violations/status_301_ambiguous.md) — A 301 answers a POST, leaving the redirected method undetermined

@@ -1222,6 +1222,10 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
     ),
     (&no_store_enforced::NoStoreEnforced, QueryType::ByResource),
     (
+        &status_206_required_fields::Status206RequiredFields,
+        QueryType::ByResource,
+    ),
+    (
         &status_304_required_fields::Status304RequiredFields,
         QueryType::ByResource,
     ),

@@ -295,6 +295,57 @@ defects! {
         spec: &[RFC_9110_15_3_7],
     }
 
+    /// A `206` that leaves out a header field the `200` it is a part of would
+    /// have carried.
+    ///
+    /// **§ 15.3.7's MUST was quoted four times over and always to say what it
+    /// does not require.** The sentence names six fields — `Date`,
+    /// `Cache-Control`, `ETag`, `Expires`, `Content-Location` and `Vary` — and
+    /// every rule that reached for it reached for the list as an argument that
+    /// some *other* field is absent from it: `accept_ranges_and_206_consistent`
+    /// cites it to settle that `Accept-Ranges` is not owed on a 206. Nothing
+    /// asked whether the six themselves arrived.
+    ///
+    /// **The same sentence as
+    /// [`_304_field_missing`](STATUS_304_FIELD_MISSING), about the other status
+    /// code that stands in for a `200`.** § 15.4.5 writes it for a response
+    /// that replaces the content and § 15.3.7 for one that encloses part of it,
+    /// and the two name the identical six fields. A server dropping a `Vary`
+    /// from a `304` is reported at `error` today; the same server dropping the
+    /// same `Vary` from a `206` was walked past by the whole catalogue.
+    ///
+    /// **The requirement is conditional and the condition is not in the
+    /// message.** The MUST binds only for a field that *would have been sent in
+    /// a 200 (OK) response to the same request* — a `200` that was never sent,
+    /// about which the `206` alone says nothing. What answers it is an observed
+    /// earlier `200` for the same resource answering the same request, the
+    /// `Range` aside. Where no such exchange was seen there is no finding, so
+    /// this entry can be silent about a response that plainly violates the
+    /// sentence.
+    ///
+    /// **What the omission costs, for the field real traffic actually drops.**
+    /// § 15.3.7's last paragraph makes a 206 heuristically cacheable, so a
+    /// cache may store the partial content — and a stored response whose `Vary`
+    /// went missing is one the cache will hand to a request whose
+    /// `Accept-Encoding` selects a different representation entirely. The other
+    /// five are the same shape one step weaker: a client assembling the
+    /// representation from its parts is missing a field the whole would have
+    /// carried.
+    ///
+    /// `error`, off the keyword: a MUST binding the server that generated the
+    /// response, and the repair is the sender's alone.
+    ///
+    // cite(RFC 9110 § 15.3.7): "A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary."
+    // cite(RFC 9110 § 15.3.7): "A 206 response is heuristically cacheable; i.e., unless otherwise indicated by explicit cache controls (see Section 4.2.2 of [CACHING])."
+    STATUS_206_FIELD_MISSING = {
+        id: "status_206_field_missing",
+        title: "A 206 omits a header field the 200 it is a part of carried",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_15_3_7],
+        strength: Strength::Must,
+    }
+
     /// A 416 answering a request that named no range. The status code is the
     /// rejection of a set of ranges the request wrote, so with no `Range` field
     /// there is no set for it to have rejected.
