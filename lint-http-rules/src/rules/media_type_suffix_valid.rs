@@ -44,14 +44,28 @@ impl RuleMeta for MediaTypeSuffixValid {
 
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-# Six names from IANA's Structured Syntax Suffix registry. The list used to
-# hold "exi" as a seventh -- a name that registry has never held: "exi" is a
-# registered HTTP *content coding* (W3C EXI), and it had been copied here from
-# the neighbouring registry, silencing exactly the finding this rule exists to
-# make for "+exi". As with every allowed list, the registry is not consulted
-# at lint time; this array stands in for it, so its contents have to be read
-# against the registry they name.
-allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
+# Every name in IANA's Structured Syntax Suffix registry, read off the
+# registry's own CSV rather than recalled -- a list that names a criterion is a
+# claim about a set, and this one shipped six of the twenty-four. `+zip` has
+# been registered since RFC 6839 and `application/epub+zip` is older than the
+# registry itself, so the six-name list told an EPUB server that its suffix
+# names a structured syntax nobody had registered, which is the opposite of the
+# sentence the finding cites.
+#
+# The list also used to hold "exi" -- a name that registry has never held:
+# "exi" is a registered HTTP *content coding* (W3C EXI), and it had been copied
+# here from the neighbouring registry, silencing exactly the finding this rule
+# exists to make for "+exi". Registry membership bounds this array in both
+# directions.
+#
+# As with every allowed list, the registry is not consulted at lint time; this
+# array stands in for it. So a suffix registered after this release reports
+# until it is added here, and a deployment that serves one structured syntax
+# may narrow the array to it.
+allowed = ["ber", "cbor", "cbor-seq", "cose", "csv", "cwt", "der",
+    "fastinfoset", "gzip", "jer", "json", "json-seq", "jws", "jwt",
+    "sd-cwt", "sd-jwt", "sqlite3", "tlv", "uper", "wbxml", "xml", "yaml",
+    "zip", "zstd"]
 "#
     }
 
@@ -125,6 +139,17 @@ allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
                 compliance: Compliance::Compliant,
                 label: Some("(+xml)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: image/svg+xml",
+            },
+            // Offered rather than served, because the media-type *allowlist*
+            // is a separate question from the suffix and it reads
+            // `Content-Type` only. `application/epub+zip` is not on the
+            // shipped `content_type_registered` array — that array is what a
+            // deployment serves — and putting the suffix claim in an `Accept`
+            // member keeps this example about the one thing it demonstrates.
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(+zip — a registered suffix outside the two common ones)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept: application/epub+zip",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -345,6 +370,133 @@ static REGISTRATION: &dyn crate::rules::Rule = &MediaTypeSuffixValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// The names the shipped default carries, parsed out of `config_example()`
+    /// rather than retyped: a second copy of this list is a second thing to
+    /// drift, which is the defect the list itself had.
+    fn shipped_default_suffixes() -> Vec<String> {
+        let cfg: toml::Table = toml::from_str(MediaTypeSuffixValid.config_example())
+            .expect("the shipped config example is TOML");
+        cfg.get("allowed")
+            .expect("the shipped config example sets `allowed`")
+            .as_array()
+            .expect("`allowed` is an array")
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .expect("every entry is a string")
+                    .to_ascii_lowercase()
+            })
+            .collect()
+    }
+
+    /// The list's comment states a criterion — membership of IANA's Structured
+    /// Syntax Suffix registry — so the list is a claim about a set. It had
+    /// drifted to six of the twenty-four, and each name here was registered
+    /// while the shipped default reported it as unregistered. `+zip` is the
+    /// one that shows the cost: `application/epub+zip` has been a registered
+    /// media type since 2007 and drew a `warn` citing a SHOULD about *as-yet
+    /// unregistered* syntaxes.
+    #[rstest]
+    #[case("zip")]
+    #[case("cbor")]
+    #[case("cbor-seq")]
+    #[case("gzip")]
+    #[case("json-seq")]
+    #[case("jwt")]
+    #[case("jws")]
+    #[case("sqlite3")]
+    #[case("tlv")]
+    #[case("yaml")]
+    #[case("zstd")]
+    #[case("cose")]
+    #[case("cwt")]
+    #[case("sd-jwt")]
+    #[case("sd-cwt")]
+    #[case("csv")]
+    #[case("uper")]
+    #[case("jer")]
+    fn the_default_list_carries_the_registered_suffix(#[case] name: &str) {
+        assert!(
+            shipped_default_suffixes().iter().any(|s| s == name),
+            "`+{}` is in the registry the list names and is not on it",
+            name
+        );
+    }
+
+    /// The other half of the same claim, and the half a list can only get
+    /// wrong by growing. `exi` is the recorded case: a registered HTTP
+    /// *content coding*, copied here from the neighbouring registry, which
+    /// silenced the finding this rule exists to make for `+exi`.
+    #[rstest]
+    #[case("exi")]
+    #[case("br")]
+    #[case("deflate")]
+    #[case("identity")]
+    #[case("pack200-gzip")]
+    fn the_default_list_omits_the_name_that_is_not_a_suffix(#[case] name: &str) {
+        assert!(
+            !shipped_default_suffixes().iter().any(|s| s == name),
+            "`{}` is not in the Structured Syntax Suffix registry and is on the list",
+            name
+        );
+    }
+
+    /// The array is only a claim until the rule reads it. Judged through the
+    /// shipped default rather than a hand-built one: a registered suffix draws
+    /// nothing, and a name no registry holds still draws the finding — which
+    /// is the direction widening a list can break.
+    #[rstest]
+    #[case("application/epub+zip", false)]
+    #[case("application/senml+cbor", false)]
+    #[case("application/vnd.oai.openapi+yaml", false)]
+    #[case("application/oauth-authz-req+jwt", false)]
+    #[case("application/vnd.example+json-seq", false)]
+    #[case("application/ld+json", false)]
+    #[case("application/vnd.example+exi", true)]
+    #[case("application/vnd.example+nope", true)]
+    fn the_shipped_default_judges_the_content_type(#[case] value: &str, #[case] reported: bool) {
+        let rule = MediaTypeSuffixValid;
+        let mut cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["media_type_suffix_valid"]);
+        let example: toml::Table =
+            toml::from_str(rule.config_example()).expect("the shipped config example is TOML");
+        cfg.rules.insert(
+            "media_type_suffix_valid".into(),
+            toml::Value::Table(example),
+        );
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", value)],
+        );
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.as_ref()
+                .is_some_and(|v| v.violation == "media_type_suffix_unregistered"),
+            reported,
+            "{value} -> {v:?}"
+        );
+    }
+
+    /// The count, so a name added without reading the registry fails here
+    /// rather than passing both halves above.
+    #[test]
+    fn the_default_list_is_the_whole_registry() {
+        let got = shipped_default_suffixes();
+        assert_eq!(
+            got.len(),
+            24,
+            "the registry held 24 names when this was read; got {got:?}"
+        );
+        let mut sorted = got.clone();
+        sorted.sort();
+        assert_eq!(got, sorted, "the list is kept sorted so a diff is readable");
+    }
 
     /// **Every media type the request offered is answered.** `Accept` is a list
     /// and each member is a type the sender named on its own terms, so two

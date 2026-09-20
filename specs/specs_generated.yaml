@@ -3848,7 +3848,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1673
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 203
+      line: 228
   - label: link_header_valid (2)
     section: § 4.2
     snippet: restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT
@@ -3856,7 +3856,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1674
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 217
+      line: 242
     - file: lint-http-rules/src/violations/media_type.rs
       line: 188
   - label: link_header_valid (3)
@@ -3872,7 +3872,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1677
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 211
+      line: 236
     - file: lint-http-rules/src/violations/media_type.rs
       line: 163
   - label: link_header_valid (5)
@@ -3892,7 +3892,7 @@ sources:
     snippet: '"+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions.'
     cited_by:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 253
+      line: 278
     - file: lint-http-rules/src/violations/media_type.rs
       line: 218
   - label: media_type_suffix_valid (2)
@@ -3900,7 +3900,7 @@ sources:
     snippet: By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ.
     cited_by:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 254
+      line: 279
 - label: RFC 7231
   url: https://www.rfc-editor.org/rfc/rfc7231.html
   fragments:
@@ -6411,7 +6411,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 118
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 107
+      line: 121
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 112
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
@@ -8397,7 +8397,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 265
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 275
+      line: 300
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 203
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
@@ -8665,9 +8665,9 @@ sources:
     - file: lint-http-rules/src/rules/content_type_registered.rs
       line: 167
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 62
+      line: 76
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 226
+      line: 251
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 258
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -8695,7 +8695,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 160
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 187
+      line: 212
     - file: lint-http-rules/src/violations/media_type.rs
       line: 74
     - file: lint-http-rules/src/violations/media_type.rs

@@ -32,14 +32,28 @@ Flags media types — in `Content-Type` on either side of a transaction, or in a
 ```toml
 [rules.media_type_suffix_valid]
 enabled = true
-# Six names from IANA's Structured Syntax Suffix registry. The list used to
-# hold "exi" as a seventh -- a name that registry has never held: "exi" is a
-# registered HTTP *content coding* (W3C EXI), and it had been copied here from
-# the neighbouring registry, silencing exactly the finding this rule exists to
-# make for "+exi". As with every allowed list, the registry is not consulted
-# at lint time; this array stands in for it, so its contents have to be read
-# against the registry they name.
-allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
+# Every name in IANA's Structured Syntax Suffix registry, read off the
+# registry's own CSV rather than recalled -- a list that names a criterion is a
+# claim about a set, and this one shipped six of the twenty-four. `+zip` has
+# been registered since RFC 6839 and `application/epub+zip` is older than the
+# registry itself, so the six-name list told an EPUB server that its suffix
+# names a structured syntax nobody had registered, which is the opposite of the
+# sentence the finding cites.
+#
+# The list also used to hold "exi" -- a name that registry has never held:
+# "exi" is a registered HTTP *content coding* (W3C EXI), and it had been copied
+# here from the neighbouring registry, silencing exactly the finding this rule
+# exists to make for "+exi". Registry membership bounds this array in both
+# directions.
+#
+# As with every allowed list, the registry is not consulted at lint time; this
+# array stands in for it. So a suffix registered after this release reports
+# until it is added here, and a deployment that serves one structured syntax
+# may narrow the array to it.
+allowed = ["ber", "cbor", "cbor-seq", "cose", "csv", "cwt", "der",
+    "fastinfoset", "gzip", "jer", "json", "json-seq", "jws", "jwt",
+    "sd-cwt", "sd-jwt", "sqlite3", "tlv", "uper", "wbxml", "xml", "yaml",
+    "zip", "zstd"]
 ```
 
 ## Examples
@@ -56,6 +70,14 @@ Content-Type: application/ld+json
 ```http
 HTTP/1.1 200 OK
 Content-Type: image/svg+xml
+```
+
+### ✅ Good (+zip — a registered suffix outside the two common ones)
+
+```http
+GET / HTTP/1.1
+Host: example.com
+Accept: application/epub+zip
 ```
 
 ### ✅ Good (Accept member)
