@@ -7091,6 +7091,8 @@ sources:
       line: 256
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 226
+    - file: lint-http-rules/src/rules/private_cache_visibility.rs
+      line: 111
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 62
     - file: lint-http-rules/src/violations/cache_control.rs
@@ -11785,9 +11787,11 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 171
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
-      line: 140
+      line: 154
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
-      line: 162
+      line: 176
+    - file: lint-http-rules/src/rules/private_cache_visibility.rs
+      line: 208
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 763
   - label: caching_directive_interaction (3)
@@ -12169,7 +12173,7 @@ sources:
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 225
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
-      line: 98
+      line: 110
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
       line: 148
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs

@@ -75,6 +75,11 @@ impl RuleMeta for PrivateCacheVisibility {
                 snippet: "> GET /secret HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: private\n< ETag: \"s1\"\n\n# later, a different client sends a conditional request using that ETag\n> GET /secret HTTP/1.1\n> Host: example.com\n> If-None-Match: \"s1\"   # value originated in private response for another client",
             },
             Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— another client resumes a download with that validator"),
+                snippet: "> GET /secret HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: private\n< ETag: \"s1\"\n< Accept-Ranges: bytes\n\n# later, a different client resumes using that ETag\n> GET /secret HTTP/1.1\n> Host: example.com\n> Range: bytes=0-9\n> If-Range: \"s1\"   # value originated in private response for another client",
+            },
+            Example {
                 compliance: Compliance::Compliant,
                 label: Some("— only same client reuses the validator"),
                 snippet: "> GET /secret HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: private\n< ETag: \"s1\"\n\n# the same client later revalidates\n> GET /secret HTTP/1.1\n> Host: example.com\n> If-None-Match: \"s1\"   # acceptable, private cache may retain its own entry",
@@ -95,10 +100,19 @@ impl Rule for PrivateCacheVisibility {
         let finding = || -> Option<Violation> {
             // Only conditional requests are evidence: a precondition header carries a validator a
             // client could only have from a prior response.
+            //
+            // `If-Range` is a third such field and carries the same two kinds of
+            // validator — § 13.1.5 writes it as `entity-tag / HTTP-date` — so a
+            // second client resuming a download shows a leaked tag exactly as
+            // `If-None-Match` does. The evidence this entry rests on is the
+            // validator arriving at a client that was never handed it, and the
+            // field it arrives in is not part of that.
             // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
+            // cite(RFC 9110 § 13.1.5): "If-Range = entity-tag / HTTP-date"
             let has_if_none_match = tx.request.headers.contains_key("if-none-match");
             let has_if_modified_since = tx.request.headers.contains_key("if-modified-since");
-            if !has_if_none_match && !has_if_modified_since {
+            let has_if_range = tx.request.headers.contains_key("if-range");
+            if !has_if_none_match && !has_if_modified_since && !has_if_range {
                 return None;
             }
 
@@ -173,6 +187,41 @@ impl Rule for PrivateCacheVisibility {
                     continue;
                 };
                 if private_last_modified.contains(&candidate_dt) {
+                    return Some(ctx.report_with(
+                        &CACHE_CONTROL_PRIVATE_IGNORED,
+                        format!(
+                            "Validator '{}' from a private response seen by a different client",
+                            candidate
+                        ),
+                    ));
+                }
+            }
+
+            // The same heuristic and cite once more, for § 13.1.5's single value.
+            // It is `entity-tag / HTTP-date`, and the alternative is settled by
+            // asking each list rather than by transcribing § 13.1.5's
+            // first-three-characters test a second time: a date normalizes to no
+            // entity tag we handed out and an entity tag parses as no date, so
+            // the value can answer at most one of the two and the question
+            // asked is the one this entry is about — was this validator handed
+            // to somebody else.
+            // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
+            // Walked rather than read once: `If-Range` is a singleton, but a
+            // sender that repeats it has written a second value, and the leak
+            // this entry is about may be the one on the second line.
+            for candidate in tx
+                .request
+                .headers
+                .get_all("if-range")
+                .iter()
+                .filter_map(|hv| hv.to_str().ok())
+                .map(str::trim)
+            {
+                let leaked_tag =
+                    private_etags.contains(&crate::helpers::validator::normalize_etag(candidate));
+                let leaked_date = crate::http_date::parse_http_date_to_datetime(candidate)
+                    .is_ok_and(|dt| private_last_modified.contains(&dt));
+                if leaked_tag || leaked_date {
                     return Some(ctx.report_with(
                         &CACHE_CONTROL_PRIVATE_IGNORED,
                         format!(
@@ -275,6 +324,59 @@ mod tests {
             ]),
         )
         .is_none());
+    }
+
+    /// § 13.1.5's field carries the same two validators, so a second client
+    /// resuming a download shows a leaked one exactly as `If-None-Match` does.
+    /// Both kinds are here, and so is the value nobody was handed: the entry is
+    /// about the validator having reached a client that was never given it, not
+    /// about the field it arrived in.
+    #[rstest::rstest]
+    #[case(Some("\"a\""), None, "\"a\"", true)]
+    #[case(
+        None,
+        Some("Sun, 06 Nov 1994 08:49:37 GMT"),
+        "Sun, 06 Nov 1994 08:49:37 GMT",
+        true
+    )]
+    #[case(Some("\"a\""), None, "\"b\"", false)]
+    #[case(
+        None,
+        Some("Sun, 06 Nov 1994 08:49:37 GMT"),
+        "Mon, 07 Nov 1994 08:49:37 GMT",
+        false
+    )]
+    fn a_leak_carried_in_if_range_is_the_same_leak(
+        #[case] etag: Option<&str>,
+        #[case] last_mod: Option<&str>,
+        #[case] if_range: &str,
+        #[case] reports: bool,
+    ) {
+        let rule = PrivateCacheVisibility;
+        let ts = Utc::now();
+        let client1 = crate::test_helpers::make_test_client();
+        let mut client2 = client1.clone();
+        client2.user_agent = "other".to_string();
+
+        let prev = make_prev(client2, Some("private"), etag, last_mod, ts);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client1;
+        tx.request
+            .headers
+            .append("range", "bytes=0-9".parse().unwrap());
+        tx.request
+            .headers
+            .append("if-range", if_range.parse().unwrap());
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "private_cache_visibility",
+            ]),
+        );
+        assert_eq!(v.is_some(), reports, "If-Range {if_range}: {v:?}");
     }
 
     #[test]

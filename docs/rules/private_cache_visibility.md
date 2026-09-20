@@ -47,6 +47,24 @@ enabled = true
 > If-None-Match: "s1"   # value originated in private response for another client
 ```
 
+### ❌ Bad — another client resumes a download with that validator
+
+```http
+> GET /secret HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: private
+< ETag: "s1"
+< Accept-Ranges: bytes
+
+# later, a different client resumes using that ETag
+> GET /secret HTTP/1.1
+> Host: example.com
+> Range: bytes=0-9
+> If-Range: "s1"   # value originated in private response for another client
+```
+
 ### ✅ Good — only same client reuses the validator
 
 ```http
