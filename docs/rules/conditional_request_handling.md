@@ -8,7 +8,9 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are not reported at all — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send. Also flag obvious cases where a server returns a `200` for a conditional `GET`/`HEAD` when the validator clearly matches (the server should return `304 Not Modified`).
+Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are never reported *as an unaccounted validator* — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send.
+
+**And flag a conditional `GET` or `HEAD` whose condition was false and was answered `200` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/"abc"` against an `ETag: "abc"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `200` that carried a representation, whether or not that response also carried a validator.
 
 ## Violations
 
@@ -87,6 +89,36 @@ enabled = true
 
 < 200 OK  HTTP/1.1
 < ETag: "abc"
+```
+
+### ❌ Bad — one weakness indicator apart is still a match under §13.1.2's weak comparison
+
+```http
+> GET /resource HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: W/"abc"
+
+> GET /resource HTTP/1.1
+> If-None-Match: W/"abc"
+
+< 200 OK  HTTP/1.1
+< ETag: "abc"
+```
+
+### ❌ Bad — `*` asks whether a representation is current, and this 200 is one
+
+```http
+> GET /resource HTTP/1.1
+
+< 200 OK  HTTP/1.1
+< ETag: "abc"
+
+> GET /resource HTTP/1.1
+> If-None-Match: *
+
+< 200 OK  HTTP/1.1
+< Content-Type: text/html
 ```
 
 ### ✅ Good — the tag the PUT conditioned on was the current one, so the method was performed

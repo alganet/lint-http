@@ -6792,7 +6792,7 @@ sources:
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 481
+      line: 497
     - file: lint-http-rules/src/violations/status.rs
       line: 725
   - label: conditional_request_handling (4)
@@ -6801,6 +6801,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 246
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 498
   - label: conditional_request_handling (5)
     section: § 13.1.2
     snippet: If the field value is a list of entity tags, the condition is false if one of the listed tags matches the entity tag of the selected representation.
@@ -6818,7 +6820,7 @@ sources:
     snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 510
+      line: 552
   - label: conditional_request_handling (8)
     section: § 13.1.4
     snippet: A recipient MUST ignore the If-Unmodified-Since header field if the resource does not have a modification date available.
@@ -6848,7 +6850,7 @@ sources:
     snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 511
+      line: 553
   - label: conditional_request_handling (13)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if both are not weak and their opaque-tags match character-by-character.
@@ -9147,6 +9149,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 40
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 499
   - label: lint-http-rules/src/helpers/validator.rs
     section: § 13.1.2
     snippet: 'If-None-Match = "*" / #entity-tag'

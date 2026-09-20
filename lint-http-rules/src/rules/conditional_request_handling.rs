@@ -475,10 +475,28 @@ impl ConditionalRequestHandling {
     /// A GET or HEAD whose `If-None-Match` condition is false is answered with
     /// 304, not 200.
     ///
-    /// The members are compared exactly rather than by the weak comparison
-    /// § 8.8.3.2 mandates: a deliberate narrowing that only ever under-flags,
-    /// since an exact match is also a weak match.
+    /// **The condition is evaluated by § 13.1.2's own two rules, and by the
+    /// readers the rest of this file already uses for them.** The list is read
+    /// through [`listed_tags`], which splits on the commas *between* members
+    /// and not on the ones a `etagc` admits inside a tag, and each member is
+    /// compared through [`crate::helpers::validator::inm_matches_known`], which
+    /// is the weak comparison the section mandates. Both stood here as a second
+    /// hand copy — a naive comma split and a byte-for-byte `==` — described as
+    /// a narrowing that only ever under-flags. It did under-flag, and what it
+    /// under-flagged was the ordinary case: `If-None-Match: W/"abc"` against an
+    /// `ETag: "abc"` is a weak match, so the condition was false and the `200`
+    /// was owed as a `304`, and one `W/` added or dropped anywhere in a CDN
+    /// made the whole check silent.
+    ///
+    /// **`*` is not compared against anything, which is why it is answered
+    /// first.** It asks whether the origin holds a current representation, and
+    /// a `200` to a `GET` or `HEAD` *is* one — whatever fields it carries. The
+    /// reading that stood here asked for an `ETag` before it looked at the
+    /// members at all, so `If-None-Match: *` answered `200` with no validator,
+    /// the one shape the `*` form exists for, was the one it could not see.
     // cite(RFC 9110 § 13.1.2): "An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods."
+    // cite(RFC 9110 § 13.1.2): "If the field value is "*", the condition is false if the origin server has a current representation for the target resource."
+    // cite(RFC 9110 § 13.1.2, label: If-None-Match weak comparison at the 304 site): "A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match"
     fn if_none_match_was_evaluated(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -492,13 +510,37 @@ impl ConditionalRequestHandling {
         if resp.status != 200 {
             return None;
         }
-        let etag = crate::helpers::headers::get_header_str(&resp.headers, "etag")?.trim();
-        let condition_was_false =
-            crate::helpers::headers::field_lines(&tx.request.headers, "if-none-match")
-                .flat_map(crate::helpers::list::list_members)
-                .any(|member| member == etag || member == "*");
+        let method = tx.request.method.as_str();
+        let listed = listed_tags(&tx.request.headers, "if-none-match");
 
-        condition_was_false.then(|| ctx.by_server().report_with(&STATUS_304_MISSING, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 \u{a7}13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()))
+        if listed.iter().any(|tag| tag == "*") {
+            return Some(ctx.by_server().report_with(
+                &STATUS_304_MISSING,
+                format!(
+                    "{method} carried If-None-Match: *, and the server answered 200 with a \
+                     representation, so the condition was false; RFC 9110 \u{a7}13.1.2 requires \
+                     a 304 (Not Modified) for GET or HEAD"
+                ),
+            ));
+        }
+
+        // Read as written: `etagc` admits `obs-text`, so a decode that refuses
+        // an octet at or above %x80 answers "the response offered no validator"
+        // about a response that offered a legal one.
+        let etag = crate::helpers::validator::extract_validators_from_response(&resp.headers).0?;
+        let matched = listed
+            .iter()
+            .find(|tag| crate::helpers::validator::inm_matches_known(tag, &etag))?;
+
+        Some(ctx.by_server().report_with(
+            &STATUS_304_MISSING,
+            format!(
+                "{method} carried If-None-Match: {matched}, which weakly matches the response's \
+                 ETag {etag}, so the condition was false; the server answered 200 with the whole \
+                 representation where RFC 9110 \u{a7}13.1.2 requires a 304 (Not Modified) for \
+                 GET or HEAD"
+            ),
+        ))
     }
 
     /// A GET or HEAD whose `If-Modified-Since` condition is false should be
@@ -631,7 +673,7 @@ impl RuleMeta for ConditionalRequestHandling {
     }
 
     fn description(&self) -> &'static str {
-        "Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are not reported at all — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send. Also flag obvious cases where a server returns a `200` for a conditional `GET`/`HEAD` when the validator clearly matches (the server should return `304 Not Modified`)."
+        "Warn when a conditional request names a validator (ETag / Last-Modified) that no response for the same resource and client ever carried. **The question is about the value, not about the response that happened to arrive last**: a tag an earlier response handed out is accounted for however many validator-less responses have followed it, and a tag no response ever carried is unaccounted for however recently some *other* tag was sent. `If-None-Match: *` and `If-Match: *` are never reported *as an unaccounted validator* — `*` is an existence condition, names no validator, and is a legitimate thing for a client holding nothing to send.\n\n**And flag a conditional `GET` or `HEAD` whose condition was false and was answered `200` anyway** (RFC 9110 §13.1.2 and §13.1.3 owe a `304 (Not Modified)` there). The condition is evaluated the way each section says: entity tags by the **weak** comparison §13.1.2 mandates, so `If-None-Match: W/\"abc\"` against an `ETag: \"abc\"` is a match and one `W/` added or dropped in a CDN does not make the check silent; a list is split on the commas between its members and not on the ones an `etagc` admits inside a tag; and `If-None-Match: *` is false against any `200` that carried a representation, whether or not that response also carried a validator."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -684,6 +726,20 @@ impl RuleMeta for ConditionalRequestHandling {
                 compliance: Compliance::NonCompliant,
                 label: Some("— the condition was not met, so the response owed is 304 and not a second copy"),
                 snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— one weakness indicator apart is still a match under §13.1.2's weak comparison",
+                ),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: W/\"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: W/\"abc\"\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— `*` asks whether a representation is current, and this 200 is one",
+                ),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n\n> GET /resource HTTP/1.1\n> If-None-Match: *\n\n< 200 OK  HTTP/1.1\n< Content-Type: text/html",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -1101,6 +1157,126 @@ mod tests {
             ]),
         );
         assert!(v2.is_none());
+    }
+
+    /// The exchange the four cases below share: a `GET` conditioned on
+    /// `inm`, answered `200` with `etag`, after a `200` that offered `etag` so
+    /// the validator was one the client was given.
+    fn conditional_get(inm: &str, etag: &[(&str, &str)]) -> Vec<crate::lint::Violation> {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, etag);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", inm)]);
+        tx.request.method = "GET".to_string();
+        crate::test_helpers::run_rule_all(
+            &ConditionalRequestHandling,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![
+                make_prev_with_headers(etag),
+            ]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        )
+    }
+
+    /// § 13.1.2 mandates the **weak** comparison, under which a `W/` on either
+    /// side changes nothing — so all four spellings of one tag are one false
+    /// condition and one `304` that was owed. The two mixed rows are the ones a
+    /// byte-for-byte `==` could not see, and they are what a CDN adding or
+    /// dropping the weakness indicator produces.
+    #[rstest]
+    #[case::both_strong("\"a\"", "\"a\"")]
+    #[case::both_weak("W/\"a\"", "W/\"a\"")]
+    #[case::weak_request_strong_response("W/\"a\"", "\"a\"")]
+    #[case::strong_request_weak_response("\"a\"", "W/\"a\"")]
+    fn a_weak_match_is_a_false_condition(#[case] inm: &str, #[case] etag: &str) {
+        let found = conditional_get(inm, &[("etag", etag)]);
+        assert_eq!(found.len(), 1, "{inm} against {etag}");
+        assert_eq!(found[0].violation, "status_304_missing");
+        assert!(
+            found[0].message.contains("304"),
+            "the finding names the status that was owed"
+        );
+    }
+
+    /// The other direction: a tag that is not this representation's leaves the
+    /// condition true, and a `200` is the answer § 13.1.2 asks for. Such a
+    /// request still draws `conditional_validator_missing` from the arm above,
+    /// because the tag it names is one no response for this resource carried —
+    /// so the assertion is about this entry rather than about silence.
+    #[rstest]
+    #[case::another_tag("\"b\"")]
+    #[case::a_weak_form_of_another_tag("W/\"b\"")]
+    fn a_tag_that_does_not_match_leaves_the_condition_true(#[case] inm: &str) {
+        let found = conditional_get(inm, &[("etag", "\"a\"")]);
+        assert!(
+            !found.iter().any(|v| v.violation == "status_304_missing"),
+            "{inm}: {:?}",
+            found.iter().map(|v| &v.violation).collect::<Vec<_>>()
+        );
+    }
+
+    /// A comma is an `etagc`, so a tag carrying one is a single member and the
+    /// list is split on the commas *between* members. A reader that split on
+    /// every comma made two tags out of one and matched neither.
+    #[test]
+    fn a_comma_inside_a_tag_does_not_split_the_list() {
+        let found = conditional_get("\"a,b\"", &[("etag", "\"a,b\"")]);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].violation, "status_304_missing");
+    }
+
+    /// `*` asks whether the origin holds a current representation, and a `200`
+    /// to a `GET` is one whether or not it carries a validator — which is the
+    /// shape the `*` form exists for and the one a check that demanded an
+    /// `ETag` first could never reach.
+    #[test]
+    fn a_star_condition_is_false_against_a_200_with_no_validator() {
+        let found = conditional_get("*", &[("content-type", "text/html")]);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].violation, "status_304_missing");
+    }
+
+    /// An entity tag may carry `obs-text`, so the response's validator is read
+    /// as the octets the origin wrote. A decode that refused them answered
+    /// *this response offered no validator* about one that did.
+    #[test]
+    fn an_obs_text_octet_in_the_etag_is_still_a_validator() {
+        use hyper::header::{HeaderName, HeaderValue};
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers.insert(
+            HeaderName::from_static("etag"),
+            HeaderValue::from_bytes(b"\"a\xe9\"").expect("obs-text is a legal field value"),
+        );
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        tx.request.headers.insert(
+            HeaderName::from_static("if-none-match"),
+            HeaderValue::from_bytes(b"\"a\xe9\"").expect("obs-text is a legal field value"),
+        );
+        tx.request.method = "GET".to_string();
+
+        let mut prev = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        prev.request.method = "GET".to_string();
+        prev.response.as_mut().expect("a response").headers.insert(
+            HeaderName::from_static("etag"),
+            HeaderValue::from_bytes(b"\"a\xe9\"").expect("obs-text is a legal field value"),
+        );
+
+        let found = crate::test_helpers::run_rule_all(
+            &ConditionalRequestHandling,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "conditional_request_handling",
+            ]),
+        );
+        assert_eq!(
+            found
+                .iter()
+                .filter(|v| v.violation == "status_304_missing")
+                .count(),
+            1
+        );
     }
 
     #[test]
