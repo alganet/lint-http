@@ -2801,7 +2801,7 @@ sources:
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 185
     - file: lint-http-rules/src/violations/method.rs
-      line: 343
+      line: 396
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
@@ -6013,6 +6013,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 118
+    - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
+      line: 131
   - label: accept_encoding_present (5)
     section: § 9.3.6
     snippet: The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed.
@@ -6094,7 +6096,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 283
     - file: lint-http-rules/src/violations/method.rs
-      line: 305
+      line: 358
   - label: accept_patch_header_valid (2)
     section: § 15.5.16
     snippet: If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used
@@ -6139,6 +6141,8 @@ sources:
       line: 265
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 429
+    - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
+      line: 122
     - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
       line: 257
     - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
@@ -6184,7 +6188,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 174
     - file: lint-http-rules/src/violations/method.rs
-      line: 508
+      line: 561
   - label: accept_patch_header_valid (7)
     section: § 9.3.7
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
@@ -6378,7 +6382,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 54
     - file: lint-http-rules/src/violations/method.rs
-      line: 306
+      line: 359
   - label: request-target fragment
     section: § 2.2
     snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
@@ -6907,6 +6911,20 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
       line: 194
+  - label: connect_response_framing_valid
+    section: § 5.3
+    snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma
+    cited_by:
+    - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
+      line: 144
+  - label: connect_response_framing_valid (2)
+    section: § 9.3.6
+    snippet: A server MUST NOT send any Transfer-Encoding or Content-Length header fields in a 2xx (Successful) response to CONNECT.
+    cited_by:
+    - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
+      line: 69
+    - file: lint-http-rules/src/violations/method.rs
+      line: 256
   - label: connection_header_tokens_valid
     section: § 5.6.2
     snippet: Tokens are short textual identifiers that do not include whitespace or delimiters.
@@ -7120,7 +7138,7 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 178
     - file: lint-http-rules/src/violations/method.rs
-      line: 469
+      line: 522
   - label: content_type_valid
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -7462,11 +7480,11 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 185
     - file: lint-http-rules/src/violations/method.rs
-      line: 392
+      line: 445
     - file: lint-http-rules/src/violations/method.rs
-      line: 404
+      line: 457
     - file: lint-http-rules/src/violations/method.rs
-      line: 434
+      line: 487
   - label: head_response_headers_match_get (5)
     section: § 8.8
     snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
@@ -7512,7 +7530,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 158
     - file: lint-http-rules/src/violations/method.rs
-      line: 361
+      line: 414
   - label: field-name grammar
     section: § A
     snippet: field-name = token field-value = *field-content
@@ -9506,7 +9524,13 @@ sources:
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created
     cited_by:
     - file: lint-http-rules/src/violations/method.rs
-      line: 325
+      line: 378
+  - label: method (2)
+    section: § 9.3.6
+    snippet: A client MUST ignore any Content-Length or Transfer-Encoding header fields received in a successful response to CONNECT.
+    cited_by:
+    - file: lint-http-rules/src/violations/method.rs
+      line: 257
   - label: multipart_boundary_syntax
     section: § 5.6.6
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
@@ -9646,7 +9670,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 271
     - file: lint-http-rules/src/violations/method.rs
-      line: 241
+      line: 294
   - label: options_method_capabilities (4)
     section: § 9.3.7
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
@@ -9656,7 +9680,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 319
     - file: lint-http-rules/src/violations/method.rs
-      line: 263
+      line: 316
   - label: options_method_capabilities (5)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
@@ -10202,7 +10226,7 @@ sources:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 316
     - file: lint-http-rules/src/violations/method.rs
-      line: 509
+      line: 562
   - label: request_method_token_valid (3)
     section: § 9.1
     snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
@@ -10844,7 +10868,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 205
     - file: lint-http-rules/src/violations/method.rs
-      line: 224
+      line: 277
   - label: trace_method_echo (3)
     section: § 9.3.8
     snippet: A client MUST NOT send content in a TRACE request.
@@ -11830,7 +11854,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 141
     - file: lint-http-rules/src/violations/method.rs
-      line: 470
+      line: 523
   - label: chunked last, unconditionally
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.

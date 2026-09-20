@@ -255,6 +255,11 @@ enabled = true
 [rules.conditional_request_handling]
 enabled = true
 
+[rules.connect_response_framing_valid]
+enabled = true
+# Nothing to configure. The sentence names the two fields and the status class,
+# and neither is a deployment's choice.
+
 [rules.connection_header_tokens_valid]
 enabled = true
 
@@ -2365,6 +2370,11 @@ severity = "warn"
 [violations.method_connect_content_forbidden]
 # A CONNECT request declares content its definition has no room for
 severity = "warn"
+
+[violations.method_connect_framing_forbidden]
+# A successful response to CONNECT frames a body the tunnel leaves no room for
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.method_content_forbidden]
 # A GET, HEAD or DELETE request carries content

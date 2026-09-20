@@ -211,6 +211,59 @@ defects! {
         spec: &[RFC_9110_9_3_6],
     }
 
+    /// A `2xx` answering a `CONNECT` that carries `Content-Length` or
+    /// `Transfer-Encoding`.
+    ///
+    /// **The response half of the pair the entry above opens, and § 9.3.6
+    /// states both.** One sentence says a CONNECT request message does not have
+    /// content; four paragraphs down another says a server may not frame the
+    /// successful answer to one. The request half had a reader and this did
+    /// not, which is the shape of a section quoted for one of its requirements.
+    ///
+    /// **What the fields would be framing is the tunnel.** A `2xx` to CONNECT
+    /// ends at its header section and everything after it belongs to the
+    /// tunnelled connection — so a recipient that honours a `Content-Length`
+    /// here reads that many octets of somebody else's protocol as content, and
+    /// whatever follows as the start of a new message. That is why the
+    /// prohibition is on the field's presence and not on a wrong value: there
+    /// is no length the number could correctly state.
+    ///
+    /// **The next sentence is the repair and not a licence.** § 9.3.6 goes on
+    /// to have a client ignore either field received in a successful response
+    /// to CONNECT, and RFC 9112 § 6.3 says the same in its own list — which is
+    /// what makes a length disagreement here unmeasurable and is why
+    /// `response_body_length_accuracy` declines on exactly this shape. A
+    /// recipient told to ignore something is not a sender permitted to send it,
+    /// and the sender's sentence is this entry's.
+    ///
+    /// **One entry over two fields, where the bodyless statuses get two.**
+    /// [`STATUS_CONTENT_LENGTH_FORBIDDEN`](crate::violations::status::STATUS_CONTENT_LENGTH_FORBIDDEN)
+    /// and its `Transfer-Encoding` sibling are separate because they rest on
+    /// separate sentences, in separate documents; here one MUST NOT names both
+    /// fields for one reason, so one entry states it and the message says which
+    /// field was seen — the shape
+    /// [`METHOD_TRACE_DISCLOSURE_FORBIDDEN`] already has. A response carrying
+    /// both is two lines to delete and draws the entry twice, once per field.
+    ///
+    /// **`2xx` is the whole of the antecedent.** A CONNECT refused with a `4xx`
+    /// or a `5xx` establishes no tunnel, so its framing is ordinary and the
+    /// content explaining the refusal needs a length like any other. The
+    /// sentence says `2xx` and the reading stops there.
+    ///
+    /// `error`, off the keyword: a MUST NOT binding the server that generated
+    /// the response, and the repair is the sender's alone.
+    ///
+    // cite(RFC 9110 § 9.3.6): "A server MUST NOT send any Transfer-Encoding or Content-Length header fields in a 2xx (Successful) response to CONNECT."
+    // cite(RFC 9110 § 9.3.6): "A client MUST ignore any Content-Length or Transfer-Encoding header fields received in a successful response to CONNECT."
+    METHOD_CONNECT_FRAMING_FORBIDDEN = {
+        id: "method_connect_framing_forbidden",
+        title: "A successful response to CONNECT frames a body the tunnel leaves no room for",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_9_3_6],
+        strength: Strength::Must,
+    }
+
     /// A field carrying sensitive data on a `TRACE` request — credentials or
     /// cookies, which are the example § 9.3.8 gives.
     ///

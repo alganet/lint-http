@@ -320,6 +320,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [media_type_wildcard_forbidden](violations/media_type_wildcard_forbidden.md) — A media range is written where one media type belongs
 - [method_case_invalid](violations/method_case_invalid.md) — A method is a standardized name written in another case
 - [method_connect_content_forbidden](violations/method_connect_content_forbidden.md) — A CONNECT request declares content its definition has no room for
+- [method_connect_framing_forbidden](violations/method_connect_framing_forbidden.md) — A successful response to CONNECT frames a body the tunnel leaves no room for
 - [method_content_forbidden](violations/method_content_forbidden.md) — A GET, HEAD or DELETE request carries content
 - [method_head_conflicting](violations/method_head_conflicting.md) — A HEAD response disagrees with the GET it stands in for
 - [method_head_content_forbidden](violations/method_head_content_forbidden.md) — A response to HEAD carries content octets
