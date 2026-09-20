@@ -38,4 +38,5 @@ severity = "error"
 - [date_and_time_headers_consistent](../rules/date_and_time_headers_consistent.md)
 - [expires_date_syntax](../rules/expires_date_syntax.md)
 - [last_modified_rfc1123_syntax](../rules/last_modified_rfc1123_syntax.md)
+- [retry_after_date_or_delay](../rules/retry_after_date_or_delay.md)
 - [warning_header_syntax](../rules/warning_header_syntax.md)

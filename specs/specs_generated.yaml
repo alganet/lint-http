@@ -6917,7 +6917,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 62
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
-      line: 84
+      line: 115
     - file: lint-http-rules/src/rules/retry_after_status_valid.rs
       line: 172
     - file: lint-http-rules/src/violations/retry_after.rs
@@ -7488,6 +7488,8 @@ sources:
       line: 126
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 129
+    - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
+      line: 198
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 775
     - file: lint-http-rules/src/violations/http_date.rs
@@ -8307,7 +8309,7 @@ sources:
     - file: lint-http-rules/src/rules/host_header.rs
       line: 195
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
-      line: 91
+      line: 122
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
       line: 115
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
@@ -9973,13 +9975,13 @@ sources:
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
-      line: 122
+      line: 162
   - label: retry_after_date_or_delay (2)
     section: § 10.2.3
     snippet: Retry-After = HTTP-date / delay-seconds
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
-      line: 109
+      line: 140
     - file: lint-http-rules/src/violations/retry_after.rs
       line: 83
   - label: retry_after_status_valid

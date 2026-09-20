@@ -5,13 +5,33 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::http_date::{
+    http_date_defect, HTTP_DATE_DAY_NAME_CONFLICTING, HTTP_DATE_OBSOLETE, RFC_5322_3_3,
+    RFC_9110_5_6_7,
+};
 use crate::violations::retry_after::{RETRY_AFTER_MALFORMED, RFC_9110_10_2_3};
 use crate::violations::ViolationDef;
 
 /// § 5.3's repeated field line, which this rule reports for its own field.
 /// The sentence is the catalogue's; what stays here is the reading that says
 /// this field's definition has no comma-separated-list alternative.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED, &RETRY_AFTER_MALFORMED];
+///
+/// **The two shared timestamp entries are here because the field's grammar
+/// offers a date, and a date carries § 5.6.7 with it.** They are the two
+/// defects that leave the value a readable timestamp — an obsolete spelling and
+/// a weekday its own date does not fall on — and every other dated field
+/// already reports them. What is not declared is the rest of that list:
+/// `http_date_empty` and `http_date_malformed` would be claims about a
+/// timestamp where the sender may equally have been writing a `delay-seconds`,
+/// and `RETRY_AFTER_MALFORMED` is the disjunction's own defect and says the
+/// true thing about both. `http_date_whitespace_forbidden` is unreachable for
+/// § 5.5's reason, the value being `OWS`-trimmed before it is measured.
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &RETRY_AFTER_MALFORMED,
+    &HTTP_DATE_OBSOLETE,
+    &HTTP_DATE_DAY_NAME_CONFLICTING,
+];
 
 pub struct RetryAfterDateOrDelay;
 
@@ -34,11 +54,11 @@ impl RuleMeta for RetryAfterDateOrDelay {
     }
 
     fn description(&self) -> &'static str {
-        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date. This rule flags `Retry-After` values that do not match either form, and flags a repeated `Retry-After` field: the grammar takes a single value, and because the HTTP-date form contains a comma the values cannot be combined into a list. The HTTP-date is accepted in any of the three formats a recipient must parse; this rule does not additionally enforce the sender's IMF-fixdate obligation."
+        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date. This rule flags `Retry-After` values that do not match either form, and flags a repeated `Retry-After` field: the grammar takes a single value, and because the HTTP-date form contains a comma the values cannot be combined into a list. Where the value is a timestamp, the sender's obligation applies: RFC 9110 Section 5.6.7 requires an IMF-fixdate, so one of the two obsolete formats is reported as such, and a weekday its own date does not fall on is reported as such — both under the entries every other dated field reports them under. A value deriving from neither alternative remains this field's own defect."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_10_2_3, RFC_9110_5_3]
+        &[RFC_9110_10_2_3, RFC_9110_5_3, RFC_9110_5_6_7, RFC_5322_3_3]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -61,6 +81,17 @@ impl RuleMeta for RetryAfterDateOrDelay {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: tomorrow\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: -1",
+            },
+            // The timestamp half, which the two above cannot show: each of
+            // these IS an `HTTP-date` a recipient must accept, and each breaks
+            // a rule § 5.6.7 writes for the sender. The first is RFC 850, the
+            // second `asctime()`, and the third derives from `IMF-fixdate`
+            // exactly as written while naming a weekday — 06 November 1994 was
+            // a Sunday — that its own date does not fall on.
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a timestamp in a spelling a sender may not generate"),
+                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: Sunday, 06-Nov-94 08:49:37 GMT\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: Sun Nov  6 08:49:37 1994\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: Mon, 06 Nov 1994 08:49:37 GMT",
             },
         ]
     }
@@ -113,7 +144,16 @@ impl Rule for RetryAfterDateOrDelay {
                 // refuses is a line deriving from neither, which is the
                 // finding this rule already makes about such a value.
                 let s = crate::helpers::headers::field_line_as_written(val);
-                let s = s.trim();
+                // `trim_ows` and not `str::trim`. § 5.5 puts a field value's
+                // leading and trailing `OWS` outside the value, and `OWS` is
+                // `*( SP / HTAB )`; `str::trim` removes every character
+                // `char::is_whitespace` admits. On a value carrying one `char`
+                // per octet the two disagree by exactly %xA0 and %x85 — the
+                // `obs-text` octets that most look like a space, and the very
+                // class neither alternative admits. Trimming them handed the
+                // grammar a value the sender did not write and printed a
+                // finding naming octets short of what arrived.
+                let s = crate::helpers::headers::trim_ows(&s);
 
                 // The delay-seconds alternative is `1*DIGIT` — a non-negative decimal integer.
                 // Check digits-only directly rather than via `u64::parse`, which diverges from the
@@ -124,17 +164,65 @@ impl Rule for RetryAfterDateOrDelay {
                     continue;
                 }
 
-                // The HTTP-date alternative. `is_valid_http_date` owns the HTTP-date grammar
-                // (§5.6.7) and accepts all three formats; this rule does not enforce the §5.6.7
-                // sender-MUST IMF-fixdate strictness against the server (recorded in the tracker).
-                if crate::http_date::is_valid_http_date(s) {
-                    continue;
+                // The HTTP-date alternative, read by the sender's reader.
+                //
+                // **`is_valid_http_date` was the wrong question and it is a
+                // recipient's.** § 5.6.7 defines three formats and has a
+                // recipient accept all of them; that reader answers yes to all
+                // three, so an `obs-date` `Retry-After` passed here while the
+                // same spelling on a `Last-Modified` drew `http_date_obsolete`
+                // at `error`. `check_imf_fixdate` is the sender's, and it sorts
+                // the ways a timestamp fails instead of collapsing them into
+                // one bit.
+                //
+                // **Which of its answers belong to the field and which to the
+                // production is what an alternation has to decide.** A value
+                // deriving from no alternative at all breaks § 10.2.3's
+                // disjunction, and this rule's own entry is the true claim
+                // about it — a date entry there would name a production the
+                // value never claimed to derive from. A value that derives from
+                // `HTTP-date` and then breaks `HTTP-date`'s own rules for a
+                // *sender* is the production's defect wherever it is written,
+                // and the shared entries are what every other dated field
+                // reports it as.
+                //
+                // The two that cross are the two that leave the value a
+                // readable timestamp: an obsolete spelling is an `obs-date`, so
+                // `HTTP-date` admits it and only § 5.6.7's MUST forbids
+                // generating it; a weekday contradicting its own date derives
+                // from `IMF-fixdate` exactly as written and names one instant.
+                // `Empty` and `Unparsable` stay with the field, because neither
+                // is a timestamp the field could have meant — and
+                // `SurroundingWhitespace` cannot arrive, the value having been
+                // `OWS`-trimmed above before it was measured.
+                // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
+                match crate::http_date::check_imf_fixdate(s) {
+                    Ok(()) => continue,
+                    Err(
+                        defect @ (crate::http_date::HttpDateDefect::ObsoleteFormat
+                        | crate::http_date::HttpDateDefect::DayNameConflicting),
+                    ) => {
+                        return Some(ctx.report_with(
+                            http_date_defect(defect),
+                            format!(
+                                "Retry-After carries a timestamp {}: '{}'",
+                                match defect {
+                                    crate::http_date::HttpDateDefect::ObsoleteFormat =>
+                                        "in one of the two obsolete formats, where a sender must \
+                                         generate IMF-fixdate",
+                                    _ => "naming a weekday its own date does not fall on",
+                                },
+                                crate::helpers::shown::shown_in_finding(s)
+                            ),
+                        ));
+                    }
+                    Err(_) => {
+                        return Some(ctx.report_with(&RETRY_AFTER_MALFORMED, format!(
+                                "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
+                                crate::helpers::shown::shown_in_finding(s)
+                            )));
+                    }
                 }
-
-                return Some(ctx.report_with(&RETRY_AFTER_MALFORMED, format!(
-                        "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
-                        crate::helpers::shown::shown_in_finding(s)
-                    )));
             }
 
             None
@@ -186,6 +274,98 @@ mod tests {
             );
         }
         Ok(())
+    }
+
+    /// Which entry each value reaches, which is what the `bool` above cannot
+    /// say. The rule answered every one of these with "not a valid
+    /// `Retry-After`" and three of them are not that: two are `HTTP-date`s in a
+    /// spelling § 5.6.7 forbids a *sender* to generate, and one derives from
+    /// `IMF-fixdate` exactly as written.
+    ///
+    /// The last two rows are the boundary the alternation draws. `tomorrow`
+    /// derives from neither alternative, so the defect is § 10.2.3's own and a
+    /// date entry said there would name a production the value never claimed;
+    /// an empty line is a sender that wrote nothing, which is equally not a
+    /// timestamp this field could have meant.
+    #[rstest]
+    #[case("Sunday, 06-Nov-94 08:49:37 GMT", Some("http_date_obsolete"))]
+    #[case("Sun Nov  6 08:49:37 1994", Some("http_date_obsolete"))]
+    // 06 November 1994 was a Sunday.
+    #[case(
+        "Mon, 06 Nov 1994 08:49:37 GMT",
+        Some("http_date_day_name_conflicting")
+    )]
+    #[case("tomorrow", Some("retry_after_malformed"))]
+    #[case("", Some("retry_after_malformed"))]
+    #[case("Wed, 21 Oct 2015 07:28:00 GMT", None)]
+    #[case("120", None)]
+    fn the_timestamp_defects_the_field_does_not_own(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let rule = RetryAfterDateOrDelay;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            503,
+            &[("retry-after", value)],
+        );
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.map(|v| v.violation),
+            expected.map(str::to_owned),
+            "{value:?}"
+        );
+    }
+
+    /// The `OWS` a field value may carry is `*( SP / HTAB )` and nothing else.
+    /// `str::trim` was removing %xA0 as well — an `obs-text` octet no `token`
+    /// and no `HTTP-date` admits — so a value ending in one was judged, and
+    /// then *named*, as a value one octet shorter than the sender wrote.
+    #[test]
+    fn the_trim_is_ows_and_the_finding_names_every_octet() {
+        let rule = RetryAfterDateOrDelay;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            503,
+            &[("retry-after", "120\u{a0}")],
+        );
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("neither alternative admits an obs-text octet");
+        assert_eq!(v.violation, "retry_after_malformed");
+        // The two octets U+00A0 is written as, both still in the sentence: %xC2
+        // reads as a printable `obs-text` character and %xA0 is escaped, and
+        // before the trim was `OWS` the second of them was gone from the value
+        // and from the message with it.
+        assert!(v.message.contains("'120\u{c2}\\u{a0}'"), "{}", v.message);
+    }
+
+    /// `Retry-After` on both sides of the same padding, since the value's ends
+    /// are where `OWS` is legal and the octets there are the ones that decide
+    /// which reading applies.
+    #[test]
+    fn ows_around_the_value_is_still_outside_it() {
+        let rule = RetryAfterDateOrDelay;
+        for value in [" 120", "120\t", " Wed, 21 Oct 2015 07:28:00 GMT "] {
+            let tx = crate::test_helpers::make_test_transaction_with_response(
+                503,
+                &[("retry-after", value)],
+            );
+            let v = crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            );
+            assert!(v.is_none(), "{value:?} -> {v:?}");
+        }
     }
 
     #[test]
