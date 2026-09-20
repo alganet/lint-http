@@ -7091,6 +7091,8 @@ sources:
       line: 256
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 226
+    - file: lint-http-rules/src/rules/no_store_enforced.rs
+      line: 266
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 111
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
@@ -12019,9 +12021,11 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 191
     - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 211
+      line: 216
     - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 235
+      line: 240
+    - file: lint-http-rules/src/rules/no_store_enforced.rs
+      line: 267
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 532
     - file: lint-http-rules/src/violations/cache_control.rs

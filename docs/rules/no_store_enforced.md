@@ -64,6 +64,29 @@ enabled = true
 > If-None-Match: "a"    # this value now comes from a cacheable response
 ```
 
+### ❌ Bad — the kept validator returned on a resumed download
+
+```http
+> GET /foo HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: no-store
+< ETag: "a"
+< Accept-Ranges: bytes
+
+# later, the client resumes using the tag it was told not to store
+> GET /foo HTTP/1.1
+> Host: example.com
+> Range: bytes=0-9
+> If-Range: "a"
+
+< HTTP/1.1 206 Partial Content
+
+# If-Range carries the entity tag, so its presence is the same proof
+# that the client kept what no cache was allowed to hold
+```
+
 ### ❌ Bad — conditional request referencing a no-store response
 
 ```http

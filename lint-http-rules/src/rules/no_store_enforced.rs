@@ -93,6 +93,11 @@ impl RuleMeta for NoStoreEnforced {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— the kept validator returned on a resumed download"),
+                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"a\"\n< Accept-Ranges: bytes\n\n# later, the client resumes using the tag it was told not to store\n> GET /foo HTTP/1.1\n> Host: example.com\n> Range: bytes=0-9\n> If-Range: \"a\"\n\n< HTTP/1.1 206 Partial Content\n\n# If-Range carries the entity tag, so its presence is the same proof\n# that the client kept what no cache was allowed to hold",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("— conditional request referencing a no-store response"),
                 snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"x\"\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-None-Match: \"x\"    # validator derived from a no-store entry",
             },
@@ -249,6 +254,44 @@ impl Rule for NoStoreEnforced {
                 }
             }
 
+            // And the third field the same two validators go in. § 13.1.5
+            // writes `If-Range = entity-tag / HTTP-date`, and a client that
+            // kept a tag it was told not to store hands over the same proof
+            // when it resumes a download. Which alternative the value is gets
+            // settled by asking each collection rather than by transcribing
+            // § 13.1.5's first-three-characters test again: a date matches no
+            // entity tag and a tag parses as no date, so a value answers at
+            // most one, and the question this entry asks is whether the
+            // validator came back at all.
+            // cite(RFC 9110 § 13.1.5): "If-Range = entity-tag / HTTP-date"
+            // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
+            for line in crate::helpers::headers::field_lines(&tx.request.headers, "if-range") {
+                let candidate = line.trim();
+                if no_store_etags.contains(&crate::helpers::validator::normalize_etag(candidate)) {
+                    out.push(ctx.report_with(
+                        &CACHE_CONTROL_NO_STORE_IGNORED,
+                        format!(
+                            "Conditional request uses ETag '{}' from a no-store response",
+                            candidate
+                        ),
+                    ));
+                    continue;
+                }
+                let candidate_dt = crate::http_date::parse_http_date_to_datetime(candidate).ok();
+                if no_store_lastmod.contains_key(candidate)
+                    || candidate_dt
+                        .is_some_and(|dt| no_store_lastmod.values().any(|lm_dt| lm_dt == &dt))
+                {
+                    out.push(ctx.report_with(
+                        &CACHE_CONTROL_NO_STORE_IGNORED,
+                        format!(
+                            "Conditional request uses Last-Modified '{}' from a no-store response",
+                            candidate
+                        ),
+                    ));
+                }
+            }
+
             out
         };
         findings()
@@ -285,6 +328,52 @@ mod tests {
             prev.response.as_mut().unwrap().headers.append(name_hdr, hv);
         }
         prev
+    }
+
+    /// § 13.1.5's field holds the same two validators, so a client that kept
+    /// what it was told not to store hands over the same proof when it resumes
+    /// a download. Both kinds are here, and so is a value from a response
+    /// nothing forbade storing: the entry is about where the validator came
+    /// from, not about the field it came back in.
+    #[rstest::rstest]
+    #[case("no-store", "\"v1\"", None, "\"v1\"", true)]
+    #[case("no-store", "\"v1\"", None, "\"other\"", false)]
+    #[case("max-age=60", "\"v1\"", None, "\"v1\"", false)]
+    #[case(
+        "no-store",
+        "\"v1\"",
+        Some("Sun, 06 Nov 1994 08:49:37 GMT"),
+        "Sun, 06 Nov 1994 08:49:37 GMT",
+        true
+    )]
+    fn a_validator_returned_as_if_range_is_the_same_proof(
+        #[case] cache_control: &str,
+        #[case] etag: &str,
+        #[case] last_modified: Option<&str>,
+        #[case] if_range: &str,
+        #[case] reports: bool,
+    ) {
+        let rule = NoStoreEnforced;
+        let mut headers: Vec<(&str, &str)> = vec![("cache-control", cache_control), ("etag", etag)];
+        if let Some(lm) = last_modified {
+            headers.push(("last-modified", lm));
+        }
+        let mut prev = crate::test_helpers::make_test_transaction_with_response(200, &headers);
+        prev.request.method = "GET".to_string();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.timestamp = prev.timestamp + chrono::Duration::seconds(5);
+        tx.request.method = "GET".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("range", "bytes=0-9"),
+            ("if-range", if_range),
+        ]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_store_enforced"]),
+        );
+        assert_eq!(v.is_some(), reports, "If-Range {if_range}: {v:?}");
     }
 
     /// A `302` carrying an `ETag`, a `Location` and no Cache-Control at all is
