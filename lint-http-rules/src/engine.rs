@@ -151,7 +151,8 @@ impl PreparedEngine {
         // own headerless reply as the origin's, which is the one place
         // `Party::Server` is provably wrong. `upstream_never_answered` carries
         // the argument.
-        let scoped = if tx.response.is_some() && !tx.upstream_never_answered {
+        let origin_answered = tx.response.is_some() && !tx.upstream_never_answered;
+        let scoped = if origin_answered {
             &self.enabled_full
         } else {
             &self.enabled_request_only
@@ -193,7 +194,32 @@ impl PreparedEngine {
 
             let ctx = crate::rules::RuleContext::new(&prepared.resolved)
                 .with_violations(rule, &prepared.violations);
-            out.extend(ctx.reported(rule.findings(tx, history, &ctx)));
+            let found = ctx.reported(rule.findings(tx, history, &ctx));
+
+            // **`needs_response` is a claim about a rule and the argument above
+            // is about a finding, and the two come apart.** The set chosen
+            // above holds every rule that answers without a response — and a
+            // rule can read the response and still be in it, because it has
+            // request-side findings it must keep making. Two do: a `Date` this
+            // proxy's own reply does not carry, and an `Allow` the origin was
+            // never asked for. Both are reported against the sender of a
+            // response no server sent.
+            //
+            // Filtering the findings rather than narrowing the set is what
+            // states the argument exactly. It is not "this rule reads the
+            // response"; it is that no finding about a message the origin did
+            // not write can be answerable by the origin, so there is no true
+            // `Party::Server` finding here to lose. The request half is the
+            // client's and is kept.
+            if origin_answered {
+                out.extend(found);
+            } else {
+                out.extend(
+                    found
+                        .into_iter()
+                        .filter(|v| v.party != Some(crate::lint::Party::Server)),
+                );
+            }
         }
 
         out
@@ -296,6 +322,64 @@ mod tests {
         assert!(from_this_proxy
             .iter()
             .any(|v| v.rule == "user_agent_present"));
+    }
+
+    /// And a rule that needs no response can still read one, which is how the
+    /// dispatch set above leaked.
+    ///
+    /// `date_and_time_headers_consistent` declares `needs_response() == false`
+    /// because it has request-side findings to make — a conditional asking for
+    /// changes since a time later than the request itself — so it is in the
+    /// request-only set and is dispatched against a record whose response half
+    /// this proxy wrote. One of its branches then asks whether that half
+    /// carries a `Date`, and answers `server`: a 2xx or 4xx nothing signed.
+    /// Measured on a CONNECT this proxy answered itself, where no origin was
+    /// contacted at all.
+    ///
+    /// The second assertion is the non-vacuous half. `user_agent_present`
+    /// reads the request and reports `client`, and it must survive — the
+    /// filter is about who can answer for a message, not about which rules run.
+    #[test]
+    fn no_finding_about_a_response_this_proxy_wrote_is_the_origins() {
+        let cfg = make_test_config_with_enabled_rules(&[
+            "date_and_time_headers_consistent", // needs no response, reads one
+            "user_agent_present",               // needs no response, reads none
+        ]);
+        let engine = PreparedEngine::new(&cfg).unwrap();
+        let state = crate::state::StateStore::new(300, 10);
+
+        // A 200 with no `Date`, which is § 6.6.1's MUST when an origin wrote it.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers.remove("user-agent");
+
+        let from_the_origin = engine.lint_transaction(&tx, &state);
+        assert!(
+            from_the_origin
+                .iter()
+                .any(|v| v.violation == "date_missing"),
+            "an origin that answered without a Date is answerable for it",
+        );
+
+        tx.upstream_never_answered = true;
+        let from_this_proxy = engine.lint_transaction(&tx, &state);
+        assert!(
+            !from_this_proxy
+                .iter()
+                .any(|v| v.violation == "date_missing"),
+            "no origin wrote this response, so no origin is answerable for it",
+        );
+        assert!(
+            from_this_proxy
+                .iter()
+                .all(|v| v.party != Some(crate::lint::Party::Server)),
+            "and that is true of every finding here, not of this one entry",
+        );
+        assert!(
+            from_this_proxy
+                .iter()
+                .any(|v| v.violation == "user_agent_missing"),
+            "the request is still the client's, and is still read",
+        );
     }
 
     /// The whole path, from a `[violations.<id>]` section to a report that
