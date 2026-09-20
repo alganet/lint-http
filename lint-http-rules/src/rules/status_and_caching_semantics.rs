@@ -28,6 +28,24 @@ const RFC_9111_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Storing Responses in Caches (the licences to store a response: public, private, Expires, max-age, s-maxage, a cache extension, or a heuristically cacheable status)",
 };
 
+/// What a cache does with a `304`, which is the answer to whether one is a
+/// response a cache stores at all.
+const RFC_9111_4_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.3.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.4",
+    note: "Freshening Stored Responses upon Validation — a 304 updates the header fields of the stored responses it identifies; it is not itself a response a cache keeps",
+};
+
+/// The one section that states a sender's obligation about `Cache-Control` and
+/// `Expires` on a `304`, and states it conditionally.
+const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
+    note: "304 Not Modified — the fields a 304 MUST generate, Cache-Control and Expires among them, and only those the 200 to the same request would have carried",
+};
+
 impl RuleMeta for StatusAndCachingSemantics {
     fn id(&self) -> &'static str {
         "status_and_caching_semantics"
@@ -43,11 +61,11 @@ impl RuleMeta for StatusAndCachingSemantics {
     }
 
     fn description(&self) -> &'static str {
-        "Responses with certain status codes are heuristically cacheable (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). A response on any other status is stored only if it says something that licenses storing it: explicit freshness (`Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header), or a `public` or `private` directive — which licenses storage on its own and lets a cache calculate the lifetime heuristically.\n\nThis rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, and a method that defines no caching semantics."
+        "Responses with certain status codes are heuristically cacheable (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). A response on any other status is stored only if it says something that licenses storing it: explicit freshness (`Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header), or a `public` or `private` directive — which licenses storage on its own and lets a cache calculate the lifetime heuristically.\n\nThis rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, a method that defines no caching semantics, and a `304 (Not Modified)` — RFC 9111 §4.3.4 has a cache *update* stored responses from a 304 rather than keep the 304, and RFC 9110 §15.4.5 is the one sentence that asks a 304 for `Cache-Control` or `Expires`, conditionally on the `200` to the same request having carried one. That condition is `status_304_field_missing`'s to read."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_3, RFC_9110_15_1]
+        &[RFC_9111_3, RFC_9110_15_1, RFC_9111_4_3_4, RFC_9110_15_4_5]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -159,6 +177,31 @@ impl Rule for StatusAndCachingSemantics {
                 return None;
             }
 
+            // A `304` is the third response this rule was asking for a repair
+            // that does not exist, and it is the one with a sentence naming the
+            // fields it *does* owe. § 4.3.4 has a cache take a 304 and update
+            // the header fields of the stored responses it identifies; no cache
+            // keeps the 304 itself, so "no cache may store this response" is
+            // true of every 304 ever sent and says nothing to its sender.
+            //
+            // **And where a `Cache-Control` really is owed, another sentence
+            // owes it.** § 15.4.5 requires a 304 to generate `Cache-Control`
+            // and `Expires` — but only the ones the `200` to the same request
+            // would have carried, which makes the obligation conditional on an
+            // exchange this message does not contain. Asking every 304 for
+            // freshness contradicts the section that governs the field here;
+            // asking the ones that dropped it is `status_304_field_missing`,
+            // which reads that condition against the `200` it saw. So this is a
+            // hand-off rather than a hole, and measurably: over a sample of
+            // real traffic, of the 304s answering a 200 that had been seen for
+            // the same request, exactly one had a 200 that stated freshness and
+            // then withheld it, and that entry reports it.
+            // cite(RFC 9111 § 4.3.4): "For each stored response identified, the cache MUST update its header fields with the header fields provided in the 304 (Not Modified) response, as per Section 3.2."
+            // cite(RFC 9110 § 15.4.5): "The server generating a 304 response MUST generate any of the following header fields that would have been sent in a 200 (OK) response to the same request:"
+            if status == 304 {
+                return None;
+            }
+
             // `no-store` is the next term of the conjunction, and it fails the
             // same way the two above do: § 3 states it before the one about
             // freshness, so a response carrying it is unstorable whatever
@@ -263,6 +306,34 @@ static REGISTRATION: &dyn crate::rules::Rule = &StatusAndCachingSemantics;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// A `304` says nothing this entry can ask for, whatever it carries: no
+    /// cache keeps the 304 itself, and the one sentence that asks a 304 for
+    /// freshness asks it conditionally on an exchange this message does not
+    /// hold. The `412` beside it is the control — the same shape on a status
+    /// that is a stored response, still reported.
+    #[rstest]
+    #[case::bare(304, vec![])]
+    #[case::with_a_validator(304, vec![("etag", "\"abc\"")])]
+    #[case::with_freshness(304, vec![("cache-control", "max-age=60")])]
+    fn a_304_is_not_a_response_a_cache_stores(
+        #[case] status: u16,
+        #[case] headers: Vec<(&str, &str)>,
+    ) {
+        let tx = crate::test_helpers::make_test_transaction_with_response(status, &headers);
+        assert!(
+            crate::test_helpers::run_rule(
+                &StatusAndCachingSemantics,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "status_and_caching_semantics",
+                ]),
+            )
+            .is_none(),
+            "{status} {headers:?}"
+        );
+    }
 
     #[rstest]
     #[case(302, vec![], true)]

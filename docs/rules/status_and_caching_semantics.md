@@ -10,7 +10,7 @@ SPDX-License-Identifier: ISC
 
 Responses with certain status codes are heuristically cacheable (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). A response on any other status is stored only if it says something that licenses storing it: explicit freshness (`Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header), or a `public` or `private` directive — which licenses storage on its own and lets a cache calculate the lifetime heuristically.
 
-This rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, and a method that defines no caching semantics.
+This rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, a method that defines no caching semantics, and a `304 (Not Modified)` — RFC 9111 §4.3.4 has a cache *update* stored responses from a 304 rather than keep the 304, and RFC 9110 §15.4.5 is the one sentence that asks a 304 for `Cache-Control` or `Expires`, conditionally on the `200` to the same request having carried one. That condition is `status_304_field_missing`'s to read.
 
 ## Violations
 
@@ -20,6 +20,8 @@ This rule warns when a response status that is not heuristically cacheable says 
 
 - [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3): Storing Responses in Caches (the licences to store a response: public, private, Expires, max-age, s-maxage, a cache extension, or a heuristically cacheable status)
 - [RFC 9110 §15.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1): Overview of Status Codes — the status codes defined as heuristically cacheable, which is the set a response outside it has to state its own freshness to join
+- [RFC 9111 §4.3.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.4): Freshening Stored Responses upon Validation — a 304 updates the header fields of the stored responses it identifies; it is not itself a response a cache keeps
+- [RFC 9110 §15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5): 304 Not Modified — the fields a 304 MUST generate, Cache-Control and Expires among them, and only those the 200 to the same request would have carried
 
 ## Configuration
 
