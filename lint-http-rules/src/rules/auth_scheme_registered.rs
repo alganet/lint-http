@@ -144,12 +144,26 @@ impl Rule for AuthSchemeRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Each section is read on its own and the finding it yields is kept. The
-        // scheme a server names in a challenge and the scheme a client names in
-        // its credentials are two peers' choices, and an unregistered name in
+        // Each section is read on its own and the findings it yields are kept.
+        // The scheme a server names in a challenge and the scheme a client names
+        // in its credentials are two peers' choices, and an unregistered name in
         // each is two defects — a challenge inviting a scheme nobody registered
-        // said nothing about the credentials sent back to it. Within a section
-        // the first unregistered scheme is still the one reported.
+        // said nothing about the credentials sent back to it.
+        //
+        // **And within a section every scheme is read, not the first.**
+        // `WWW-Authenticate` is `#challenge` and a client picks the strongest
+        // alternative it supports, so a field offering two names nobody
+        // registered has offered a client two things it cannot use; the same
+        // holds of a request writing `Authorization` on two lines, since
+        // `credentials` is not a list and every line is a value its sender
+        // wrote. Answering with the first named that scheme and left the
+        // others unstated — and the finding's whole content is the name.
+        //
+        // The unit is the **scheme**, not the challenge. Two challenges in one
+        // field naming the same unregistered scheme are one name to register
+        // and would otherwise be one sentence printed twice, so a field reports
+        // each distinct name once. The comparison folds case for the reason the
+        // registry check does: § 11.1 makes the token case-insensitive.
         let mut out = Vec::new();
         {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
@@ -193,23 +207,34 @@ impl Rule for AuthSchemeRegistered {
             // this rule's to report.
             if let Some(resp) = &tx.response {
                 for field in crate::helpers::auth::CHALLENGE_FIELDS {
-                    out.extend((|| -> Option<Violation> {
-                        let s = crate::helpers::headers::combined_field_value_as_written(
+                    out.extend((|| -> Vec<Violation> {
+                        let Some(s) = crate::helpers::headers::combined_field_value_as_written(
                             &resp.headers,
                             field.key,
-                        )?;
-                        let challenges =
-                            crate::helpers::auth::split_and_group_challenges(&s).ok()?;
+                        ) else {
+                            return Vec::new();
+                        };
+                        let Ok(challenges) = crate::helpers::auth::split_and_group_challenges(&s)
+                        else {
+                            return Vec::new();
+                        };
+                        let mut seen = Vec::new();
+                        let mut found = Vec::new();
                         for challenge in challenges {
                             let scheme =
                                 challenge.split(char::is_whitespace).next().unwrap().trim();
-                            if let Some(v) =
-                                check_registered(field.shown, scheme, crate::lint::Party::Server)
-                            {
-                                return Some(v);
+                            let folded = scheme.to_ascii_lowercase();
+                            if seen.contains(&folded) {
+                                continue;
                             }
+                            seen.push(folded);
+                            found.extend(check_registered(
+                                field.shown,
+                                scheme,
+                                crate::lint::Party::Server,
+                            ));
                         }
-                        None
+                        found
                     })());
                 }
             }
@@ -222,21 +247,24 @@ impl Rule for AuthSchemeRegistered {
             // finding, so what is taken from each line here is only the scheme
             // in front of it.
             for field in crate::helpers::auth::CREDENTIALS_FIELDS {
-                out.extend((|| -> Option<Violation> {
-                    for hv in tx.request.headers.get_all(field.key).iter() {
-                        let v = crate::helpers::headers::field_line_as_written(hv);
-                        let scheme = v.split(char::is_whitespace).next().unwrap_or("").trim();
-                        if scheme.is_empty() {
-                            continue;
-                        }
-                        if let Some(vv) =
-                            check_registered(field.shown, scheme, crate::lint::Party::Client)
-                        {
-                            return Some(vv);
-                        }
+                let mut seen = Vec::new();
+                for hv in tx.request.headers.get_all(field.key).iter() {
+                    let v = crate::helpers::headers::field_line_as_written(hv);
+                    let scheme = v.split(char::is_whitespace).next().unwrap_or("").trim();
+                    if scheme.is_empty() {
+                        continue;
                     }
-                    None
-                })());
+                    let folded = scheme.to_ascii_lowercase();
+                    if seen.contains(&folded) {
+                        continue;
+                    }
+                    seen.push(folded);
+                    out.extend(check_registered(
+                        field.shown,
+                        scheme,
+                        crate::lint::Party::Client,
+                    ));
+                }
             }
         }
         out
@@ -596,6 +624,93 @@ mod tests {
         assert_eq!(
             parsed.allowed,
             vec!["basic".to_string(), "bearer".to_string()]
+        );
+    }
+
+    /// **Every unregistered scheme a field offers is its own finding.** The
+    /// challenge walk `return`ed at the first, so a `WWW-Authenticate` naming
+    /// two schemes nobody registered told a client about one of them — and the
+    /// finding's whole content is the name, so the second had no sentence
+    /// anywhere. `#challenge` is a list of alternatives and a client picks the
+    /// strongest it supports; two it cannot use are two things to fix.
+    #[test]
+    fn every_unregistered_scheme_in_a_challenge_is_reported() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[(
+                "www-authenticate",
+                "Zork realm=\"a\", Basic realm=\"b\", Quux realm=\"c\"",
+            )]);
+        let found = crate::test_helpers::run_rule_all(
+            &AuthSchemeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        let messages: Vec<&String> = found.iter().map(|v| &v.message).collect();
+        assert_eq!(found.len(), 2, "{messages:?}");
+        for scheme in ["'Zork'", "'Quux'"] {
+            assert!(
+                messages.iter().any(|m| m.contains(scheme)),
+                "no finding names {scheme}: {messages:?}"
+            );
+        }
+    }
+
+    /// The same on the request side, where the repetition is field lines rather
+    /// than list members: `credentials` is not a list, so a second
+    /// `Authorization` line is a second value its sender wrote.
+    #[test]
+    fn every_unregistered_scheme_across_credential_lines_is_reported() {
+        use hyper::header::{HeaderName, HeaderValue};
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut hm = hyper::HeaderMap::new();
+        for value in ["Zork abc", "Basic dGVzdA==", "Quux def"] {
+            hm.append(
+                HeaderName::from_static("authorization"),
+                HeaderValue::from_str(value).expect("a test field value"),
+            );
+        }
+        tx.request.headers = hm;
+        let found = crate::test_helpers::run_rule_all(
+            &AuthSchemeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        let messages: Vec<&String> = found.iter().map(|v| &v.message).collect();
+        assert_eq!(found.len(), 2, "{messages:?}");
+        for scheme in ["'Zork'", "'Quux'"] {
+            assert!(
+                messages.iter().any(|m| m.contains(scheme)),
+                "no finding names {scheme}: {messages:?}"
+            );
+        }
+    }
+
+    /// **The unit is the scheme, not the challenge.** One name written twice is
+    /// one name to register, and the finding says nothing but the name — so two
+    /// of them would be one sentence printed twice and an operator could not
+    /// tell how many things they had to fix. Case folds, because § 11.1 makes
+    /// the token case-insensitive and the registry check already reads it so.
+    #[rstest]
+    #[case("Zork realm=\"a\", Zork realm=\"b\"")]
+    #[case("Zork realm=\"a\", zork realm=\"b\"")]
+    fn one_scheme_named_twice_in_a_field_is_one_finding(#[case] value: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("www-authenticate", value)]);
+        let found = crate::test_helpers::run_rule_all(
+            &AuthSchemeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        assert_eq!(
+            found.len(),
+            1,
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
         );
     }
 

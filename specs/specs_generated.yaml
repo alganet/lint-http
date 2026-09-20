@@ -6193,7 +6193,7 @@ sources:
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 174
+      line: 188
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -7707,7 +7707,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 606
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 173
+      line: 187
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 116
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
