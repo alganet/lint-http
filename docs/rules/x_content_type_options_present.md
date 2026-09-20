@@ -55,3 +55,9 @@ HTTP/1.1 200 OK
 Content-Type: text/css
 # Missing X-Content-Type-Options header
 ```
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/html
+X-Content-Type-Options: sniff
+```

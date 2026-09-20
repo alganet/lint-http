@@ -150,6 +150,16 @@ content_types = ["text/html", "text/javascript", "application/javascript", "appl
                 label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/css\n# Missing X-Content-Type-Options header",
             },
+            // The other entry, which had no example at all: a server that wrote
+            // the field and did not turn sniffing off. `sniff` is the word a
+            // hand reaches for when it means the opposite of `nosniff`, and the
+            // algorithm reads it as no opt-in at all rather than as a value it
+            // does not recognise.
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\nX-Content-Type-Options: sniff",
+            },
         ]
     }
 }
