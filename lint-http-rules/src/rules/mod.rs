@@ -2352,6 +2352,198 @@ enabled = "true"
         Ok(())
     }
 
+    /// **A rule reading a table of field names must be able to report every
+    /// one of them.** The construct this pins is a `for` over a *constant
+    /// table* — a `const` or `static` item, which Rust spells in upper case,
+    /// walked directly rather than handed to something else as an argument —
+    /// whose body ends the walk with a finding:
+    ///
+    /// ```ignore
+    /// for &name in CONNECTION_SPECIFIC_FIELDS {
+    ///     if headers.contains_key(name) { return Some(report(name)) }
+    /// }
+    /// ```
+    ///
+    /// It is the sibling of `a_list_walk_does_not_end_at_its_first_defective_member`
+    /// and it is a different subject. That one is about the members of one
+    /// field, where the sender wrote a repetition the grammar prints. This one
+    /// is about a table of *distinct fields*, each with its own definition,
+    /// its own subject and its own repair: RFC 9110 § 5.3's MUST NOT is stated
+    /// of a field name and there are twelve names in
+    /// `singleton_fields_not_repeated`'s table; RFC 9113 § 8.2.2's `MUST
+    /// remove` is one removal per field and there are five. Nothing joins the
+    /// rows of such a table into a single verdict about the message, and the
+    /// finding names the row it read — so a row the walk did not reach has no
+    /// sentence anywhere in the report, not even one saying the field is there.
+    ///
+    /// **The table is not always a constant at the loop.** `misdirected` took
+    /// RFC 9110 § 10's two tables as a `&[(&str, &str)]` parameter and walked
+    /// that, which no upper-case identifier appears in — the recorded "walk
+    /// over a local" blind spot one hop further out, the const having crossed a
+    /// call boundary. So a parameter declared as a slice of tuples opening on a
+    /// `&str` counts as a table too. A bare `&[&str]` does not: that is any
+    /// list of strings, and the one in this tree holds an `alt-value`'s own
+    /// parameters, while a table of field names carries the name and something
+    /// said about it — the field's grammar, its subject, the kind of thing it
+    /// forwards.
+    ///
+    /// **A constant written as an argument is not the table.**
+    /// `headers.get_all(FIELD)` walks the field *lines* of one named field, and
+    /// what a repeated field line means is its own question — the const there
+    /// says which field to fetch, not which fields to consider. The clause is
+    /// the position: a table is iterated, an argument is passed.
+    ///
+    /// Measured in both directions. Against the rule files as they stood
+    /// before this thread it names five sites in four files —
+    /// `no_connection_specific_fields`, `singleton_fields_not_repeated`,
+    /// `context_fields_direction` and both of `auth_scheme_registered`'s;
+    /// against this tree it names none. It carves out no file, and that too is
+    /// measured: the one file a reading nominated as a lookup turned out not to
+    /// match the construct at all.
+    #[test]
+    fn a_walk_over_a_table_of_fields_does_not_end_at_the_first_row() -> anyhow::Result<()> {
+        // **Nothing is carved out, and the emptiness is measured.** A file was
+        // named here first, from a reading rather than from a run:
+        // `digest_auth_nonce_handling` walks `AUTH_EXCHANGES` to fetch each
+        // field's lines, and that looked like a lookup rather than a verdict on
+        // the table. Emptying the list changed nothing — the walk does not end
+        // at a `return` at all, so the permission was standing over a file the
+        // assertion had never reached. A list written from a prediction is a
+        // standing permission for a false positive to pass. If a genuine lookup
+        // over a table of field names is written later it goes here, with the
+        // emptying measured and the sentence saying which walk and why.
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        let mut carrying = Vec::new();
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            if path.extension().is_none_or(|e| e != "rs") {
+                continue;
+            }
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
+            let src = std::fs::read_to_string(&path)?;
+            // Only the code that ships: a fixture is not a finding site.
+            let body = src
+                .split("\n#[cfg(test)]")
+                .next()
+                .unwrap_or(&src)
+                .to_string();
+            let lines: Vec<&str> = body.lines().collect();
+
+            let statement = |i: usize, stop: char| -> (String, usize) {
+                let mut text = lines[i].to_string();
+                let mut j = i;
+                while !text.contains(stop) && j + 1 < lines.len() && j - i < 8 {
+                    j += 1;
+                    text.push(' ');
+                    text.push_str(lines[j].trim());
+                }
+                (text, j)
+            };
+
+            // The parameters of this file declared as a table of names: a slice
+            // of tuples opening on a `&str`. A bare `&[&str]` is not enough --
+            // it is any list of strings, and the one in this tree holds a
+            // member's own parameters -- while a table of field names carries
+            // the name and something said about it: the field's grammar, its
+            // subject, the kind of thing it forwards.
+            let table_parameters: Vec<String> = lines
+                .iter()
+                .filter(|l| !l.trim_start().starts_with("//"))
+                .filter_map(|l| {
+                    let (before, after) = l.trim().split_once(": &[")?;
+                    after.starts_with("(&str").then(|| {
+                        before
+                            .rsplit(|c: char| !c.is_alphanumeric() && c != '_')
+                            .next()
+                            .unwrap_or("")
+                            .to_string()
+                    })
+                })
+                .filter(|p| !p.is_empty())
+                .collect();
+
+            for (i, line) in lines.iter().enumerate() {
+                // Prose is not a loop: a doc comment reads as a `for ` and an
+                // ` in ` often enough that this file's own rules would join up.
+                if line.trim_start().starts_with("//") {
+                    continue;
+                }
+                if !line.contains("for ") || !line.contains(" in ") {
+                    continue;
+                }
+                let (header, j) = statement(i, '{');
+                let Some((_, iterated)) = header.split_once(" in ") else {
+                    continue;
+                };
+                // An upper-case identifier that is iterated rather than passed:
+                // the character before it decides which, since an argument is
+                // written inside the parentheses of the call that takes it.
+                let walks_a_table = iterated
+                    .match_indices(|c: char| c.is_ascii_uppercase())
+                    .any(|(at, _)| {
+                        let token: String = iterated[at..]
+                            .chars()
+                            .take_while(|c| {
+                                c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_'
+                            })
+                            .collect();
+                        if token.len() < 3 || !token.contains('_') {
+                            return false;
+                        }
+                        let ends = at + token.len();
+                        if iterated[ends..].starts_with(|c: char| c.is_alphanumeric() || c == '_') {
+                            return false;
+                        }
+                        let before = iterated[..at].trim_end();
+                        !before.ends_with('(') && !before.ends_with(',')
+                    })
+                    || table_parameters.iter().any(|p| {
+                        iterated
+                            .split(|c: char| !c.is_alphanumeric() && c != '_')
+                            .any(|t| t == p)
+                    });
+                if !walks_a_table {
+                    continue;
+                }
+
+                // The loop body, by the indentation of its `for`.
+                let indent = line.len() - line.trim_start().len();
+                let end = ((j + 1)..lines.len())
+                    .find(|k| {
+                        let l = lines[*k];
+                        !l.trim().is_empty()
+                            && l.len() - l.trim_start().len() <= indent
+                            && l.trim_start().starts_with('}')
+                    })
+                    .unwrap_or(lines.len());
+                // Every spelling of ending the walk, for the reason the list
+                // gate records: a reader that already collects regresses by
+                // returning a `vec!`, and a helper that yields a sentence
+                // regresses by returning a `Some(format!(`.
+                let ends_the_walk = lines[j + 1..end].iter().any(|l| {
+                    l.contains("return Some(")
+                        || l.contains("return vec![")
+                        || l.contains("return Err(")
+                        || l.contains("?;")
+                });
+                if ends_the_walk {
+                    carrying.push(format!("{}:{}", name, i + 1));
+                }
+            }
+        }
+
+        carrying.sort();
+        assert!(
+            carrying.is_empty(),
+            "a walk over a table of field names that returns at the first row it \
+             matches says nothing about the rows behind it, and the finding names \
+             the row it read. Collect the findings and keep the one each row \
+             yields:\n  {}",
+            carrying.join("\n  ")
+        );
+        Ok(())
+    }
+
     #[test]
     fn every_rule_file_is_registered() {
         // Deleting the hand-maintained `RULES` const removed the single place
