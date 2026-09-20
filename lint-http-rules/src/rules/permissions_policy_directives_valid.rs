@@ -10,9 +10,9 @@ use crate::violations::permissions_policy::{
     PERMISSIONS_POLICY_REPORT_TO_MALFORMED,
 };
 use crate::violations::structured_fields::{
-    RFC_9651_3_2, RFC_9651_4_2, RFC_9651_4_2_1_2, RFC_9651_4_2_2, RFC_9651_4_2_3_1,
-    RFC_9651_4_2_3_3, STRUCTURED_FIELD_CHARACTER_FORBIDDEN, STRUCTURED_FIELD_EMPTY,
-    STRUCTURED_FIELD_INNER_LIST_MALFORMED, STRUCTURED_FIELD_KEY_DUPLICATED,
+    structured_field_defect, RFC_9651_3_2, RFC_9651_4_2, RFC_9651_4_2_1_2, RFC_9651_4_2_2,
+    RFC_9651_4_2_3_1, RFC_9651_4_2_3_3, STRUCTURED_FIELD_CHARACTER_FORBIDDEN,
+    STRUCTURED_FIELD_EMPTY, STRUCTURED_FIELD_INNER_LIST_MALFORMED, STRUCTURED_FIELD_KEY_DUPLICATED,
     STRUCTURED_FIELD_KEY_MALFORMED, STRUCTURED_FIELD_MEMBER_EMPTY, STRUCTURED_FIELD_VALUE_EMPTY,
     STRUCTURED_FIELD_VALUE_MALFORMED,
 };
@@ -59,7 +59,7 @@ impl RuleMeta for PermissionsPolicyDirectivesValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which, and so does their number: a parse failure is reported alone because nothing else in the field survived it, while every directive that parsed and will be ignored is reported beside the others like it. A member with no `=` at all belongs to the second group — §4.2.2 reads a bare key as the Boolean true, which parses, so the cost is that one directive.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
+        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which, and so does their number: a parse failure is reported alone because nothing else in the field survived it, while every directive that parsed and will be ignored is reported beside the others like it. A member with no `=` at all belongs to the second group — §4.2.2 reads a bare key as the Boolean true, which parses, so the cost is that one directive.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Inside an inner list two questions are kept apart: an item that **derives** and is not one of those forms is deliberately not policed — §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive — while an item that derives from no structured type at all is RFC 9651 §4.2's failure and takes the whole field. `(self 42)` is enforced as `(self)`; `(1abc)` discards every directive in the header. Space against a parenthesis is neither: §4.2.1.2 discards leading SP before asking whether the list has ended, so `( self )` is the same list as `(self)`.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -114,6 +114,20 @@ impl RuleMeta for PermissionsPolicyDirectivesValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(report-to must be a String)"),
                 snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=endpoint\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(\u{a7}4.2.1.2 discards leading SP before asking whether the list has ended, so space against a parenthesis changes nothing; and an item that derives and is not an origin is ignored while the allowlist stands)",
+                ),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=( self ), camera=(self 42)\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "(an Integer followed by characters that are neither SP nor \")\" fails parsing, which discards every directive in the field)",
+                ),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(1abc), camera=()\n",
             },
         ]
     }
@@ -385,26 +399,45 @@ fn judge_allowlist(item: &str, feature: &str) -> Verdict {
         );
     }
 
-    if let Some(inner) = item.strip_prefix('(') {
-        let Some(inner) = inner.strip_suffix(')') else {
-            return Verdict::FieldDiscarded(
-                &STRUCTURED_FIELD_INNER_LIST_MALFORMED,
-                format!("member '{}' has unterminated inner-list", feature),
-            );
+    if item.starts_with('(') {
+        // § 4.2.1.2's own walk, and not a second copy of it. The two questions
+        // an Inner List raises here -- did it close, and does every member
+        // derive -- are Structured Fields questions before they are this
+        // field's, so the reader that already answers them for every other
+        // rule answers them here.
+        //
+        // The copy this replaces asked a third question that § 4.2.1.2 does not
+        // raise: it split the contents on SP and called an empty part an empty
+        // member. Step 3.1 discards leading SP at the top of every iteration,
+        // before step 3.2 asks whether the list has ended, so `(self )` and
+        // `( self)` are the same list as `(self)` -- and both were reported as
+        // a parse failure taking every directive in the field with them. There
+        // is no way to write an empty Inner List member at all: whatever
+        // follows the discarded spaces is either ")" or the start of an Item.
+        // cite(RFC 9651 § 4.2.1.2): "Discard any leading SP characters from input_string."
+        //
+        // What the copy could not see is the other direction. An Item followed
+        // by characters that are neither SP nor ")" fails parsing outright, so
+        // `(1abc)` discards the whole field -- and permissive acceptance of the
+        // contents said nothing about it.
+        // cite(RFC 9651 § 4.2.1.2): "If the first character of input_string is not SP or ")", fail parsing."
+        //
+        // The permissiveness that was deliberate is kept, and it is about a
+        // different thing: an item that *derives* and is not a String, `self`
+        // or `*` -- a Number, a Date, some other Token -- is ignored by the
+        // processing steps while the Member Value stands, which is why nothing
+        // below asks what the members mean.
+        // cite(Permissions Policy § 5.2): "Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present."
+        return match parse_inner_list(item) {
+            Some(defect) => Verdict::FieldDiscarded(
+                structured_field_defect(defect.kind),
+                format!(
+                    "member '{}' has an inner list that does not parse: {}",
+                    feature, defect.message
+                ),
+            ),
+            None => Verdict::Enforced,
         };
-        // Inner-list contents are permissively accepted — see the asymmetry
-        // noted below — but an empty member is a parse failure.
-        if !inner.trim().is_empty()
-            && split_spaces_outside_quotes(inner)
-                .iter()
-                .any(|m| m.trim().is_empty())
-        {
-            return Verdict::FieldDiscarded(
-                &STRUCTURED_FIELD_VALUE_EMPTY,
-                format!("member '{}' has empty inner-list member", feature),
-            );
-        }
-        return Verdict::Enforced;
     }
 
     if item.starts_with('"') {
@@ -866,30 +899,55 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("unterminated inner-list"));
+        assert!(v.unwrap().message.contains("unterminated inner list"));
     }
 
-    #[test]
-    fn empty_inner_list_member_is_rejected() {
-        let rule = PermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "permissions_policy_directives_valid",
-        ]);
+    /// Space against a parenthesis, in both directions, and a run of it.
+    ///
+    /// § 4.2.1.2 discards leading SP at the top of every iteration, *before* it
+    /// asks whether the list has ended, so none of these is distinguishable
+    /// from `(self)` to a parser. Each was reported as an empty Inner List
+    /// member -- a finding whose own message said every directive in the field
+    /// was discarded -- because this rule split the contents on SP itself and
+    /// read the empty part the splitter leaves at an edge as a member. The
+    /// splitter is right about what it was asked; the reading of its answer was
+    /// the defect.
+    // cite(RFC 9651 § 4.2.1.2): "Discard any leading SP characters from input_string."
+    #[rstest]
+    #[case("geolocation=(self )")]
+    #[case("geolocation=( self)")]
+    #[case("geolocation=( self )")]
+    #[case("geolocation=(self  )")]
+    #[case("geolocation=(self \"https://a.example\" )")]
+    fn space_against_a_parenthesis_is_the_same_inner_list(#[case] value: &str) {
+        assert_eq!(ids_for(value), Vec::<&str>::new(), "{value}");
+    }
 
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
-            "permissions-policy",
-            "geolocation=(self  )",
-        )]);
-
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+    /// The other direction of the same reading, and the half a permissive walk
+    /// could not see. `1abc` is an Integer followed by characters that are
+    /// neither SP nor ")", which fails parsing outright -- so the whole field
+    /// goes, and the entry is the one naming a value that does not derive.
+    ///
+    /// What stays permissive is the item that *does* derive and is not an
+    /// allowlist entry: § 5.2 has the processing steps ignore it while the
+    /// Member Value stands, so `(self 42)` is enforced as `(self)`.
+    // cite(RFC 9651 § 4.2.1.2): "If the first character of input_string is not SP or ")", fail parsing."
+    #[rstest]
+    #[case("geolocation=(1abc)", Some("structured_field_value_malformed"))]
+    #[case("geolocation=(a\"b)", Some("structured_field_value_malformed"))]
+    #[case("geolocation=(self 42)", None)]
+    #[case("geolocation=(self @1659578233)", None)]
+    #[case("geolocation=(self :YWJj:)", None)]
+    fn an_inner_list_member_is_asked_whether_it_derives(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        assert_eq!(
+            ids_for(value),
+            expected.into_iter().collect::<Vec<_>>(),
+            "{value}: {:?}",
+            findings_for(value)
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("empty inner-list"));
     }
 
     #[test]

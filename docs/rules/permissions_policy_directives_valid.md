@@ -14,7 +14,7 @@ Reports a `Permissions-Policy` response header carrying something a browser will
 
 **Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / "-" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.
 
-**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.
+**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Inside an inner list two questions are kept apart: an item that **derives** and is not one of those forms is deliberately not policed — §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive — while an item that derives from no structured type at all is RFC 9651 §4.2's failure and takes the whole field. `(self 42)` is enforced as `(self)`; `(1abc)` discards every directive in the header. Space against a parenthesis is neither: §4.2.1.2 discards leading SP before asking whether the list has ended, so `( self )` is the same list as `(self)`.
 
 **Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.
 
@@ -92,4 +92,18 @@ Permissions-Policy: geolocation
 ```http
 HTTP/1.1 200 OK
 Permissions-Policy: geolocation=(self);report-to=endpoint
+```
+
+### ✅ Good (§4.2.1.2 discards leading SP before asking whether the list has ended, so space against a parenthesis changes nothing; and an item that derives and is not an origin is ignored while the allowlist stands)
+
+```http
+HTTP/1.1 200 OK
+Permissions-Policy: geolocation=( self ), camera=(self 42)
+```
+
+### ❌ Bad (an Integer followed by characters that are neither SP nor ")" fails parsing, which discards every directive in the field)
+
+```http
+HTTP/1.1 200 OK
+Permissions-Policy: geolocation=(1abc), camera=()
 ```
