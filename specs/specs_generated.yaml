@@ -5887,9 +5887,9 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 405
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 271
+      line: 280
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 418
+      line: 427
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 241
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -6177,7 +6177,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 382
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 257
+      line: 266
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 308
   - label: alt_svc_header_syntax
@@ -7285,7 +7285,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 117
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 385
+      line: 394
     - file: lint-http-rules/src/violations/authority.rs
       line: 224
     - file: lint-http-rules/src/violations/authority.rs
@@ -7307,7 +7307,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 116
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 384
+      line: 393
     - file: lint-http-rules/src/violations/authority.rs
       line: 285
   - label: keep_alive_header_valid
@@ -8187,11 +8187,11 @@ sources:
     - file: lint-http-rules/src/rules/host_header.rs
       line: 225
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 300
+      line: 309
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 412
+      line: 421
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 477
+      line: 486
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 542
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -12361,7 +12361,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 419
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 476
+      line: 485
     - file: lint-http-rules/src/violations/authority.rs
       line: 413
   - label: http3_goaway
@@ -12407,47 +12407,47 @@ sources:
     snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 249
+      line: 258
   - label: http3_pseudo_headers_valid (2)
     section: § 4.3.1
     snippet: Contains the authority portion of the target URI (Section 3.2 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 562
+      line: 571
   - label: http3_pseudo_headers_valid (3)
     section: § 4.3.1
     snippet: Contains the scheme portion of the target URI (Section 3.1 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 530
+      line: 539
   - label: http3_pseudo_headers_valid (4)
     section: § 4.3.2
     snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 595
+      line: 604
   - label: http3_pseudo_headers_valid (5)
     section: § 4.3.2
     snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 596
+      line: 605
   - label: http3_pseudo_headers_valid (6)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 291
+      line: 300
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 333
+      line: 342
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 358
+      line: 367
   - label: http3_pseudo_headers_valid (7)
     section: § 4.4
     snippet: The :method pseudo-header field is set to "CONNECT"
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 272
+      line: 281
   - label: http3_settings
     section: § 7.2.4
     snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently

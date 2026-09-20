@@ -33,6 +33,8 @@ For schemes with a mandatory authority component (including `http` and `https`),
 - [authority_tunnel_port_missing](../violations/authority_tunnel_port_missing.md) — A CONNECT's destination names no port
 - [authority_tunnel_userinfo_forbidden](../violations/authority_tunnel_userinfo_forbidden.md) — A CONNECT's :authority carries a userinfo subcomponent
 - [authority_userinfo_forbidden](../violations/authority_userinfo_forbidden.md) — An :authority carries the deprecated userinfo subcomponent
+- [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
+- [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
 - [request_target_asterisk_forbidden](../violations/request_target_asterisk_forbidden.md) — The asterisk target is sent with a method other than OPTIONS
 - [request_target_path_missing](../violations/request_target_path_missing.md) — A request that owes a path names none
 - [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
@@ -59,6 +61,7 @@ For schemes with a mandatory authority component (including `http` and `https`),
 - [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
 - [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere
 - [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
 
 ## Configuration
 

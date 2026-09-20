@@ -14,10 +14,11 @@ use crate::violations::request_target::{
     REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_PATH_MISSING, RFC_9110_7_1,
 };
 use crate::violations::uri::{
-    host_and_port, scheme_name, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3,
-    URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
-    URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
-    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+    host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
+    RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
+    URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
+    URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -62,6 +63,8 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_HOST_BRACKET_FORBIDDEN,
     &URI_HOST_CHARACTER_FORBIDDEN,
     &URI_PORT_CHARACTER_FORBIDDEN,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
@@ -151,6 +154,12 @@ impl RuleMeta for Http3PseudoHeadersValid {
             RFC_3986_3_1,
             RFC_3986_3_2_2,
             RFC_3986_3_2_3,
+            // The triplet's own section. A malformed percent-encoding inside a
+            // host is the same defect wherever it is read, so the shared host
+            // reader delegates that arm to the percent-encoding entries rather
+            // than naming a host-shaped id — which makes them reachable from
+            // every caller of that reader, this one included.
+            RFC_3986_2_1,
         ]
     }
 
@@ -635,6 +644,16 @@ mod tests {
     #[case("https://[::1/p", "uri_host_closing_bracket_missing")]
     #[case("https://example.com:80a/p", "uri_port_character_forbidden")]
     #[case("1https://example.com/p", "uri_scheme_leading_letter_missing")]
+    // The two the shared host reader delegates rather than naming itself: a
+    // malformed triplet is the same defect wherever it is read, so the mapping
+    // hands these arms to the percent-encoding entries. They are reachable from
+    // every caller of that reader and were reported here while undeclared,
+    // which costs a finding its *configured* severity — `severity_for` resolves
+    // a def by identity against the rule's own list and falls back to the def's
+    // default when it is not there. The cases exist to reach the site: the
+    // suite runs debug, so the assertion behind that fallback is the guard.
+    #[case("https://exa%zz.com/p", "percent_encoding_malformed")]
+    #[case("https://exa%/p", "percent_encoding_digits_missing")]
     fn an_authority_or_scheme_defect_answers_to_its_production(
         #[case] target: &str,
         #[case] expected: &str,
