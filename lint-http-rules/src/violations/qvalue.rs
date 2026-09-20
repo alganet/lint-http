@@ -2,16 +2,24 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! The `qvalue` production — one entry, and four fields asking for it.
+//! The `qvalue` production — one entry, and five fields asking for it.
 //!
 //! A weight is how a request says which of several acceptable things it would
 //! rather have, and RFC 9110 § 12.4.2 writes the number once for all of them:
-//! `Accept`, `Accept-Encoding`, `Accept-Language` and `TE` each carry
-//! `weight = OWS ";" OWS "q=" qvalue` and none of them restates what a
-//! `qvalue` is. So a `q=1.5` in an `Accept` and a `q=1.5` in a `TE` are the
-//! same defect, and before this subject existed they were four sentences with
-//! four severities — one per rule, whichever the operator had configured for
-//! everything else that rule says.
+//! `Accept`, `Accept-Charset`, `Accept-Encoding`, `Accept-Language` and `TE`
+//! each carry `weight = OWS ";" OWS "q=" qvalue` and none of them restates what
+//! a `qvalue` is. So a `q=1.5` in an `Accept` and a `q=1.5` in a `TE` are the
+//! same defect, and before this subject existed they were a sentence and a
+//! severity per rule, whichever the operator had configured for everything else
+//! that rule says.
+//!
+//! **The count was four until `Accept-Charset` had a reader.** § 12.5.2 prints
+//! the same bracket as its three § 12.5 siblings and no rule read the field, so
+//! every enumeration of the weight's fields in this tree — this line, two entry
+//! doc comments below, and two `#[rstest]` tables that called themselves "four
+//! fields, one number" and "four fields, one literal" — counted the rules that
+//! existed and called the answer a property of the specification. A census of
+//! what a document says is taken from the document.
 //!
 //! **The assembly around the weight is here too, and the paragraph this
 //! replaces said it was not.** That paragraph reasoned that a `;` with no
@@ -134,12 +142,20 @@ defects! {
     /// requires it.
     ///
     /// **The same octet conforms in an `Accept` and in a `TE`**, and that is
-    /// the whole reason this entry can be shared by only two fields.
+    /// the whole reason this entry is shared by three of the five fields that
+    /// carry a weight rather than by all of them.
     /// `parameters = *( OWS ";" OWS [ parameter ] )` brackets the parameter, so
     /// `text/plain;` is a zero-parameter repetition and derives; a
     /// `transfer-coding` prints the same repetition. Only where the field's own
     /// production puts `[ weight ]` and nothing else after the primary is a
-    /// dangling `;` a defect, and then it is this one.
+    /// dangling `;` a defect, and then it is this one — which is true of
+    /// § 12.5.2, § 12.5.3 and § 12.5.4, and of neither of the other two.
+    ///
+    /// **It said two fields, and the third was one nothing read.** A count of
+    /// the fields sharing an entry is a count of the rules that declare it, and
+    /// `Accept-Charset` had no rule — so the one § 12.5 field whose production
+    /// is `Accept-Encoding`'s under another name was missing from the sentence
+    /// for the same reason it was missing from the catalogue.
     ///
     // cite(RFC 9110 § 12.4.2, label: the weight production): "weight = OWS ";" OWS "q=" qvalue"
     WEIGHT_MISSING = {
@@ -191,9 +207,15 @@ defects! {
     /// reads the last disagree about a preference the sender wrote twice.
     ///
     /// **Uncited, and for a reason none of the other uncited entries has.** The
-    /// bracket is written once per field — RFC 9110 § 10.1.4, § 12.5.1, § 12.5.3
-    /// and § 12.5.4 each print it for their own — and one entry is declared by
-    /// the rules that read those fields.
+    /// bracket is written once per field — RFC 9110 § 10.1.4, § 12.5.1, § 12.5.2,
+    /// § 12.5.3 and § 12.5.4 each print it for their own — and one entry is
+    /// declared by the rules that read those fields.
+    ///
+    /// **This list named four sections and the specification prints five.** The
+    /// missing one was § 12.5.2, whose field no rule read; an enumeration of
+    /// the fields carrying a construct, written from the rules that carry it,
+    /// can only count the fields somebody already built a reader for. The list
+    /// belongs to the specification and is now taken from there.
     /// `every_violation_spec_is_declared_by_its_rule` compares a def's
     /// references against *each* declaring rule's, so a shared entry may only
     /// name a sentence every declarer states, and no rule here states another

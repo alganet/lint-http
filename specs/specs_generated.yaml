@@ -6007,28 +6007,38 @@ sources:
       line: 122
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 162
-  - label: accept_encoding_parameter_valid
+  - label: the deprecation
+    section: § 12.5.2
+    snippet: Accept-Charset is deprecated because UTF-8 has become nearly ubiquitous and sending a detailed list of user-preferred charsets wastes bandwidth, increases latency, and makes passive fingerprinting far too easy
+    cited_by:
+    - file: lint-http-rules/src/violations/accept_charset.rs
+      line: 60
+  - label: accept_charset_valid
     section: § 12.4.2
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
     cited_by:
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 320
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 361
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 441
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 225
+      line: 226
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 176
+      line: 192
   - label: the weight production
     section: § 12.4.2
     snippet: weight = OWS ";" OWS "q=" qvalue
     cited_by:
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 189
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 211
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 454
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 165
+      line: 166
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 313
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -6036,24 +6046,56 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 328
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 113
+      line: 121
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 144
+      line: 160
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 177
-  - label: accept_encoding_parameter_valid (2)
+      line: 193
+  - label: accept_charset_valid (2)
+    section: § 12.5.2
+    snippet: A user agent MAY associate a quality value with each charset to indicate the user's relative preference for that charset, as defined in Section 12.4.2.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 287
+  - label: accept_charset_valid (3)
+    section: § 12.5.2
+    snippet: 'Accept-Charset = #( ( token / "*" ) [ weight ] )'
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 188
+  - label: accept_charset_valid (4)
+    section: § 12.5.2
+    snippet: Charset names are defined in Section 8.3.2.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 262
+  - label: accept_charset_valid (5)
+    section: § 12.5.2
+    snippet: The "Accept-Charset" header field can be sent by a user agent to indicate its preferences for charsets in textual response content.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 114
+    - file: lint-http-rules/src/violations/accept_charset.rs
+      line: 59
+  - label: accept_charset_valid (6)
+    section: § 12.5.2
+    snippet: The special value "*", if present in the Accept-Charset header field, matches every charset that is not mentioned elsewhere in the field.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 242
+  - label: accept_encoding_parameter_valid
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 210
-  - label: accept_encoding_parameter_valid (3)
+  - label: accept_encoding_parameter_valid (2)
     section: § 12.5.3
     snippet: An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 289
-  - label: accept_encoding_parameter_valid (4)
+  - label: accept_encoding_parameter_valid (3)
     section: § 12.5.3
     snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
     cited_by:
@@ -6063,13 +6105,13 @@ sources:
       line: 142
     - file: lint-http-rules/src/violations/accept_encoding.rs
       line: 78
-  - label: accept_encoding_parameter_valid (5)
+  - label: accept_encoding_parameter_valid (4)
     section: § 12.5.3
     snippet: Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 334
-  - label: accept_encoding_parameter_valid (6)
+  - label: accept_encoding_parameter_valid (5)
     section: § 12.5.3
     snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
     cited_by:
@@ -6077,13 +6119,13 @@ sources:
       line: 288
     - file: lint-http-rules/src/violations/content_coding.rs
       line: 67
-  - label: accept_encoding_parameter_valid (7)
+  - label: accept_encoding_parameter_valid (6)
     section: § 12.5.3
     snippet: The field value is evaluated the same way as in a request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 124
-  - label: accept_encoding_parameter_valid (8)
+  - label: accept_encoding_parameter_valid (7)
     section: § 12.5.3
     snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
     cited_by:
@@ -6091,13 +6133,13 @@ sources:
       line: 122
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 134
-  - label: accept_encoding_parameter_valid (9)
+  - label: accept_encoding_parameter_valid (8)
     section: § 12.5.3
     snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 123
-  - label: accept_encoding_parameter_valid (10)
+  - label: accept_encoding_parameter_valid (9)
     section: § 8.4.1
     snippet: content-coding   = token
     cited_by:
@@ -6260,19 +6302,19 @@ sources:
     snippet: 'Accept-Language = #( language-range [ weight ] )'
     cited_by:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 164
+      line: 165
   - label: accept_language_weight_valid (2)
     section: § 12.5.4
     snippet: Each language-range can be given an associated quality value representing an estimate of the user's preference for the languages specified by that range, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 206
+      line: 207
   - label: accept_language_weight_valid (3)
     section: § 12.5.4
     snippet: The "Accept-Language" header field can be used by user agents to indicate the set of natural languages that are preferred in the response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 98
+      line: 99
   - label: accept_patch_header_valid
     section: § 10.2.1
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
@@ -7829,6 +7871,8 @@ sources:
       line: 251
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 84
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 204
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 238
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
@@ -8361,12 +8405,14 @@ sources:
       line: 123
     - file: lint-http-rules/src/helpers/token_list.rs
       line: 68
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 221
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 258
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 585
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 181
+      line: 182
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 144
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -8463,6 +8509,8 @@ sources:
       line: 392
     - file: lint-http-rules/src/helpers/headers.rs
       line: 474
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 392
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 167
     - file: lint-http-rules/src/rules/expect_ct_field_obsolete.rs
@@ -8897,12 +8945,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/list.rs
       line: 84
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 203
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 237
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 561
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 180
+      line: 181
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 959
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -9253,12 +9303,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/qvalue.rs
       line: 34
+    - file: lint-http-rules/src/rules/accept_charset_valid.rs
+      line: 365
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 432
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
-      line: 289
+      line: 290
     - file: lint-http-rules/src/violations/qvalue.rs
-      line: 77
+      line: 85
   - label: lint-http-rules/src/helpers/request_target.rs
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".

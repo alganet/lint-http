@@ -1025,7 +1025,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "warning_agent_missing",
     "warning_member_malformed",
     "warning_text_missing",
-    "weight_equals_whitespace_forbidden",
 ];
 
 /// Every entry a non-compliant example draws, across the whole catalogue.

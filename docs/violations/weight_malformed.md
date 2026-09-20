@@ -31,5 +31,6 @@ severity = "error"
 
 ## Reported By
 
+- [accept_charset_valid](../rules/accept_charset_valid.md)
 - [accept_encoding_parameter_valid](../rules/accept_encoding_parameter_valid.md)
 - [accept_language_weight_valid](../rules/accept_language_weight_valid.md)

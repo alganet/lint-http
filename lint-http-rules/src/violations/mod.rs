@@ -33,6 +33,7 @@ use linkme::distributed_slice;
 use std::sync::LazyLock;
 
 pub mod accept;
+pub mod accept_charset;
 pub mod accept_encoding;
 pub mod accept_patch;
 pub mod accept_ranges;

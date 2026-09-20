@@ -30,6 +30,7 @@ severity = "warn"
 
 ## Reported By
 
+- [accept_charset_valid](../rules/accept_charset_valid.md)
 - [accept_encoding_parameter_valid](../rules/accept_encoding_parameter_valid.md)
 - [accept_header_media_type_syntax](../rules/accept_header_media_type_syntax.md)
 - [accept_patch_header_valid](../rules/accept_patch_header_valid.md)

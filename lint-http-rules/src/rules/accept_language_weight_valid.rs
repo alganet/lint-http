@@ -12,18 +12,19 @@ use crate::violations::ViolationDef;
 
 /// Nothing this rule reports is about `Accept-Language` alone.
 ///
-/// A weight is § 12.4.2's number and four fields carry it, so a `q=1.5` here
+/// A weight is § 12.4.2's number and five fields carry it, so a `q=1.5` here
 /// and a `q=1.5` in an `Accept` are one defect with one severity. The rest of
 /// what the rule says was filed under "the *assembly* this field admits" and
 /// read by this rule alone — a `;` with no weight after it, a second weight, a
 /// parameter that is not `q` at a field whose grammar has no parameter list.
-/// `accept_encoding_parameter_valid` says all three about its own field, in
-/// the same order and for the same reason: `#( language-range [ weight ] )`
-/// and `#( codings [ weight ] )` put `[ weight ]` after the primary and stop,
-/// so the only construct that can be malformed there is the weight. The fifth
-/// entry is the weight's spelling rather than its assembly, and it arrived from
-/// `te_header_valid`, which reported it while three fields printing the same
-/// production called it a known leniency.
+/// `accept_encoding_parameter_valid` and `accept_charset_valid` say all three
+/// about their own fields, in the same order and for the same reason:
+/// `#( language-range [ weight ] )`, `#( codings [ weight ] )` and
+/// `#( ( token / "*" ) [ weight ] )` put `[ weight ]` after the primary and
+/// stop, so the only construct that can be malformed there is the weight. The
+/// fifth entry is the weight's spelling rather than its assembly, and it
+/// arrived from `te_header_valid`, which reported it while the other fields
+/// printing the same production called it a known leniency.
 static DECLARED: &[&ViolationDef] = &[
     &QVALUE_MALFORMED,
     &WEIGHT_MISSING,
@@ -380,17 +381,26 @@ mod tests {
         assert!(ids.contains(&"weight_duplicated"));
     }
 
-    /// Four fields, one number. `q=1.5` derives from neither alternative of
+    /// Five fields, one number. `q=1.5` derives from neither alternative of
     /// § 12.4.2's production wherever it is written, and each rule still names
     /// the field and the member it was written in.
+    ///
+    /// **This list said four, and the fifth field was the one nothing read.**
+    /// § 12.4.2's weight is printed by § 10.1.4, § 12.5.1, § 12.5.2, § 12.5.3
+    /// and § 12.5.4, and a census taken over the rules that exist can only
+    /// count the fields that have one — so `Accept-Charset` was absent from the
+    /// enumeration for the same reason it was absent from the catalogue. A list
+    /// of fields belongs to the specification, not to the tree.
     #[rstest]
     #[case("accept-language", "en;q=1.5")]
+    #[case("accept-charset", "utf-8;q=1.5")]
     #[case("accept-encoding", "gzip;q=1.5")]
     #[case("accept", "text/plain;q=1.5")]
     #[case("te", "gzip;q=1.5")]
     fn a_weight_is_the_same_defect_in_every_field(#[case] field: &str, #[case] value: &str) {
         let rule: &dyn crate::rules::Rule = match field {
             "accept-language" => &AcceptLanguageWeightValid,
+            "accept-charset" => &super::super::accept_charset_valid::AcceptCharsetValid,
             "accept-encoding" => {
                 &super::super::accept_encoding_parameter_valid::AcceptEncodingParameterValid
             }
@@ -409,14 +419,16 @@ mod tests {
         assert!(found.message.contains("1.5"), "{}", found.message);
     }
 
-    /// Four fields, one literal. `"q="` is written as a single ABNF string
+    /// Five fields, one literal. `"q="` is written as a single ABNF string
     /// with nothing optional inside it and both of `weight`'s `OWS` standing
     /// before it, so whitespace there is the same defect wherever the weight is
-    /// carried — and three of these four rules published it as a known leniency
-    /// while the fourth reported it.
+    /// carried — and three of the four rules that existed published it as a
+    /// known leniency while the fourth reported it.
     #[rstest]
     #[case("accept-language", "en;q =0.5")]
     #[case("accept-language", "en;q= 0.5")]
+    #[case("accept-charset", "utf-8;q =0.5")]
+    #[case("accept-charset", "utf-8;q= 0.5")]
     #[case("accept-encoding", "gzip;q =0.5")]
     #[case("accept-encoding", "gzip;q= 0.5")]
     #[case("accept", "text/plain;q =0.5")]
@@ -427,6 +439,7 @@ mod tests {
     ) {
         let rule: &dyn crate::rules::Rule = match field {
             "accept-language" => &AcceptLanguageWeightValid,
+            "accept-charset" => &super::super::accept_charset_valid::AcceptCharsetValid,
             "accept-encoding" => {
                 &super::super::accept_encoding_parameter_valid::AcceptEncodingParameterValid
             }

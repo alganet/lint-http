@@ -164,6 +164,7 @@ The sections group rules by **who is answerable for what they report** — the p
 
 ## Rules Whose Findings Name Their Own Peer
 
+- [accept_charset_valid](rules/accept_charset_valid.md) — Check that an `Accept-Charset` header reads as `#( ( token / "*" ) [ weight ] )`: each member a charset name or the literal `*`, optionally followed by a weight whose value is a `qvalue` — `0` to `1` with at most three digits after the point. A request carrying the field at all is also reported, because §12.5.2 deprecates it.
 - [accept_encoding_parameter_valid](rules/accept_encoding_parameter_valid.md) — Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.
 - [accept_header_media_type_syntax](rules/accept_header_media_type_syntax.md) — Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.
 - [allow_header_method_tokens_valid](rules/allow_header_method_tokens_valid.md) — Validates the `Allow` header field's own value — the set of methods a resource advertises as supported.

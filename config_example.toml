@@ -114,6 +114,9 @@ ca_key_path = "ca.key"
 [rules.accept_and_content_type_negotiation]
 enabled = true
 
+[rules.accept_charset_valid]
+enabled = true
+
 [rules.accept_encoding_parameter_valid]
 enabled = true
 
@@ -989,6 +992,10 @@ enabled = true
 
 [rules.websocket_frame_rsv_bits]
 enabled = true
+
+[violations.accept_charset_obsolete]
+# A request carries a field this specification deprecates
+severity = "info"
 
 [violations.accept_encoding_empty]
 # Request declines every content coding

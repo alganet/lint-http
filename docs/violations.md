@@ -10,6 +10,7 @@ Generated index of every defect the rules report. Each entry links to the per-de
 
 Entries are in id order, which groups them by subject: an id reads `<subject>[_<part>]_<defect>`. A page names the specification sentences its defect enforces where there are any — some defects have none, because the value is refused by this implementation rather than by a document, or the bound was configured by a deployment, and an absent sentence is carried rather than guessed.
 
+- [accept_charset_obsolete](violations/accept_charset_obsolete.md) — A request carries a field this specification deprecates
 - [accept_encoding_empty](violations/accept_encoding_empty.md) — Request declines every content coding
 - [accept_encoding_missing](violations/accept_encoding_missing.md) — Request expresses no content-coding preference
 - [accept_ignored](violations/accept_ignored.md) — Response sends a media type the request did not accept
