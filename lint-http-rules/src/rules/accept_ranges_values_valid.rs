@@ -213,12 +213,15 @@ impl Rule for AcceptRangesValuesValid {
             // must not go on to answer the `none` question below — that
             // would measure a contradiction out of text nobody honours.
             let mut section_units: Vec<String> = Vec::new();
-            match read_units(&value, &mut section_units) {
-                Ok(()) => units.append(&mut section_units),
-                Err((def, why)) => out.push(ctx.report_with(
-                    def,
-                    format!("Invalid Accept-Ranges field value '{}': {}", value, why),
-                )),
+            let defects = read_units(&value, &mut section_units);
+            match defects.is_empty() {
+                true => units.append(&mut section_units),
+                false => out.extend(defects.into_iter().map(|(def, why)| {
+                    ctx.report_with(
+                        def,
+                        format!("Invalid Accept-Ranges field value '{}': {}", value, why),
+                    )
+                })),
             }
         }
 
@@ -285,7 +288,14 @@ impl Rule for AcceptRangesValuesValid {
 }
 
 /// Read one field section's value as a list of range units, appending what it
-/// advertised to `units`.
+/// advertised to `units` and answering with every defect it holds.
+///
+/// Each element is a range unit a sender wrote and edits on its own, so a
+/// section naming two units outside `token` is two names to correct. Ending at
+/// the first of them stated one and withheld the other, and the walk was
+/// invisible to the ratchet that watches for exactly that: the split is written
+/// here rather than taken from a member helper, so nothing about the loop said
+/// it was reading a list.
 ///
 /// A range unit is a `token` and nothing narrower. The rule used to accept
 /// `bytes` and `none` and report every other name -- its own description said
@@ -316,19 +326,33 @@ impl Rule for AcceptRangesValuesValid {
 ///
 // cite(RFC 9110 § 14.1): "Range units are intended to be extensible, as described in Section 16.5."
 // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), (&'static ViolationDef, String)> {
+fn read_units(value: &str, units: &mut Vec<String>) -> Vec<(&'static ViolationDef, String)> {
+    let mut out: Vec<(&'static ViolationDef, String)> = Vec::new();
+
     // The `1` in `1#`. A field line with nothing in it is not a list of one
     // range unit; it is a list of none, which this production does not generate.
     // The specification prints the empty value among its own examples of what a
     // `1#` production makes invalid.
     //
+    // This one still ends the reading, and it is the only one that does. The
+    // walk below splits on commas, and `"".split(',')` yields one element --
+    // empty -- so a value that states no member at all would go on to be told
+    // that the member it does not have is blank. The two sentences are about
+    // the same nothing, and only the first is true of it.
+    //
     // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production"
     if value.is_empty() {
-        return Err((
+        out.push((
             &LIST_MEMBER_MISSING,
             "the value is empty, and a list of range units needs at least one".into(),
         ));
+        return out;
     }
+
+    // The empty element belongs to the field rather than to a member: `a,,,b`
+    // is one hole to close however many commas the sender ran together, and
+    // the sentence names no element because there is no element to name.
+    let mut saw_an_empty_element = false;
 
     for element in value.split(',') {
         // The list construct puts OWS on either side of each comma, and OWS is
@@ -343,10 +367,8 @@ fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), (&'static Viol
 
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if element.is_empty() {
-            return Err((
-                &LIST_MEMBER_EMPTY,
-                "a list element is empty, which no sender may generate".into(),
-            ));
+            saw_an_empty_element = true;
+            continue;
         }
 
         // § 14.1 prints this production alone between two paragraphs, where it
@@ -356,13 +378,14 @@ fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), (&'static Viol
         //
         // cite(RFC 9110 § A): "range-unit = token ranges-specifier = range-unit "=" range-set"
         if let Some(c) = crate::helpers::token::find_invalid_token_char(element) {
-            return Err((
+            out.push((
                 token_character(c),
                 format!(
                     "'{}' is not a range-unit: a range unit name is a token, and {:?} is not a token character",
                     element, c
                 ),
             ));
+            continue;
         }
 
         // The fold is the specification's and not a tolerance this code chose,
@@ -373,7 +396,14 @@ fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), (&'static Viol
         units.push(element.to_ascii_lowercase());
     }
 
-    Ok(())
+    if saw_an_empty_element {
+        out.push((
+            &LIST_MEMBER_EMPTY,
+            "a list element is empty, which no sender may generate".into(),
+        ));
+    }
+
+    out
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -662,6 +692,38 @@ mod tests {
             "{}",
             all[0].message
         );
+    }
+
+    /// Two range units, each outside `token`, are two names a server has to
+    /// correct. The walk returned at the first and the second went unsaid.
+    #[test]
+    fn every_defective_unit_is_named() {
+        let tx = advertising(&[(Section::Header, b"by@es, pa=es")]);
+        let all = judge_all(&tx);
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(all[0].message.contains("'by@es'"), "{}", all[0].message);
+        assert!(all[1].message.contains("'pa=es'"), "{}", all[1].message);
+    }
+
+    /// The empty element belongs to the field. Three commas in a row are one
+    /// hole to close, and saying so three times says nothing more than once.
+    #[test]
+    fn empty_elements_are_one_finding_however_many() {
+        let tx = advertising(&[(Section::Header, b"bytes,,,none")]);
+        let all = judge_all(&tx);
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert!(all[0].message.contains("is empty"), "{}", all[0].message);
+    }
+
+    /// A value stating no member must not also be told that the member it does
+    /// not have is blank: `"".split(',')` yields one empty element, and both
+    /// sentences would be about the same nothing.
+    #[test]
+    fn an_empty_value_states_only_that_the_list_has_no_member() {
+        let tx = advertising(&[(Section::Header, b"")]);
+        let all = judge_all(&tx);
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert_eq!(all[0].violation, "list_member_missing", "{all:?}");
     }
 
     #[test]
