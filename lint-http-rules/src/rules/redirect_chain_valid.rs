@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
+use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::location::{LOCATION_REDIRECT_REDUNDANT, RFC_9110_15_4};
@@ -352,8 +353,8 @@ impl Rule for RedirectChainValid {
 
             Some(ctx.report_with(&LOCATION_REDIRECT_REDUNDANT, format!(
                     "Location '{}' resolves to '{}', the target URI of the request it answers, so the response redirects the client to where it already was: {}. A client that follows it issues the same request again — RFC 9110 §15.4 asks one to detect and intervene in cyclical redirections, and this is the shortest one there is",
-                    value.escape_debug(),
-                    location_path_and_query.escape_debug(),
+                    shown_in_finding(value),
+                    shown_in_finding(&location_path_and_query),
                     referent
                 )))
         };

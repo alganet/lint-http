@@ -2219,7 +2219,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 474
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 314
+      line: 315
   - label: lint-http-rules/src/helpers/scheme.rs
     section: § 3.1
     snippet: Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-").
@@ -2484,7 +2484,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 162
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 276
+      line: 277
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 126
     - file: lint-http-rules/src/rules/referrer_policy_valid.rs
@@ -6032,9 +6032,9 @@ sources:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 313
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 143
+      line: 144
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 327
+      line: 328
     - file: lint-http-rules/src/violations/qvalue.rs
       line: 113
     - file: lint-http-rules/src/violations/qvalue.rs
@@ -6220,7 +6220,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 467
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 338
+      line: 339
   - label: accept_header_media_type_syntax (2)
     section: § 12.5.1
     snippet: Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2).
@@ -6494,7 +6494,7 @@ sources:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 189
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 212
+      line: 213
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 168
     - file: lint-http-rules/src/violations/field.rs
@@ -7066,13 +7066,13 @@ sources:
     snippet: Tokens are short textual identifiers that do not include whitespace or delimiters.
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 103
+      line: 104
   - label: connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 130
+      line: 131
     - file: lint-http-rules/src/violations/connection.rs
       line: 60
   - label: Connection grammar
@@ -7080,7 +7080,7 @@ sources:
     snippet: 'Connection        = #connection-option connection-option = token'
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 49
+      line: 50
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 184
   - label: connection_header_tokens_valid (3)
@@ -7088,9 +7088,9 @@ sources:
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 48
+      line: 49
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 206
+      line: 207
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 229
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
@@ -7100,7 +7100,7 @@ sources:
     snippet: Connection = [ connection-option *( OWS "," OWS connection-option ) ]
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 76
+      line: 77
   - label: content_coding
     section: § 8.4
     snippet: Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included.
@@ -7328,11 +7328,11 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 32
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 224
+      line: 225
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 497
+      line: 498
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 590
+      line: 591
   - label: context_fields_direction (6)
     section: § 10.1.5
     snippet: The "User-Agent" header field contains information about the user agent originating the request
@@ -7962,7 +7962,7 @@ sources:
     - file: lint-http-core/src/http_version.rs
       line: 155
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 86
+      line: 87
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 331
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
@@ -8036,7 +8036,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 108
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 129
+      line: 130
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (7)
     section: § 7.6.1
     snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
@@ -8046,7 +8046,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 142
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 49
+      line: 50
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 76
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (8)
@@ -8376,7 +8376,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 229
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 92
+      line: 93
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 246
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
@@ -8466,17 +8466,17 @@ sources:
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 153
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 248
+      line: 249
     - file: lint-http-rules/src/rules/p3p_field_obsolete.rs
       line: 110
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
-      line: 144
+      line: 145
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 199
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 41
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 83
+      line: 84
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 5.6.1
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
@@ -8998,7 +8998,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 81
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 77
+      line: 78
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 289
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
@@ -9008,13 +9008,13 @@ sources:
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 180
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 249
+      line: 250
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 299
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 247
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 99
+      line: 100
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 220
   - label: lint-http-rules/src/helpers/media_type.rs (2)
@@ -9262,7 +9262,7 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 50
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 272
+      line: 273
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 221
   - label: lint-http-rules/src/helpers/request_target.rs (2)
@@ -9342,7 +9342,7 @@ sources:
     - file: lint-http-rules/src/helpers/status.rs
       line: 7
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 84
+      line: 85
   - label: lint-http-rules/src/helpers/stored_response.rs
     section: § 9.2.3
     snippet: For a cache to store and use a response, the associated method needs to explicitly allow caching and to detail under what conditions a response can be used to satisfy subsequent requests; a method definition that does not do so cannot be cached.
@@ -9526,7 +9526,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 158
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 93
+      line: 94
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 39
   - label: location_on_redirect_present (2)
@@ -9536,7 +9536,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 228
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 35
+      line: 36
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 49
   - label: location_on_redirect_present (3)
@@ -9548,7 +9548,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 144
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 94
+      line: 95
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 40
   - label: location_on_redirect_present (4)
@@ -9558,7 +9558,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 237
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 83
+      line: 84
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 51
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
@@ -9576,7 +9576,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 46
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 39
+      line: 40
   - label: location_on_redirect_present (7)
     section: § 15.4.2
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
@@ -9596,7 +9596,7 @@ sources:
     - file: lint-http-rules/src/rules/location_on_redirect_present.rs
       line: 67
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 52
+      line: 53
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
       line: 52
     - file: lint-http-rules/src/violations/location.rs
@@ -9776,15 +9776,15 @@ sources:
     snippet: 'This includes but is not limited to:'
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 50
+      line: 51
   - label: t-codings
     section: § A
     snippet: t-codings = "trailers" / ( transfer-coding [ weight ] )
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 274
+      line: 275
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 164
+      line: 165
     - file: lint-http-rules/src/violations/te.rs
       line: 144
   - label: no_connection_specific_fields (2)
@@ -9792,11 +9792,11 @@ sources:
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 275
+      line: 276
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 121
+      line: 122
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 257
+      line: 258
   - label: options_method_capabilities
     section: § 10.2.1
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
@@ -9952,9 +9952,9 @@ sources:
     snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
     cited_by:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
-      line: 130
+      line: 131
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 222
+      line: 223
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 75
   - label: range_and_content_range_consistent
@@ -10202,19 +10202,19 @@ sources:
     snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 284
+      line: 285
   - label: redirect_chain_valid (2)
     section: § 10.2.2
     snippet: When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 273
+      line: 274
   - label: redirect_chain_valid (3)
     section: § 15
     snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 82
+      line: 83
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 50
     - file: lint-http-rules/src/rules/status_1xx_vs_request_version.rs
@@ -10226,31 +10226,31 @@ sources:
     snippet: the target resource has more than one representation, each with its own more specific identifier
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 38
+      line: 39
   - label: redirect_chain_valid (5)
     section: § 15.4.2
     snippet: The 301 (Moved Permanently) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 43
+      line: 44
   - label: redirect_chain_valid (6)
     section: § 15.4.3
     snippet: The 302 (Found) status code indicates that the target resource resides temporarily under a different URI.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 47
+      line: 48
   - label: redirect_chain_valid (7)
     section: § 15.4.4
     snippet: Note that the new URI in the Location header field is not considered equivalent to the target URI.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 53
+      line: 54
   - label: redirect_chain_valid (8)
     section: § 15.4.5
     snippet: the server is therefore redirecting the client to make use of that stored representation as if it were the content of a 200 (OK) response
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 72
+      line: 73
     - file: lint-http-rules/src/violations/status.rs
       line: 660
   - label: redirect_chain_valid (9)
@@ -10258,19 +10258,19 @@ sources:
     snippet: The 305 (Use Proxy) status code was defined in a previous version of this specification and is now deprecated (Appendix B of [RFC7231]).
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 74
+      line: 75
   - label: redirect_chain_valid (10)
     section: § 15.4.7
     snippet: The 306 status code was defined in a previous version of this specification, is no longer used, and the code is reserved.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 76
+      line: 77
   - label: redirect_chain_valid (11)
     section: § 15.4.8
     snippet: The 307 (Temporary Redirect) status code indicates that the target resource resides temporarily under a different URI and the user agent MUST NOT change the request method if it performs an automatic redirection to that URI.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 57
+      line: 58
     - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
       line: 51
   - label: redirect_chain_valid (12)
@@ -10278,7 +10278,7 @@ sources:
     snippet: The 308 (Permanent Redirect) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 61
+      line: 62
   - label: redirect_status_and_location_valid
     section: § 10.2.2
     snippet: The type of relationship is defined by the combination of request method and status code semantics.
@@ -10956,7 +10956,7 @@ sources:
     snippet: A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 244
+      line: 245
     - file: lint-http-rules/src/violations/te.rs
       line: 170
   - label: te_header_valid (2)
@@ -10964,7 +10964,7 @@ sources:
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 84
+      line: 85
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 522
   - label: te_header_valid (3)
@@ -10972,21 +10972,21 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 284
+      line: 285
   - label: te_header_valid (4)
     section: § A
     snippet: TE = [ t-codings *( OWS "," OWS t-codings ) ]
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 97
+      line: 98
   - label: transfer-coding
     section: § A
     snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 142
+      line: 143
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 187
+      line: 188
     - file: lint-http-rules/src/violations/transfer_coding.rs
       line: 66
   - label: timing_allow_origin_valid
@@ -12322,7 +12322,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 168
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 341
+      line: 342
   - label: lint-http-rules/src/helpers/content_length.rs
     section: § 6.3
     snippet: If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value).
@@ -12376,7 +12376,7 @@ sources:
     snippet: As a result, clients are encouraged not to send the Proxy-Connection header field in any requests.
     cited_by:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
-      line: 78
+      line: 79
     - file: lint-http-rules/src/violations/proxy_connection.rs
       line: 54
   - label: proxy_connection_discouraged (2)
@@ -12384,13 +12384,13 @@ sources:
     snippet: One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above.
     cited_by:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
-      line: 155
+      line: 156
   - label: redirect_chain_valid
     section: § 3.3
     snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 342
+      line: 343
   - label: Content-Length not in a transfer-coded message
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
@@ -12576,13 +12576,13 @@ sources:
     snippet: The TE header field (Section 10.1.4 of [HTTP]) uses a pseudo-parameter named "q" as the rank value when multiple transfer codings are acceptable.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 318
+      line: 319
   - label: te_header_valid (2)
     section: § 7.4
     snippet: If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 98
+      line: 99
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 521
   - label: te_header_valid (3)
@@ -12590,13 +12590,13 @@ sources:
     snippet: Since the TE header field only applies to the immediate connection, a sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1 of [HTTP]) in order to prevent the TE header field from being forwarded by intermediaries that do not support its semantics.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 245
+      line: 246
   - label: te_header_valid (4)
     section: § 7.4
     snippet: When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 319
+      line: 320
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 407
   - label: transfer_coding
@@ -12843,7 +12843,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 100
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 48
+      line: 49
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 78
   - label: no_body_for_1xx_204_304
@@ -12853,11 +12853,11 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 301
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 372
+      line: 373
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 183
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 223
+      line: 224
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 77
     - file: lint-http-rules/src/violations/field.rs
@@ -12867,13 +12867,13 @@ sources:
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/2 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/2 endpoints as malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 155
+      line: 156
   - label: no_connection_specific_fields (2)
     section: § 8.2.2
     snippet: HTTP/2 does not use the Connection header field (Section 7.6.1 of [HTTP]) to indicate connection-specific header fields; in this protocol, connection-specific metadata is conveyed by other means.
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 67
+      line: 68
   - label: request_target
     section: § 8.3.1
     snippet: All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5).
@@ -12917,7 +12917,7 @@ sources:
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 224
+      line: 225
     - file: lint-http-rules/src/violations/te.rs
       line: 96
 - label: RFC 9114
@@ -13196,13 +13196,13 @@ sources:
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 156
+      line: 157
   - label: no_connection_specific_fields (2)
     section: § 4.2
     snippet: HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means.
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 68
+      line: 69
   - label: quic_transport_parameters_valid
     section: § 6.1
     snippet: HTTP/3 does not use server-initiated bidirectional streams
@@ -13278,7 +13278,7 @@ sources:
     snippet: An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 225
+      line: 226
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 79
     - file: lint-http-rules/src/violations/field.rs

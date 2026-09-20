@@ -4,6 +4,7 @@
 
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::sender_list_members;
+use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::connection::{CONNECTION_OPTION_FORBIDDEN, RFC_9110_7_6_1};
@@ -111,7 +112,7 @@ impl ConnectionHeaderTokensValid {
                     format!(
                         "Connection header holds invalid character '{}' in member '{}'; a member is a connection-option, which is a token",
                         ch.escape_debug(),
-                        member.escape_debug()
+                        shown_in_finding(member)
                     ),
                 ));
                 continue;
@@ -142,7 +143,7 @@ impl ConnectionHeaderTokensValid {
                 &LIST_MEMBER_EMPTY,
                 format!(
                     "Connection header holds an empty member: '{}'",
-                    value.escape_debug()
+                    shown_in_finding(&value)
                 ),
             ));
         }

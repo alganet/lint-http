@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
-use crate::helpers::shown::describe_octet;
+use crate::helpers::shown::{describe_octet, shown_in_finding};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
@@ -166,7 +166,7 @@ impl Rule for MaxForwardsNumeric {
                     crate::helpers::headers::singleton_field_preamble(
                         "Max-Forwards",
                         lines,
-                        &value.escape_debug().to_string(),
+                        &shown_in_finding(&value),
                         "`Max-Forwards = 1*DIGIT` has no comma-separated-list alternative",
                     ),
                 ));
@@ -198,7 +198,7 @@ impl Rule for MaxForwardsNumeric {
                 // it through, since by definition the production did not admit it.
                 return Some(ctx.report_with(&MAX_FORWARDS_MALFORMED, format!(
                     "Max-Forwards value '{}' holds {}, which is not a DIGIT; the field is `Max-Forwards = 1*DIGIT`",
-                    value.escape_debug(),
+                    shown_in_finding(value),
                     describe_octet(ch as u8)
                 )));
             }
@@ -235,6 +235,32 @@ mod tests {
 
     use hyper::header::HeaderValue;
     use rstest::rstest;
+
+    /// **The value is shown as the sender wrote it, quotes included.** This
+    /// message names the offending octet through `describe_octet` *and* prints
+    /// the whole value beside it, so rendering the two differently made one
+    /// sentence disagree with itself: `Max-Forwards value '\\"3\\"' holds '"'`
+    /// showed the same DQUOTE escaped in one half and bare in the other. Both
+    /// halves now agree, and both agree with the field.
+    #[test]
+    fn the_value_and_the_octet_it_names_are_shown_the_same_way() {
+        let v = max_forwards(&[b"\"3\""]).expect("a quoted digit is not 1*DIGIT");
+        assert!(
+            v.message.contains(r#"value '"3"'"#),
+            "the value is shown as written: {}",
+            v.message
+        );
+        assert!(
+            v.message.contains(r#"holds '"'"#),
+            "the octet is named the same way: {}",
+            v.message
+        );
+        assert!(
+            !v.message.contains(r#"\""#),
+            "no escaped quote: {}",
+            v.message
+        );
+    }
 
     /// Every fixture in this module is built here, from raw octets.
     ///

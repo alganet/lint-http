@@ -6,6 +6,7 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::{list_members_as_written, split_semicolons_respecting_quotes};
 use crate::helpers::quoted_string::check_quoted_string;
 use crate::helpers::qvalue::valid_qvalue;
+use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
@@ -147,7 +148,7 @@ impl TeHeaderValid {
                         &TRANSFER_CODING_PARAMETER_MISSING,
                         format!(
                             "TE member '{}' holds a ';' with no parameter after it",
-                            member.escape_debug()
+                            shown_in_finding(member)
                         ),
                     ));
                     continue 'member;
@@ -166,8 +167,8 @@ impl TeHeaderValid {
                 if let Some(extra) = segments.get(1) {
                     out.push(ctx.by_client().report_with(&TE_TRAILERS_PARAMETER_FORBIDDEN, format!(
                         "TE member '{}' hangs '{}' off the 'trailers' keyword; the t-codings alternative that admits a parameter or a weight is the transfer-coding one",
-                        member.escape_debug(),
-                        extra.escape_debug()
+                        shown_in_finding(member),
+                        shown_in_finding(extra)
                     )));
                 }
                 continue;
@@ -198,7 +199,7 @@ impl TeHeaderValid {
                 &LIST_MEMBER_EMPTY,
                 format!(
                     "TE header holds an empty member: '{}'",
-                    value.escape_debug()
+                    shown_in_finding(value)
                 ),
             ));
         }
@@ -267,8 +268,8 @@ impl TeHeaderValid {
         let Some((raw_name, raw_value)) = parameter.split_once('=') else {
             return Some(ctx.by_client().report_with(&PARAMETER_EQUALS_MISSING, format!(
                 "TE parameter '{}' in member '{}' has no value; neither a transfer-parameter nor a weight is written without an '='",
-                parameter.escape_debug(),
-                member.escape_debug()
+                shown_in_finding(parameter),
+                shown_in_finding(member)
             )));
         };
 
@@ -292,8 +293,8 @@ impl TeHeaderValid {
         if name.is_empty() {
             return Some(ctx.by_client().report_with(&TOKEN_EMPTY, format!(
                 "TE parameter '{}' in member '{}' names no parameter; a transfer-parameter's name is a token",
-                parameter.escape_debug(),
-                member.escape_debug()
+                shown_in_finding(parameter),
+                shown_in_finding(member)
             )));
         }
 
@@ -304,8 +305,8 @@ impl TeHeaderValid {
         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
             return Some(ctx.by_client().report_with(token_character(c), format!(
                 "TE parameter name '{}' in member '{}' holds invalid character '{}'; a name is a token",
-                name.escape_debug(),
-                member.escape_debug(),
+                shown_in_finding(name),
+                shown_in_finding(member),
                 c.escape_debug()
             )));
         }
@@ -328,7 +329,7 @@ impl TeHeaderValid {
             if whitespace_around_equals {
                 return Some(ctx.by_client().report_with(&WEIGHT_EQUALS_WHITESPACE_FORBIDDEN, format!(
                     "TE member '{}' writes whitespace around the weight's '='; the weight is OWS \";\" OWS \"q=\" qvalue, which admits none there",
-                    member.escape_debug()
+                    shown_in_finding(member)
                 )));
             }
 
@@ -341,8 +342,8 @@ impl TeHeaderValid {
                     &QVALUE_MALFORMED,
                     format!(
                     "Invalid qvalue '{}' in TE member '{}'; a weight is 0 or 1 with at most three digits after the point",
-                    value.escape_debug(),
-                    member.escape_debug()
+                    shown_in_finding(value),
+                    shown_in_finding(member)
                     ),
                 ));
             }
@@ -354,8 +355,8 @@ impl TeHeaderValid {
         if whitespace_around_equals {
             return Some(ctx.by_client().report_with(&BWS_FORBIDDEN, format!(
                 "TE parameter '{}' in member '{}' writes whitespace around its '='; the production admits it there as BWS, which a sender must not generate",
-                parameter.escape_debug(),
-                member.escape_debug()
+                shown_in_finding(parameter),
+                shown_in_finding(member)
             )));
         }
 
@@ -369,8 +370,8 @@ impl TeHeaderValid {
                     quoted_string_defect(defect),
                     format!(
                         "Invalid quoted-string parameter value '{}' in TE member '{}': {}",
-                        value.escape_debug(),
-                        member.escape_debug(),
+                        shown_in_finding(value),
+                        shown_in_finding(member),
                         defect.message(value)
                     ),
                 ));
@@ -383,8 +384,8 @@ impl TeHeaderValid {
         if value.is_empty() {
             return Some(ctx.by_client().report_with(&PARAMETER_VALUE_EMPTY, format!(
                 "TE parameter '{}' in member '{}' has an empty value; the alternatives are a token and a quoted-string, and neither is empty",
-                parameter.escape_debug(),
-                member.escape_debug()
+                shown_in_finding(parameter),
+                shown_in_finding(member)
             )));
         }
 
@@ -393,9 +394,9 @@ impl TeHeaderValid {
                 token_character(c),
                 format!(
                     "TE parameter value '{}' for '{}' in member '{}' holds invalid character '{}'",
-                    value.escape_debug(),
-                    name.escape_debug(),
-                    member.escape_debug(),
+                    shown_in_finding(value),
+                    shown_in_finding(name),
+                    shown_in_finding(member),
                     c.escape_debug()
                 ),
             ));
@@ -598,7 +599,7 @@ impl Rule for TeHeaderValid {
                         combined_field_value_as_written(&resp.headers, "te").unwrap_or_default();
                     out.push(ctx.by_server().report_with(&FIELD_REQUEST_CONTEXT_MISDIRECTED, format!(
                             "Response carries a TE header field: '{}'; TE is a request context field describing the client's capabilities, and RFC 9110 gives it no meaning in a response",
-                            value.escape_debug()
+                            shown_in_finding(&value)
                         )));
                 }
             }
@@ -625,6 +626,42 @@ mod tests {
 
     use hyper::header::HeaderValue;
     use rstest::rstest;
+
+    /// **A `quoted-string` parameter value is shown with its quotes.** `TE`
+    /// writes `transfer-parameter = token BWS "=" BWS ( token / quoted-string )`,
+    /// so a quoted `q` is a shape the grammar admits and a rule reporting the
+    /// weight has to show the octets the sender sent — an operator greps the
+    /// request for `q="1"` and a message spelling it `q=\\"1\\"` names a string
+    /// no request holds. Both the parameter and the member carry the value, so
+    /// both are asserted.
+    #[test]
+    fn a_quoted_parameter_value_is_shown_with_the_quotes_the_sender_wrote() {
+        let rule = TeHeaderValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["te_header_valid"]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.version = "HTTP/1.1".into();
+        tx.request
+            .headers
+            .insert("te", HeaderValue::from_static("gzip;q=\"1\""));
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let m = found
+            .iter()
+            .find(|v| v.violation == "qvalue_malformed")
+            .expect("a quoted weight is not a qvalue")
+            .message
+            .clone();
+        assert!(
+            m.contains(r#"'"1"'"#),
+            "the parameter value as written: {m}"
+        );
+        assert!(m.contains(r#"'gzip;q="1"'"#), "the member as written: {m}");
+        assert!(!m.contains(r#"\""#), "no escaped quote: {m}");
+    }
 
     /// **Every coding the client offered is answered, and so is the connection
     /// option.** The three questions this rule asks are independent: a `TE` in a

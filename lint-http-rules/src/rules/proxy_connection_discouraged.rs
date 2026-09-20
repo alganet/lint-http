@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::combined_field_value_as_written;
+use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::proxy_connection::{PROXY_CONNECTION_OBSOLETE, RFC_9112_C_2_2};
@@ -161,7 +162,7 @@ impl Rule for ProxyConnectionDiscouraged {
                      HTTP/1.0 proxies that did not understand Connection, and is unworkable because \
                      proxies are often deployed in multiple layers, which brings the same hung \
                      connection back. The section states this as advice and not as a requirement",
-                    value.escape_debug()
+                    shown_in_finding(&value)
                 ),
             ))
         };

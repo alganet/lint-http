@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
-use crate::helpers::shown::describe_octet;
+use crate::helpers::shown::{describe_octet, shown_in_finding};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
@@ -263,7 +263,7 @@ impl Rule for LocationHeaderUriValid {
                     crate::helpers::headers::singleton_field_preamble(
                         "Location",
                         lines,
-                        &value.escape_debug().to_string(),
+                        &shown_in_finding(&value),
                         "`Location = URI-reference` has no comma-separated-list alternative",
                     )
                 )));

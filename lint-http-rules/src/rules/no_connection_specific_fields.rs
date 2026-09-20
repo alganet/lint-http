@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::combined_field_value_as_written;
+use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_CONNECTION_SPECIFIC_FORBIDDEN, RFC_9113_8_2_2, RFC_9114_4_2};
@@ -294,7 +295,7 @@ impl NoConnectionSpecificFields {
                         "{} request's TE header field holds '{}'; the only value {} permits \
                          it to contain is 'trailers'",
                         governing.version,
-                        member.escape_debug(),
+                        shown_in_finding(member),
                         governing.section
                     ),
                 )
@@ -741,13 +742,19 @@ mod tests {
     /// `quoted-string` may hold a comma — so the member boundary is not every
     /// comma. Both readings report this value; only one of them names a member
     /// the sender actually wrote, which an `is_some()` assertion cannot see.
+    ///
+    /// **The member is shown with the quotes the sender wrote**, which is what
+    /// makes "the member the sender actually wrote" checkable at all: this
+    /// assertion used to demand `gzip;ext=\"a,b\"`, a string the request does
+    /// not contain, so it pinned the member boundary while showing a value no
+    /// grep of the message would find in the field.
     #[rstest]
     #[case("HTTP/2.0")]
     #[case("HTTP/3.0")]
     fn a_comma_inside_a_quoted_parameter_does_not_end_the_member(#[case] version: &str) {
         let v = request(version, &[("te", "gzip;ext=\"a,b\"")]).expect("violation");
         assert!(
-            v.message.contains(r#"holds 'gzip;ext=\"a,b\"'"#),
+            v.message.contains(r#"holds 'gzip;ext="a,b"'"#),
             "{}",
             v.message
         );
