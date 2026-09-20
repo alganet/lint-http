@@ -203,3 +203,67 @@ mod tests {
         assert!(err.contains("index 1"), "{err}");
     }
 }
+
+/// A rule's resolved `registered_methods` list, kept **exactly as written**.
+///
+/// The counterpart to [`AllowedList`] and the reason it cannot be one: those
+/// nine lists are folded once at prepare time because the wire value is
+/// matched case-insensitively, and this one is the opposite question. § 9.1
+/// makes the method token case-sensitive, so these names are the spelling a
+/// value is measured *against* — folding them here would delete the very
+/// difference the reading exists to report.
+#[derive(Debug)]
+pub struct RegisteredMethods {
+    pub registered_methods: Vec<String>,
+}
+
+/// Parse the required `registered_methods` array out of `[rules.<rule_id>]`.
+///
+/// The convention a case finding reports against is stated about *standardized*
+/// methods, and the eight RFC 9110 defines are only the ones that document
+/// happens to define: the rest are registered elsewhere, in a registry that
+/// grows by IETF Review. A list compiled into a rule would be a snapshot of
+/// that registry presented as though it were the grammar — and the grammar
+/// admits every spelling such a finding reports, which is the whole reason it
+/// needs a set of names to lean on. The array is also where a deployment
+/// writes down its own uppercase-by-convention methods.
+///
+/// An empty array is refused rather than accepted as "report nothing": the
+/// branch it feeds would be unreachable, and a rule that silently checks one
+/// question fewer reads as a linter that agrees rather than one misconfigured.
+// cite(RFC 9110 § 16.1.1): "The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names."
+// cite(RFC 9110 § 16.1.1): "Values to be added to this namespace require IETF Review"
+pub fn registered_methods(cfg: &Config, rule_id: &str) -> anyhow::Result<RegisteredMethods> {
+    let rule_cfg = cfg.get_rule_config(rule_id).ok_or_else(|| {
+        anyhow::anyhow!(
+            "rule '{rule_id}' requires configuration and a named 'registered_methods' array \
+             listing the method names this deployment expects to see spelled as they are \
+             defined. Example in config_example.toml"
+        )
+    })?;
+    let table = rule_cfg
+        .as_table()
+        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{rule_id}' must be a table"))?;
+    let value = table.get("registered_methods").ok_or_else(|| {
+        anyhow::anyhow!(
+            "Rule '{rule_id}' requires a 'registered_methods' array listing standardized method \
+             names (e.g., ['GET','HEAD','POST','PUT'])"
+        )
+    })?;
+    let arr = value.as_array().ok_or_else(|| {
+        anyhow::anyhow!("'registered_methods' must be an array of strings (e.g., ['GET','HEAD'])")
+    })?;
+    if arr.is_empty() {
+        return Err(anyhow::anyhow!(
+            "'registered_methods' array cannot be empty"
+        ));
+    }
+    let mut registered_methods = Vec::new();
+    for (i, item) in arr.iter().enumerate() {
+        let s = item.as_str().ok_or_else(|| {
+            anyhow::anyhow!("'registered_methods' array item at index {i} must be a string")
+        })?;
+        registered_methods.push(s.to_string());
+    }
+    Ok(RegisteredMethods { registered_methods })
+}

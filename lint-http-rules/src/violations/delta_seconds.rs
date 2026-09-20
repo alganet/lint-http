@@ -5,12 +5,28 @@
 //! `delta-seconds` defects — the production every field that carries a time in
 //! seconds writes its value in.
 //!
-//! `delta-seconds = 1*DIGIT`, defined once in RFC 9111 § 1.2.2 and read by four
-//! fields in this tree: `Age`'s whole value, `Cache-Control`'s `max-age` and
-//! `s-maxage` arguments, `Alt-Svc`'s `ma`, and the `timeout` an expired draft
-//! gave `Keep-Alive`. A subject rather than a field, for the reason the domain
+//! `delta-seconds = 1*DIGIT`, defined once in RFC 9111 § 1.2.2 and named by
+//! four documents. A subject rather than a field, for the reason the domain
 //! name syntax is one: the sign in `-1` is the same defect wherever it is
 //! written, and an operator silencing it means the defect and not the carrier.
+//!
+//! **The carriers are enumerated here and the list is a claim, so it is worth
+//! saying what it cost when it was wrong.** It named four — `Age`'s whole
+//! value, `Cache-Control`'s `max-age` and `s-maxage`, `Alt-Svc`'s `ma`, and the
+//! `timeout` an expired draft gave `Keep-Alive` — while `Strict-Transport-
+//! Security`'s `max-age` (RFC 6797 § 6.1.1 writes `max-age-value =
+//! delta-seconds`) had been reading the production for as long as its rule had
+//! existed, and Fetch § 3.3.4's `Access-Control-Max-Age = delta-seconds` was
+//! reading it nowhere at all. A module doc that lists a shared production's
+//! readers is the only place the second kind shows: coverage cannot see a field
+//! nothing reads, because the entry fires from the other five.
+//!
+//! So, measured rather than recalled — every rule declaring either entry
+//! below: `age_header_numeric`, `cache_control_directive_valid` (`max-age`,
+//! `s-maxage`, and RFC 5861's `stale-while-revalidate` and `stale-if-error`),
+//! `alt_svc_h3_advertisement_valid` (`ma`), `keep_alive_header_valid`
+//! (`timeout`), `strict_transport_security_valid` (`max-age`) and
+//! `cors_response_header_syntax` (`Access-Control-Max-Age`).
 //!
 //! **There is no entry here for a numeral too large to represent, and that
 //! absence is a reading rather than an omission.** § 1.2.2 tells a cache

@@ -3766,10 +3766,24 @@ enabled = "true"
     /// fifth ids this exact pair of rules already shares for `cookie-name`,
     /// not two new seams but two old ones the response-side reader had not
     /// reached yet.
+    ///
+    /// **117, and exactly one id moved.** Fetch § 3.3.4 writes nine
+    /// productions and two of them are `method`, so the two rules that read the
+    /// CORS block declare `method_case_invalid` beside
+    /// `request_method_token_valid` — which had been its only declarer.
+    /// § 9.1's case-sensitivity is one claim and a preflight announces a method
+    /// under it exactly as a request-line does, so `Access-Control-Allow-Methods:
+    /// get` allowed nothing while `get` on the request-line was a finding.
+    /// The other eleven entries those two rules declare cost this ceiling
+    /// nothing: `token_*`, `list_*` and `delta_seconds_*` were already shared
+    /// by thirty-odd rules apiece, and a new declarer of an already-shared id
+    /// does not change how many ids are shared. One declarer became three, the
+    /// production did not move, and that is the whole test of whether a second
+    /// declarer is a seam or a duplication.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 116;
+        const CEILING: usize = 117;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();

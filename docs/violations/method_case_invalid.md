@@ -30,4 +30,6 @@ severity = "warn"
 
 ## Reported By
 
+- [cors_request_header_syntax](../rules/cors_request_header_syntax.md)
+- [cors_response_header_syntax](../rules/cors_response_header_syntax.md)
 - [request_method_token_valid](../rules/request_method_token_valid.md)

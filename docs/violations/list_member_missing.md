@@ -33,6 +33,7 @@ severity = "warn"
 - [accept_patch_header_valid](../rules/accept_patch_header_valid.md)
 - [accept_ranges_values_valid](../rules/accept_ranges_values_valid.md)
 - [alt_svc_header_syntax](../rules/alt_svc_header_syntax.md)
+- [cors_request_header_syntax](../rules/cors_request_header_syntax.md)
 - [forwarded_header_valid](../rules/forwarded_header_valid.md)
 - [prefer_header_valid](../rules/prefer_header_valid.md)
 - [preference_applied_header_valid](../rules/preference_applied_header_valid.md)

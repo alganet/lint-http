@@ -362,6 +362,27 @@ enabled = true
 [rules.cookie_same_site_enforced]
 enabled = true
 
+[rules.cors_request_header_syntax]
+enabled = true
+# The standardized method names this deployment expects to see spelled the way their
+# definitions spell them, used only by the `Access-Control-Request-Method` reading.
+# The preflight names a method a later request will use, and that comparison is
+# byte-for-byte — so `get` announces a method nothing defines. But `get` is a perfectly
+# good `token`, and only a list of names makes the lowercase spelling recognisable as a
+# mistake rather than as somebody's private method. The same array
+# `request_method_token_valid` takes, for the same reason.
+registered_methods = ["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"]
+
+[rules.cors_response_header_syntax]
+enabled = true
+# The standardized method names this deployment expects to see spelled the way their
+# definitions spell them, used only by the `Access-Control-Allow-Methods` reading.
+# Fetch compares a method in that field against the request's method byte-for-byte,
+# so `get` allows nothing — but `get` is a perfectly good `token`, and only a list of
+# names makes the lowercase spelling recognisable as a mistake rather than as somebody's
+# private method. The same array `request_method_token_valid` takes, for the same reason.
+registered_methods = ["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"]
+
 [rules.cross_origin_embedder_policy_valid]
 enabled = true
 

@@ -5874,6 +5874,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 223
+    - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
+      line: 178
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 324
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -5890,6 +5892,10 @@ sources:
       line: 265
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 429
+    - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
+      line: 257
+    - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
+      line: 283
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 92
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
@@ -6983,22 +6989,6 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 48
   - label: early_data_header_safe_method (3)
-    section: § 16.1.1
-    snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
-    cited_by:
-    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 46
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 31
-  - label: early_data_header_safe_method (4)
-    section: § 16.1.1
-    snippet: Values to be added to this namespace require IETF Review
-    cited_by:
-    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 49
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 32
-  - label: early_data_header_safe_method (5)
     section: § 9.2.1
     snippet: Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource.
     cited_by:
@@ -7912,6 +7902,8 @@ sources:
       line: 87
     - file: lint-http-rules/src/helpers/list.rs
       line: 123
+    - file: lint-http-rules/src/helpers/token_list.rs
+      line: 68
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 258
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
@@ -8822,6 +8814,26 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 51
+  - label: lint-http-rules/src/helpers/rule_config.rs
+    section: § 16.1.1
+    snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
+    cited_by:
+    - file: lint-http-rules/src/helpers/rule_config.rs
+      line: 234
+    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
+      line: 46
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 31
+  - label: lint-http-rules/src/helpers/rule_config.rs (2)
+    section: § 16.1.1
+    snippet: Values to be added to this namespace require IETF Review
+    cited_by:
+    - file: lint-http-rules/src/helpers/rule_config.rs
+      line: 235
+    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
+      line: 49
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 32
   - label: lint-http-rules/src/helpers/status.rs
     section: § 15.1
     snippet: Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls
@@ -8874,6 +8886,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/token.rs
       line: 7
+    - file: lint-http-rules/src/helpers/token_list.rs
+      line: 69
     - file: lint-http-rules/src/helpers/word.rs
       line: 89
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -10794,7 +10808,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 453
     - file: lint-http-rules/src/violations/delta_seconds.rs
-      line: 23
+      line: 39
   - label: alt_svc_h3_advertisement_valid (2)
     section: § 1.2.2
     snippet: The delta-seconds rule specifies a non-negative integer, representing time in seconds.
@@ -11050,9 +11064,9 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 107
     - file: lint-http-rules/src/violations/delta_seconds.rs
-      line: 46
+      line: 62
     - file: lint-http-rules/src/violations/delta_seconds.rs
-      line: 67
+      line: 83
   - label: lint-http-rules/src/helpers/cache_control.rs
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
