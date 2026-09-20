@@ -188,9 +188,14 @@ supply-chain:
 # **Do not edit source while this runs.** Tarpaulin reads the tree as it goes,
 # so a save mid-run produces a report of a tree that never existed.
 #
+# The llvm engine leaves one `.profraw` per test process at the repository
+# root, and `--skip-clean` keeps them; several thousand had accumulated,
+# ignored by git and seen by nothing else. They are removed whether the gate
+# passed or not, and the gate's own exit status is kept.
+#
 # Slow gate (~15 min): coverage against the 95% floor. Do not edit while it runs.
 coverage:
-    cargo coverage
+    cargo coverage; rc=$?; rm -f ./*.profraw; exit $rc
 
 # Release build, this platform only.
 #
