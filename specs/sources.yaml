@@ -124,6 +124,17 @@ sources:
     type: text/html
     # Editor's draft on purpose: this one has no TR rendition.
 
+  - label: Storage Access Headers
+    url: https://privacycg.github.io/storage-access-headers/
+    type: text/html
+    # A Privacy Community Group draft, and cited as one: it has no TR rendition
+    # and no working-group home. It is here because it defines the fifth
+    # `Sec-Fetch-*` request header — the four in Fetch Metadata are not the whole
+    # family — and because it is the document the HTTP Field Name Registry's
+    # `Sec-Fetch-Storage-Access` row points at. A provisional registration is
+    # still a registration; what the draft status argues about is the value set's
+    # stability, which its own forward-compatibility sentence already covers.
+
   # ── IANA registries ───────────────────────────────────────────────────
 
   - label: IANA HTTP Field Name Registry

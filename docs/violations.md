@@ -411,6 +411,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [sec_fetch_dest_value_invalid](violations/sec_fetch_dest_value_invalid.md) — Sec-Fetch-Dest names no request destination Fetch defines
 - [sec_fetch_mode_value_invalid](violations/sec_fetch_mode_value_invalid.md) — Sec-Fetch-Mode names no request mode the document defines
 - [sec_fetch_site_value_invalid](violations/sec_fetch_site_value_invalid.md) — Sec-Fetch-Site names no relationship the document defines
+- [sec_fetch_storage_access_value_invalid](violations/sec_fetch_storage_access_value_invalid.md) — Sec-Fetch-Storage-Access names no storage access status the document defines
 - [sec_fetch_user_value_invalid](violations/sec_fetch_user_value_invalid.md) — Sec-Fetch-User carries something other than the boolean true
 - [sec_fetch_value_empty](violations/sec_fetch_value_empty.md) — A Sec-Fetch-* field is written with no value on it
 - [sec_fetch_value_malformed](violations/sec_fetch_value_malformed.md) — A Sec-Fetch-* value holds a character no token admits

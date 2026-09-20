@@ -740,6 +740,9 @@ enabled = true
 [rules.sec_fetch_site_value_valid]
 enabled = true
 
+[rules.sec_fetch_storage_access_value_valid]
+enabled = true
+
 [rules.sec_fetch_user_value_valid]
 enabled = true
 
@@ -2716,6 +2719,10 @@ severity = "warn"
 
 [violations.sec_fetch_site_value_invalid]
 # Sec-Fetch-Site names no relationship the document defines
+severity = "warn"
+
+[violations.sec_fetch_storage_access_value_invalid]
+# Sec-Fetch-Storage-Access names no storage access status the document defines
 severity = "warn"
 
 [violations.sec_fetch_user_value_invalid]

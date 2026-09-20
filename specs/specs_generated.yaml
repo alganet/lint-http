@@ -621,7 +621,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
       line: 167
     - file: lint-http-rules/src/violations/sec_fetch.rs
-      line: 155
+      line: 180
   - label: sec_fetch_mode_value_valid
     section: § 2.2
     snippet: HTTP request header exposes a request’s mode to a server
@@ -635,7 +635,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
       line: 156
     - file: lint-http-rules/src/violations/sec_fetch.rs
-      line: 137
+      line: 162
   - label: sec_fetch_site_value_valid
     section: § 2.3
     snippet: HTTP request header exposes the relationship between a request initiator’s origin and its target’s origin
@@ -657,7 +657,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
       line: 157
     - file: lint-http-rules/src/violations/sec_fetch.rs
-      line: 125
+      line: 150
   - label: sec_fetch_user_value_valid
     snippet: 'Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true.'
     cited_by:
@@ -670,7 +670,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 101
     - file: lint-http-rules/src/violations/sec_fetch.rs
-      line: 176
+      line: 201
   - label: sec_fetch_user_value_valid (3)
     section: § 2.4
     snippet: It is a Structured Field whose value is a boolean.
@@ -882,6 +882,38 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 620
+- label: Storage Access Headers
+  url: https://privacycg.github.io/storage-access-headers/
+  type: text/html
+  fragments:
+  - label: sec_fetch_storage_access_value_valid
+    section: § 4.1
+    snippet: In order to support forward-compatibility with as-yet-unknown semantics, servers SHOULD ignore this header if it contains an invalid value.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_fetch_storage_access_value_valid.rs
+      line: 164
+  - label: sec_fetch_storage_access_value_valid (2)
+    section: § 4.1
+    snippet: It is a Structured Field item which is a token.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_fetch_storage_access_value_valid.rs
+      line: 138
+    - file: lint-http-rules/src/rules/sec_fetch_storage_access_value_valid.rs
+      line: 150
+  - label: sec_fetch_storage_access_value_valid (3)
+    section: § 4.1
+    snippet: The Sec-Fetch-Storage-Access HTTP request header exposes a request’s ability or inability to access cookies to a server.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_fetch_storage_access_value_valid.rs
+      line: 107
+  - label: sec_fetch_storage_access_value_valid (4)
+    section: § 4.1
+    snippet: Valid Sec-Fetch-Storage-Access values include "none", "inactive", and "active".
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_fetch_storage_access_value_valid.rs
+      line: 165
+    - file: lint-http-rules/src/violations/sec_fetch.rs
+      line: 229
 - label: draft-ietf-httpbis-rfc6265bis
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
@@ -8332,6 +8364,8 @@ sources:
       line: 107
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
       line: 107
+    - file: lint-http-rules/src/rules/sec_fetch_storage_access_value_valid.rs
+      line: 116
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs

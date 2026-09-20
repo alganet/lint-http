@@ -2,14 +2,24 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! Fetch Metadata defects — what the four `Sec-Fetch-*` request headers may
+//! Fetch Metadata defects — what the five `Sec-Fetch-*` request headers may
 //! carry.
 //!
-//! **One family, four fields, one document**, and the shape is the same in
+//! **One family, five fields, two documents**, and the shape is the same in
 //! every one: a Structured Field whose value is a token (or, for
 //! `Sec-Fetch-User`, a boolean), drawn from a closed set the field's own
 //! section names. So the syntax half is shared across the family and the value
 //! half is each field's, which is exactly how the ids divide.
+//!
+//! **The document is not what bounds the family; the header prefix is.** Four
+//! of the five are Fetch Metadata's own § 2.1 — § 2.4. The fifth,
+//! `Sec-Fetch-Storage-Access`, is defined by Storage Access Headers § 4.1 and
+//! joins the family from there — § 5 of that document appends it "alongside
+//! other Fetch Metadata headers", and the IANA registry gives it the same
+//! Structured Type its siblings carry. Counting the family by its defining
+//! document is what left it unread: the four sections were walked, and a fifth
+//! field sending the same shape on real traffic was not in the block being
+//! walked.
 //!
 //! **The token is RFC 9651's `sf-token` and not HTTP's `token`**, which is why
 //! these values do not borrow [`token`](crate::violations::token)'s ids. The
@@ -20,17 +30,21 @@
 //!
 //! **The two shared entries name no sentence, and the reason is structural
 //! rather than a gap.** Each field states its own type in its own section —
-//! § 2.1, § 2.2, § 2.3, § 2.4 — so a single entry declared by all four rules
-//! could only cite a sentence *every* declarer states, and no rule here states
-//! another field's section. That is the fourth reason an entry carries no
+//! Fetch Metadata § 2.1, § 2.2, § 2.3, § 2.4 and Storage Access Headers § 4.1 —
+//! so a single entry declared by all five rules could only cite a sentence
+//! *every* declarer states, and no rule here states another field's section.
+//! The fifth declarer strengthens this rather than complicating it: the
+//! sections are now in two different documents, so there is not even a shared
+//! document to fall back on. That is the fourth reason an entry carries no
 //! reference: the slice answers a def whose sections are all stated by one
 //! rule, and cannot answer one whose sections are stated one per rule.
 //!
 //! **Nothing here reports an unknown value as a protocol error on the
 //! recipient's side.** Every section tells a server to ignore a value it does
-//! not know, for forward compatibility; these entries lint the *sender*, where
-//! an unrecognised value means the header came from something that is not
-//! implementing the document.
+//! not know, for forward compatibility — Storage Access Headers § 4.1 writes
+//! the sentence in the same words its four siblings do; these entries lint the
+//! *sender*, where an unrecognised value means the header came from something
+//! that is not implementing the document.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -66,6 +80,17 @@ pub const FETCH_METADATA_2_4: SpecRef = SpecRef {
     section: Some("2.4"),
     url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header",
     note: "Fetch Metadata (W3C) — `Sec-Fetch-User`: a boolean, delivered only for navigation requests and only when its value is true",
+};
+
+/// `Sec-Fetch-Storage-Access`: the type, and the three storage access statuses.
+///
+/// The one reference in this subject that is not Fetch Metadata's, because the
+/// fifth member of the family is defined elsewhere and says so.
+pub const STORAGE_ACCESS_HEADERS_4_1: SpecRef = SpecRef {
+    spec: "Storage Access Headers",
+    section: Some("4.1"),
+    url: "https://privacycg.github.io/storage-access-headers/#sec-fetch-storage-access-header",
+    note: "Storage Access Headers (Privacy CG) — `Sec-Fetch-Storage-Access`: an sf-token whose valid values are the three storage access statuses",
 };
 
 defects! {
@@ -180,5 +205,33 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[FETCH_METADATA_2_4],
+    }
+
+    /// A `Sec-Fetch-Storage-Access` that is none of `none`, `inactive` and
+    /// `active`.
+    ///
+    /// The three are lowercase tokens and a Structured Field token carries no
+    /// case folding, so `Active` is one of these findings rather than a
+    /// spelling of the value beside it — `Sec-Fetch-Site`'s reading exactly,
+    /// one document over.
+    ///
+    /// **The value is a status the user agent computed, not a preference the
+    /// sender chose**, which is what the sentence is worth saying: a recipient
+    /// deciding whether to answer with `Activate-Storage-Access` reads this
+    /// field to learn whether the request already carries unpartitioned
+    /// cookies, and a value outside the three tells it nothing it can act on.
+    ///
+    /// `_invalid`: the value derives from the token production and is refused
+    /// by the closed set written past it.
+    ///
+    /// `warn`, with the rest of the family.
+    ///
+    // cite(Storage Access Headers § 4.1): "Valid Sec-Fetch-Storage-Access values include "none", "inactive", and "active"."
+    SEC_FETCH_STORAGE_ACCESS_VALUE_INVALID = {
+        id: "sec_fetch_storage_access_value_invalid",
+        title: "Sec-Fetch-Storage-Access names no storage access status the document defines",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[STORAGE_ACCESS_HEADERS_4_1],
     }
 }

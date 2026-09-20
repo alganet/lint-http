@@ -53,6 +53,7 @@ severity = "error"
 - [sec_fetch_dest_value_valid](../rules/sec_fetch_dest_value_valid.md)
 - [sec_fetch_mode_value_valid](../rules/sec_fetch_mode_value_valid.md)
 - [sec_fetch_site_value_valid](../rules/sec_fetch_site_value_valid.md)
+- [sec_fetch_storage_access_value_valid](../rules/sec_fetch_storage_access_value_valid.md)
 - [sec_fetch_user_value_valid](../rules/sec_fetch_user_value_valid.md)
 - [singleton_fields_not_repeated](../rules/singleton_fields_not_repeated.md)
 - [strict_transport_security_valid](../rules/strict_transport_security_valid.md)
