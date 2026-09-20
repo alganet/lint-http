@@ -41,7 +41,6 @@ severity = "error"
 - [authorization_credentials_valid](../rules/authorization_credentials_valid.md)
 - [cache_control_directive_valid](../rules/cache_control_directive_valid.md)
 - [cache_control_token_valid](../rules/cache_control_token_valid.md)
-- [caching_directive_interaction](../rules/caching_directive_interaction.md)
 - [conditional_etag_syntax](../rules/conditional_etag_syntax.md)
 - [connection_header_tokens_valid](../rules/connection_header_tokens_valid.md)
 - [content_encoding_and_type_consistent](../rules/content_encoding_and_type_consistent.md)

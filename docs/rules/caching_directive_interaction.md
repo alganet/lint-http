@@ -14,7 +14,6 @@ Detect contradictions in `Cache-Control` directives that affect caching semantic
 
 - [cache_control_freshness_conflicting](../violations/cache_control_freshness_conflicting.md) — A Cache-Control freshness directive is given more than one value
 - [cache_control_storage_conflicting](../violations/cache_control_storage_conflicting.md) — Two Cache-Control directives disagree about storing the response
-- [list_member_empty](../violations/list_member_empty.md) — List holds an empty element
 
 ## Specifications
 

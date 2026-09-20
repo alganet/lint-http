@@ -8,7 +8,7 @@ use crate::violations::cache_control::{
     CACHE_CONTROL_FRESHNESS_CONFLICTING, CACHE_CONTROL_STORAGE_CONFLICTING, RFC_9111_4_2_1,
     RFC_9111_5_2_2_5, RFC_9111_5_2_2_7, RFC_9111_5_2_2_9,
 };
-use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::list::RFC_9110_5_6_1_1;
 use crate::violations::ViolationDef;
 
 /// Three entries, and only two of them are this field's own.
@@ -19,7 +19,6 @@ use crate::violations::ViolationDef;
 /// What is left are two disagreements: about whether the response may be
 /// stored, and about how long it stays fresh.
 static DECLARED: &[&ViolationDef] = &[
-    &LIST_MEMBER_EMPTY,
     &CACHE_CONTROL_STORAGE_CONFLICTING,
     &CACHE_CONTROL_FRESHNESS_CONFLICTING,
 ];
@@ -129,18 +128,23 @@ impl Rule for CachingDirectiveInteraction {
             // report with the id that names it.
             let lines = crate::helpers::cache_control::field_lines(hdrs);
 
-            // An empty *element* within the list is forbidden — as distinct
-            // from an entirely empty field value, which is a legal
-            // zero-element list and which `members` already exempts.
-            // `directives_of` would have dropped the empty member; this is
-            // what the raw reader is for.
-            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-            if crate::helpers::cache_control::members(&lines).any(str::is_empty) {
-                out.push(ctx.by(party).report_with(
-                    &LIST_MEMBER_EMPTY,
-                    "Cache-Control header contains empty member".into(),
-                ));
-            }
+            // **The empty list element is not read here, and that is the same
+            // sentence as the comment above.** An empty member is the list
+            // construct's defect, exactly as an octet no `tchar` admits is the
+            // directive name's, and this rule is not a reader of either — it
+            // asks what the directives a sender wrote MEAN beside one another.
+            // Both rules that do read this field's grammar report
+            // `list_member_empty` on the same value under the same id, so a
+            // third site here made one stray comma three findings about one
+            // edit, on a value where the operator has exactly one thing to
+            // remove. The reading it took to see that is not new: the rule
+            // already declined the token defect a line above, for the reason
+            // that applies unchanged to the member.
+            //
+            // Nothing is lost by dropping it. The two syntax rules read the
+            // COMBINED field value, which contains every member this rule's
+            // per-line walk could see and the ones a join contributes as well
+            // — so the site removed here was a strict subset of what stays.
 
             // Directive names are compared case-insensitively, so the map is
             // keyed by the folded name; the argument is kept as written.
@@ -248,12 +252,16 @@ mod tests {
         tx
     }
 
-    /// The three findings and the ids they draw. The two storage rows are one
-    /// entry because a sender deletes one directive either way and a cache
-    /// honours the most restrictive either way; the empty member is not this
-    /// field's defect at all.
+    /// The findings and the ids they draw. The two storage rows are one entry
+    /// because a sender deletes one directive either way and a cache honours
+    /// the most restrictive either way.
+    ///
+    /// The empty member used to head this list and no longer appears in it at
+    /// all: it is the list construct's defect rather than any directive's
+    /// meaning, and the first row below is now the claim that this rule stays
+    /// out of it.
     #[rstest]
-    #[case(",max-age=1", "list_member_empty")]
+    #[case(",max-age=1", "")]
     #[case("public, private", "cache_control_storage_conflicting")]
     #[case("no-store, public", "cache_control_storage_conflicting")]
     // `private` is contained in `no-store`: the pair agrees about storing.
@@ -442,20 +450,57 @@ mod tests {
         );
     }
 
+    /// A stray comma is one edit, and this rule is not the one that names it.
+    ///
+    /// **The test that stood here asserted the opposite**, and it passed while
+    /// two other rules said the same thing about the same octets: an operator
+    /// reading a report of `Cache-Control: ,max-age=1` met one missing member
+    /// described three times. `list_member_empty` belongs to the readers of
+    /// this field's grammar, which is the same division this rule already made
+    /// for the `token` defect beside it.
+    ///
+    /// Asserted on the whole answer and not on the entry alone, because "does
+    /// not report it" has to survive the rule gaining a finding for some other
+    /// reason: the value carries one directive and nothing to disagree with.
     #[test]
-    fn empty_member_is_violation() {
+    fn an_empty_list_element_is_not_this_rules_finding() {
         let rule = CachingDirectiveInteraction;
         let tx = make_req(",max-age=1");
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "caching_directive_interaction",
         ]);
-        let v = crate::test_helpers::run_rule(
+        let found = crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
+        assert!(found.is_empty(), "{found:?}");
+        assert!(!rule
+            .violations()
+            .iter()
+            .any(|v| v.id == "list_member_empty"));
+    }
+
+    /// And the entry is still reported, by the rule whose subject it is. The
+    /// pair of assertions is the point: a site dropped without this is a site
+    /// dropped on the hope that somebody else had it.
+    #[test]
+    fn the_grammar_reader_next_door_still_names_it() {
+        let tx = make_req(",max-age=1");
+        let rule = crate::rules::cache_control_token_valid::CacheControlTokenValid;
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cache_control_token_valid",
+            ]),
+        );
+        assert!(
+            found.iter().any(|v| v.violation == "list_member_empty"),
+            "{found:?}"
+        );
     }
 
     #[test]
