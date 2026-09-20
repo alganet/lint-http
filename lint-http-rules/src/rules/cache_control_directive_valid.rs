@@ -5,9 +5,11 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cache_control::{
-    CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN, CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
-    CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY, RFC_9111_5_2_1_1, RFC_9111_5_2_1_2, RFC_9111_5_2_1_3,
-    RFC_9111_5_2_2_1, RFC_9111_5_2_2_10, RFC_9111_5_2_2_4, RFC_9111_5_2_2_7,
+    CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN, CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN,
+    CACHE_CONTROL_DIRECTIVE_ARGUMENT_MISSING, CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
+    CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY, RFC_9111_5_2, RFC_9111_5_2_1_1, RFC_9111_5_2_1_2,
+    RFC_9111_5_2_1_3, RFC_9111_5_2_1_4, RFC_9111_5_2_2_1, RFC_9111_5_2_2_10, RFC_9111_5_2_2_4,
+    RFC_9111_5_2_2_7, RFC_9111_5_2_3,
 };
 use crate::violations::delta_seconds::{DELTA_SECONDS_CHARACTER_FORBIDDEN, RFC_9111_1_2_2};
 use crate::violations::list::{cache_directive_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
@@ -47,12 +49,21 @@ pub struct CacheControlDirectiveValid;
 /// this field's grammar, where a directive's own definition says what its
 /// argument must say.
 ///
-/// The last is that subject's third entry, and it is about the *form* of a
+/// The next is that subject's third entry, and it is about the *form* of a
 /// `delta-seconds` argument rather than its value: `max-age="60"` is the
 /// `quoted-string` alternative the `cache-directive` grammar admits and the
 /// directive's subsection tells a sender not to write. It used to report as
 /// `token_character_forbidden` on the closing quote, which named a production
 /// the value does not break.
+///
+/// The last two are the same subject asked one question earlier: not what the
+/// argument says but whether the directive takes one. § 5.2 answers it for
+/// every directive it defines — none does, unless the directive's own
+/// subsection prints an argument syntax — and three of the subsections that do
+/// then say what their directive means with the argument left off. So the
+/// vocabulary is three-valued, and it is a fact about the document rather than
+/// about the value: the same octets after `no-cache=` are conforming written by
+/// an origin and a finding written by a client.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -66,17 +77,13 @@ static DECLARED: &[&ViolationDef] = &[
     &CACHE_CONTROL_NO_CACHE_ARGUMENT_EMPTY,
     &CACHE_CONTROL_PRIVATE_ARGUMENT_EMPTY,
     &CACHE_CONTROL_ARGUMENT_QUOTED_FORM_FORBIDDEN,
+    &CACHE_CONTROL_DIRECTIVE_ARGUMENT_MISSING,
+    &CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
-    note: "Cache-Control directives and general directive syntax",
-};
 const RFC_9111_1_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("1.2.1"),
@@ -178,7 +185,7 @@ impl RuleMeta for CacheControlDirectiveValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Cache-Control` directive names and argument formats for common correctness issues. This rule enforces directive-specific semantics such as:\n\n- `max-age`, `s-maxage`, `max-stale`, `min-fresh`, `stale-while-revalidate` and `stale-if-error` must have non-negative integer values (delta-seconds), and RFC 9111 has a sender write that argument in the token form: `max-age=\"60\"` is a well-formed `quoted-string` every recipient reads, and a form the directive's own section says a sender MUST NOT generate.\n- `private` and `no-cache` when carrying a field-name-list must provide a comma-separated list of field-names (tokens) either as an unquoted list or inside a quoted-string.\n- Unquoted directive values must follow the `token` grammar and quoted values must be valid `quoted-string`s.\n\nThis rule complements `cache_control_token_valid` which enforces general token/quoted-string syntax."
+        "Validate `Cache-Control` directive names and argument formats for common correctness issues. This rule enforces directive-specific semantics such as:\n\n- `max-age`, `s-maxage`, `max-stale`, `min-fresh`, `stale-while-revalidate` and `stale-if-error` must have non-negative integer values (delta-seconds), and RFC 9111 has a sender write that argument in the token form: `max-age=\"60\"` is a well-formed `quoted-string` every recipient reads, and a form the directive's own section says a sender MUST NOT generate.\n- `private` and `no-cache` when carrying a field-name-list must provide a comma-separated list of field-names (tokens) either as an unquoted list or inside a quoted-string.\n- Unquoted directive values must follow the `token` grammar and quoted values must be valid `quoted-string`s.\n- A directive carries an argument only where its own subsection defines one. RFC 9111 § 5.2 allows none otherwise, so `no-store=1` is reported; and where a subsection defines an argument without saying what the bare directive means — `max-age`, `min-fresh`, `s-maxage` — the directive written alone is reported too. `max-stale`, and a response `no-cache` or `private`, each define their unqualified form and are conforming bare. Directives this document does not define state their arity elsewhere and are not judged.\n\nThis rule complements `cache_control_token_valid` which enforces general token/quoted-string syntax."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -196,6 +203,8 @@ impl RuleMeta for CacheControlDirectiveValid {
             RFC_9111_5_2_1_2,
             RFC_9111_5_2_1_3,
             RFC_9111_5_2_2_10,
+            RFC_9111_5_2_1_4,
+            RFC_9111_5_2_3,
         ]
     }
 
@@ -224,6 +233,21 @@ impl RuleMeta for CacheControlDirectiveValid {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "Cache-Control: max-age=abc     # non-numeric max-age\nCache-Control: max-age=-1      # negative values not allowed\nCache-Control: s-maxage=1.5    # fractional values invalid\nCache-Control: max-age=\"60\"    # the quoted-string form a sender must not generate\nCache-Control: private=Set Cookie  # space in token\nCache-Control: private=\"Set Cookie\" # quoted content contains space-separated token",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a directive defined by its argument, written without one)"),
+                snippet: "HTTP/1.1 200 OK\nCache-Control: public, max-age",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(an argument on a directive RFC 9111 § 5.2 allows none for)"),
+                snippet: "HTTP/1.1 200 OK\nCache-Control: no-store=1",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the three directives whose subsection defines their unqualified form)"),
+                snippet: "HTTP/1.1 200 OK\nCache-Control: no-cache\nCache-Control: private\nCache-Control: max-age=0, must-revalidate",
             },
         ]
     }
@@ -276,13 +300,27 @@ fn member_defect(member: &str, side: &str) -> Vec<Defect> {
         }
     };
     let name = directive.name;
-    // An empty argument is not read here, and it is not a silence: `foo=`
+    // **Whether the directive may carry an argument at all is asked before what
+    // the argument says**, because it is the question an absent argument has an
+    // answer to. `Directive::argument` distinguishes "no `=` was written"
+    // (`None`) from "an `=` was written with nothing after it" (`Some("")`), and
+    // one `Option::filter` used to send both down the same silent path: an
+    // argument this rule could not measure and an argument the directive was
+    // owed were indistinguishable from a directive read and found correct.
+    if let Some(defect) = arity_defect(&directive, side) {
+        return vec![defect];
+    }
+
+    // An empty argument is not read below, and it is not a silence: `foo=`
     // derives from no `cache-directive` whatever name is in front of it, and
     // the token rule beside this reports it as
     // `cache_control_directive_value_empty`. Nothing is left for this rule to
     // add — the value is empty however the directive would have used it, so
     // there is no form to compare it against — and reading it here as well
-    // would draw one value twice.
+    // would draw one value twice. That is a statement about an argument that
+    // was *written*, which is why the arity above is asked first and separately:
+    // it is the only reading `Some("")` and `None` share an answer to, and they
+    // share it because § 5.2 defines no directive with an empty argument.
     let Some(argument) = directive.argument.filter(|a| !a.is_empty()) else {
         return Vec::new();
     };
@@ -301,7 +339,16 @@ fn member_defect(member: &str, side: &str) -> Vec<Defect> {
         | "stale-if-error" => delta_seconds_defect(name, argument, side)
             .into_iter()
             .collect(),
-        "private" | "no-cache" => field_name_list_defect(name, argument),
+        // **`private` on either side, `no-cache` only where the `#field-name`
+        // argument is defined.** § 5.2.2.7 and § 5.2.2.4 are the two paragraphs
+        // that define a qualified form, and only one of the two names is
+        // defined twice: § 5.2.1.4's request `no-cache` gives it no argument at
+        // all, so the arity reading above has already answered for that side and
+        // asking the qualified form's sentence of it as well would report a
+        // request against a paragraph about a response. `private` is defined
+        // once, in § 5.2.2.7, and keeps that definition wherever it is written.
+        "private" => field_name_list_defect(name, argument),
+        "no-cache" if side != "request" => field_name_list_defect(name, argument),
         _ => {
             // For other directives, accept token or quoted-string and ensure token syntax if unquoted
             if argument.starts_with('"') {
@@ -330,6 +377,125 @@ fn member_defect(member: &str, side: &str) -> Vec<Defect> {
                 .into_iter()
                 .collect()
         }
+    }
+}
+
+/// What RFC 9111 says about whether the directive in front of us takes an
+/// argument, and the subsection that says it.
+///
+/// **Three answers, and § 5.2 writes the default for all of them in one
+/// sentence**: no argument is defined, nor allowed, unless the directive's own
+/// subsection says otherwise. The subsections that say otherwise print an
+/// "Argument syntax" block, and three of those go on to define what the bare
+/// form means — which is the difference between an argument that is owed and
+/// one that is merely offered, and it is stated per directive rather than
+/// derivable from anything.
+///
+/// **The side decides the answer for exactly one directive, and decides the
+/// section for the four defined twice.** `no-cache` is two directives with one
+/// spelling: § 5.2.2.4 gives the response one a `#field-name` and § 5.2.1.4
+/// gives the request one nothing, so the same octets are conforming from an
+/// origin and a finding from a client. `max-age`, `no-store` and `no-transform`
+/// are also defined on both sides and each agrees with itself, so for them the
+/// side picks only the paragraph an operator is sent to. **Every other
+/// directive is defined once**, and a message carrying it on the other side is
+/// still carrying that directive — § 5.2's sentence is about the directives the
+/// document defines and not about which half of an exchange writes them — so
+/// the arity holds and the section is the one place it is defined. Whether a
+/// request directive belongs in a response at all is a different sentence and
+/// no reading here makes it.
+///
+/// **Everything absent from this table is an extension directive and is not
+/// judged.** § 5.2's sentence is scoped to the directives RFC 9111 defines, so
+/// `immutable`, RFC 5861's pair and § 5.2.3's own `community="UCI"` state their
+/// arity in documents this reading has not opened. The reader beside this one
+/// asks RFC 5861's two for `delta-seconds` digits under the production alone,
+/// for the same reason and with the same limit.
+// cite(RFC 9111 § 5.2): "For the cache directives defined below, no argument is defined (nor allowed) unless stated otherwise."
+// cite(RFC 9111 § 5.2.3): "When the directive requires an argument, what it means when it is missing"
+// cite(RFC 9111 § 5.2.3): "When the directive does not take an argument, what it means when an argument is present"
+fn arity(name: &str, side: &str) -> Option<Arity> {
+    let request = side == "request";
+    Some(match name.to_ascii_lowercase().as_str() {
+        // An "Argument syntax" block and no sentence giving the bare form a
+        // meaning: the argument is the whole of what the directive says.
+        "max-age" if request => Arity::Required("5.2.1.1"),
+        "max-age" => Arity::Required("5.2.2.1"),
+        "min-fresh" => Arity::Required("5.2.1.3"),
+        "s-maxage" => Arity::Required("5.2.2.10"),
+        // An "Argument syntax" block, and the subsection then says what the
+        // directive means without one. Nothing to report either way — except
+        // that the REQUEST `no-cache` is a different directive with the same
+        // name, defined in § 5.2.1.4 and given no argument at all.
+        "max-stale" => Arity::Optional,
+        "private" => Arity::Optional,
+        "no-cache" if !request => Arity::Optional,
+        "no-cache" => Arity::Forbidden("5.2.1.4"),
+        // No "Argument syntax" block, so § 5.2's sentence is the whole of what
+        // the document says about their arguments.
+        "no-store" if request => Arity::Forbidden("5.2.1.5"),
+        "no-store" => Arity::Forbidden("5.2.2.5"),
+        "no-transform" if request => Arity::Forbidden("5.2.1.6"),
+        "no-transform" => Arity::Forbidden("5.2.2.6"),
+        "only-if-cached" => Arity::Forbidden("5.2.1.7"),
+        "must-revalidate" => Arity::Forbidden("5.2.2.2"),
+        "must-understand" => Arity::Forbidden("5.2.2.3"),
+        "proxy-revalidate" => Arity::Forbidden("5.2.2.8"),
+        "public" => Arity::Forbidden("5.2.2.9"),
+        _ => return None,
+    })
+}
+
+/// The three answers [`arity`] gives, each carrying the subsection an operator
+/// is sent to — which is the directive's own, never § 5.2's, because the
+/// paragraph that defines the directive is the one that says what it owes.
+enum Arity {
+    /// The subsection gives an argument syntax and no meaning without one.
+    Required(&'static str),
+    /// The subsection gives an argument syntax and a meaning without one.
+    Optional,
+    /// The subsection gives no argument syntax, so § 5.2's default stands.
+    Forbidden(&'static str),
+}
+
+/// The directive's arity measured against what the sender actually wrote.
+///
+/// **`Some("")` is neither of the two things this asks about, and it is the one
+/// value both arms decline.** A `max-age=` has not been given an argument, and a
+/// `no-store=` has not been given one either — but that value derives from no
+/// `cache-directive` at all, and the entry for the production the sender broke
+/// already says so and is reported by the rule beside this one. So this reading
+/// answers only for values the grammar admits: an argument written, or no `=`
+/// written. Asking it of the empty form as well would draw one value twice for
+/// one edit.
+fn arity_defect(
+    directive: &crate::helpers::cache_control::Directive<'_>,
+    side: &str,
+) -> Option<Defect> {
+    let name = directive.name;
+    match arity(name, side)? {
+        Arity::Optional => None,
+        Arity::Required(section) if directive.argument.is_none() => Some(Defect::named(
+            &CACHE_CONTROL_DIRECTIVE_ARGUMENT_MISSING,
+            format!(
+                "{name} is written with no argument; RFC 9111 § {section} defines \
+                 {name} by the argument it carries and gives the bare directive no meaning"
+            ),
+        )),
+        Arity::Required(_) => None,
+        Arity::Forbidden(section) => directive
+            .argument
+            .filter(|a| !a.is_empty())
+            .map(|argument| {
+                Defect::named(
+                    &CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN,
+                    format!(
+                        "{name}={argument} gives {name} an argument; RFC 9111 § {section} defines \
+                     it with none, and § 5.2 allows none where none is defined, so a cache \
+                     reads this as a plain {name}"
+                    ),
+                )
+            }),
     }
 }
 
@@ -567,8 +733,9 @@ mod tests {
     #[case("private=Foo", false)]
     #[case("private=\"Set-Cookie, X-Foo\"", false)]
     #[case("private=", false)]
-    #[case("no-cache=field1,field2", false)]
-    #[case("no-cache=\"field1, field2\"", false)]
+    // `no-cache` with a `#field-name` argument is § 5.2.2.4's response
+    // directive; § 5.2.1.4's request one takes no argument, and these rows moved
+    // to `response_cases` when the arity of each side was read.
     #[case("public, max-age=60", false)]
     #[case("foo=bar", false)]
     #[case("max-stale", false)]
@@ -1134,14 +1301,36 @@ mod tests {
     /// paragraph the finding is against.
     #[rstest]
     #[case("private=\"\"", "cache_control_private_argument_empty")]
-    #[case("no-cache=\"\"", "cache_control_no_cache_argument_empty")]
     #[case("PRIVATE=\"\"", "cache_control_private_argument_empty")]
-    #[case("No-Cache=\" \"", "cache_control_no_cache_argument_empty")]
     fn an_argument_listing_no_field_names_the_directives_own_sentence(
         #[case] value: &str,
         #[case] id: &str,
     ) {
         assert_eq!(judge(value).violation, id, "{value}");
+    }
+
+    /// **`no-cache`'s qualified form is § 5.2.2.4's, and § 5.2.2.4 is about a
+    /// response.**
+    ///
+    /// The rows above used to include these two and read them out of a request,
+    /// which is the one fixture that made the claim untrue: a client writing
+    /// `no-cache=""` was told its argument listed no field name, against a
+    /// paragraph defining a directive it had not sent. The same octets on the
+    /// two sides are two directives, and the second column is what the request
+    /// side owes instead.
+    #[rstest]
+    #[case("no-cache=\"\"", "cache_control_no_cache_argument_empty")]
+    #[case("No-Cache=\" \"", "cache_control_no_cache_argument_empty")]
+    fn the_qualified_no_cache_is_read_where_its_paragraph_defines_it(
+        #[case] value: &str,
+        #[case] id: &str,
+    ) {
+        assert_eq!(judge_response(value).violation, id, "{value}");
+        assert_eq!(
+            judge(value).violation,
+            "cache_control_directive_argument_forbidden",
+            "{value} in a request",
+        );
     }
 
     /// One line, two statements, and the argument syntax is what separates
@@ -1309,5 +1498,171 @@ mod tests {
             "{:?}",
             found.iter().map(|v| &v.message).collect::<Vec<_>>()
         );
+    }
+    /// **RFC 9111 § 5.2's arity, read as the three-valued fact it is, on both
+    /// sides of the exchange.**
+    ///
+    /// The rows are every directive the document defines, in all three
+    /// spellings a sender can write — bare, with an argument, and with an `=`
+    /// and nothing after it — and the ids are asserted as a whole list rather
+    /// than a first finding, because a walk that collects can lose a second
+    /// answer without any row here changing.
+    ///
+    /// Three columns of it are the point.
+    ///
+    /// - **`no-cache` is two directives with one spelling.** § 5.2.2.4 gives the
+    ///   response one a `#field-name` and § 5.2.1.4 gives the request one
+    ///   nothing, so `no-cache="Set-Cookie"` is conforming in one column and a
+    ///   finding in the other. A table keyed on the name alone cannot hold both.
+    /// - **A directive defined on one side keeps its arity on the other.**
+    ///   § 5.2's sentence is about the directives the document defines, not
+    ///   about which half of an exchange carries them, so `only-if-cached=1` is
+    ///   a finding in a response too. Whether the directive belongs there at all
+    ///   is a different sentence and no reading here makes it.
+    /// - **The `=`-and-nothing form is nobody's arity finding**, on either side
+    ///   and for every directive: it derives from no `cache-directive`, and the
+    ///   entry for the production it broke is the whole answer. Two findings
+    ///   there would be two corrections for one deleted character.
+    #[rstest]
+    // an argument syntax, and no meaning defined without one
+    #[case("max-age", &["cache_control_directive_argument_missing"], &["cache_control_directive_argument_missing"])]
+    #[case("min-fresh", &["cache_control_directive_argument_missing"], &["cache_control_directive_argument_missing"])]
+    #[case("s-maxage", &["cache_control_directive_argument_missing"], &["cache_control_directive_argument_missing"])]
+    #[case("max-age=60", &[], &[])]
+    // an argument syntax, and the subsection says what the bare form means
+    #[case("max-stale", &[], &[])]
+    #[case("private", &[], &[])]
+    #[case("private=\"Set-Cookie\"", &[], &[])]
+    // one spelling, two definitions: § 5.2.1.4 request, § 5.2.2.4 response
+    #[case("no-cache", &[], &[])]
+    #[case("no-cache=\"Set-Cookie\"", &["cache_control_directive_argument_forbidden"], &[])]
+    // no argument syntax at all, so § 5.2's sentence is the whole answer
+    #[case("no-store", &[], &[])]
+    #[case("no-store=1", &["cache_control_directive_argument_forbidden"], &["cache_control_directive_argument_forbidden"])]
+    #[case("no-transform=1", &["cache_control_directive_argument_forbidden"], &["cache_control_directive_argument_forbidden"])]
+    #[case("only-if-cached=1", &["cache_control_directive_argument_forbidden"], &["cache_control_directive_argument_forbidden"])]
+    #[case("public=1", &["cache_control_directive_argument_forbidden"], &["cache_control_directive_argument_forbidden"])]
+    #[case("must-revalidate=1", &["cache_control_directive_argument_forbidden"], &["cache_control_directive_argument_forbidden"])]
+    #[case("must-understand=1", &["cache_control_directive_argument_forbidden"], &["cache_control_directive_argument_forbidden"])]
+    #[case("proxy-revalidate=1", &["cache_control_directive_argument_forbidden"], &["cache_control_directive_argument_forbidden"])]
+    // a directive this document does not define states its arity elsewhere
+    #[case("immutable", &[], &[])]
+    #[case("immutable=1", &[], &[])]
+    #[case("community=\"UCI\"", &[], &[])]
+    #[case("stale-while-revalidate=30", &[], &[])]
+    // the `=` with nothing after it, which the production refuses first
+    #[case("max-age=", &[], &[])]
+    #[case("no-store=", &[], &[])]
+    #[case("public=", &[], &[])]
+    fn a_directive_takes_the_argument_its_own_subsection_defines(
+        #[case] value: &str,
+        #[case] in_request: &[&str],
+        #[case] in_response: &[&str],
+    ) {
+        let rule = CacheControlDirectiveValid;
+        for (tx, expected, side) in [
+            (make_req(value), in_request, "request"),
+            (make_resp(value), in_response, "response"),
+        ] {
+            let found = crate::test_helpers::run_rule_all(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            );
+            let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+            assert_eq!(
+                ids,
+                expected,
+                "{side} `{value}`: {:?}",
+                found.iter().map(|v| &v.message).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    /// The `=` with nothing after it is answered, and answered once, by the
+    /// entry for the production it breaks.
+    ///
+    /// The row above holds that the arity reading declines it. This holds the
+    /// other half of that claim — that declining it leaves nothing unsaid — by
+    /// asking the rule that owns the production what it draws. Without this,
+    /// "the empty form is somebody else's finding" is a premise about a
+    /// neighbour, and § 7 has those go stale.
+    #[rstest]
+    #[case("max-age=")]
+    #[case("no-store=")]
+    #[case("public=")]
+    fn the_empty_argument_stays_the_productions_finding(#[case] value: &str) {
+        let found = crate::test_helpers::run_rule_all(
+            &crate::rules::cache_control_token_valid::CacheControlTokenValid,
+            &make_resp(value),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cache_control_token_valid",
+            ]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, vec!["cache_control_directive_value_empty"], "{value}");
+    }
+
+    /// **The arity table names every directive RFC 9111 defines, and nothing
+    /// else.**
+    ///
+    /// A silence in this table is invisible from outside it: a directive left
+    /// out simply never draws either entry, which reads exactly like a
+    /// directive the document permits both ways. So the table is asserted
+    /// against the list rather than sampled — § 5.2.1 defines seven and § 5.2.2
+    /// defines ten, `max-age`, `no-cache`, `no-store` and `no-transform` being
+    /// the four written twice — and the arms that are not `Optional` are
+    /// asserted to be the ones whose subsection prints no argument syntax or
+    /// prints one without defining the bare form.
+    #[test]
+    fn the_arity_table_is_rfc_9111_s_own_list_of_directives() {
+        let request = [
+            "max-age",
+            "max-stale",
+            "min-fresh",
+            "no-cache",
+            "no-store",
+            "no-transform",
+            "only-if-cached",
+        ];
+        let response = [
+            "max-age",
+            "must-revalidate",
+            "must-understand",
+            "no-cache",
+            "no-store",
+            "no-transform",
+            "private",
+            "proxy-revalidate",
+            "public",
+            "s-maxage",
+        ];
+        for (side, names) in [
+            ("request", request.as_slice()),
+            ("response", response.as_slice()),
+        ] {
+            for name in names {
+                assert!(
+                    arity(name, side).is_some(),
+                    "{side} `{name}` is defined by RFC 9111 § 5.2 and the arity table omits it, \
+                     so neither arity entry can ever fire on it",
+                );
+            }
+        }
+        for name in [
+            "immutable",
+            "stale-while-revalidate",
+            "stale-if-error",
+            "community",
+        ] {
+            for side in ["request", "response"] {
+                assert!(
+                    arity(name, side).is_none(),
+                    "`{name}` is defined outside RFC 9111 and this table judges it anyway",
+                );
+            }
+        }
     }
 }

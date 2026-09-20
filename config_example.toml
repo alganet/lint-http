@@ -1249,6 +1249,14 @@ severity = "error"
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.cache_control_directive_argument_forbidden]
+# A Cache-Control directive that defines no argument is written with one
+severity = "warn"
+
+[violations.cache_control_directive_argument_missing]
+# A Cache-Control directive that requires an argument carries none
+severity = "error"
+
 [violations.cache_control_directive_value_empty]
 # Cache-Control directive writes an '=' and no value after it
 # GRAMMAR obliges the sender, so this defaults to error.

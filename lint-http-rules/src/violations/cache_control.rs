@@ -159,6 +159,25 @@ pub const RFC_9111_5_2_2_1: SpecRef = SpecRef {
     note: "`max-age` response directive — the argument uses the token form, and a sender MUST NOT generate the quoted-string form",
 };
 
+/// Extension Directives: what a directive defined outside this document owes
+/// its own readers, which is also the list of questions § 5.2 answers for the
+/// directives defined inside it.
+/// The `no-cache` request directive: the same spelling as § 5.2.2.4's response
+/// directive, and defined with no argument at all.
+pub const RFC_9111_5_2_1_4: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.1.4",
+    note: "`no-cache` request directive — a client's preference that a stored response not be used without validation, stated by the directive alone and taking no argument",
+};
+
+pub const RFC_9111_5_2_3: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.3",
+    note: "Extension Directives — a cache MUST ignore what it does not recognise, and a new directive states whether it requires an argument, what a missing one means, and what a present one means where none is defined",
+};
+
 /// The `immutable` extension: what it asks of a client, and the window it
 /// applies in.
 pub const RFC_8246_2: SpecRef = SpecRef {
@@ -320,6 +339,105 @@ defects! {
             RFC_9111_5_2_2_10,
         ],
         strength: Strength::Must,
+    }
+
+    /// `Cache-Control: max-age` — a directive whose own subsection gives it an
+    /// argument, written with no `=` and nothing after it.
+    ///
+    /// **Distinct from `max-age=`, which is written and empty**, and the
+    /// distinction is the one the id convention draws everywhere else: an
+    /// `_empty` is a value the sender started and did not finish, and this is a
+    /// value the sender never began. `max-age=` derives from no
+    /// `cache-directive` at all and is
+    /// [`CACHE_CONTROL_DIRECTIVE_VALUE_EMPTY`]'s, one level below this entry;
+    /// `max-age` derives perfectly well — `cache-directive = token [ "=" (
+    /// token / quoted-string ) ]` makes the argument optional at the grammar's
+    /// level, and it is the *directive's* definition that requires one.
+    ///
+    /// **The four directives that owe an argument are the four whose subsection
+    /// prints an "Argument syntax" block and defines no unqualified form.**
+    /// `max-stale`, `no-cache` and `private` print one too and each then says in
+    /// as many words what the bare form means, so a bare one of those is the
+    /// directive's own second reading and not a defect. That is why this is not
+    /// a claim about every directive with an argument syntax: it is a claim
+    /// about the ones whose section leaves nothing to read without it.
+    ///
+    /// **`error`, and the level is this catalogue's judgement.** RFC 9111
+    /// states no keyword here — § 5.2.3 tells a directive's author to define
+    /// "what it means when it is missing" and RFC 9111 never does so for its
+    /// own four, which is exactly the harm: the value looks configured, states
+    /// no number, and every cache reading it resolves the silence its own way.
+    /// That is [`CACHE_CONTROL_DIRECTIVE_VALUE_EMPTY`]'s harm word for word, and
+    /// it ships at `error` in the same field.
+    ///
+    // cite(RFC 9111 § 5.2.3): "When the directive requires an argument, what it means when it is missing"
+    // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
+    // cite(RFC 9111 § 5.2.1.1): "The max-age request directive indicates that the client prefers a response whose age is less than or equal to the specified number of seconds."
+    // cite(RFC 9111 § 5.2.1.3): "the client wants a response that will still be fresh for at least the specified number of seconds"
+    // cite(RFC 9111 § 5.2.2.10): "the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field"
+    CACHE_CONTROL_DIRECTIVE_ARGUMENT_MISSING = {
+        id: "cache_control_directive_argument_missing",
+        title: "A Cache-Control directive that requires an argument carries none",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[
+            RFC_9111_5_2_3,
+            RFC_9111_5_2_2_1,
+            RFC_9111_5_2_1_1,
+            RFC_9111_5_2_1_3,
+            RFC_9111_5_2_2_10,
+        ],
+        strength: Strength::Unstated,
+    }
+
+    /// `Cache-Control: no-store=1` — an argument on a directive that is defined
+    /// without one.
+    ///
+    /// **§ 5.2 states this once, for all of them**: no argument is defined, nor
+    /// allowed, unless the directive's own subsection says otherwise. So the
+    /// ten directives with no "Argument syntax" block take none, and a sender
+    /// that wrote one asked for something the document does not offer.
+    ///
+    /// **The directive still applies.** Directives are identified by the
+    /// `token` in front of the `=`, so `no-store=1` is `no-store` to every cache
+    /// that reads it and the response is not stored. That is what the sender
+    /// most likely did not mean — `no-store=0` reads as a switch turned off and
+    /// is a switch turned on — and it is also why this is `warn` rather than
+    /// `error`: nothing downstream misreads the value, and the whole of the
+    /// damage is between the sender and their own intent.
+    ///
+    /// **The side is part of the question and not a detail of it.** `no-cache`
+    /// is two directives with one spelling: § 5.2.2.4 gives the response one a
+    /// `#field-name` argument and § 5.2.1.4 gives the request one nothing at
+    /// all. So `no-cache="Set-Cookie"` is conforming from an origin and a
+    /// finding from a client, and a table keyed on the name alone would be
+    /// wrong about one of them whichever answer it chose.
+    ///
+    /// **A directive this document does not define is not judged here.** § 5.2's
+    /// sentence is scoped to "the cache directives defined below", and an
+    /// extension states its own arity in whatever document defines it —
+    /// `immutable` and RFC 5861's two among them — so a reading that condemned
+    /// `community="UCI"` would be condemning a definition it has not read.
+    /// § 5.2.3 is the same instruction from the other end.
+    ///
+    /// **The MUST quoted below binds a cache and this entry is about a sender**,
+    /// which is why the strength stays `Unstated` with a keyword in the cites.
+    /// "A cache MUST ignore unrecognized cache directives" is the sentence that
+    /// makes the narrowing above *safe* — an extension nobody has read is
+    /// already handled downstream — and it obliges the party that wrote this
+    /// value of nothing at all. It is the decline's citation, not the finding's.
+    ///
+    // cite(RFC 9111 § 5.2): "For the cache directives defined below, no argument is defined (nor allowed) unless stated otherwise."
+    // cite(RFC 9111 § 5.2.3): "When the directive does not take an argument, what it means when an argument is present"
+    // cite(RFC 9111 § 5.2.3): "A cache MUST ignore unrecognized cache directives."
+    // cite(RFC 9111 § 5.2.1.4): "The no-cache request directive indicates that the client prefers a stored response not be used to satisfy the request without successful validation on the origin server."
+    CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN = {
+        id: "cache_control_directive_argument_forbidden",
+        title: "A Cache-Control directive that defines no argument is written with one",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9111_5_2, RFC_9111_5_2_3, RFC_9111_5_2_1_4],
+        strength: Strength::Unstated,
     }
 
     /// Two directives in one field value that say opposite things about
