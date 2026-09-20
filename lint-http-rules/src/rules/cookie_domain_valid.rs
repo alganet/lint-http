@@ -254,6 +254,13 @@ mod tests {
     /// field carrying a name will report under too.
     #[rstest]
     #[case("SID=1; Domain=", "cookie_domain_missing", crate::lint::Severity::Warn)]
+    // `Domain=.` is the one value that reaches `cookie_domain_empty`, and this
+    // rule is the only one that can: the entry is what a name comes to once the
+    // tolerated leading dot is taken off, which is a step inside the domain
+    // reader. Written down because the entry had no test of its own and its
+    // neighbour, which reads the attribute and not the name, used to answer
+    // `Domain=` with it.
+    #[case("SID=1; Domain=.", "cookie_domain_empty", crate::lint::Severity::Warn)]
     #[case(
         "SID=1; Domain=.example.com",
         "cookie_domain_leading_dot_obsolete",
