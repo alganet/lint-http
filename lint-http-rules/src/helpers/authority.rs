@@ -215,6 +215,13 @@ pub enum UriHostDefect<'a> {
     /// A bracket somewhere other than around an IP literal. § 3.2.2 calls the
     /// literal the only place in the URI syntax where one appears.
     Bracket(&'a str),
+    /// An IPv6 address with no brackets round it, carrying the whole value.
+    ///
+    /// **The one variant here that is about the value and not about the host**,
+    /// because until the brackets are there nobody can say where the host was.
+    /// It is returned before the host and the port are told apart, for that
+    /// reason, and it is the only ordering constraint in this module.
+    IpLiteralDelimiterMissing(&'a str),
     /// A malformed `pct-encoded` triplet in what would otherwise be a
     /// `reg-name`.
     PercentEncoding(PercentEncodingDefect<'a>),
@@ -237,6 +244,10 @@ impl UriHostDefect<'_> {
             Self::Bracket(host) => format!(
                 "'{}' holds a bracket, which appears in no host form but an IP literal",
                 host
+            ),
+            Self::IpLiteralDelimiterMissing(value) => format!(
+                "IPv6 literal '{}' must be enclosed in square brackets",
+                value
             ),
             Self::PercentEncoding(defect) => defect.message(),
             Self::BadCharacter { character, host } => {
@@ -354,6 +365,32 @@ pub fn port_number(digits: &str) -> Option<u16> {
 // cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
 // cite(RFC 3986 § 3.2.3): "URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default."
 pub fn validate_host_and_optional_port(value: &str) -> Result<(), HostAndPortDefect<'_>> {
+    // **Asked before the split, because the split is what destroys the
+    // evidence.** The brackets are the only thing marking where an IPv6 address
+    // stopped, so without them there is no colon that can be called a
+    // delimiter: `split_host_and_port` takes the first one, and `fe80::1`
+    // arrives below as a host `fe80` -- which is a perfectly good `reg-name` --
+    // and a port `:1`. Every caller then reported `uri_port_character_forbidden`
+    // and told an operator to fix a port, where the repair is a pair of
+    // brackets round the host.
+    //
+    // **It is here rather than at a report site because it is this production's
+    // question.** Two of the nine rules calling this reader kept a private copy
+    // of the test and got it right; the other seven had no copy and got the
+    // wrong answer, which is the same defect a hand-kept copy of any shared
+    // production has. The disjunction is both shapes the ambiguity takes: a
+    // value that is entirely an address, and an address with a port-like
+    // suffix that nothing can delimit.
+    // cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
+    // cite(RFC 3986 § 3.2.2): "This is the only place where square bracket characters are allowed in the URI syntax."
+    if value.parse::<std::net::Ipv6Addr>().is_ok()
+        || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(value)
+    {
+        return Err(HostAndPortDefect::Host(
+            UriHostDefect::IpLiteralDelimiterMissing(value),
+        ));
+    }
+
     let (host, port) = split_host_and_port(value);
 
     validate_uri_host(host).map_err(HostAndPortDefect::Host)?;
@@ -520,6 +557,65 @@ impl ConnectTunnelDefect<'_> {
 
 #[cfg(test)]
 mod tests {
+
+    /// **The bracket question belongs to the composition, and this is what it
+    /// used to answer instead.** Without the brackets nothing marks where an
+    /// IPv6 address stopped, so `split_host_and_port` takes the first colon and
+    /// `fe80::1` reads as a host `fe80` -- a perfectly good `reg-name` -- and a
+    /// port `:1`. Every caller without a private copy of this test therefore
+    /// reported `uri_port_character_forbidden` and told an operator to fix a
+    /// port, where the repair is a pair of brackets round the host. Two of the
+    /// nine rules kept that copy and seven did not.
+    ///
+    /// Both arms of the disjunction are here, because they are two shapes of
+    /// one ambiguity: a value that is entirely an address, and an address with
+    /// a port-like suffix nothing can delimit.
+    #[rstest::rstest]
+    #[case("fe80::1")]
+    #[case("::1")]
+    #[case("2001:db8::1")]
+    #[case("fe80::abcd:8080")]
+    #[case("::ffff:192.0.2.1")]
+    fn a_bare_ipv6_is_a_missing_delimiter_and_never_a_bad_port(#[case] value: &str) {
+        let defect = validate_host_and_optional_port(value).expect_err(value);
+        assert_eq!(
+            crate::violations::uri::host_and_port(defect).id,
+            "uri_host_ip_literal_delimiter_missing",
+            "{value}"
+        );
+        assert_eq!(
+            defect.message(),
+            format!("IPv6 literal '{value}' must be enclosed in square brackets")
+        );
+    }
+
+    /// The brackets are the whole of what the reader wants, so the same
+    /// addresses inside them derive -- with a port and without one. A check
+    /// that fired on a bracketed literal would refuse every IPv6 host there is.
+    #[rstest::rstest]
+    #[case("[fe80::1]")]
+    #[case("[::1]:443")]
+    #[case("[2001:db8::1]:8080")]
+    fn the_same_address_inside_its_brackets_is_a_host(#[case] value: &str) {
+        assert_eq!(validate_host_and_optional_port(value), Ok(()));
+    }
+
+    /// A value that merely holds colons is not an address, and the port defect
+    /// is still the right answer for it. This is the arm the disjunction must
+    /// not over-reach into: `looks_like_unbracketed_ipv6_with_port` requires
+    /// the part before the last colon to parse as an IPv6 address, and
+    /// `Ipv6Addr::from_str` requires the whole value to.
+    #[rstest::rstest]
+    #[case("example.com:80:90")]
+    #[case("example.com:ab")]
+    fn a_value_that_is_not_an_address_keeps_its_port_defect(#[case] value: &str) {
+        let defect = validate_host_and_optional_port(value).expect_err(value);
+        assert_eq!(
+            crate::violations::uri::host_and_port(defect).id,
+            "uri_port_character_forbidden",
+            "{value}"
+        );
+    }
     use super::*;
     use crate::helpers::scheme::scheme_authority_marker;
 

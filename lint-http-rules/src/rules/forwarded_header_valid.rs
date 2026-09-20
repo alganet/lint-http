@@ -42,7 +42,8 @@ use crate::violations::token::{
 use crate::violations::uri::{
     host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
     RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
-    URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
+    URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
+    URI_HOST_IP_LITERAL_DELIMITER_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
     URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
     URI_SCHEME_LEADING_LETTER_MISSING,
 };
@@ -84,6 +85,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_DELIMITER_MISSING,
     &URI_HOST_IP_LITERAL_MALFORMED,
     &URI_HOST_BRACKET_FORBIDDEN,
     &URI_HOST_CHARACTER_FORBIDDEN,
@@ -1328,5 +1330,48 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "forwarded_header_valid");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
+    }
+
+    /// **A bare IPv6 where a host goes is a missing pair of brackets**, and
+    /// until the reading moved into the shared `uri-host [ ":" port ]` reader
+    /// this site answered `uri_port_character_forbidden` instead: nothing marks
+    /// where the address stopped, so the split took the first colon and the
+    /// rest read as a port. The operator was told to fix a port they had not
+    /// written. Only the two rules that kept a private copy of the test got it
+    /// right; this was one of the seven that did not.
+    ///
+    /// The value is quoted because RFC 7239 leaves it no choice: `:` is not a
+    /// `tchar`, so an address written bare is refused as neither a token nor a
+    /// quoted-string long before the host reader sees it. The quoted form is
+    /// how the document writes an IPv6 `host` and is the only spelling that
+    /// reaches § 5.3's MUST at all.
+    #[rstest]
+    #[case(r#"host="fe80::1""#)]
+    #[case(r#"host="2001:db8::1""#)]
+    #[case(r#"host="fe80::abcd:8080""#)]
+    fn a_bare_ipv6_host_names_its_brackets_and_not_a_port(#[case] value: &str) {
+        let found = judge_all(&[value]);
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["uri_host_ip_literal_delimiter_missing"],
+            "{value} drew {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The same address inside its brackets is a `host`, quoted the same way.
+    #[rstest]
+    #[case(r#"host="[fe80::1]""#)]
+    #[case(r#"host="[2001:db8::1]:8080""#)]
+    fn a_bracketed_ipv6_host_is_a_host(#[case] value: &str) {
+        let found = judge_all(&[value]);
+        assert!(
+            found.is_empty(),
+            "{value} drew {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 }

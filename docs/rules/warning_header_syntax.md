@@ -46,6 +46,7 @@ Four consequences of that grammar are worth stating.
 - [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
 - [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
 - [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_ip_literal_delimiter_missing](../violations/uri_host_ip_literal_delimiter_missing.md) — An IPv6 address is written without the brackets that mark it
 - [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
 - [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
 - [warning_agent_missing](../violations/warning_agent_missing.md) — Warning member names no warn-agent

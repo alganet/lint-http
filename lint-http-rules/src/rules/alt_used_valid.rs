@@ -181,23 +181,6 @@ impl Rule for AltUsedValid {
                 return Vec::new();
             }
 
-            // Asked before the grammar so the answer names what is wrong.
-            // Without the brackets nothing marks where the address stopped, so
-            // the generic reader splits at the first colon and reports a port
-            // full of colons; `fe80::1` has no colon it could call a delimiter
-            // at all and would pass entirely.
-            // cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
-            if s.parse::<std::net::Ipv6Addr>().is_ok()
-                || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(s)
-            {
-                return vec![ctx.by(party).report_with(
-                    &URI_HOST_IP_LITERAL_DELIMITER_MISSING,
-                    format!(
-                        "IPv6 literal '{s}' in an Alt-Used field value must be enclosed in square brackets"
-                    ),
-                )];
-            }
-
             // The field's grammar, which is `Host`'s grammar:
             // `validate_host_and_optional_port` is both productions, and the
             // port it admits is `*DIGIT`, the whole of what RFC 3986 §3.2.3
@@ -316,11 +299,11 @@ mod tests {
     )]
     #[case(
         "2001:db8::1",
-        "IPv6 literal '2001:db8::1' in an Alt-Used field value must be enclosed in square brackets"
+        "Alt-Used field value '2001:db8::1' is not a host and port: IPv6 literal '2001:db8::1' must be enclosed in square brackets"
     )]
     #[case(
         "fe80::abcd:8080",
-        "IPv6 literal 'fe80::abcd:8080' in an Alt-Used field value must be enclosed in square brackets"
+        "Alt-Used field value 'fe80::abcd:8080' is not a host and port: IPv6 literal 'fe80::abcd:8080' must be enclosed in square brackets"
     )]
     fn each_reported_value_says_what_is_wrong_with_it(#[case] value: &str, #[case] expected: &str) {
         assert_eq!(message(&[("alt-used", value)]), Some(expected.to_string()));

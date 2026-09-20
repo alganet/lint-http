@@ -245,21 +245,6 @@ impl Rule for HostHeader {
                     )));
             }
 
-            // Asked before the grammar so the answer names what is wrong. Without
-            // the brackets nothing marks where the address stopped, so the generic
-            // reader splits at the first colon and reports a port full of colons;
-            // `fe80::1` has no colon it could call a delimiter at all and used to
-            // pass, published as a Compliant example.
-            // cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
-            if s.parse::<std::net::Ipv6Addr>().is_ok()
-                || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(s)
-            {
-                return Some(ctx.report_with(&URI_HOST_IP_LITERAL_DELIMITER_MISSING, format!(
-                        "IPv6 literal '{}' in a Host field value must be enclosed in square brackets",
-                        s
-                    )));
-            }
-
             // The field's own grammar, which this rule had never applied: a value
             // with no colon in it returned early, so `Host: exa mple.com` was as
             // acceptable as `Host: example.com`. `validate_host_and_optional_port`
@@ -387,15 +372,15 @@ mod tests {
     )]
     #[case(
         "fe80::1",
-        "IPv6 literal 'fe80::1' in a Host field value must be enclosed in square brackets"
+        "Host field value 'fe80::1' is not a host and port: IPv6 literal 'fe80::1' must be enclosed in square brackets"
     )]
     #[case(
         "::1",
-        "IPv6 literal '::1' in a Host field value must be enclosed in square brackets"
+        "Host field value '::1' is not a host and port: IPv6 literal '::1' must be enclosed in square brackets"
     )]
     #[case(
         "fe80::abcd:8080",
-        "IPv6 literal 'fe80::abcd:8080' in a Host field value must be enclosed in square brackets"
+        "Host field value 'fe80::abcd:8080' is not a host and port: IPv6 literal 'fe80::abcd:8080' must be enclosed in square brackets"
     )]
     fn reported_values(#[case] value: &str, #[case] expected: &str) {
         assert_eq!(judge(&[("host", value)]), Some(expected.to_string()));

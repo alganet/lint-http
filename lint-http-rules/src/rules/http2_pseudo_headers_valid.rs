@@ -17,8 +17,9 @@ use crate::violations::uri::{
     host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
     RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, RFC_9110_4_2_1, RFC_9110_4_2_2,
     URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
-    URI_HOST_EMPTY, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
-    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+    URI_HOST_EMPTY, URI_HOST_IP_LITERAL_DELIMITER_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
+    URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -53,6 +54,7 @@ pub struct Http2PseudoHeadersValid;
 /// require it write no grammar this catalogue could name it after.
 static DECLARED: &[&ViolationDef] = &[
     &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_DELIMITER_MISSING,
     &URI_HOST_IP_LITERAL_MALFORMED,
     &URI_HOST_BRACKET_FORBIDDEN,
     &URI_HOST_CHARACTER_FORBIDDEN,
@@ -1156,5 +1158,36 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "http2_pseudo_headers_valid");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
+    }
+
+    /// **A bare IPv6 where a host goes is a missing pair of brackets**, and
+    /// until the reading moved into the shared `uri-host [ ":" port ]` reader
+    /// this site answered `uri_port_character_forbidden` instead: nothing marks
+    /// where the address stopped, so the split took the first colon and the
+    /// rest read as a port. The operator was told to fix a port they had not
+    /// written. Only the two rules that kept a private copy of the test got it
+    /// right; this was one of the seven that did not.
+    #[rstest]
+    #[case("https://fe80::1/p", "fe80::1")]
+    #[case("https://2001:db8::1/p", "2001:db8::1")]
+    #[case("https://fe80::abcd:8080/p", "fe80::abcd:8080")]
+    fn a_bare_ipv6_authority_names_its_brackets_and_not_a_port(
+        #[case] target: &str,
+        #[case] authority: &str,
+    ) {
+        assert_eq!(
+            judge_request("GET", target),
+            Some(format!(
+                "Authority '{authority}' is not a host and port: IPv6 literal '{authority}' must be enclosed in square brackets"
+            ))
+        );
+    }
+
+    /// The same address inside its brackets is an authority.
+    #[rstest]
+    #[case("https://[fe80::1]/p")]
+    #[case("https://[2001:db8::1]:8080/p")]
+    fn a_bracketed_ipv6_authority_is_an_authority(#[case] target: &str) {
+        assert_eq!(judge_request("GET", target), None);
     }
 }
