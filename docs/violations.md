@@ -323,6 +323,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [method_head_content_forbidden](violations/method_head_content_forbidden.md) — A response to HEAD carries content octets
 - [method_head_content_length_ambiguous](violations/method_head_content_length_ambiguous.md) — A HEAD and a GET report different lengths for a resource nothing pins
 - [method_head_content_length_conflicting](violations/method_head_content_length_conflicting.md) — A HEAD response states a length the GET would not have sent
+- [method_options_allow_conflicting](violations/method_options_allow_conflicting.md) — A successful OPTIONS advertises methods and leaves out the one it answered
 - [method_options_capabilities_missing](violations/method_options_capabilities_missing.md) — A successful OPTIONS answers with none of the capabilities it was asked for
 - [method_options_content_type_missing](violations/method_options_content_type_missing.md) — An OPTIONS request carries content without saying what it is
 - [method_patch_content_type_missing](violations/method_patch_content_type_missing.md) — A PATCH request does not name its patch document format

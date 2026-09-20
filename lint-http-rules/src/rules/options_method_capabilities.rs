@@ -2,10 +2,13 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::headers::combined_field_value_as_written;
+use crate::helpers::list::list_members;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::method::{
-    METHOD_OPTIONS_CAPABILITIES_MISSING, METHOD_OPTIONS_CONTENT_TYPE_MISSING, RFC_9110_9_3_7,
+    METHOD_OPTIONS_ALLOW_CONFLICTING, METHOD_OPTIONS_CAPABILITIES_MISSING,
+    METHOD_OPTIONS_CONTENT_TYPE_MISSING, RFC_9110_10_2_1, RFC_9110_9_3_7,
 };
 use crate::violations::ViolationDef;
 
@@ -14,6 +17,7 @@ use crate::violations::ViolationDef;
 static DECLARED: &[&ViolationDef] = &[
     &METHOD_OPTIONS_CONTENT_TYPE_MISSING,
     &METHOD_OPTIONS_CAPABILITIES_MISSING,
+    &METHOD_OPTIONS_ALLOW_CONFLICTING,
 ];
 
 /// Report the two things § 9.3.7 asks of an OPTIONS exchange that a captured
@@ -106,12 +110,6 @@ const RFC_9110_15_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("15.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3",
     note: "2xx is the class named Successful, which is the range \"a successful response to OPTIONS\" means",
-};
-const RFC_9110_10_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
-    note: "`Allow` advertises the target resource's methods, is a `MAY` on any response other than a 405 — so it is not asked for by name — and an empty value of it means the resource allows no methods",
 };
 const RFC_9110_14_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -210,6 +208,16 @@ impl RuleMeta for OptionsMethodCapabilities {
                 compliance: Compliance::Compliant,
                 label: Some("Content in the request, labelled"),
                 snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 2\n\n{}\n\nHTTP/1.1 200 OK\nAllow: GET, OPTIONS",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("The method set advertised, with the method that was just answered left out of it"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAllow: GET, POST",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("An empty method set — § 10.2.1 gives the value its own meaning"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAllow: ",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -326,6 +334,49 @@ impl Rule for OptionsMethodCapabilities {
                         resp.status,
                         named.join(", ")
                     )));
+        }
+
+        // The list the response did send, measured against the method it just
+        // answered. § 10.2.1 says the field "lists the set of methods advertised
+        // as supported by the target resource" and the 2xx above says this
+        // request succeeded, so an `Allow` that leaves `OPTIONS` out states two
+        // things about one resource at one instant.
+        //
+        // **Which is the only disagreement about the list this catalogue reads.**
+        // `status_405_allow_valid` declines to say what an `Allow` *should* have
+        // held, because § 10.2.1 makes the set the origin server's at the time of
+        // each request and § 9.1 adds that it can change dynamically -- and it
+        // closes that decline by naming the exception this is: a disagreement
+        // internal to a single exchange.
+        //
+        // Members are compared exactly, because the method token is
+        // case-sensitive: a response advertising `options` has advertised another
+        // method, and `allow_header_method_tokens_valid` reports the spelling.
+        //
+        // An `Allow` in a trailer section is not read, for the reason § 6.5.1
+        // gives: it permits a trailer field only where the field's own definition
+        // does, and § 10.2.1 does not.
+        // cite(RFC 9110 § 10.2.1): "The "Allow" header field lists the set of methods advertised as supported by the target resource."
+        // cite(RFC 9110 § 15.3): "The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted."
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+        //
+        // An empty value is left alone, and this is § 10.2.1's meaning rather
+        // than a tolerance: the field then says the resource allows no methods,
+        // which contradicts the 2xx beside it as sharply as any list does -- but
+        // the section names that value's case by name, the check above already
+        // counts sending one as having answered, and no response on the counted
+        // web writes one on a successful OPTIONS. An arm nothing has ever put an
+        // input to is an arm no instrument can keep honest.
+        // cite(RFC 9110 § 10.2.1): "An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration."
+        if let Some(advertised) = combined_field_value_as_written(&resp.headers, "allow") {
+            let mut members = list_members(&advertised).peekable();
+            if members.peek().is_some() && !members.any(|member| member == "OPTIONS") {
+                out.push(ctx.by_server().report_with(&METHOD_OPTIONS_ALLOW_CONFLICTING, format!(
+                            "Successful OPTIONS response ({}) advertises Allow: {} and does not name OPTIONS among them, so the field says the target resource does not support the method this response has just answered",
+                            resp.status,
+                            crate::helpers::shown::shown_in_finding(advertised.trim())
+                        )));
+            }
         }
 
         out
@@ -447,14 +498,14 @@ mod tests {
     /// class: a response naming any of the three has answered.
     #[rstest]
     #[case(200, &[][..], true)]
-    #[case(200, &[("allow", "GET, HEAD")][..], false)]
+    #[case(200, &[("allow", "OPTIONS, GET, HEAD")][..], false)]
     #[case(200, &[("accept-ranges", "bytes")][..], false)]
     #[case(200, &[("accept-patch", "application/json-patch+json")][..], false)]
     #[case(204, &[("access-control-allow-methods", "GET, PUT, DELETE")][..], false)]
     #[case(204, &[("access-control-allow-headers", "Content-Type")][..], false)]
     #[case(204, &[("access-control-allow-origin", "*")][..], true)]
     #[case(204, &[][..], true)]
-    #[case(201, &[("allow", "POST")][..], false)]
+    #[case(201, &[("allow", "OPTIONS, POST")][..], false)]
     #[case(404, &[][..], false)]
     #[case(405, &[][..], false)]
     #[case(300, &[][..], false)]
@@ -653,7 +704,10 @@ mod tests {
                 ("content-type", ""),
             ],
             Some(5),
-            Some((200, &[("allow", "GET")])),
+            // The advertisement names OPTIONS, because this test is about the
+            // request's `Content-Type` and an `Allow` that left the method out
+            // would answer a different question in the same fixture.
+            Some((200, &[("allow", "OPTIONS, GET")])),
         );
         assert!(run(&tx).is_none());
     }

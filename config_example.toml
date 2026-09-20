@@ -2373,6 +2373,10 @@ severity = "warn"
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.method_options_allow_conflicting]
+# A successful OPTIONS advertises methods and leaves out the one it answered
+severity = "info"
+
 [violations.method_options_capabilities_missing]
 # A successful OPTIONS answers with none of the capabilities it was asked for
 # SHOULD obliges the sender, so this defaults to warn.

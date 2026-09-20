@@ -74,25 +74,25 @@ sources:
     snippet: 'An HTTP response to a CORS-preflight request can include the following headers:'
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 74
+      line: 78
   - label: options_method_capabilities (2)
     section: § 3.3.3
     snippet: The `Allow` header is not relevant for the purposes of the CORS protocol.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 65
+      line: 69
   - label: options_method_capabilities (3)
     section: § 3.3.3
     snippet: '`Access-Control-Allow-Headers` Indicates which headers are supported by the response’s URL for the purposes of the CORS protocol.'
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 81
+      line: 85
   - label: options_method_capabilities (4)
     section: § 3.3.3
     snippet: '`Access-Control-Allow-Methods` Indicates which methods are supported by the response’s URL for the purposes of the CORS protocol.'
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 75
+      line: 79
   - label: origin_matching_for_cors
     section: § 4.10
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
@@ -2759,7 +2759,7 @@ sources:
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 72
+      line: 76
     - file: lint-http-rules/src/violations/accept_patch.rs
       line: 77
   - label: patch_method_content_type_match
@@ -2801,7 +2801,7 @@ sources:
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 185
     - file: lint-http-rules/src/violations/method.rs
-      line: 291
+      line: 343
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
@@ -6070,9 +6070,13 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 60
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 67
+      line: 71
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 359
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 283
+    - file: lint-http-rules/src/violations/method.rs
+      line: 305
   - label: accept_patch_header_valid (2)
     section: § 15.5.16
     snippet: If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used
@@ -6136,7 +6140,9 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 427
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 241
+      line: 249
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 361
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 213
     - file: lint-http-rules/src/rules/patch_partial_update.rs
@@ -6160,7 +6166,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 174
     - file: lint-http-rules/src/violations/method.rs
-      line: 456
+      line: 508
   - label: accept_patch_header_valid (7)
     section: § 9.3.7
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
@@ -6168,7 +6174,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 481
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 294
+      line: 302
   - label: accept_ranges_and_206_consistent
     section: § 14
     snippet: Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability.
@@ -6216,7 +6222,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 139
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 69
+      line: 73
   - label: accept_ranges_and_206_consistent (6)
     section: § 14.3
     snippet: to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose.
@@ -6342,7 +6348,9 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 80
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 63
+      line: 67
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 370
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 245
   - label: allow_header_method_tokens_valid (3)
@@ -6351,6 +6359,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 54
+    - file: lint-http-rules/src/violations/method.rs
+      line: 306
   - label: request-target fragment
     section: § 2.2
     snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
@@ -7092,7 +7102,7 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 178
     - file: lint-http-rules/src/violations/method.rs
-      line: 417
+      line: 469
   - label: content_type_valid
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -7434,11 +7444,11 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 185
     - file: lint-http-rules/src/violations/method.rs
-      line: 340
+      line: 392
     - file: lint-http-rules/src/violations/method.rs
-      line: 352
+      line: 404
     - file: lint-http-rules/src/violations/method.rs
-      line: 382
+      line: 434
   - label: head_response_headers_match_get (5)
     section: § 8.8
     snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
@@ -7484,7 +7494,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 158
     - file: lint-http-rules/src/violations/method.rs
-      line: 309
+      line: 361
   - label: field-name grammar
     section: § A
     snippet: field-name = token field-value = *field-content
@@ -7936,7 +7946,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 291
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 70
+      line: 74
   - label: lint-http-rules/src/helpers/accept_ranges.rs (4)
     section: § 5.6.1.2
     snippet: Empty elements do not contribute to the count of elements present.
@@ -8500,7 +8510,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 46
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 64
+      line: 68
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 150
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
@@ -9468,7 +9478,7 @@ sources:
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created
     cited_by:
     - file: lint-http-rules/src/violations/method.rs
-      line: 273
+      line: 325
   - label: multipart_boundary_syntax
     section: § 5.6.6
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
@@ -9588,7 +9598,7 @@ sources:
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 310
+      line: 318
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 223
   - label: options_method_capabilities (2)
@@ -9596,39 +9606,41 @@ sources:
     snippet: The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 301
+      line: 309
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 360
   - label: options_method_capabilities (3)
     section: § 9.3.7
     snippet: A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 181
+      line: 179
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 263
+      line: 271
     - file: lint-http-rules/src/violations/method.rs
-      line: 232
+      line: 241
   - label: options_method_capabilities (4)
     section: § 9.3.7
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 62
+      line: 66
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 311
+      line: 319
     - file: lint-http-rules/src/violations/method.rs
-      line: 254
+      line: 263
   - label: options_method_capabilities (5)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 295
+      line: 303
   - label: options_method_capabilities (6)
     section: § 9.3.7
     snippet: The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 240
+      line: 248
   - label: patch_method_content_type_match
     section: § 12.3
     snippet: When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource.
@@ -10160,7 +10172,7 @@ sources:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 316
     - file: lint-http-rules/src/violations/method.rs
-      line: 457
+      line: 509
   - label: request_method_token_valid (3)
     section: § 9.1
     snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
@@ -10290,7 +10302,7 @@ sources:
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
       line: 179
     - file: lint-http-rules/src/violations/method.rs
-      line: 196
+      line: 205
   - label: request_version_method_valid (7)
     section: § 9.3.6
     snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
@@ -10796,7 +10808,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 205
     - file: lint-http-rules/src/violations/method.rs
-      line: 215
+      line: 224
   - label: trace_method_echo (3)
     section: § 9.3.8
     snippet: A client MUST NOT send content in a TRACE request.
@@ -10806,7 +10818,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 191
     - file: lint-http-rules/src/violations/method.rs
-      line: 130
+      line: 139
   - label: trace_method_echo (4)
     section: § 9.3.8
     snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.
@@ -11782,7 +11794,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 141
     - file: lint-http-rules/src/violations/method.rs
-      line: 418
+      line: 470
   - label: chunked last, unconditionally
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.

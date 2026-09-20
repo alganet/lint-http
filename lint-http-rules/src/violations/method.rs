@@ -46,6 +46,15 @@ pub const RFC_9110_9_3_8: SpecRef = SpecRef {
     note: "TRACE — the two client `MUST NOT`s, the example naming credentials and cookies, and the `SHOULD` to reflect the message, which is addressed to a recipient no message identifies",
 };
 
+/// `Allow`: what the field claims, and the licence that lets any response but a
+/// 405 carry it at all.
+pub const RFC_9110_10_2_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
+    note: "`Allow` lists the methods advertised as supported by the target resource, is a MAY on any response other than a 405, and an empty value of it says the resource allows no methods",
+};
+
 /// OPTIONS: the client MUST about `Content-Type`, and the server SHOULD that
 /// names a class of fields rather than a list.
 pub const RFC_9110_9_3_7: SpecRef = SpecRef {
@@ -259,6 +268,49 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9110_9_3_7],
         strength: Strength::Should,
+    }
+
+    /// A `2xx` answering an `OPTIONS` whose `Allow` names every method but
+    /// `OPTIONS`.
+    ///
+    /// **The mirror of
+    /// [`STATUS_405_ALLOW_CONFLICTING`](crate::violations::status), and it is
+    /// inside the same line that entry drew for itself.** `status_405_allow_valid`
+    /// declines to say which methods an `Allow` list *should* have held — § 10.2.1
+    /// makes the set "the origin server['s] at the time of each request" and § 9.1
+    /// adds that it "can change dynamically" — and closes that decline with the
+    /// sentence this entry stands on: the disagreement a rule can see is the one
+    /// internal to a single exchange. This is one. The method, the `2xx` that
+    /// performed it, and the `Allow` that says it is not supported are three parts
+    /// of one message pair.
+    ///
+    /// **`_conflicting` and not `_missing`**, for the same reason the 405 entry
+    /// takes it: nothing is absent. A list of methods is present and complete on
+    /// its own terms, and what disagrees with it is the status beside it.
+    ///
+    /// **`info`, where the mirror is `warn`, and the reason is what sends it.**
+    /// Every response the counted web produced for this is a CORS preflight, where
+    /// `OPTIONS` is answered by a layer above the resource and the `Allow`
+    /// describes the resource — an argument about deployments rather than about
+    /// § 10.2.1, which is exactly the weight `info` carries. A client is not
+    /// misled: it has the successful response in hand.
+    ///
+    /// **Scoped to `OPTIONS` and not to every method.** The reading generalises —
+    /// a `200` answering a `GET` whose `Allow` omits `GET` says the same thing —
+    /// and the evidence does not: all 14 responses in the corpus are `OPTIONS`,
+    /// `Allow` is a MAY that deployments send almost only on this method, and an
+    /// entry written wider than anything has ever produced is an entry no
+    /// instrument can keep honest.
+    ///
+    // cite(RFC 9110 § 10.2.1): "The "Allow" header field lists the set of methods advertised as supported by the target resource."
+    // cite(RFC 9110 § 10.2.1): "The purpose of this field is strictly to inform the recipient of valid request methods associated with the resource."
+    METHOD_OPTIONS_ALLOW_CONFLICTING = {
+        id: "method_options_allow_conflicting",
+        title: "A successful OPTIONS advertises methods and leaves out the one it answered",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_9110_10_2_1],
+        strength: Strength::Unstated,
     }
     /// A `201 (Created)` answering a `POST`, with no `Location`.
     ///

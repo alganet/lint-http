@@ -22,6 +22,7 @@ Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that
 
 ## Violations
 
+- [method_options_allow_conflicting](../violations/method_options_allow_conflicting.md) — A successful OPTIONS advertises methods and leaves out the one it answered
 - [method_options_capabilities_missing](../violations/method_options_capabilities_missing.md) — A successful OPTIONS answers with none of the capabilities it was asked for
 - [method_options_content_type_missing](../violations/method_options_content_type_missing.md) — An OPTIONS request carries content without saying what it is
 
@@ -31,7 +32,7 @@ Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): The method token is case-sensitive, which is why `OPTIONS` is matched exactly and a lowercase `options` is not an OPTIONS
 - [RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4): Content — the octet stream left after framing is removed, which is what the `Content-Type` check measures instead of the presence of a framing field
 - [RFC 9110 §15.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3): 2xx is the class named Successful, which is the range "a successful response to OPTIONS" means
-- [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): `Allow` advertises the target resource's methods, is a `MAY` on any response other than a 405 — so it is not asked for by name — and an empty value of it means the resource allows no methods
+- [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): `Allow` lists the methods advertised as supported by the target resource, is a MAY on any response other than a 405, and an empty value of it says the resource allows no methods
 - [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges` advertises range-request support for the target resource — a second member of the class §9.3.7 asks for
 - [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): `Accept-Patch` advertises the patch formats a resource accepts, and this section asks for it in an OPTIONS response by name
 - [Fetch §3.3.3](https://fetch.spec.whatwg.org/#http-responses): `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers` are what a CORS-preflight response carries to say which methods and request headers the target resource supports for that protocol — the extension §9.3.7's clause anticipates, in the response to an OPTIONS request — and the same section says `Allow` is not relevant to it
@@ -101,6 +102,26 @@ Content-Length: 2
 
 HTTP/1.1 200 OK
 Allow: GET, OPTIONS
+```
+
+### ❌ Bad The method set advertised, with the method that was just answered left out of it
+
+```http
+OPTIONS /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Allow: GET, POST
+```
+
+### ✅ Good An empty method set — § 10.2.1 gives the value its own meaning
+
+```http
+OPTIONS /resource HTTP/1.1
+Host: example.com
+
+HTTP/1.1 200 OK
+Allow: 
 ```
 
 ### ❌ Bad A successful response that advertises nothing recognizable
