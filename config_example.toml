@@ -446,6 +446,13 @@ enabled = true
 [rules.etag_syntax]
 enabled = true
 
+[rules.expect_ct_field_obsolete]
+enabled = true
+# The evidence is what implementations did rather than a keyword addressed to a
+# sender, so the finding is advice and the severity says so. The comment sits
+# *below* the line it explains: the generated file runs these sections
+# together, and a comment above a key reads as introducing everything under it.
+
 [rules.expect_header_valid]
 enabled = true
 
@@ -1928,6 +1935,10 @@ severity = "error"
 
 [violations.expect_100_continue_invalid]
 # The 100-continue expectation is written with an argument
+severity = "info"
+
+[violations.expect_ct_obsolete]
+# A response asks for Certificate Transparency in a field no browser reads
 severity = "info"
 
 [violations.expect_member_malformed]

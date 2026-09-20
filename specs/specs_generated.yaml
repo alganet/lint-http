@@ -1246,6 +1246,21 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
       line: 178
+- label: MDN Expect-CT
+  url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Expect-CT
+  fragments:
+  - label: expect_ct
+    snippet: Since May 2018, all new TLS certificates are expected to support SCTs by default.
+    cited_by:
+    - file: lint-http-rules/src/violations/expect_ct.rs
+      line: 79
+  - label: expect_ct_field_obsolete
+    snippet: and Chromium has deprecated the header from version 107, because Chromium now enforces CT by default
+    cited_by:
+    - file: lint-http-rules/src/rules/expect_ct_field_obsolete.rs
+      line: 120
+    - file: lint-http-rules/src/violations/expect_ct.rs
+      line: 78
 - label: MDN Report-To
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Report-To
   fragments:
@@ -8438,6 +8453,8 @@ sources:
       line: 474
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 167
+    - file: lint-http-rules/src/rules/expect_ct_field_obsolete.rs
+      line: 110
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 153
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
@@ -12794,7 +12811,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 72
     - file: lint-http-rules/src/published_examples.rs
-      line: 188
+      line: 189
   - label: lint-http-core/src/http_version.rs (2)
     section: § 8.3.1
     snippet: Individual HTTP/2 requests do not carry an explicit indicator of protocol version.
@@ -13111,7 +13128,7 @@ sources:
     - file: lint-http-proxy/src/proxy/http3.rs
       line: 399
     - file: lint-http-rules/src/published_examples.rs
-      line: 189
+      line: 190
   - label: lint-http-proxy/src/h3_instrument.rs
     section: § 6.2.1
     snippet: A control stream is indicated by a stream type of 0x00.
@@ -13258,6 +13275,17 @@ sources:
       line: 79
     - file: lint-http-rules/src/violations/field.rs
       line: 180
+- label: RFC 9163
+  url: https://www.rfc-editor.org/rfc/rfc9163.html
+  fragments:
+  - label: expect_ct_field_obsolete
+    section: § 1
+    snippet: enables UAs to identify web hosts that expect the presence of Signed Certificate Timestamps (SCTs)
+    cited_by:
+    - file: lint-http-rules/src/rules/expect_ct_field_obsolete.rs
+      line: 121
+    - file: lint-http-rules/src/violations/expect_ct.rs
+      line: 80
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.html
   fragments:

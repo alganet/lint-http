@@ -224,6 +224,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [etag_wildcard_forbidden](violations/etag_wildcard_forbidden.md) — An ETag carries the wildcard the conditional fields take
 - [expect_100_continue_forbidden](violations/expect_100_continue_forbidden.md) — A 100-continue expectation is sent in a request with no content
 - [expect_100_continue_invalid](violations/expect_100_continue_invalid.md) — The 100-continue expectation is written with an argument
+- [expect_ct_obsolete](violations/expect_ct_obsolete.md) — A response asks for Certificate Transparency in a field no browser reads
 - [expect_member_malformed](violations/expect_member_malformed.md) — Expect member holds octets the expectation production does not admit
 - [expect_value_empty](violations/expect_value_empty.md) — Expect writes an expectation '=' with no value after it
 - [expires_conflicting](violations/expires_conflicting.md) — Expires and the Cache-Control freshness directives disagree

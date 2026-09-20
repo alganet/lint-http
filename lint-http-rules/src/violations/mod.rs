@@ -76,6 +76,7 @@ pub mod domain;
 pub mod early_data;
 pub mod etag;
 pub mod expect;
+pub mod expect_ct;
 pub mod expires;
 pub mod ext_value;
 pub mod field;

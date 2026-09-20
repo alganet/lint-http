@@ -294,6 +294,16 @@ sources:
   - label: MDN Origin
     url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin
 
+  - label: MDN Expect-CT
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Expect-CT
+    # RFC 9163 defines `Expect-CT` and is still in force, so unlike
+    # `MDN Report-To` this page is not the field's only description — it is the
+    # only one that records what happened to it. The RFC says what the field
+    # means; this page says that the sole implementation removed it and why
+    # (Chromium 107, because Chromium now enforces Certificate Transparency by
+    # default), which is a fact about deployment and not one an RFC updates
+    # itself to carry. IANA agrees and lists the name `deprecated`.
+
   - label: MDN Refresh
     url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh
 

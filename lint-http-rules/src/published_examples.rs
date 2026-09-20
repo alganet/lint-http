@@ -156,6 +156,7 @@ const RESPONSE_ONLY: &[&str] = &[
     "report-to",
     "reporting-endpoints",
     "p3p",
+    "expect-ct",
     "x-robots-tag",
     "priority",
     "cdn-cache-control",
