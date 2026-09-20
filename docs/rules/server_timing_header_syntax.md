@@ -97,6 +97,12 @@ Server-Timing: db;desc=Cache Read
 Server-Timing: db;desc="abc"x
 ```
 
+### ❌ Bad One metric, two defective parameters: they sit beside each other in the repetition, so both are reported
+
+```http
+Server-Timing: db;dur=x;desc
+```
+
 ### ❌ Bad Advice: a repeated parameter name, a `dur` that is not a valid floating-point number, and a name the getters will not find
 
 ```http

@@ -353,6 +353,11 @@ impl RuleMeta for ServerTimingHeaderSyntax {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("One metric, two defective parameters: they sit beside each other in the repetition, so both are reported"),
+                snippet: "Server-Timing: db;dur=x;desc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("Advice: a repeated parameter name, a `dur` that is not a valid floating-point number, and a name the getters will not find"),
                 snippet: "Server-Timing: db;dur=50;dur=51\nServer-Timing: db;dur=NaN\nServer-Timing: db;dur=+5\nServer-Timing: db;DUR=53",
             },
@@ -519,7 +524,7 @@ fn check_field_value(value: &str) -> Vec<Defect> {
 /// One `server-timing-metric`.
 // cite(Server Timing § 2, label: server-timing-metric grammar): "server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )"
 // cite(Server Timing § 2, label: metric-name grammar): "*( OWS ";" OWS server-timing-param ) metric-name = token"
-fn check_metric(metric: &str) -> Option<Defect> {
+fn check_metric(metric: &str) -> Vec<Defect> {
     // Quote-aware, and the segments come back `OWS`-trimmed: the semicolon
     // splitter trims where the comma splitter does not. A bare `split(';')`
     // here cut `desc="a;b"` in half.
@@ -534,24 +539,30 @@ fn check_metric(metric: &str) -> Option<Defect> {
     // `token = 1*tchar` has a floor of one, so a metric that opens with its
     // first semicolon names nothing.
     // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
+    //
+    // A metric-name that is not one ends the metric, where the parameter
+    // readings below do not: `server-timing-metric = metric-name *( OWS ";"
+    // OWS server-timing-param )` puts the name *before* the repetition, and a
+    // measurement with no name to carry them is not a measurement whose
+    // parameters are worth correcting one by one.
     if name.is_empty() {
-        return Some(Defect::named(
+        return vec![Defect::named(
             &TOKEN_EMPTY,
             format!(
                 "Server-Timing metric '{}' has an empty metric-name: `metric-name = token` and a token is one character or more",
                 shown_in_finding(metric)
             ),
-        ));
+        )];
     }
     if let Some(c) = find_invalid_token_char(name) {
-        return Some(Defect::named(
+        return vec![Defect::named(
             token_character(c),
             format!(
                 "Server-Timing metric-name '{}' holds {}, which no token admits: every character of a token is visible US-ASCII and not a delimiter",
                 shown_in_finding(name),
                 describe_char(c)
             ),
-        ));
+        )];
     }
 
     // The names seen so far in *this* metric, as written. The comparison is
@@ -560,13 +571,37 @@ fn check_metric(metric: &str) -> Option<Defect> {
     // to it, and the finding for the second of those is the case one below.
     let mut seen: Vec<&str> = Vec::new();
 
+    // One finding per parameter. `*( OWS ";" OWS server-timing-param )` writes
+    // them beside each other rather than inside each other, so a metric naming
+    // three of them badly is three things to correct — and a walk that stopped
+    // at the first named one. This is the repetition one level below
+    // `#server-timing-metric`, and closing that walk did not close this one.
+    let mut out = Vec::new();
+    let mut saw_an_empty_parameter = false;
     for &param in params {
-        if let Some(defect) = check_param(metric, param, &mut seen) {
-            return Some(defect);
+        // The repetition's own shape rather than a parameter's: `*( OWS ";"
+        // OWS server-timing-param )` generates no bare semicolon, and the
+        // sentence for it names the metric. Stated once per metric for the
+        // reason the empty list element is stated once per field — a metric
+        // written with three gaps in it would otherwise carry three copies of
+        // one sentence, which tells an operator nothing the first copy did not.
+        if param.is_empty() {
+            saw_an_empty_parameter = true;
+            continue;
         }
+        out.extend(check_param(metric, param, &mut seen));
+    }
+    if saw_an_empty_parameter {
+        out.push(Defect::named(
+            &SERVER_TIMING_PARAM_EMPTY,
+            format!(
+                "Server-Timing metric '{}' has a ';' with no server-timing-param behind it: the repetition `*( OWS \";\" OWS server-timing-param )` generates no bare semicolon",
+                shown_in_finding(metric)
+            ),
+        ));
     }
 
-    None
+    out
 }
 
 /// One `server-timing-param`, and what the two established names mean for it.
@@ -599,25 +634,6 @@ fn check_metric(metric: &str) -> Option<Defect> {
 // cite(Server Timing § 2, label: server-timing-param grammar): "server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value"
 // cite(Server Timing § 2, label: server-timing-param-name grammar): "server-timing-param-name = token"
 fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Option<Defect> {
-    // The repetition is `*( OWS ";" OWS server-timing-param )`: every semicolon
-    // it generates owes a parameter behind it, so a trailing `;` and a `; ;`
-    // are both a semicolon with nothing to its name. This used to be skipped
-    // *"per lenient parsing"*, which is the user agent's job description and
-    // not a sentence about what a server may write.
-    //
-    // A statement about a repetition's own shape, which is what `Upgrade`'s
-    // `protocol` residue was: no subject holds "this construct generates no such
-    // separator", and one rule reading it is not a subject.
-    if param.is_empty() {
-        return Some(Defect::named(
-            &SERVER_TIMING_PARAM_EMPTY,
-            format!(
-                "Server-Timing metric '{}' has a ';' with no server-timing-param behind it: the repetition `*( OWS \";\" OWS server-timing-param )` generates no bare semicolon",
-                shown_in_finding(metric)
-            ),
-        ));
-    }
-
     // The first `=` is the production's, whatever follows it: a
     // `server-timing-param-name` is a `token`, and `=` is not a `tchar`, so no
     // name can contain one and no earlier `=` exists to be confused with it.
@@ -635,7 +651,8 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
         return Some(Defect::named(
             &SERVER_TIMING_PARAM_EQUALS_MISSING,
             format!(
-                "Server-Timing parameter '{}' has no '=': a server-timing-param is a name, an '=', and a value, and the value is not optional",
+                "Server-Timing metric '{}' has a parameter '{}' with no '=': a server-timing-param is a name, an '=', and a value, and the value is not optional",
+                shown_in_finding(metric),
                 shown_in_finding(param)
             ),
         ));
@@ -654,7 +671,8 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
         return Some(Defect::named(
             &TOKEN_EMPTY,
             format!(
-                "Server-Timing parameter '{}' has an empty server-timing-param-name: `server-timing-param-name = token` and a token is one character or more",
+                "Server-Timing metric '{}' has a parameter '{}' with an empty server-timing-param-name: `server-timing-param-name = token` and a token is one character or more",
+                shown_in_finding(metric),
                 shown_in_finding(param)
             ),
         ));
@@ -663,7 +681,8 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
         return Some(Defect::named(
             token_character(c),
             format!(
-                "Server-Timing server-timing-param-name '{}' holds {}, which no token admits",
+                "Server-Timing metric '{}' has a server-timing-param-name '{}' holding {}, which no token admits",
+                shown_in_finding(metric),
                 shown_in_finding(name),
                 describe_char(c)
             ),
@@ -717,7 +736,8 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
             return Some(Defect::named(
                 &SERVER_TIMING_PARAM_VALUE_MALFORMED,
                 format!(
-                    "Server-Timing parameter '{}' has {} after the closing DQUOTE of its quoted-string; a user agent ignores those characters without signalling anything, but the value as written derives from neither alternative of `server-timing-param-value`",
+                    "Server-Timing metric '{}' has a parameter '{}' with {} after the closing DQUOTE of its quoted-string; a user agent ignores those characters without signalling anything, but the value as written derives from neither alternative of `server-timing-param-value`",
+                    shown_in_finding(metric),
                     shown_in_finding(name),
                     shown_in_finding(&value[end + 1..])
                 ),
@@ -756,7 +776,8 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
             return Some(Defect::named(
                 &SERVER_TIMING_PARAM_VALUE_EMPTY,
                 format!(
-                    "Server-Timing parameter '{}' has an empty value: a server-timing-param-value is a token or a quoted-string, and neither of those is nothing",
+                    "Server-Timing metric '{}' has a parameter '{}' with an empty value: a server-timing-param-value is a token or a quoted-string, and neither of those is nothing",
+                    shown_in_finding(metric),
                     shown_in_finding(param)
                 ),
             ))
@@ -765,7 +786,8 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
             return Some(Defect::named(
                 token_character(c),
                 format!(
-                    "Server-Timing server-timing-param-value '{}' holds {}, and the value is not quoted: a bare value is a token, whose characters are all visible US-ASCII and not delimiters",
+                    "Server-Timing metric '{}' has a server-timing-param-value '{}' holding {}, and the value is not quoted: a bare value is a token, whose characters are all visible US-ASCII and not delimiters",
+                    shown_in_finding(metric),
                     shown_in_finding(value),
                     describe_char(c)
                 ),
@@ -776,7 +798,8 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
             return Some(Defect::named(
                 quoted_string_defect(defect),
                 format!(
-                    "Server-Timing parameter '{}' has a malformed quoted-string value: {message}",
+                    "Server-Timing metric '{}' has a parameter '{}' with a malformed quoted-string value: {message}",
+                    shown_in_finding(metric),
                     shown_in_finding(name)
                 ),
             ))
@@ -882,6 +905,121 @@ mod tests {
             1,
             "the gaps are one list defect: {ids:?}"
         );
+    }
+
+    /// **Every defective parameter of one metric is answered too.**
+    /// `*( OWS ";" OWS server-timing-param )` writes the parameters beside
+    /// each other, so a metric naming two badly is two things to correct.
+    /// Closing the walk over `#server-timing-metric` did not close this one.
+    #[test]
+    fn every_defective_parameter_of_one_metric_is_reported() {
+        let found = all("db;dur=x;desc");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "server_timing_dur_invalid",
+                "server_timing_param_equals_missing",
+            ],
+            "{found:?}"
+        );
+    }
+
+    /// The gap between two parameters is the *metric's* defect and is stated
+    /// once, however many gaps there are — the sentence names the metric, so a
+    /// second copy of it would be the same sentence written twice.
+    #[test]
+    fn the_gaps_between_parameters_are_one_finding() {
+        let found = all("db;;;");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["server_timing_param_empty"],
+            "{found:?}"
+        );
+    }
+
+    /// A parameter defect and a gap in the same metric are both reported: the
+    /// flag steps over the gap rather than ending the walk at it.
+    #[test]
+    fn a_gap_does_not_hide_the_parameter_beside_it() {
+        let found = all("db;;desc");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "server_timing_param_equals_missing",
+                "server_timing_param_empty",
+            ],
+            "{found:?}"
+        );
+    }
+
+    /// A metric-name that is not one ends its metric. The name comes before
+    /// the repetition in the production, and a measurement with no name to
+    /// carry them is not one whose parameters are worth listing.
+    #[test]
+    fn a_defective_metric_name_ends_its_own_metric() {
+        let found = all("n@me;dur=x;desc");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["token_character_forbidden"],
+            "{found:?}"
+        );
+    }
+
+    /// Two metrics writing the same defective parameter are two sentences that
+    /// can be told apart, because each names the metric it is about. Before the
+    /// parameter sentences carried one, `a;x, b;x` was one sentence printed
+    /// twice with nothing in it to say which measurement to go and look at.
+    #[test]
+    fn two_metrics_with_the_same_bad_parameter_name_their_own() {
+        let found = all("a;x, b;x");
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_ne!(found[0].message, found[1].message);
+        assert!(
+            found[0].message.contains("metric 'a;x'"),
+            "{:?}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("metric 'b;x'"),
+            "{:?}",
+            found[1].message
+        );
+    }
+
+    /// The other direction: a conforming metric with several parameters stays
+    /// silent, so the walk collecting is not the walk reporting.
+    #[test]
+    fn a_conforming_metric_with_several_parameters_is_silent() {
+        assert!(all("tls;desc=\"new\";dur=6").is_empty());
+    }
+
+    /// Every finding one `Server-Timing` value draws. `run` below takes the
+    /// first of however many, which is exactly what a case about a walk
+    /// cannot ask with.
+    fn all(value: &str) -> Vec<Violation> {
+        crate::test_helpers::run_rule_all(
+            &ServerTimingHeaderSyntax,
+            &crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("server-timing", value)],
+            ),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "server_timing_header_syntax",
+            ]),
+        )
     }
 
     fn section(lines: &[&[u8]]) -> HeaderMap {
@@ -1005,7 +1143,11 @@ mod tests {
         "with no server-timing-param behind it",
         "server_timing_param_empty"
     )]
-    #[case::param_without_equals(b"db;desc", "has no '='", "server_timing_param_equals_missing")]
+    #[case::param_without_equals(
+        b"db;desc",
+        "has a parameter 'desc' with no '='",
+        "server_timing_param_equals_missing"
+    )]
     #[case::empty_param_value(b"db;desc=", "empty value", "server_timing_param_value_empty")]
     #[case::value_not_a_token(
         b"db;desc=Cache Read",
