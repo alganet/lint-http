@@ -9,11 +9,17 @@
 //! the information a recipient uses to decide where the message ends, so a
 //! value that disagrees with the body is not a description that happens to be
 //! stale — it is a recipient reading the next message from the wrong offset.
-//! That is why the entries here default to `error` while most grammar defects in
-//! this catalogue default to `warn`, and it is not this catalogue's judgment
-//! alone: the two rules that report the mismatch had each chosen `error` in
-//! their own configuration example, separately, before there was one place to
-//! say it.
+//! That is why the entries here default to `error`, and it is not this
+//! catalogue's judgment alone: the two rules that report the mismatch had each
+//! chosen `error` in their own configuration example, separately, before there
+//! was one place to say it.
+//!
+//! **This paragraph used to end by contrasting that with the rest of the
+//! catalogue, where most grammar defects defaulted to `warn`.** They do not any
+//! more: every [`Strength::Grammar`](crate::lint::Strength) entry ranks at
+//! `error` off RFC 9110 § 2.2, so what this subject once had to argue for is
+//! the ordinary answer, and the argument below is what makes the *framing*
+//! entries share it rather than what lifts them.
 //!
 //! **The grammar entries inherit that reasoning rather than the catalogue's
 //! usual ranking**, because RFC 9112 § 6.3 says so in as many words: a message
@@ -22,6 +28,8 @@
 //! and a value the sender wrote twice with two different numbers land in the
 //! same place as a value that is simply wrong, so they are ranked the same.
 //! The one entry below that is *not* `error` is the one no sentence asks for.
+//! What this reasoning buys now is that it would hold them at `error` even if
+//! § 2.2 said nothing.
 //!
 //! One id for both directions. A request whose declared length is wrong and a
 //! response whose declared length is wrong are the same defect at opposite ends

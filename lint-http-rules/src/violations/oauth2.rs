@@ -21,8 +21,16 @@
 //! **Every entry here is bounded by what a capture holds.** The correlation
 //! entry looks back through this client's history for the request a callback
 //! answers, so a capture that begins mid-flow has the callback and not the
-//! request — which is a limit of the recording rather than a verdict, and the
-//! reason nothing in this subject outranks `warn`.
+//! request — which was a limit of the recording rather than a verdict, and
+//! was the reason nothing in this subject outranked `warn`.
+//!
+//! **That limit was removed rather than tolerated, and the level moved with
+//! it.** [`OAUTH2_CALLBACK_STATE_MISSING`] now requires the `response_type=code`
+//! request in history before it says anything, so a capture beginning
+//! mid-flow draws nothing instead of drawing a guess: the finding is only
+//! ever made where the evidence for it is in hand, which is what lets it
+//! rank at `error` on § 4.1.2's MUST. The other two stay at `warn` —
+//! one quotes a SHOULD, and the other has nothing binding the sender at all.
 //
 // cite(RFC 6749 § 10.12): "The client MUST implement CSRF protection for its redirection URI."
 

@@ -27,10 +27,19 @@
 //! `list_member_empty` and a semicolon with nothing beside it is this
 //! subject's — two sentences from two documents about two separators.
 //!
-//! **Flat at `warn`.** A `Link` is metadata about relationships: a member a
-//! recipient cannot read costs a link it would have followed, and no exchange
-//! turns on it. Nothing here is `error`, and nothing is `info` either, because
-//! every one of these leaves a member that does not derive at all.
+//! **Not flat, and the split is the two kinds of sentence behind it.** Five
+//! entries are [`Strength::Grammar`](crate::lint::Strength) — a member, a
+//! target, a parameter or a relation type that does not derive — and rank at
+//! `error` off RFC 9110 § 2.2. Three more are `error` on a MUST of RFC 8288's
+//! own: the two repetitions, and a member carrying no `rel` at all. The
+//! remaining five are `warn` and share a reason: no sentence binds the sender
+//! about them, so what the finding names is a link a recipient would have
+//! followed and cannot. Nothing here is `info`.
+//!
+//! **This paragraph used to say the subject was flat at `warn`**, on the
+//! argument that a `Link` is metadata and no exchange turns on it. That reads
+//! the consequence, which is how an `Unstated` entry ranks and not how a
+//! member deriving from nothing does.
 //
 // cite(RFC 8288 § 3, label: link-value assembly): "link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
 

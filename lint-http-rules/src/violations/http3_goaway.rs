@@ -13,7 +13,11 @@
 //! differently for the reason this catalogue always ranks: what the document
 //! says happens next. An identifier that grew is a *connection error* of type
 //! `H3_ID_ERROR` and is `error`; a stream opened past the limit breaks a plain
-//! MUST NOT for which § 5.2 states no recipient's answer, and is `warn`.
+//! MUST NOT for which § 5.2 states no recipient's answer, **and is `error`
+//! too** — the stated consequence separates *why* the two are errors and no
+//! longer separates their levels, because a MUST NOT addressed to the sender
+//! is what a finding about a sender is ranked by whether or not the document
+//! goes on to say what the receiver does.
 //!
 //! **What the identifier means depends on who sent it** — a server sends a
 //! client-initiated bidirectional stream ID and a client sends a push ID — so

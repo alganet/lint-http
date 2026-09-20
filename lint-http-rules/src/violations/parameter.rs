@@ -33,7 +33,12 @@
 //! and `multipart_boundary_syntax` for its `boundary`. Where the callers
 //! already agree, the def records the agreement rather than making it.
 //!
-//! **The two absences default to `warn` and the third entry to `info`.**
+//! **All three default to `error`**, and they get there the way every
+//! [`Strength::Grammar`](crate::lint::Strength) entry does: RFC 9110 § 2.2
+//! obliges a sender not to generate a protocol element matching no ABNF rule,
+//! and each of these is a `parameter` that does not derive. What the rest of
+//! this paragraph settles is the question the levels no longer do — whether
+//! the three are one entry or three.
 //! Nothing separates a segment with no `=` from an `=` with nothing after it:
 //! both are a construct a sender wrote short, in a position the grammar prints,
 //! and neither leaves a recipient reading the wrong thing — do not manufacture

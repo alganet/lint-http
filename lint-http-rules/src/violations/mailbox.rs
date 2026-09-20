@@ -24,12 +24,24 @@
 //! backslash quoting an octet the pair does not admit — are one def, because
 //! the fix is one fix: the escape.
 //!
-//! The severities are all `warn`, which is the first subject where that is
-//! true. Nothing here is a value a user agent quietly discards (the cookie's
-//! `Path`) and nothing is an octet a US-ASCII grammar admits and this crate
-//! refuses anyway (the cookie's whitespace): every entry is one production
-//! refusing one value, and RFC 9110 § 2.2's MUST NOT reaches all of them
-//! equally.
+//! The severities are `error`, and the sentence this paragraph has always
+//! given is why: nothing here is a value a user agent quietly discards (the
+//! cookie's `Path`) and nothing is an octet a US-ASCII grammar admits and this
+//! crate refuses anyway (the cookie's whitespace). Every entry is one
+//! production refusing one value, and **RFC 9110 § 2.2's MUST NOT reaches all
+//! of them equally** — which is the sentence every
+//! [`Strength::Grammar`](crate::lint::Strength) entry in this catalogue ranks
+//! off. The paragraph said `warn` under that same reasoning for as long as the
+//! reasoning and the defaults disagreed.
+//!
+//! [`MAILBOX_AT_SIGN_MISSING`] is the one below them, and it is the one entry
+//! here that states no [`Strength`] — so it is
+//! `Unstated` and ranks at `warn`, while the entry beside it quoting the same
+//! sentence of the same section, [`MAILBOX_LOCAL_PART_MISSING`], is `Grammar`
+//! and ranks at `error`. Neither doc says why they differ. **That is a
+//! question about the entry and not about this paragraph**, which is why the
+//! sentence above says `error` of the rest and names this one rather than
+//! rounding it in.
 
 use crate::helpers::mailbox::MailboxSyntaxDefect;
 use crate::lint::Severity;

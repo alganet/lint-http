@@ -13,7 +13,9 @@
 //! early data carrying a method whose safety is not known may take effect
 //! twice; a field named as a connection option is stripped by the next
 //! intermediary, which destroys the very signal the same section forbids
-//! removing. Those are `warn`.
+//! removing. Those are `error`: RFC 8470 § 4 and § 5.1 each address the
+//! sender, and each condemns the message rather than telling a recipient to
+//! cope with it.
 //!
 //! **The two below them are about how the field is written, and § 5.1 says a
 //! server reads it as `1` regardless.** A second field line and a value that is

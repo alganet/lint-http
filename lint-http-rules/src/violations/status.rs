@@ -64,13 +64,19 @@
 //! have named the expectation as the thing ignored, which is a server's
 //! behaviour and the opposite of this finding.
 //!
-//! So seven of the eight default to `warn`, which is the severity the rules
-//! reporting them had already chosen for themselves: a client handed a response
-//! it did not ask for, or cannot parse, has to notice that on its own, and the
-//! exchange carries on around it. **The question that separates the levels is
-//! not how strong the sentence is but whether the exchange can continue** — two
-//! of the six quote a prohibition, and only one of those two ends the
-//! conversation.
+//! Five of the eight default to `warn`, which is the severity the rules
+//! reporting them had already chosen for themselves: a client handed a
+//! response it did not ask for, or cannot parse, has to notice that on its own,
+//! and the exchange carries on around it. The three above them each quote a
+//! MUST or a MUST NOT addressed to the sender of the response being judged.
+//!
+//! **This paragraph used to say seven of the eight, and to give the rule as
+//! *not how strong the sentence is but whether the exchange can continue*.**
+//! That question is still how an entry with no keyword behind it is ranked,
+//! and this subject carries more of those than most — but it stopped being
+//! what separates these eight when every entry in the catalogue was read
+//! against the keyword binding its sender, and two more of them moved above
+//! `warn` while the count written here stayed at seven.
 
 use crate::lint::Severity;
 use crate::lint::Strength;

@@ -20,14 +20,22 @@
 //! about how the parts go together, and the field's own section is where all of
 //! it is written.
 //!
-//! **The subject is flat at `warn`, which is worth saying rather than
-//! assuming.** Nothing here is an `error`: `Via` is a trace, so a member that
-//! does not derive costs a recipient the identity of one hop and never the
-//! exchange — the question [`status`](crate::violations::status) ranks by is
-//! answered the same way for all four. And nothing here is `info` either,
-//! because each of them leaves a member a strict recipient cannot split: the
-//! chain a proxy is required to append to is the thing that stops being
-//! readable, whichever of the four went wrong.
+//! **The subject is flat at `error`, which is worth saying rather than
+//! assuming.** All four are [`Strength::Grammar`](crate::lint::Strength): a
+//! member that does not derive is a protocol element matching no ABNF rule,
+//! and RFC 9110 § 2.2 obliges a sender not to generate one. Nothing here is
+//! `info` either, because each of them leaves a member a strict recipient
+//! cannot split: the chain a proxy is required to append to is the thing that
+//! stops being readable, whichever of the four went wrong.
+//!
+//! **The argument this paragraph used to make was the other one**, and it is
+//! worth keeping in view because it is still how part of the catalogue ranks:
+//! a `Via` is a trace, so a member that does not derive costs a recipient the
+//! identity of one hop and never the exchange — the question
+//! [`status`](crate::violations::status) ranks by, answered the same way for
+//! all four. That reading of the *consequence* is what an `Unstated` entry is
+//! ranked by. It is not what a value deriving from nothing is ranked by, and
+//! the paragraph outlived the defaults it described.
 //!
 //! **The obsolete spelling is the entry to read twice.** It is the third use of
 //! the `_obsolete` ending and the first where no sentence obliges a recipient to

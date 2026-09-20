@@ -21,8 +21,11 @@
 //! **The ranking is the stated consequence, and it splits the three.** § 7.2.4.1
 //! makes the receipt of a reserved identifier a connection error of type
 //! `H3_SETTINGS_ERROR`, so that entry is `error`; the two repetitions break
-//! MUST NOTs for which § 7.2.4 states no recipient's answer — it says elsewhere
-//! that a receiver *MAY* reject the frame — so they are `warn`.
+//! MUST NOTs for which § 7.2.4 states no recipient's answer — it says
+//! elsewhere that a receiver *MAY* reject the frame — **and they are `error`
+//! as well**. The stated consequence is why the first one could not be
+//! anything else; it is not what holds the other two up, and the MUST NOT
+//! addressed to the sender is.
 
 use crate::lint::Severity;
 use crate::lint::Strength;

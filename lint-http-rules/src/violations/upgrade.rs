@@ -51,10 +51,17 @@
 //!
 //! **The rank is where the two codes part.** A `101` has already ended the HTTP
 //! conversation, so there is no later message in which the omission can be
-//! repaired: both of its entries are `error`. A `426` is an ordinary response a
-//! client can read; what it loses is the advice, and the request can be made
-//! again. Both of those are `warn`. **Ask whether the exchange can continue**,
-//! which is the same question `status`'s entries are ranked by.
+//! repaired: both of its entries are `error`. A `426` is an ordinary response
+//! a client can read; what it loses is the advice, and the request can be made
+//! again — **and both of those are `error` too**, because § 15.5.22 states a
+//! MUST about sending the field with that code and the keyword binding the
+//! sender is what the level reads off. The whole subject is flat.
+//!
+//! **Asking whether the exchange can continue is still the right question for
+//! part of this catalogue** — it is how an `Unstated` entry is ranked, and it
+//! is what [`status`](crate::violations::status) reaches for where no sentence
+//! binds anyone. It is not what separates these six, and it used to be written
+//! here as though it were.
 
 use crate::lint::Severity;
 use crate::lint::Strength;

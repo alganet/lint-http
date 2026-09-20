@@ -21,15 +21,20 @@
 //! declares both — which the `Prefer` rules do, since RFC 7240 writes `BWS` and
 //! RFC 9110 writes the media type's `=`.
 //!
-//! **Both default to `info`, and they arrive there by different routes.** The
-//! parameter's is `info` because six rules in this tree trim the whitespace and
-//! publish the leniency; this one is `info` because § 5.6.3 states the
-//! recipient's half in the same breath — a recipient MUST parse for the bad
-//! whitespace and remove it — so the value is read as intended and what is
-//! wrong is the spelling. **A requirement whose counterpart obliges the other
-//! party to cope is a requirement about hygiene** — the same ranking the
-//! `http_date` subject makes for an obsolete timestamp, read at a terminal
-//! instead of at a format.
+//! **Both default to `error`, and they still arrive there by different
+//! routes.** The parameter's is `error` because § 5.6.6's production prints no
+//! whitespace, so the octet derives from nothing and RFC 9110 § 2.2 reaches
+//! it. This one's is `error` because § 5.6.3 has two halves obliging different
+//! parties — a recipient MUST parse for the bad whitespace and remove it, and
+//! a sender is told the allowance is historical and not for it to use. The
+//! recipient's half is why the value is still read as intended; the sender's
+//! half is the one a finding about a sender is ranked by.
+//!
+//! **This paragraph used to rank both at `info`** on the first half alone —
+//! *a requirement whose counterpart obliges the other party to cope is a
+//! requirement about hygiene*. That argument survives where nothing binds the
+//! sender at all; it does not reach a sentence that binds one, and the
+//! catalogue reads the two halves apart now.
 
 use crate::lint::Severity;
 use crate::lint::Strength;
