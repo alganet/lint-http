@@ -799,6 +799,33 @@ mod tests {
         }
     }
 
+    /// The five attributes that take a value, each written as a bare name with
+    /// no `=` behind it — the shape § 5.2 gives an empty attribute-value, and
+    /// the sender gets none of what they asked for.
+    ///
+    /// One row per attribute because they are five independent branches and
+    /// were not equally written: `Path`, `Domain` and `SameSite` had a case
+    /// apiece asserting only that *something* was reported, and `Expires` and
+    /// `Max-Age` had none at all — their only coverage of an absent value was a
+    /// malformed *value*, which reaches a different branch entirely. Asserting
+    /// the id rather than a boolean is what makes each row say which branch
+    /// ran: every value here has a defective cookie-pair reading and a grammar
+    /// reading standing ready to answer instead.
+    #[rstest]
+    #[case("SID=1; Expires", "cookie_expires_missing")]
+    #[case("SID=1; Max-Age", "cookie_max_age_missing")]
+    #[case("SID=1; SameSite", "cookie_same_site_missing")]
+    #[case("SID=1; Path", "cookie_path_missing")]
+    #[case("SID=1; Domain", "cookie_domain_missing")]
+    fn an_attribute_written_with_no_value_says_which_one(
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
+        let found = check_set_cookie(value)
+            .unwrap_or_else(|| panic!("expected {expected} for '{value}', got none"));
+        assert_eq!(found.violation, expected, "wrong id for '{value}'");
+    }
+
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let rule = CookieAttributeConsistent;
