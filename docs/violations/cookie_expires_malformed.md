@@ -21,7 +21,7 @@ A **`SHOULD`** binding the sender of the message — advice the specification gi
 ## Specifications
 
 - [RFC 6265 §4.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1): Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; the `cookie-av` list, where each attribute is written with or without a value, and the `path-value` that excludes control characters and `;`
-- [RFC 6265 §5.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.1): Dates — the algorithm a user agent MUST use to parse a cookie-date: delimiter-separated tokens, `-` among the delimiters, a two-to-four-digit year, and no zone read at all
+- [RFC 6265 §5.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.1): Dates — the algorithm a user agent MUST use to parse a cookie-date: delimiter-separated tokens, `-` among the delimiters, a two-to-four-digit year, and no zone read at all; and the two places it refuses, step 5's bound on each field and step 6's question of whether the fields name a day that exists
 
 ## Configuration
 

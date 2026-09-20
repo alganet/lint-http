@@ -620,7 +620,7 @@ pub fn cookie_date_is_readable(s: &str) -> bool {
     let (Some(hour), Some(minute), Some(second)) = (hour, minute, second) else {
         return false;
     };
-    let (Some(day_of_month), Some(_), Some(year)) = (day_of_month, month, year) else {
+    let (Some(day_of_month), Some(month), Some(year)) = (day_of_month, month, year) else {
         return false;
     };
 
@@ -632,7 +632,30 @@ pub fn cookie_date_is_readable(s: &str) -> bool {
     };
 
     // cite(RFC 6265 § 5.1.1): "the day-of-month-value is less than 1 or greater than 31,"
-    (1..=31).contains(&day_of_month) && year >= 1601 && hour <= 23 && minute <= 59 && second <= 59
+    if !((1..=31).contains(&day_of_month)
+        && year >= 1601
+        && hour <= 23
+        && minute <= 59
+        && second <= 59)
+    {
+        return false;
+    }
+
+    // Step 5's list bounds each field on its own, and `31` is in range for
+    // every month. Step 6 is the second abort condition, and it is the one that
+    // asks whether the six values name a day: `31-Feb` and `29-Feb` in a common
+    // year pass every bound above and denote no instant, so a user agent
+    // following this algorithm fails to parse them and ignores the attribute.
+    //
+    // cite(RFC 6265 § 5.1.1): "If no such date exists, abort these steps and fail to parse the cookie-date."
+    let (Ok(year), Ok(month), Ok(day)) = (
+        i32::try_from(year),
+        u32::try_from(month),
+        u32::try_from(day_of_month),
+    ) else {
+        return false;
+    };
+    chrono::NaiveDate::from_ymd_opt(year, month, day).is_some()
 }
 
 /// `hms-time`, split out only because three `time-field`s do not fit a
@@ -909,6 +932,12 @@ mod tests {
     // `year` is at most 4DIGIT, so a five-digit run matches no production.
     #[case("Wed, 21 Oct 20155 07:28:00 GMT", false)]
     #[case("", false)]
+    // Step 6: a field-wise legal date naming no instant.
+    #[case("Sat, 31-Feb-2026 00:00:00 GMT", false)]
+    #[case("Thu, 30-Feb-2026 00:00:00 GMT", false)]
+    #[case("Fri, 31-Apr-2026 00:00:00 GMT", false)]
+    #[case("Sun, 29-Feb-2027 00:00:00 GMT", false)]
+    #[case("Thu, 29-Feb-2024 00:00:00 GMT", true)]
     fn cookie_date_readability(#[case] value: &str, #[case] readable: bool) {
         assert_eq!(
             cookie_date_is_readable(value),

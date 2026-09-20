@@ -575,6 +575,13 @@ impl RuleMeta for CookieAttributeConsistent {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— the same hyphenated form, on a day February does not have: no user agent reads it, so the expiry is dropped and the cookie lasts the session",
+                ),
+                snippet: "Set-Cookie: SID=1; Expires=Sat, 31-Feb-2026 00:00:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("— a bare token has no '=', so it is no cookie-pair at all"),
                 snippet: "Set-Cookie: SID",
             },
@@ -995,6 +1002,29 @@ mod tests {
     #[case(
         "SID=1; Expires=Sun, 30-Aug-1500 02:23:34 GMT",
         Some("http_date_malformed")
+    )]
+    // Step 6's abort, which no bound in step 5 can state: every field is in
+    // range and the six of them name no day. A user agent fails to parse these
+    // and ignores the attribute, so the cookie it was given an expiry for
+    // becomes a session cookie — which is `http_date_malformed`'s subject and
+    // not this entry's.
+    #[case(
+        "SID=1; Expires=Sat, 31-Feb-2026 00:00:00 GMT",
+        Some("http_date_malformed")
+    )]
+    #[case(
+        "SID=1; Expires=Fri, 31-Apr-2026 00:00:00 GMT",
+        Some("http_date_malformed")
+    )]
+    // A common year has no 29 February; the leap year below does, and the same
+    // reading has to keep it readable.
+    #[case(
+        "SID=1; Expires=Sun, 29-Feb-2027 00:00:00 GMT",
+        Some("http_date_malformed")
+    )]
+    #[case(
+        "SID=1; Expires=Thu, 29-Feb-2024 00:00:00 GMT",
+        Some("cookie_expires_malformed")
     )]
     fn expires_reports_what_a_user_agent_can_read(
         #[case] value: &str,

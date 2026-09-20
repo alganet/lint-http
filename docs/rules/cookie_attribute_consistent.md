@@ -47,7 +47,7 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 ## Specifications
 
 - [RFC 6265 §4.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1): Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; the `cookie-av` list, where each attribute is written with or without a value, and the `path-value` that excludes control characters and `;`
-- [RFC 6265 §5.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.1): Dates — the algorithm a user agent MUST use to parse a cookie-date: delimiter-separated tokens, `-` among the delimiters, a two-to-four-digit year, and no zone read at all
+- [RFC 6265 §5.1.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.1): Dates — the algorithm a user agent MUST use to parse a cookie-date: delimiter-separated tokens, `-` among the delimiters, a two-to-four-digit year, and no zone read at all; and the two places it refuses, step 5's bound on each field and step 6's question of whether the fields name a day that exists
 - [RFC 6265 §5.2.2](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2): The Max-Age attribute — ignored unless it is a `-`-or-DIGIT first character with an all-DIGIT remainder
 - [RFC 6265 §5.2.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3): `Domain` attribute processing — an empty value is undefined (the user agent ignores it) and a leading dot is stripped; the value's *format* is § 4.1.1 and RFC 1035
 - [RFC 6265 §5.2.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4): Path attribute — the user agent replaces an empty or non-`/` Path with the default-path (why those forms are flagged)
@@ -112,6 +112,12 @@ Set-Cookie: SID=1; Expires=NotADate
 
 ```http
 Set-Cookie: SID=1; Expires=Wed, 27-Aug-2036 02:28:19 GMT
+```
+
+### ❌ Bad — the same hyphenated form, on a day February does not have: no user agent reads it, so the expiry is dropped and the cookie lasts the session
+
+```http
+Set-Cookie: SID=1; Expires=Sat, 31-Feb-2026 00:00:00 GMT
 ```
 
 ### ❌ Bad — a bare token has no '=', so it is no cookie-pair at all

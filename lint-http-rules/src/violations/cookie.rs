@@ -109,7 +109,7 @@ pub const RFC_6265_5_1_1: SpecRef = SpecRef {
     spec: "RFC 6265",
     section: Some("5.1.1"),
     url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.1",
-    note: "Dates — the algorithm a user agent MUST use to parse a cookie-date: delimiter-separated tokens, `-` among the delimiters, a two-to-four-digit year, and no zone read at all",
+    note: "Dates — the algorithm a user agent MUST use to parse a cookie-date: delimiter-separated tokens, `-` among the delimiters, a two-to-four-digit year, and no zone read at all; and the two places it refuses, step 5's bound on each field and step 6's question of whether the fields name a day that exists",
 };
 
 pub const RFC_6265_5_1_3: SpecRef = SpecRef {
@@ -525,6 +525,17 @@ defects! {
     /// looks at the zone, so `UTC` where `GMT` was meant changes nothing. Every
     /// value this entry names therefore expires when the server intended.
     ///
+    /// **That last sentence is a claim about the whole algorithm, and the
+    /// algorithm aborts in two places rather than one.** Step 5 bounds each
+    /// field on its own — a day-of-month over 31, a year under 1601, an hour
+    /// over 23 — and step 6 then asks whether the six values name a day at all,
+    /// failing to parse when no such date exists. A `31-Feb` clears every bound
+    /// in step 5 and denotes nothing, so a user agent ignores the attribute and
+    /// the cookie becomes a session cookie: that is
+    /// [`HTTP_DATE_MALFORMED`](crate::violations::http_date)'s subject, and an
+    /// entry whose argument for `info` is that the recipient reads the value
+    /// must not be the one that claims it.
+    ///
     /// What is left is real and small: § 4.1.1 asks senders for `rfc1123-date`
     /// and these are not that, so the message travels on the tolerance of its
     /// recipients rather than on the grammar. `info`, because that is the whole
@@ -535,6 +546,7 @@ defects! {
     // cite(RFC 6265 § 4.1.1, label: expires-av): "expires-av        = "Expires=" sane-cookie-date"
     // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
     // cite(RFC 6265 § 5.1.1): "The user agent MUST use an algorithm equivalent to"
+    // cite(RFC 6265 § 5.1.1, label: no-such-date): "If no such date exists, abort these steps and fail to parse the cookie-date."
     COOKIE_EXPIRES_MALFORMED = {
         id: "cookie_expires_malformed",
         title: "Set-Cookie Expires is readable but derives from no HTTP-date",
