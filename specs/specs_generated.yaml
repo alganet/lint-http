@@ -1991,7 +1991,7 @@ sources:
     - file: lint-http-rules/src/helpers/authority.rs
       line: 160
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 226
+      line: 314
   - label: reg-name
     section: § 3.2.2
     snippet: reg-name    = *( unreserved / pct-encoded / sub-delims )
@@ -2229,9 +2229,9 @@ sources:
     snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 131
+      line: 133
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 227
+      line: 315
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 476
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
@@ -3458,6 +3458,12 @@ sources:
       line: 298
     - file: lint-http-rules/src/violations/origin.rs
       line: 67
+  - label: lint-http-rules/src/helpers/request_target.rs
+    section: § 5
+    snippet: If the two origins are scheme/host/port triples, the two origins are the same if, and only if, they have identical schemes, hosts, and ports.
+    cited_by:
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 217
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.html
   fragments:
@@ -9464,7 +9470,9 @@ sources:
     snippet: Resources made available via the "https" scheme have no shared identity with the "http" scheme.  They are distinct origins with separate namespaces.
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 167
+      line: 218
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 255
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 520
     - file: lint-http-rules/src/violations/referer.rs
@@ -9474,7 +9482,7 @@ sources:
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 50
+      line: 52
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 273
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
@@ -9484,7 +9492,7 @@ sources:
     snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 52
+      line: 54
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 317
     - file: lint-http-rules/src/rules/host_header.rs
@@ -9496,7 +9504,7 @@ sources:
     snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 51
+      line: 53
   - label: lint-http-rules/src/helpers/rule_config.rs
     section: § 16.1.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
@@ -12566,7 +12574,7 @@ sources:
     - file: lint-http-proxy/src/proxy/http.rs
       line: 363
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 56
+      line: 58
     - file: lint-http-rules/src/rules/host_header.rs
       line: 196
   - label: asterisk-form target
@@ -12590,9 +12598,9 @@ sources:
     - file: lint-http-proxy/src/proxy/http.rs
       line: 187
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 54
+      line: 56
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 130
+      line: 132
   - label: lint-http-proxy/src/proxy/http.rs (4)
     section: § 3.3
     snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
@@ -12600,7 +12608,7 @@ sources:
     - file: lint-http-proxy/src/proxy/http.rs
       line: 188
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 55
+      line: 57
   - label: lint-http-proxy/src/proxy/http.rs (5)
     section: § 3.3
     snippet: The target URI is the request-target when the request-target is in absolute-form.
@@ -12610,9 +12618,9 @@ sources:
     - file: lint-http-proxy/src/proxy/http.rs
       line: 292
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 53
+      line: 55
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 165
+      line: 253
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 168
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
@@ -12632,9 +12640,9 @@ sources:
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 88
+      line: 90
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 253
+      line: 341
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 84
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
@@ -12644,7 +12652,7 @@ sources:
     snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
     cited_by:
     - file: lint-http-rules/src/helpers/request_target.rs
-      line: 166
+      line: 254
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 343
   - label: no_body_for_1xx_204_304

@@ -24,7 +24,9 @@
 //! authority, a host or a path out of that invents an origin the message never
 //! had. Those values are attacker-supplied.
 
-use crate::helpers::authority::{authority_component, split_host_and_port, split_userinfo};
+use crate::helpers::authority::{
+    authority_component, port_number, split_host_and_port, split_userinfo,
+};
 use crate::helpers::headers::trim_ows;
 use crate::helpers::scheme::scheme_authority_marker;
 /// The authority component of the **target URI**, which is not always in the
@@ -137,6 +139,92 @@ pub fn target_uri_host(request_target: &str, request_headers: &hyper::HeaderMap)
         return None;
     }
     Some(host.to_ascii_lowercase())
+}
+
+/// The origin of the target URI, as much of it as the message states.
+///
+/// **An origin is `scheme + host + port` and a capture does not always hold the
+/// scheme.** RFC 6454 § 5 makes two origins the same only when all three parts
+/// are, so a scheme that differs is an origin that differs, and RFC 9112 § 3.3
+/// takes the scheme from the connection whenever the request-target is not in
+/// absolute form — so for the ordinary HTTP/1.1 request there is one term of
+/// the triple that nothing in the message supplies.
+///
+/// What this type refuses to do is turn that into "no origin". The reader it
+/// replaces asked [`super::origin::extract_origin_if_absolute`] and grouped an
+/// origin-form request's history with nothing at all, which is not caution: a
+/// stateful rule handed an empty history reports nothing and looks like a rule
+/// that found nothing wrong. Half the counted records of an ordinary capture
+/// are that shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetOrigin {
+    /// Lowercased, and `None` when the request-target is not in absolute form.
+    scheme: Option<String>,
+    /// Lowercased `host[:port]`, with a port that is the default of the stated
+    /// scheme elided the way § 6's serialization elides it.
+    authority: String,
+}
+
+impl TargetOrigin {
+    /// `None` when nothing in the message names a host, which is the one state
+    /// in which no two requests can be said to share an origin.
+    pub fn of(request_target: &str, request_headers: &hyper::HeaderMap) -> Option<Self> {
+        let authority = target_uri_authority(request_target, request_headers)?;
+        let (_, host_and_port) = split_userinfo(&authority);
+        let (host, port) = split_host_and_port(host_and_port);
+        if host.is_empty() {
+            return None;
+        }
+        let scheme = match target_uri_security(request_target) {
+            ConnectionSecurity::Secure => Some("https".to_string()),
+            ConnectionSecurity::Insecure => Some("http".to_string()),
+            // Either no scheme at all, or one neither § 4.2 defines. Both are
+            // "the message does not say", and neither is `http`.
+            ConnectionSecurity::Unstated => None,
+        };
+        let default_port = match scheme.as_deref() {
+            Some("http") => Some(80u16),
+            Some("https") => Some(443u16),
+            _ => None,
+        };
+        let mut serialized = host.to_ascii_lowercase();
+        if let Some(port) = port {
+            if !default_port.is_some_and(|d| port_number(port) == Some(d)) {
+                serialized.push(':');
+                serialized.push_str(port);
+            }
+        }
+        Some(Self {
+            scheme,
+            authority: serialized,
+        })
+    }
+
+    /// Whether two requests reached the same origin, as far as both messages
+    /// say.
+    ///
+    /// **The authority decides whenever either side does not state a scheme**,
+    /// and that is a deliberate reading rather than an oversight to repair.
+    /// RFC 9110 § 4.2.2 says an `http` origin and an `https` origin have no
+    /// shared identity, so where both messages state a scheme the schemes must
+    /// agree. Where one does not, the alternatives are to group on the
+    /// authority — which can join two origins § 5 separates, on a host serving
+    /// both schemes — or
+    /// to group on nothing, which is what this replaced and which silences
+    /// every by-origin rule on the commonest request-target form. Grouping was
+    /// chosen: a history that may span two schemes is a reading a rule can be
+    /// wrong about, and no history at all is a rule that cannot be right.
+    // cite(RFC 6454 § 5): "If the two origins are scheme/host/port triples, the two origins are the same if, and only if, they have identical schemes, hosts, and ports."
+    // cite(RFC 9110 § 4.2.2): "Resources made available via the "https" scheme have no shared identity with the "http" scheme.  They are distinct origins with separate namespaces."
+    pub fn same_as(&self, other: &Self) -> bool {
+        if self.authority != other.authority {
+            return false;
+        }
+        match (&self.scheme, &other.scheme) {
+            (Some(a), Some(b)) => a == b,
+            _ => true,
+        }
+    }
 }
 
 /// What the request-target says about the security of the connection the

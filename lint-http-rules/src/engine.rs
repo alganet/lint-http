@@ -139,7 +139,13 @@ impl PreparedEngine {
         let empty_history = crate::transaction_history::TransactionHistory::empty();
 
         // Cache origin extraction since it's used by any rule requiring ByOrigin
-        let origin = crate::helpers::origin::extract_origin_if_absolute(&tx.request.uri);
+        // § 3.3 reconstructs the target URI from the request-target, the
+        // connection and `Host`; this asked `extract_origin_if_absolute`,
+        // which answers only from the first of the three. An origin-form
+        // request has no absolute-form URI to slice, so every `ByOrigin` rule
+        // was given an empty history on the ordinary HTTP/1.1 request shape.
+        let origin =
+            crate::helpers::request_target::TargetOrigin::of(&tx.request.uri, &tx.request.headers);
 
         // Enabled rules only — disabled rules were filtered out at construction.
         // A rule that needs a response is excluded when there is none (mirrors
