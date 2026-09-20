@@ -33,5 +33,6 @@ severity = "error"
 
 - [accept_header_media_type_syntax](../rules/accept_header_media_type_syntax.md)
 - [accept_patch_header_valid](../rules/accept_patch_header_valid.md)
+- [content_disposition_parameter_valid](../rules/content_disposition_parameter_valid.md)
 - [content_type_valid](../rules/content_type_valid.md)
 - [expect_header_valid](../rules/expect_header_valid.md)

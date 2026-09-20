@@ -110,7 +110,14 @@ defects! {
     /// rules reading a media type still trimmed this whitespace and published
     /// the leniency in their `description()`, so `expect_header_valid` was the
     /// only reporter and the level described a check that a `Content-Type`
-    /// never ran. Every reader in the tree reports it now.
+    /// never ran. Every reader of § 5.6.6's own `parameter` reports it now,
+    /// and the last one to arrive was `Content-Disposition`'s — it kept a hand
+    /// copy of the production that took the name and the value off the `=` with
+    /// `str::trim` before judging either, so the padding was gone before
+    /// anything could ask about it. **A reader of a production that prints
+    /// `BWS` is not one of them**: `transfer-parameter` and `auth-param` write
+    /// the whitespace into the grammar, so the value derives and the sentence
+    /// a sender breaks is § 5.6.3's — `bws_forbidden`, not this.
     ///
     /// The argument that closed it is the one the level was raised on: the
     /// production prints no `OWS` anywhere inside itself and § 5.6.6 says so

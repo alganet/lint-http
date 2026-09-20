@@ -38,7 +38,8 @@ pub struct Parameter<'a> {
     pub value: &'a str,
     /// Whether whitespace sat beside the `=`.
     ///
-    /// **Every caller reports it, and this flag is why they could.** § 5.6.6's
+    /// **Every caller reports it, and this flag is why they could — but only
+    /// a caller that asks.** § 5.6.6's
     /// Note forbids whitespace there in as many words — *"not even 'bad'
     /// whitespace"* — but for a while only `expect_header_valid` acted on it
     /// and the rules reading a media type trimmed it and published a "Known

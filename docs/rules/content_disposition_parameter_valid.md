@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:
+`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax — including the whitespace §5.6.6 refuses beside the `=`, *"not even 'bad' whitespace"*, which `disposition-parm` inherits whole because RFC 6266 §4.1 writes `token "=" value` with no `BWS` of its own — and performs focused checks on common parameters:
 
 - `filename` — must be a `token` or a valid `quoted-string`.
 - `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).
@@ -25,6 +25,7 @@ When a parameter value is syntactically invalid, the rule raises a `warn`-level 
 - [ext_value_charset_forbidden](../violations/ext_value_charset_forbidden.md) — An extended parameter value names a character encoding reserved for future use
 - [ext_value_malformed](../violations/ext_value_malformed.md) — An extended parameter value is no ext-value
 - [parameter_equals_missing](../violations/parameter_equals_missing.md) — Parameter is written without its '='
+- [parameter_equals_whitespace_forbidden](../violations/parameter_equals_whitespace_forbidden.md) — Parameter writes whitespace beside its '='
 - [parameter_value_empty](../violations/parameter_value_empty.md) — Parameter is written with no value after its '='
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
 - [quoted_string_control_character_forbidden](../violations/quoted_string_control_character_forbidden.md) — Quoted-string holds a control character
@@ -73,4 +74,10 @@ Content-Disposition: attachment; filename=foo; filename=bar  # duplicate paramet
 
 ```http
 Content-Disposition: attachment; filename*=iso-8859-1'en'%A3%20rates
+```
+
+### ❌ Bad — whitespace beside the '=', which no parameter admits
+
+```http
+Content-Disposition: attachment; filename = "example.txt"
 ```

@@ -13,7 +13,8 @@ use crate::violations::ext_value::{
     EXT_VALUE_CHARSET_FORBIDDEN, EXT_VALUE_MALFORMED, RFC_8187_3_2_1,
 };
 use crate::violations::parameter::{
-    PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
+    PARAMETER_EQUALS_MISSING, PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, PARAMETER_VALUE_EMPTY,
+    RFC_9110_5_6_6,
 };
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -57,6 +58,7 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
     &PARAMETER_EQUALS_MISSING,
+    &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
     &PARAMETER_VALUE_EMPTY,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
@@ -90,7 +92,7 @@ impl RuleMeta for ContentDispositionParameterValid {
     }
 
     fn description(&self) -> &'static str {
-        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.\n\n**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type` and more than one `Content-Disposition` field line are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding. A value carrying octets outside visible US-ASCII is not decoded here either, and no rule reports it: RFC 6266 §4.3 makes a `filename` exactly as wide as ISO-8859-1, so such an octet is one of its characters and the `quoted-string` carrying it admits it as `obs-text`."
+        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax — including the whitespace §5.6.6 refuses beside the `=`, *\"not even 'bad' whitespace\"*, which `disposition-parm` inherits whole because RFC 6266 §4.1 writes `token \"=\" value` with no `BWS` of its own — and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.\n\n**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type` and more than one `Content-Disposition` field line are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding. A value carrying octets outside visible US-ASCII is not decoded here either, and no rule reports it: RFC 6266 §4.3 makes a `filename` exactly as wide as ISO-8859-1, so such an octet is one of its characters and the `quoted-string` carrying it admits it as `obs-text`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -134,6 +136,11 @@ impl RuleMeta for ContentDispositionParameterValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(a well-formed ext-value in an encoding a producer may not use)"),
                 snippet: "Content-Disposition: attachment; filename*=iso-8859-1'en'%A3%20rates",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— whitespace beside the '=', which no parameter admits"),
+                snippet: "Content-Disposition: attachment; filename = \"example.txt\"",
             },
         ]
     }
@@ -252,16 +259,49 @@ fn parameter_defect(
     p: &str,
     seen: &mut HashSet<String>,
 ) -> Option<(&'static crate::violations::ViolationDef, String)> {
-    let eq = p.find('=');
-    if eq.is_none() {
+    // The shared walk, where this rule used to keep its own copy of the
+    // production. The copy made every one of `parameters`' decisions the same
+    // way but one: it took the name and the value off the `=` with `str::trim`
+    // and then judged what came back, so the whitespace § 5.6.6 refuses was
+    // gone before anything could ask about it. The reader answers that question
+    // as a flag instead of throwing it away.
+    // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
+    let parameter = match crate::helpers::parameter::parameter_of(p)? {
+        Ok(parameter) => parameter,
+        // The "=" is not optional inside `parameter`, so a bare token among the
+        // parameters is not a valueless flag.
+        Err(crate::helpers::parameter::ParameterDefect::NoEquals(segment)) => {
+            return Some((
+                &PARAMETER_EQUALS_MISSING,
+                format!(
+                    "{} has malformed parameter '{}': missing '='",
+                    hdr_name, segment
+                ),
+            ))
+        }
+    };
+
+    // Reported before the name is judged, which is the order every other reader
+    // of this production takes these two in: the octet sits *between* two
+    // constructs and a sender put it there on purpose, while an empty or
+    // non-`token` name is a defect of one construct alone. `disposition-parm`
+    // borrows § 5.6.6's `parameter` whole — RFC 6266 § 4.1 writes `token "="
+    // value` with no `BWS` of its own — so the padding derives from nothing
+    // here exactly as it does in a media type.
+    // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
+    if parameter.whitespace_beside_equals {
         return Some((
-            &PARAMETER_EQUALS_MISSING,
-            format!("{} has malformed parameter '{}': missing '='", hdr_name, p),
+            &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
+            format!(
+                "{} parameter '{}' writes whitespace beside its '=', which parameters do not \
+                 allow, not even \"bad\" whitespace",
+                hdr_name, parameter.name
+            ),
         ));
     }
-    let eq = eq.unwrap();
-    let (name, value) = p.split_at(eq);
-    let name = name.trim();
+
+    let name = parameter.name;
+    let value = parameter.value;
     let name_lc = name.to_ascii_lowercase();
 
     // Parameter names may be ext-token (token followed by '*')
@@ -298,7 +338,7 @@ fn parameter_defect(
     }
     seen.insert(name_lc);
 
-    let val = value[1..].trim(); // skip '='
+    let val = value;
     if val.is_empty() {
         return Some((
             &PARAMETER_VALUE_EMPTY,
@@ -443,7 +483,7 @@ mod tests {
     /// RFC 6266 borrows `token`, `quoted-string` and the `name=value` shape
     /// rather than restating them, and the ids say so: each row here is the
     /// defect a `Content-Type` parameter would draw for the same shape, out of
-    /// a rule that finds its parameters with its own hand-rolled cut.
+    /// the same `parameters` walk that reader uses.
     ///
     /// The last three rows are the field's own rather than a borrowed
     /// production's: a parameter written twice is a requirement about the *set*
@@ -452,6 +492,26 @@ mod tests {
     /// is neither of the two alternatives § 5.6.6 gives a `parameter-value`.
     #[rstest]
     #[case("attachment; badparam", Some("parameter_equals_missing"))]
+    // Both sides of the `=`, because the flag is set by either. Read before the
+    // name is judged: `filename ` is not a `token` and the whitespace is why,
+    // so the finding names the octet a sender put there rather than the name it
+    // spoiled.
+    #[case(
+        "attachment; filename = \"a.txt\"",
+        Some("parameter_equals_whitespace_forbidden")
+    )]
+    #[case(
+        "attachment; filename =\"a.txt\"",
+        Some("parameter_equals_whitespace_forbidden")
+    )]
+    #[case(
+        "attachment; filename= \"a.txt\"",
+        Some("parameter_equals_whitespace_forbidden")
+    )]
+    // A HTAB is `OWS` too, and it is the octet a hand-rolled `str::trim` and
+    // the production's own `trim_ows` agree about — which is why the row that
+    // separates them is the one above, not this one.
+    #[case("attachment; size\t=42", Some("parameter_equals_whitespace_forbidden"))]
     #[case("attachment; =value", Some("token_empty"))]
     #[case("attachment; bad@name=foo", Some("token_character_forbidden"))]
     #[case("attachment; filename=", Some("parameter_value_empty"))]
@@ -501,6 +561,10 @@ mod tests {
 
     #[rstest]
     #[case(Some("attachment; filename=example.txt"), false)]
+    // The other direction of the whitespace rows above: the production prints
+    // `OWS` beside the `;` and none beside the `=`, so a value using the first
+    // and not the second conforms and this rule says nothing about it.
+    #[case(Some("attachment;   filename=\"a.txt\";  size=42"), false)]
     #[case(Some("attachment; filename=\"a.txt\""), false)]
     #[case(Some("attachment; filename=\"a;b.txt\""), false)]
     #[case(Some("attachment; filename*=UTF-8''%e2%82%ac%20rates"), false)]

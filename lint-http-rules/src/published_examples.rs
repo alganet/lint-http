@@ -974,7 +974,6 @@ const WITHOUT_EXAMPLE: &[&str] = &[
     "node_ipv6_closing_bracket_missing",
     "node_ipv6_representation_invalid",
     "origin_agent_cluster_empty",
-    "parameter_equals_whitespace_forbidden",
     "preference_applied_conflicting",
     "preference_applied_value_empty",
     "priority_incremental_malformed",

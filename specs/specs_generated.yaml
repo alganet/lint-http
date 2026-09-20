@@ -2940,7 +2940,7 @@ sources:
     snippet: content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )
     cited_by:
     - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
-      line: 163
+      line: 170
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 194
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
@@ -4872,7 +4872,7 @@ sources:
     snippet: Note that both character encoding names and language tags are restricted to the US-ASCII coded character set and are matched case-insensitively
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 266
+      line: 267
     - file: lint-http-rules/src/violations/ext_value.rs
       line: 102
   - label: producers
@@ -4880,7 +4880,7 @@ sources:
     snippet: Producers MUST use the "UTF-8" ([RFC3629]) character encoding.
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 265
+      line: 266
     - file: lint-http-rules/src/violations/ext_value.rs
       line: 100
   - label: lint-http-rules/src/helpers/parameter.rs
@@ -4888,43 +4888,43 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 238
+      line: 239
   - label: lint-http-rules/src/helpers/parameter.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 160
+      line: 161
   - label: mime-charset
     section: § 3.2.1
     snippet: mime-charset  = 1*mime-charsetc
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 185
+      line: 186
   - label: mime-charsetc
     section: § 3.2.1
     snippet: mime-charsetc = ALPHA / DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 186
+      line: 187
   - label: lint-http-rules/src/helpers/parameter.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 217
+      line: 218
   - label: lint-http-rules/src/helpers/parameter.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 210
+      line: 211
   - label: lint-http-rules/src/helpers/parameter.rs (5)
     section: § 3.2.2
     snippet: The <mime-charset> ABNF defined here differs from the one in Section 2.3 of [RFC2978] in that it does not allow the single quote character
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 187
+      line: 188
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.html
   fragments:
@@ -7389,7 +7389,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 251
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 83
+      line: 84
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 238
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
@@ -8534,10 +8534,12 @@ sources:
       line: 331
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 485
+    - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
+      line: 291
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 632
     - file: lint-http-rules/src/violations/parameter.rs
-      line: 132
+      line: 139
   - label: lint-http-rules/src/helpers/media_type.rs (3)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
@@ -8557,9 +8559,9 @@ sources:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 339
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 82
+      line: 83
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 109
+      line: 110
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 418
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -8587,7 +8589,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 20
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 80
+      line: 81
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 235
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -8653,15 +8655,17 @@ sources:
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 81
+      line: 82
     - file: lint-http-rules/src/helpers/parameter.rs
-      line: 108
+      line: 109
+    - file: lint-http-rules/src/rules/content_disposition_parameter_valid.rs
+      line: 268
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 553
     - file: lint-http-rules/src/violations/parameter.rs
       line: 70
     - file: lint-http-rules/src/violations/parameter.rs
-      line: 131
+      line: 138
   - label: lint-http-rules/src/helpers/product.rs
     section: § 10.1.5
     snippet: The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts.
