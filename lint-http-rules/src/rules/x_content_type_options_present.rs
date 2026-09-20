@@ -83,8 +83,15 @@ impl RuleMeta for XContentTypeOptionsPresent {
     /// not a JavaScript MIME type, and for a `"style"` destination whose
     /// essence is not `text/css`. A proxy sees no destination, so these are the
     /// types a deployment serves to those two — `text/javascript` and
-    /// `application/javascript` for the first, `text/css` for the second, which
-    /// is the only essence that half accepts.
+    /// `application/javascript` for the first, `text/css` for the second.
+    ///
+    /// **The two halves are not the same kind of list.** `text/css` is the
+    /// whole of what `"style"` accepts: the sentence names one essence and
+    /// there is no second. *JavaScript MIME type* is a defined set with more
+    /// members than the two here, and a deployment serving one of the older
+    /// spellings — `application/x-javascript` among them — is serving script
+    /// this list says nothing about. Those two are the spellings in use, not
+    /// the set; add the one you serve.
     ///
     /// `text/html` and `application/json` are neither, and are here on the
     /// wider ground the field's own prose states: `nosniff` stops a recipient
