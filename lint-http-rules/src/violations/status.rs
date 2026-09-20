@@ -864,9 +864,18 @@ defects! {
     ///
     /// **Read out of a run of messages rather than a pair**, which is one step
     /// further than the two entries that read a third: the evidence is every
-    /// consecutive `401` this origin has answered with, so a rule reporting it
-    /// needs the history scoped by origin and a capture holding one exchange
-    /// can never produce it.
+    /// consecutive `401` this origin answered an attempt with, so a rule
+    /// reporting it needs the history scoped by origin and a capture holding
+    /// one exchange can never produce it.
+    ///
+    /// **Both terms of the sentence are the entry's, not the rule's.** § 15.5.2
+    /// binds a user agent only where the 401 "contains the same challenge as
+    /// the prior response" *and* the agent "has already attempted
+    /// authentication at least once" — so a run of 401s answering requests that
+    /// carried no credentials is not this finding, and neither is a run whose
+    /// challenge changes between rounds. A count of consecutive 401s satisfies
+    /// neither term and was what this reported: four bare requests to a
+    /// protected resource read as a credential replayed four times.
     ///
     /// **How many is a run is the reporting rule's, not this entry's.** No
     /// sentence fixes a number — § 15.5.2 speaks of "at least once" and stops —

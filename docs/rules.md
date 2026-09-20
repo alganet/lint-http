@@ -214,7 +214,7 @@ The sections group rules by **who is answerable for what they report** — the p
 
 ## Rules Neither Peer Answers For
 
-- [authentication_failure_loop](rules/authentication_failure_loop.md) — Detects repeated `401 Unauthorized` challenges for the same protection space (origin), which strongly indicates an authentication failure loop. When a client continuously retries authentication and repeatedly fails with a 401 across the same origin, it could imply a broken client, misconfigured credentials, or a flawed authentication handshake.
+- [authentication_failure_loop](rules/authentication_failure_loop.md) — Reports a client that keeps presenting credentials one challenge keeps refusing. It could imply a broken client, misconfigured credentials, or a flawed authentication handshake, and the rule declines to choose between the three.
 
 ## Protocol Rules
 

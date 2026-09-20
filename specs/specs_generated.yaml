@@ -6464,13 +6464,31 @@ sources:
     - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
       line: 108
   - label: authentication_failure_loop
+    section: § 11.6.2
+    snippet: The "Authorization" header field allows a user agent to authenticate itself with an origin server -- usually, but not necessarily, after receiving a 401 (Unauthorized) response.
+    cited_by:
+    - file: lint-http-rules/src/rules/authentication_failure_loop.rs
+      line: 119
+  - label: authentication_failure_loop (2)
     section: § 15.5.2
     snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/authentication_failure_loop.rs
-      line: 89
+      line: 101
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 190
+  - label: authentication_failure_loop (3)
+    section: § 15.5.2
+    snippet: The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/authentication_failure_loop.rs
+      line: 143
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 199
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 220
+    - file: lint-http-rules/src/violations/status.rs
+      line: 844
   - label: authorization_credentials_valid
     section: § 11.6.2
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
@@ -7746,7 +7764,7 @@ sources:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 24
     - file: lint-http-rules/src/violations/status.rs
-      line: 1204
+      line: 1213
   - label: lint-http-core/src/http_version.rs
     section: § 2.5
     snippet: HTTP's version number consists of two decimal digits separated by a "." (period or decimal point).
@@ -7868,7 +7886,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 170
     - file: lint-http-rules/src/violations/status.rs
-      line: 1114
+      line: 1123
   - label: lint-http-rules/src/helpers/accept_ranges.rs
     section: § 14.1
     snippet: All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1.
@@ -9520,7 +9538,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 165
     - file: lint-http-rules/src/violations/status.rs
-      line: 1090
+      line: 1099
   - label: no_body_for_1xx_204_304 (5)
     section: § 8.6
     snippet: A server MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request (Section 15.4.5); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a 200 (OK) response to the same request.
@@ -9538,7 +9556,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 250
     - file: lint-http-rules/src/violations/status.rs
-      line: 1137
+      line: 1146
   - label: no_connection_specific_fields
     section: § 7.6.1
     snippet: 'This includes but is not limited to:'
@@ -10056,7 +10074,7 @@ sources:
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
       line: 59
     - file: lint-http-rules/src/violations/status.rs
-      line: 986
+      line: 995
   - label: referer_uri_valid
     section: § 10.1.3
     snippet: A user agent MUST NOT include the fragment and userinfo components of the URI reference [URI], if any, when generating the Referer field value.
@@ -10418,13 +10436,13 @@ sources:
     snippet: For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 308 (Permanent Redirect) status code can be used instead.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 938
+      line: 947
   - label: status (8)
     section: § 15.4.3
     snippet: For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 307 (Temporary Redirect) status code can be used instead.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 956
+      line: 965
   - label: status (9)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
@@ -10436,7 +10454,7 @@ sources:
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 881
+      line: 890
   - label: status (11)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
@@ -10462,7 +10480,7 @@ sources:
     - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 176
     - file: lint-http-rules/src/violations/status.rs
-      line: 1178
+      line: 1187
   - label: status_103_early_hints_before_final (2)
     section: § 15.2
     snippet: The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response.
@@ -10488,7 +10506,7 @@ sources:
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 28
     - file: lint-http-rules/src/violations/status.rs
-      line: 1066
+      line: 1075
   - label: status_200_vs_204_body_consistent (4)
     section: § 15.3.1
     snippet: The 200 (OK) status code indicates that the request has succeeded.
@@ -10570,7 +10588,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 282
     - file: lint-http-rules/src/violations/status.rs
-      line: 1036
+      line: 1045
   - label: status_405_allow_valid (3)
     section: § 15.5.6
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
@@ -10580,7 +10598,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 281
     - file: lint-http-rules/src/violations/status.rs
-      line: 1011
+      line: 1020
   - label: status_405_allow_valid (4)
     section: § 9.1
     snippet: However, the set of allowed methods can change dynamically.
@@ -10650,22 +10668,12 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 50
   - label: status_code_semantics (6)
-    section: § 15.5.2
-    snippet: The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource.
-    cited_by:
-    - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 199
-    - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 220
-    - file: lint-http-rules/src/violations/status.rs
-      line: 844
-  - label: status_code_semantics (7)
     section: § 15.5.8
     snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 237
-  - label: status_code_semantics (8)
+  - label: status_code_semantics (7)
     section: § 15.5.8
     snippet: The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request.
     cited_by:
@@ -10674,14 +10682,14 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 258
     - file: lint-http-rules/src/violations/status.rs
-      line: 908
-  - label: status_code_semantics (9)
+      line: 917
+  - label: status_code_semantics (8)
     section: § A
     snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
     cited_by:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 257
-  - label: status_code_semantics (10)
+  - label: status_code_semantics (9)
     section: § A
     snippet: WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
     cited_by:
@@ -10694,7 +10702,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 142
     - file: lint-http-rules/src/violations/status.rs
-      line: 985
+      line: 994
   - label: status_code_valid_range (2)
     section: § 15
     snippet: Implementations often use three-digit integer values outside of that range (i.e., 600..999) for internal communication of non-HTTP status (e.g., library errors).
@@ -12064,7 +12072,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 291
     - file: lint-http-rules/src/violations/status.rs
-      line: 1158
+      line: 1167
   - label: post_creates_resource
     section: § 3.3
     snippet: Otherwise, the target URI's combined path and query component is the request-target.
