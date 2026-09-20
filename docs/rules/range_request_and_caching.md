@@ -10,7 +10,9 @@ SPDX-License-Identifier: ISC
 
 A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.
 
-This rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request **in that same range unit** that carries none of those three fields, an `If-Range` holding a tag other than the one most recently provided for the resource, and an `If-Range` holding a date when an entity tag was provided (RFC 9110 §13.1.5 forbids the date in that case).  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.
+This rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request **in that same range unit** that carries none of those three fields, and an `If-Range` holding a tag other than the one most recently provided for the resource.
+
+**The date is asked about on different terms, because §13.1.5 states different ones.**  That sentence forbids an `If-Range` holding an `HTTP-date` to a client that has an entity tag "for the corresponding representation", and says nothing about how the client came by one — so a plain 200 carrying an `ETag` is enough, no partial copy is needed, and a second precondition beside it does not excuse the field.  Only the two §4.3.1 findings above are conditioned on the 206 and on its range unit.  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.
 
 Where the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.
 
@@ -97,15 +99,14 @@ Range: bytes=100-199
 If-Range: "other"
 ```
 
-### ❌ Bad — a date in `If-Range` while holding an entity tag
+### ❌ Bad — a date in `If-Range` while holding an entity tag, which needs no partial copy
 
 ```http
-HTTP/1.1 206 Partial Content
+HTTP/1.1 200 OK
 ETag: "etag123"
 Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT
-Content-Range: bytes 0-99/1000
 
 GET /resource HTTP/1.1
-Range: bytes=100-199
+Range: bytes=0-99
 If-Range: Wed, 21 Oct 2015 07:28:00 GMT
 ```

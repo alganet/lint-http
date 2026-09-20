@@ -6144,7 +6144,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 113
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 232
+      line: 234
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 308
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -6248,7 +6248,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 93
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 189
+      line: 191
     - file: lint-http-rules/src/rules/status_206_required_fields.rs
       line: 144
     - file: lint-http-rules/src/violations/status.rs
@@ -6266,7 +6266,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 214
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 256
+      line: 350
     - file: lint-http-rules/src/violations/accept_ranges.rs
       line: 154
   - label: accept_ranges_on_partial_content (3)
@@ -6278,7 +6278,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 130
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 237
+      line: 239
   - label: accept_ranges_on_partial_content (4)
     section: § 14.3
     snippet: Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses.
@@ -6768,7 +6768,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 271
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 345
+      line: 309
   - label: If-Range grammar
     section: § 13.1.5
     snippet: If-Range = entity-tag / HTTP-date
@@ -6778,7 +6778,7 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 62
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 136
+      line: 142
   - label: conditional_request_handling
     section: § 13.1.1
     snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match (Section 8.8.3.2), since the client intends this precondition to prevent the method from being applied if there have been any changes to the representation data.
@@ -9894,7 +9894,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 283
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 231
+      line: 233
   - label: range_header_syntax (10)
     section: § 14.2
     snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.  A proxy MAY discard a Range header field that contains a range unit it does not understand.
@@ -9914,21 +9914,21 @@ sources:
     snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 362
+      line: 383
   - label: range_request_and_caching (2)
     section: § 13.1.5
     snippet: Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 356
+      line: 325
     - file: lint-http-rules/src/violations/if_range.rs
-      line: 112
+      line: 118
   - label: range_request_and_caching (3)
     section: § 14.4
     snippet: The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 187
+      line: 189
     - file: lint-http-rules/src/violations/content_range.rs
       line: 290
   - label: range_request_and_caching (4)
@@ -9936,13 +9936,13 @@ sources:
     snippet: Despite the name, the "multipart/byteranges" media type is not limited to byte ranges.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 190
+      line: 192
   - label: range_request_and_caching (5)
     section: § 15.3.7.2
     snippet: To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead).
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 188
+      line: 190
     - file: lint-http-rules/src/violations/content_range.rs
       line: 268
   - label: range_request_and_caching (6)
@@ -9950,13 +9950,13 @@ sources:
     snippet: A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 255
+      line: 349
   - label: range_request_and_caching (7)
     section: § 15.3.7.3
     snippet: These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1).
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 298
+      line: 276
   - label: redirect_chain_valid
     section: § 10.2.2
     snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
@@ -11219,7 +11219,7 @@ sources:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 166
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 319
+      line: 365
     - file: lint-http-rules/src/violations/conditional.rs
       line: 193
   - label: cache_validation_chain (3)
@@ -11229,7 +11229,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 160
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 292
+      line: 269
   - label: cached_validators_reused
     section: § 3
     snippet: 'A cache MUST NOT store a response to a request unless:'
@@ -11677,31 +11677,31 @@ sources:
     snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 254
+      line: 348
   - label: range_request_and_caching (2)
     section: § 3.4
     snippet: A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 299
+      line: 277
   - label: range_request_and_caching (3)
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 272
+      line: 250
   - label: range_request_and_caching (4)
     section: § 4.3.1
     snippet: MAY send the Last-Modified value (using If-Unmodified-Since or If-Range) if the request is for a subrange, a single stored response is being validated, and that response contains only a Last-Modified value (not an entity tag).
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 293
+      line: 270
   - label: range_request_and_caching (5)
     section: § 4.3.1
     snippet: Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 273
+      line: 251
   - label: singleton_fields_not_repeated
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server.

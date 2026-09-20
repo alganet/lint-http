@@ -102,7 +102,13 @@ defects! {
     /// `Range`, or carries a weak tag, is visible in the request alone; that
     /// the client *had* a tag is visible only in what the server sent it
     /// earlier — so a rule reporting this needs the history, and a capture
-    /// beginning after the `206` cannot produce it.
+    /// beginning after the response that carried the tag cannot produce it.
+    ///
+    /// **Any response that carried one will do, and the sentence is what says
+    /// so.** A 200 hands the client an entity tag as surely as a 206 does. The
+    /// partial copy is § 4.3.1's premise — that a *cache* completing one send
+    /// the tag back — and while this entry was asked behind it, a client that
+    /// had never been sent a 206 could write the forbidden date in silence.
     ///
     /// `warn`, with its siblings, and for the same reason: the recipient's
     /// answer to a validator it cannot honour is the whole representation,
