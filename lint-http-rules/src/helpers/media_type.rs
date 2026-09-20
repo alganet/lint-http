@@ -224,10 +224,22 @@ impl MediaTypeDefect<'_> {
                 c.escape_debug(),
                 value.escape_debug()
             ),
-            // The reason quotes the value it was handed, so the escape goes
-            // around the whole clause rather than around the name alone -- a
-            // control octet inside the quoted-string is exactly what that reason
-            // is about, and it arrived raw.
+            // The reason arrives rendered, so it is interpolated and not escaped
+            // again. [`QuotedStringDefect::message`] says so in its own first
+            // line -- "Escaped, always" -- and it means it for the reason this
+            // arm cared about: a control octet inside the `quoted-string` is
+            // exactly what those defects are about, and the callee is where that
+            // octet is made safe.
+            //
+            // **This arm used to escape the whole clause, on the stated premise
+            // that the value inside it "arrived raw".** It did not, and the
+            // second pass escaped the callee's own quoting: `charset="ut"f8"`
+            // rendered as `\'\\\"ut\\\"f8\\\"\'`, where the neighbouring
+            // rule reading the same parameter showed `'\"ut\"f8\"'`. A value
+            // shown twice is not the value, whatever one thinks of showing it
+            // once -- an operator grepping the response for what the message
+            // printed finds nothing either way, and here they cannot even read
+            // it.
             Self::ParameterValue {
                 name,
                 value,
@@ -235,7 +247,7 @@ impl MediaTypeDefect<'_> {
             } => format!(
                 "parameter '{}' has invalid quoted-string: {}",
                 name.escape_debug(),
-                defect.message(value).escape_debug()
+                defect.message(value)
             ),
         }
     }
@@ -504,6 +516,42 @@ mod tests {
         assert_eq!(
             extract_multipart_boundary("multipart/mixed; foo=\"a;b\"; boundary=abc"),
             Some("abc".to_string())
+        );
+    }
+
+    /// A reason built by a callee is interpolated, never rendered a second time.
+    ///
+    /// Written against the *relationship* and not against a spelling: the arm
+    /// must hand back exactly what [`QuotedStringDefect::message`] wrote, so a
+    /// caller that escapes it again fails here whatever the escaping happens to
+    /// spell today, and so does one that renders the value itself instead of
+    /// asking the callee. Both halves are asserted, because a test that only
+    /// checked the second could be passed by dropping the reason altogether.
+    ///
+    /// The value is the one the field found it on: `charset="ut"f8"` used to
+    /// render as `\'\\\"ut\\\"f8\\\"\'` here while the rule reading the same
+    /// parameter showed `'\"ut\"f8\"'`.
+    #[test]
+    fn a_reason_from_the_callee_is_shown_once() {
+        let value = "\"ut\"f8\"";
+        let reason =
+            crate::helpers::quoted_string::QuotedStringDefect::UnescapedQuote.message(value);
+        let message = MediaTypeDefect::ParameterValue {
+            name: "charset",
+            value,
+            defect: WordDefect::NotQuotedString(
+                crate::helpers::quoted_string::QuotedStringDefect::UnescapedQuote,
+            ),
+        }
+        .message();
+
+        assert!(
+            message.ends_with(&reason),
+            "the reason was rendered again: {message}"
+        );
+        assert!(
+            !message.contains("\\\\"),
+            "a doubled backslash is the tell of a second escape: {message}"
         );
     }
 }

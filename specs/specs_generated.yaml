@@ -8519,7 +8519,7 @@ sources:
     snippet: 'Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character.'
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 319
+      line: 331
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 485
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -8531,7 +8531,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 387
+      line: 399
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 259
     - file: lint-http-rules/src/rules/charset_registered.rs
@@ -8543,7 +8543,7 @@ sources:
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 327
+      line: 339
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 82
     - file: lint-http-rules/src/helpers/parameter.rs
@@ -8557,7 +8557,7 @@ sources:
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 340
+      line: 352
     - file: lint-http-rules/src/helpers/word.rs
       line: 26
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -8587,7 +8587,7 @@ sources:
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 277
+      line: 289
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 307
     - file: lint-http-rules/src/rules/charset_present.rs
@@ -8613,7 +8613,7 @@ sources:
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 293
+      line: 305
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 94
   - label: media-type grammar
@@ -8635,7 +8635,7 @@ sources:
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 276
+      line: 288
   - label: lint-http-rules/src/helpers/parameter.rs
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
