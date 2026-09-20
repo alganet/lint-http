@@ -32,7 +32,7 @@ sources:
     - file: lint-http-rules/src/rules/access_control_allow_origin_valid.rs
       line: 151
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 199
+      line: 218
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
       line: 60
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
@@ -56,19 +56,19 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/origin.rs
-      line: 225
+      line: 302
   - label: lint-http-rules/src/helpers/origin.rs (2)
     section: § 3.2
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/origin.rs
-      line: 220
+      line: 297
   - label: lint-http-rules/src/helpers/origin.rs (3)
     section: § 3.2
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/origin.rs
-      line: 219
+      line: 296
   - label: options_method_capabilities
     section: § 3.3.3
     snippet: 'An HTTP response to a CORS-preflight request can include the following headers:'
@@ -98,19 +98,19 @@ sources:
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 245
+      line: 264
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
       line: 154
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
-      line: 138
+      line: 156
   - label: origin_matching_for_cors (2)
     section: § 4.10
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 264
+      line: 311
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
-      line: 109
+      line: 127
   - label: refresh_header_syntax
     section: § 2.2.2
     snippet: Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20
@@ -426,7 +426,7 @@ sources:
     snippet: A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port.
     cited_by:
     - file: lint-http-rules/src/helpers/origin.rs
-      line: 285
+      line: 362
   - label: refresh_header_syntax
     section: § 1.1
     snippet: A code point is found that is not a URL unit.
@@ -1923,7 +1923,7 @@ sources:
     - file: lint-http-rules/src/helpers/authority.rs
       line: 419
     - file: lint-http-rules/src/helpers/origin.rs
-      line: 267
+      line: 344
   - label: lint-http-rules/src/helpers/authority.rs (3)
     section: § 3.2.1
     snippet: Applications should not render as clear text any data after the first colon (":") character found within a userinfo subcomponent unless the data after the colon is the empty string (indicating no password).
@@ -2022,6 +2022,8 @@ sources:
       line: 328
     - file: lint-http-rules/src/helpers/authority.rs
       line: 354
+    - file: lint-http-rules/src/helpers/origin.rs
+      line: 219
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 347
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
@@ -3385,6 +3387,38 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6454.html
   fragments:
   - label: lint-http-rules/src/helpers/origin.rs
+    section: § 4
+    snippet: Let uri-host be the host component of the URI, converted to lower case (using the i;ascii-casemap collation defined in [RFC4790]).
+    cited_by:
+    - file: lint-http-rules/src/helpers/origin.rs
+      line: 216
+  - label: lint-http-rules/src/helpers/origin.rs (2)
+    section: § 4
+    snippet: Let uri-scheme be the scheme component of the URI, converted to lowercase.
+    cited_by:
+    - file: lint-http-rules/src/helpers/origin.rs
+      line: 215
+  - label: lint-http-rules/src/helpers/origin.rs (3)
+    section: § 6.2
+    snippet: If the origin is not a scheme/host/port triple, then return the string
+    cited_by:
+    - file: lint-http-rules/src/helpers/origin.rs
+      line: 212
+  - label: lint-http-rules/src/helpers/origin.rs (4)
+    section: § 6.2
+    snippet: 'If the port part of the origin triple is different from the default port for the protocol given by the scheme part of the origin triple:'
+    cited_by:
+    - file: lint-http-rules/src/helpers/origin.rs
+      line: 214
+    - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
+      line: 312
+  - label: lint-http-rules/src/helpers/origin.rs (5)
+    section: § 6.2
+    snippet: Otherwise, let result be the scheme part of the origin triple.
+    cited_by:
+    - file: lint-http-rules/src/helpers/origin.rs
+      line: 213
+  - label: lint-http-rules/src/helpers/origin.rs (6)
     section: § 7.1
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
@@ -3394,14 +3428,14 @@ sources:
       line: 26
     - file: lint-http-rules/src/violations/origin.rs
       line: 92
-  - label: lint-http-rules/src/helpers/origin.rs (2)
+  - label: lint-http-rules/src/helpers/origin.rs (7)
     section: § 7.1
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/origin.rs
       line: 142
     - file: lint-http-rules/src/helpers/origin.rs
-      line: 221
+      line: 298
     - file: lint-http-rules/src/violations/origin.rs
       line: 67
 - label: RFC 6455
@@ -7770,24 +7804,12 @@ sources:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 104
   - label: host_and_authority_consistent
-    section: § 4.2.1
-    snippet: If the port subcomponent is empty or not given, TCP port 80 (the reserved port for WWW services) is the default.
-    cited_by:
-    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 53
-  - label: host_and_authority_consistent (2)
-    section: § 4.2.2
-    snippet: If the port subcomponent is empty or not given, TCP port 443 (the reserved port for HTTP over TLS) is the default.
-    cited_by:
-    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 54
-  - label: host_and_authority_consistent (3)
     section: § 4.2.3
     snippet: 'Characters other than those in the "reserved" set are equivalent to their percent-encoded octets: the normal form is to not encode them (see Sections 2.1 and 2.2 of [URI]).'
     cited_by:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 51
-  - label: host_and_authority_consistent (4)
+  - label: host_and_authority_consistent (2)
     section: § 4.2.3
     snippet: If the port is equal to the default port for a scheme, the normal form is to omit the port subcomponent.
     cited_by:
@@ -9247,6 +9269,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 288
+  - label: lint-http-rules/src/helpers/origin.rs
+    section: § 4.2.1
+    snippet: If the port subcomponent is empty or not given, TCP port 80 (the reserved port for WWW services) is the default.
+    cited_by:
+    - file: lint-http-rules/src/helpers/origin.rs
+      line: 217
+    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
+      line: 53
+  - label: lint-http-rules/src/helpers/origin.rs (2)
+    section: § 4.2.2
+    snippet: If the port subcomponent is empty or not given, TCP port 443 (the reserved port for HTTP over TLS) is the default.
+    cited_by:
+    - file: lint-http-rules/src/helpers/origin.rs
+      line: 218
+    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
+      line: 54
   - label: lint-http-rules/src/helpers/parameter.rs
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value

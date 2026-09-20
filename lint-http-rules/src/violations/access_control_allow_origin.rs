@@ -94,9 +94,27 @@ defects! {
     ///
     /// **The third of the three alternatives, and the only one a response can
     /// get wrong while writing a real origin.** § 3.3.3 permits the *literal
-    /// value of the `Origin` request header*, so the check byte-serializes the
-    /// request's origin and compares — no case folding on either side, because
-    /// byte-serializing an opaque origin yields the lowercase literal `null`.
+    /// value of the `Origin` request header*, and § 4.10 says what the check
+    /// does with it: it compares the field's value against *the result of
+    /// byte-serializing the request's origin*.
+    ///
+    /// **Those two sides are not the same kind of thing, and the entry used to
+    /// read as though they were.** The left-hand side is an algorithm run over
+    /// an origin triple — RFC 6454 § 6.2, whose port step is conditional on the
+    /// port differing from the scheme's default, over a triple § 4 has already
+    /// lower-cased — and the right-hand side is the response's field value as it
+    /// arrived. So `Origin: https://a.example:443` derives from
+    /// `serialized-origin` and is not a serialization any user agent produces,
+    /// and a response echoing `https://a.example` at it is *correct*. The prose
+    /// here argued the opposite from the wrong alternative: no case folding
+    /// applies, it said, *because byte-serializing an opaque origin yields the
+    /// lowercase literal `null`* — which is true of the one alternative that has
+    /// nothing to fold, and is not about the tuple origin this entry is for.
+    ///
+    /// The asymmetry is the whole content of the comparison: the request's
+    /// origin is serialized, the response's field value is not. A canonical
+    /// `Origin` answered by a line that writes the default port out is still
+    /// this finding, and a browser still fails it.
     ///
     /// **`_conflicting` rather than `_invalid`**: nothing is wrong with the
     /// value on its own, and it would be correct in the response to a different

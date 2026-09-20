@@ -9,7 +9,7 @@ SPDX-License-Identifier: ISC
 ## Description
 
 When a server responds to a cross-origin request the `Access-Control-Allow-Origin`
-header must either repeat the request's `Origin` value or use the wildcard `*`.
+header must either repeat the origin that asked or use the wildcard `*`.
 Furthermore, the wildcard may **not** be used in conjunction with credentials
 (`Access-Control-Allow-Credentials: true`).
 
@@ -18,6 +18,8 @@ and the server returned an `Access-Control-Allow-Origin` header.  It
 validates that the header set is semantically consistent with the request
 origin and enforces the credential restriction on `*`.  If the request's
 `Origin` value is syntactically invalid the rule also raises a violation.
+
+**The comparison is asymmetric, because Fetch §4.10 names two different things on its two sides.** The check compares *the result of byte-serializing the request's origin* against the response field's value as it arrived. The left-hand side is an algorithm run over an origin triple — RFC 6454 §6.2, whose port step is conditional on the port differing from the scheme's default, over a triple §4 has already lower-cased — and the right-hand side is not normalised at all. So the request's `Origin` is serialized before it is compared and the response's value is not, and the two directions are genuinely different findings: `Origin: https://a.example:443` answered with `Access-Control-Allow-Origin: https://a.example` is *correct* and draws nothing, because 443 is the `https` default port and no user agent would have serialized it; the same pair the other way round — a canonical `Origin` answered by a value that writes the port out — fails the check in every user agent and is reported.
 
 This check applies to server responses.
 
@@ -38,6 +40,7 @@ This check applies to server responses.
 
 - [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): The Web Origin Concept
 - [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Origin header field syntax — `origin-list-or-null` is the literal `null` or a list of `serialized-origin`, and a `serialized-origin` is a scheme, `://`, a host and an optional port, with no path component
+- [RFC 6454 §6.2](https://www.rfc-editor.org/rfc/rfc6454.html#section-6.2): ASCII Serialization of an Origin — the algorithm the CORS check compares its left-hand side against, whose port step is conditional on the port differing from the scheme's default
 - [Fetch §3.3.3](https://fetch.spec.whatwg.org/#http-access-control-allow-origin): `Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`
 - [Fetch §4.10](https://fetch.spec.whatwg.org/#concept-cors-check): Fetch CORS check — `*` succeeds only where the request's credentials mode is not `include`, and every other value is compared against the byte-serialized request origin
 - [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
@@ -97,6 +100,28 @@ Origin: https://foo.example
 
 HTTP/1.1 200 OK
 Access-Control-Allow-Origin: https://bar.example
+```
+
+### ✅ Good (the scheme's default port is not in the serialization the check compares)
+
+```http
+GET /foo HTTP/1.1
+Host: example.com
+Origin: https://example.org:443
+
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: https://example.org
+```
+
+### ❌ Bad (the response writes a port the serialization does not, so the check fails)
+
+```http
+GET /foo HTTP/1.1
+Host: example.com
+Origin: https://example.org
+
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: https://example.org:443
 ```
 
 ### ❌ Bad (multiple header fields or list)

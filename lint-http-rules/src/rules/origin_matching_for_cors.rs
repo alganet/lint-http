@@ -52,6 +52,14 @@ const RFC_6454: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc6454.html",
     note: "The Web Origin Concept",
 };
+/// The serializer § 4.10's left-hand side runs, and the one step of it that
+/// makes a serialization differ from a `serialized-origin` a sender wrote.
+const RFC_6454_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6454",
+    section: Some("6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-6.2",
+    note: "ASCII Serialization of an Origin — the algorithm the CORS check compares its left-hand side against, whose port step is conditional on the port differing from the scheme's default",
+};
 const MDN_ACCESS_CONTROL_ALLOW_ORIGIN: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Access-Control-Allow-Origin",
     section: None,
@@ -74,13 +82,14 @@ impl RuleMeta for OriginMatchingForCors {
     }
 
     fn description(&self) -> &'static str {
-        "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the request's `Origin` value or use the wildcard `*`.\nFurthermore, the wildcard may **not** be used in conjunction with credentials\n(`Access-Control-Allow-Credentials: true`).\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and enforces the credential restriction on `*`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\nThis check applies to server responses."
+        "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the origin that asked or use the wildcard `*`.\nFurthermore, the wildcard may **not** be used in conjunction with credentials\n(`Access-Control-Allow-Credentials: true`).\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and enforces the credential restriction on `*`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\n**The comparison is asymmetric, because Fetch §4.10 names two different things on its two sides.** The check compares *the result of byte-serializing the request's origin* against the response field's value as it arrived. The left-hand side is an algorithm run over an origin triple — RFC 6454 §6.2, whose port step is conditional on the port differing from the scheme's default, over a triple §4 has already lower-cased — and the right-hand side is not normalised at all. So the request's `Origin` is serialized before it is compared and the response's value is not, and the two directions are genuinely different findings: `Origin: https://a.example:443` answered with `Access-Control-Allow-Origin: https://a.example` is *correct* and draws nothing, because 443 is the `https` default port and no user agent would have serialized it; the same pair the other way round — a canonical `Origin` answered by a value that writes the port out — fails the check in every user agent and is reported.\n\nThis check applies to server responses."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_6454,
             RFC_6454_7_1,
+            RFC_6454_6_2,
             FETCH_3_3_3,
             FETCH_4_10,
             MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -125,6 +134,16 @@ impl RuleMeta for OriginMatchingForCors {
                 compliance: Compliance::NonCompliant,
                 label: Some("(mismatched origin)"),
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://foo.example\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://bar.example",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the scheme's default port is not in the serialization the check compares)"),
+                snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org:443\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.org",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the response writes a port the serialization does not, so the check fails)"),
+                snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.org:443",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -258,18 +277,65 @@ impl Rule for OriginMatchingForCors {
                 return None;
             }
 
-            // For any other value, it must match the request's Origin header byte-for-byte.
-            // Byte-serializing an opaque origin yields the lowercase literal `null`, so no
-            // case normalisation is applied on either side.
+            // For any other value, the comparison is byte-for-byte and it is
+            // **asymmetric**, because the sentence below names two different
+            // things on its two sides: on the left, the *result of
+            // byte-serializing the request's origin* — an algorithm run over an
+            // origin triple — and on the right, `origin`, which is the response
+            // field's value as it arrived.
+            //
+            // So the request side is serialized and the response side is not.
+            // The `Origin` field text is only what a client *wrote*, and RFC
+            // 6454's serializer would not write every string its grammar admits:
+            // `https://a.example:443` derives from `serialized-origin` and is
+            // never produced, because § 6.2's port step is conditional on the
+            // port differing from the scheme's default, and § 4 has the scheme
+            // and host lower-cased before the triple exists. Comparing that text
+            // against the response's value reported a conflict on exactly the
+            // requests a browser shares the response with: the two default
+            // ports written out, and an upper-case scheme or host.
+            //
+            // **The reasoning that licensed the byte compare was about the other
+            // alternative.** It said no case normalisation applies because
+            // byte-serializing an *opaque* origin yields the lowercase literal
+            // `null` — true, and about the one alternative that has nothing to
+            // fold. A tuple origin is the alternative this branch is for.
+            //
+            // Normalising the response side too would be the opposite error, and
+            // a worse one: a canonical `Origin` answered by an
+            // `Access-Control-Allow-Origin` that writes the default port out is a
+            // check that fails in every user agent, because the serializer
+            // produced no port and the field carries one. That finding is true
+            // and stays.
+            //
             // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
-            if acao_val != origin {
+            // cite(RFC 6454 § 6.2): "If the port part of the origin triple is different from the default port for the protocol given by the scheme part of the origin triple:"
+            let serialized = crate::helpers::origin::ascii_serialized_origin(origin)
+                .unwrap_or_else(|| origin.to_string());
+            if acao_val != serialized {
                 return Some(ctx.by_server().report_with(
                     &ACCESS_CONTROL_ALLOW_ORIGIN_CONFLICTING,
-                    format!(
-                        "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",
-                        crate::helpers::shown::shown_in_finding(&acao_val),
-                        crate::helpers::shown::shown_in_finding(origin)
-                    ),
+                    // The sentence names the serialization when it is not the
+                    // text the client wrote, because that is the value the
+                    // comparison was made against and an operator reading the
+                    // request line would otherwise see two strings that look
+                    // equal and a finding saying they are not.
+                    if serialized == origin {
+                        format!(
+                            "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",
+                            crate::helpers::shown::shown_in_finding(&acao_val),
+                            crate::helpers::shown::shown_in_finding(origin)
+                        )
+                    } else {
+                        format!(
+                            "Access-Control-Allow-Origin '{}' does not match request Origin '{}', \
+                             whose origin serializes to '{}' — which is what the CORS check \
+                             compares the field against",
+                            crate::helpers::shown::shown_in_finding(&acao_val),
+                            crate::helpers::shown::shown_in_finding(origin),
+                            crate::helpers::shown::shown_in_finding(&serialized)
+                        )
+                    },
                 ));
             }
 
@@ -663,6 +729,118 @@ mod tests {
         // The helper now returns a generic message for missing authority,
         // so we simply check for the word "Origin" to avoid brittle tests.
         assert!(v.message.contains("Origin"));
+    }
+
+    /// The origin a value names, as the CORS check's left-hand side computes it.
+    fn ids_and_messages(origin: &str, acao: &str) -> Vec<(String, String)> {
+        let rule = OriginMatchingForCors;
+        let mut tx =
+            make_test_transaction_with_response(200, &[("access-control-allow-origin", acao)]);
+        tx.request.headers = make_headers_from_pairs(&[("origin", origin)]);
+        crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .iter()
+        .map(|v| (v.violation.clone(), v.message.clone()))
+        .collect()
+    }
+
+    /// **A value the grammar admits is not a value the serializer emits**, and
+    /// the check compares against the serializer's output.
+    ///
+    /// `serialized-origin = scheme "://" host [ ":" port ]` derives
+    /// `https://a.example:443` happily; RFC 6454 § 6.2 appends a port only where
+    /// it differs from the scheme's default, and § 4 lower-cases the scheme and
+    /// the host before the triple exists. So each request below asks from the
+    /// same origin as the response answers, and the pair is correct.
+    ///
+    /// Every one of these was a `warn` attributed to the **server** — telling an
+    /// origin its CORS configuration was broken because a client wrote a legal
+    /// spelling of the same origin.
+    #[rstest]
+    #[case::https_default_port("https://a.example:443", "https://a.example")]
+    #[case::http_default_port("http://a.example:80", "http://a.example")]
+    #[case::upper_case_scheme_and_host("HTTPS://A.EXAMPLE", "https://a.example")]
+    #[case::upper_case_host_only("https://A.Example", "https://a.example")]
+    fn a_request_origin_is_compared_as_the_check_serializes_it(
+        #[case] origin: &str,
+        #[case] acao: &str,
+    ) {
+        assert!(
+            ids_and_messages(origin, acao).is_empty(),
+            "{origin:?} and {acao:?}: {:?}",
+            ids_and_messages(origin, acao)
+        );
+    }
+
+    /// **The other direction, and it is not the same question.** § 4.10 compares
+    /// the serialization of the *request's* origin against the response field's
+    /// value *as sent*, so nothing normalises the response side: a canonical
+    /// `Origin` answered by a line that writes the default port out, or that
+    /// upper-cases the host, is a check that fails in every user agent.
+    ///
+    /// This is what a repair normalising both sides would have silenced, and it
+    /// is why the fold above is on one side only.
+    #[rstest]
+    #[case::response_writes_the_default_port("https://a.example", "https://a.example:443")]
+    #[case::response_upper_cases_the_host("https://a.example", "https://A.EXAMPLE")]
+    fn the_response_value_is_not_normalised(#[case] origin: &str, #[case] acao: &str) {
+        let found = ids_and_messages(origin, acao);
+        assert_eq!(
+            found.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            vec!["access_control_allow_origin_conflicting"],
+            "{origin:?} and {acao:?}"
+        );
+    }
+
+    /// A port that is not a default is part of the origin, so a response that
+    /// omits it answers a different origin. The serialization is the text here,
+    /// and the sentence does not print the same string twice.
+    #[test]
+    fn a_port_that_is_not_a_default_stays_in_the_serialization() {
+        let found = ids_and_messages("https://a.example:8443", "https://a.example");
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].0, "access_control_allow_origin_conflicting");
+        assert!(found[0].1.contains("'https://a.example:8443'"), "{found:?}");
+        assert!(!found[0].1.contains("serializes to"), "{found:?}");
+    }
+
+    /// Where the serialization is **not** the text the client wrote, the
+    /// sentence names it: the comparison was made against that value, and an
+    /// operator reading the request line would otherwise have to run § 6.2 by
+    /// hand to see why the two strings printed are the ones that were compared.
+    #[test]
+    fn the_sentence_names_the_serialization_where_it_differs_from_the_line() {
+        let found = ids_and_messages("HTTPS://A.EXAMPLE:8443", "https://b.example");
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0]
+                .1
+                .contains("serializes to 'https://a.example:8443'"),
+            "{found:?}"
+        );
+    }
+
+    /// And where the serialization *is* the text the client wrote, the sentence
+    /// does not print it twice.
+    #[test]
+    fn a_canonical_origin_needs_no_second_spelling_in_the_sentence() {
+        let found = ids_and_messages("https://a.example", "https://b.example");
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(!found[0].1.contains("serializes to"), "{found:?}");
+    }
+
+    /// The fold belongs to the two schemes RFC 9110 gives a default port to.
+    /// Under any other scheme there is nothing for a document here to elide the
+    /// port against, so it stays part of the origin.
+    #[test]
+    fn a_scheme_with_no_default_port_here_keeps_its_port() {
+        let found = ids_and_messages("ftp://a.example:443", "ftp://a.example");
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].0, "access_control_allow_origin_conflicting");
     }
 
     #[test]

@@ -177,6 +177,83 @@ pub fn validate_origin_value(s: &str) -> Result<(), OriginDefect<'_>> {
     Err(OriginDefect::NotSerialized)
 }
 
+/// The ascii-serialization of the origin a field value names, or `None` where
+/// the value names no origin at all.
+///
+/// **A serialized origin and *the* serialization of an origin are not the same
+/// thing, and the difference is this function.** `serialized-origin = scheme
+/// "://" host [ ":" port ]` is a production, and `https://example.com:443`
+/// derives from it — while the algorithm that *produces* a serialization would
+/// never write that string, because its port step is conditional on the port
+/// differing from the scheme's default. So a sender can write a value the
+/// grammar admits and the algorithm does not emit, and anything comparing a
+/// field text against a serialization has to run the algorithm first or it is
+/// comparing two different kinds of thing.
+///
+/// The steps are § 6.2's, with the case folds from § 4 — the origin of a URI is
+/// computed with its scheme and host already lower-cased, so they are lower
+/// before the serializer ever sees them. The default port is the one condition
+/// the serializer states, and the two schemes that have one are the two RFC 9110
+/// gives a default port to; a value under any other scheme keeps its port,
+/// because no document here says what to elide it against.
+///
+/// **What is deliberately *not* folded is everything else.** § 4 names two case
+/// folds and § 6.2 names one omission, and that is the whole list: a
+/// percent-encoded octet standing for an unreserved character is left as
+/// written and an `IP-literal`'s brackets are untouched. This is not
+/// [`super::authority`]'s question and must not borrow its answer:
+/// `host_and_authority_consistent` normalizes an authority against RFC 9110
+/// § 4.2.3's *normal form*, which licenses the percent-decoding this does not,
+/// and it reads a userinfo subcomponent that no origin has.
+///
+/// `null` serializes to itself: the value names an opaque origin, which is
+/// § 6.2's first step, and the literal it returns is already lower-case.
+///
+// cite(RFC 6454 § 6.2): "If the origin is not a scheme/host/port triple, then return the string"
+// cite(RFC 6454 § 6.2): "Otherwise, let result be the scheme part of the origin triple."
+// cite(RFC 6454 § 6.2): "If the port part of the origin triple is different from the default port for the protocol given by the scheme part of the origin triple:"
+// cite(RFC 6454 § 4): "Let uri-scheme be the scheme component of the URI, converted to lowercase."
+// cite(RFC 6454 § 4): "Let uri-host be the host component of the URI, converted to lower case (using the i;ascii-casemap collation defined in [RFC4790])."
+// cite(RFC 9110 § 4.2.1): "If the port subcomponent is empty or not given, TCP port 80 (the reserved port for WWW services) is the default."
+// cite(RFC 9110 § 4.2.2): "If the port subcomponent is empty or not given, TCP port 443 (the reserved port for HTTP over TLS) is the default."
+// cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
+pub fn ascii_serialized_origin(value: &str) -> Option<String> {
+    let s = trim_ows(value);
+    if s == "null" {
+        return Some("null".to_string());
+    }
+    if !is_valid_serialized_origin(s) {
+        return None;
+    }
+    let marker = scheme_authority_marker(s)?;
+    let scheme = s[..marker].to_ascii_lowercase();
+    let (host, port) = split_host_and_port(&s[marker + 3..]);
+
+    let default_port = match scheme.as_str() {
+        "http" => Some(80u16),
+        "https" => Some(443u16),
+        _ => None,
+    };
+
+    let mut out = String::with_capacity(s.len());
+    out.push_str(&scheme);
+    out.push_str("://");
+    out.push_str(&host.to_ascii_lowercase());
+    if let Some(port) = port {
+        // The port is compared as the number § 3.2.3 says it is, which the
+        // shared reader answers or refuses: a value like `+443` parses as a
+        // number and derives from no `port`, and a port with no digits at all is
+        // not a serialized origin — the predicate above has already refused
+        // both, which is why there is no emptiness arm here to elide.
+        let elided = default_port.is_some_and(|default| port_number(port) == Some(default));
+        if !elided {
+            out.push(':');
+            out.push_str(port);
+        }
+    }
+    Some(out)
+}
+
 /// Validate a serialized-origin as defined by RFC 6454: scheme "://" host [":" port]
 /// The grammar has no path component, so nothing may follow the authority — not
 /// even a bare trailing slash, which a byte-for-byte origin comparison rejects.
@@ -292,6 +369,7 @@ pub fn is_valid_serialized_origin(val: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn extract_origin_if_absolute_cases() {
@@ -524,5 +602,80 @@ mod tests {
     #[test]
     fn scheme_first_char_not_alpha_is_invalid() {
         assert!(!is_valid_serialized_origin("1http://example.com"));
+    }
+
+    /// **The production and the algorithm disagree, and this is the pair that
+    /// says so.** Each left-hand value derives from `serialized-origin` and is
+    /// therefore something a sender may write; none of them is a string § 6.2
+    /// would ever emit, because its port step is conditional and § 4 folds the
+    /// scheme and the host before the triple exists.
+    #[rstest]
+    #[case("https://a.example:443", "https://a.example")]
+    #[case("http://a.example:80", "http://a.example")]
+    #[case("HTTPS://A.EXAMPLE", "https://a.example")]
+    #[case("https://A.Example:8443", "https://a.example:8443")]
+    fn a_serialized_origin_is_not_always_the_serialization(
+        #[case] written: &str,
+        #[case] serialized: &str,
+    ) {
+        assert_eq!(
+            ascii_serialized_origin(written).as_deref(),
+            Some(serialized),
+            "{written:?}"
+        );
+    }
+
+    /// The fold is the two schemes RFC 9110 gives a default port to and no
+    /// others: under any other scheme no document here says what to elide the
+    /// port against, so it stays part of the origin.
+    #[rstest]
+    #[case("ftp://a.example:443")]
+    #[case("ws://a.example:80")]
+    fn a_scheme_with_no_default_port_here_keeps_its_port(#[case] written: &str) {
+        assert_eq!(
+            ascii_serialized_origin(written).as_deref(),
+            Some(written),
+            "{written:?}"
+        );
+    }
+
+    /// § 6.2's first step: an opaque origin serializes to the literal, which is
+    /// already lower-case — and the literal is case-sensitive, so `NULL` names
+    /// no origin at all.
+    #[test]
+    fn the_opaque_origin_serializes_to_the_literal() {
+        assert_eq!(ascii_serialized_origin("null").as_deref(), Some("null"));
+        assert_eq!(ascii_serialized_origin("NULL"), None);
+    }
+
+    /// A value that names no origin has no serialization, and the caller is
+    /// told rather than handed something invented.
+    #[rstest]
+    #[case("example.com")]
+    #[case("https://a.example/p")]
+    #[case("")]
+    // A colon with no digits after it derives from no `port`, so the value
+    // derives from no `serialized-origin` either and there is nothing to
+    // serialize. Written down because the alternative reading — eliding the
+    // empty port the way the two default-port sentences elide a missing one —
+    // would have had this function invent an origin out of a value the
+    // predicate above refuses.
+    #[case("https://a.example:")]
+    fn a_value_that_names_no_origin_has_no_serialization(#[case] written: &str) {
+        assert_eq!(ascii_serialized_origin(written), None, "{written:?}");
+    }
+
+    /// An already-canonical value is returned unchanged, in both directions:
+    /// the function is idempotent, so a caller comparing two serializations is
+    /// not comparing one that has been folded twice.
+    #[rstest]
+    #[case("https://a.example")]
+    #[case("https://a.example:8443")]
+    #[case("http://[::1]:8080")]
+    #[case("null")]
+    fn a_serialization_serializes_to_itself(#[case] written: &str) {
+        let once = ascii_serialized_origin(written).expect("an origin");
+        assert_eq!(once, written);
+        assert_eq!(ascii_serialized_origin(&once).as_deref(), Some(&*once));
     }
 }
