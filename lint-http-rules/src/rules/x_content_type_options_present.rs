@@ -77,9 +77,24 @@ impl RuleMeta for XContentTypeOptionsPresent {
         "x_content_type_options_present"
     }
 
+    /// The list stands in for a request destination, and Fetch names two.
+    ///
+    /// § 3.6.1 blocks a response for a script-like destination whose type is
+    /// not a JavaScript MIME type, and for a `"style"` destination whose
+    /// essence is not `text/css`. A proxy sees no destination, so these are the
+    /// types a deployment serves to those two — `text/javascript` and
+    /// `application/javascript` for the first, `text/css` for the second, which
+    /// is the only essence that half accepts.
+    ///
+    /// `text/html` and `application/json` are neither, and are here on the
+    /// wider ground the field's own prose states: `nosniff` stops a recipient
+    /// sniffing *away* from the declared type at all, and those two are the
+    /// types a deployment least wants re-read as something else.
+    ///
+    // cite(Fetch § 3.6.1): "If destination is "style" and mimeType is failure or its essence is not "text/css", then return blocked."
     fn config_example(&self) -> &'static str {
         r#"enabled = true
-content_types = ["text/html", "text/javascript", "application/javascript", "application/json"]
+content_types = ["text/html", "text/javascript", "application/javascript", "application/json", "text/css"]
 "#
     }
 
@@ -125,6 +140,15 @@ content_types = ["text/html", "text/javascript", "application/javascript", "appl
                 compliance: Compliance::NonCompliant,
                 label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript\n# Missing X-Content-Type-Options header",
+            },
+            // The `"style"` half, published because it is the half a reader
+            // would not guess from the two above: a stylesheet is the other
+            // destination Fetch § 3.6.1 blocks for, and `text/css` the only
+            // essence it accepts.
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/css\n# Missing X-Content-Type-Options header",
             },
         ]
     }
@@ -183,7 +207,10 @@ impl Rule for XContentTypeOptionsPresent {
                 // to successful responses). The configured content-type list stands in for
                 // the request destination, which a proxy cannot know: the spec only blocks
                 // for script-like and style destinations, so the config names the types a
-                // deployment serves to those destinations. That stand-in cannot hold for a
+                // deployment serves to those destinations. **Both of them** — the shipped
+                // list stood in for script-like alone, and a stylesheet served without the
+                // field, which is the whole of the `"style"` half, drew nothing.
+                // `config_example` says which type answers for which destination. That stand-in cannot hold for a
                 // method whose destination is never script-like or style regardless of the
                 // content-type carried: a CORS preflight (OPTIONS), a loopback diagnostic
                 // (TRACE), and a tunnel's own response (CONNECT) are never fetched for
@@ -228,6 +255,13 @@ mod tests {
     // The value check is independent of status and configured types: a malformed
     // security header is wrong wherever it is sent.
     #[case(404, vec![("content-type", "text/html"), ("x-content-type-options", "sniff")], vec!["text/html"], true, Some("X-Content-Type-Options value 'sniff' does not enable nosniff (the value must be `nosniff`, case-insensitive)"))]
+    // The `"style"` destination: `text/css` is the only essence it accepts, so
+    // a stylesheet is the shape the other half of Fetch §3.6.1 is about. Both
+    // directions, because a list that named the type and fired on it whatever
+    // the field said would pass the first case alone.
+    #[case(200, vec![("content-type", "text/css")], vec!["text/css"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
+    #[case(200, vec![("content-type", "text/css; charset=utf-8")], vec!["text/css"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
+    #[case(200, vec![("content-type", "text/css"), ("x-content-type-options", "nosniff")], vec!["text/css"], false, None)]
     fn check_response_cases(
         #[case] status: u16,
         #[case] header_pairs: Vec<(&str, &str)>,
@@ -508,6 +542,57 @@ mod tests {
             &config,
         );
         assert!(violation.is_none());
+    }
+
+    /// The shipped list is a claim, and this is the claim run rather than read.
+    ///
+    /// Fetch § 3.6.1 blocks for two destinations and names the type each
+    /// accepts. Neither name appears here: what is asserted is that a response
+    /// carrying each of those types, under **the configuration the binary
+    /// ships**, draws the entry when the field is absent — which is what the
+    /// list is for. A list that loses either half fails this, and a list that
+    /// gains a type does not.
+    ///
+    /// The `text/css` row is the one that failed: the shipped list stood in for
+    /// script-like destinations alone, so a stylesheet served without the field
+    /// drew nothing at all.
+    #[rstest]
+    #[case("text/javascript")]
+    #[case("text/css")]
+    fn the_shipped_list_answers_for_both_blocked_destinations(#[case] content_type: &str) {
+        let rule = XContentTypeOptionsPresent;
+
+        let mut config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut table = rule
+            .config_example()
+            .parse::<toml::Table>()
+            .expect("the rule's own config example parses");
+        table.insert("enabled".into(), toml::Value::Boolean(true));
+        config
+            .rules
+            .insert(rule.id().to_string(), toml::Value::Table(table));
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[(
+                "content-type",
+                content_type,
+            )]),
+            body_length: None,
+            body_interrupted: false,
+            trailers: None,
+        });
+
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap_or_else(|| panic!("the shipped list says nothing about {content_type}"));
+        assert_eq!(found.violation, "x_content_type_options_missing");
     }
 
     #[test]

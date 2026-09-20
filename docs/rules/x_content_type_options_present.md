@@ -29,7 +29,7 @@ A header that is present but whose first value is not `nosniff` (matched case-in
 ```toml
 [rules.x_content_type_options_present]
 enabled = true
-content_types = ["text/html", "text/javascript", "application/javascript", "application/json"]
+content_types = ["text/html", "text/javascript", "application/javascript", "application/json", "text/css"]
 ```
 
 ## Examples
@@ -47,5 +47,11 @@ X-Content-Type-Options: nosniff
 ```http
 HTTP/1.1 200 OK
 Content-Type: text/javascript
+# Missing X-Content-Type-Options header
+```
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/css
 # Missing X-Content-Type-Options header
 ```
