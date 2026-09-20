@@ -24,7 +24,7 @@
 //! backslash quoting an octet the pair does not admit — are one def, because
 //! the fix is one fix: the escape.
 //!
-//! The severities are `error`, and the sentence this paragraph has always
+//! The severities are all `error`, and the sentence this paragraph has always
 //! given is why: nothing here is a value a user agent quietly discards (the
 //! cookie's `Path`) and nothing is an octet a US-ASCII grammar admits and this
 //! crate refuses anyway (the cookie's whitespace). Every entry is one
@@ -34,14 +34,14 @@
 //! off. The paragraph said `warn` under that same reasoning for as long as the
 //! reasoning and the defaults disagreed.
 //!
-//! [`MAILBOX_AT_SIGN_MISSING`] is the one below them, and it is the one entry
-//! here that states no [`Strength`] — so it is
-//! `Unstated` and ranks at `warn`, while the entry beside it quoting the same
-//! sentence of the same section, [`MAILBOX_LOCAL_PART_MISSING`], is `Grammar`
-//! and ranks at `error`. Neither doc says why they differ. **That is a
-//! question about the entry and not about this paragraph**, which is why the
-//! sentence above says `error` of the rest and names this one rather than
-//! rounding it in.
+//! **"All" was one short for as long as it also said `warn`.**
+//! [`MAILBOX_AT_SIGN_MISSING`] stated no [`Strength`] where the other
+//! seventeen stated `Grammar`, so it took the default and shipped at `warn`,
+//! and it cited the prose defining an `addr-spec` where its neighbours cite
+//! productions. It now states `Grammar` and quotes `addr-spec = local-part
+//! "@" domain`, which is the sentence the finding is actually about: the
+//! at-sign is a literal between two required parts, and a value without one
+//! derives from nothing exactly as the other seventeen do.
 
 use crate::helpers::mailbox::MailboxSyntaxDefect;
 use crate::lint::Severity;
@@ -269,13 +269,24 @@ defects! {
     /// address in it at all comes to, `not-an-email` being the shortest
     /// example.
     ///
-    // cite(RFC 5322 § 3.4.1): "An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain."
+    /// **It ranks with the rest of the subject, and for a while it did not.**
+    /// The production writes the at-sign as a literal between two required
+    /// parts, so a value without one derives from nothing, which is what
+    /// every other entry here reports and what RFC 9110 § 2.2 binds the sender
+    /// against. This entry stated no [`Strength`] at all while the other
+    /// seventeen stated `Grammar`, so it fell to the default and shipped a
+    /// level below its siblings. The quoted sentence moved with it: the prose
+    /// defining an `addr-spec` is what the entry used to cite, and the
+    /// production is what it reports.
+    ///
+    // cite(RFC 5322 § 3.4.1, label: the at-sign between the two parts): "addr-spec       =   local-part "@" domain"
     MAILBOX_AT_SIGN_MISSING = {
         id: "mailbox_at_sign_missing",
         title: "Mailbox has no at-sign",
         message: "",
-        default_severity: Severity::Warn,
+        default_severity: Severity::Error,
         spec: &[RFC_5322_3_4_1],
+        strength: Strength::Grammar,
     }
 
     /// Nothing that can begin a `domain` is where the `addr-spec` has one —

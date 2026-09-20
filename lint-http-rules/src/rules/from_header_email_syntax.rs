@@ -572,26 +572,50 @@ mod tests {
         assert_eq!(v.violation, violation, "{}", v.message);
     }
 
-    /// The rule's configured severity no longer answers for what it reports.
-    /// It is set to `error` here and the finding still arrives at the defect's
-    /// own `warn`, which is the whole point of the split: `[violations.
-    /// mailbox_at_sign_missing]` is what moves this one, and it moves it in
-    /// every rule that reports it.
+    /// The rule's configured severity does not answer for what it reports:
+    /// `[violations.mailbox_at_sign_missing]` is what moves this one, and it
+    /// moves it in every rule that reports it.
+    ///
+    /// **Asserted against two different values, because it once was not.**
+    /// The defect's default was `warn` where the rule's was `error`, so the
+    /// test read the split off a single number — and when the defect became
+    /// `error` like the rule, the assertion failed while proving nothing
+    /// either way. The override is what makes the claim demonstrable
+    /// whatever the two defaults happen to be.
     #[test]
     fn the_defect_carries_its_severity_and_the_rule_does_not() {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("from", "not-an-email")]);
-        let config =
+        let severity = |config: &crate::config::Config| {
+            crate::test_helpers::run_rule(
+                &FromHeaderEmailSyntax,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                config,
+            )
+            .expect("a finding")
+            .severity
+        };
+
+        let mut config =
             crate::test_helpers::make_test_config_with_enabled_rules(&["from_header_email_syntax"]);
-        let v = crate::test_helpers::run_rule(
-            &FromHeaderEmailSyntax,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        )
-        .expect("a finding");
-        assert_eq!(v.severity, crate::lint::Severity::Warn);
+        assert_eq!(
+            severity(&config),
+            crate::lint::Severity::Error,
+            "with nothing said about the violation, the finding takes the defect's own default"
+        );
+
+        crate::test_helpers::override_violation_severity(
+            &mut config,
+            "mailbox_at_sign_missing",
+            "info",
+        );
+        assert_eq!(
+            severity(&config),
+            crate::lint::Severity::Info,
+            "and the violation's own table is what moves it, not the rule's"
+        );
     }
 
     #[test]

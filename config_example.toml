@@ -2326,7 +2326,8 @@ severity = "error"
 
 [violations.mailbox_at_sign_missing]
 # Mailbox has no at-sign
-severity = "warn"
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.mailbox_atom_character_forbidden]
 # Mailbox atom holds a character outside atext
