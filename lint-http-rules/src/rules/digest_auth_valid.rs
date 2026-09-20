@@ -177,20 +177,19 @@ impl Rule for DigestAuthValid {
             // with parameters as specified for the Authorization header field".
             // cite(RFC 7616 § 3.8): "The Digest Authentication scheme can also be used for authenticating users to proxies, proxies to proxies, or proxies to origin servers by use of the Proxy-Authenticate and Proxy-Authorization header fields."
             for (shown, s) in crate::helpers::auth::credentials_field_lines(&tx.request.headers) {
-                let s = s.trim();
+                let s = crate::helpers::headers::trim_ows(&s);
                 if s.is_empty() {
                     continue;
                 }
                 // Only care about the Digest scheme; auth-scheme names are
                 // matched case-insensitively.
                 // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                let mut parts = s.splitn(2, char::is_whitespace);
-                let scheme = parts.next().unwrap();
+                let (scheme, tail) = crate::helpers::auth::split_scheme_and_tail(s);
                 if !scheme.eq_ignore_ascii_case("digest") {
                     continue;
                 }
-                let rest = match parts.next() {
-                    Some(r) => r.trim(),
+                let rest = match tail {
+                    Some(r) => r,
                     None => {
                         return Some(ctx.report_with(
                             &DIGEST_CREDENTIALS_PARAMETER_MISSING,

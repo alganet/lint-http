@@ -116,14 +116,13 @@ impl Rule for BearerTokenSyntax {
 
                 // Split scheme and credentials. Auth-scheme names match case-insensitively.
                 // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                let mut parts = s.trim().splitn(2, char::is_whitespace);
-                let scheme = parts.next().unwrap_or("").trim();
+                let (scheme, tail) = crate::helpers::auth::split_scheme_and_tail(s);
                 if scheme.eq_ignore_ascii_case("bearer") {
                     // `credentials = "Bearer" 1*SP b64token` requires a non-empty b64token
                     // after the scheme, which is what the empty check and the helper call
                     // enforce; the b64token grammar itself is owned by helpers::auth (§2.1).
                     // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
-                    let creds = parts.next().map(|r| r.trim()).unwrap_or("");
+                    let creds = tail.unwrap_or("");
                     if creds.is_empty() {
                         // The framework's defect and not this scheme's: what
                         // must follow a scheme is `credentials`' sentence,

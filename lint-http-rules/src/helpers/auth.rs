@@ -179,6 +179,43 @@ fn is_sp_or_htab(c: char) -> bool {
     c == ' ' || c == '\t'
 }
 
+/// Split `auth-scheme` from what follows it, as `credentials` and `challenge`
+/// both write it.
+///
+/// `credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]`, and the
+/// separator is `1*SP` — `HTAB` rides along with it because [`trim_ows`] takes
+/// both and a splitter and a trimmer that disagree are worse than either. The
+/// `OWS` comes off both ends of the value first — § 5.5 puts it outside the
+/// field value — so the tail is `None` exactly when the trimmed value holds no
+/// separator, which is a `credentials` of scheme alone and a legal one.
+/// `Some("")` cannot come back: a trailing separator is `OWS` and is gone
+/// before the split, so "scheme alone" and "scheme then whitespace" are one
+/// field value here, which is what § 5.5 says they are.
+///
+/// **Why this is a function.** Six callers wrote
+/// `value.splitn(2, char::is_whitespace)` with a `str::trim` on one side or
+/// both. Three of them read the value through `to_str`, which refuses
+/// everything outside HTAB and %x20-%x7E, so Rust's predicate and the grammar
+/// agree there and nothing was wrong. The other three read it through
+/// [`credentials_field_lines`], which is one `char` per octet — and there
+/// `char::is_whitespace` is true of %x85 and %xA0, which are `obs-text`. Those
+/// three split a credential at an octet that is not a separator and trimmed
+/// away an octet that is not padding, so `Bearer abcdef<%xA0>` was cut down to
+/// a conforming `b64token` and reported as nothing at all.
+///
+/// A trim that shortens a value is the worst failure available to a reader,
+/// because it does not misreport: it repairs, and then the shortened value
+/// passes every check that follows honestly.
+///
+/// cite(RFC 9110 § 11.4): "credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
+pub fn split_scheme_and_tail(value: &str) -> (&str, Option<&str>) {
+    let mut parts = trim_ows(value).splitn(2, is_sp_or_htab);
+    let scheme = parts
+        .next()
+        .expect("splitn always yields at least one element");
+    (trim_ows(scheme), parts.next().map(trim_ows))
+}
+
 /// Split a WWW-Authenticate header value into "assembled" challenges.
 ///
 /// This function splits top-level comma-separated members (respecting quoted-strings)
@@ -539,19 +576,15 @@ pub fn validate_scheme_tail(
     // has no control octet in it, whichever way the value reached the branch.
     let has_control = |s: &str| s.chars().any(|c| (c as u32) < 0x20 || c == '\x7f');
 
-    // scheme is first token before whitespace
+    // scheme is first token before whitespace -- through the shared splitter, so
+    // the challenge side and the credentials side cut at the same octets.
     // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
-    let mut parts = value.splitn(2, is_sp_or_htab);
-    let scheme = parts
-        .next()
-        .expect("splitn always yields at least one element");
-    let scheme = trim_ows(scheme);
+    let (scheme, tail) = split_scheme_and_tail(value);
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
         return Err(AuthDefect::SchemeCharacter(invalid));
     }
 
-    if let Some(rest) = parts.next() {
-        let rest = trim_ows(rest);
+    if let Some(rest) = tail {
         if rest.is_empty() {
             return Ok(());
         }
@@ -1146,6 +1179,51 @@ mod tests {
         ));
         // The whitespace the grammar does print is still a separator.
         assert!(validate_authorization_syntax("Basic\tx").is_ok());
+    }
+
+    /// The splitter itself, over the octets the callers disagreed about. The
+    /// tail is `None` for a scheme alone and `Some("")` for a separator with
+    /// nothing after it, and those are two different `credentials`: the first
+    /// is legal, the second is not.
+    #[rstest]
+    #[case("Bearer abc", "Bearer", Some("abc"))]
+    #[case("Bearer\tabc", "Bearer", Some("abc"))]
+    #[case("  Bearer   abc  ", "Bearer", Some("abc"))]
+    #[case("Bearer", "Bearer", None)]
+    // `OWS` is outside the field value, so a trailing separator is not one:
+    // these two are the same `credentials` and answer the same way.
+    #[case("Bearer ", "Bearer", None)]
+    #[case("Bearer\t", "Bearer", None)]
+    // %xA0 and %x85 are `obs-text`: neither a separator nor padding, so each
+    // stays in whichever half the sender put it in and is that production's
+    // defect. A `char::is_whitespace` splitter cut here and trimmed here.
+    #[case("Bearer abc\u{a0}", "Bearer", Some("abc\u{a0}"))]
+    #[case("Bearer abc\u{85}", "Bearer", Some("abc\u{85}"))]
+    #[case("\u{a0}Bearer abc", "\u{a0}Bearer", Some("abc"))]
+    #[case("Bearer\u{a0}abc", "Bearer\u{a0}abc", None)]
+    fn split_scheme_and_tail_cuts_at_the_separator_the_grammar_writes(
+        #[case] value: &str,
+        #[case] scheme: &str,
+        #[case] tail: Option<&str>,
+    ) {
+        assert_eq!(split_scheme_and_tail(value), (scheme, tail));
+    }
+
+    /// The silence the split used to produce, at the reader that produced it.
+    /// A trailing `obs-text` octet was trimmed away and the shortened value was
+    /// a conforming `b64token`, so a value the sender wrote wrong reported
+    /// nothing — which is worse than reporting it wrong, because nothing
+    /// downstream can notice.
+    #[test]
+    fn a_trailing_obs_text_octet_is_part_of_the_token_and_not_padding() {
+        let (scheme, tail) = split_scheme_and_tail("Bearer abcdef\u{a0}");
+        assert_eq!(scheme, "Bearer");
+        assert_eq!(
+            validate_bearer_token(tail.expect("a separator was written")),
+            Err(BearerTokenDefect::BadCharacter('\u{a0}'))
+        );
+        // The same value without the octet is the one that may be silent.
+        assert!(validate_bearer_token("abcdef").is_ok());
     }
 
     #[test]

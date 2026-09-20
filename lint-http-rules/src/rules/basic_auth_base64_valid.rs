@@ -114,10 +114,9 @@ impl Rule for BasicAuthBase64Valid {
                 let s = s.as_str();
                 // Scheme names match case-insensitively.
                 // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                let mut parts = s.splitn(2, char::is_whitespace);
-                let scheme = parts.next().unwrap_or("").trim();
+                let (scheme, tail) = crate::helpers::auth::split_scheme_and_tail(s);
                 if scheme.eq_ignore_ascii_case("Basic") {
-                    let creds = parts.next().unwrap_or("").trim();
+                    let creds = tail.unwrap_or("");
                     if creds.is_empty() {
                         // The framework's defect rather than this
                         // scheme's: a scheme with nothing after it is
