@@ -140,7 +140,6 @@ fn connect_authority_finding(authority: &str) -> Option<Defect> {
         ));
     }
 
-    let (host, port) = crate::helpers::authority::split_host_and_port(authority);
     if let Err(defect) = crate::helpers::authority::validate_host_and_optional_port(authority) {
         let message = defect.message();
         return Some(Defect::named(
@@ -153,66 +152,18 @@ fn connect_authority_finding(authority: &str) -> Option<Defect> {
     // either is a question for the prose rather than for the grammar. The port
     // is required outright; the host is what "the host and port number of the
     // tunnel destination" leaves nothing of if it is absent.
-    match port {
-        None => Some(Defect::named(
-            &AUTHORITY_TUNNEL_PORT_MISSING,
-            format!(
-                "CONNECT ':authority' '{shown}' names no port, and a CONNECT has no default port: \
-                 a client sends the port number even when the URI reference it started from \
-                 elided one"
-            ),
-        )),
-        Some("") => Some(Defect::named(
-            &AUTHORITY_TUNNEL_PORT_EMPTY,
-            format!(
-                "CONNECT ':authority' '{shown}' ends at the colon with no port number, which a \
-                 server is required to reject"
-            ),
-        )),
-        Some(port) if host.is_empty() => Some(Defect::named(
-            &AUTHORITY_TUNNEL_HOST_EMPTY,
-            format!(
-                "CONNECT ':authority' '{shown}' names the port '{port}' and no host, so it names \
-                 nothing to open a tunnel to"
-            ),
-        )),
-        Some(port) => connect_port_range_finding(port).map(|msg| {
+    //
+    // The reading is the shared helper's, because § 9.3.6 states these
+    // sentences once for every version and the HTTP/3 twin asks them of the
+    // same reassembled `:authority`. What stays here is this version's own
+    // sentence: the helper names the value's defect and the site names the
+    // field it was read from.
+    crate::helpers::authority::validate_connect_tunnel_authority(authority)
+        .err()
+        .map(|defect| {
             Defect::named(
-                &AUTHORITY_TUNNEL_PORT_INVALID,
-                format!("CONNECT ':authority' '{shown}' targets an invalid port number: {msg}"),
-            )
-        }),
-    }
-}
-
-/// The one numeric bound a port in a CONNECT `:authority` has, and where it
-/// comes from.
-///
-/// `port = *DIGIT` states none, which is why `host_header` reports no
-/// port for being out of range and says so in its `description()`. What is
-/// different here is that a sentence names the transport: the proxy opens a TCP
-/// connection to this host and port, TCP's port namespace is sixteen bits wide,
-/// and a server is required to reject a CONNECT targeting an invalid port
-/// number. A value above 65535 designates no port in that namespace.
-///
-/// `0` is **not** reported. It is inside the namespace — a reserved value at the
-/// edge of a range, held back for extending the ranges later — and no sentence
-/// in these documents makes a reserved port an invalid one. The check this
-/// replaced rejected it under the same message as 70000.
-// cite(RFC 9113 § 8.5): "A proxy that supports CONNECT establishes a TCP connection [TCP] to the host and port identified in the ":authority" pseudo-header field."
-// cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
-// cite(RFC 6335 § 6): "Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future."
-fn connect_port_range_finding(port: &str) -> Option<String> {
-    // The range itself is `helpers::authority::port_number`'s, shared with the two
-    // other callers that have a sentence naming a transport. The sentences
-    // above are what license *this* caller to ask it; the reader holds the
-    // width and the reserved-value reading and nothing about CONNECT.
-    crate::helpers::authority::port_number(port)
-        .is_none()
-        .then(|| {
-            format!(
-                "a TCP port number is one of 65536 values and '{port}' is not among them, so the \
-             connection this CONNECT asks for cannot be opened to it"
+                crate::violations::authority::connect_tunnel(defect),
+                format!("CONNECT ':authority' '{shown}' {}", defect.message()),
             )
         })
 }

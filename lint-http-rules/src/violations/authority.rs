@@ -60,10 +60,11 @@
 //! `_missing` entries here is that line drawn twice: once by the method a request
 //! used and once by the document that asked.
 
+use crate::helpers::authority::ConnectTunnelDefect;
 use crate::lint::Severity;
 use crate::lint::Strength;
 use crate::rules::SpecRef;
-use crate::violations::defects;
+use crate::violations::{defects, ViolationDef};
 
 /// HTTP/2's account of the four request pseudo-headers, the userinfo MUST NOT
 /// among them. Shared with `http2_pseudo_headers_valid`, which reads the rest of
@@ -484,6 +485,21 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9114_4_3_1],
         strength: Strength::Unstated,
+    }
+}
+
+/// The defect a parsed [`ConnectTunnelDefect`] reports as.
+///
+/// Four variants, four ids, and no delegation: unlike the grammar half, none of
+/// these defects is the same defect anywhere else. Each one exists because
+/// § 9.3.6 says something about a CONNECT that no other reading of an authority
+/// says, so there is no shared production to hand the arm off to.
+pub fn connect_tunnel(defect: ConnectTunnelDefect<'_>) -> &'static ViolationDef {
+    match defect {
+        ConnectTunnelDefect::PortMissing => &AUTHORITY_TUNNEL_PORT_MISSING,
+        ConnectTunnelDefect::PortEmpty => &AUTHORITY_TUNNEL_PORT_EMPTY,
+        ConnectTunnelDefect::HostEmpty { .. } => &AUTHORITY_TUNNEL_HOST_EMPTY,
+        ConnectTunnelDefect::PortInvalid { .. } => &AUTHORITY_TUNNEL_PORT_INVALID,
     }
 }
 

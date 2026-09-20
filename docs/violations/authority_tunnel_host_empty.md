@@ -31,4 +31,5 @@ severity = "error"
 ## Reported By
 
 - [http2_pseudo_headers_valid](../rules/http2_pseudo_headers_valid.md)
+- [http3_pseudo_headers_valid](../rules/http3_pseudo_headers_valid.md)
 - [request_target_form_valid](../rules/request_target_form_valid.md)

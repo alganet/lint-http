@@ -401,6 +401,90 @@ impl HostAndPortDefect<'_> {
     }
 }
 
+/// What RFC 9110 § 9.3.6 asks of a CONNECT's tunnel destination past what the
+/// grammar can refuse.
+///
+/// `authority-form = uri-host ":" port` quantifies both halves with `*`, so a
+/// value naming no port, no host, or a port outside the transport's namespace
+/// all derive from the production — and the method's own section is what
+/// refuses them. That makes this a *prose* reading rather than a grammar one,
+/// and it is separate from [`validate_host_and_optional_port`] for that reason:
+/// the grammar half answers the same way in every field that carries an
+/// authority, and this half answers only for CONNECT.
+///
+/// **It assumes the grammar half already passed.** A caller runs
+/// [`validate_host_and_optional_port`] first and reports its `Err`; what
+/// arrives here is a value whose host and port are both well formed, so the
+/// only questions left are the ones the prose adds.
+///
+/// The reading is shared because the sentences are: § 9.3.6 states them once
+/// for every version, and the rules reading HTTP/2 and HTTP/3 pseudo-headers
+/// both ask them of the same reassembled `:authority`. Each caller keeps its
+/// own sentence — the section governing its version is what a message names —
+/// and what is shared is which defect the value has.
+pub fn validate_connect_tunnel_authority(value: &str) -> Result<(), ConnectTunnelDefect<'_>> {
+    let (host, port) = split_host_and_port(value);
+    match port {
+        None => Err(ConnectTunnelDefect::PortMissing),
+        Some("") => Err(ConnectTunnelDefect::PortEmpty),
+        Some(port) if host.is_empty() => Err(ConnectTunnelDefect::HostEmpty { port }),
+        Some(port) if port_number(port).is_none() => Err(ConnectTunnelDefect::PortInvalid { port }),
+        Some(_) => Ok(()),
+    }
+}
+
+/// What a CONNECT's `uri-host ":" port` fails to be once its grammar holds.
+///
+/// Four variants because § 9.3.6 asks four things, and the order they are asked
+/// in is the order a value loses components: a port that is not there at all, a
+/// port delimiter with nothing after it, a port with no host before it, and a
+/// number outside the sixteen bits the transport addresses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectTunnelDefect<'a> {
+    /// No colon anywhere in the value, so no port was written. A CONNECT has no
+    /// default port to supply one.
+    PortMissing,
+    /// The port's delimiter with no digits after it.
+    PortEmpty,
+    /// A port with nothing before its delimiter, so the value names nothing to
+    /// open a tunnel to.
+    HostEmpty {
+        /// The port it named instead.
+        port: &'a str,
+    },
+    /// A port of digits naming no port in TCP's namespace. `0` is not one of
+    /// these: it is inside the namespace, and no sentence here makes a reserved
+    /// port an invalid one — the bound is [`port_number`]'s.
+    PortInvalid {
+        /// The digits.
+        port: &'a str,
+    },
+}
+
+impl ConnectTunnelDefect<'_> {
+    /// The finding fragment, naming the value's own defect rather than the
+    /// production it failed.
+    pub fn message(self) -> String {
+        match self {
+            Self::PortMissing => "names no port, and a CONNECT has no default port: a client \
+                 sends the port number even when the URI reference it started from elided one"
+                .to_string(),
+            Self::PortEmpty => {
+                "ends at the colon with no port number, which a server is required to reject"
+                    .to_string()
+            }
+            Self::HostEmpty { port } => format!(
+                "names the port '{port}' and no host, so it names nothing to open a tunnel to"
+            ),
+            Self::PortInvalid { port } => format!(
+                "targets an invalid port number: a TCP port number is one of 65536 values and \
+                 '{port}' is not among them, so the connection this CONNECT asks for cannot be \
+                 opened to it"
+            ),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
