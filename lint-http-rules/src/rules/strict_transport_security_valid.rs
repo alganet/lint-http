@@ -170,6 +170,21 @@ impl RuleMeta for StrictTransportSecurityValid {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— `max-age` requires a value, though the grammar makes one optional"),
+                snippet: "Strict-Transport-Security: max-age; includeSubDomains",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— one directive, written twice in one policy"),
+                snippet: "Strict-Transport-Security: max-age=100; max-age=200",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a policy with nothing in it"),
+                snippet: "Strict-Transport-Security:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("— `includeSubDomains` must not have a value"),
                 snippet: "Strict-Transport-Security: max-age=63072000; includeSubDomains=1",
             },

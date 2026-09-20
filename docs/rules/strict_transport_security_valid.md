@@ -78,6 +78,24 @@ Strict-Transport-Security: includeSubDomains
 Strict-Transport-Security: max-age=abc
 ```
 
+### ❌ Bad — `max-age` requires a value, though the grammar makes one optional
+
+```http
+Strict-Transport-Security: max-age; includeSubDomains
+```
+
+### ❌ Bad — one directive, written twice in one policy
+
+```http
+Strict-Transport-Security: max-age=100; max-age=200
+```
+
+### ❌ Bad — a policy with nothing in it
+
+```http
+Strict-Transport-Security:
+```
+
 ### ❌ Bad — `includeSubDomains` must not have a value
 
 ```http
