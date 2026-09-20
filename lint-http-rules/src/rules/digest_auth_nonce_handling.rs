@@ -50,11 +50,17 @@ static DECLARED: &[&ViolationDef] = &[
 /// Implementing this rule requires history spanning an entire origin (not just
 /// the same resource) because nonces are shared across a protection space.  The
 /// engine therefore queries transactions `ByOrigin` for this rule.
-/// Scan history (newest-first) for the most recent Digest `401` challenge and
-/// return its `(nonce, opaque, stale)` parameters. Extracted from
+/// Scan history (newest-first) for the most recent Digest challenge of one
+/// exchange and return its `(nonce, opaque, stale)` parameters. Extracted from
 /// `check_transaction` so the dispatcher stays within the complexity budget.
+///
+/// The exchange is a parameter and not a constant because § 11 defines two of
+/// them: a nonce an origin issued in a `401` is not one a proxy issued in a
+/// `407`, so a search that took either would answer a `Proxy-Authorization`
+/// with a challenge it never received.
 fn find_last_digest_challenge(
     history: &crate::transaction_history::TransactionHistory,
+    exchange: &crate::helpers::auth::AuthExchange,
 ) -> (Option<String>, Option<String>, Option<String>) {
     let mut nonce: Option<String> = None;
     let mut opaque: Option<String> = None;
@@ -62,10 +68,10 @@ fn find_last_digest_challenge(
 
     for prev in history.iter() {
         let Some(resp) = &prev.response else { continue };
-        if resp.status != 401 {
+        if resp.status != exchange.status {
             continue;
         }
-        for hv2 in resp.headers.get_all("www-authenticate").iter() {
+        for hv2 in resp.headers.get_all(exchange.challenge.key).iter() {
             let Ok(val2) = hv2.to_str() else { continue };
             let Ok(challs) = crate::helpers::auth::split_and_group_challenges(val2) else {
                 continue;
@@ -106,10 +112,11 @@ fn find_last_digest_challenge(
 fn highest_nc_for_nonce(
     history: &crate::transaction_history::TransactionHistory,
     nonce: &str,
+    credentials: &crate::helpers::auth::AuthField,
 ) -> u64 {
     let mut highest = 0u64;
     for prev in history.iter() {
-        for hv3 in prev.request.headers.get_all("authorization").iter() {
+        for hv3 in prev.request.headers.get_all(credentials.key).iter() {
             let Ok(val3) = hv3.to_str() else { continue };
             let mut parts3 = val3.trim().splitn(2, char::is_whitespace);
             let scheme3 = parts3.next().unwrap_or("");
@@ -149,7 +156,7 @@ impl RuleMeta for DigestAuthNonceHandling {
     }
 
     fn description(&self) -> &'static str {
-        "Digest authentication relies on a server-provided `nonce` value (and optionally `opaque`) and a client-maintained `nc` (nonce-count) counter to protect against replay attacks.  The client must never reuse a nonce-count for an already-seen nonce, and must return the `opaque` value verbatim.  When a server signals that a nonce is stale (`stale=true` in a subsequent `WWW-Authenticate` challenge), the client is expected to start a new handshake with the fresh nonce, resetting the nonce-count to `00000001`.\n\nThis rule ensures that an observed stream of transactions follows these lifecycle expectations by tracking challenges and responses across an origin."
+        "Digest authentication relies on a server-provided `nonce` value (and optionally `opaque`) and a client-maintained `nc` (nonce-count) counter to protect against replay attacks.  The client must never reuse a nonce-count for an already-seen nonce, and must return the `opaque` value verbatim.  When a server signals that a nonce is stale (`stale=true` in a subsequent challenge), the client is expected to start a new handshake with the fresh nonce, resetting the nonce-count to `00000001`.\n\nThis rule ensures that an observed stream of transactions follows these lifecycle expectations by tracking challenges and responses across an origin.\n\n**Both exchanges § 11 defines, and never across them.** RFC 7616 §3.8 puts Digest in the `Proxy-Authenticate`/`Proxy-Authorization` pair as well, so the same lifecycle is read there — but a `401`'s nonce and a `407`'s are separate: credentials answering one demand say nothing about the other, and a join that crossed them would read a conforming client as answering a challenge it never received."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -192,6 +199,11 @@ impl RuleMeta for DigestAuthNonceHandling {
                 label: Some("– stale nonce but counter not reset"),
                 snippet: "< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n2\", stale=true\n\n> GET /x HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n2\", nc=00000005, uri=\"/x\", response=\"...\"",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("– the same nonce-count regression in the proxy exchange"),
+                snippet: "< 407 Proxy Authentication Required HTTP/1.1\n< Proxy-Authenticate: Digest realm=\"r\", nonce=\"n\"\n\n> GET /a HTTP/1.1\n> Host: example.com\n> Proxy-Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n\", nc=00000005, uri=\"/a\", response=\"...\"\n\n> GET /b HTTP/1.1\n> Host: example.com\n> Proxy-Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n\", nc=00000004, uri=\"/b\", response=\"...\"",
+            },
         ]
     }
 }
@@ -206,9 +218,22 @@ impl Rule for DigestAuthNonceHandling {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // only care about client-side requests with Digest Authorization
+            // Only credentials naming Digest, in either field that carries
+            // them -- and each joined to *its own* exchange's challenge. RFC
+            // 7616 § 3.8 puts the scheme in the proxy pair as well, and § 11
+            // makes the two exchanges independent: a nonce a proxy issued in a
+            // `407` was never offered by the origin, so a search that took
+            // either challenge would read a correct client as answering one it
+            // never received.
             // cite(RFC 7616 § 3.3): "The nonce is opaque to the client."
-            for hv in tx.request.headers.get_all("authorization").iter() {
+            for (exchange, hv) in crate::helpers::auth::AUTH_EXCHANGES.iter().flat_map(|e| {
+                tx.request
+                    .headers
+                    .get_all(e.credentials.key)
+                    .iter()
+                    .map(move |hv| (e, hv))
+            }) {
+                let shown = exchange.credentials.shown;
                 let s = match hv.to_str() {
                     Ok(v) => v,
                     Err(_) => continue, // non-UTF8 header; other rules may catch this
@@ -240,13 +265,16 @@ impl Rule for DigestAuthNonceHandling {
 
                 // find the most recent Digest challenge in history
                 let (last_challenge_nonce, last_challenge_opaque, last_challenge_stale) =
-                    find_last_digest_challenge(history);
+                    find_last_digest_challenge(history, exchange);
 
                 // 1. nonce must have been offered in a challenge
                 if nonce.is_some() && last_challenge_nonce.is_none() {
                     return Some(ctx.report_with(
                         &DIGEST_CREDENTIALS_CHALLENGE_MISSING,
-                        "Digest Authorization used without prior Digest challenge".into(),
+                        format!(
+                            "Digest {shown} used without a prior Digest {} challenge",
+                            exchange.challenge.shown
+                        ),
                     ));
                 }
 
@@ -257,19 +285,16 @@ impl Rule for DigestAuthNonceHandling {
                     (opaque.as_ref(), last_challenge_opaque.as_ref())
                 {
                     if o != expected {
-                        return Some(
-                            ctx.report_with(
-                                &DIGEST_CREDENTIALS_OPAQUE_CONFLICTING,
-                                "Digest Authorization opaque does not match most recent challenge"
-                                    .into(),
-                            ),
-                        );
+                        return Some(ctx.report_with(
+                            &DIGEST_CREDENTIALS_OPAQUE_CONFLICTING,
+                            format!("Digest {shown} opaque does not match most recent challenge"),
+                        ));
                     }
                 } else if opaque.is_none() && last_challenge_opaque.is_some() {
                     // Challenge included opaque, but client omitted it
                     return Some(ctx.report_with(
                         &DIGEST_CREDENTIALS_OPAQUE_CONFLICTING,
-                        "Digest Authorization missing opaque from most recent challenge".into(),
+                        format!("Digest {shown} missing opaque from most recent challenge"),
                     ));
                 }
 
@@ -282,7 +307,7 @@ impl Rule for DigestAuthNonceHandling {
                     if n != expected {
                         return Some(ctx.report_with(
                             &DIGEST_CREDENTIALS_CHALLENGE_MISSING,
-                            "Digest Authorization nonce differs from most recent challenge".into(),
+                            format!("Digest {shown} nonce differs from most recent challenge"),
                         ));
                     }
                 }
@@ -294,7 +319,7 @@ impl Rule for DigestAuthNonceHandling {
                         Err(msg) => {
                             return Some(ctx.report_with(
                                 &DIGEST_CREDENTIALS_NC_MALFORMED,
-                                format!("Invalid nc (nonce-count) value: {}", msg),
+                                format!("Invalid nc (nonce-count) value in {shown}: {}", msg),
                             ));
                         }
                     };
@@ -302,7 +327,7 @@ impl Rule for DigestAuthNonceHandling {
                     // find highest previous nc for same nonce
                     let highest = nonce
                         .as_ref()
-                        .map(|n| highest_nc_for_nonce(history, n))
+                        .map(|n| highest_nc_for_nonce(history, n, &exchange.credentials))
                         .unwrap_or(0);
 
                     // nc must strictly increase for a given nonce: a repeated count is the
@@ -311,7 +336,7 @@ impl Rule for DigestAuthNonceHandling {
                     if current_nc <= highest {
                         return Some(ctx.report_with(
                             &DIGEST_CREDENTIALS_NC_INVALID,
-                            "Digest Authorization nonce-count did not increase, which RFC 7616 \u{a7}3.4 names as the signature of a replay".into(),
+                            format!("Digest {shown} nonce-count did not increase, which RFC 7616 \u{a7}3.4 names as the signature of a replay"),
                         ));
                     }
 
@@ -325,7 +350,7 @@ impl Rule for DigestAuthNonceHandling {
                         && highest == 0
                         && current_nc != 1
                     {
-                        return Some(ctx.report_with(&DIGEST_CREDENTIALS_NC_INVALID, "Digest Authorization with new nonce after a RFC 7616 \u{a7}3.3 stale challenge must reset nc to 00000001".into()));
+                        return Some(ctx.report_with(&DIGEST_CREDENTIALS_NC_INVALID, format!("Digest {shown} with new nonce after a RFC 7616 \u{a7}3.3 stale challenge must reset nc to 00000001")));
                     }
                 }
             }
@@ -390,6 +415,88 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("authorization", auth)]);
         tx
+    }
+
+    /// **The proxy exchange has the same lifecycle, and the two never cross.**
+    ///
+    /// RFC 7616 § 3.8 puts Digest in the `Proxy-Authenticate` /
+    /// `Proxy-Authorization` pair too, and nothing read it: a client repeating
+    /// a nonce-count against a proxy's nonce drew nothing, where the identical
+    /// sequence against an origin's is a finding.
+    ///
+    /// The last two rows are the half a careless reader gets wrong. A `401`'s
+    /// nonce is not a `407`'s, so a `Proxy-Authorization` echoing a nonce only
+    /// the origin ever offered has no challenge behind it and a credential
+    /// answering the exchange it was actually offered is conforming — a search
+    /// that took either challenge would call the first correct and the second a
+    /// replay.
+    #[test]
+    fn each_exchange_has_its_own_challenge() {
+        use crate::transaction_history::TransactionHistory;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "digest_auth_nonce_handling",
+        ]);
+        let nonce = random_nonce();
+
+        let challenge = |status: u16, key: &str| {
+            crate::test_helpers::make_test_transaction_with_response(
+                status,
+                &[(key, make_challenge(&nonce, None, None).as_str())],
+            )
+        };
+        let credential = |key: &str, nc: &str| {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+                key,
+                make_auth(&nonce, Some(nc), None).as_str(),
+            )]);
+            tx
+        };
+        // Written in the order the exchange happened and handed over newest
+        // first, which is the invariant `TransactionHistory` asserts.
+        let judge = |mut history: Vec<crate::http_transaction::HttpTransaction>, tx| {
+            history.reverse();
+            crate::test_helpers::run_rule(
+                &DigestAuthNonceHandling,
+                &tx,
+                &TransactionHistory::from_transactions(history),
+                &cfg,
+            )
+        };
+
+        let replay = judge(
+            vec![
+                challenge(407, "proxy-authenticate"),
+                credential("proxy-authorization", "00000005"),
+            ],
+            credential("proxy-authorization", "00000005"),
+        )
+        .expect("a repeated nonce-count is a replay in either exchange");
+        assert_eq!(replay.violation, "digest_credentials_nc_invalid");
+        assert!(
+            replay.message.contains("Proxy-Authorization"),
+            "the finding says {:?} and does not name the field it read",
+            replay.message
+        );
+
+        let crossed = judge(
+            vec![challenge(401, "www-authenticate")],
+            credential("proxy-authorization", "00000001"),
+        )
+        .expect("an origin's challenge does not answer a proxy's credentials");
+        assert_eq!(crossed.violation, "digest_credentials_challenge_missing");
+
+        assert!(
+            judge(
+                vec![
+                    challenge(401, "www-authenticate"),
+                    challenge(407, "proxy-authenticate"),
+                ],
+                credential("proxy-authorization", "00000001"),
+            )
+            .is_none(),
+            "credentials answering the challenge they were offered are conforming",
+        );
     }
 
     /// Every finding this rule makes and the id it draws. The two `opaque`
@@ -471,7 +578,7 @@ mod tests {
         assert!(v
             .unwrap()
             .message
-            .contains("without prior Digest challenge"));
+            .contains("used without a prior Digest WWW-Authenticate challenge"));
     }
 
     #[test]
@@ -892,7 +999,7 @@ mod tests {
         assert!(v
             .unwrap()
             .message
-            .contains("without prior Digest challenge"));
+            .contains("used without a prior Digest WWW-Authenticate challenge"));
     }
 
     #[test]

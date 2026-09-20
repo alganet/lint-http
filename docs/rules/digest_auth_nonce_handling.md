@@ -8,9 +8,11 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Digest authentication relies on a server-provided `nonce` value (and optionally `opaque`) and a client-maintained `nc` (nonce-count) counter to protect against replay attacks.  The client must never reuse a nonce-count for an already-seen nonce, and must return the `opaque` value verbatim.  When a server signals that a nonce is stale (`stale=true` in a subsequent `WWW-Authenticate` challenge), the client is expected to start a new handshake with the fresh nonce, resetting the nonce-count to `00000001`.
+Digest authentication relies on a server-provided `nonce` value (and optionally `opaque`) and a client-maintained `nc` (nonce-count) counter to protect against replay attacks.  The client must never reuse a nonce-count for an already-seen nonce, and must return the `opaque` value verbatim.  When a server signals that a nonce is stale (`stale=true` in a subsequent challenge), the client is expected to start a new handshake with the fresh nonce, resetting the nonce-count to `00000001`.
 
 This rule ensures that an observed stream of transactions follows these lifecycle expectations by tracking challenges and responses across an origin.
+
+**Both exchanges § 11 defines, and never across them.** RFC 7616 §3.8 puts Digest in the `Proxy-Authenticate`/`Proxy-Authorization` pair as well, so the same lifecycle is read there — but a `401`'s nonce and a `407`'s are separate: credentials answering one demand say nothing about the other, and a join that crossed them would read a conforming client as answering a challenge it never received.
 
 ## Violations
 
@@ -97,4 +99,19 @@ enabled = true
 > GET /x HTTP/1.1
 > Host: example.com
 > Authorization: Digest username="u", realm="r", nonce="n2", nc=00000005, uri="/x", response="..."
+```
+
+### ❌ Bad – the same nonce-count regression in the proxy exchange
+
+```http
+< 407 Proxy Authentication Required HTTP/1.1
+< Proxy-Authenticate: Digest realm="r", nonce="n"
+
+> GET /a HTTP/1.1
+> Host: example.com
+> Proxy-Authorization: Digest username="u", realm="r", nonce="n", nc=00000005, uri="/a", response="..."
+
+> GET /b HTTP/1.1
+> Host: example.com
+> Proxy-Authorization: Digest username="u", realm="r", nonce="n", nc=00000004, uri="/b", response="..."
 ```

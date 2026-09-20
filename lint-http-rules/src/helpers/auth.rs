@@ -67,12 +67,60 @@ use base64::Engine;
 /// The map is keyed by the lowercase name and an operator reads the field back
 /// in the casing its own document prints, so a reader that had only one string
 /// would either miss the field or name it wrongly in the finding.
+#[derive(Clone, Copy)]
 pub struct AuthField {
     /// The name as RFC 9110 § 11 writes it. This is what a message says.
     pub shown: &'static str,
     /// The name the header map is keyed by.
     pub key: &'static str,
 }
+
+/// One challenge-and-answer exchange: the field a recipient demands
+/// authentication in, the status that carries that demand, and the field the
+/// client answers it with.
+pub struct AuthExchange {
+    /// `WWW-Authenticate` or `Proxy-Authenticate`.
+    pub challenge: AuthField,
+    /// The status § 11 says must carry at least one of that challenge.
+    pub status: u16,
+    /// `Authorization` or `Proxy-Authorization`.
+    pub credentials: AuthField,
+}
+
+/// The two exchanges § 11 defines, and the source the two field lists below are
+/// taken from.
+///
+/// **They are two exchanges and not one, which is what a reader joining a
+/// credential to a challenge has to know.** A nonce an origin issued in a `401`
+/// is not one a proxy issued in a `407`, and credentials answering one demand
+/// say nothing about the other; a join that crossed them would read a correct
+/// client as replaying a nonce it was never offered.
+///
+// cite(RFC 9110 § 11.7.1): "A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates."
+pub const AUTH_EXCHANGES: [AuthExchange; 2] = [
+    AuthExchange {
+        challenge: AuthField {
+            shown: "WWW-Authenticate",
+            key: "www-authenticate",
+        },
+        status: 401,
+        credentials: AuthField {
+            shown: "Authorization",
+            key: "authorization",
+        },
+    },
+    AuthExchange {
+        challenge: AuthField {
+            shown: "Proxy-Authenticate",
+            key: "proxy-authenticate",
+        },
+        status: 407,
+        credentials: AuthField {
+            shown: "Proxy-Authorization",
+            key: "proxy-authorization",
+        },
+    },
+];
 
 /// The request fields whose value *is* `credentials`.
 ///
@@ -83,16 +131,8 @@ pub struct AuthField {
 /// different hops, and a defect in either is that sender's to correct.
 ///
 // cite(RFC 9110 § 11.7.2): "Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested."
-pub const CREDENTIALS_FIELDS: [AuthField; 2] = [
-    AuthField {
-        shown: "Authorization",
-        key: "authorization",
-    },
-    AuthField {
-        shown: "Proxy-Authorization",
-        key: "proxy-authorization",
-    },
-];
+pub const CREDENTIALS_FIELDS: [AuthField; 2] =
+    [AUTH_EXCHANGES[0].credentials, AUTH_EXCHANGES[1].credentials];
 
 /// Every line of every field § 11 writes as `credentials`, each paired with the
 /// name a finding about it has to say.
@@ -124,16 +164,8 @@ pub fn credentials_field_lines(
 /// a present one has to derive from.
 ///
 // cite(RFC 9110 § 11.7.1): "Note that the parsing considerations for WWW-Authenticate apply to this header field as well"
-pub const CHALLENGE_FIELDS: [AuthField; 2] = [
-    AuthField {
-        shown: "WWW-Authenticate",
-        key: "www-authenticate",
-    },
-    AuthField {
-        shown: "Proxy-Authenticate",
-        key: "proxy-authenticate",
-    },
-];
+pub const CHALLENGE_FIELDS: [AuthField; 2] =
+    [AUTH_EXCHANGES[0].challenge, AUTH_EXCHANGES[1].challenge];
 
 /// The whitespace `auth-scheme 1*SP …` prints, and the only whitespace a field
 /// value carries beside its content.
