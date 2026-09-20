@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate basic `Content-Security-Policy` syntax in responses. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow CSP's `directive-name = 1*( ALPHA / DIGIT / "-" )` grammar — narrower than the HTTP `token`), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).
+Validate basic policy syntax in responses, in both fields § 3 delivers a policy in — `Content-Security-Policy` and `Content-Security-Policy-Report-Only`, whose § 3.1 and § 3.2 write the identical `1#serialized-policy`. The report-only field is the one it matters most to read: § 3.2 exists so a developer can watch a policy while *monitoring (but not enforcing)* its effects, so a directive the user agent cannot parse breaks nothing and is never noticed. Each finding names the field it read. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow CSP's `directive-name = 1*( ALPHA / DIGIT / "-" )` grammar — narrower than the HTTP `token`), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).
 
 This rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations.
 
@@ -28,6 +28,7 @@ This rule is intentionally conservative: it is not a full CSP grammar validator,
 - [CSP3 §2.2](https://www.w3.org/TR/CSP3/#framework-policy): Policies: `serialized-policy = serialized-directive *( optional-ascii-whitespace ";" [ optional-ascii-whitespace serialized-directive ] )` — one unbracketed directive and any number of bracketed ones, which is what decides whether a given `;` names anything
 - [CSP3 §2.3](https://www.w3.org/TR/CSP3/#framework-directives): Directives: `directive-name = 1*( ALPHA / DIGIT / "-" )`, letters, digits and a hyphen and nothing else — where an HTTP `token` also admits `_`, `.` and a dozen other marks
 - [CSP3 §2.3.1](https://www.w3.org/TR/CSP3/#framework-directive-source-list): Source Lists: `source-expression`, the `nonce-source` and `hash-source` productions whose single quotes are written *inside* them, and the `base64-value` both of them carry
+- [CSP3 §3.2](https://www.w3.org/TR/CSP3/#cspro-header): The `Content-Security-Policy-Report-Only` field — `1#serialized-policy`, the same production § 3.1 gives the enforced field, delivered for monitoring rather than enforcement
 - [MDN Content-Security-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy): Mozilla MDN overview and directive examples
 
 ## Configuration
@@ -70,4 +71,11 @@ Content-Security-Policy: default-src 'self';
 ```http
 HTTP/1.1 200 OK
 Content-Security-Policy: default-src 'self
+```
+
+### ❌ Bad (the other field § 3 delivers a policy in, where nothing breaking is the point)
+
+```http
+HTTP/1.1 200 OK
+Content-Security-Policy-Report-Only: def@ult-src 'self'
 ```

@@ -44,6 +44,20 @@ pub const CSP3_2_2: SpecRef = SpecRef {
     note: "Policies: `serialized-policy = serialized-directive *( optional-ascii-whitespace \";\" [ optional-ascii-whitespace serialized-directive ] )` — one unbracketed directive and any number of bracketed ones, which is what decides whether a given `;` names anything",
 };
 
+/// The report-only field: the same `1#serialized-policy` as § 3.1's, delivered
+/// so a developer can watch a policy before enforcing it.
+///
+/// It is named here rather than left to § 3.1 because every defect this module
+/// declares is a defect of a policy, not of the field that carried one — and
+/// the field that carries one without enforcing it is where a policy the user
+/// agent cannot parse produces no symptom at all.
+pub const CSP3_3_2: SpecRef = SpecRef {
+    spec: "CSP3",
+    section: Some("3.2"),
+    url: "https://www.w3.org/TR/CSP3/#cspro-header",
+    note: "The `Content-Security-Policy-Report-Only` field — `1#serialized-policy`, the same production § 3.1 gives the enforced field, delivered for monitoring rather than enforcement",
+};
+
 /// Source Lists: the source expressions a directive value is made of, and the
 /// two of them whose single quotes are part of the production.
 pub const CSP3_2_3_1: SpecRef = SpecRef {

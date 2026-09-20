@@ -9,7 +9,7 @@ use crate::violations::content_security_policy::{
     CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
     CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN, CONTENT_SECURITY_POLICY_EMPTY,
     CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING, CONTENT_SECURITY_POLICY_SOURCE_EMPTY,
-    CSP3_2_2, CSP3_2_3, CSP3_2_3_1,
+    CSP3_2_2, CSP3_2_3, CSP3_2_3_1, CSP3_3_2,
 };
 use crate::violations::ViolationDef;
 
@@ -63,6 +63,22 @@ const MDN_CONTENT_SECURITY_POLICY: crate::rules::SpecRef = crate::rules::SpecRef
 // cite(CSP3 § 2.3): "hash-algorithm = "sha256" / "sha384" / "sha512""
 const HASH_PREFIXES: [&str; 3] = ["sha256-", "sha384-", "sha512-"];
 
+/// The two response fields § 3 delivers a policy in, each with the name a
+/// finding about it has to say.
+///
+/// § 3.1 and § 3.2 write the same `1#serialized-policy` and differ only in
+/// whether the user agent enforces what it parses. This list is not shared with
+/// `content_security_policy_and_frame_options_consistent`, which reads the
+/// enforced field alone and is right to: that rule asks what a policy *does*,
+/// and a report-only one does nothing.
+const POLICY_FIELDS: [(&str, &str); 2] = [
+    ("Content-Security-Policy", "content-security-policy"),
+    (
+        "Content-Security-Policy-Report-Only",
+        "content-security-policy-report-only",
+    ),
+];
+
 impl ContentSecurityPolicyValid {
     /// One `;`-separated directive: its name, then each of its source
     /// expressions.
@@ -81,6 +97,7 @@ impl ContentSecurityPolicyValid {
     /// each unresolvable source beside it.
     fn directive_defects(
         &self,
+        shown: &'static str,
         directive: &str,
         position: usize,
         ctx: &crate::rules::RuleContext<'_>,
@@ -99,8 +116,8 @@ impl ContentSecurityPolicyValid {
             return vec![ctx.report_with(
                 &CONTENT_SECURITY_POLICY_DIRECTIVE_EMPTY,
                 format!(
-                    "Content-Security-Policy opens with a ';' and names no directive at position {}",
-                    position
+                    "{} opens with a ';' and names no directive at position {}",
+                    shown, position
                 ),
             )];
         }
@@ -125,7 +142,7 @@ impl ContentSecurityPolicyValid {
             out.push(ctx.report_with(
                 &CONTENT_SECURITY_POLICY_DIRECTIVE_NAME_CHARACTER_FORBIDDEN,
                 format!(
-                    "Invalid character {} in CSP directive-name '{}', at position {}",
+                    "Invalid character {} in {shown} directive-name '{}', at position {}",
                     crate::helpers::shown::describe_char(c),
                     crate::helpers::shown::shown_in_finding(name),
                     position
@@ -133,7 +150,9 @@ impl ContentSecurityPolicyValid {
             ));
         }
 
-        out.extend(parts.filter_map(|source| self.source_expression_defect(source, name, ctx)));
+        out.extend(
+            parts.filter_map(|source| self.source_expression_defect(shown, source, name, ctx)),
+        );
         out
     }
 
@@ -148,6 +167,7 @@ impl ContentSecurityPolicyValid {
     /// catches the common, obvious mistakes and says so in its description.
     fn source_expression_defect(
         &self,
+        shown: &'static str,
         source: &str,
         directive: &str,
         ctx: &crate::rules::RuleContext<'_>,
@@ -160,7 +180,7 @@ impl ContentSecurityPolicyValid {
                 return Some(ctx.report_with(
                     &CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING,
                     format!(
-                        "Unterminated single-quoted source expression '{}' in directive '{}'",
+                        "Unterminated single-quoted source expression '{}' in {shown} directive '{}'",
                         source, directive
                     ),
                 ));
@@ -170,7 +190,7 @@ impl ContentSecurityPolicyValid {
                 return Some(ctx.report_with(
                     &CONTENT_SECURITY_POLICY_SOURCE_EMPTY,
                     format!(
-                        "Empty single-quoted source expression '{}' in directive '{}'",
+                        "Empty single-quoted source expression '{}' in {shown} directive '{}'",
                         source, directive
                     ),
                 ));
@@ -180,7 +200,7 @@ impl ContentSecurityPolicyValid {
                 if nonce.is_empty() {
                     return Some(ctx.report_with(
                         &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
-                        format!("Empty nonce value in directive '{}'", directive),
+                        format!("Empty nonce value in {shown} directive '{}'", directive),
                     ));
                 }
                 // Unicode whitespace rather than ASCII, and the difference is
@@ -191,7 +211,7 @@ impl ContentSecurityPolicyValid {
                     return Some(ctx.report_with(
                         &CONTENT_SECURITY_POLICY_BASE64_VALUE_MALFORMED,
                         format!(
-                            "Invalid nonce value containing whitespace in directive '{}'",
+                            "Invalid nonce value containing whitespace in {shown} directive '{}'",
                             directive
                         ),
                     ));
@@ -204,7 +224,7 @@ impl ContentSecurityPolicyValid {
             {
                 return Some(ctx.report_with(
                     &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
-                    format!("Empty hash value in directive '{}'", directive),
+                    format!("Empty hash value in {shown} directive '{}'", directive),
                 ));
             }
 
@@ -218,12 +238,14 @@ impl ContentSecurityPolicyValid {
             if nonce.is_empty() {
                 return Some(ctx.report_with(
                     &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
-                    format!("Empty nonce value in directive '{}'", directive),
+                    format!("Empty nonce value in {shown} directive '{}'", directive),
                 ));
             }
             return Some(ctx.report_with(
                 &CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING,
-                "Nonce source expressions MUST be single-quoted (e.g., 'nonce-...')".into(),
+                format!(
+                    "Nonce source expressions in {shown} MUST be single-quoted (e.g., 'nonce-...')"
+                ),
             ));
         }
 
@@ -233,13 +255,13 @@ impl ContentSecurityPolicyValid {
         if source.len() == prefix.len() {
             return Some(ctx.report_with(
                 &CONTENT_SECURITY_POLICY_BASE64_VALUE_EMPTY,
-                format!("Empty hash value in directive '{}'", directive),
+                format!("Empty hash value in {shown} directive '{}'", directive),
             ));
         }
         Some(ctx.report_with(
             &CONTENT_SECURITY_POLICY_SOURCE_DELIMITER_MISSING,
             format!(
-                "Hash source expressions MUST be single-quoted (e.g., '{}...')",
+                "Hash source expressions in {shown} MUST be single-quoted (e.g., '{}...')",
                 prefix
             ),
         ))
@@ -257,7 +279,7 @@ impl RuleMeta for ContentSecurityPolicyValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate basic `Content-Security-Policy` syntax in responses. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow CSP's `directive-name = 1*( ALPHA / DIGIT / \"-\" )` grammar — narrower than the HTTP `token`), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).\n\nThis rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations."
+        "Validate basic policy syntax in responses, in both fields § 3 delivers a policy in — `Content-Security-Policy` and `Content-Security-Policy-Report-Only`, whose § 3.1 and § 3.2 write the identical `1#serialized-policy`. The report-only field is the one it matters most to read: § 3.2 exists so a developer can watch a policy while *monitoring (but not enforcing)* its effects, so a directive the user agent cannot parse breaks nothing and is never noticed. Each finding names the field it read. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow CSP's `directive-name = 1*( ALPHA / DIGIT / \"-\" )` grammar — narrower than the HTTP `token`), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).\n\nThis rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations."
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -274,6 +296,7 @@ impl RuleMeta for ContentSecurityPolicyValid {
             CSP3_2_2,
             CSP3_2_3,
             CSP3_2_3_1,
+            CSP3_3_2,
             MDN_CONTENT_SECURITY_POLICY,
         ]
     }
@@ -306,6 +329,11 @@ impl RuleMeta for ContentSecurityPolicyValid {
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the other field § 3 delivers a policy in, where nothing breaking is the point)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy-Report-Only: def@ult-src 'self'",
+            },
         ]
     }
 }
@@ -337,10 +365,23 @@ impl Rule for ContentSecurityPolicyValid {
             // a character the name cannot hold and the check in
             // `directive_defect` names it — where the deleted branch could only
             // say the whole policy was unreadable.
-            for policy in crate::helpers::headers::field_lines_as_written(
-                &resp.headers,
-                "content-security-policy",
-            ) {
+            //
+            // Both fields § 3 delivers a policy in. § 3.1 and § 3.2 write the
+            // identical `1#serialized-policy`, and the reason the report-only
+            // field is the *worse* one to leave unread is § 3.2's own purpose:
+            // it exists so a developer can deploy a policy while "monitoring
+            // (but not enforcing) their effects", so a directive a browser
+            // cannot parse breaks nothing, reports nothing, and is never
+            // noticed. The consistency rule next door skips this field on
+            // purpose — a policy that enforces nothing cannot conflict with
+            // `X-Frame-Options` — but that is an argument about enforcement,
+            // and nothing about enforcement bears on whether the value parses.
+            // cite(CSP3 § 3.2): "Content-Security-Policy-Report-Only = 1#serialized-policy"
+            for (shown, policy) in POLICY_FIELDS.into_iter().flat_map(|(shown, key)| {
+                crate::helpers::headers::field_lines_as_written(&resp.headers, key)
+                    .into_iter()
+                    .map(move |policy| (shown, policy))
+            }) {
                 let policy = policy.as_str();
 
                 if crate::helpers::headers::trim_ows(policy).is_empty() {
@@ -349,13 +390,14 @@ impl Rule for ContentSecurityPolicyValid {
                     // wrong with this line, and the next line is its own.
                     out.push(ctx.report_with(
                         &CONTENT_SECURITY_POLICY_EMPTY,
-                        "Content-Security-Policy header MUST not be empty".into(),
+                        format!("{shown} header MUST not be empty"),
                     ));
                     continue;
                 }
 
                 for (position, directive) in policy.split(';').enumerate() {
                     out.extend(self.directive_defects(
+                        shown,
                         crate::helpers::headers::trim_ows(directive),
                         position,
                         ctx,
@@ -381,6 +423,43 @@ mod tests {
 
     fn make_cfg() -> crate::config::Config {
         crate::test_helpers::make_test_config_with_enabled_rules(&["content_security_policy_valid"])
+    }
+
+    /// **Both fields § 3 delivers a policy in, and each finding names the one
+    /// it read.**
+    ///
+    /// `Content-Security-Policy-Report-Only: def@ult-src 'self'` drew nothing,
+    /// where the identical value in the enforced field is a finding — § 3.1 and
+    /// § 3.2 write the same `1#serialized-policy`. The message is asserted
+    /// because every arm of this rule named the enforced field or said "CSP",
+    /// so a second reader through them would have named the wrong field on a
+    /// true finding.
+    #[rstest]
+    #[case("content-security-policy", "Content-Security-Policy")]
+    #[case(
+        "content-security-policy-report-only",
+        "Content-Security-Policy-Report-Only"
+    )]
+    fn a_policy_is_read_in_both_fields_that_deliver_it(#[case] key: &str, #[case] shown: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[(key, "def@ult-src 'self'")]);
+        let found = crate::test_helpers::run_rule(
+            &ContentSecurityPolicyValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .unwrap_or_else(|| panic!("nothing reported for {key}"));
+        assert_eq!(
+            found.violation,
+            "content_security_policy_directive_name_character_forbidden"
+        );
+        assert!(
+            found.message.contains(shown),
+            "a finding about {key} says {:?}, which does not name the field it read",
+            found.message
+        );
     }
 
     #[rstest]
@@ -572,7 +651,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             v.message,
-            "Invalid character 0xFF in CSP directive-name '\u{ff}', at position 0"
+            "Invalid character 0xFF in Content-Security-Policy directive-name '\u{ff}', at position 0"
         );
     }
 
