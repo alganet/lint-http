@@ -4928,7 +4928,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1266
+      line: 1287
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 233
 - label: RFC 7617
@@ -8190,7 +8190,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 639
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1223
+      line: 1243
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 88
     - file: lint-http-rules/src/violations/auth_param.rs
@@ -8346,7 +8346,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 715
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1224
+      line: 1244
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 141
     - file: lint-http-rules/src/helpers/cache_control.rs

@@ -917,19 +917,47 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn duplicate_param_last_empty_reports_violation() -> anyhow::Result<()> {
+    /// **The occurrence this rule grades is the first, and this test asserted
+    /// the opposite.** It sent `username=Mufasa, username=` and demanded a
+    /// finding about an empty required parameter — which arrived only because
+    /// the shared parameter reader inserted into a map and the empty second
+    /// occurrence overwrote `Mufasa`. That is not a reading of the credential:
+    /// it made what this rule grades depend on the order a sender wrote two
+    /// values in, and in the direction where a sender could take a finding away
+    /// by *appending* a parameter.
+    ///
+    /// The empty member is not lost by the change and was never this rule's:
+    /// `auth-param`'s value has a floor of one character in both alternatives,
+    /// so `username=` is `auth_param_value_empty`, reported about the same
+    /// field by `authorization_credentials_valid`. What is asserted here is
+    /// only which of the two values §3.4's required-parameter reading is about.
+    ///
+    /// RFC 9110 § 11.2's MUST against writing the name twice is
+    /// `challenge_parameter_duplicated`, and it is deliberately not reported
+    /// about a credential — the sentence counts per *challenge* and § 11.4 has
+    /// no analogue of one.
+    #[rstest]
+    // The first is well formed, so §3.4's reading has its parameter.
+    #[case(
+        r#"Digest username="Mufasa", username=, realm="test", nonce="abc", uri="/", response="d""#,
+        None
+    )]
+    // The other order, where the value that binds is the defective one.
+    #[case(
+        r#"Digest username=, username="Mufasa", realm="test", nonce="abc", uri="/", response="d""#,
+        Some("digest_credentials_parameter_empty")
+    )]
+    fn the_first_occurrence_of_a_repeated_parameter_is_the_one_graded(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
         let rule = DigestAuthValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["digest_auth_valid"]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
-        // username appears twice; last one is empty -> should trigger missing/empty required param
-        tx.request.headers.append(
-            "authorization",
-            "Digest username=Mufasa, username=, realm=test, nonce=abc, uri=/, response=d"
-                .parse()
-                .unwrap(),
-        );
+        tx.request
+            .headers
+            .append("authorization", value.parse().unwrap());
 
         let v = crate::test_helpers::run_rule(
             &rule,
@@ -937,13 +965,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        let v = v.unwrap();
-        assert!(
-            v.message.contains("required parameter")
-                || v.message.contains("Invalid Digest auth parameters")
+        assert_eq!(
+            v.map(|v| v.violation),
+            expected.map(str::to_string),
+            "{value:?}"
         );
-        Ok(())
     }
 
     #[test]

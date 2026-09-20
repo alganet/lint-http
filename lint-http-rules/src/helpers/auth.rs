@@ -1207,6 +1207,26 @@ impl AuthParamsDefect<'_> {
 /// Parse an auth-param list (e.g., `username="Mufasa", realm="x", nonce=abc`) into a
 /// HashMap of (name -> value) pairs. Values preserve quotes when present (e.g., `"x"`).
 ///
+/// **A name written twice keeps the first value, and this used to keep the
+/// last.** § 11.2 admits a parameter name once per challenge and says nothing
+/// about what a recipient does with two, so the choice is the reader's — but
+/// only one of the two is safe to make, because these callers are grading the
+/// value rather than acting on it. Keeping the last means a sender can take a
+/// finding away by *adding* a parameter: `Digest realm=foo` is a
+/// `digest_challenge_quoting_invalid`, and `Digest realm=foo, realm="ok"` was
+/// silent, because the well-formed second occurrence overwrote the malformed
+/// first before any rule saw it. Keeping the first cannot do that — nothing a
+/// sender appends changes what is already there — and it is the reading the
+/// rest of this catalogue takes: `forwarded_header_valid` grades the first
+/// occurrence and skips every later one, and the realm walk two functions up
+/// says "the first realm and not the last" for the same reason.
+///
+/// The duplication itself is not this function's finding. It is
+/// [`AuthDefect::ParameterDuplicated`], measured in
+/// [`validate_scheme_tail`] where the challenge that scopes the count exists;
+/// returning it here would collapse a whole challenge's worth of readings into
+/// one id for a value every member of which is well formed.
+///
 /// **The `Err` is the defect and not a sentence.** Rendering it is
 /// [`AuthParamsDefect::message`] at the call site — one method, and the string
 /// is byte-identical to what this returned before. What the change buys is that
@@ -1246,7 +1266,8 @@ pub fn parse_auth_params(
         if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
             return Err(AuthParamsDefect::NameCharacter(inv));
         }
-        out.insert(name.to_ascii_lowercase(), val.to_string());
+        out.entry(name.to_ascii_lowercase())
+            .or_insert_with(|| val.to_string());
     }
     Ok(out)
 }
@@ -1556,6 +1577,21 @@ mod tests {
         assert_eq!(got.get("username").map(|s| s.as_str()), Some("\"Mufasa\""));
         assert_eq!(got.get("realm").map(|s| s.as_str()), Some("\"x\""));
         assert_eq!(got.get("nonce").map(|s| s.as_str()), Some("abc"));
+    }
+
+    /// The occurrence a reader meets first is the one the map keeps, so a
+    /// sender cannot silence a finding about a malformed value by writing a
+    /// well-formed one after it. This kept the last, and the shape it produced
+    /// was the worst available: `Digest realm=foo` drew
+    /// `digest_challenge_quoting_invalid` and `Digest realm=foo, realm="ok"`
+    /// drew nothing about the realm at all.
+    #[test]
+    fn a_repeated_name_keeps_the_value_a_reader_meets_first() {
+        let got = parse_auth_params(r#"realm=foo, realm="ok", nonce="n""#).unwrap();
+        assert_eq!(got.get("realm").map(String::as_str), Some("foo"));
+        // And the fold is the same one § 11.2 applies to the name.
+        let got = parse_auth_params(r#"realm=foo, REALM="ok""#).unwrap();
+        assert_eq!(got.get("realm").map(String::as_str), Some("foo"));
     }
 
     #[test]
