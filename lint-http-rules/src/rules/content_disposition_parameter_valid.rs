@@ -164,7 +164,7 @@ impl Rule for ContentDispositionParameterValid {
             let check_value = |hdr_name: &str,
                                val: &str,
                                party: crate::lint::Party|
-             -> Option<Violation> {
+             -> Vec<Violation> {
                 let s = val.trim();
 
                 let mut parts = s.splitn(2, ';');
@@ -172,8 +172,19 @@ impl Rule for ContentDispositionParameterValid {
                 let params_part = parts.next().map(|p| p.trim()).unwrap_or("");
 
                 if params_part.is_empty() {
-                    return None;
+                    return Vec::new();
                 }
+
+                // One finding per parameter. `content-disposition =
+                // disposition-type *( ";" disposition-parm )` writes them
+                // beside each other rather than inside each other, so a value
+                // naming three of them badly is three things to correct, and
+                // the walk over them returned at the first. Each parameter's
+                // own reading is still a chain: a name that is not an
+                // `ext-token` and a value that is no `value` are two readings
+                // of one `disposition-parm`, and the second reads text the
+                // first has already condemned.
+                let mut out = Vec::new();
 
                 // Track parameter names (case-insensitive) to detect duplicates
                 let mut seen: HashSet<String> = HashSet::new();
@@ -183,200 +194,12 @@ impl Rule for ContentDispositionParameterValid {
                     if p.is_empty() {
                         continue;
                     }
-                    let eq = p.find('=');
-                    if eq.is_none() {
-                        return Some(ctx.by(party).report_with(
-                            &PARAMETER_EQUALS_MISSING,
-                            format!("{} has malformed parameter '{}': missing '='", hdr_name, p),
-                        ));
-                    }
-                    let eq = eq.unwrap();
-                    let (name, value) = p.split_at(eq);
-                    let name = name.trim();
-                    let name_lc = name.to_ascii_lowercase();
-
-                    // Parameter names may be ext-token (token followed by '*')
-                    let is_ext = name_lc.ends_with('*');
-
-                    // Validate name token (allow trailing '*')
-                    let bare_name = if is_ext {
-                        &name[..name.len() - 1]
-                    } else {
-                        name
-                    };
-                    if bare_name.is_empty() {
-                        return Some(ctx.by(party).report_with(
-                            &TOKEN_EMPTY,
-                            format!("{} contains empty parameter name", hdr_name),
-                        ));
-                    }
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(bare_name) {
-                        return Some(ctx.by(party).report_with(
-                            token_character(c),
-                            format!(
-                                "{} parameter name contains invalid token character: '{}'",
-                                hdr_name, c
-                            ),
-                        ));
-                    }
-
-                    // check duplicates (case-insensitive, include '*')
-                    if seen.contains(&name_lc) {
-                        return Some(ctx.by(party).report_with(
-                            &CONTENT_DISPOSITION_PARAMETER_DUPLICATED,
-                            format!("{} contains duplicate parameter: '{}'", hdr_name, name),
-                        ));
-                    }
-                    seen.insert(name_lc);
-
-                    let val = value[1..].trim(); // skip '='
-                    if val.is_empty() {
-                        return Some(ctx.by(party).report_with(
-                            &PARAMETER_VALUE_EMPTY,
-                            format!("{} parameter '{}' has empty value", hdr_name, name),
-                        ));
-                    }
-
-                    // Branch on certain well-known parameter names for stronger checks
-                    if !is_ext && name.eq_ignore_ascii_case("filename") {
-                        // filename can be token or quoted-string
-                        if val.starts_with('"') {
-                            // The typed reader rather than the rendering one:
-                            // `validate_quoted_string` is this call plus
-                            // `QuotedStringDefect::message`, so the finding reads
-                            // byte for byte as it did and the defect now has a
-                            // name.
-                            if let Err(defect) =
-                                crate::helpers::quoted_string::check_quoted_string(val)
-                            {
-                                return Some(ctx.by(party).report_with(
-                                    quoted_string_defect(defect),
-                                    format!(
-                                        "{} filename parameter invalid quoted-string: {}",
-                                        hdr_name,
-                                        defect.message(val)
-                                    ),
-                                ));
-                            }
-                        } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val)
-                        {
-                            return Some(ctx.by(party).report_with(
-                                token_character(c),
-                                format!(
-                                    "{} filename parameter contains invalid token character: '{}'",
-                                    hdr_name, c
-                                ),
-                            ));
-                        }
-                    } else if is_ext && name.eq_ignore_ascii_case("filename*") {
-                        // ext-value, whose grammar `validate_ext_value` owns. The pointer
-                        // here said RFC 5987; RFC 8187 obsoletes it and moved it to
-                        // Historic, though the production itself is byte-for-byte the same.
-                        if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
-                            return Some(ctx.by(party).report_with(
-                                &EXT_VALUE_MALFORMED,
-                                format!("{} filename* extended value invalid: {}", hdr_name, e),
-                            ));
-                        }
-                        // The grammar first, then the choice: a value deriving
-                        // from no `ext-value` named no encoding to be forbidden.
-                        if let Some(charset) =
-                            crate::helpers::parameter::ext_value_charset_reserved(val)
-                        {
-                            return Some(ctx.by(party).report_with(
-                                &EXT_VALUE_CHARSET_FORBIDDEN,
-                                format!(
-                                    "{hdr_name} filename* names the character encoding \
-                                     '{charset}', which RFC 8187 §3.2.1 reserves for future \
-                                     use and forbids a producer to write; a recipient built \
-                                     to that document decodes UTF-8 alone"
-                                ),
-                            ));
-                        }
-                    } else if name.eq_ignore_ascii_case("size") {
-                        // allow token or quoted-string with digits only
-                        let raw_val = if val.starts_with('"') {
-                            match crate::helpers::quoted_string::unescape_quoted_string(val) {
-                                Ok(u) => u.trim().to_string(),
-                                Err(defect) => {
-                                    return Some(ctx.by(party).report_with(
-                                        quoted_string_defect(defect),
-                                        format!(
-                                            "{} size parameter invalid quoted-string: {}",
-                                            hdr_name,
-                                            defect.message(val)
-                                        ),
-                                    ))
-                                }
-                            }
-                        } else {
-                            val.to_string()
-                        };
-
-                        if !raw_val.chars().all(|c| c.is_ascii_digit()) {
-                            return Some(ctx.by(party).report_with(
-                                &CONTENT_DISPOSITION_SIZE_INVALID,
-                                format!(
-                                    "{} size parameter must be numeric: '{}'",
-                                    hdr_name, raw_val
-                                ),
-                            ));
-                        }
-                    } else {
-                        // Generic parameter: value should be token or quoted-string; ext-parameters already handled
-                        if is_ext {
-                            // extended parameter value must be ext-value
-                            if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
-                                return Some(ctx.by(party).report_with(
-                                    &EXT_VALUE_MALFORMED,
-                                    format!(
-                                        "{} extended parameter '{}' invalid: {}",
-                                        hdr_name, name, e
-                                    ),
-                                ));
-                            }
-                            if let Some(charset) =
-                                crate::helpers::parameter::ext_value_charset_reserved(val)
-                            {
-                                return Some(ctx.by(party).report_with(
-                                    &EXT_VALUE_CHARSET_FORBIDDEN,
-                                    format!(
-                                        "{hdr_name} extended parameter '{name}' names the \
-                                         character encoding '{charset}', which RFC 8187 \
-                                         §3.2.1 reserves for future use and forbids a \
-                                         producer to write; a recipient built to that \
-                                         document decodes UTF-8 alone"
-                                    ),
-                                ));
-                            }
-                        } else if val.starts_with('"') {
-                            if let Err(defect) =
-                                crate::helpers::quoted_string::check_quoted_string(val)
-                            {
-                                return Some(ctx.by(party).report_with(
-                                    quoted_string_defect(defect),
-                                    format!(
-                                        "{} parameter '{}' invalid quoted-string: {}",
-                                        hdr_name,
-                                        name,
-                                        defect.message(val)
-                                    ),
-                                ));
-                            }
-                        } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val)
-                        {
-                            return Some(ctx.by(party).report_with(
-                                token_character(c),
-                                format!(
-                                    "{} parameter '{}' contains invalid token character: '{}'",
-                                    hdr_name, name, c
-                                ),
-                            ));
-                        }
+                    if let Some((def, message)) = parameter_defect(hdr_name, p, &mut seen) {
+                        out.push(ctx.by(party).report_with(def, message));
                     }
                 }
 
-                None
+                out
             };
 
             // A value outside visible US-ASCII is not decoded here, so there are
@@ -386,15 +209,22 @@ impl Rule for ContentDispositionParameterValid {
             // every octet at or above %x80 as `obs-text`. Reading this field's
             // parameters as written is a conversion this rule has not made; the
             // silence is a conforming value, not a neighbour speaking.
+            // The first field line that has anything wrong with it, and every
+            // defect *that* line carries. `Content-Disposition` is not a list
+            // field and § 5.3 gives no way to recombine two of its lines, so a
+            // second line is `field_line_duplicated`'s subject rather than a
+            // second value to judge -- which is why this walk stops where the
+            // one inside a value does not.
             let check_section =
-                |headers: &hyper::HeaderMap, party: crate::lint::Party| -> Option<Violation> {
+                |headers: &hyper::HeaderMap, party: crate::lint::Party| -> Vec<Violation> {
                     for hv in headers.get_all("content-disposition").iter() {
                         let Ok(s) = hv.to_str() else { continue };
-                        if let Some(v) = check_value("Content-Disposition", s, party) {
-                            return Some(v);
+                        let found = check_value("Content-Disposition", s, party);
+                        if !found.is_empty() {
+                            return found;
                         }
                     }
-                    None
+                    Vec::new()
                 };
 
             if let Some(resp) = &tx.response {
@@ -408,6 +238,197 @@ impl Rule for ContentDispositionParameterValid {
         }
         out
     }
+}
+
+/// What is wrong with one `disposition-parm`, if anything.
+///
+/// Split out of the walk above rather than written inside it: the walk stopped
+/// at its first defective parameter, and a walk that keeps going spells every
+/// one of these as a `continue` instead of a `return` — which is the same
+/// reading with a control-flow shape nobody can follow. The def and the message
+/// come back together so the site chooses neither.
+fn parameter_defect(
+    hdr_name: &str,
+    p: &str,
+    seen: &mut HashSet<String>,
+) -> Option<(&'static crate::violations::ViolationDef, String)> {
+    let eq = p.find('=');
+    if eq.is_none() {
+        return Some((
+            &PARAMETER_EQUALS_MISSING,
+            format!("{} has malformed parameter '{}': missing '='", hdr_name, p),
+        ));
+    }
+    let eq = eq.unwrap();
+    let (name, value) = p.split_at(eq);
+    let name = name.trim();
+    let name_lc = name.to_ascii_lowercase();
+
+    // Parameter names may be ext-token (token followed by '*')
+    let is_ext = name_lc.ends_with('*');
+
+    // Validate name token (allow trailing '*')
+    let bare_name = if is_ext {
+        &name[..name.len() - 1]
+    } else {
+        name
+    };
+    if bare_name.is_empty() {
+        return Some((
+            &TOKEN_EMPTY,
+            format!("{} contains empty parameter name", hdr_name),
+        ));
+    }
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(bare_name) {
+        return Some((
+            token_character(c),
+            format!(
+                "{} parameter name contains invalid token character: '{}'",
+                hdr_name, c
+            ),
+        ));
+    }
+
+    // check duplicates (case-insensitive, include '*')
+    if seen.contains(&name_lc) {
+        return Some((
+            &CONTENT_DISPOSITION_PARAMETER_DUPLICATED,
+            format!("{} contains duplicate parameter: '{}'", hdr_name, name),
+        ));
+    }
+    seen.insert(name_lc);
+
+    let val = value[1..].trim(); // skip '='
+    if val.is_empty() {
+        return Some((
+            &PARAMETER_VALUE_EMPTY,
+            format!("{} parameter '{}' has empty value", hdr_name, name),
+        ));
+    }
+
+    // Branch on certain well-known parameter names for stronger checks
+    if !is_ext && name.eq_ignore_ascii_case("filename") {
+        // filename can be token or quoted-string
+        if val.starts_with('"') {
+            // The typed reader rather than the rendering one:
+            // `validate_quoted_string` is this call plus
+            // `QuotedStringDefect::message`, so the finding reads
+            // byte for byte as it did and the defect now has a
+            // name.
+            if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(val) {
+                return Some((
+                    quoted_string_defect(defect),
+                    format!(
+                        "{} filename parameter invalid quoted-string: {}",
+                        hdr_name,
+                        defect.message(val)
+                    ),
+                ));
+            }
+        } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
+            return Some((
+                token_character(c),
+                format!(
+                    "{} filename parameter contains invalid token character: '{}'",
+                    hdr_name, c
+                ),
+            ));
+        }
+    } else if is_ext && name.eq_ignore_ascii_case("filename*") {
+        // ext-value, whose grammar `validate_ext_value` owns. The pointer
+        // here said RFC 5987; RFC 8187 obsoletes it and moved it to
+        // Historic, though the production itself is byte-for-byte the same.
+        if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
+            return Some((
+                &EXT_VALUE_MALFORMED,
+                format!("{} filename* extended value invalid: {}", hdr_name, e),
+            ));
+        }
+        // The grammar first, then the choice: a value deriving
+        // from no `ext-value` named no encoding to be forbidden.
+        if let Some(charset) = crate::helpers::parameter::ext_value_charset_reserved(val) {
+            return Some((
+                &EXT_VALUE_CHARSET_FORBIDDEN,
+                format!(
+                    "{hdr_name} filename* names the character encoding \
+                     '{charset}', which RFC 8187 §3.2.1 reserves for future \
+                     use and forbids a producer to write; a recipient built \
+                     to that document decodes UTF-8 alone"
+                ),
+            ));
+        }
+    } else if name.eq_ignore_ascii_case("size") {
+        // allow token or quoted-string with digits only
+        let raw_val = if val.starts_with('"') {
+            match crate::helpers::quoted_string::unescape_quoted_string(val) {
+                Ok(u) => u.trim().to_string(),
+                Err(defect) => {
+                    return Some((
+                        quoted_string_defect(defect),
+                        format!(
+                            "{} size parameter invalid quoted-string: {}",
+                            hdr_name,
+                            defect.message(val)
+                        ),
+                    ));
+                }
+            }
+        } else {
+            val.to_string()
+        };
+
+        if !raw_val.chars().all(|c| c.is_ascii_digit()) {
+            return Some((
+                &CONTENT_DISPOSITION_SIZE_INVALID,
+                format!("{} size parameter must be numeric: '{}'", hdr_name, raw_val),
+            ));
+        }
+    } else {
+        // Generic parameter: value should be token or quoted-string; ext-parameters already handled
+        if is_ext {
+            // extended parameter value must be ext-value
+            if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
+                return Some((
+                    &EXT_VALUE_MALFORMED,
+                    format!("{} extended parameter '{}' invalid: {}", hdr_name, name, e),
+                ));
+            }
+            if let Some(charset) = crate::helpers::parameter::ext_value_charset_reserved(val) {
+                return Some((
+                    &EXT_VALUE_CHARSET_FORBIDDEN,
+                    format!(
+                        "{hdr_name} extended parameter '{name}' names the \
+                         character encoding '{charset}', which RFC 8187 \
+                         §3.2.1 reserves for future use and forbids a \
+                         producer to write; a recipient built to that \
+                         document decodes UTF-8 alone"
+                    ),
+                ));
+            }
+        } else if val.starts_with('"') {
+            if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(val) {
+                return Some((
+                    quoted_string_defect(defect),
+                    format!(
+                        "{} parameter '{}' invalid quoted-string: {}",
+                        hdr_name,
+                        name,
+                        defect.message(val)
+                    ),
+                ));
+            }
+        } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
+            return Some((
+                token_character(c),
+                format!(
+                    "{} parameter '{}' contains invalid token character: '{}'",
+                    hdr_name, name, c
+                ),
+            ));
+        }
+    }
+
+    None
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -546,6 +567,54 @@ mod tests {
         } else {
             assert!(v.is_none(), "did not expect violation for '{:?}'", value);
         }
+    }
+
+    /// Every finding one `Content-Disposition` value draws.
+    fn all_disposition(value: &str) -> Vec<Violation> {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-disposition", value)]);
+        crate::test_helpers::run_rule_all(
+            &ContentDispositionParameterValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_disposition_parameter_valid",
+            ]),
+        )
+    }
+
+    /// **Every defective parameter of one value is answered.**
+    /// `content-disposition = disposition-type *( ";" disposition-parm )`
+    /// writes them beside each other, so a value naming two badly is two
+    /// things to correct and a walk that stopped at the first named one.
+    #[test]
+    fn every_defective_parameter_is_reported() {
+        let found = all_disposition("attachment; a; filename=@bad@");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["parameter_equals_missing", "token_character_forbidden"],
+            "{found:?}"
+        );
+        assert_ne!(found[0].message, found[1].message);
+    }
+
+    /// Three of them, so the count is a count and not the pair the fix was
+    /// written against.
+    #[test]
+    fn three_defective_parameters_are_three_findings() {
+        let found = all_disposition("attachment; a; b; filename=@bad@");
+        assert_eq!(found.len(), 3, "{found:?}");
+    }
+
+    /// The other direction: a value carrying several well-formed parameters
+    /// draws nothing at all.
+    #[test]
+    fn a_conforming_value_with_several_parameters_is_silent() {
+        assert!(all_disposition("attachment; filename=\"a.txt\"; size=42").is_empty());
     }
 
     #[test]

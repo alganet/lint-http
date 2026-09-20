@@ -281,13 +281,9 @@ impl Rule for ExpectHeaderValid {
                 // The one gate inside the walk: a member that does not derive
                 // from `expectation` has no name for the readings below to
                 // compare against `100-continue`.
-                let e = match parse_expectation(member) {
-                    Ok(e) => e,
-                    Err(defect) => {
-                        out.push(report(defect));
-                        continue;
-                    }
-                };
+                let (parsed, defects) = parse_expectation(member);
+                out.extend(defects.into_iter().map(&report));
+                let Some(e) = parsed else { continue };
                 if hundred_continue.is_none() && e.name.eq_ignore_ascii_case(HUNDRED_CONTINUE) {
                     hundred_continue = Some(e);
                 }
@@ -427,7 +423,14 @@ fn members_of(value: &str) -> Option<Vec<&str>> {
 ///
 /// cite(RFC 9110 § 10.1.1): "expectation = token [ "=" ( token / quoted-string ) parameters ]"
 /// cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect> {
+/// **The member's own readings answer once; its parameters answer one apiece.**
+/// `expectation = token [ "=" ( token / quoted-string ) parameters ]` reads the
+/// name, the `=` and the value left to right, and each of those steps reads
+/// text the one before it delimited -- so the first of them that fails ends the
+/// member, and the `Option` is `None` exactly there. `parameters = *( OWS ";"
+/// OWS [ parameter ] )` is a repetition instead: the parameters sit beside each
+/// other, so an expectation writing two of them badly is two things to correct.
+pub(crate) fn parse_expectation(member: &str) -> (Option<Expectation<'_>>, Vec<Defect>) {
     // The name is the leading run of `tchar`; what stops it is either the `=`
     // the production writes or an octet the member had no business carrying.
     let name_end = token_run_end(member);
@@ -436,33 +439,39 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect>
         // `token = 1*tchar`, and a member opening with an octet that is not one
         // has written the expectation's name as nothing at all — arithmetic on
         // the production, which is the def rather than this field's verdict.
-        return Err(Defect::named(
-            &TOKEN_EMPTY,
-            format!(
-                "Expect member '{}' does not begin with a token: found {}",
-                crate::helpers::shown::shown_in_finding(member),
-                first_octet_of(member)
-            ),
-        ));
+        return (
+            None,
+            vec![Defect::named(
+                &TOKEN_EMPTY,
+                format!(
+                    "Expect member '{}' does not begin with a token: found {}",
+                    crate::helpers::shown::shown_in_finding(member),
+                    first_octet_of(member)
+                ),
+            )],
+        );
     }
 
     let tail = &member[name_end..];
     let Some(stopper) = tail.chars().next() else {
-        return Ok(Expectation { name, member });
+        return (Some(Expectation { name, member }), Vec::new());
     };
     if stopper != '=' {
         // The shape of the member rather than the name, which is a well-formed
         // token that simply ended here — so the entry is the field's assembly
         // and not the `token` subject's.
-        return Err(Defect::named(
-            &EXPECT_MEMBER_MALFORMED,
-            format!(
+        return (
+            None,
+            vec![Defect::named(
+                &EXPECT_MEMBER_MALFORMED,
+                format!(
                 "Invalid octet {} after the Expect expectation name '{}': the production admits \
                  only '=' there, and `parameters` are inside the group the '=' opens",
                 describe_octet(stopper as u8),
                 crate::helpers::shown::shown_in_finding(name)
             ),
-        ));
+            )],
+        );
     }
     let rest = &tail[1..];
 
@@ -470,19 +479,22 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect>
     // starts at the very next octet.
     let after_value = if rest.starts_with('"') {
         let Some(end) = quoted_string_end(rest) else {
-            return Err(Defect::named(
-                &QUOTED_STRING_DELIMITER_MISSING,
-                format!(
-                    "Expect member '{}' has a quoted-string that is never terminated",
-                    crate::helpers::shown::shown_in_finding(member)
-                ),
-            ));
+            return (
+                None,
+                vec![Defect::named(
+                    &QUOTED_STRING_DELIMITER_MISSING,
+                    format!(
+                        "Expect member '{}' has a quoted-string that is never terminated",
+                        crate::helpers::shown::shown_in_finding(member)
+                    ),
+                )],
+            );
         };
         // `check_quoted_string` rather than `validate_quoted_string`: the same
         // reading before it renders, so the message is unchanged and the defect
         // arrives with a name.
         let quoted = &rest[..=end];
-        check_quoted_string(quoted).map_err(|defect| {
+        let quoted_defect = check_quoted_string(quoted).map_err(|defect| {
             Defect::named(
                 quoted_string_defect(defect),
                 format!(
@@ -491,7 +503,10 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect>
                     defect.message(quoted)
                 ),
             )
-        })?;
+        });
+        if let Err(defect) = quoted_defect {
+            return (None, vec![defect]);
+        }
         &rest[end + 1..]
     } else {
         // A `token` value runs to the first octet no `tchar` admits; whatever
@@ -503,21 +518,25 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect>
             // `parameter_value_empty` answers for a parameter rather than for
             // whatever else `( token / quoted-string )` is read as. So the field
             // says it, in the field's subject.
-            return Err(Defect::named(
-                &EXPECT_VALUE_EMPTY,
-                format!(
+            return (
+                None,
+                vec![Defect::named(
+                    &EXPECT_VALUE_EMPTY,
+                    format!(
                     "Expect member '{}' has '=' with no token or quoted-string after it: found {}",
                     crate::helpers::shown::shown_in_finding(member),
                     first_octet_of(rest)
                 ),
-            ));
+                )],
+            );
         }
         &rest[end..]
     };
 
-    validate_parameters(after_value, member)?;
-
-    Ok(Expectation { name, member })
+    (
+        Some(Expectation { name, member }),
+        validate_parameters(after_value, member),
+    )
 }
 
 /// Name the octet a parse stopped on, or say there was none.
@@ -534,11 +553,11 @@ fn first_octet_of(s: &str) -> String {
 /// cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
 /// cite(RFC 9110 § 5.6.6): "parameter-name  = token"
 /// cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
+fn validate_parameters(after_value: &str, member: &str) -> Vec<Defect> {
     // `*( … )` — an expectation whose value ends the member has none, which is
     // the ordinary case and needs no splitting to establish.
     if after_value.is_empty() {
-        return Ok(());
+        return Vec::new();
     }
 
     // The splitter trims `OWS` off each segment, which is exactly the `OWS` the
@@ -555,16 +574,21 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
         // The expectation's own shape again, and the same entry: what is wrong
         // is that the value ended and the member did not, which no parameter
         // defect describes and which the position does not change.
-        return Err(Defect::named(
+        return vec![Defect::named(
             &EXPECT_MEMBER_MALFORMED,
             format!(
                 "Expect member '{}' has octets after its value that are not parameters: '{}'",
                 crate::helpers::shown::shown_in_finding(member),
                 crate::helpers::shown::shown_in_finding(segments[0])
             ),
-        ));
+        )];
     }
 
+    // One finding per parameter. `parameters = *( OWS ";" OWS [ parameter ] )`
+    // writes them beside each other, so an expectation naming two of them badly
+    // is two things to correct — the repetition one level below the walk over
+    // `#expectation`, which was closed while this one still answered once.
+    let mut out = Vec::new();
     for seg in &segments[1..] {
         let seg = *seg;
         // `[ parameter ]` — the production makes each one optional, so `a=b;`
@@ -579,7 +603,7 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
         let Ok(parameter) =
             crate::helpers::parameter::parameter_of(seg).expect("the empty segment returned above")
         else {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 &PARAMETER_EQUALS_MISSING,
                 format!(
                     "Expect member '{}' has a parameter with no value: '{}'",
@@ -587,6 +611,7 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
                     crate::helpers::shown::shown_in_finding(seg)
                 ),
             ));
+            continue;
         };
         let (pname, pvalue) = (parameter.name, parameter.value);
 
@@ -606,7 +631,7 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
         //
         // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
         if parameter.whitespace_beside_equals {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
                 format!(
                     "Expect member '{}' writes whitespace beside the '=' of parameter '{}'; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
@@ -614,9 +639,10 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
                     crate::helpers::shown::shown_in_finding(seg)
                 ),
             ));
+            continue;
         }
         if pname.is_empty() {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 &TOKEN_EMPTY,
                 format!(
                     "Expect member '{}' has a parameter with no name: '{}'",
@@ -624,9 +650,10 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
                     crate::helpers::shown::shown_in_finding(seg)
                 ),
             ));
+            continue;
         }
         if let Some(c) = find_invalid_token_char(pname) {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 token_character(c),
                 format!(
                     "Invalid octet {} in Expect parameter name '{}'",
@@ -634,6 +661,7 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
                     crate::helpers::shown::shown_in_finding(pname)
                 ),
             ));
+            continue;
         }
         // `parameter-value = ( token / quoted-string )`, read by the function
         // that owns the alternation -- a ninth copy of it, found while giving the
@@ -644,39 +672,42 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
         match crate::helpers::word::token_or_quoted_string(pvalue) {
             Ok(_) => {}
             Err(crate::helpers::word::WordDefect::Empty) => {
-                return Err(Defect::named(
+                out.push(Defect::named(
                     &PARAMETER_VALUE_EMPTY,
                     format!(
                         "Expect member '{}' has a parameter with an empty value: '{}'",
                         crate::helpers::shown::shown_in_finding(member),
                         crate::helpers::shown::shown_in_finding(seg)
                     ),
-                ))
+                ));
+                continue;
             }
             Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => {
-                return Err(Defect::named(
+                out.push(Defect::named(
                     quoted_string_defect(defect),
                     format!(
                         "Invalid quoted-string in Expect parameter '{}': {}",
                         crate::helpers::shown::shown_in_finding(seg),
                         defect.message(pvalue)
                     ),
-                ))
+                ));
+                continue;
             }
             Err(crate::helpers::word::WordDefect::NotToken(c)) => {
-                return Err(Defect::named(
+                out.push(Defect::named(
                     token_character(c),
                     format!(
                         "Invalid octet {} in Expect parameter value '{}'",
                         describe_octet(c as u8),
                         crate::helpers::shown::shown_in_finding(pvalue)
                     ),
-                ))
+                ));
+                continue;
             }
         }
     }
 
-    Ok(())
+    out
 }
 
 /// Whether a header section carries a `100-continue` expectation, for the one
@@ -695,7 +726,7 @@ fn carries_hundred_continue(headers: &hyper::HeaderMap) -> bool {
             // not this expectation costs a `tchar` run rather than a full parse
             // and the error string that parse would have built and thrown away.
             m[..token_run_end(m)].eq_ignore_ascii_case(HUNDRED_CONTINUE)
-                && parse_expectation(m).is_ok()
+                && parse_expectation(m).1.is_empty()
         })
     })
 }
@@ -765,6 +796,49 @@ mod tests {
             "{:?}",
             found.iter().map(|v| &v.message).collect::<Vec<_>>()
         );
+    }
+
+    /// **Every defective parameter of one expectation is answered.**
+    /// `parameters = *( OWS ";" OWS [ parameter ] )` sits inside the optional
+    /// group `expectation` opens, and writes each parameter beside the others.
+    /// The walk over `#expectation` was closed already; this is the repetition
+    /// one level down inside a member.
+    #[test]
+    fn every_defective_parameter_of_one_expectation_is_reported() {
+        let found = judge_all(&tx_with_expect_lines(&[b"foo=bar;a;b=@"]));
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["parameter_equals_missing", "token_character_forbidden"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert_ne!(found[0].message, found[1].message);
+    }
+
+    /// A member that is no `expectation` at all still answers once: the
+    /// parameters live inside the group the `=` opens, so with no value for
+    /// them to follow there is nothing for a parameter finding to be about.
+    #[test]
+    fn a_member_that_is_no_expectation_ends_at_that() {
+        let found = judge_all(&tx_with_expect_lines(&[b"@foo=bar;a;b=@"]));
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["token_empty"],
+            "{found:?}"
+        );
+    }
+
+    /// The other direction: an expectation carrying several well-formed
+    /// parameters draws nothing at all.
+    #[test]
+    fn a_conforming_expectation_with_several_parameters_is_silent() {
+        assert!(judge_all(&tx_with_expect_lines(&[b"wait=long;level=9;mode=strict"])).is_empty());
     }
 
     fn judge_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
@@ -1112,7 +1186,9 @@ mod tests {
         // `HeaderValue` refuses these octets outright, so a capture cannot carry
         // one to the rule. The production still forbids them, and the check that
         // owns it is shared with the rules whose values arrive by other routes.
-        let defect = parse_expectation(member).expect_err("control octet");
+        let defects = parse_expectation(member).1;
+        assert_eq!(defects.len(), 1);
+        let defect = &defects[0];
         assert!(
             defect.message.contains("Control character"),
             "{}",

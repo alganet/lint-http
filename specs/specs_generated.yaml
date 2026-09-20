@@ -3972,7 +3972,7 @@ sources:
     snippet: This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 370
+      line: 404
     - file: lint-http-rules/src/violations/forwarded.rs
       line: 28
   - label: forwarded_header_valid (2)
@@ -3980,7 +3980,7 @@ sources:
     snippet: Each parameter MUST NOT occur more than once per field-value.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 217
+      line: 229
     - file: lint-http-rules/src/violations/forwarded.rs
       line: 168
   - label: Forwarded grammar
@@ -3988,19 +3988,19 @@ sources:
     snippet: Forwarded   = 1#forwarded-element
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 371
+      line: 405
   - label: forwarded_header_valid (3)
     section: § 4
     snippet: Note that as ":" and "[]" are not valid characters in "token", IPv6 addresses are written as "quoted-string".
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 278
+      line: 301
   - label: forwarded_header_valid (4)
     section: § 4
     snippet: The parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 258
+      line: 280
   - label: forwarded_header_valid (5)
     section: § 5.1
     snippet: The syntax of a "by" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6.
@@ -4034,27 +4034,27 @@ sources:
     snippet: All extension parameters SHOULD be registered in the "HTTP Forwarded Parameter" registry.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 339
+      line: 373
   - label: forwarded_header_valid (10)
     section: § 6
     snippet: It is important to note that an IPv6 address and any nodename with node-port specified MUST be quoted, since ":" is not an allowed character in "token".
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 279
+      line: 302
   - label: forwarded_header_valid (11)
     section: § 7.1
     snippet: Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 201
+      line: 208
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 538
+      line: 572
   - label: forwarded_header_valid (12)
     section: § 9
     snippet: New parameters and their values MUST conform with the forwarded-pair as defined in ABNF in Section 4.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 340
+      line: 374
   - label: lint-http-rules/src/helpers/forwarded_node.rs
     section: § 6
     snippet: To distinguish an "obfport" from a port, the "obfport" MUST have a leading underscore. Further, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-".
@@ -6111,7 +6111,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 363
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 429
+      line: 425
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 299
     - file: lint-http-rules/src/rules/http_version_syntax.rs
@@ -7029,13 +7029,13 @@ sources:
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 310
+      line: 306
   - label: expect_header_valid (2)
     section: § 10.1.1
     snippet: A client MUST NOT generate a 100-continue expectation in a request that does not include content.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 309
+      line: 305
     - file: lint-http-rules/src/violations/expect.rs
       line: 121
   - label: expect_header_valid (3)
@@ -7043,7 +7043,7 @@ sources:
     snippet: A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server).
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 336
+      line: 332
     - file: lint-http-rules/src/violations/status.rs
       line: 526
   - label: expect_header_valid (4)
@@ -7051,7 +7051,7 @@ sources:
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 361
+      line: 357
   - label: expect_header_valid (5)
     section: § 10.1.1
     snippet: The Expect field value is case-insensitive.
@@ -7073,7 +7073,7 @@ sources:
     snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 428
+      line: 424
     - file: lint-http-rules/src/violations/expect.rs
       line: 70
     - file: lint-http-rules/src/violations/expect.rs
@@ -7083,7 +7083,7 @@ sources:
     snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 335
+      line: 331
   - label: expect_header_valid (8)
     section: § A
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
@@ -7101,7 +7101,7 @@ sources:
     snippet: Parameters in media type, media range, and expectation can be empty via one or more trailing semicolons.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 575
+      line: 599
   - label: extension_headers_registered
     section: § 16.3
     snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
@@ -7683,7 +7683,7 @@ sources:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
       line: 129
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 395
+      line: 429
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 475
     - file: lint-http-rules/src/rules/status_code_semantics.rs
@@ -7881,7 +7881,7 @@ sources:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 226
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 372
+      line: 406
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 238
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -8427,7 +8427,7 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 208
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 583
+      line: 617
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 754
     - file: lint-http-rules/src/violations/quoted_pair.rs
@@ -8507,7 +8507,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 485
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 607
+      line: 632
     - file: lint-http-rules/src/violations/parameter.rs
       line: 132
   - label: lint-http-rules/src/helpers/media_type.rs (3)
@@ -8535,7 +8535,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 418
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 535
+      line: 554
   - label: parameter-value grammar
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
@@ -8545,7 +8545,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 26
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 536
+      line: 555
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 95
     - file: lint-http-rules/src/violations/parameter.rs
@@ -8563,7 +8563,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 235
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 533
+      line: 552
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 281
   - label: lint-http-rules/src/helpers/media_type.rs (6)
@@ -8629,7 +8629,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 108
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 534
+      line: 553
     - file: lint-http-rules/src/violations/parameter.rs
       line: 70
     - file: lint-http-rules/src/violations/parameter.rs

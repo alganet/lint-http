@@ -191,7 +191,14 @@ impl ForwardedHeaderValid {
     /// The element arrives trimmed of the whitespace the *list* allows around
     /// its commas. Everything inside it is the element's own production, which
     /// has no `OWS` in it anywhere.
-    fn check_element(&self, elem: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+    ///
+    /// **The pairs of one element are a repetition and answer one apiece.**
+    /// `forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )`
+    /// writes them beside each other, so an element whose `by` names no node
+    /// and whose `proto` names no scheme is two corrections on one hop — and
+    /// the walk over the elements above was closed while this walk, one level
+    /// down inside an element, still answered once.
+    fn check_element(&self, elem: &str, ctx: &crate::rules::RuleContext<'_>) -> Vec<Violation> {
         // §7.1's whitespace is the list's, between elements; the element itself
         // is `[ forwarded-pair ] *( ";" [ forwarded-pair ] )` and generates none
         // — not around a semicolon, not around the `=`. Asked here, quote-aware,
@@ -200,13 +207,18 @@ impl ForwardedHeaderValid {
         //
         // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
         if let Some(c) = whitespace_outside_quotes(elem) {
-            return Some(ctx.by_client().report_with(
+            // Ends the element. Whitespace the production never prints makes
+            // every boundary below a guess -- which of `for= 1;by=2`'s halves
+            // the space belongs to is exactly what the grammar was going to
+            // decide -- so a claim about the pairs would be a claim about a
+            // reading that did not happen.
+            return vec![ctx.by_client().report_with(
                 &FORWARDED_ELEMENT_WHITESPACE_FORBIDDEN,
                 format!(
                     "Forwarded element holds whitespace its grammar does not admit ({:?} in '{}')",
                     c, elem
                 ),
-            ));
+            )];
         }
 
         // Each parameter at most once, in this element. Two elements naming the
@@ -217,6 +229,7 @@ impl ForwardedHeaderValid {
         // cite(RFC 7239 § 4): "Each parameter MUST NOT occur more than once per field-value."
         let mut seen: Vec<String> = Vec::new();
 
+        let mut out = Vec::new();
         for param in split_semicolons_respecting_quotes(elem) {
             // `[ forwarded-pair ]` — the pair is optional at every position, so
             // `for=192.0.2.1;;proto=https` names two parameters and nothing else.
@@ -225,10 +238,14 @@ impl ForwardedHeaderValid {
             }
 
             let Some((name, raw_value)) = param.split_once('=') else {
-                return Some(ctx.by_client().report_with(
+                out.push(ctx.by_client().report_with(
                     &FORWARDED_PAIR_EQUALS_MISSING,
-                    format!("Forwarded parameter '{}' has no '=' and no value", param),
+                    format!(
+                        "Forwarded element '{}' has a parameter '{}' with no '=' and no value",
+                        elem, param
+                    ),
                 ));
+                continue;
             };
 
             // `token` is `1*tchar`: a name is never empty, and `find_invalid_token_char`
@@ -236,35 +253,41 @@ impl ForwardedHeaderValid {
             // The floor belongs to the production and not to this field, which
             // is the same reading that sends the character below to `token`.
             if name.is_empty() {
-                return Some(ctx.by_client().report_with(
+                out.push(ctx.by_client().report_with(
                     &TOKEN_EMPTY,
-                    format!("Forwarded parameter '{}' has no name", param),
+                    format!(
+                        "Forwarded element '{}' has a parameter '{}' with no name",
+                        elem, param
+                    ),
                 ));
+                continue;
             }
             // The name production is `token`, whole and unmodified, so the
             // character that fails it is the `token` subject's defect and not
             // this field's — the same id a media type's parameter name, a
             // cache directive and seventy-six other sites report.
             if let Some(c) = find_invalid_token_char(name) {
-                return Some(ctx.by_client().report_with(
+                out.push(ctx.by_client().report_with(
                     token_character(c),
                     format!(
-                        "Forwarded parameter name '{}' is not a token ({:?} is not a tchar)",
-                        name, c
+                        "Forwarded element '{}' has a parameter name '{}' that is not a token ({:?} is not a tchar)",
+                        elem, name, c
                     ),
                 ));
+                continue;
             }
 
             // cite(RFC 7239 § 4): "The parameter names are case-insensitive."
             let name_lc = name.to_ascii_lowercase();
             if seen.contains(&name_lc) {
-                return Some(ctx.by_client().report_with(
+                out.push(ctx.by_client().report_with(
                     &FORWARDED_PARAMETER_DUPLICATED,
                     format!(
                         "Forwarded element names the '{}' parameter more than once: '{}'",
                         name_lc, elem
                     ),
                 ));
+                continue;
             }
             seen.push(name_lc.clone());
 
@@ -286,14 +309,16 @@ impl ForwardedHeaderValid {
                     // The message still names the parameter, because that is what
                     // this rule knows and the catalogue does not.
                     Err(defect) => {
-                        return Some(ctx.by_client().report_with(
+                        out.push(ctx.by_client().report_with(
                             quoted_string_defect(defect),
                             format!(
-                                "Forwarded '{}' is not a well-formed quoted-string: {}",
+                                "Forwarded element '{}' has a '{}' that is not a well-formed quoted-string: {}",
+                                elem,
                                 name,
                                 defect.message(raw_value)
                             ),
-                        ))
+                        ));
+                        continue;
                     }
                 }
             } else {
@@ -303,28 +328,37 @@ impl ForwardedHeaderValid {
                 // nothing. One entry, and the parameter named in the message is
                 // what tells the two apart.
                 if raw_value.is_empty() {
-                    return Some(ctx.by_client().report_with(
+                    out.push(ctx.by_client().report_with(
                         &FORWARDED_PAIR_VALUE_EMPTY,
-                        format!("Forwarded parameter '{}' has no value", param),
-                    ));
-                }
-                if let Some(c) = find_invalid_token_char(raw_value) {
-                    return Some(ctx.by_client().report_with(
-                        token_character(c),
                         format!(
-                            "Forwarded '{}' value '{}' is neither a token ({:?} is not a tchar) nor a quoted-string",
-                            name, raw_value, c
+                            "Forwarded element '{}' has a parameter '{}' with no value",
+                            elem, param
                         ),
                     ));
+                    continue;
+                }
+                if let Some(c) = find_invalid_token_char(raw_value) {
+                    out.push(ctx.by_client().report_with(
+                        token_character(c),
+                        format!(
+                            "Forwarded element '{}' has a '{}' whose value '{}' is neither a token ({:?} is not a tchar) nor a quoted-string",
+                            elem, name, raw_value, c
+                        ),
+                    ));
+                    continue;
                 }
                 raw_value.to_string()
             };
 
             if value.is_empty() {
-                return Some(ctx.by_client().report_with(
+                out.push(ctx.by_client().report_with(
                     &FORWARDED_PAIR_VALUE_EMPTY,
-                    format!("Forwarded parameter '{}' has no value", param),
+                    format!(
+                        "Forwarded element '{}' has a parameter '{}' with no value",
+                        elem, param
+                    ),
                 ));
+                continue;
             }
 
             let finding = match name_lc.as_str() {
@@ -345,11 +379,11 @@ impl ForwardedHeaderValid {
             // production the value was measured against, and the severity from
             // that def rather than from this rule.
             if let Some((def, message)) = finding {
-                return Some(ctx.by_client().report_with(def, message));
+                out.push(ctx.by_client().report_with(def, message));
             }
         }
 
-        None
+        out
     }
 
     /// One `Forwarded` field line.
@@ -1058,13 +1092,66 @@ mod tests {
         }
     }
 
+    /// **Every defective pair of one element is answered.**
+    /// `forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )`
+    /// writes the pairs beside each other, so one hop naming its node badly
+    /// and its protocol badly is two corrections. The walk over the elements
+    /// was closed already; this is the repetition inside an element.
+    #[test]
+    fn every_defective_pair_of_one_element_is_reported() {
+        let found = judge_all(&["for=1.2.3.4;b@y=x;proto=@"]);
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["token_character_forbidden", "token_character_forbidden"],
+            "{found:?}"
+        );
+        assert_ne!(found[0].message, found[1].message);
+    }
+
+    /// Two elements writing the same defective pair are two sentences that can
+    /// be told apart, because each names the element it is about — which is
+    /// the hop an operator has to go and look at.
+    #[test]
+    fn two_elements_with_the_same_bad_pair_name_their_own() {
+        let found = judge_all(&["for=@;by=1.2.3.4, for=@;by=5.6.7.8"]);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_ne!(found[0].message, found[1].message);
+    }
+
+    /// Whitespace the element's grammar never prints ends the element. Which
+    /// half of `for= 1;by=2` the space belongs to is what the grammar was
+    /// going to decide, so a claim about the pairs would be a claim about a
+    /// reading that did not happen.
+    #[test]
+    fn whitespace_in_an_element_ends_it() {
+        let found = judge_all(&["for= 1;b@y=2"]);
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["forwarded_element_whitespace_forbidden"],
+            "{found:?}"
+        );
+    }
+
+    /// The other direction: an element carrying four well-formed pairs draws
+    /// nothing at all.
+    #[test]
+    fn a_conforming_element_with_four_pairs_is_silent() {
+        assert!(judge_all(&["for=1.2.3.4;by=5.6.7.8;host=example.com;proto=https"]).is_empty());
+    }
+
     #[test]
     fn a_pair_needs_a_token_name_and_a_value() {
         for (value, expected) in [
             ("for", "no '=' and no value"),
-            ("=192.0.2.1", "has no name"),
-            ("foo=", "has no value"),
-            ("for=\"\"", "has no value"),
+            ("=192.0.2.1", "with no name"),
+            ("foo=", "with no value"),
+            ("for=\"\"", "with no value"),
             ("@=1", "is not a token"),
             ("foo=\"bar\"x", "well-formed quoted-string"),
             ("foo=bad@value", "neither a token"),
