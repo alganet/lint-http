@@ -95,7 +95,7 @@ impl RuleMeta for MustRevalidateEnforced {
     }
 
     fn description(&self) -> &'static str {
-        "The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.\n\nThis rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  The request now presented must be one that stored response was allowed to answer in the first place (§4): the same method, or a `HEAD` against a stored `GET`, presenting the same selecting header fields under the response's `Vary` (§4.1) — an entry stored for one variant could not have answered a request for another, so no validator was declined. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method.  A stored `GET` is likewise no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and where nothing could have been reused there is no reuse to report.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.\n\n**The reuse the directive forbids is not what this reads.** §5.2.2.2 binds a cache, and this implementation watches the wire between a client and an origin: had the client's cache reused the stale entry, no request would have crossed it. Every finding here therefore sits on a request the cache did *not* satisfy — the directive honoured — and what it reports is the narrower fact the wire carries, that a validator the client held went unsent and a full body came back where a `304` would have served. The level follows: a `warn` whose obligation is unstated, because the `MUST NOT` binds the cache and not the client the finding names. **And § 3 comes before § 4.** A prior response carrying `no-store` is one no cache was permitted to store, so there is no entry for the later request to have reused and no validator the client could have sent; the search skips such a response rather than stopping at it, because an entry an earlier exchange left is still stored. The directive on the earlier request has the same effect (RFC 9111 §5.2.1.5). `no-cache, no-store, must-revalidate` is one of the commonest `Cache-Control` lines on the web, and while it drew this finding there was no request a client could make that drew nothing: sending the validator instead draws `cache_control_no_store_ignored`.\n\nThis stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled."
+        "The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.\n\nThis rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  The request now presented must be one that stored response was allowed to answer in the first place (§4): the same method, or a `HEAD` against a stored `GET`, presenting the same selecting header fields under the response's `Vary` (§4.1) — an entry stored for one variant could not have answered a request for another, so no validator was declined. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method.  A stored `GET` is likewise no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method, and where nothing could have been reused there is no reuse to report.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.\n\n**The reuse the directive forbids is not what this reads.** §5.2.2.2 binds a cache, and this implementation watches the wire between a client and an origin: had the client's cache reused the stale entry, no request would have crossed it. Every finding here therefore sits on a request the cache did *not* satisfy — the directive honoured — and what it reports is the narrower fact the wire carries, that a validator the client held went unsent and a full body came back where a `304` would have served. The level follows: a `warn` whose obligation is unstated, because the `MUST NOT` binds the cache and not the client the finding names. **And the saving has to be one this exchange could have made.** A `304` stands in for a `200` and for nothing else (RFC 9110 §15.4.5), so a request the origin refused — a `412`, a `400`, anything that never reached the representation — resent no body for a validator to have spared; and a `HEAD` answer carries no content at any status (RFC 9110 §9.3.2), so there too the precondition would have bought nothing. On those shapes the rule is silent, because the sentence would otherwise name a body that never crossed the wire. **And § 3 comes before § 4.** A prior response carrying `no-store` is one no cache was permitted to store, so there is no entry for the later request to have reused and no validator the client could have sent; the search skips such a response rather than stopping at it, because an entry an earlier exchange left is still stored. The directive on the earlier request has the same effect (RFC 9111 §5.2.1.5). `no-cache, no-store, must-revalidate` is one of the commonest `Cache-Control` lines on the web, and while it drew this finding there was no request a client could make that drew nothing: sending the validator instead draws `cache_control_no_store_ignored`.\n\nThis stateful check complements the existing `max_age_directive_valid` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -142,9 +142,19 @@ impl RuleMeta for MustRevalidateEnforced {
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# later, after expiry, a different method on the same resource:\n> OPTIONS /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 405 Method Not Allowed\n\n# no cache answers an OPTIONS from a stored GET, so nothing was reused",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a request the origin refused, so no body was resent"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# later, after expiry, an If-Match the origin declines:\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-Match: \"other\"\n\n< HTTP/1.1 412 Precondition Failed\n\n# the origin never reached the representation, so nothing was resent and\n# no 304 could have replaced what came back",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a HEAD, whose answer carries no content either way"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# later, after expiry, the client asks for metadata only:\n> HEAD /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n\n# a HEAD response sends no content, so the validator would have spared\n# no body and there is no saving to report",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— a stale entry's validator held back"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# several seconds later the client fetches again but omits validators\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: the client held \"v1\" for a stale must-revalidate entry and\n# asked again without it, so a full body came back where a 304 would have done",
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# several seconds later the client fetches again but omits validators\n> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, must-revalidate\n< ETag: \"v1\"\n\n# violation: the client held \"v1\" for a stale must-revalidate entry and\n# asked again without it, so a full body came back where a 304 would have done",
             },
         ]
     }
@@ -238,7 +248,24 @@ impl Rule for MustRevalidateEnforced {
             // block, not machine-citeable), so stale is `>=` — which also makes a zero lifetime
             // (max-age=0 or no explicit freshness) immediately stale.
             // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has."
-            if current_age >= freshness_lifetime && !has_conditional {
+            // The saving is the whole of what this entry still claims, so the
+            // exchange has to be one that could have made it. A `304` stands in
+            // for a `200` and for nothing else -- a request the origin refused
+            // never reached the representation, so no body was resent and no
+            // `304` could have replaced what came back. And a `HEAD` response
+            // carries no content at any status, so there the validator would
+            // have bought nothing either. On every other shape the sentence
+            // below names a body that never crossed the wire.
+            // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
+            // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            let a_304_would_have_spared_content =
+                tx.response.as_ref().is_some_and(|resp| resp.status == 200)
+                    && !tx.request.method.eq_ignore_ascii_case("HEAD");
+
+            if current_age >= freshness_lifetime
+                && !has_conditional
+                && a_304_would_have_spared_content
+            {
                 // warn only if there was a validator on the original response
                 let has_validator = prev_resp.headers.contains_key("etag")
                     || prev_resp.headers.contains_key("last-modified");
@@ -270,6 +297,16 @@ static REGISTRATION: &dyn crate::rules::Rule = &MustRevalidateEnforced;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The request now presented, together with the answer the entry's sentence
+    /// assumes: a `200` that carried the representation a `304` would have
+    /// spared. [`crate::test_helpers::make_test_transaction`] leaves the
+    /// response `None`, and an exchange nothing answered resent no body, so a
+    /// case expecting a finding has to say what came back. The cases expecting
+    /// none say it too, so that the answer is never what makes them pass.
+    fn presented_exchange() -> crate::http_transaction::HttpTransaction {
+        crate::test_helpers::make_test_transaction_with_response(200, &[])
+    }
 
     fn make_prev(
         status: u16,
@@ -310,7 +347,7 @@ mod tests {
         );
         prev.timestamp = base;
         prev.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(stored));
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(presented));
@@ -346,7 +383,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -365,7 +402,7 @@ mod tests {
     #[test]
     fn no_history_no_violation() {
         let rule = MustRevalidateEnforced;
-        let tx = crate::test_helpers::make_test_transaction();
+        let tx = presented_exchange();
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -382,7 +419,7 @@ mod tests {
         let rule = MustRevalidateEnforced;
         let prev = make_prev(200, &[("cache-control", "max-age=60")]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let tx = crate::test_helpers::make_test_transaction();
+        let tx = presented_exchange();
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -437,7 +474,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         // set timestamp earlier to test clamp
         tx.timestamp = base - chrono::Duration::seconds(10);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -474,7 +511,7 @@ mod tests {
             .unwrap()
             .headers
             .insert("age", hyper::header::HeaderValue::from_static("10"));
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(1);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history =
@@ -522,7 +559,7 @@ mod tests {
             .unwrap()
             .headers
             .insert("age", hyper::header::HeaderValue::from_static("bad"));
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(1);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -546,7 +583,7 @@ mod tests {
             &[("cache-control", "must-revalidate"), ("etag", "\"v\"")],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -568,7 +605,7 @@ mod tests {
         // previous response has must-revalidate but no validator at all
         let mut prev = make_prev(200, &[("cache-control", "must-revalidate")]);
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -595,7 +632,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(10);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -622,7 +659,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -640,11 +677,18 @@ mod tests {
     /// The stored entry is a stale `GET` response carrying `must-revalidate` and
     /// a validator — everything the rule needs except a request the entry could
     /// have answered. Only the method varies, and it decides the verdict on its
-    /// own: a cache may answer a `HEAD` from a stored `GET`, and may answer
-    /// nothing else, so an `OPTIONS` or a `TRACE` reused no entry to report.
+    /// own.
+    ///
+    /// **`HEAD` is a `false` here for the other reason, and the two must not be
+    /// read as one.** An `OPTIONS` or a `TRACE` reused no entry: § 4 refuses the
+    /// pairing, and [`crate::helpers::stored_response::method_allows`] is where
+    /// that is decided. A `HEAD` *is* a pairing § 4 allows — the assertion below
+    /// says so — and draws nothing because § 9.3.2 leaves no content in the
+    /// answer, so the body this entry says a validator would have spared was
+    /// never going to be sent.
     #[rstest::rstest]
     #[case("GET", true)]
-    #[case("HEAD", true)]
+    #[case("HEAD", false)]
     #[case("OPTIONS", false)]
     #[case("TRACE", false)]
     #[case("POST", false)]
@@ -664,7 +708,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.method = presented.to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -678,6 +722,66 @@ mod tests {
             ]),
         );
         assert_eq!(v.is_some(), reports, "presented method {presented}");
+        // The `HEAD` case above is silent because nothing was transferred, not
+        // because § 4 refused the pairing. Were this to become false, that case
+        // would keep passing for a reason its doc does not state.
+        assert!(crate::helpers::stored_response::method_allows(
+            "GET", "HEAD"
+        ));
+    }
+
+    /// The saving the entry names has to be one the exchange could have made.
+    /// A `304` stands in for a `200` (§ 15.4.5) and a `HEAD` answer carries no
+    /// content whatever its status (§ 9.3.2), so on every shape but a
+    /// `GET`-like `200` the sentence would name a body that never crossed the
+    /// wire. The stored entry, the staleness, the validator and the missing
+    /// precondition are identical across all of these.
+    #[rstest::rstest]
+    #[case("GET", Some(200), true)]
+    #[case("POST", Some(200), true)]
+    #[case("HEAD", Some(200), false)]
+    #[case("GET", Some(412), false)]
+    #[case("GET", Some(400), false)]
+    #[case("GET", Some(206), false)]
+    #[case("GET", Some(304), false)]
+    #[case("GET", None, false)]
+    fn only_a_transfer_a_304_could_have_spared_is_reported(
+        #[case] method: &str,
+        #[case] answered: Option<u16>,
+        #[case] reports: bool,
+    ) {
+        let rule = MustRevalidateEnforced;
+        let base = chrono::Utc::now();
+        let mut prev = make_prev(
+            200,
+            &[
+                ("cache-control", "max-age=1, must-revalidate"),
+                ("etag", "\"v\""),
+            ],
+        );
+        prev.timestamp = base;
+        prev.request.method = method.to_string();
+        let mut tx = match answered {
+            Some(status) => crate::test_helpers::make_test_transaction_with_response(status, &[]),
+            None => crate::test_helpers::make_test_transaction(),
+        };
+        tx.timestamp = base + chrono::Duration::seconds(5);
+        tx.request.method = method.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "must_revalidate_enforced",
+            ]),
+        );
+        assert_eq!(
+            v.is_some(),
+            reports,
+            "{method} answered {answered:?}: {v:?}"
+        );
     }
 
     /// The same method on both sides is still not reuse when that method stores
@@ -698,7 +802,7 @@ mod tests {
         );
         prev.request.method = method.to_string();
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.method = method.to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -732,7 +836,7 @@ mod tests {
         newer_head.request.method = "HEAD".to_string();
         newer_head.timestamp = base + chrono::Duration::seconds(1);
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -776,7 +880,7 @@ mod tests {
         prev.timestamp = base;
         prev.request.headers = crate::test_helpers::make_headers_from_pairs(prev_request);
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -810,7 +914,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -851,7 +955,7 @@ mod tests {
         );
         newer.timestamp = base + chrono::Duration::seconds(1);
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -881,7 +985,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v\"")]);
@@ -910,7 +1014,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -937,7 +1041,7 @@ mod tests {
             ],
         );
         prev.timestamp = base;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = base; // no elapsed time
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -963,7 +1067,7 @@ mod tests {
                 ("etag", "\"v\""),
             ],
         );
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.timestamp = ts + chrono::Duration::seconds(10);
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v\"")]);

@@ -85,7 +85,7 @@ impl RuleMeta for NoCacheRevalidation {
     }
 
     fn description(&self) -> &'static str {
-        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache` and that the request now presented was allowed to be answered from (§4): the same method, or a `HEAD` against a stored `GET`, presenting the same selecting header fields under the response's `Vary` (§4.1) — an entry stored for one variant could not have answered a request for another, so no validator was declined. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method, and a stored `GET` is no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method — where nothing could have been reused there is no reuse to report.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  **What this rule does not observe is the reuse itself.** §5.2.2.4 bars using a stored `no-cache` response *without forwarding it for validation*, and this implementation reads the seam between a client and an origin — a cache that had answered from its stored entry would have put nothing on that seam. Every request reaching this rule is one the cache declined to answer, so the forwarding the directive requires has happened, and §4.3 says a cache *can* use the conditional mechanism rather than that it must. The finding is therefore the narrower one the wire supports: a validator was held and not sent, costing a body where a `304` would have done. That is why it is a `warn` whose obligation is recorded as unstated — the `MUST NOT` is addressed to the cache, not to the client the finding names. **And `no-store` beside it is answered first.** The two directives arrive together on more than half the responses that carry either — `no-cache, no-store, must-revalidate` is the line — and they say different things: `no-cache` forbids reuse without validation, while `no-store` (RFC 9111 §3, and §5.2.1.5 for the request's copy of it) forbids the storing that would have given the client something to validate. Where both are present nothing was stored, so the rule skips that response and looks past it for an entry an earlier exchange did leave. This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive."
+        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache` and that the request now presented was allowed to be answered from (§4): the same method, or a `HEAD` against a stored `GET`, presenting the same selecting header fields under the response's `Vary` (§4.1) — an entry stored for one variant could not have answered a request for another, so no validator was declined. A response no cache was allowed to keep at all is no entry either, whatever validator or directive it carries: §3 also asks that the status be final and that the response advertise a freshness lifetime, or be `public` or `private`, or have a status defined as heuristically cacheable — a `412` with an `ETag` satisfies none of those, and the search reads past it.  Only GET, HEAD and POST have caching semantics at all, so a response to an `OPTIONS` or a `TRACE` is no stored entry even against a later request of its own method, and a stored `GET` is no candidate for an `OPTIONS`, a `TRACE`, or an unsafe method — where nothing could have been reused there is no reuse to report.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  **What this rule does not observe is the reuse itself.** §5.2.2.4 bars using a stored `no-cache` response *without forwarding it for validation*, and this implementation reads the seam between a client and an origin — a cache that had answered from its stored entry would have put nothing on that seam. Every request reaching this rule is one the cache declined to answer, so the forwarding the directive requires has happened, and §4.3 says a cache *can* use the conditional mechanism rather than that it must. The finding is therefore the narrower one the wire supports: a validator was held and not sent, costing a body where a `304` would have done. That is why it is a `warn` whose obligation is recorded as unstated — the `MUST NOT` is addressed to the cache, not to the client the finding names. **And the cost has to be one this exchange could have paid.** A `304` stands in for a `200` and for nothing else (RFC 9110 §15.4.5), so a request the origin refused — a `412`, a `400`, anything that never reached the representation — resent no body for a validator to have spared; and a `HEAD` answer carries no content at any status (RFC 9110 §9.3.2), so there too the precondition would have bought nothing. On those shapes the rule is silent, because the sentence would otherwise name a body that never crossed the wire. **And `no-store` beside it is answered first.** The two directives arrive together on more than half the responses that carry either — `no-cache, no-store, must-revalidate` is the line — and they say different things: `no-cache` forbids reuse without validation, while `no-store` (RFC 9111 §3, and §5.2.1.5 for the request's copy of it) forbids the storing that would have given the client something to validate. Where both are present nothing was stored, so the rule skips that response and looks past it for an entry an earlier exchange did leave. This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -121,9 +121,19 @@ impl RuleMeta for NoCacheRevalidation {
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, a different method on the same resource:\n> OPTIONS /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 405 Method Not Allowed\n\n# no cache answers an OPTIONS from a stored GET, so nothing was reused",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a request the origin refused, so no body was resent"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, an If-Match the origin declines:\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-Match: \"other\"\n\n< HTTP/1.1 412 Precondition Failed\n\n# the origin never reached the representation, so nothing was resent and\n# no 304 could have replaced what came back",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a HEAD, whose answer carries no content either way"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, the client asks for metadata only:\n> HEAD /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n\n# a HEAD response sends no content, so the validator would have spared\n# no body and there is no saving to report",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— a no-cache entry's validator held back"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, client repeats request but omits validator\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: the client held \"v1\" and forwarded without it, so the origin\n# resent the body where a 304 would have done",
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, client repeats request but omits validator\n> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# violation: the client held \"v1\" and forwarded without it, so the origin\n# resent the body where a 304 would have done",
             },
         ]
     }
@@ -203,8 +213,22 @@ impl Rule for NoCacheRevalidation {
             let has_conditional = tx.request.headers.contains_key("if-none-match")
                 || tx.request.headers.contains_key("if-modified-since");
 
+            // The saving is the whole of what this entry still claims, so the
+            // exchange has to be one that could have made it. A `304` stands in
+            // for a `200` and for nothing else -- a request the origin refused
+            // never reached the representation, so no body was resent and no
+            // `304` could have replaced what came back. And a `HEAD` response
+            // carries no content at any status, so there the validator would
+            // have bought nothing either. On every other shape the sentence
+            // below names a body that never crossed the wire.
+            // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
+            // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            let a_304_would_have_spared_content =
+                tx.response.as_ref().is_some_and(|resp| resp.status == 200)
+                    && !tx.request.method.eq_ignore_ascii_case("HEAD");
+
             // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
-            if !has_conditional {
+            if !has_conditional && a_304_would_have_spared_content {
                 return Some(ctx.report_with(&CACHE_CONTROL_NO_CACHE_IGNORED, "An earlier response marked 'no-cache' carried a validator, and this request for it went out with no If-None-Match or If-Modified-Since. The response may not be reused without forwarding for validation, and this request is that forwarding; sending the validator with it would have let the origin answer 304 instead of resending the body".into()));
             }
 
@@ -231,6 +255,16 @@ static REGISTRATION: &dyn crate::rules::Rule = &NoCacheRevalidation;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The request now presented, together with the answer the entry's sentence
+    /// assumes: a `200` that carried the representation a `304` would have
+    /// spared. [`crate::test_helpers::make_test_transaction`] leaves the
+    /// response `None`, and an exchange nothing answered resent no body, so a
+    /// case expecting a finding has to say what came back. The cases expecting
+    /// none say it too, so that the answer is never what makes them pass.
+    fn presented_exchange() -> crate::http_transaction::HttpTransaction {
+        crate::test_helpers::make_test_transaction_with_response(200, &[])
+    }
 
     fn make_prev(headers: &[(&str, &str)]) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, headers);
@@ -263,7 +297,7 @@ mod tests {
             ("vary", "Accept-Encoding"),
         ]);
         prev.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(stored));
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&asked(presented));
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -289,7 +323,7 @@ mod tests {
         let rule = NoCacheRevalidation;
         let mut prev = make_prev(&[("cache-control", "no-cache"), ("etag", "\"v\"")]);
         prev.response.as_mut().expect("response").status = status;
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -305,7 +339,7 @@ mod tests {
     #[test]
     fn no_history_no_violation() {
         let rule = NoCacheRevalidation;
-        let tx = crate::test_helpers::make_test_transaction();
+        let tx = presented_exchange();
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -319,9 +353,15 @@ mod tests {
     /// the back of it, and nothing else. The methods below are the ones a cache
     /// never serves from that entry, so on them no entry was reused and the
     /// origin answered — which the 405s such requests come back with confirm.
+    ///
+    /// **`HEAD` is a `false` here for the other reason, and the two must not be
+    /// read as one.** It is a pairing § 4 allows — the assertion below says so —
+    /// and draws nothing because § 9.3.2 leaves no content in the answer, so the
+    /// body this entry says a validator would have spared was never going to be
+    /// sent.
     #[rstest::rstest]
     #[case("GET", true)]
-    #[case("HEAD", true)]
+    #[case("HEAD", false)]
     #[case("OPTIONS", false)]
     #[case("TRACE", false)]
     #[case("PUT", false)]
@@ -333,7 +373,7 @@ mod tests {
     ) {
         let rule = NoCacheRevalidation;
         let prev = make_prev(&[("cache-control", "no-cache"), ("etag", "\"v\"")]);
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.request.method = presented.to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -344,6 +384,54 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
         );
         assert_eq!(v.is_some(), reports, "presented method {presented}");
+        // The `HEAD` case above is silent because nothing was transferred, not
+        // because § 4 refused the pairing. Were this to become false, that case
+        // would keep passing for a reason its doc does not state.
+        assert!(crate::helpers::stored_response::method_allows(
+            "GET", "HEAD"
+        ));
+    }
+
+    /// The saving the entry names has to be one the exchange could have made.
+    /// A `304` stands in for a `200` (§ 15.4.5) and a `HEAD` answer carries no
+    /// content whatever its status (§ 9.3.2), so on every shape but a
+    /// `GET`-like `200` the sentence would name a body that never crossed the
+    /// wire. The stored entry, its validator and the missing precondition are
+    /// identical across all of these.
+    #[rstest::rstest]
+    #[case("GET", Some(200), true)]
+    #[case("HEAD", Some(200), false)]
+    #[case("GET", Some(412), false)]
+    #[case("GET", Some(400), false)]
+    #[case("GET", Some(206), false)]
+    #[case("GET", Some(304), false)]
+    #[case("GET", None, false)]
+    fn only_a_transfer_a_304_could_have_spared_is_reported(
+        #[case] method: &str,
+        #[case] answered: Option<u16>,
+        #[case] reports: bool,
+    ) {
+        let rule = NoCacheRevalidation;
+        let mut prev = make_prev(&[("cache-control", "no-cache"), ("etag", "\"v\"")]);
+        prev.request.method = method.to_string();
+        let mut tx = match answered {
+            Some(status) => crate::test_helpers::make_test_transaction_with_response(status, &[]),
+            None => crate::test_helpers::make_test_transaction(),
+        };
+        tx.request.method = method.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
+        );
+        assert_eq!(
+            v.is_some(),
+            reports,
+            "{method} answered {answered:?}: {v:?}"
+        );
     }
 
     /// The same method on both sides is still not reuse when that method stores
@@ -356,7 +444,7 @@ mod tests {
         let rule = NoCacheRevalidation;
         let mut prev = make_prev(&[("cache-control", "no-cache"), ("etag", "\"v\"")]);
         prev.request.method = method.to_string();
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.request.method = method.to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
@@ -382,7 +470,7 @@ mod tests {
         let mut newer_head = make_prev(marked);
         newer_head.request.method = "HEAD".to_string();
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.request.method = "GET".to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         // newest first
@@ -448,7 +536,7 @@ mod tests {
         ]);
         prev.request.uri = "/resource".to_string();
         prev.client = crate::test_helpers::make_test_client();
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
 
@@ -471,7 +559,7 @@ mod tests {
         let mut prev = make_prev(&[("cache-control", "no-cache"), ("etag", "\"a\"")]);
         prev.request.uri = "/resource".to_string();
         prev.client = crate::test_helpers::make_test_client();
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
 
@@ -540,7 +628,7 @@ mod tests {
         prev.request.uri = "/resource".to_string();
         prev.request.headers = crate::test_helpers::make_headers_from_pairs(prev_request);
         prev.client = crate::test_helpers::make_test_client();
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
 
@@ -574,7 +662,7 @@ mod tests {
         newer.client = crate::test_helpers::make_test_client();
         newer.timestamp = base + chrono::Duration::seconds(1);
 
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
         tx.timestamp = base + chrono::Duration::seconds(2);
@@ -597,7 +685,7 @@ mod tests {
         let mut prev = make_prev(&[("cache-control", "no-cache")]);
         prev.request.uri = "/resource".to_string();
         prev.client = crate::test_helpers::make_test_client();
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = presented_exchange();
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
 

@@ -660,6 +660,18 @@ defects! {
     /// what may not be stored, so no request the client could make drew
     /// nothing.
     ///
+    /// **And the saving has to be one the exchange could have made.** What is
+    /// left of the entry is the cost of a body that came back where a `304`
+    /// would have done, so where no body came back there is nothing to report.
+    /// A `304` stands in for a `200` and for nothing else, so a request the
+    /// origin refused — a `412` on a precondition, a `400`, anything that never
+    /// reached the representation — resent nothing; and a `HEAD` answer carries
+    /// no content at any status, so the validator would have spared no body
+    /// there either. On those shapes the sentence would name a body that never
+    /// crossed the wire.
+    ///
+    // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
+    // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
     // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
     CACHE_CONTROL_MUST_REVALIDATE_IGNORED = {
         id: "cache_control_must_revalidate_ignored",
@@ -699,6 +711,18 @@ defects! {
     /// this entry reports is not a client declining a validator — it is a
     /// client that never had one.
     ///
+    /// **And the saving has to be one the exchange could have made.** What is
+    /// left of the entry is the cost of a body that came back where a `304`
+    /// would have done, so where no body came back there is nothing to report.
+    /// A `304` stands in for a `200` and for nothing else, so a request the
+    /// origin refused — a `412` on a precondition, a `400`, anything that never
+    /// reached the representation — resent nothing; and a `HEAD` answer carries
+    /// no content at any status, so the validator would have spared no body
+    /// there either. On those shapes the sentence would name a body that never
+    /// crossed the wire.
+    ///
+    // cite(RFC 9110 § 15.4.5): "The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false."
+    // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
     // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
     CACHE_CONTROL_NO_CACHE_IGNORED = {
         id: "cache_control_no_cache_ignored",
