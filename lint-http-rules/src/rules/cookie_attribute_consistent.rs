@@ -104,6 +104,16 @@ impl CookieAttributeConsistent {
     /// reading is: there a name that is not a `token` and a value carrying a
     /// forbidden octet are two readings of one `cookie-pair`, taken left to
     /// right, and the second reads text the first has already condemned.
+    ///
+    /// **That paragraph was true of this function's documentation and false of
+    /// its code.** The pair's reading `return`ed, so answering once meant
+    /// answering for the whole *line*: a cookie whose pair did not derive had
+    /// every attribute beside it judged by nothing. `Set-Cookie: a={"k":"1"};
+    /// Expires=Sun, 30-Aug-2026 02:23:34 GMT` is one an origin sends — the
+    /// DQUOTE and the comma are outside `cookie-octet`, and the hyphenated
+    /// date behind them was never read. The pair's answer is now one finding
+    /// among the line's rather than instead of them, which is what "two
+    /// different grammars" was always supposed to mean.
     fn set_cookie_defects(
         &self,
         line: &str,
@@ -117,61 +127,16 @@ impl CookieAttributeConsistent {
         // alone rather than naming a cookie called nothing.
         let cookie = crate::helpers::cookie::set_cookie_name(line);
         let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
-        if pair.is_empty() {
-            return vec![ctx.report_with(
-                &COOKIE_PAIR_MISSING,
-                about("Set-Cookie header missing cookie-pair"),
-            )];
-        }
 
-        // `cookie-pair = cookie-name "=" cookie-value` requires the `=`
-        // unconditionally -- an empty value is legal (`SID=`) but no `=` at
-        // all derives from neither alternative of the production. A bare
-        // token here used to fall through this whole function silently: the
-        // old reading took whatever preceded the first `=` as the name and
-        // never asked whether an `=` had been there to precede.
-        // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
-        let Some((name, value)) = pair.split_once('=') else {
-            return vec![ctx.report_with(
-                &COOKIE_PAIR_EQUALS_MISSING,
-                about(&format!("Set-Cookie pair '{pair}' has no '=': `cookie-pair = cookie-name \"=\" cookie-value` requires one")),
-            )];
-        };
-
-        // The name is a `token` by import rather than by resemblance -- § 4.1.1
-        // writes `cookie-name = token` and takes the production from the HTTP
-        // document -- so both of its defects are that production's.
-        let name = name.trim();
-        if name.is_empty() {
-            return vec![ctx.report_with(&TOKEN_EMPTY, about("Set-Cookie cookie name is empty"))];
-        }
-        if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-            return vec![ctx.report_with(
-                token_character(c),
-                about(&format!(
-                    "Set-Cookie cookie-name contains invalid character: '{}'",
-                    c
-                )),
-            )];
-        }
-
-        // `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )`,
-        // the production's other half -- nothing before this read it either,
-        // so a value carrying a comma, a bare quote or any other octet
-        // outside `cookie-octet` passed as silently as a missing `=` did. A
-        // semicolon in the value is already this function's own `pair`, cut
-        // by `split_set_cookie` before this point -- it reports above, on the
-        // segment it starts, as a pair with no `=`.
-        if let Some(c) = find_invalid_cookie_octet(value) {
-            return vec![ctx.report_with(
-                &COOKIE_VALUE_CHARACTER_FORBIDDEN,
-                about(&format!(
-                    "Set-Cookie value '{value}' contains a character outside cookie-octet: '{c}'"
-                )),
-            )];
-        }
-
+        // The pair answers once and the attributes answer one apiece, and this
+        // is where that stops being only a sentence in the doc above. The pair
+        // reading used to `return` from here, so its one finding was the whole
+        // LINE's answer and every `cookie-av` after it went unread — a cookie
+        // whose value carries a comma had its `Expires`, its `Max-Age` and its
+        // `SameSite` judged by nothing, on real traffic.
         let mut out = Vec::new();
+        out.extend(self.cookie_pair_defect(pair, cookie, ctx));
+
         let mut secure_present = false;
         let mut same_site: Option<String> = None;
         for attribute in attributes {
@@ -200,6 +165,77 @@ impl CookieAttributeConsistent {
             ));
         }
         out
+    }
+
+    /// What is wrong with the `cookie-pair`, if anything.
+    ///
+    /// **One production, so one answer**, and that is the whole difference
+    /// between this and [`Self::attribute_defect`]'s caller. A name that is not
+    /// a `token` and a value carrying a forbidden octet are two readings of one
+    /// `cookie-pair` taken left to right, and the second reads text the first
+    /// has already condemned — so the first of them is the finding and the rest
+    /// of the pair is not read again. The attributes beside it are a repetition
+    /// and are none of this function's business.
+    fn cookie_pair_defect(
+        &self,
+        pair: &str,
+        cookie: &str,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Option<Violation> {
+        let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
+        if pair.is_empty() {
+            return Some(ctx.report_with(
+                &COOKIE_PAIR_MISSING,
+                about("Set-Cookie header missing cookie-pair"),
+            ));
+        }
+
+        // `cookie-pair = cookie-name "=" cookie-value` requires the `=`
+        // unconditionally -- an empty value is legal (`SID=`) but no `=` at
+        // all derives from neither alternative of the production. A bare
+        // token here used to fall through this whole function silently: the
+        // old reading took whatever preceded the first `=` as the name and
+        // never asked whether an `=` had been there to precede.
+        // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
+        let Some((name, value)) = pair.split_once('=') else {
+            return Some(ctx.report_with(
+                &COOKIE_PAIR_EQUALS_MISSING,
+                about(&format!("Set-Cookie pair '{pair}' has no '=': `cookie-pair = cookie-name \"=\" cookie-value` requires one")),
+            ));
+        };
+
+        // The name is a `token` by import rather than by resemblance -- § 4.1.1
+        // writes `cookie-name = token` and takes the production from the HTTP
+        // document -- so both of its defects are that production's.
+        let name = name.trim();
+        if name.is_empty() {
+            return Some(ctx.report_with(&TOKEN_EMPTY, about("Set-Cookie cookie name is empty")));
+        }
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
+            return Some(ctx.report_with(
+                token_character(c),
+                about(&format!(
+                    "Set-Cookie cookie-name contains invalid character: '{}'",
+                    c
+                )),
+            ));
+        }
+
+        // `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )`,
+        // the production's other half -- nothing before this read it either,
+        // so a value carrying a comma, a bare quote or any other octet
+        // outside `cookie-octet` passed as silently as a missing `=` did. A
+        // semicolon in the value is already the caller's own `pair`, cut by
+        // `split_set_cookie` before this point -- it reports above, on the
+        // segment it starts, as a pair with no `=`.
+        find_invalid_cookie_octet(value).map(|c| {
+            ctx.report_with(
+                &COOKIE_VALUE_CHARACTER_FORBIDDEN,
+                about(&format!(
+                    "Set-Cookie value '{value}' contains a character outside cookie-octet: '{c}'"
+                )),
+            )
+        })
     }
 
     /// What is wrong with one `cookie-av`, if anything.
@@ -772,7 +808,14 @@ mod tests {
 
     /// A defective `cookie-pair` still answers once: its name and its value
     /// are two readings of one production taken left to right, and the second
-    /// reads octets the first has already condemned.
+    /// reads octets the first has already condemned. `a@b` is outside `token`
+    /// and `c,d` is outside `cookie-octet`, and only the first is reported.
+    ///
+    /// **The `Max-Age` is here on purpose, and it used not to be reported.**
+    /// This test asserted the line's whole answer was the pair's one finding,
+    /// which is the masking rather than the once-ness: answering once is a
+    /// claim about the *pair*, and the attributes beside it are a separate
+    /// production that answers for itself.
     #[test]
     fn a_defective_pair_answers_once() {
         let found = all_set_cookie("a@b=c,d; Max-Age=xyz");
@@ -781,7 +824,69 @@ mod tests {
                 .iter()
                 .map(|v| v.violation.as_str())
                 .collect::<Vec<_>>(),
-            vec!["token_character_forbidden"],
+            vec!["token_character_forbidden", "cookie_max_age_malformed"],
+            "{found:?}"
+        );
+    }
+
+    /// Each of the five ways a `cookie-pair` can fail to derive, and the
+    /// attributes behind it in every one of them.
+    ///
+    /// The pair's finding used to be the whole line's answer, so the three
+    /// attribute entries below were unreachable through any of these five
+    /// values — on real traffic, through the last of them: a cookie whose
+    /// value is a JSON document carries DQUOTE and comma, and the hyphenated
+    /// `Expires` behind it was read by nothing.
+    ///
+    /// The sixth row is the control. Without it, five green rows would be
+    /// consistent with the attributes being unreportable for some other
+    /// reason.
+    #[rstest]
+    #[case("", "cookie_pair_missing")]
+    #[case("justaname", "cookie_pair_equals_missing")]
+    #[case("=v", "token_empty")]
+    #[case("a b=v", "token_whitespace_or_control_forbidden")]
+    #[case(r#"a={"k":"1","j":"2"}"#, "cookie_value_character_forbidden")]
+    fn a_pair_that_does_not_derive_leaves_its_attributes_readable(
+        #[case] pair: &str,
+        #[case] pair_defect: &str,
+    ) {
+        let found = all_set_cookie(&format!(
+            "{pair}; Expires=Sun, 30-Aug-2026 02:23:34 GMT; Max-Age=soon; SameSite=None"
+        ));
+        let ids = found
+            .iter()
+            .map(|v| v.violation.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            vec![
+                pair_defect,
+                "cookie_expires_malformed",
+                "cookie_max_age_malformed",
+                "cookie_secure_missing",
+            ],
+            "{found:?}"
+        );
+    }
+
+    /// The control for the five above: the same attributes behind a pair that
+    /// derives, which is where the three entries were always reachable.
+    #[test]
+    fn a_pair_that_derives_contributes_nothing_of_its_own() {
+        let found = all_set_cookie(
+            "a=v; Expires=Sun, 30-Aug-2026 02:23:34 GMT; Max-Age=soon; SameSite=None",
+        );
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "cookie_expires_malformed",
+                "cookie_max_age_malformed",
+                "cookie_secure_missing",
+            ],
             "{found:?}"
         );
     }
