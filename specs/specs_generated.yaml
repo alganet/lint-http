@@ -6590,7 +6590,7 @@ sources:
     snippet: A field name labels the corresponding field value as having the semantics defined by that name.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 515
+      line: 520
   - label: cache_validation_chain
     section: § 13.1.2
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
@@ -8354,7 +8354,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 142
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 630
+      line: 635
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
@@ -11329,7 +11329,7 @@ sources:
     snippet: 'This directive uses the token form of the argument syntax: e.g., ''max-age=5'' not ''max-age="5"''. A sender MUST NOT generate the quoted-string form.'
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 533
+      line: 538
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 324
   - label: private argument syntax
@@ -11337,7 +11337,7 @@ sources:
     snippet: This directive uses the quoted-string form of the argument syntax.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 514
+      line: 519
   - label: cache_control_directive_valid (4)
     section: § 5.2.3
     snippet: When the directive does not take an argument, what it means when an argument is present
@@ -11513,7 +11513,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 617
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 562
+      line: 567
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 724
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -11601,7 +11601,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 92
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 532
+      line: 537
   - label: lint-http-rules/src/helpers/cache_control.rs (11)
     section: § 5.2
     snippet: cache-directive  = token [ "=" ( token / quoted-string ) ]
@@ -11617,7 +11617,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 287
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 531
+      line: 536
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
       line: 192
     - file: lint-http-rules/src/violations/cache_control.rs

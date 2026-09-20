@@ -483,19 +483,24 @@ fn arity_defect(
             ),
         )),
         Arity::Required(_) => None,
-        Arity::Forbidden(section) => directive
-            .argument
-            .filter(|a| !a.is_empty())
-            .map(|argument| {
-                Defect::named(
-                    &CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN,
-                    format!(
-                        "{name}={argument} gives {name} an argument; RFC 9111 § {section} defines \
+        // The `?` is here rather than a `.filter().map()` over the argument,
+        // because the two are the same behaviour and not the same measurement:
+        // a report site inside a multi-line closure sits in a coverage region
+        // that only runs on a hit, so the entry reads as never evaluated
+        // however often the reading runs. Measured both ways -- the closure
+        // form put this entry in `NEVER` and the straight one puts it in
+        // `EVALUATED`, with the same rows drawn either way.
+        Arity::Forbidden(section) => {
+            let argument = directive.argument.filter(|a| !a.is_empty())?;
+            Some(Defect::named(
+                &CACHE_CONTROL_DIRECTIVE_ARGUMENT_FORBIDDEN,
+                format!(
+                    "{name}={argument} gives {name} an argument; RFC 9111 § {section} defines \
                      it with none, and § 5.2 allows none where none is defined, so a cache \
                      reads this as a plain {name}"
-                    ),
-                )
-            }),
+                ),
+            ))
+        }
     }
 }
 
