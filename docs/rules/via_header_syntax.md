@@ -28,7 +28,7 @@ What the rule does not judge: whether a proxy sent a `Via` at all. §7.6.3's MUS
 - [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
 - [via_comment_duplicated](../violations/via_comment_duplicated.md) — Via member carries more than one comment
 - [via_member_malformed](../violations/via_member_malformed.md) — Via member does not end where the production ends it
-- [via_received_by_missing](../violations/via_received_by_missing.md) — Via member names no received-by
+- [via_received_by_missing](../violations/via_received_by_missing.md) — Via member carries one of the two parts its production requires
 - [via_received_by_obsolete](../violations/via_received_by_obsolete.md) — Via received-by is spelled as a uri-host
 
 ## Specifications
@@ -67,11 +67,18 @@ GET /index.html HTTP/1.1
 Via: HTTP/1.1 proxy.example.com:8080 (squid/5.7)
 ```
 
-### ❌ Bad A member with a received-protocol and no received-by
+### ❌ Bad A member with a received-protocol and no received-by; the slash is what says the token is the protocol
 
 ```http
 GET /index.html HTTP/1.1
-Via: 1.1
+Via: HTTP/1.1
+```
+
+### ❌ Bad One bare token, which spells a protocol-version and a pseudonym alike, so the grammar cannot say which half is absent
+
+```http
+GET /index.html HTTP/1.1
+Via: varnish
 ```
 
 ### ❌ Bad `@` is not a tchar, and both halves of a received-protocol are tokens

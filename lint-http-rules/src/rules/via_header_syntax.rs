@@ -195,8 +195,15 @@ impl RuleMeta for ViaHeaderSyntax {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("A member with a received-protocol and no received-by"),
-                snippet: "GET /index.html HTTP/1.1\nVia: 1.1",
+                label: Some("A member with a received-protocol and no received-by; the slash is what says the token is the protocol"),
+                snippet: "GET /index.html HTTP/1.1\nVia: HTTP/1.1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "One bare token, which spells a protocol-version and a pseudonym alike, so the grammar cannot say which half is absent",
+                ),
+                snippet: "GET /index.html HTTP/1.1\nVia: varnish",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -476,6 +483,38 @@ fn member_as_written(v: &[u8], start: usize) -> String {
 /// than against the member as a whole -- including the caller's report of what
 /// follows the member, which is why it is told whether a comment was taken.
 // cite(RFC 9110 § 7.6.3): "Via = #( received-protocol RWS received-by [ RWS comment ] )"
+/// The sentence for a member that is one bare token where the production
+/// writes two.
+///
+/// **A `protocol-version` and a `pseudonym` are the same production**, so when
+/// the slash that would have proved the first half has not arrived, the member
+/// `varnish` derives equally from a `received-protocol` whose `received-by`
+/// never came and from a `received-by` whose `received-protocol` never did. A
+/// recipient cannot tell them apart and neither can this reader, and the
+/// sentence it used to write picked one of the two and stated it: eleven
+/// responses spelling `Via: varnish` were told to add a name after the name
+/// they had already written, when what they had dropped was the `1.1` before
+/// it. What both readings share is that one of the two required halves is
+/// absent, and that is all the finding claims now.
+///
+/// **The slash settles it, and then the older sentence is the true one.** `/`
+/// is not a `tchar`, so a token holding one spells a `received-protocol` and
+/// nothing else -- `HTTP/1.1` cannot be read as a pseudonym, and the half that
+/// is missing after it is named rather than guessed.
+// cite(RFC 9110 § 7.8): "protocol-version = token"
+// cite(RFC 9110 § 7.6.3): "received-by = pseudonym [ ":" port ] pseudonym = token"
+fn one_token_member(v: &[u8], start: usize, n: usize, protocol_is_certain: bool) -> String {
+    let written = member_as_written(v, start);
+    if protocol_is_certain {
+        return format!("member {n} '{written}' has a received-protocol and no received-by");
+    }
+    format!(
+        "member {n} is the single token '{written}', where `received-protocol RWS received-by` \
+         requires two, and a bare token spells either of them: so either the received-by after \
+         it is missing, or '{written}' is the received-by and the received-protocol before it is"
+    )
+}
+
 fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), Defect> {
     // A `received-protocol` is a `protocol-version` that a `protocol-name` and a
     // slash may precede, so the first token is the version until a slash proves
@@ -496,6 +535,10 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), De
         ));
     }
     let mut half = "received-protocol";
+    // Whether the slash has proved which half this token is. Without it a
+    // `protocol-version` and a `pseudonym` are the same production, so a member
+    // that is one bare token does not say which of the two the sender wrote.
+    let mut protocol_is_certain = false;
     if i < v.len() && v[i] == b'/' {
         let version = scan_token(v, i + 1);
         if version == i + 1 {
@@ -512,6 +555,7 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), De
         }
         i = version;
         half = "protocol version";
+        protocol_is_certain = true;
     }
 
     // The whitespace between the two halves is required, so the octet sitting
@@ -523,10 +567,7 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), De
         None | Some(&b',') => {
             return Err(Defect::named(
                 &VIA_RECEIVED_BY_MISSING,
-                format!(
-                    "member {n} '{}' has a received-protocol and no received-by",
-                    member_as_written(v, start)
-                ),
+                one_token_member(v, start, n, protocol_is_certain),
             ))
         }
         Some(&b) if b != b' ' && b != b'\t' => {
@@ -551,12 +592,14 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), De
     let pseudonym = scan_token(v, i);
     if pseudonym == i {
         return Err(match v.get(i) {
+            // The whitespace just skipped was not the production's `RWS` after
+            // all: nothing follows it but the list's comma, so it is the `OWS`
+            // § 5.6.1.1 puts before a separator and the member is the one token
+            // before it -- the same case the protocol arm above answers.
+            // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
             None | Some(&b',') => Defect::named(
                 &VIA_RECEIVED_BY_MISSING,
-                format!(
-                    "member {n} '{}' has a received-protocol and no received-by",
-                    member_as_written(v, start)
-                ),
+                one_token_member(v, start, n, protocol_is_certain),
             ),
             // The brackets are § B.2's statement rather than the token's: the
             // production used to admit a `uri-host` and does not, so what is
@@ -744,15 +787,20 @@ mod tests {
     }
 
     #[rstest]
-    #[case("1.1", "member 1 '1.1' has a received-protocol and no received-by")]
-    #[case("1.1 ", "member 1 '1.1' has a received-protocol and no received-by")]
+    // A bare `1.1` reads to a person as a version and to the grammar as either
+    // half, so the sentence stops short of the reading a person would take;
+    // `HTTP/1.1` carries the slash that settles it and keeps the older one.
+    #[case("1.1", "member 1 is the single token '1.1'")]
+    #[case("1.1 ", "member 1 is the single token '1.1'")]
+    #[case("1.1, 1.0 fred", "member 1 is the single token '1.1'")]
+    #[case("1.1 , 1.0 fred", "member 1 is the single token '1.1'")]
     #[case(
-        "1.1, 1.0 fred",
-        "member 1 '1.1' has a received-protocol and no received-by"
+        "HTTP/1.1",
+        "member 1 'HTTP/1.1' has a received-protocol and no received-by"
     )]
     #[case(
-        "1.1 , 1.0 fred",
-        "member 1 '1.1' has a received-protocol and no received-by"
+        "HTTP/1.1 , 1.0 fred",
+        "member 1 'HTTP/1.1' has a received-protocol and no received-by"
     )]
     #[case(",", "member 1 is empty")]
     #[case("1.1 a, , 1.0 b", "member 2 is empty")]
@@ -874,6 +922,57 @@ mod tests {
     fn every_way_of_stopping_after_the_protocol_is_one_entry(#[case] value: &str) {
         let defect = one_judged(&headers(&[("via", value)]), "Request").expect("a finding");
         assert_eq!(defect.def.id, "via_received_by_missing", "{value}");
+    }
+
+    /// A member of one bare token is not told which of its two halves is
+    /// absent, because the grammar does not say. `protocol-version = token`
+    /// and `pseudonym = token`, so `varnish` derives from both readings, and
+    /// eleven responses spelling exactly that were told to add a recipient
+    /// after the recipient they had written.
+    ///
+    /// The `1.1 , ` spelling is here because it looks like the other case and
+    /// is not: the whitespace before the comma is the list's `OWS`, not the
+    /// production's `RWS`, so that member is one bare token too.
+    #[rstest]
+    #[case("varnish")]
+    #[case("1.1")]
+    #[case("1.1 ")]
+    #[case("varnish, 1.0 fred")]
+    #[case("1.1 , 1.0 fred")]
+    fn one_bare_token_does_not_say_which_half_it_is(#[case] value: &str) {
+        let defect = one_judged(&headers(&[("via", value)]), "Request").expect("a finding");
+        assert_eq!(defect.def.id, "via_received_by_missing", "{value}");
+        let m = &defect.message;
+        assert!(
+            m.contains("single token"),
+            "the shared claim, not one reading of it: {m}"
+        );
+        assert!(
+            !m.contains("has a received-protocol and no received-by"),
+            "the reading the grammar does not license: {m}"
+        );
+        // Both repairs, so the operator recognises the one they meant.
+        assert!(m.contains("received-by after"), "{m}");
+        assert!(m.contains("received-protocol before"), "{m}");
+    }
+
+    /// And the slash is what takes the ambiguity away: `/` is not a `tchar`, so
+    /// a token holding one is a `received-protocol` and cannot be a pseudonym.
+    /// There the narrower sentence is true and is the one written.
+    #[rstest]
+    #[case("HTTP/1.1")]
+    #[case("HTTP/1.1, 1.0 fred")]
+    #[case("HTTP/1.1 , 1.0 fred")]
+    fn a_slash_names_the_half_that_is_missing(#[case] value: &str) {
+        let defect = one_judged(&headers(&[("via", value)]), "Request").expect("a finding");
+        assert_eq!(defect.def.id, "via_received_by_missing", "{value}");
+        assert!(
+            defect
+                .message
+                .contains("has a received-protocol and no received-by"),
+            "{value}: {}",
+            defect.message
+        );
     }
 
     /// The lines of one field section are one list, so a member written empty

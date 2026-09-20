@@ -527,7 +527,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [vary_prefer_missing](violations/vary_prefer_missing.md) — A response applied a preference its Vary does not nominate
 - [via_comment_duplicated](violations/via_comment_duplicated.md) — Via member carries more than one comment
 - [via_member_malformed](violations/via_member_malformed.md) — Via member does not end where the production ends it
-- [via_received_by_missing](violations/via_received_by_missing.md) — Via member names no received-by
+- [via_received_by_missing](violations/via_received_by_missing.md) — Via member carries one of the two parts its production requires
 - [via_received_by_obsolete](violations/via_received_by_obsolete.md) — Via received-by is spelled as a uri-host
 - [warning_agent_missing](violations/warning_agent_missing.md) — Warning member names no warn-agent
 - [warning_code_malformed](violations/warning_code_malformed.md) — Warning member's warn-code is not three digits

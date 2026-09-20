@@ -67,9 +67,9 @@ pub const RFC_9110_B_2: SpecRef = SpecRef {
 };
 
 defects! {
-    /// A member that names the protocol it was received over and no recipient
-    /// after it — `Via: 1.1`, or `Via: 1.1, 1.0 fred` where the comma arrives
-    /// before the `RWS` does.
+    /// A member that carries one of the two halves the production requires and
+    /// not the other — `Via: HTTP/1.1`, `Via: 1.1`, `Via: varnish`, or
+    /// `Via: 1.1, 1.0 fred` where the comma arrives before the `RWS` does.
     ///
     /// The `received-by` is the half the field exists for: it is what says
     /// *who* forwarded the message, and a chain of hops that cannot be named is
@@ -77,15 +77,34 @@ defects! {
     /// and the production writes the `RWS` between the two required ones with
     /// no brackets around either.
     ///
+    /// **Which half is absent is not always knowable, and the entry says so
+    /// rather than choosing.** `protocol-version = token` and
+    /// `pseudonym = token` are the same production, so a member that is one
+    /// bare token derives equally from a protocol whose recipient never came
+    /// and from a recipient whose protocol never did. `Via: varnish` is the
+    /// second of those and was reported as the first, which sends an operator
+    /// to add a name after the name they already wrote instead of restoring the
+    /// `1.1` in front of it. The finding claims only what both readings share.
+    /// A slash settles it — `/` is not a `tchar`, so `HTTP/1.1` spells a
+    /// `received-protocol` and nothing else — and there the older, narrower
+    /// sentence is the true one and is what the rule still writes.
+    ///
+    /// **The id outlives the correction, as `x_xss_protection_invalid`'s
+    /// does.** It is the key an operator writes in `[violations.<id>]`, and it
+    /// over-claims in exactly the case the title and the sentence now decline
+    /// to; whether the catalogue should pay a config break to fix that is a
+    /// question rather than a defect.
+    ///
     /// `_missing` and not `_empty`: there is no delimiter here to write and
-    /// leave blank. `RWS` is the separator, so a sender who stopped after the
-    /// protocol stopped before anything announced the recipient was coming —
+    /// leave blank. `RWS` is the separator, so a sender who wrote one half
+    /// stopped before anything announced the other was coming —
     /// which is the line `docs/development.md` draws between the two words.
     ///
     // cite(RFC 9110 § 7.6.3): "Via = #( received-protocol RWS received-by [ RWS comment ] )"
+    // cite(RFC 9110 § 7.8): "protocol-version = token"
     VIA_RECEIVED_BY_MISSING = {
         id: "via_received_by_missing",
-        title: "Via member names no received-by",
+        title: "Via member carries one of the two parts its production requires",
         message: "",
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_6_3],

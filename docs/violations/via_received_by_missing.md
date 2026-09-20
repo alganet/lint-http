@@ -6,7 +6,7 @@ SPDX-License-Identifier: ISC
 
 # via_received_by_missing
 
-Via member names no received-by
+Via member carries one of the two parts its production requires
 
 ## Message
 
@@ -24,7 +24,7 @@ _Written where it is reported: this defect's message names the value that caused
 
 ```toml
 [violations.via_received_by_missing]
-# Via member names no received-by
+# Via member carries one of the two parts its production requires
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 ```
