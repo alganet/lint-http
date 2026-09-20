@@ -837,15 +837,27 @@ fn split_link_values(s: &str) -> Vec<&str> {
 // cite(RFC 8288 § 3.4.1): "The type attribute MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers."
 const AT_MOST_ONCE: &[&str] = &["rel", "media", "title", "title*", "type"];
 
-/// What the target IRI fails to be, once it has been taken out of its angle
-/// brackets.
+/// What a `URI-Reference` this field carries fails to be.
 ///
 /// Split out of [`validate_link_value`] because it is a different subject: the
-/// member's own production says where the target starts and ends, and
-/// everything inside it is RFC 3986's — the same three questions `Location`,
+/// member's own production says where the reference starts and ends, and
+/// everything inside it is RFC 3986's — the same questions `Location`,
 /// `Content-Location` and `Referer` each ask of the reference they carry, in
 /// the same order, for the same reasons.
-fn link_target_defect(target: &str) -> Option<Defect> {
+///
+/// **Two values in this field are one, and § 3.2 says so.** The target IRI
+/// between the angle brackets is a `URI-Reference` by § 3.1, and the `anchor`
+/// parameter's value is a `URI-Reference` by § 3.2 — the same production, so
+/// the same reading, with `what` naming which of the two a finding is about.
+/// The IRI-conversion argument the triplet rests on is stated for both by name.
+///
+/// A relative reference is the reason none of this gates on which alternative
+/// the value took: `anchor="#foo"` and `</p>` each reach every reading here and
+/// come back with nothing, which § 3.2's *"parsers MUST resolve it as per
+/// [RFC3986], Section 5"* is the whole basis for.
+// cite(RFC 8288 § 3.2): "The ABNF for the "anchor" parameter's value is:"
+// cite(RFC 8288 § 6): "Similarly, the anchor parameter of the Link header field does not support IRIs; therefore, IRIs must be converted to URIs before inclusion there."
+fn link_uri_reference_defect(what: &str, target: &str) -> Option<Defect> {
     // The target is a URI, converted from an IRI by the sender if it began as
     // one. That conversion is what makes an octet outside the URI alphabet a
     // finding here rather than a question about the field's encoding: %xE9 in
@@ -859,7 +871,7 @@ fn link_target_defect(target: &str) -> Option<Defect> {
         return Some(Defect::named(
             &URI_CHARACTER_FORBIDDEN,
             format!(
-                "target '{}' holds {}, which no URI-Reference admits",
+                "{what} '{}' holds {}, which no URI-Reference admits",
                 shown_in_finding(target),
                 describe_char(c)
             ),
@@ -876,7 +888,7 @@ fn link_target_defect(target: &str) -> Option<Defect> {
         return Some(Defect::named(
             crate::violations::uri::percent_encoding(defect),
             format!(
-                "target '{}': {}",
+                "{what} '{}': {}",
                 shown_in_finding(target),
                 defect.message()
             ),
@@ -893,7 +905,7 @@ fn link_target_defect(target: &str) -> Option<Defect> {
         return Some(Defect::named(
             scheme_name(defect),
             format!(
-                "target '{}' has a scheme that is not one: {}",
+                "{what} '{}' has a scheme that is not one: {}",
                 shown_in_finding(target),
                 defect.message()
             ),
@@ -910,7 +922,7 @@ fn link_target_defect(target: &str) -> Option<Defect> {
         return Some(Defect::named(
             &URI_HOST_EMPTY,
             format!(
-                "target '{}' names the scheme '{}' and then an empty host identifier, so it \
+                "{what} '{}' names the scheme '{}' and then an empty host identifier, so it \
                  identifies no origin server: a sender MUST NOT generate an \"{}\" URI with one \
                  (RFC 9110 §4.2.{})",
                 shown_in_finding(target),
@@ -936,7 +948,7 @@ fn link_target_defect(target: &str) -> Option<Defect> {
         return Some(Defect::named(
             host_and_port_defect(defect),
             format!(
-                "target '{}' does not carry a well-formed authority: {}",
+                "{what} '{}' does not carry a well-formed authority: {}",
                 shown_in_finding(target),
                 defect.message()
             ),
@@ -991,7 +1003,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
     };
     let (target, after) = rest.split_at(close);
 
-    if let Some(defect) = link_target_defect(target) {
+    if let Some(defect) = link_uri_reference_defect("target", target) {
         return vec![defect];
     }
 
@@ -1228,6 +1240,22 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
             // that neither of them has.
             // cite(RFC 8288 § B.2): "Let relations_string be the second item of the first tuple of link_parameters whose first item matches the string "rel" or the empty string ("") if it is not present."
             // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+            // § 3.2 gives this parameter's value the same production the
+            // target has and states the IRI conversion for it by name, so it
+            // reaches the same reader. A relative anchor is the common
+            // spelling and is conforming — the section sends a parser to
+            // RFC 3986 § 5 to resolve it — so nothing here asks the value to
+            // be absolute.
+            //
+            // Every occurrence is judged rather than the first, for the reason
+            // the `rel` arm below states at length: § 2.2 asks the sender for a
+            // value matching the ABNF whether or not a parser will read it.
+            "anchor" => out.extend(
+                parsed
+                    .value
+                    .as_deref()
+                    .and_then(|value| link_uri_reference_defect("anchor", value)),
+            ),
             "rel" => {
                 let value = parsed.value.unwrap_or_default();
                 let (types, defects) = validate_rel_value(&value);
@@ -1733,6 +1761,12 @@ mod tests {
     // readings above and come back with nothing.
     #[case(b"</p%20q>; rel=next")]
     #[case(b"<urn:isbn:0451450523>; rel=next")]
+    // A relative anchor is the common spelling and § 3.2 sends a parser to
+    // RFC 3986 § 5 to resolve it, so it must reach every reading above and come
+    // back with nothing; a bare `anchor` states no value to read at all.
+    #[case(b"</p>; rel=next; anchor=\"#foo\"")]
+    #[case(b"</p>; rel=next; anchor=\"/q\"")]
+    #[case(b"</p>; rel=next; anchor=\"https://e.test/q\"")]
     #[case(b"<>; rel=next")]
     #[case(b"<https://example.com/>; rel=\"next\"; title=\"Home\"")]
     #[case(b"<https://example.com/>; rel=next; title=\"a;b\"")]
@@ -2078,6 +2112,23 @@ mod tests {
         "uri_scheme_leading_letter_missing"
     )]
     #[case(b"<://example.test/p>; rel=next", "uri_scheme_empty")]
+    // § 3.2 gives the `anchor` the target's production, so it reaches the same
+    // reader and each finding names which of the two values it is about — the
+    // noun is an argument, and a shared reader that dropped it would say
+    // "target" of an anchor.
+    #[case(
+        b"</p>; rel=next; anchor=\"http://[::1/p\"",
+        "uri_host_closing_bracket_missing"
+    )]
+    #[case(
+        b"</p>; rel=next; anchor=\"http://e.test/%zz\"",
+        "percent_encoding_malformed"
+    )]
+    #[case(
+        b"</p>; rel=next; anchor=\"ht_tp://e.test/p\"",
+        "uri_scheme_character_forbidden"
+    )]
+    #[case(b"</p>; rel=next; anchor=\"http:///p\"", "uri_host_empty")]
     fn a_link_value_borrows_every_production_it_is_made_of(#[case] value: &[u8], #[case] id: &str) {
         let headers = crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]);
         let mut found = judge(&headers, "Response", true);
