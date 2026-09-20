@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`), and this rule asks that of both directions of the framework — a server's `WWW-Authenticate` challenges and a client's `Authorization` credentials. It measures the name against an operator-configured allowlist rather than against the live registry, so `allowed` is the deployment's chosen subset of acceptable schemes. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way.
+The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`), and this rule asks that of every field § 11 writes the framework into — the challenges of a `WWW-Authenticate` or `Proxy-Authenticate`, and the credentials of an `Authorization` or `Proxy-Authorization`. The registry is the namespace for schemes in challenges and credentials, not for one hop of them, so the proxy-authentication half of the framework is asked the same question as the origin half. It measures the name against an operator-configured allowlist rather than against the live registry, so `allowed` is the deployment's chosen subset of acceptable schemes. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way.
 
 ## Violations
 
@@ -22,6 +22,8 @@ The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA re
 - [RFC 9110 §11.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.4): Credentials — `credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]`, the request-side mirror of `challenge`
 - [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): `WWW-Authenticate = #challenge` — the list whose members are grouped into challenges before any of them is read
 - [RFC 9110 §11.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2): Authorization — the field's value *consists of* credentials, which is stricter than § 11.4's optional second half
+- [RFC 9110 §11.7.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.1): `Proxy-Authenticate` — at least one field in each 407 a proxy generates, and the sentence limiting the field to the next outbound client on the response chain, which is all that stands behind an advisory finding on any other status
+- [RFC 9110 §11.7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.2): Proxy-Authorization — the same `credentials` addressed to the next inbound proxy instead of to the origin
 - [RFC 9110 §16.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.4.1): Authentication Scheme Registry
 - [IANA HTTP Authentication Schemes](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml): IANA HTTP Authentication Scheme Registry
 
@@ -52,4 +54,11 @@ Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/resour
 ```http
 WWW-Authenticate: NewScheme abc=
 Authorization: X-MyAuth abc
+```
+
+### ❌ Bad (the proxy half of the framework, which § 11.7 writes out of the same two productions)
+
+```http
+Proxy-Authenticate: NewScheme abc=
+Proxy-Authorization: X-MyAuth abc
 ```

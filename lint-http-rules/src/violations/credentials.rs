@@ -45,6 +45,21 @@ pub const RFC_9110_11_6_2: SpecRef = SpecRef {
     note: "Authorization — the field's value *consists of* credentials, which is stricter than § 11.4's optional second half",
 };
 
+/// The other field, whose § 11.7.2 says the same thing about its value as
+/// § 11.6.2 says about `Authorization`'s.
+///
+/// What that section adds is about the hop and not the octets: these
+/// credentials address the next inbound proxy rather than the origin, and are
+/// consumed there. Which recipient reads a value does not change what the value
+/// has to derive from, so every defect this module declares is the same defect
+/// in this field.
+pub const RFC_9110_11_7_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.2",
+    note: "Proxy-Authorization — the same `credentials` addressed to the next inbound proxy instead of to the origin",
+};
+
 defects! {
     /// A field that is present and carries nothing at all. `credentials` opens
     /// with an `auth-scheme`, which is a `token`, so the empty value derives

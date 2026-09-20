@@ -2094,7 +2094,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 593
+      line: 653
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 249
     - file: lint-http-rules/src/violations/base64.rs
@@ -3728,7 +3728,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 685
+      line: 745
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.html
   fragments:
@@ -4547,7 +4547,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 800
+      line: 860
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 233
 - label: RFC 7617
@@ -4564,7 +4564,7 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 606
+      line: 666
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 61
   - label: basic-credentials base64
@@ -4572,13 +4572,13 @@ sources:
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 590
+      line: 650
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 598
+      line: 658
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 46
 - label: RFC 7838
@@ -6181,7 +6181,7 @@ sources:
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 163
+      line: 174
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -6209,7 +6209,7 @@ sources:
     - file: lint-http-rules/src/rules/authorization_credentials_valid.rs
       line: 164
     - file: lint-http-rules/src/violations/credentials.rs
-      line: 69
+      line: 84
   - label: cache_coherence
     section: § 15.3.1
     snippet: The content sent in a 200 response depends on the request method.
@@ -7687,9 +7687,9 @@ sources:
     snippet: It uses a case-insensitive token to identify the authentication scheme
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 493
+      line: 553
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 162
+      line: 173
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 107
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
@@ -7703,9 +7703,9 @@ sources:
     snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 339
+      line: 399
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 757
+      line: 817
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 60
     - file: lint-http-rules/src/violations/challenge.rs
@@ -7721,19 +7721,19 @@ sources:
     snippet: token68    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 260
+      line: 320
   - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.3
     snippet: 'challenge   = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 296
+      line: 356
   - label: lint-http-rules/src/helpers/auth.rs (4)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 306
+      line: 366
     - file: lint-http-rules/src/violations/challenge.rs
       line: 88
   - label: lint-http-rules/src/helpers/auth.rs (5)
@@ -7741,35 +7741,49 @@ sources:
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 505
+      line: 565
     - file: lint-http-rules/src/violations/credentials.rs
-      line: 53
+      line: 68
     - file: lint-http-rules/src/violations/credentials.rs
-      line: 84
+      line: 99
   - label: lint-http-rules/src/helpers/auth.rs (6)
     section: § 11.6.1
     snippet: 'WWW-Authenticate = #challenge'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 126
+      line: 186
     - file: lint-http-rules/src/violations/challenge.rs
       line: 74
     - file: lint-http-rules/src/violations/challenge.rs
       line: 249
   - label: lint-http-rules/src/helpers/auth.rs (7)
     section: § 11.7.1
+    snippet: Note that the parsing considerations for WWW-Authenticate apply to this header field as well
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 105
+  - label: lint-http-rules/src/helpers/auth.rs (8)
+    section: § 11.7.1
     snippet: The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 207
+      line: 267
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 185
+  - label: lint-http-rules/src/helpers/auth.rs (9)
+    section: § 11.7.2
+    snippet: Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested.
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 85
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 45
   - label: 1#element expansion
     section: § 5.6.1.1
     snippet: 1#element => element *( OWS "," OWS element )
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 127
+      line: 187
     - file: lint-http-rules/src/helpers/list.rs
       line: 35
     - file: lint-http-rules/src/helpers/list.rs
@@ -7796,12 +7810,12 @@ sources:
       line: 366
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 279
-  - label: lint-http-rules/src/helpers/auth.rs (8)
+  - label: lint-http-rules/src/helpers/auth.rs (10)
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 758
+      line: 818
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 141
     - file: lint-http-rules/src/helpers/cache_control.rs
@@ -10367,12 +10381,6 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 43
   - label: trace_method_echo (2)
-    section: § 11.7.2
-    snippet: Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested.
-    cited_by:
-    - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 45
-  - label: trace_method_echo (3)
     section: § 9.3.8
     snippet: A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.
     cited_by:
@@ -10380,7 +10388,7 @@ sources:
       line: 205
     - file: lint-http-rules/src/violations/method.rs
       line: 215
-  - label: trace_method_echo (4)
+  - label: trace_method_echo (3)
     section: § 9.3.8
     snippet: A client MUST NOT send content in a TRACE request.
     cited_by:
@@ -10390,7 +10398,7 @@ sources:
       line: 191
     - file: lint-http-rules/src/violations/method.rs
       line: 130
-  - label: trace_method_echo (5)
+  - label: trace_method_echo (4)
     section: § 9.3.8
     snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.
     cited_by:

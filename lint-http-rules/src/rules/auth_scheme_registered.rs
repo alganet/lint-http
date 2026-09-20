@@ -6,7 +6,8 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::auth_scheme::{AUTH_SCHEME_UNREGISTERED, RFC_9110_11_1, RFC_9110_11_2};
 use crate::violations::challenge::{RFC_9110_11_3, RFC_9110_11_6_1};
-use crate::violations::credentials::{RFC_9110_11_4, RFC_9110_11_6_2};
+use crate::violations::credentials::{RFC_9110_11_4, RFC_9110_11_6_2, RFC_9110_11_7_2};
+use crate::violations::proxy_authenticate::RFC_9110_11_7_1;
 use crate::violations::ViolationDef;
 
 pub struct AuthSchemeRegistered;
@@ -76,7 +77,7 @@ allowed = ["Basic", "Bearer", "Digest"]
     }
 
     fn description(&self) -> &'static str {
-        "The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`), and this rule asks that of both directions of the framework — a server's `WWW-Authenticate` challenges and a client's `Authorization` credentials. It measures the name against an operator-configured allowlist rather than against the live registry, so `allowed` is the deployment's chosen subset of acceptable schemes. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way."
+        "The `auth-scheme` naming an HTTP authentication scheme SHOULD be one the IANA registry holds (for example, `Basic`, `Bearer`, `Digest`), and this rule asks that of every field § 11 writes the framework into — the challenges of a `WWW-Authenticate` or `Proxy-Authenticate`, and the credentials of an `Authorization` or `Proxy-Authorization`. The registry is the namespace for schemes in challenges and credentials, not for one hop of them, so the proxy-authentication half of the framework is asked the same question as the origin half. It measures the name against an operator-configured allowlist rather than against the live registry, so `allowed` is the deployment's chosen subset of acceptable schemes. **This rule reports nothing about grammar.** A scheme that is not a `token`, a challenge that does not parse, a credential missing after its scheme — each belongs to the rule that owns the field it sits in (`www_authenticate_challenge_syntax`, `authorization_credentials_valid`), and a name those rules refuse is skipped here rather than reported as unregistered, because the registry could not hold it either way."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -87,6 +88,8 @@ allowed = ["Basic", "Bearer", "Digest"]
             RFC_9110_11_4,
             RFC_9110_11_6_1,
             RFC_9110_11_6_2,
+            RFC_9110_11_7_1,
+            RFC_9110_11_7_2,
             RFC_9110_16_4_1,
             IANA_HTTP_AUTHENTICATION_SCHEMES,
         ]
@@ -96,10 +99,13 @@ allowed = ["Basic", "Bearer", "Digest"]
         DECLARED
     }
 
-    /// **One vocabulary, two fields, two writers.** The `auth-scheme` this
-    /// reads out of `WWW-Authenticate` is the challenge the origin issued, and
-    /// the one it reads out of `Authorization` is the credentials the client
-    /// presented.
+    /// **One vocabulary, four fields, two writers.** The `auth-scheme` this
+    /// reads out of a `WWW-Authenticate` or `Proxy-Authenticate` is a challenge
+    /// whoever wrote the response issued, and the one it reads out of an
+    /// `Authorization` or `Proxy-Authorization` is credentials the client
+    /// presented. Which hop the field addresses does not move that: a
+    /// `Proxy-Authorization` is still written by the client, and a
+    /// `Proxy-Authenticate` still arrives from the response side of this seam.
     fn party(&self) -> crate::rules::RuleParty {
         crate::rules::RuleParty::PerSite
     }
@@ -121,6 +127,11 @@ allowed = ["Basic", "Bearer", "Digest"]
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "WWW-Authenticate: NewScheme abc=\nAuthorization: X-MyAuth abc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the proxy half of the framework, which § 11.7 writes out of the same two productions)"),
+                snippet: "Proxy-Authenticate: NewScheme abc=\nProxy-Authorization: X-MyAuth abc",
             },
         ]
     }
@@ -174,52 +185,59 @@ impl Rule for AuthSchemeRegistered {
                     ))
                 };
 
-            // The challenges a response advertises. Read as octets and over the
-            // section: `WWW-Authenticate = #challenge` makes the field lines one
-            // list, and an octet outside visible US-ASCII belongs to whichever
-            // production it landed in rather than being a verdict about the
-            // field's encoding. A value that will not group is not this rule's
-            // to report.
+            // The challenges a response advertises, in each field § 11 writes
+            // as `#challenge`. Read as octets and over the section: the field
+            // lines are one list, and an octet outside visible US-ASCII belongs
+            // to whichever production it landed in rather than being a verdict
+            // about the field's encoding. A value that will not group is not
+            // this rule's to report.
             if let Some(resp) = &tx.response {
+                for field in crate::helpers::auth::CHALLENGE_FIELDS {
+                    out.extend((|| -> Option<Violation> {
+                        let s = crate::helpers::headers::combined_field_value_as_written(
+                            &resp.headers,
+                            field.key,
+                        )?;
+                        let challenges =
+                            crate::helpers::auth::split_and_group_challenges(&s).ok()?;
+                        for challenge in challenges {
+                            let scheme =
+                                challenge.split(char::is_whitespace).next().unwrap().trim();
+                            if let Some(v) =
+                                check_registered(field.shown, scheme, crate::lint::Party::Server)
+                            {
+                                return Some(v);
+                            }
+                        }
+                        None
+                    })());
+                }
+            }
+
+            // The credentials a request presents, in each field § 11 writes as
+            // `credentials`. The production is one value rather than a list, so
+            // the field lines are not combined -- and every one of them is
+            // read, because a sender wrote each. A value whose framework
+            // structure is wrong is `authorization_credentials_valid`'s
+            // finding, so what is taken from each line here is only the scheme
+            // in front of it.
+            for field in crate::helpers::auth::CREDENTIALS_FIELDS {
                 out.extend((|| -> Option<Violation> {
-                    let s = crate::helpers::headers::combined_field_value_as_written(
-                        &resp.headers,
-                        "www-authenticate",
-                    )?;
-                    let challenges = crate::helpers::auth::split_and_group_challenges(&s).ok()?;
-                    for challenge in challenges {
-                        let scheme = challenge.split(char::is_whitespace).next().unwrap().trim();
-                        if let Some(v) =
-                            check_registered("WWW-Authenticate", scheme, crate::lint::Party::Server)
+                    for hv in tx.request.headers.get_all(field.key).iter() {
+                        let v = crate::helpers::headers::field_line_as_written(hv);
+                        let scheme = v.split(char::is_whitespace).next().unwrap_or("").trim();
+                        if scheme.is_empty() {
+                            continue;
+                        }
+                        if let Some(vv) =
+                            check_registered(field.shown, scheme, crate::lint::Party::Client)
                         {
-                            return Some(v);
+                            return Some(vv);
                         }
                     }
                     None
                 })());
             }
-
-            // The credentials a request presents. `Authorization = credentials`
-            // is one value rather than a list, so the field lines are not
-            // combined -- and every one of them is read, because a sender wrote
-            // each. A value whose framework structure is wrong is
-            // `authorization_credentials_valid`'s finding, so what is taken
-            // from each line here is only the scheme in front of it.
-            out.extend((|| -> Option<Violation> {
-                for hv in tx.request.headers.get_all("authorization").iter() {
-                    let v = crate::helpers::headers::field_line_as_written(hv);
-                    let scheme = v.split(char::is_whitespace).next().unwrap_or("").trim();
-                    if scheme.is_empty() {
-                        continue;
-                    }
-                    if let Some(vv) =
-                        check_registered("Authorization", scheme, crate::lint::Party::Client)
-                    {
-                        return Some(vv);
-                    }
-                }
-                None
-            })());
         }
         out
     }
@@ -278,6 +296,57 @@ mod tests {
             .expect("a finding");
             assert_eq!(found.violation, "auth_scheme_unregistered");
         }
+    }
+
+    /// **Every field § 11 writes the framework into, and each finding names the
+    /// one it read.**
+    ///
+    /// The proxy half was silent: `Proxy-Authenticate: NoSuchScheme realm="x"`
+    /// on a `407` and `Proxy-Authorization: X-MyAuth abc` both drew nothing,
+    /// where the identical value one field over is a finding. The message is
+    /// asserted and not just the id, because the way this reader could be
+    /// wrong once it exists is to report a true finding under the wrong
+    /// field's name -- the sentence used to be written for one field per arm.
+    #[rstest]
+    #[case("www-authenticate", true, "WWW-Authenticate")]
+    #[case("proxy-authenticate", true, "Proxy-Authenticate")]
+    #[case("authorization", false, "Authorization")]
+    #[case("proxy-authorization", false, "Proxy-Authorization")]
+    fn the_registry_question_is_asked_of_every_field_that_carries_the_framework(
+        #[case] key: &str,
+        #[case] on_response: bool,
+        #[case] shown: &str,
+    ) {
+        let value = if on_response {
+            "NoSuchScheme realm=\"x\""
+        } else {
+            "NoSuchScheme abc"
+        };
+        let mut tx = if on_response {
+            crate::test_helpers::make_test_transaction_with_response(407, &[])
+        } else {
+            crate::test_helpers::make_test_transaction()
+        };
+        let headers = crate::test_helpers::make_headers_from_pairs(&[(key, value)]);
+        if on_response {
+            tx.response.as_mut().expect("a response").headers = headers;
+        } else {
+            tx.request.headers = headers;
+        }
+
+        let found = crate::test_helpers::run_rule(
+            &AuthSchemeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .unwrap_or_else(|| panic!("nothing reported for {key}"));
+        assert_eq!(found.violation, "auth_scheme_unregistered");
+        assert!(
+            found.message.contains(shown),
+            "a finding about {key} says {:?}, which does not name the field it read",
+            found.message
+        );
     }
 
     #[rstest]

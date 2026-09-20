@@ -6,10 +6,17 @@
 //!
 //! RFC 9110 § 11 defines `challenge` and `credentials` out of one vocabulary —
 //! an `auth-scheme`, then either a `token68` or a `#auth-param` list — and this
-//! module reads all four sides of it: a `WWW-Authenticate` challenge, an
-//! `Authorization` value, and the credentials of the two schemes whose own
-//! documents say what goes in the `token68` (RFC 7617's `Basic`, RFC 6750's
-//! `Bearer`).
+//! module reads all four sides of it: a challenge, a credentials value, and the
+//! credentials of the two schemes whose own documents say what goes in the
+//! `token68` (RFC 7617's `Basic`, RFC 6750's `Bearer`).
+//!
+//! **A production is not a field, and § 11 writes each of these two for two
+//! fields.** [`CREDENTIALS_FIELDS`] and [`CHALLENGE_FIELDS`] are the lists, and
+//! they exist because naming one field in a reader is how the proxy half of
+//! § 11.7 came to be unread: the functions here take a *value*, so the field a
+//! rule points them at was the rule's own choice and nothing checked it against
+//! the document. Every rule reading one of these productions walks a list from
+//! here and says which field it read.
 //!
 //! **Every function here answers with a named defect, and none returns a
 //! sentence.** [`ChallengeDefect`], [`AuthorizationDefect`],
@@ -53,6 +60,59 @@
 use crate::helpers::headers::trim_ows;
 use crate::helpers::list::split_commas_respecting_quotes;
 use base64::Engine;
+
+/// One field carrying an authentication production, in the two spellings a
+/// reader of it needs.
+///
+/// The map is keyed by the lowercase name and an operator reads the field back
+/// in the casing its own document prints, so a reader that had only one string
+/// would either miss the field or name it wrongly in the finding.
+pub struct AuthField {
+    /// The name as RFC 9110 § 11 writes it. This is what a message says.
+    pub shown: &'static str,
+    /// The name the header map is keyed by.
+    pub key: &'static str,
+}
+
+/// The request fields whose value *is* `credentials`.
+///
+/// § 11.6.2 and § 11.7.2 write the same production for two recipients — an
+/// origin and the next inbound proxy — and neither section says anything about
+/// the value that the other does not. A rule reading what a client presented
+/// reads both, because the two are one sender's credentials addressed to
+/// different hops, and a defect in either is that sender's to correct.
+///
+// cite(RFC 9110 § 11.7.2): "Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested."
+pub const CREDENTIALS_FIELDS: [AuthField; 2] = [
+    AuthField {
+        shown: "Authorization",
+        key: "authorization",
+    },
+    AuthField {
+        shown: "Proxy-Authorization",
+        key: "proxy-authorization",
+    },
+];
+
+/// The response fields whose value is `#challenge`.
+///
+/// § 11.6.1 and § 11.7.1 write the same list of the same production, and
+/// § 11.7.1 closes by saying so in a sentence rather than leaving it to be
+/// inferred from the ABNF. The difference between the two fields is who the
+/// challenge addresses, which decides what an *absent* one means and not what
+/// a present one has to derive from.
+///
+// cite(RFC 9110 § 11.7.1): "Note that the parsing considerations for WWW-Authenticate apply to this header field as well"
+pub const CHALLENGE_FIELDS: [AuthField; 2] = [
+    AuthField {
+        shown: "WWW-Authenticate",
+        key: "www-authenticate",
+    },
+    AuthField {
+        shown: "Proxy-Authenticate",
+        key: "proxy-authenticate",
+    },
+];
 
 /// The whitespace `auth-scheme 1*SP …` prints, and the only whitespace a field
 /// value carries beside its content.
