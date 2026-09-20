@@ -82,6 +82,10 @@ impl RuleMeta for RequestMethodTokenValid {
         "request_method_token_valid"
     }
 
+    // The one registry row this array omits, and the registry's own reason for
+    // it: "*" is registered so that nothing may be named that, which is the
+    // opposite of a method a deployment could spell in the wrong case.
+    // cite(RFC 9110 § 18.2): "The method name "*" is reserved because using "*" as a method name would conflict with its usage as a wildcard in some fields (e.g., "Access-Control-Request-Method")."
     fn config_example(&self) -> &'static str {
         r#"enabled = true
 # The standardized method names this deployment expects to see spelled the way their
@@ -91,6 +95,13 @@ impl RuleMeta for RequestMethodTokenValid {
 # "Hypertext Transfer Protocol (HTTP) Method Registry" (§16.1.1), which grows by IETF
 # Review. So the set below is that registry's Method Name column and not a grammar: the
 # `token` production admits every lowercase spelling this rule reports.
+# The column has one row this array deliberately omits. "*" is registered as a
+# *reserved* name rather than a method — §18.2 registers it precisely so that nothing
+# defines a method by that name, "because using \"*\" as a method name would conflict
+# with its usage as a wildcard in some fields" — so a sender writing it is not spelling
+# a method in the wrong case, and listing it would state that this deployment knows a
+# method called "*". Registry membership bounds this array; being a method name is what
+# earns a row.
 # A name missing here costs one unremarked spelling and never a false report. Add a
 # private method — `PURGE`, `BAN` — to have its own case convention checked too.
 # The array is required, and an absent or empty one stops the rule outright rather than
@@ -583,5 +594,17 @@ mod tests {
                 "{expected} missing from the array"
             );
         }
+
+        // The array's comment names a criterion — the registry's Method Name
+        // column — so the array is a claim about a set, and the claim is 40 of
+        // the registry's 41 rows. The 41st is `*`, registered as a reserved
+        // name so that nothing is called that; listing it would say this
+        // deployment knows a method by that name. Read the registry against
+        // this array and `*` is what you find; this is where the answer lives
+        // rather than in the reading.
+        assert!(
+            !names.contains(&"*"),
+            "`*` is a reserved name, not a method a sender can misspell"
+        );
     }
 }

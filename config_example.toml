@@ -670,6 +670,13 @@ enabled = true
 # "Hypertext Transfer Protocol (HTTP) Method Registry" (§16.1.1), which grows by IETF
 # Review. So the set below is that registry's Method Name column and not a grammar: the
 # `token` production admits every lowercase spelling this rule reports.
+# The column has one row this array deliberately omits. "*" is registered as a
+# *reserved* name rather than a method — §18.2 registers it precisely so that nothing
+# defines a method by that name, "because using \"*\" as a method name would conflict
+# with its usage as a wildcard in some fields" — so a sender writing it is not spelling
+# a method in the wrong case, and listing it would state that this deployment knows a
+# method called "*". Registry membership bounds this array; being a method name is what
+# earns a row.
 # A name missing here costs one unremarked spelling and never a false report. Add a
 # private method — `PURGE`, `BAN` — to have its own case convention checked too.
 # The array is required, and an absent or empty one stops the rule outright rather than
