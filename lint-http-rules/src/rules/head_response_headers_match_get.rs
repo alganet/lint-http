@@ -432,9 +432,10 @@ impl Rule for HeadResponseHeadersMatchGet {
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        // The guards are a funnel and end the reading early, so they stay
+        // behind an `Option`; the walk over the configured fields below is not
+        // one, and collects.
+        let finding = || -> Vec<Violation> {
             // The sentence the whole rule enforces, and the response it is about.
             // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
             //
@@ -444,10 +445,12 @@ impl Rule for HeadResponseHeadersMatchGet {
             // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
             // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
             if tx.request.method != "HEAD" {
-                return None;
+                return Vec::new();
             }
 
-            let resp = tx.response.as_ref()?;
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
 
             // The counterfactual the sentence names is a GET, by the same token.
             // Every one the history holds is read, newest first, because what
@@ -494,14 +497,25 @@ impl Rule for HeadResponseHeadersMatchGet {
                 })
                 .collect();
             if gets.is_empty() {
-                return None;
+                return Vec::new();
             }
 
             // Parse config only after the cheap method/response/history guards above —
             // non-HEAD transactions (the common case) skip the allocation entirely.
             let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
 
-            let report = |message: String| Some(ctx.report_with(&METHOD_HEAD_CONFLICTING, message));
+            let report = |message: String| ctx.report_with(&METHOD_HEAD_CONFLICTING, message);
+
+            // **One finding per configured field, not one per response.** The
+            // names in `headers` are independent fields with independent
+            // repairs, and a walk that ended at the first divergent one buried
+            // every field after it. `content-length` is last in the list this
+            // ships with and reports § 8.6's MUST NOT under its own entries —
+            // which is the split this rule made so that a broken requirement
+            // would stop arriving as § 9.3.2's declined advice. Answered once
+            // per message, a `Content-Type` that differed put the `error` back
+            // behind the `warn` the split was made to get it out from behind.
+            let mut out = Vec::new();
 
             // For each configured header, enforce presence/value equivalence between GET and HEAD
             for name in &config.headers {
@@ -534,7 +548,7 @@ impl Rule for HeadResponseHeadersMatchGet {
                 // never saw, citing a sentence that does not state it.
                 if name_str == "content-length" {
                     if let Some((def, m)) = content_length_finding(prev_resp, resp) {
-                        return Some(ctx.report_with(def, m));
+                        out.push(ctx.report_with(def, m));
                     }
                     continue;
                 }
@@ -556,24 +570,24 @@ impl Rule for HeadResponseHeadersMatchGet {
 
                 match (prev_val, head_val) {
                     (Some(_), None) if !presence_difference_is_permitted(name_str) => {
-                        return report(format!(
+                        out.push(report(format!(
                             "HEAD response missing header field that GET had: '{}'",
                             name_str
-                        ));
+                        )));
                     }
                     (None, Some(_)) if !presence_difference_is_permitted(name_str) => {
-                        return report(format!(
+                        out.push(report(format!(
                             "HEAD response includes header field not present on GET: '{}'",
                             name_str
-                        ));
+                        )));
                     }
                     (Some(av), Some(bv)) => {
                         if name_str == "vary" {
                             if vary_members(&av) != vary_members(&bv) {
-                                return report(format!(
+                                out.push(report(format!(
                                     "Vary header in HEAD differs from GET: '{}' vs '{}'",
                                     bv, av
-                                ));
+                                )));
                             }
                             continue;
                         }
@@ -585,19 +599,19 @@ impl Rule for HeadResponseHeadersMatchGet {
                         // field lines joins with the first while the same list on one
                         // line usually carries the second.
                         if av != bv {
-                            return report(format!(
+                            out.push(report(format!(
                                 "Header '{}' value differs between HEAD and GET ('{}' vs '{}')",
                                 name_str, bv, av
-                            ));
+                            )));
                         }
                     }
                     _ => {}
                 }
             }
 
-            None
+            out
         };
-        Vec::from_iter(finding())
+        finding()
     }
 }
 
@@ -650,6 +664,81 @@ mod tests {
             }),
         );
         cfg
+    }
+
+    /// **A divergence in one configured field does not end the walk over the
+    /// rest.** `content-length` is last in the list this rule ships with and
+    /// reports § 8.6's MUST NOT under its own entry — a split made so that a
+    /// broken requirement would stop arriving as § 9.3.2's declined advice.
+    /// Answered once per response, a `Content-Type` that differed put the
+    /// `error` straight back behind the `warn`, and an operator repairing what
+    /// it was told met the next field only on the following run.
+    #[test]
+    fn a_divergence_in_one_field_does_not_hide_the_next() {
+        let rule = HeadResponseHeadersMatchGet;
+        let prev = make_prev_with_headers(&[
+            ("etag", "\"v1\""),
+            ("content-type", "text/plain"),
+            ("content-length", "10"),
+        ]);
+        let mut head = make_head_with_headers(&[
+            ("etag", "\"v1\""),
+            ("content-type", "text/html"),
+            ("content-length", "99"),
+        ]);
+        head.request.uri = prev.request.uri.clone();
+
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &head,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &make_cfg_with_headers(vec!["etag", "content-type", "content-length"]),
+        );
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "method_head_conflicting",
+                "method_head_content_length_conflicting"
+            ],
+            "messages: {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// The same walk over three fields that each diverge in a different way:
+    /// one absent from the HEAD, one present only on it, one whose value
+    /// disagrees. Three fields, three repairs, three findings.
+    #[test]
+    fn every_configured_field_answers_for_itself() {
+        let rule = HeadResponseHeadersMatchGet;
+        // The entity tag is held equal on purpose: a validator that differs
+        // says the representation itself changed, which is no evidence about
+        // § 9.3.2 and stops the reading before any field is compared.
+        let prev = make_prev_with_headers(&[
+            ("etag", "\"v1\""),
+            ("content-language", "en"),
+            ("content-type", "text/plain"),
+        ]);
+        let mut head = make_head_with_headers(&[
+            ("etag", "\"v1\""),
+            ("content-location", "/x"),
+            ("content-type", "text/html"),
+        ]);
+        head.request.uri = prev.request.uri.clone();
+
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &head,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &make_cfg_with_headers(vec!["content-language", "content-location", "content-type"]),
+        );
+        assert_eq!(
+            found.len(),
+            3,
+            "messages: {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
     }
 
     #[test]
