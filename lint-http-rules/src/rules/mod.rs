@@ -2035,23 +2035,46 @@ enabled = "true"
             if let Some(rest) = trimmed
                 .strip_prefix("let ")
                 .map(|r| r.strip_prefix("mut ").unwrap_or(r))
-                // `let (members, defects) = split(..)`: a splitter that
-                // answers with the members AND what is wrong with them
-                // binds a tuple, and the members are its first element.
-                .map(|r| r.strip_prefix('(').unwrap_or(r))
-                .map(|r| r.strip_prefix("mut ").unwrap_or(r))
             {
                 let (assignment, _) = statement(i, ';');
+                // A local that came out of a walk is followed by *name*, not
+                // by call syntax: `segments.split_first()` hands the parts on
+                // without ever writing `segments(`. Matching only the call
+                // spelling is the third form of testing a spelling rather
+                // than a shape, and it is why `check_metric`'s parameter walk
+                // was invisible here while it masked.
+                let mentions = |needle: &str| -> bool {
+                    assignment
+                        .split(|c: char| !c.is_alphanumeric() && c != '_')
+                        .any(|t| t == needle)
+                };
                 let names_a_walk = walks.iter().any(|w| assignment.contains(w))
-                    || local_walks
-                        .iter()
-                        .any(|w| assignment.contains(&format!("{w}(")));
+                    || local_walks.iter().any(|w| !w.is_empty() && mentions(w));
                 if names_a_walk {
-                    local_walks.push(
-                        rest.chars()
+                    // Every name the binding introduces, not the first.
+                    // `let (name, params) = segments.split_first()` puts the
+                    // repeated parts in the *second* slot, and a reader that
+                    // took only the first registered the one thing that is
+                    // not a list.
+                    let bound = rest
+                        .split_once('=')
+                        .map(|(lhs, _)| lhs)
+                        .unwrap_or(rest)
+                        .trim()
+                        .trim_start_matches('(')
+                        .trim_end_matches(')');
+                    for part in bound.split(',') {
+                        let name: String = part
+                            .trim()
+                            .trim_start_matches("mut ")
+                            .trim()
+                            .chars()
                             .take_while(|c| c.is_alphanumeric() || *c == '_')
-                            .collect(),
-                    );
+                            .collect();
+                        if !name.is_empty() && name != "_" {
+                            local_walks.push(name);
+                        }
+                    }
                 }
             }
         }
@@ -2069,13 +2092,26 @@ enabled = "true"
             "websocket_handshake_valid.rs",
             "sec_websocket_headers_consistent.rs",
         ];
+        // Walks that are a *lookup* rather than a judgement: the loop steps
+        // over every part whose name is not the one it came for, so what it
+        // returns is one answer about one named part and not a verdict on the
+        // repetition. `h3_ma_defect` searches an `alt-value`'s parameters for
+        // `ma` and reads only that; the parts it steps over are
+        // `alt_svc_header_syntax`'s subject and are reported there. A repeated
+        // `ma` is one repair, which a test in that file pins.
+        //
+        // Named per file, which is coarser than the shape and is the cost:
+        // a real member walk added to this file would be excluded with it.
+        // Measured rather than assumed — emptying this list fails the
+        // assertion below naming this file and no other.
+        const LOOKS_UP_ONE_NAMED_PART: [&str; 1] = ["alt_svc_h3_advertisement_valid.rs"];
         // The helpers that yield a list's members, and the ones that do not.
         // Every `pub fn` of the two modules these come from is in one list or
         // the other, checked below, so a new member helper cannot be added
         // without deciding which — the previous form was an allowlist nobody
         // was obliged to keep current, and `cache_control::members_of` walked
         // the most repeated list on the web without appearing in it.
-        const WALKS: [&str; 8] = [
+        const WALKS: [&str; 12] = [
             "list_members(",
             "sender_list_members(",
             "list_members_as_written(",
@@ -2084,20 +2120,49 @@ enabled = "true"
             "cache_control::members(",
             "cache_control::members_of(",
             "directives_in(",
+            // A member's own parts are a list too, and a walk over them is
+            // the same shape one level down: the parameters of a media-range,
+            // the pairs of a `Forwarded` element, the attributes of a cookie,
+            // the directives of an HSTS policy. This list used to argue these
+            // two out with the sentence *"rules walking it collect anyway,
+            // they are simply not this test's subject"* — a claim about the
+            // code that was false of six rules on the day it was written, and
+            // that nothing measured because the test declining to look was
+            // the whole of the evidence for it.
+            "split_semicolons_respecting_quotes(",
+            "parse_semicolon_list(",
+            // A `Set-Cookie` line's attributes, which are the same repetition
+            // under this document's name for it.
+            "split_set_cookie(",
+            // The request field's own pairs: `cookie-string = cookie-pair
+            // *( ";" SP cookie-pair )`, which is the same repetition on the
+            // other side of the exchange.
+            "parse_cookie_header(",
         ];
-        // The rest of what those two modules export, and none of it yields a
-        // list's members. `split_semicolons_respecting_quotes` is the one that
-        // has to be argued: a `;`-separated run is one member's parameters, and
-        // which of those a member answers for is that member's reading rather
-        // than the list's — rules walking it collect anyway, they are simply
-        // not this test's subject. `parse_semicolon_list` is the same construct
-        // parsed. Everything else answers a question about the whole field —
-        // is this directive present, what lifetime does it state, is the
-        // quoting balanced — or is a method on one directive already read.
-        const NOT_A_MEMBER_WALK: [&str; 18] = [
-            "split_semicolons_respecting_quotes",
-            "parse_semicolon_list",
+        // The rest of what those two modules export, and none of it yields
+        // repeated same-kind parts. Everything here answers a question about
+        // the whole field — is this directive present, what lifetime does it
+        // state, is the quoting balanced — or is a method on one directive
+        // already read.
+        //
+        // `helpers/cookie.rs` joins the two list modules because a `Set-Cookie`
+        // line's attributes and a `Cookie` line's pairs are repetitions under
+        // this document's names for them. What it exports besides those two
+        // splitters is a predicate, a lookup, a sentence, or one whole cookie
+        // assembled out of a walk that has already happened.
+        const NOT_A_MEMBER_WALK: [&str; 27] = [
             "quoting_is_balanced",
+            "validate_cookie_path",
+            "is_expired_at",
+            "domain_matches",
+            "path_matches",
+            "has_value",
+            "set_cookie_name",
+            "about_cookie",
+            "parse_set_cookie",
+            "find_invalid_cookie_octet",
+            "build_cookie_store",
+            "cookie_date_is_readable",
             "read_member",
             "field_lines",
             "has",
@@ -2120,7 +2185,7 @@ enabled = "true"
         let helpers = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/helpers");
         let mut exported = Vec::new();
         let mut unclassified = Vec::new();
-        for module in ["list.rs", "cache_control.rs"] {
+        for module in ["list.rs", "cache_control.rs", "cookie.rs"] {
             let src = std::fs::read_to_string(helpers.join(module))?;
             let body = src
                 .split("\n#[cfg(test)]")
@@ -2176,7 +2241,9 @@ enabled = "true"
                 continue;
             }
             let name = path.file_name().unwrap_or_default().to_string_lossy();
-            if ANSWERS_PER_MESSAGE.contains(&name.as_ref()) {
+            if ANSWERS_PER_MESSAGE.contains(&name.as_ref())
+                || LOOKS_UP_ONE_NAMED_PART.contains(&name.as_ref())
+            {
                 continue;
             }
             let src = std::fs::read_to_string(&path)?;

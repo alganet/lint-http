@@ -202,9 +202,11 @@ impl Rule for StrictTransportSecurityValid {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
+        let finding = || -> Vec<Violation> {
             // Only applicable to responses
-            let resp = tx.response.as_ref()?;
+            let Some(resp) = tx.response.as_ref() else {
+                return Vec::new();
+            };
 
             // A malformed STS header is not a weaker policy — the UA drops it whole and the
             // host is not treated as Known HSTS, so every syntax check below enforces this MUST.
@@ -247,7 +249,7 @@ impl Rule for StrictTransportSecurityValid {
                         )
                     })
                     .collect();
-                return Some(ctx.report_with(
+                return vec![ctx.report_with(
                     &FIELD_LINE_DUPLICATED,
                     format!(
                         "Strict-Transport-Security is written on {} header lines ({}); \
@@ -259,10 +261,17 @@ impl Rule for StrictTransportSecurityValid {
                         lines.len(),
                         shown.join(", ")
                     ),
-                ));
+                )];
             }
 
-            for line in lines {
+            // Exactly one line past the check above, which returns on two or
+            // more: `Strict-Transport-Security` is a singleton and a second
+            // line is `field_line_duplicated`'s subject rather than a second
+            // policy to judge.
+            let Some(line) = lines.into_iter().next() else {
+                return Vec::new();
+            };
+            {
                 let v = crate::helpers::headers::trim_ows(&line);
 
                 // Unnamed, and the grammar is the reason. § 6.1 writes
@@ -271,12 +280,21 @@ impl Rule for StrictTransportSecurityValid {
                 // declares nothing is not a policy, which is a statement about
                 // this field and not about a production it broke.
                 if v.is_empty() {
-                    return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_EMPTY));
+                    return vec![ctx.report(&STRICT_TRANSPORT_SECURITY_EMPTY)];
                 }
 
                 let mut saw_max_age = false;
                 let mut max_age_count = 0usize;
                 let mut saw_empty_directive = false;
+                // One finding per directive. `[ directive ] *( ";" [ directive ] )`
+                // writes them beside each other rather than inside each other,
+                // so a policy naming two of them badly is two things to
+                // correct, and the walk over them stopped at the first. Each
+                // directive's own reading is still a chain: a name that is not
+                // a token and a value that is no `directive-value` are two
+                // readings of one directive, and the second reads text the
+                // first has already condemned.
+                let mut out = Vec::new();
 
                 for member in crate::helpers::list::split_semicolons_respecting_quotes(v) {
                     let member = crate::helpers::headers::trim_ows(member);
@@ -291,142 +309,20 @@ impl Rule for StrictTransportSecurityValid {
                     // Recorded and stepped over rather than returned on. A
                     // separator states nothing about the directives around it,
                     // and the one directive this field is required to carry is
-                    // looked for only after the whole value has been read — so
-                    // ending the scan here answers a policy that never states a
-                    // `max-age` with the stray `;` it also happens to contain.
+                    // looked for only after the whole value has been read.
                     if member.is_empty() {
                         saw_empty_directive = true;
                         continue;
                     }
-
-                    // directive = token [ "=" token ]
-                    let mut kv = member.splitn(2, '=');
-                    let name = crate::helpers::headers::trim_ows(kv.next().unwrap());
-                    if name.is_empty() {
-                        return Some(ctx.report_with(
-                            &TOKEN_EMPTY,
-                            "Empty directive name in Strict-Transport-Security header".into(),
-                        ));
-                    }
-
-                    // The statement below is RFC 6797's and stays: *this
-                    // field's* directive name is a token, which is what licenses
-                    // borrowing the subject at all. What moves onto the two defs
-                    // is the sentence saying what a token is — § 5.6.2's
-                    // `token = 1*tchar`, the character set RFC 2616's derives too.
-                    // cite(RFC 6797 § 6.1): "directive-name            = token"
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                        return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security directive name contains invalid character: {}", crate::helpers::shown::describe_char(c))));
-                    }
-
-                    let lname = name.to_ascii_lowercase();
-                    match lname.as_str() {
-                        // max-age is REQUIRED (enforced by the `saw_max_age` check after the loop)
-                        // and its value is a count of seconds, i.e. all-digits (checked below).
-                        "max-age" => {
-                            max_age_count += 1;
-                            saw_max_age = true;
-                            // must have a value
-                            let Some(vpart) = kv.next() else {
-                                return Some(ctx.report_with(
-                                    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
-                                    "Strict-Transport-Security 'max-age' must have a value".into(),
-                                ));
-                            };
-                            let vpart = crate::helpers::headers::trim_ows(vpart);
-                            // Either alternative of `directive-value`, and the
-                            // digits are asked of what the alternative carries.
-                            // § 6.1.1 defines the value "after quoted-string
-                            // unescaping, if necessary", so `max-age="31536000"`
-                            // is the policy `max-age=31536000` is: the quote is
-                            // the form's delimiter and not a character in the
-                            // count, and a reader that measured it against
-                            // `tchar` reported a conforming policy for how it
-                            // was spelled.
-                            // cite(RFC 6797 § 6.1): "directive-value           = token | quoted-string"
-                            // cite(RFC 6797 § 6.1.1): "The syntax of the max-age directive's REQUIRED value (after quoted-string unescaping, if necessary) is defined as:"
-                            let unquoted: String;
-                            let digits: &str = if vpart.starts_with('"') {
-                                match crate::helpers::quoted_string::unescape_quoted_string(vpart) {
-                                    Ok(inner) => {
-                                        unquoted = inner;
-                                        unquoted.as_str()
-                                    }
-                                    Err(defect) => {
-                                        return Some(ctx.report_with(quoted_string_defect(defect), format!("Invalid quoted-string in Strict-Transport-Security 'max-age' value: {}", defect.message(vpart))));
-                                    }
-                                }
-                            } else {
-                                // Asked before the digits, and answered by the
-                                // catalogue: a `directive-value` is a `token` or
-                                // a `quoted-string` whatever the directive means
-                                // by it, so an octet no `tchar` admits is the
-                                // production's defect and not `max-age`'s.
-                                if let Some(c) =
-                                    crate::helpers::token::find_invalid_token_char(vpart)
-                                {
-                                    return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security 'max-age' contains invalid character: {}", crate::helpers::shown::describe_char(c))));
-                                }
-                                vpart
-                            };
-                            if digits.is_empty() {
-                                return Some(ctx.report_with(&DELTA_SECONDS_EMPTY, "Strict-Transport-Security 'max-age' must have a numeric value".into()));
-                            }
-                            // The sign of `-1` and the point of `1.5` are the
-                            // production's defect and answer under its id,
-                            // whichever field imported it.
-                            if digits.chars().any(|ch| !ch.is_ascii_digit()) {
-                                return Some(ctx.report_with(&DELTA_SECONDS_CHARACTER_FORBIDDEN, "Strict-Transport-Security 'max-age' must be a non-negative integer".into()));
-                            }
-                            // A run of digits too long for a `u64` used to be
-                            // reported here as "not a valid integer", and it is
-                            // not a defect at all: `delta-seconds` sets no
-                            // ceiling and a recipient meeting a value it cannot
-                            // hold is told to clamp it, so such a policy is
-                            // conforming and what could not hold it was this
-                            // reader. The `delta_seconds` subject records the
-                            // same reading, and refuses the entry for the same
-                            // reason.
-                        }
-                        "includesubdomains" => {
-                            // canonical name is includeSubDomains, but accept case-insensitively
-                            // must NOT have a value (it is "valueless" per §6.1.2)
-                            if kv.next().is_some() {
-                                return Some(ctx.report_with(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN, "Strict-Transport-Security 'includeSubDomains' directive must not have a value".into()));
-                            }
-                        }
-                        // `preload` is not an RFC 6797 directive — it is a de-facto extension (the
-                        // browser HSTS preload list), the kind §6.1 anticipates being "defined in
-                        // other specifications". Its valueless form is convention, so no 6797 quote
-                        // governs this branch; it is validated like a known valueless directive.
-                        "preload" => {
-                            if kv.next().is_some() {
-                                return Some(ctx.report_with(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN, "Strict-Transport-Security 'preload' directive must not have a value".into()));
-                            }
-                        }
-                        _ => {
-                            // Unknown directives: allow but ensure if a value is present it is token or quoted-string
-                            // cite(RFC 6797 § 6.1): "directive-value           = token | quoted-string"
-                            if let Some(vpart) = kv.next() {
-                                let vpart = crate::helpers::headers::trim_ows(vpart);
-                                if vpart.starts_with('"') {
-                                    if let Err(defect) =
-                                        crate::helpers::quoted_string::check_quoted_string(vpart)
-                                    {
-                                        return Some(ctx.report_with(quoted_string_defect(defect), format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", defect.message(vpart))));
-                                    }
-                                } else if let Some(c) =
-                                    crate::helpers::token::find_invalid_token_char(vpart)
-                                {
-                                    return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security directive '{}' value contains invalid character: {}", name, crate::helpers::shown::describe_char(c))));
-                                }
-                            }
-                        }
+                    if let Some((def, message)) =
+                        directive_defect(member, &mut saw_max_age, &mut max_age_count)
+                    {
+                        out.push(ctx.report_with(def, message));
                     }
                 }
 
                 if max_age_count > 1 {
-                    return Some(ctx.report_with(
+                    out.push(ctx.report_with(
                         &STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
                         "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
                             .into(),
@@ -442,18 +338,195 @@ impl Rule for StrictTransportSecurityValid {
                 // § 6.1 grammar derives, which is not a thing to repair inside a
                 // field already discarded.
                 if !saw_max_age {
-                    return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING));
+                    // Still ahead of the separator finding, and still instead
+                    // of it rather than beside it: the ranks are the argument
+                    // above and unmasking the walk does not touch them. What
+                    // the walk collected stands, because a directive whose
+                    // value derives from nothing is a defect in what the sender
+                    // wrote and is worth correcting alongside the missing
+                    // `max-age` rather than behind it.
+                    out.push(ctx.report(&STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING));
+                } else if saw_empty_directive {
+                    out.push(ctx.report(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY));
                 }
 
-                if saw_empty_directive {
-                    return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY));
+                out
+            }
+        };
+        finding()
+    }
+}
+
+/// What is wrong with one `directive`, if anything, and what it tells the
+/// policy about its `max-age`.
+///
+/// Split out of the walk above rather than written inside it: the walk stopped
+/// at its first defective directive, and one that keeps going spells every
+/// finding as a `continue` where it used to spell them `return` — the same
+/// reading in a control-flow shape nobody can follow, and past the closure's
+/// complexity ceiling on that alone.
+fn directive_defect(
+    member: &str,
+    saw_max_age: &mut bool,
+    max_age_count: &mut usize,
+) -> Option<(&'static crate::violations::ViolationDef, String)> {
+    // **Not `list_member_empty`.** That def carries § 5.6.1.1's
+    // MUST NOT against an empty element of a `#` list, and this
+    // is not one: the members are semicolon-separated by this
+    // field's own production, whose optional brackets *generate*
+    // the empty one. The rule refuses it anyway and that is its
+    // own claim, which is the same shape of refusal
+    // `Sec-WebSocket-Extensions` made about RFC 2616's list.
+    //
+    // Recorded and stepped over rather than returned on. A
+    // separator states nothing about the directives around it,
+    // and the one directive this field is required to carry is
+    // looked for only after the whole value has been read — so
+    // ending the scan here answers a policy that never states a
+    // `max-age` with the stray `;` it also happens to contain.
+
+    // directive = token [ "=" token ]
+    let mut kv = member.splitn(2, '=');
+    let name = crate::helpers::headers::trim_ows(kv.next().unwrap());
+    if name.is_empty() {
+        return Some((
+            &TOKEN_EMPTY,
+            format!(
+                "Empty directive name in Strict-Transport-Security directive '{}'",
+                crate::helpers::shown::shown_in_finding(member)
+            ),
+        ));
+    }
+
+    // The statement below is RFC 6797's and stays: *this
+    // field's* directive name is a token, which is what licenses
+    // borrowing the subject at all. What moves onto the two defs
+    // is the sentence saying what a token is — § 5.6.2's
+    // `token = 1*tchar`, the character set RFC 2616's derives too.
+    // cite(RFC 6797 § 6.1): "directive-name            = token"
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
+        return Some((token_character(c), format!("Strict-Transport-Security directive '{}' has a name containing an invalid character: {}", crate::helpers::shown::shown_in_finding(member), crate::helpers::shown::describe_char(c))));
+    }
+
+    let lname = name.to_ascii_lowercase();
+    match lname.as_str() {
+        // max-age is REQUIRED (enforced by the `saw_max_age` check after the loop)
+        // and its value is a count of seconds, i.e. all-digits (checked below).
+        "max-age" => {
+            *max_age_count += 1;
+            *saw_max_age = true;
+            // must have a value
+            let Some(vpart) = kv.next() else {
+                return Some((
+                    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
+                    "Strict-Transport-Security 'max-age' must have a value".into(),
+                ));
+            };
+            let vpart = crate::helpers::headers::trim_ows(vpart);
+            // Either alternative of `directive-value`, and the
+            // digits are asked of what the alternative carries.
+            // § 6.1.1 defines the value "after quoted-string
+            // unescaping, if necessary", so `max-age="31536000"`
+            // is the policy `max-age=31536000` is: the quote is
+            // the form's delimiter and not a character in the
+            // count, and a reader that measured it against
+            // `tchar` reported a conforming policy for how it
+            // was spelled.
+            // cite(RFC 6797 § 6.1): "directive-value           = token | quoted-string"
+            // cite(RFC 6797 § 6.1.1): "The syntax of the max-age directive's REQUIRED value (after quoted-string unescaping, if necessary) is defined as:"
+            let unquoted: String;
+            let digits: &str = if vpart.starts_with('"') {
+                match crate::helpers::quoted_string::unescape_quoted_string(vpart) {
+                    Ok(inner) => {
+                        unquoted = inner;
+                        unquoted.as_str()
+                    }
+                    Err(defect) => {
+                        return Some((quoted_string_defect(defect), format!("Invalid quoted-string in Strict-Transport-Security 'max-age' value: {}", defect.message(vpart))));
+                    }
+                }
+            } else {
+                // Asked before the digits, and answered by the
+                // catalogue: a `directive-value` is a `token` or
+                // a `quoted-string` whatever the directive means
+                // by it, so an octet no `tchar` admits is the
+                // production's defect and not `max-age`'s.
+                if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
+                    return Some((
+                        token_character(c),
+                        format!(
+                            "Strict-Transport-Security 'max-age' contains invalid character: {}",
+                            crate::helpers::shown::describe_char(c)
+                        ),
+                    ));
+                }
+                vpart
+            };
+            if digits.is_empty() {
+                return Some((
+                    &DELTA_SECONDS_EMPTY,
+                    "Strict-Transport-Security 'max-age' must have a numeric value".into(),
+                ));
+            }
+            // The sign of `-1` and the point of `1.5` are the
+            // production's defect and answer under its id,
+            // whichever field imported it.
+            if digits.chars().any(|ch| !ch.is_ascii_digit()) {
+                return Some((
+                    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+                    "Strict-Transport-Security 'max-age' must be a non-negative integer".into(),
+                ));
+            }
+            // A run of digits too long for a `u64` used to be
+            // reported here as "not a valid integer", and it is
+            // not a defect at all: `delta-seconds` sets no
+            // ceiling and a recipient meeting a value it cannot
+            // hold is told to clamp it, so such a policy is
+            // conforming and what could not hold it was this
+            // reader. The `delta_seconds` subject records the
+            // same reading, and refuses the entry for the same
+            // reason.
+        }
+        "includesubdomains" => {
+            // canonical name is includeSubDomains, but accept case-insensitively
+            // must NOT have a value (it is "valueless" per §6.1.2)
+            if kv.next().is_some() {
+                return Some((
+                    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
+                    "Strict-Transport-Security 'includeSubDomains' directive must not have a value"
+                        .into(),
+                ));
+            }
+        }
+        // `preload` is not an RFC 6797 directive — it is a de-facto extension (the
+        // browser HSTS preload list), the kind §6.1 anticipates being "defined in
+        // other specifications". Its valueless form is convention, so no 6797 quote
+        // governs this branch; it is validated like a known valueless directive.
+        "preload" => {
+            if kv.next().is_some() {
+                return Some((
+                    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
+                    "Strict-Transport-Security 'preload' directive must not have a value".into(),
+                ));
+            }
+        }
+        _ => {
+            // Unknown directives: allow but ensure if a value is present it is token or quoted-string
+            // cite(RFC 6797 § 6.1): "directive-value           = token | quoted-string"
+            if let Some(vpart) = kv.next() {
+                let vpart = crate::helpers::headers::trim_ows(vpart);
+                if vpart.starts_with('"') {
+                    if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(vpart) {
+                        return Some((quoted_string_defect(defect), format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", defect.message(vpart))));
+                    }
+                } else if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
+                    return Some((token_character(c), format!("Strict-Transport-Security directive '{}' value contains invalid character: {}", name, crate::helpers::shown::describe_char(c))));
                 }
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
     }
+
+    None
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -529,7 +602,7 @@ mod tests {
     #[case::empty_name("max-age=1; =2", "Empty directive name", "token_empty")]
     #[case::name_character(
         "max-age=1; pre@load",
-        "directive name contains",
+        "has a name containing an invalid character",
         "token_character_forbidden"
     )]
     #[case::max_age_character(
@@ -623,6 +696,68 @@ mod tests {
             finding.message
         );
         assert_eq!(finding.violation, violation, "for {value:?}");
+    }
+
+    /// Every finding one `Strict-Transport-Security` value draws.
+    fn all_sts(value: &str) -> Vec<Violation> {
+        crate::test_helpers::run_rule_all(
+            &StrictTransportSecurityValid,
+            &make_resp(value),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "strict_transport_security_valid",
+            ]),
+        )
+    }
+
+    /// **Every defective directive of one policy is answered.**
+    /// `[ directive ] *( ";" [ directive ] )` writes them beside each other,
+    /// so a policy naming two badly is two things to correct and a walk that
+    /// stopped at the first named one.
+    #[test]
+    fn every_defective_directive_is_reported() {
+        let found = all_sts("max-age=10; includeSubDomains=1; preload=2");
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(found
+            .iter()
+            .all(|v| v.violation == "strict_transport_security_directive_value_forbidden"));
+        assert_ne!(found[0].message, found[1].message);
+    }
+
+    /// Two directives whose names carry the same forbidden octet are two
+    /// sentences that can be told apart, because each names the directive.
+    #[test]
+    fn two_bad_directive_names_name_their_own() {
+        let found = all_sts("max-age=1; pre@load; inc@ude");
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_ne!(found[0].message, found[1].message);
+    }
+
+    /// A policy that states no `max-age` still reports the directives that
+    /// derive from nothing, and still answers the separator with the missing
+    /// duration rather than beside it — the rank the comment at that site
+    /// argues for, which unmasking the walk does not touch.
+    #[test]
+    fn a_policy_with_no_max_age_keeps_its_rank_and_its_directive_findings() {
+        let found = all_sts("includeSubDomains=1; preload;");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "strict_transport_security_directive_value_forbidden",
+                "strict_transport_security_max_age_missing",
+            ],
+            "{found:?}"
+        );
+    }
+
+    /// The other direction: the policy nearly every origin in the wild sends
+    /// draws nothing at all.
+    #[test]
+    fn a_conforming_policy_is_silent() {
+        assert!(all_sts("max-age=31536000; includeSubDomains; preload").is_empty());
     }
 
     /// A separator is not an answer to a policy that states no duration.
@@ -995,7 +1130,7 @@ mod tests {
         assert_eq!(v.violation, "token_character_forbidden");
         assert_eq!(
             v.message,
-            "Strict-Transport-Security directive name contains invalid character: 0xFF"
+            "Strict-Transport-Security directive 'inc\u{ff}ude' has a name containing an invalid character: 0xFF"
         );
 
         // Inside a quoted-string it is `qdtext`, which admits it: the string
