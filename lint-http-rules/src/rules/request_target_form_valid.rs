@@ -296,16 +296,29 @@ impl Rule for RequestTargetFormValid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // The four forms are a request-line's, and a request-line is what a
-            // major version 1 message has. HTTP/2 and HTTP/3 send the same target
-            // components as pseudo-header fields, where the asterisk is a `:path`
-            // value and a CONNECT's destination is an `:authority` with no `:path`
-            // beside it -- so `tx.request.uri` over those versions is not a
-            // request-target at all but the target URI the transport reassembled:
-            // an asterisk arrives glued to the authority (`https://example.com*`)
-            // and a host and port arrives as an authority nothing distinguishes
-            // from any other request's. Measuring either against these productions
-            // reports the reassembly rather than the sender.
+            // **`tx.request.uri` is the target URI on every version, and this
+            // gate does not separate it from a request-target.** It was written
+            // as though it did: the note here used to say the four forms are a
+            // request-line's and that a version 1 message therefore carries one.
+            // A capture records § 3.3's reconstruction, and two of the four
+            // forms are reconstructed on HTTP/1.x exactly as all of them are on
+            // the multiplexed versions -- an origin-form target arrives as an
+            // absolute URI built from `Host`, and a server-wide OPTIONS as the
+            // origin with nothing after it. So `https://example.com/p` is what a
+            // client talking to a proxy wrote in absolute-form and what a client
+            // inside a tunnel wrote as `/p`, and nothing in the record chooses.
+            // The three entries below that are read out of a request-line --
+            // whitespace inside the target, a target of no characters, a target
+            // deriving from none of the four -- have no evidence to be read from
+            // when the target was reconstructed, which is most of the traffic
+            // there is.
+            //
+            // **What the gate still buys is the two forms that are recorded
+            // verbatim.** An absolute-form target is the target URI and is
+            // written as the sender wrote it; a CONNECT's authority-form target
+            // likewise. Over HTTP/2 and HTTP/3 the same authority arrives inside
+            // a reassembly and the pseudo-header rules read it there, so
+            // measuring it here as well would draw one conclusion twice.
             //
             // The gate is the major digit, which is the digit the first sentence
             // below gives the meaning to, so both HTTP/1.0 and HTTP/1.1 are measured

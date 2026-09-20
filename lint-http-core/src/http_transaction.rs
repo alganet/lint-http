@@ -23,6 +23,32 @@ pub struct TimingInfo {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct RequestInfo {
     pub method: String,
+    /// The **target URI**, on every version — not the request-target.
+    ///
+    /// The two are the same value for exactly one of the four forms. A
+    /// request-target in absolute-form *is* the target URI and is written here
+    /// as the sender wrote it; a CONNECT's authority-form target is likewise
+    /// recorded as written, being the whole of what that request names. The
+    /// other two are RFC 9112 § 3.3's reconstruction: the scheme comes from the
+    /// connection, the authority from the `Host` field, and the combined path
+    /// and query from the request-target — which is empty for the asterisk-form,
+    /// so a server-wide `OPTIONS` is recorded as the origin and nothing after
+    /// it. Over HTTP/2 and HTTP/3 there is no request-target at all and this is
+    /// what the transport reassembled from `:scheme`, `:authority` and `:path`.
+    ///
+    /// **§ 3.3's empty authority is written as an empty authority**: a request
+    /// whose `Host` is absent, blank, repeated or not an authority reconstructs
+    /// to `http:///path`, a URI naming no host, and the readers make exactly
+    /// that of it. It is not filled in from anywhere — a stand-in host would be
+    /// this file claiming the client named something it did not.
+    ///
+    /// **So a rule cannot ask which form the sender used, and one that tries is
+    /// reading a reconstruction.** `https://example.com/p` is written by a
+    /// client talking to a proxy in absolute-form and by a client inside a
+    /// tunnel in origin-form, and the two records are identical. The form is
+    /// evidence the capture does not carry; what it carries is the resource the
+    /// request was about, which is what every rule keying on a resource needs
+    /// and what the request-target alone could not give them.
     pub uri: String,
     /// The HTTP version this message arrived under, written as an
     /// `HTTP-version` token, e.g. "HTTP/1.1". Required.
