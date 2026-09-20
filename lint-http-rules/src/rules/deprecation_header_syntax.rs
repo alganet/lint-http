@@ -109,7 +109,12 @@ impl Rule for DeprecationHeaderSyntax {
             // this rule's own verdict are the same refusal, and only the
             // second one names the form the sender should have written.
             let s = crate::helpers::headers::field_line_as_written(hv);
-            let s = s.trim();
+            // `trim_ows` and not `str::trim`: the comment above says every octet
+            // either form prints is visible US-ASCII, and `str::trim` was
+            // removing two that are not -- %xA0 and %x85, both `obs-text` -- so
+            // a Structured Field Date with one after its last digit was read as
+            // the date alone.
+            let s = crate::helpers::headers::trim_ows(&s);
 
             // The valid form is a Structured Field Date: `@` followed by an integer epoch.
             // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970 delta per §3.3.7 —
@@ -153,6 +158,31 @@ mod tests {
     use hyper::header::HeaderValue;
     use hyper::HeaderMap;
     use rstest::rstest;
+
+    /// A Structured Field Date is `@` and digits, which is what this rule says
+    /// it reads. `str::trim` was removing the two octets — %xA0 and %x85 —
+    /// that `char::is_whitespace` admits and `OWS` does not, so a value with
+    /// one after its last digit was read as the date alone and found valid.
+    #[test]
+    fn an_obs_text_octet_after_the_date_is_not_ows_around_the_value() {
+        let rule = DeprecationHeaderSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let judge = |bytes: &[u8]| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_octet_pairs(&[("deprecation", bytes)]);
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+        };
+        let v = judge(b"@1688169599\xa0").expect("%xA0 is obs-text and no SF Date prints one");
+        assert_eq!(v.violation, "deprecation_malformed");
+        // `OWS` really is outside the value, and still is.
+        assert!(judge(b" @1688169599\t").is_none());
+    }
 
     #[rstest]
     #[case(200, &[("deprecation", "@1688169599")], false)]

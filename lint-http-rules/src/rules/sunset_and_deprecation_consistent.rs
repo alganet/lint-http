@@ -167,7 +167,12 @@ impl Rule for SunsetAndDeprecationConsistent {
                 Some(hv) => {
                     let s_raw = crate::helpers::headers::field_line_as_written(hv);
                     {
-                        let s = s_raw.trim();
+                        // `trim_ows` and not `str::trim`, for the reason its
+                        // own syntax rule now records: the two `obs-text` octets
+                        // that read as whitespace are octets, and a value
+                        // carrying one is not the structured form this branch
+                        // recognises.
+                        let s = crate::helpers::headers::trim_ows(s_raw.as_str());
                         // Deprecation is a Structured Field Date (`@` + integer epoch
                         // seconds); this recognises exactly that form and defers the
                         // legacy/invalid forms to `deprecation_header_syntax`.

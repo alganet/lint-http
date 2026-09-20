@@ -186,10 +186,17 @@ impl Rule for AcceptRangesValuesValid {
             // refusing never became a value.
             let mut lines: Vec<String> = Vec::new();
             for hv in section.get_all("accept-ranges").iter() {
+                // `trim_ows` and not `str::trim`. The comment above says an
+                // octet outside visible US-ASCII is reported by the member walk
+                // under the id every other reader of `token` uses; `str::trim`
+                // removed %xA0 and %x85 before the walk could see them, so the
+                // two `obs-text` octets that most look like a space were the
+                // two that walk never reported.
                 lines.push(
-                    crate::helpers::headers::field_line_as_written(hv)
-                        .trim()
-                        .to_string(),
+                    crate::helpers::headers::trim_ows(
+                        &crate::helpers::headers::field_line_as_written(hv),
+                    )
+                    .to_string(),
                 );
             }
             if lines.is_empty() {
@@ -356,14 +363,21 @@ fn read_units(value: &str, units: &mut Vec<String>) -> Vec<(&'static ViolationDe
 
     for element in value.split(',') {
         // The list construct puts OWS on either side of each comma, and OWS is
-        // SP / HTAB. `trim` reaches further than that in general and no further
-        // than that here: every octet outside visible US-ASCII was refused
-        // before this function was reached, and SP and HTAB are the only
-        // whitespace left inside it.
+        // SP / HTAB, so the trim is `trim_ows`.
+        //
+        // **It was `str::trim`, on a premise this file no longer holds.** The
+        // sentence beside it said `trim` reached no further here because every
+        // octet outside visible US-ASCII was refused before this function was
+        // reached — and that refusal is the one the reading above records as
+        // removed, so that a bad octet would be measured against the production
+        // like any other. Once it went, `str::trim` was quietly deleting the
+        // two octets, %xA0 and %x85, that `char::is_whitespace` admits and
+        // `OWS` does not: a range unit ending in either lost it here and was
+        // then found to be a perfectly good `token`.
         //
         // cite(RFC 9110 § 5.6.1.1, label: 1#element expansion): "1#element => element *( OWS "," OWS element )"
         // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
-        let element = element.trim();
+        let element = crate::helpers::headers::trim_ows(element);
 
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if element.is_empty() {
@@ -461,6 +475,34 @@ mod tests {
     enum Section {
         Header,
         Trailer,
+    }
+
+    /// A range unit ending in an `obs-text` octet. Two trims stood between the
+    /// value and the member walk — one per field line, one per member — and the
+    /// second was argued from a refusal this rule no longer makes, so both were
+    /// `str::trim` and both removed %xA0 before anything could measure it.
+    ///
+    /// The entry matters as much as the finding: %xA0 is a character the sender
+    /// chose, which is `token_character_forbidden`'s claim, and not whitespace
+    /// or a `CTL`, which is the louder entry's.
+    #[test]
+    fn an_obs_text_octet_in_a_range_unit_is_the_senders_character() {
+        let tx = advertising(&[(Section::Header, b"bytes\xa0")]);
+        let v = judge(&tx).expect("no range-unit admits an obs-text octet");
+        assert_eq!(v.violation, "token_character_forbidden");
+
+        // The same octet inside the member rather than at its end, which no
+        // trim could ever have reached — the two must agree.
+        let tx = advertising(&[(Section::Header, b"by\xa0tes")]);
+        assert_eq!(
+            judge(&tx).expect("a finding").violation,
+            "token_character_forbidden"
+        );
+
+        // `OWS` around the value and around each member is still outside them.
+        // `bytes` twice rather than `bytes, none`, which is a true finding
+        // about the pair and would be measuring something else.
+        assert!(judge(&advertising(&[(Section::Header, b" bytes ,\tbytes")])).is_none());
     }
 
     #[rstest]

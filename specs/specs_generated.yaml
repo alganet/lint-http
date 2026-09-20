@@ -5959,7 +5959,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 194
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 247
+      line: 254
   - label: accept_ranges_and_206_consistent (5)
     section: § 14.3
     snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
@@ -5981,7 +5981,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 168
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 248
+      line: 255
     - file: lint-http-rules/src/violations/accept_ranges.rs
       line: 95
   - label: what advertising a unit is for
@@ -6045,7 +6045,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 231
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 285
+      line: 292
   - label: accept_ranges_on_partial_content (5)
     section: § 15.3.7
     snippet: A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed.
@@ -6065,19 +6065,19 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 50
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 379
+      line: 393
   - label: acceptable-ranges grammar
     section: § 14.3
     snippet: acceptable-ranges = 1#range-unit
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 207
+      line: 214
   - label: accept_ranges_values_valid
     section: § 16.5.1
     snippet: The "HTTP Range Unit Registry" defines the namespace for the range unit names and refers to their corresponding specifications.
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 283
+      line: 290
   - label: allow_header_method_tokens_valid
     section: § 10.2
     snippet: The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources.
@@ -7397,7 +7397,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 562
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 365
+      line: 379
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 168
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
@@ -7647,9 +7647,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 60
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 282
+      line: 289
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 395
+      line: 409
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 114
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -7665,7 +7665,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 264
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 327
+      line: 334
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 334
   - label: Accept-Ranges grammar
@@ -7681,7 +7681,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 61
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 284
+      line: 291
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 70
   - label: lint-http-rules/src/helpers/accept_ranges.rs (4)
@@ -7697,7 +7697,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 586
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 328
+      line: 335
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
       line: 129
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
@@ -7715,7 +7715,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 118
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 343
+      line: 350
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 262
   - label: lint-http-rules/src/helpers/auth.rs
@@ -7774,6 +7774,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 543
+    - file: lint-http-rules/src/rules/auth_scheme_registered.rs
+      line: 232
     - file: lint-http-rules/src/violations/challenge.rs
       line: 94
   - label: credentials grammar
@@ -7784,6 +7786,8 @@ sources:
       line: 532
     - file: lint-http-rules/src/helpers/auth.rs
       line: 810
+    - file: lint-http-rules/src/rules/auth_scheme_registered.rs
+      line: 269
     - file: lint-http-rules/src/violations/credentials.rs
       line: 68
     - file: lint-http-rules/src/violations/credentials.rs
@@ -7859,7 +7863,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 133
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 364
+      line: 378
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 245
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
@@ -7899,7 +7903,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 144
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 368
+      line: 382
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 106
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -8277,7 +8281,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 113
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 206
+      line: 213
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 224
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -8305,7 +8309,7 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 99
     - file: lint-http-rules/src/rules/etag_syntax.rs
-      line: 173
+      line: 181
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 371
     - file: lint-http-rules/src/rules/host_header.rs
@@ -8899,7 +8903,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 189
     - file: lint-http-rules/src/rules/etag_syntax.rs
-      line: 142
+      line: 150
     - file: lint-http-rules/src/violations/etag.rs
       line: 109
   - label: entity-tag grammar
@@ -12893,9 +12897,9 @@ sources:
     snippet: their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@".
     cited_by:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 119
+      line: 124
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 177
+      line: 182
   - label: lint-http-rules/src/helpers/structured_fields.rs
     section: § 3.1.2
     snippet: Note that parameters are ordered, and parameter keys cannot contain uppercase letters.
@@ -13403,9 +13407,9 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 98
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 118
+      line: 123
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 176
+      line: 181
     - file: lint-http-rules/src/violations/deprecation.rs
       line: 71
   - label: sunset_and_deprecation_consistent
@@ -13413,6 +13417,6 @@ sources:
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
     cited_by:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 209
+      line: 214
     - file: lint-http-rules/src/violations/deprecation.rs
       line: 125

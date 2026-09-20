@@ -221,8 +221,18 @@ impl Rule for AuthSchemeRegistered {
                         let mut seen = Vec::new();
                         let mut found = Vec::new();
                         for challenge in challenges {
-                            let scheme =
-                                challenge.split(char::is_whitespace).next().unwrap().trim();
+                            // The same split as the credentials side below, and
+                            // for the same reason: the separator § 11.3 writes
+                            // after an `auth-scheme` is `1*SP`, and cutting on
+                            // `char::is_whitespace` also cuts at %xA0 and %x85,
+                            // which are `obs-text` octets the sender wrote
+                            // inside the name. A scheme truncated at one was
+                            // then asked about by the registry under a name
+                            // nobody sent.
+                            // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
+                            let scheme = crate::helpers::headers::trim_ows(
+                                challenge.split([' ', '\t']).next().unwrap(),
+                            );
                             let folded = scheme.to_ascii_lowercase();
                             if seen.contains(&folded) {
                                 continue;
@@ -250,7 +260,16 @@ impl Rule for AuthSchemeRegistered {
                 let mut seen = Vec::new();
                 for hv in tx.request.headers.get_all(field.key).iter() {
                     let v = crate::helpers::headers::field_line_as_written(hv);
-                    let scheme = v.split(char::is_whitespace).next().unwrap_or("").trim();
+                    // The separator is `1*SP`, so the split is on SP and HTAB
+                    // and not on `char::is_whitespace`: on a value carrying one
+                    // `char` per octet the latter also cuts at %xA0 and %x85,
+                    // which are `obs-text` the wire never wrote as a space --
+                    // so a scheme ending in one was looked up in the registry
+                    // with the offending octet already removed, and found.
+                    // cite(RFC 9110 § 11.4): "credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
+                    let scheme = crate::helpers::headers::trim_ows(
+                        v.split([' ', '\t']).next().unwrap_or(""),
+                    );
                     if scheme.is_empty() {
                         continue;
                     }
@@ -299,6 +318,70 @@ mod tests {
             }),
         );
         cfg
+    }
+
+    /// The scheme the registry is asked about is the one the sender wrote.
+    ///
+    /// § 11.3 and § 11.4 put `1*SP` after an `auth-scheme`, so the split is on
+    /// SP and HTAB. It was `char::is_whitespace`, which on a value carrying one
+    /// `char` per octet also cuts at %xA0 and %x85 — `obs-text` octets a sender
+    /// wrote *inside* the name — so `Frobnicate\xA0abc` was truncated to
+    /// `Frobnicate` and the registry answered about a name nobody sent.
+    ///
+    /// What the value carries now is a scheme that is not a `token`, which this
+    /// rule declines by design and the grammar rule beside it reports. So the
+    /// finding withdrawn here is not lost; it moves to the entry whose claim is
+    /// true of the value.
+    #[test]
+    fn the_registry_is_asked_about_the_whole_name() {
+        let mut request = crate::test_helpers::make_test_transaction();
+        request.request.headers = crate::test_helpers::make_headers_from_octet_pairs(&[(
+            "authorization",
+            b"Frobnicate\xa0abc",
+        )]);
+        assert!(
+            crate::test_helpers::run_rule(
+                &AuthSchemeRegistered,
+                &request,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &make_cfg(),
+            )
+            .is_none(),
+            "the scheme is not a token, which is the grammar rule's finding"
+        );
+
+        // The challenge side splits the same way and must answer the same.
+        let mut response = crate::test_helpers::make_test_transaction_with_response(401, &[]);
+        response.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_octet_pairs(&[(
+                "www-authenticate",
+                b"Frobnicate\xa0realm=\"x\"",
+            )]);
+        assert!(crate::test_helpers::run_rule(
+            &AuthSchemeRegistered,
+            &response,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .is_none());
+
+        // And the separator that IS one still separates.
+        let mut request = crate::test_helpers::make_test_transaction();
+        request.request.headers = crate::test_helpers::make_headers_from_octet_pairs(&[(
+            "authorization",
+            b"Frobnicate\tabc",
+        )]);
+        assert_eq!(
+            crate::test_helpers::run_rule(
+                &AuthSchemeRegistered,
+                &request,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &make_cfg(),
+            )
+            .expect("a finding")
+            .violation,
+            "auth_scheme_unregistered"
+        );
     }
 
     /// The registry question and the grammar question are two entries, and a

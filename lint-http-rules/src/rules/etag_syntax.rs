@@ -131,7 +131,15 @@ impl Rule for EtagSyntax {
                 // back have read it this way since their own conversion.
                 let s = crate::helpers::headers::field_line_as_written(hv);
 
-                let t = s.trim();
+                // `trim_ows` and not `str::trim`. § 5.5's `OWS` around a field
+                // value is `*( SP / HTAB )`; `str::trim` removes every character
+                // `char::is_whitespace` admits, which on the one-`char`-per-octet
+                // string above is wider by %xA0 and %x85. Both are `obs-text`,
+                // and `obs-text` is what the comment above says is measured
+                // against the production like any other octet -- so trimming
+                // them meant an `ETag` whose closing DQUOTE was followed by one
+                // was read as though it ended there.
+                let t = crate::helpers::headers::trim_ows(&s);
                 // The `*` kept its own branch, and the reason changed. It stood here
                 // because `check_entity_tag` admitted a `*` -- which no
                 // `entity-tag` generates, and the helper refuses now -- so the branch
@@ -209,6 +217,38 @@ mod tests {
     /// which of a response's tags carries it. The conditional lists quoted
     /// their member from the start and `ETag` did not, which made the same
     /// finding answerable on one field and not on another.
+    /// The octet after the closing DQUOTE. `etagc` admits `obs-text` *inside*
+    /// an `opaque-tag`, so the value below is a well-formed tag followed by an
+    /// octet — which is no `entity-tag` at all. `str::trim` removed it and left
+    /// a tag that read as perfectly good, because on a value carrying one
+    /// `char` per octet `char::is_whitespace` is true of %xA0 and `OWS` is not.
+    #[test]
+    fn an_obs_text_octet_after_the_tag_is_not_whitespace_around_the_value() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_octet_pairs(&[("etag", b"\"abc\"\xa0")]);
+        let found = crate::test_helpers::run_rule(
+            &EtagSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["etag_syntax"]),
+        )
+        .expect("an opaque-tag followed by an octet is no entity-tag");
+        assert_eq!(found.violation, "etag_delimiter_missing");
+
+        // The `OWS` a field value may carry is still outside it.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_octet_pairs(&[("etag", b" \"abc\"\t")]);
+        assert!(crate::test_helpers::run_rule(
+            &EtagSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["etag_syntax"]),
+        )
+        .is_none());
+    }
+
     #[rstest]
     #[case("abc", "etag_delimiter_missing")]
     #[case("w/\"abc\"", "etag_weak_indicator_invalid")]
