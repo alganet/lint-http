@@ -11576,6 +11576,62 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_version.rs
       line: 104
+  - label: lint-http-proxy/src/proxy/http.rs
+    section: § 3.2
+    snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/http.rs
+      line: 208
+    - file: lint-http-proxy/src/proxy/http.rs
+      line: 363
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 56
+    - file: lint-http-rules/src/rules/host_header.rs
+      line: 196
+  - label: asterisk-form target
+    section: § 3.2.4
+    snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
+    cited_by:
+    - file: lint-http-proxy/src/proxy/http.rs
+      line: 223
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 456
+  - label: lint-http-proxy/src/proxy/http.rs (2)
+    section: § 3.2.4
+    snippet: When a client wishes to request OPTIONS for the server as a whole
+    cited_by:
+    - file: lint-http-proxy/src/proxy/http.rs
+      line: 364
+  - label: lint-http-proxy/src/proxy/http.rs (3)
+    section: § 3.3
+    snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/http.rs
+      line: 187
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 54
+  - label: lint-http-proxy/src/proxy/http.rs (4)
+    section: § 3.3
+    snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/http.rs
+      line: 188
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 55
+  - label: lint-http-proxy/src/proxy/http.rs (5)
+    section: § 3.3
+    snippet: The target URI is the request-target when the request-target is in absolute-form.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/http.rs
+      line: 186
+    - file: lint-http-proxy/src/proxy/http.rs
+      line: 292
+    - file: lint-http-rules/src/helpers/request_target.rs
+      line: 53
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
+      line: 168
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 341
   - label: lint-http-rules/src/helpers/content_length.rs
     section: § 6.3
     snippet: If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value).
@@ -11586,14 +11642,6 @@ sources:
       line: 122
     - file: lint-http-rules/src/violations/content_length.rs
       line: 169
-  - label: lint-http-rules/src/helpers/request_target.rs
-    section: § 3.2
-    snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
-    cited_by:
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 56
-    - file: lint-http-rules/src/rules/host_header.rs
-      line: 196
   - label: request-target forms
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
@@ -11606,28 +11654,6 @@ sources:
       line: 84
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 290
-  - label: lint-http-rules/src/helpers/request_target.rs (2)
-    section: § 3.3
-    snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
-    cited_by:
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 54
-  - label: lint-http-rules/src/helpers/request_target.rs (3)
-    section: § 3.3
-    snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
-    cited_by:
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 55
-  - label: lint-http-rules/src/helpers/request_target.rs (4)
-    section: § 3.3
-    snippet: The target URI is the request-target when the request-target is in absolute-form.
-    cited_by:
-    - file: lint-http-rules/src/helpers/request_target.rs
-      line: 53
-    - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 168
-    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
-      line: 341
   - label: no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -11813,12 +11839,6 @@ sources:
     - file: lint-http-rules/src/violations/request_target.rs
       line: 231
   - label: request_target_form_valid (12)
-    section: § 3.2.4
-    snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
-    cited_by:
-    - file: lint-http-rules/src/rules/request_target_form_valid.rs
-      line: 456
-  - label: request_target_form_valid (13)
     section: § 3.2.4
     snippet: When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target.
     cited_by:

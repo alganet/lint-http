@@ -163,6 +163,116 @@ pub(super) fn error_resp(status: u16, msg: &str) -> Response<ResponseBody> {
     super::exchange::into_response(super::exchange::error_response(status, msg.to_string()))
 }
 
+/// The target URI of a request whose request-target carries no scheme of its
+/// own, in the three components RFC 9112 § 3.3 names them in.
+///
+/// **The parts are kept apart because a concatenation of them does not survive
+/// being read back.** `Host` is written by the client, and it is not an
+/// authority merely because it arrived in that field: pasted between a scheme
+/// and a path, every delimiter inside it becomes a delimiter of the result. A
+/// `/` prepends path segments to the target, a `?` turns the request's path
+/// into a query, a `#` drops the path entirely, and a value that is no
+/// authority at all leaves a string naming a host nobody asked for. What comes
+/// out of `format!` is not what went in, and both the request this proxy
+/// forwards and the record it writes down are built from what came out.
+///
+/// **Two of the four forms carry no path**, which is why the path is a field
+/// here rather than something the URI builder is handed: `path_and_query("*")`
+/// glues the asterisk onto the authority exactly as the concatenation did.
+/// § 3.3 says an asterisk-form target's combined path and query component is
+/// empty, and empty is not something a `Uri` can hold — it normalises to `/` —
+/// so the request-target's own form has to be read before either consumer is
+/// built.
+// cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
+// cite(RFC 9112 § 3.3): "If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field."
+// cite(RFC 9112 § 3.3): "If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty."
+struct TargetUri {
+    scheme: hyper::http::uri::Scheme,
+    /// § 3.3's authority, and `None` is its *"empty or invalid"*: no `Host`
+    /// field, a value that is not an authority, or — since `Host` is a
+    /// singleton — more than one field line, which is a message § 3.2 makes a
+    /// 400 rather than one to pick a host out of by position.
+    authority: Option<hyper::http::uri::Authority>,
+    /// Empty for an asterisk-form target, and the request-target otherwise.
+    path_and_query: String,
+}
+
+impl TargetUri {
+    /// Read the three components off a request whose target carries no scheme.
+    fn reconstruct<B>(req: &Request<B>, scheme: &hyper::http::uri::Scheme) -> Self {
+        let target = req.uri();
+        // `Host` is a singleton. Two field lines are not two candidates: the
+        // message is one a server answers with a 400, and reading the first of
+        // them would choose a host by position rather than by anything the
+        // sender said.
+        // cite(RFC 9112 § 3.2): "A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value."
+        let mut lines = req.headers().get_all(hyper::header::HOST).iter();
+        let authority = match (lines.next(), lines.next()) {
+            (Some(only), None) => only
+                .to_str()
+                .ok()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .and_then(|value| value.parse::<hyper::http::uri::Authority>().ok()),
+            _ => None,
+        };
+
+        // The asterisk is the whole target when it is the target at all, so it
+        // is compared as a whole: a path of `*` inside a longer target is a
+        // path segment and not this form.
+        // cite(RFC 9112 § 3.2.4, label: asterisk-form target): "The "asterisk-form" of request-target is only used for a server-wide OPTIONS request"
+        let path_and_query = match target.path_and_query().map(|pq| pq.as_str()) {
+            Some("*") | None => String::new(),
+            Some(pq) => pq.to_string(),
+        };
+
+        Self {
+            scheme: scheme.clone(),
+            authority,
+            path_and_query,
+        }
+    }
+
+    /// The URI to forward to, or `None` when § 3.3 leaves the authority empty:
+    /// there is then no origin this request names and nothing to open a
+    /// connection to.
+    ///
+    /// An asterisk-form target has no `Uri` either. Its path is empty and a
+    /// `Uri` normalises an empty path to `/`, which would forward a request for
+    /// the root where the client asked about the server as a whole — a
+    /// different request, which is the mistake this whole type exists to stop
+    /// making. Such a request is refused rather than translated.
+    fn to_uri(&self) -> Option<Uri> {
+        if self.path_and_query.is_empty() {
+            return None;
+        }
+        Uri::builder()
+            .scheme(self.scheme.clone())
+            .authority(self.authority.clone()?)
+            .path_and_query(self.path_and_query.as_str())
+            .build()
+            .ok()
+    }
+
+    /// The target URI as it is written down, which is § 3.3's reconstruction
+    /// and not a `Uri`: both of the cases a `Uri` cannot hold are cases a
+    /// record has to be able to state. An empty authority serialises as the
+    /// `//` with nothing between it and the path — `http:///p`, which is a URI
+    /// naming no host and is read as naming none — and an empty path
+    /// serialises as nothing after the authority.
+    fn to_target_string(&self) -> String {
+        format!(
+            "{}://{}{}",
+            self.scheme,
+            self.authority
+                .as_ref()
+                .map(|a| a.as_str())
+                .unwrap_or_default(),
+            self.path_and_query
+        )
+    }
+}
+
 async fn handle_http_logic<B>(
     mut req: Request<B>,
     shared: Arc<Shared>,
@@ -175,29 +285,26 @@ where
 {
     let started = Instant::now();
 
-    let uri = if req.uri().scheme().is_some() {
-        req.uri().clone()
+    // A target already in absolute-form *is* the target URI and nothing is
+    // reconstructed from it; anything else is § 3.3's reconstruction, kept in
+    // its components by [`TargetUri`] because a string built out of them cannot
+    // be read back into them.
+    // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
+    let target = if req.uri().scheme().is_some() {
+        None
     } else {
-        let host = req
-            .headers()
-            .get(hyper::header::HOST)
-            .and_then(|h| h.to_str().ok())
-            .unwrap_or("localhost");
-        let path = req
-            .uri()
-            .path_and_query()
-            .map(|pq| pq.as_str())
-            .unwrap_or("/");
-        let s = format!("{}://{}{}", scheme, host, path);
-        s.parse::<Uri>()
-            .unwrap_or_else(|_| Uri::from_static("http://localhost/"))
+        Some(TargetUri::reconstruct(&req, &scheme))
+    };
+    let uri = match &target {
+        None => Some(req.uri().clone()),
+        Some(target) => target.to_uri(),
     };
 
     let is_ws_upgrade = is_websocket_upgrade(&req);
 
     let method = req.method().clone();
-    // The *reconstructed* target, not `req.uri()`. Over HTTP/1.1 a request
-    // inside a CONNECT tunnel arrives in origin-form — `GET / HTTP/1.1` with the
+    // The *target URI*, not `req.uri()`. Over HTTP/1.1 a request inside a
+    // CONNECT tunnel arrives in origin-form — `GET / HTTP/1.1` with the
     // authority in `Host` — so recording `req.uri()` writes `"/"` into the
     // capture and loses which host was asked. HTTP/2 and HTTP/3 carry
     // `:authority` and already record an absolute URI, so this is also what
@@ -205,10 +312,18 @@ where
     //
     // What that cost: two different hosts both print as `GET / -> 200`, and
     // every by-resource rule keys on `"/"`, so histories for unrelated origins
-    // collide and a validator from one host is reported against another. The
-    // absolute form is already built above for forwarding; it was simply not
-    // the one written down.
-    let uri_str = uri.to_string();
+    // collide and a validator from one host is reported against another.
+    //
+    // It is written from the components and not from the `Uri` above, because
+    // two of the reconstructions a record has to be able to state are ones a
+    // `Uri` cannot hold: an empty authority, and the empty path an asterisk-form
+    // target has. A record built from the forwarding URI could state neither,
+    // and a request this proxy refuses to forward is still a request that was
+    // made.
+    let uri_str = match &target {
+        None => req.uri().to_string(),
+        Some(target) => target.to_target_string(),
+    };
     let req_headers = req.headers().clone();
 
     let client_ip = conn_metadata.remote_addr.ip();
@@ -233,6 +348,41 @@ where
         client_id,
         connection_id: conn_metadata.id,
         sequence_number: conn_metadata.next_sequence_number(),
+    };
+
+    // A request whose target URI could not be built names no origin to forward
+    // it to, and the two ways that happens are two different things to say.
+    //
+    // **Neither of them used to be said at all.** The reconstruction fell back
+    // to `http://localhost/` whenever its string did not parse, so a request
+    // carrying a `Host` that is not an authority was forwarded to whatever
+    // answers on this machine — an origin the client never named, chosen by a
+    // header the client wrote — and the record said that was the request. What
+    // came back was a 502, which blames an origin that was never asked.
+    let Some(uri) = uri else {
+        // cite(RFC 9112 § 3.2): "A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value."
+        // cite(RFC 9112 § 3.2.4): "When a client wishes to request OPTIONS for the server as a whole"
+        let (status, why) = match &target {
+            Some(t) if t.authority.is_none() => (
+                400,
+                "no Host header field, more than one, or a value that is not an authority: the target URI names no host",
+            ),
+            _ => (
+                501,
+                "a server-wide OPTIONS names no resource to forward a request for",
+            ),
+        };
+        record_error_transaction(
+            &shared,
+            &facts,
+            ErrorFacts {
+                status,
+                duration_ms: started.elapsed().as_millis() as u64,
+                ..Default::default()
+            },
+        )
+        .await;
+        return Ok(error_resp(status, why));
     };
 
     // Extract the client OnUpgrade before consuming the request body; for
@@ -342,6 +492,213 @@ mod tests {
     use tokio::fs;
 
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// The whole point of keeping the components apart: a `Host` carrying a URI
+    /// delimiter used to change what the request was *for*.
+    ///
+    /// Every row here is a request whose target is `/x` and whose `Host` the
+    /// client wrote. Under the string reconstruction each one named a different
+    /// resource than the client asked for — `/evil/x`, `/a/../../etc/x`, a
+    /// query where the path went, and, for the two that did not parse at all, a
+    /// target of `http://localhost/` naming a host nobody mentioned and a path
+    /// the client never wrote. The origin was sent the rewritten request-line
+    /// and the capture recorded it as though the client had.
+    #[rstest::rstest]
+    // The four delimiters, each of which re-splits a concatenation somewhere
+    // other than where it was pasted.
+    #[case::path_injected("127.0.0.1:8599/evil")]
+    #[case::traversal_injected("127.0.0.1:8599/a/../../etc")]
+    #[case::query_injected("127.0.0.1:8599?q=1")]
+    #[case::fragment_truncates("127.0.0.1:8599#f")]
+    // A value that is no authority under any reading.
+    #[case::not_an_authority("not a host")]
+    // OWS around the value does not make it one, and `Host` is not a list.
+    #[case::padded("  127.0.0.1:8599  x")]
+    fn a_host_that_is_not_an_authority_names_no_origin(#[case] host: &str) {
+        let req = hyper::Request::builder()
+            .uri("/x")
+            .header("host", host)
+            .body(())
+            .expect("a test request");
+        let target = TargetUri::reconstruct(&req, &hyper::http::uri::Scheme::HTTP);
+
+        // §3.3's empty authority, which is what "empty or invalid" leaves. There
+        // is nowhere to forward such a request, and the fallback that used to
+        // stand in for one picked an origin out of the air.
+        assert!(target.authority.is_none(), "{host}");
+        assert_eq!(target.to_uri(), None, "{host}");
+
+        // And the record still says what the client asked for. This is the half
+        // that was lost twice over: the path survived the two cases that parsed
+        // only by being pasted somewhere it did not belong, and did not survive
+        // the two that did not parse at all.
+        assert_eq!(target.to_target_string(), "http:///x", "{host}");
+    }
+
+    /// A `Host` that *is* an authority reconstructs exactly, and the path is the
+    /// request-target's own.
+    #[rstest::rstest]
+    #[case::host_and_port("127.0.0.1:8599", "/x", "http://127.0.0.1:8599/x")]
+    #[case::no_port("example.com", "/x?a=1", "http://example.com/x?a=1")]
+    // The case a `Host` is preserved in: §6.2.2.1's normalisation is the
+    // reader's, and a record that lowercased it would be stating something the
+    // sender did not write.
+    #[case::case_preserved("Example.COM", "/x", "http://Example.COM/x")]
+    // An IP-literal is bracketed and holds colons of its own; nothing here may
+    // read the first of them as the port delimiter.
+    #[case::ip_literal("[2001:db8::1]:8080", "/", "http://[2001:db8::1]:8080/")]
+    // OWS around a field value is not part of it.
+    #[case::trimmed("  example.com:80  ", "/x", "http://example.com:80/x")]
+    fn a_host_that_is_an_authority_reconstructs_exactly(
+        #[case] host: &str,
+        #[case] target_str: &str,
+        #[case] expected: &str,
+    ) {
+        let req = hyper::Request::builder()
+            .uri(target_str)
+            .header("host", host)
+            .body(())
+            .expect("a test request");
+        let target = TargetUri::reconstruct(&req, &hyper::http::uri::Scheme::HTTP);
+        assert_eq!(target.to_target_string(), expected);
+        assert_eq!(
+            target.to_uri().map(|u| u.to_string()),
+            Some(expected.to_string()),
+            "the forwarded URI and the recorded one are one reconstruction",
+        );
+    }
+
+    /// `Host` is a singleton, and two lines are not two candidates: §3.2 makes
+    /// the message one a server answers with a 400, and taking the first would
+    /// choose a host by position. Two *identical* lines are the same message.
+    #[rstest::rstest]
+    #[case::two_hosts(&["a.example", "b.example"])]
+    #[case::two_identical(&["a.example", "a.example"])]
+    #[case::none(&[])]
+    #[case::empty(&[""])]
+    #[case::blank(&["   "])]
+    fn a_host_that_is_not_exactly_one_value_names_no_origin(#[case] hosts: &[&str]) {
+        let mut b = hyper::Request::builder().uri("/x");
+        for h in hosts {
+            b = b.header("host", *h);
+        }
+        let req = b.body(()).expect("a test request");
+        let target = TargetUri::reconstruct(&req, &hyper::http::uri::Scheme::HTTP);
+        assert!(target.authority.is_none(), "{hosts:?}");
+        assert_eq!(target.to_target_string(), "http:///x", "{hosts:?}");
+    }
+
+    /// The asterisk-form's combined path and query component is empty, and
+    /// empty is a thing a record has to be able to state. Gluing the character
+    /// onto the authority gave `http://127.0.0.1:8599*/` — an authority no
+    /// `uri-host` admits, which then read as an origin disagreeing with `Host`
+    /// and drew a cross-origin finding about a conforming server-wide OPTIONS.
+    #[test]
+    fn an_asterisk_target_names_the_server_and_no_path() {
+        let req = hyper::Request::builder()
+            .uri("*")
+            .header("host", "127.0.0.1:8599")
+            .body(())
+            .expect("a test request");
+        let target = TargetUri::reconstruct(&req, &hyper::http::uri::Scheme::HTTP);
+        assert_eq!(target.to_target_string(), "http://127.0.0.1:8599");
+        assert!(!target.to_target_string().contains('*'));
+        // No `Uri` to forward: an empty path normalises to `/`, which is a
+        // request for the root and not the request that was made.
+        assert_eq!(target.to_uri(), None);
+    }
+
+    /// A target already in absolute-form *is* the target URI. Nothing is
+    /// reconstructed, so a disagreeing `Host` cannot move it — which is the
+    /// order §3.3 states and the reason a `Host` naming another authority is a
+    /// finding rather than an input.
+    #[tokio::test]
+    async fn an_absolute_form_target_is_recorded_as_the_client_wrote_it() -> anyhow::Result<()> {
+        let mock = MockServer::start().await;
+        Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock)
+            .await;
+
+        let cfg = StdArc::new(crate::config::Config::default());
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
+
+        let uri = format!("{}/absolute", mock.uri());
+        let req = hyper::Request::builder()
+            .method("GET")
+            .uri(&uri)
+            .header("host", "someone.else.example/injected")
+            .body(crate::proxy::boxed_full(Bytes::new()))?;
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_request(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 200);
+
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
+        assert_eq!(entries[0]["request"]["uri"].as_str(), Some(uri.as_str()));
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    /// The end-to-end half: a request this proxy cannot resolve an origin for
+    /// is refused, and the refusal is its own answer rather than a 502 blaming
+    /// an origin that was never asked. The upstream is a mock that fails the
+    /// test if anything reaches it — under the string reconstruction it was
+    /// reached, with a request-line the client did not write.
+    #[tokio::test]
+    async fn a_request_naming_no_origin_is_refused_and_nothing_is_forwarded() -> anyhow::Result<()>
+    {
+        let mock = MockServer::start().await;
+        Mock::given(wiremock::matchers::any())
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&mock)
+            .await;
+
+        let cfg = StdArc::new(crate::config::Config::default());
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
+
+        let authority = mock.uri().replace("http://", "");
+        let req = hyper::Request::builder()
+            .method("GET")
+            .uri("/asked-for-this")
+            .header("host", format!("{authority}/not-this"))
+            .body(crate::proxy::boxed_full(Bytes::new()))?;
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_request(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 400);
+
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
+        assert_eq!(
+            entries[0]["request"]["uri"].as_str(),
+            Some("http:///asked-for-this"),
+            "the record says what the client asked for, not what the Host would have made of it",
+        );
+
+        // `expect(0)` is checked when the mock server drops; naming it here says
+        // what the row is for.
+        drop(mock);
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
 
     #[tokio::test]
     async fn handle_request_forwards_and_captures() -> anyhow::Result<()> {
