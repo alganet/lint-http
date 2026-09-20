@@ -173,19 +173,26 @@ enum Syntax {
 }
 
 impl Syntax {
-    /// What is wrong with this field value, if anything.
-    fn defect(self, value: &str) -> Option<Defect> {
+    /// Everything that is wrong with this field value.
+    ///
+    /// Each of these fields is a list, and each member of one names an
+    /// algorithm a sender chose and edits on its own — so a value naming two
+    /// algorithms outside the grammar is two names to correct rather than one
+    /// finding that happens to have been reached first.
+    fn defects(self, value: &str) -> Vec<Defect> {
         match self {
             Syntax::LegacyDigest => legacy_digest_defect(value),
-            Syntax::LegacyWantDigest => token_list(
-                value,
-                "Want-Digest header contains empty member",
-                "Want-Digest algorithm contains invalid character: '{}'",
-            )
-            .err(),
+            Syntax::LegacyWantDigest => {
+                token_list(
+                    value,
+                    "Want-Digest header contains empty member",
+                    "Want-Digest algorithm '{member}' contains invalid character: '{char}'",
+                )
+                .1
+            }
             Syntax::StructuredDigest => structured_digest_defect(value),
             Syntax::WantPreference => want_preference_defect(value),
-            Syntax::Anything => None,
+            Syntax::Anything => Vec::new(),
         }
     }
 }
@@ -363,64 +370,87 @@ fn key_value_members(
     empty_member: MemberDefect,
     missing_eq: MemberDefect,
     empty_algorithm: MemberDefect,
-) -> Result<Vec<(String, String)>, Defect> {
+) -> (Vec<(String, String)>, Vec<Defect>) {
     let mut members = Vec::new();
+    let mut out = Vec::new();
+    // The empty member belongs to the field: `a=1,,,b=2` is one hole the
+    // sender left however many commas it ran together, and the sentence names
+    // no member because there is no member to name.
+    let mut saw_an_empty_member = false;
     for member in value.split(',') {
         let member = member.trim();
         if member.is_empty() {
-            return Err(Defect::named(
-                empty_member.def,
-                empty_member.message.to_string(),
-            ));
+            saw_an_empty_member = true;
+            continue;
         }
         let Some(eq) = member.find('=') else {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 missing_eq.def,
                 missing_eq.message.replace("{}", member),
             ));
+            continue;
         };
         let algorithm = member[..eq].trim();
         if algorithm.is_empty() {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 empty_algorithm.def,
                 empty_algorithm.message.replace("{}", member),
             ));
+            continue;
         }
         members.push((algorithm.to_string(), member[eq + 1..].trim().to_string()));
     }
-    Ok(members)
+    if saw_an_empty_member {
+        out.push(Defect::named(
+            empty_member.def,
+            empty_member.message.to_string(),
+        ));
+    }
+    (members, out)
 }
 
 /// Split a comma-separated list of bare tokens.
-fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> Result<Vec<String>, Defect> {
+fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> (Vec<String>, Vec<Defect>) {
     let mut members = Vec::new();
+    let mut out = Vec::new();
+    let mut saw_an_empty_member = false;
     for member in value.split(',') {
         let member = member.trim();
         if member.is_empty() {
-            return Err(Defect::named(
-                &DIGEST_MEMBER_EMPTY,
-                empty_member.to_string(),
-            ));
+            saw_an_empty_member = true;
+            continue;
         }
         // `digest-algorithm = token`, and the caller supplies only the wording:
         // which of the two `token` ids answers is decided by the character, the
-        // way it is at every other reader of this production.
+        // way it is at every other reader of this production. The wording names
+        // the member as well as the character, because two algorithms in one
+        // list can fail on the same octet and a sentence saying only which
+        // octet would arrive twice, word for word.
         // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
         if let Some(c) = crate::helpers::token::find_invalid_token_char(member) {
-            return Err(Defect::named(
+            out.push(Defect::named(
                 token_character(c),
-                invalid_token.replace("{}", &c.to_string()),
+                invalid_token
+                    .replace("{member}", member)
+                    .replace("{char}", &c.to_string()),
             ));
+            continue;
         }
         members.push(member.to_string());
     }
-    Ok(members)
+    if saw_an_empty_member {
+        out.push(Defect::named(
+            &DIGEST_MEMBER_EMPTY,
+            empty_member.to_string(),
+        ));
+    }
+    (members, out)
 }
 
 /// The RFC 3230 shape: an ordinary token and bare base64, with no `:`
 /// delimiters and no structured field anywhere in it.
-fn legacy_digest_defect(value: &str) -> Option<Defect> {
-    let members = match key_value_members(
+fn legacy_digest_defect(value: &str) -> Vec<Defect> {
+    let (members, mut out) = key_value_members(
         value,
         MemberDefect {
             def: &DIGEST_MEMBER_EMPTY,
@@ -437,17 +467,20 @@ fn legacy_digest_defect(value: &str) -> Option<Defect> {
             def: &TOKEN_EMPTY,
             message: "Digest member '{}' has empty algorithm",
         },
-    ) {
-        Err(defect) => return Some(defect),
-        Ok(members) => members,
-    };
+    );
 
+    // One member is one algorithm and its digest, and what is wrong with it is
+    // read as a chain: a value that is not base64 is only a question once
+    // there is a value at all. What does NOT chain is the member boundary --
+    // the sender wrote each member on its own terms and corrects each on its
+    // own, so the walk carries on to the next.
     for (algorithm, encoded) in members {
         if encoded.is_empty() {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &DIGEST_VALUE_EMPTY,
                 format!("Digest member '{}' has empty value", algorithm),
             ));
+            continue;
         }
 
         // The algorithm is a token. RFC 3230 also makes it case-insensitive,
@@ -456,10 +489,14 @@ fn legacy_digest_defect(value: &str) -> Option<Defect> {
         // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
         // cite(RFC 3230 § 4.1.1): "All digest-algorithm values are case-insensitive."
         if let Some(c) = crate::helpers::token::find_invalid_token_char(&algorithm) {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 token_character(c),
-                format!("Digest algorithm contains invalid character: '{}'", c),
+                format!(
+                    "Digest algorithm '{}' contains invalid character: '{}'",
+                    algorithm, c
+                ),
             ));
+            continue;
         }
 
         // Neither document restates a character of the encoding, so a value
@@ -468,7 +505,7 @@ fn legacy_digest_defect(value: &str) -> Option<Defect> {
             .decode(&encoded)
             .is_err()
         {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &BASE64_MALFORMED,
                 format!(
                     "Digest value for algorithm '{}' is not valid base64",
@@ -477,12 +514,12 @@ fn legacy_digest_defect(value: &str) -> Option<Defect> {
             ));
         }
     }
-    None
+    out
 }
 
 /// The RFC 9530 shape: a Dictionary key and a Byte Sequence.
-fn structured_digest_defect(value: &str) -> Option<Defect> {
-    let members = match key_value_members(
+fn structured_digest_defect(value: &str) -> Vec<Defect> {
+    let (members, mut out) = key_value_members(
         value,
         MemberDefect {
             def: &STRUCTURED_FIELD_MEMBER_EMPTY,
@@ -499,11 +536,10 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
             def: &STRUCTURED_FIELD_KEY_MALFORMED,
             message: "Digest member '{}' has empty algorithm",
         },
-    ) {
-        Err(defect) => return Some(defect),
-        Ok(members) => members,
-    };
+    );
 
+    // As above: a member's own checks are a chain, and the member boundary is
+    // not one.
     for (algorithm, encoded) in members {
         // These are Dictionary *keys*, not RFC 3230 tokens: an SF key may not
         // contain uppercase. The distinction matters most on exactly the path a
@@ -514,7 +550,7 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
         // itself is owned by the structured-fields helper.
         // cite(RFC 9530 § 2): "key conveys the hashing algorithm (see Section 5) used to compute the digest;"
         if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &STRUCTURED_FIELD_KEY_MALFORMED,
                 format!(
                     "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
@@ -522,6 +558,7 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
                     algorithm.to_ascii_lowercase()
                 ),
             ));
+            continue;
         }
 
         // The `:`-delimited base64 form, whose grammar the structured-fields
@@ -529,13 +566,14 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
         // same rule).
         // cite(RFC 9530 § 2): "value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation."
         if !crate::helpers::structured_fields::is_byte_sequence(&encoded) {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &DIGEST_VALUE_MALFORMED,
                 format!(
                     "Digest member '{}={}' value must be a byte sequence like ':b64:'",
                     algorithm, encoded
                 ),
             ));
+            continue;
         }
 
         // Two deliberate strictnesses beyond the grammar, neither of which the
@@ -547,16 +585,17 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
         // accepted there.
         let inner = &encoded[1..encoded.len() - 1];
         if inner.is_empty() {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &DIGEST_VALUE_EMPTY,
                 format!("Digest member '{}' has empty byte sequence", algorithm),
             ));
+            continue;
         }
         if base64::engine::general_purpose::STANDARD
             .decode(inner)
             .is_err()
         {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &BASE64_MALFORMED,
                 format!(
                     "Digest value for algorithm '{}' is not valid base64",
@@ -565,12 +604,12 @@ fn structured_digest_defect(value: &str) -> Option<Defect> {
             ));
         }
     }
-    None
+    out
 }
 
 /// The RFC 9530 preference shape: a Dictionary key and a weight.
-fn want_preference_defect(value: &str) -> Option<Defect> {
-    let members = match key_value_members(
+fn want_preference_defect(value: &str) -> Vec<Defect> {
+    let (members, mut out) = key_value_members(
         value,
         MemberDefect {
             def: &STRUCTURED_FIELD_MEMBER_EMPTY,
@@ -586,15 +625,12 @@ fn want_preference_defect(value: &str) -> Option<Defect> {
             def: &STRUCTURED_FIELD_KEY_MALFORMED,
             message: "Want member '{}' has empty algorithm",
         },
-    ) {
-        Err(defect) => return Some(defect),
-        Ok(members) => members,
-    };
+    );
 
     for (algorithm, weight) in members {
         // Same Dictionary-key rule as the digest fields above.
         if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &STRUCTURED_FIELD_KEY_MALFORMED,
                 format!(
                     "Want-* algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
@@ -602,28 +638,39 @@ fn want_preference_defect(value: &str) -> Option<Defect> {
                     algorithm.to_ascii_lowercase()
                 ),
             ));
+            continue;
         }
 
         // The bound is the spec's own, not a chosen tolerance, and the type is
         // Integer, so no decimal point.
         // cite(RFC 9530 § 4): "value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive."
+        // The weight is named beside the algorithm it belongs to: two members
+        // can carry the same bad weight, and a sentence quoting only the weight
+        // would be one sentence written twice.
         let Ok(n) = weight.parse::<i64>() else {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &DIGEST_PREFERENCE_MALFORMED,
-                format!("Want-* weight '{}' is not an integer", weight),
+                format!(
+                    "Want-* weight '{}' for '{}' is not an integer",
+                    weight, algorithm
+                ),
             ));
+            continue;
         };
         // The two halves of one sentence, and they fail at two levels: a value
         // deriving from no Integer stops a parser, and one deriving from an
         // Integer is refused by the range printed beside the type.
         if !(0..=10).contains(&n) {
-            return Some(Defect::named(
+            out.push(Defect::named(
                 &DIGEST_PREFERENCE_INVALID,
-                format!("Want-* weight '{}' out of range 0..=10", weight),
+                format!(
+                    "Want-* weight '{}' for '{}' out of range 0..=10",
+                    weight, algorithm
+                ),
             ));
         }
     }
-    None
+    out
 }
 
 impl RuleMeta for DigestHeaderSyntax {
@@ -702,15 +749,19 @@ impl Rule for DigestHeaderSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        //
         // Eleven fields, one loop. Each was written out as its own block —
         // read the lines, report the unreadable one, validate, report the
         // defect — and the eleven copies differed only in the field's name, the
         // side it is read on, and which of four syntaxes it follows. Those are
         // the three columns of [`FIELDS`].
-        let finding = || -> Option<Violation> {
+        //
+        // **The loop answers for every field it reads.** It used to return at
+        // the first one that had anything to say, so a message carrying a
+        // malformed `Content-Digest` and a malformed `Repr-Digest` reported one
+        // of them — and eleven fields are eleven independent things a sender
+        // wrote, not one verdict on the message.
+        let mut out: Vec<Violation> = Vec::new();
+        {
             for field in FIELDS {
                 let headers = match field.side {
                     Side::Request => &tx.request.headers,
@@ -730,14 +781,16 @@ impl Rule for DigestHeaderSyntax {
                     let value = crate::helpers::headers::field_line_as_written(line);
                     let value = value.as_str();
 
-                    if let Some(defect) = field.syntax.defect(value) {
+                    let defects = field.syntax.defects(value);
+                    let value_is_readable = defects.is_empty();
+                    for defect in defects {
                         let defect = defect.in_context(|message| {
                             format!(
                                 "Invalid {} header in {}: {} ({})",
                                 field.display, field.side, message, field.reference
                             )
                         });
-                        return Some(
+                        out.push(
                             ctx.by(field.side.party())
                                 .report_with(defect.def, defect.message),
                         );
@@ -747,18 +800,24 @@ impl Rule for DigestHeaderSyntax {
                     // itself is gone, not merely discouraged. Which entry says so
                     // is the field's, because the two were retired by two
                     // documents for two reasons.
+                    //
+                    // It stays behind the value, and that is a chain on purpose.
+                    // A sender writing a retired field whose value is also
+                    // malformed has one thing to do about it — stop writing the
+                    // field — and telling them to correct the value they are to
+                    // stop sending is a second sentence about the same act.
                     if let Some(obsolete) = field.obsolete {
-                        return Some(
-                            ctx.by(field.side.party())
-                                .report_with(obsolete.def, obsolete.message.into()),
-                        );
+                        if value_is_readable {
+                            out.push(
+                                ctx.by(field.side.party())
+                                    .report_with(obsolete.def, obsolete.message.into()),
+                            );
+                        }
                     }
                 }
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 }
 
@@ -2262,6 +2321,156 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
+    }
+
+    /// Every member of one of these lists names an algorithm the sender chose
+    /// and edits on its own, so a value defective twice states both. Each row
+    /// drew exactly one finding before the walks collected.
+    #[rstest]
+    #[case::legacy_two_algorithms(
+        "digest",
+        "sha@1=YWJj,md 5=YWJj",
+        &["token_character_forbidden", "token_whitespace_or_control_forbidden"]
+    )]
+    #[case::legacy_want_two_algorithms(
+        "want-digest",
+        "sha@1,md 5",
+        &["token_character_forbidden", "token_whitespace_or_control_forbidden"]
+    )]
+    #[case::legacy_two_values(
+        "digest",
+        "sha-256=,md5=***",
+        &["digest_value_empty", "base64_malformed"]
+    )]
+    #[case::structured_key_and_value(
+        "content-digest",
+        "SHA-256=:YWJj:, md5=abc",
+        &["structured_field_key_malformed", "digest_value_malformed"]
+    )]
+    #[case::want_key_and_weight(
+        "want-content-digest",
+        "SHA-256=5, md5=99",
+        &["structured_field_key_malformed", "digest_preference_invalid"]
+    )]
+    // Both defects here are raised inside the shared splitter, before any
+    // caller's walk over the members it collected begins.
+    #[case::split_missing_equals_and_empty_key(
+        "content-digest",
+        "sha-256, =:YWJj:",
+        &["digest_value_malformed", "structured_field_key_malformed"]
+    )]
+    fn a_value_defective_twice_states_both(
+        #[case] field: &str,
+        #[case] value: &str,
+        #[case] expected: &[&str],
+    ) {
+        let found = all_findings(field, value);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(
+            ids,
+            expected.to_vec(),
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// Two members failing the same way are still two members, and only the
+    /// subject in the sentence tells them apart.
+    #[rstest]
+    #[case::legacy_algorithms("digest", "sha@1=YWJj,md@5=YWJj")]
+    #[case::legacy_want_algorithms("want-digest", "sha@1,md@5")]
+    #[case::structured_keys("content-digest", "SHA-256=:YWJj:, MD5=:YWJj:")]
+    #[case::want_weights("want-content-digest", "sha-256=99, md5=99")]
+    fn two_members_failing_alike_are_two_sentences(#[case] field: &str, #[case] value: &str) {
+        let found = all_findings(field, value);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_ne!(found[0].message, found[1].message, "{found:?}");
+    }
+
+    /// The empty member belongs to the field: however many commas a sender ran
+    /// together, there is one hole to close and no member to name.
+    #[rstest]
+    #[case::legacy("digest", "sha-256=YWJj,,,md5=YWJj", "digest_member_empty")]
+    #[case::legacy_want("want-digest", "sha-256,,,md5", "digest_member_empty")]
+    #[case::structured(
+        "content-digest",
+        "sha-256=:YWJj:,,,md5=:YWJj:",
+        "structured_field_member_empty"
+    )]
+    fn empty_members_are_one_finding_however_many(
+        #[case] field: &str,
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
+        let found = all_findings(field, value);
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert!(
+            ids.iter().filter(|id| **id == expected).count() == 1,
+            "{ids:?}"
+        );
+    }
+
+    /// Eleven fields are eleven independent things a sender wrote. The loop
+    /// returned at the first that had anything to say, so a message carrying
+    /// two malformed digest fields reported one of them.
+    #[test]
+    fn two_defective_fields_on_one_message_are_two_findings() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("content-digest", "SHA-256=:YWJj:"),
+                ("repr-digest", "MD5=:YWJj:"),
+            ],
+        );
+        let found = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(
+            found[0].message.contains("Content-Digest"),
+            "{}",
+            found[0].message
+        );
+        assert!(
+            found[1].message.contains("Repr-Digest"),
+            "{}",
+            found[1].message
+        );
+    }
+
+    /// A retired field whose value is also malformed gives a sender one thing
+    /// to do about it, so the obsolescence stays behind the value.
+    #[test]
+    fn an_obsolete_field_with_a_malformed_value_says_only_what_is_malformed() {
+        let found = all_findings("digest", "sha@1=YWJj");
+        let ids: Vec<&str> = found.iter().map(|v| v.violation.as_str()).collect();
+        assert_eq!(ids, vec!["token_character_forbidden"], "{found:?}");
+    }
+
+    /// Read one field's value on the side it is defined for, keeping every
+    /// finding: `run_rule` takes the first of however many, which is exactly
+    /// what a walk that has started answering twice would pass.
+    fn all_findings(field: &str, value: &str) -> Vec<Violation> {
+        let rule = DigestHeaderSyntax;
+        let tx = match field {
+            "want-digest" => {
+                let mut tx = crate::test_helpers::make_test_transaction();
+                tx.request.headers =
+                    crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+                tx
+            }
+            _ => crate::test_helpers::make_test_transaction_with_response(200, &[(field, value)]),
+        };
+        crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
     }
 
     #[test]
