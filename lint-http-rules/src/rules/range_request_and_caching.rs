@@ -271,14 +271,6 @@ impl Rule for RangeRequestAndCaching {
             let (stored_etag, _stored_last_modified) = newest_validators?;
             let stored_etag = stored_etag?;
 
-            // A weak tag names a representation that cannot be recombined with
-            // anything, so no phrasing of this request would help.
-            // cite(RFC 9110 § 15.3.7.3): "These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1)."
-            // cite(RFC 9111 § 3.4): "A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator"
-            if stored_etag.starts_with("W/") {
-                return None;
-            }
-
             // A malformed stored tag is the server's defect and `etag_syntax`
             // reports it there. Asking the client to echo it would be this rule
             // charging one party for another's field. The `stored_etag == "*"` beside
@@ -306,6 +298,11 @@ impl Rule for RangeRequestAndCaching {
             // are narrower in three ways that have nothing to do with this sentence.
             // Asking this first is what keeps a client that never received a 206, or
             // that also wrote an `If-Match`, from having its MUST NOT go unread.
+            // The tag the client holds may be weak and the question is unchanged:
+            // § 8.8.3 writes `entity-tag = [ weak ] opaque-tag`, so a client handed
+            // `W/"v1"` has an entity tag and has no lawful `If-Range` left — not the
+            // weak tag, by the MUST NOT beside this one, and not a date, by this one.
+            // cite(RFC 9110 § 8.8.3): "entity-tag = [ weak ] opaque-tag"
             // cite(RFC 9110 § 13.1.5): "A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE."
             if let Some(if_range) = &if_range {
                 // A weak tag in `If-Range` violates §13.1.5 outright, and the rule that
@@ -327,6 +324,18 @@ impl Rule for RangeRequestAndCaching {
                         "If-Range carries the date '{if_range}' although entity tag {stored_etag} was provided for this representation; a date is only permitted there when the client has no entity tag"
                     )));
                 }
+            }
+
+            // Everything below is § 4.3.1's, and a weak tag is where the two
+            // sentences part. A weak validator names a representation that cannot be
+            // recombined with anything, so a cache holding one has no fragment to
+            // complete and no phrasing of this request would help — but the client
+            // holds an entity tag all the same, which is the only thing § 13.1.5
+            // asked about above.
+            // cite(RFC 9110 § 15.3.7.3): "These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1)."
+            // cite(RFC 9111 § 3.4): "A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator"
+            if stored_etag.starts_with("W/") {
+                return None;
             }
 
             // Which unit this request is ranging in. A value that is not a
@@ -741,6 +750,26 @@ mod tests {
             );
             assert!(judge(&tx, &history).is_none());
         }
+    }
+
+    /// **A weak stored tag is where the two sentences part.** § 8.8.3 writes
+    /// `entity-tag = [ weak ] opaque-tag`, so a client answered `W/"a"` has an
+    /// entity tag and § 13.1.5 leaves it no lawful `If-Range`: not the weak tag,
+    /// by the MUST NOT beside this one, and not a date, by this one. § 4.3.1's
+    /// question is the opposite way round — a fragment held on a weak validator
+    /// combines with nothing, so there is no stored response to validate — and
+    /// `weak_etag_in_prev_does_not_count_as_validator` pins that half unchanged.
+    #[test]
+    fn a_weak_stored_tag_still_forbids_the_date() {
+        let (tx, history) = sequence(
+            &[(200, &[("etag", "W/\"a\"")])],
+            &[
+                ("range", "bytes=0-0"),
+                ("if-range", "Wed, 21 Oct 2015 07:28:00 GMT"),
+            ],
+        );
+        let v = judge(&tx, &history).expect("a weak tag is an entity tag");
+        assert_eq!(v.violation, "if_range_validator_date_forbidden");
     }
 
     /// The validator is not the 206's — it is the newest one the client was given.

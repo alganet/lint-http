@@ -110,6 +110,13 @@ defects! {
     /// the tag back — and while this entry was asked behind it, a client that
     /// had never been sent a 206 could write the forbidden date in silence.
     ///
+    /// **A weak tag counts, and it is the case that leaves the client nothing
+    /// to send.** § 8.8.3 writes `entity-tag = [ weak ] opaque-tag`, so a client
+    /// answered `W/"v1"` has an entity tag; the MUST NOT beside this one refuses
+    /// it the weak tag in the field, and this one refuses it the date, so the
+    /// only conforming `If-Range` is no `If-Range`. That a weak validator lets
+    /// no fragments be combined is a true sentence about a different entry.
+    ///
     /// `warn`, with its siblings, and for the same reason: the recipient's
     /// answer to a validator it cannot honour is the whole representation,
     /// which costs the transfer the field existed to avoid rather than the
