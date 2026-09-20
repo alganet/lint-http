@@ -31,8 +31,8 @@ use crate::violations::uri::{
     URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
 };
 use crate::violations::warning::{
-    RFC_7234_5_5, WARNING_AGENT_MISSING, WARNING_CODE_MALFORMED, WARNING_MEMBER_MALFORMED,
-    WARNING_TEXT_MISSING,
+    RFC_7234_5_5, RFC_9111_5_5, WARNING_AGENT_MISSING, WARNING_CODE_MALFORMED,
+    WARNING_MEMBER_MALFORMED, WARNING_OBSOLETE, WARNING_TEXT_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -58,6 +58,7 @@ pub struct WarningHeaderSyntax;
 /// Those are RFC 7234 § 5.5's own and nobody else's, which is what a subject
 /// with one declarer is for.
 static DECLARED: &[&ViolationDef] = &[
+    &WARNING_OBSOLETE,
     &WARNING_CODE_MALFORMED,
     &WARNING_AGENT_MISSING,
     &WARNING_TEXT_MISSING,
@@ -113,13 +114,6 @@ impl Defect {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9111_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("5.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5",
-    note: "Where `Warning` is obsoleted. The section carries no BCP 14 keyword, so it \
-           states no requirement on a sender and the field's presence is not reported",
-};
 const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("2.2"),
@@ -162,10 +156,14 @@ impl RuleMeta for WarningHeaderSyntax {
          `warn-text = quoted-string` and `warn-date = DQUOTE HTTP-date DQUOTE`. \
          RFC 9110 §2.2 is what makes a value outside that grammar a finding.\
          \n\n\
-         **The field is obsolete, and its presence is not reported.** RFC 9111 §5.5 obsoletes \
-         `Warning`, and §8.1 registers it with the status `obsoleted` — but §5.5 holds no BCP 14 \
-         keyword at all, so nothing there forbids a sender to write the field and nothing here \
-         reports one for existing. What §5.5 also does not carry is a grammar: the last document \
+         **The field is obsolete, and its presence is reported at `info`.** RFC 9111 §5.5 \
+         obsoletes `Warning` and §8.1 registers it with the status `obsoleted`. §5.5 holds no \
+         BCP 14 keyword — neither does §5.4, which deprecates `Pragma` one section earlier and \
+         is reported — so the finding states what the specification did rather than a \
+         requirement broken, which is what `Strength::Unstated` is for. It is raised on the \
+         field's presence, once per direction, whatever the value derives from: a sender told \
+         only that a `warn-text` wants DQUOTEs around it would repair a field it should instead \
+         remove. What §5.5 does not carry is a grammar: the last document \
          to state one is RFC 7234 §5.5, which RFC 9111 obsoleted, so this rule names both \
          documents rather than pretending the current one still defines a syntax. The \
          leaf productions RFC 7234 imported from RFC 7230 and RFC 7231 are read from RFC 9110 \
@@ -275,23 +273,34 @@ impl RuleMeta for WarningHeaderSyntax {
         use crate::rules::{Compliance, Example};
         &[
             Example {
-                compliance: Compliance::Compliant,
-                label: Some("§5.5.1's code, with the \"-\" §5.5 recommends when the agent is unknown"),
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "RFC 9111 §5.5 obsoletes the field, so a well-formed value is still reported",
+                ),
                 snippet: "HTTP/1.1 200 OK\nWarning: 110 - \"Response is stale\"",
             },
             Example {
-                compliance: Compliance::Compliant,
-                label: Some("A warn-agent that is a uri-host and a port"),
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "A warn-agent that is a uri-host and a port: the member derives, and the \
+                     field is obsolete anyway",
+                ),
                 snippet: "HTTP/1.1 200 OK\nWarning: 214 example.com:80 \"Transformation applied\"",
             },
             Example {
-                compliance: Compliance::Compliant,
-                label: Some("The exchange §5.5 itself prints for the 1xx warn-date requirement"),
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "The exchange RFC 7234 §5.5 itself prints for the 1xx warn-date \
+                     requirement, which RFC 9111 §5.5 obsoletes along with the field",
+                ),
                 snippet: "HTTP/1.1 200 OK\nDate: Sat, 25 Aug 2012 23:34:45 GMT\nWarning: 112 - \"network down\" \"Sat, 25 Aug 2012 23:34:45 GMT\"",
             },
             Example {
-                compliance: Compliance::Compliant,
-                label: Some("A warn-agent of no characters, which `reg-name = *( ... )` generates"),
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "A warn-agent of no characters, which `reg-name = *( ... )` generates: \
+                     nothing here fails the grammar and the field is still obsolete",
+                ),
                 snippet: "HTTP/1.1 200 OK\nWarning: 214  \"Transformation applied\"",
             },
             Example {
@@ -340,12 +349,24 @@ impl Rule for WarningHeaderSyntax {
         // within a section each warning-value is a warning the sender raised on
         // its own terms.
         let mut out = Vec::new();
+        if tx.request.headers.contains_key("warning") {
+            out.push(
+                ctx.by_client()
+                    .report_with(&WARNING_OBSOLETE, obsolete_message("Request")),
+            );
+        }
         out.extend(
             judge(&tx.request.headers, "Request")
                 .into_iter()
                 .map(|defect| ctx.by_client().report_with(defect.def, defect.message)),
         );
         if let Some(resp) = &tx.response {
+            if resp.headers.contains_key("warning") {
+                out.push(
+                    ctx.by_server()
+                        .report_with(&WARNING_OBSOLETE, obsolete_message("Response")),
+                );
+            }
             out.extend(
                 judge(&resp.headers, "Response")
                     .into_iter()
@@ -359,6 +380,39 @@ impl Rule for WarningHeaderSyntax {
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
 static REGISTRATION: &dyn crate::rules::Rule = &WarningHeaderSyntax;
+
+/// The sentence [`WARNING_OBSOLETE`] carries, naming the side that wrote the
+/// field.
+///
+/// **Presence, and not a value.** For as long as this rule asked only what a
+/// `warning-value` derives from, the only thing it could say about
+/// `Warning: 214 UploadServer gunzipped` was that the text wants DQUOTEs
+/// around it -- at `error`, and a sender acting on that alone ships a
+/// well-formed instance of a field RFC 9111 removed. The grammar findings stay
+/// true beside this one; what was missing is the sentence that says the field
+/// is the thing to drop.
+///
+/// The reason recorded here for saying nothing was that § 5.5 carries no BCP
+/// 14 keyword. It does not -- and neither does § 5.4 one section earlier,
+/// which deprecates `Pragma` in the same voice and *is* reported. A
+/// keyword-free sentence is what `Strength::Unstated` is for. § 8.1's Table 1
+/// settles which way the asymmetry pointed: it records `Pragma` `deprecated`
+/// and `Warning` `obsoleted` in adjacent rows, and the field with the weaker
+/// status was the one drawing a finding.
+///
+/// `contains_key` and not a non-empty value: a bare `Warning:` line is a field
+/// the sender wrote, and the members it does not have are the other entries'
+/// question.
+///
+// cite(RFC 9111 § 5.5, label: the obsoletion): "This specification obsoletes it, as it is not widely generated or surfaced to users."
+// cite(RFC 9111 § 5.5, label: where the information goes): "The information it carried can be gleaned from examining other header fields, such as Age."
+fn obsolete_message(side: &str) -> String {
+    format!(
+        "{side} carries a `Warning` header field; RFC 9111 § 5.5 obsoletes it and § 8.1 \
+         registers it with the status `obsoleted`, and the information it carried can be \
+         gleaned from examining other header fields, such as `Age` -- remove the field"
+    )
+}
 
 /// Judge one field section's `Warning` lines, naming the direction the finding
 /// is in.
@@ -861,16 +915,38 @@ mod tests {
         judge(&tx.response.as_ref().unwrap().headers, "Response")
     }
 
+    /// The one finding a fixture value draws *about its value*, with the
+    /// field's own obsolescence asserted away first.
+    ///
+    /// Every fixture here writes a `Warning`, so every one of them draws
+    /// [`WARNING_OBSOLETE`] before anything else -- which makes each of these
+    /// cases a demonstration of that entry too, and makes its absence a
+    /// failure rather than a quieter list. `run_rule` takes the first of
+    /// however many, so reading the value's verdict through it would now read
+    /// the presence verdict instead; this asks for all of them and says how
+    /// many it expects.
     fn judged_response(value: &str) -> Option<String> {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("Warning", value)]);
-        crate::test_helpers::run_rule(
+        let mut found = crate::test_helpers::run_rule_all(
             &WarningHeaderSyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax"]),
-        )
-        .map(|v| v.message)
+        );
+        assert_eq!(
+            found.first().map(|v| v.violation.as_str()),
+            Some("warning_obsolete"),
+            "a response carrying the field reports it obsolete first; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.remove(0);
+        assert!(
+            found.len() <= 1,
+            "this fixture is for values stating one defect; got {:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        found.pop().map(|v| v.message)
     }
 
     #[rstest]
@@ -1033,16 +1109,13 @@ mod tests {
                 200,
                 &[("Warning", value.as_str())],
             );
-            crate::test_helpers::run_rule(
-                &WarningHeaderSyntax,
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "warning_header_syntax",
-                ]),
-            )
-            .unwrap_or_else(|| panic!("accepted {value:?}"))
-            .violation
+            let mut found = reported(&tx);
+            assert_eq!(
+                found.first().map(|v| v.violation.as_str()),
+                Some("warning_obsolete"),
+                "for {value:?}"
+            );
+            found.remove(1).violation
         };
 
         assert_eq!(id_for("Sat Aug 25 23:34:45 2012"), "http_date_obsolete");
@@ -1080,14 +1153,24 @@ mod tests {
     fn each_finding_reports_as_the_entry_that_owns_it(#[case] value: &str, #[case] id: &str) {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("Warning", value)]);
-        let found = crate::test_helpers::run_rule(
+        let mut found = reported(&tx);
+        assert_eq!(
+            found.first().map(|v| v.violation.as_str()),
+            Some("warning_obsolete"),
+            "for {value:?}"
+        );
+        let found = found.remove(1);
+        assert_eq!(found.violation, id, "for {value:?}: {}", found.message);
+    }
+
+    /// The whole rule over one transaction, which is what an operator meets.
+    fn reported(tx: &crate::http_transaction::HttpTransaction) -> Vec<crate::lint::Violation> {
+        crate::test_helpers::run_rule_all(
             &WarningHeaderSyntax,
-            &tx,
+            tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax"]),
         )
-        .unwrap_or_else(|| panic!("accepted {value:?}"));
-        assert_eq!(found.violation, id, "for {value:?}: {}", found.message);
     }
 
     /// Both obsolete formats parse as an `HTTP-date`, and §5.6.7's MUST is what
@@ -1131,9 +1214,18 @@ mod tests {
     }
 
     /// RFC 7234 §5.5's own worked example, the one it prints for the 1xx
-    /// warn-date requirement.
+    /// warn-date requirement: every part of it derives, and the only thing
+    /// left to say about it is that RFC 9111 § 5.5 obsoleted the field the
+    /// whole example is written in.
+    ///
+    /// **The document this value is clean by is the one the document that
+    /// obsoletes it replaced**, which is the shape of the subject: the
+    /// grammar is read from RFC 7234 because no current document states one,
+    /// and the field's status is read from RFC 9111 because RFC 7234 no
+    /// longer speaks for it. A value can be perfect under the first sentence
+    /// and reportable under the second, and this is that value.
     #[test]
-    fn the_sections_own_worked_example_is_clean() {
+    fn the_sections_own_worked_example_derives_and_is_still_obsolete() {
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[
@@ -1144,13 +1236,20 @@ mod tests {
                 ),
             ],
         );
-        assert!(crate::test_helpers::run_rule(
-            &WarningHeaderSyntax,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax",]),
-        )
-        .is_none());
+        let found = reported(&tx);
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["warning_obsolete"],
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        assert!(
+            judge(&tx.response.as_ref().unwrap().headers, "Response").is_empty(),
+            "the value itself derives"
+        );
     }
 
     #[test]
@@ -1162,21 +1261,38 @@ mod tests {
                 .parse::<hyper::header::HeaderValue>()
                 .unwrap(),
         );
-        let cfg =
-            crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax"]);
-        let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(crate::test_helpers::run_rule(&WarningHeaderSyntax, &tx, &history, &cfg).is_none());
+        // A conforming request `Warning` states one thing and one only: the
+        // field is obsolete, and the sender of a *request* is the client.
+        let found = reported(&tx);
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["warning_obsolete"]
+        );
+        assert!(
+            found[0].message.starts_with("Request carries a `Warning`"),
+            "got {:?}",
+            found[0].message
+        );
 
         tx.request.headers.insert(
             "Warning",
             "110-\"bad\"".parse::<hyper::header::HeaderValue>().unwrap(),
         );
-        let message = crate::test_helpers::run_rule(&WarningHeaderSyntax, &tx, &history, &cfg)
-            .expect("a malformed request Warning is a finding")
-            .message;
+        let found = reported(&tx);
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["warning_obsolete", "warning_member_malformed"]
+        );
         assert!(
-            message.starts_with("Request Warning header:"),
-            "got {message:?}"
+            found[1].message.starts_with("Request Warning header:"),
+            "got {:?}",
+            found[1].message
         );
     }
 
@@ -1248,18 +1364,23 @@ mod tests {
                 })
                 .collect();
             let tx = crate::test_helpers::make_test_transaction_with_response(200, &fields);
-            let found = one_judged(&tx.response.as_ref().unwrap().headers, "Response");
+            // The whole rule, not `judge`: every example here writes the field,
+            // so the obsolescence is part of what the example demonstrates and
+            // reading only the value would call a labelled example accepted.
+            let found = reported(&tx);
             match ex.compliance {
                 Compliance::Compliant => assert!(
-                    found.is_none(),
+                    found.is_empty(),
                     "rule reports its Compliant example {:?}: {:?}",
                     ex.snippet,
-                    found.map(|d| d.message),
+                    found.iter().map(|v| &v.message).collect::<Vec<_>>(),
                 ),
                 Compliance::NonCompliant => {
-                    found.unwrap_or_else(|| {
-                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
-                    });
+                    assert!(
+                        !found.is_empty(),
+                        "rule accepts its NonCompliant example {:?}",
+                        ex.snippet
+                    );
                     saw_a_finding = true;
                 }
             }

@@ -10,7 +10,7 @@ SPDX-License-Identifier: ISC
 
 Parses the `Warning` field of a request and of a response — every field line of one section joined into the single list they are — against the grammar that defines it: `Warning = 1#warning-value`, where `warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]`, `warn-code = 3DIGIT`, `warn-agent = ( uri-host [ ":" port ] ) / pseudonym`, `warn-text = quoted-string` and `warn-date = DQUOTE HTTP-date DQUOTE`. RFC 9110 §2.2 is what makes a value outside that grammar a finding.
 
-**The field is obsolete, and its presence is not reported.** RFC 9111 §5.5 obsoletes `Warning`, and §8.1 registers it with the status `obsoleted` — but §5.5 holds no BCP 14 keyword at all, so nothing there forbids a sender to write the field and nothing here reports one for existing. What §5.5 also does not carry is a grammar: the last document to state one is RFC 7234 §5.5, which RFC 9111 obsoleted, so this rule names both documents rather than pretending the current one still defines a syntax. The leaf productions RFC 7234 imported from RFC 7230 and RFC 7231 are read from RFC 9110 instead, where each of them survived under its own name: `token` and `quoted-string` (§5.6.2, §5.6.4), `OWS` (§5.6.3), `pseudonym` (§7.6.3), `uri-host` and `port` (§4.1, reaching RFC 3986 §3.2.2 and §3.2.3), and `HTTP-date` (§5.6.7).
+**The field is obsolete, and its presence is reported at `info`.** RFC 9111 §5.5 obsoletes `Warning` and §8.1 registers it with the status `obsoleted`. §5.5 holds no BCP 14 keyword — neither does §5.4, which deprecates `Pragma` one section earlier and is reported — so the finding states what the specification did rather than a requirement broken, which is what `Strength::Unstated` is for. It is raised on the field's presence, once per direction, whatever the value derives from: a sender told only that a `warn-text` wants DQUOTEs around it would repair a field it should instead remove. What §5.5 does not carry is a grammar: the last document to state one is RFC 7234 §5.5, which RFC 9111 obsoleted, so this rule names both documents rather than pretending the current one still defines a syntax. The leaf productions RFC 7234 imported from RFC 7230 and RFC 7231 are read from RFC 9110 instead, where each of them survived under its own name: `token` and `quoted-string` (§5.6.2, §5.6.4), `OWS` (§5.6.3), `pseudonym` (§7.6.3), `uri-host` and `port` (§4.1, reaching RFC 3986 §3.2.2 and §3.2.3), and `HTTP-date` (§5.6.7).
 
 Four consequences of that grammar are worth stating.
 
@@ -52,12 +52,13 @@ Four consequences of that grammar are worth stating.
 - [warning_agent_missing](../violations/warning_agent_missing.md) — Warning member names no warn-agent
 - [warning_code_malformed](../violations/warning_code_malformed.md) — Warning member's warn-code is not three digits
 - [warning_member_malformed](../violations/warning_member_malformed.md) — Warning member does not derive where the production continues it
+- [warning_obsolete](../violations/warning_obsolete.md) — A message carries a field this specification obsoletes
 - [warning_text_missing](../violations/warning_text_missing.md) — Warning member carries no warn-text
 
 ## Specifications
 
 - [RFC 7234 §5.5](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5): The last statement of the `Warning` grammar, and the requirements about warn-codes and warn-dates that go with it. Obsoleted by RFC 9111, which removed the field rather than restating it — so this is where the productions are read from, and RFC 9111 §5.5 is where the field's status is read from
-- [RFC 9111 §5.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5): Where `Warning` is obsoleted. The section carries no BCP 14 keyword, so it states no requirement on a sender and the field's presence is not reported
+- [RFC 9111 §5.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5): Where `Warning` is obsoleted, and where the field's status is read from. The section states no requirement and keeps none of RFC 7234 § 5.5's grammar — it says the field was used, that this specification obsoletes it, and where the information it carried can be found instead
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The sender MUST NOT behind every finding here: a value that derives from none of §5.5's productions is a protocol element matching no ABNF rule
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): The values a `1#element` production does not generate — the empty value among them — beside the recipient's instruction to ignore empty elements
@@ -79,21 +80,21 @@ enabled = true
 
 ## Examples
 
-### ✅ Good §5.5.1's code, with the "-" §5.5 recommends when the agent is unknown
+### ❌ Bad RFC 9111 §5.5 obsoletes the field, so a well-formed value is still reported
 
 ```http
 HTTP/1.1 200 OK
 Warning: 110 - "Response is stale"
 ```
 
-### ✅ Good A warn-agent that is a uri-host and a port
+### ❌ Bad A warn-agent that is a uri-host and a port: the member derives, and the field is obsolete anyway
 
 ```http
 HTTP/1.1 200 OK
 Warning: 214 example.com:80 "Transformation applied"
 ```
 
-### ✅ Good The exchange §5.5 itself prints for the 1xx warn-date requirement
+### ❌ Bad The exchange RFC 7234 §5.5 itself prints for the 1xx warn-date requirement, which RFC 9111 §5.5 obsoletes along with the field
 
 ```http
 HTTP/1.1 200 OK
@@ -101,7 +102,7 @@ Date: Sat, 25 Aug 2012 23:34:45 GMT
 Warning: 112 - "network down" "Sat, 25 Aug 2012 23:34:45 GMT"
 ```
 
-### ✅ Good A warn-agent of no characters, which `reg-name = *( ... )` generates
+### ❌ Bad A warn-agent of no characters, which `reg-name = *( ... )` generates: nothing here fails the grammar and the field is still obsolete
 
 ```http
 HTTP/1.1 200 OK

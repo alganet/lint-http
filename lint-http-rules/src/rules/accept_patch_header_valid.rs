@@ -767,14 +767,20 @@ mod tests {
             let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
             tx.response.as_mut().expect("a response").headers =
                 crate::test_helpers::make_headers_from_pairs(&[(name, value)]);
-            crate::test_helpers::run_rule(
+            // Every id the rule reports, not the first of however many: a
+            // field whose own presence is a finding answers before any
+            // question about its members, and reading only the first would
+            // call that answer this test's subject.
+            crate::test_helpers::run_rule_all(
                 rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
             )
+            .into_iter()
+            .map(|v| v.violation)
+            .find(|id| id != "warning_obsolete")
             .expect("a finding")
-            .violation
         };
 
         assert_eq!(

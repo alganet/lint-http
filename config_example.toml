@@ -3506,6 +3506,10 @@ severity = "error"
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.warning_obsolete]
+# A message carries a field this specification obsoletes
+severity = "info"
+
 [violations.warning_text_missing]
 # Warning member carries no warn-text
 # GRAMMAR obliges the sender, so this defaults to error.

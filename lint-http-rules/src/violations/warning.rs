@@ -30,12 +30,22 @@
 //! alternation owns no defect, so the id is whichever alternative the reading
 //! committed to** — the message still names both.
 //!
-//! **Flat at `warn`, for the reason `Via`'s subject is.** A `Warning` is
-//! advisory in the first place and obsolete in the second — RFC 9111 § 5.5
-//! removed the field rather than restating it — so no member of it can cost an
-//! exchange anything, which rules out `error`. And none of these is `info`
-//! either: each leaves a member a strict recipient cannot split, so what stops
-//! being readable is the warning itself.
+//! **Four at `error` and one at `info`, and the split is the subject's whole
+//! ranking.** The four that read a `warning-value` are
+//! [`Strength::Grammar`](crate::lint::Strength): RFC 9110 § 2.2 obliges a
+//! sender not to generate a protocol element matching no ABNF rule, which is
+//! the sentence every grammar entry in this catalogue ranks off, and none of
+//! them is `info` either because each leaves a member a strict recipient
+//! cannot split. [`WARNING_OBSOLETE`] is not about a `warning-value` at all
+//! and ranks with the deprecation family instead, at `info`.
+//!
+//! **The argument this paragraph used to make was that a `Warning` is
+//! advisory, so no member of it can cost an exchange anything, which ruled out
+//! `error`.** That is a reading of the *consequence*, and it is how
+//! [`Strength::Unstated`](crate::lint::Strength) entries are ranked — not how
+//! a value that derives from nothing is. It was written before the catalogue
+//! read every entry against the keyword that binds its sender, and it survived
+//! that pass as prose while the four defaults below moved under it.
 //
 // cite(RFC 7234 § 5.5, label: warning-value assembly): "warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]"
 
@@ -43,6 +53,24 @@ use crate::lint::Severity;
 use crate::lint::Strength;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+
+/// Where the field is obsoleted, and the only statement about it a current
+/// document makes.
+///
+/// § 5.4 deprecates `Pragma` in the same voice one section earlier, and § 8.1's
+/// Table 1 records both outcomes side by side: `Pragma` `deprecated`, `Warning`
+/// `obsoleted`. Neither sentence carries a BCP 14 keyword, which is what
+/// [`Strength::Unstated`](crate::lint::Strength) is for and not a
+/// reason to say nothing.
+pub const RFC_9111_5_5: SpecRef = SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5",
+    note: "Where `Warning` is obsoleted, and where the field's status is read from. The \
+           section states no requirement and keeps none of RFC 7234 § 5.5's grammar — it \
+           says the field was used, that this specification obsoletes it, and where the \
+           information it carried can be found instead",
+};
 
 /// The last statement of the `Warning` grammar, which is where every entry
 /// here is read from.
@@ -144,6 +172,48 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_7234_5_5],
         strength: Strength::Grammar,
+    }
+
+    /// A message carrying the field at all, whatever its value derives from.
+    ///
+    /// **The one entry here that is not about a `warning-value`**, and the
+    /// reason the other four now read as a repair to a field that should not
+    /// be sent. A `Warning` whose `warn-text` is a bare token draws
+    /// `quoted_string_delimiter_missing` at `error`, and a sender acting on
+    /// that alone puts the value in DQUOTEs and ships a well-formed instance
+    /// of a field RFC 9111 removed. The grammar findings stay true — a
+    /// recipient still cannot split the member — but the sentence a sender
+    /// most needs is that the field itself is the thing to drop.
+    ///
+    /// **Reported for the same reason [`PRAGMA_OBSOLETE`](crate::violations::pragma::PRAGMA_OBSOLETE) is**, and the two
+    /// sentences are one section apart in one document. Neither carries a BCP
+    /// 14 keyword; both say what the specification does rather than what a
+    /// sender must. That is [`Strength::Unstated`](crate::lint::Strength),
+    /// which 261 entries in this catalogue are built on, and § 8.1's Table 1
+    /// puts the two fields in adjacent rows — `Pragma` `deprecated`, `Warning`
+    /// `obsoleted`. The field with the weaker status was the one being
+    /// reported.
+    ///
+    /// **`info`, at the deprecation family's level and for its argument.** No
+    /// recipient is misled: a field nothing acts on costs the exchange
+    /// nothing, and what the finding buys is that the sender learns it is
+    /// writing into a void. § 5.5 names where the information goes instead —
+    /// other header fields, `Age` among them — so the message can say what to
+    /// do rather than only what to stop.
+    ///
+    /// **Both directions, one entry**, which is [`PRAGMA_OBSOLETE`](crate::violations::pragma::PRAGMA_OBSOLETE)'s shape
+    /// too: § 5.5 obsoletes a field of a *message* and attaches no direction,
+    /// § 8.1 records the status with none either, and the message names the
+    /// side that wrote it.
+    ///
+    // cite(RFC 9111 § 5.5): "The "Warning" header field was used to carry additional information about the status or transformation of a message that might not be reflected in the status code."
+    // cite(RFC 9111 § 5.5, label: the obsoletion): "This specification obsoletes it, as it is not widely generated or surfaced to users."
+    WARNING_OBSOLETE = {
+        id: "warning_obsolete",
+        title: "A message carries a field this specification obsoletes",
+        message: "",
+        default_severity: Severity::Info,
+        spec: &[RFC_9111_5_5],
     }
 }
 

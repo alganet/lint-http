@@ -555,6 +555,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [warning_agent_missing](violations/warning_agent_missing.md) — Warning member names no warn-agent
 - [warning_code_malformed](violations/warning_code_malformed.md) — Warning member's warn-code is not three digits
 - [warning_member_malformed](violations/warning_member_malformed.md) — Warning member does not derive where the production continues it
+- [warning_obsolete](violations/warning_obsolete.md) — A message carries a field this specification obsoletes
 - [warning_text_missing](violations/warning_text_missing.md) — Warning member carries no warn-text
 - [websocket_frame_close_body_malformed](violations/websocket_frame_close_body_malformed.md) — A Close body is too short to hold the status code it opens with
 - [websocket_frame_continuation_unsolicited](violations/websocket_frame_continuation_unsolicited.md) — A continuation frame has no fragmented message to continue

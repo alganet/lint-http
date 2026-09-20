@@ -2009,7 +2009,7 @@ sources:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 218
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 665
+      line: 719
     - file: lint-http-rules/src/violations/uri.rs
       line: 278
   - label: lint-http-rules/src/helpers/authority.rs (10)
@@ -4288,61 +4288,61 @@ sources:
     snippet: Warning = 1#warning-value
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 420
+      line: 474
   - label: warning_header_syntax (2)
     section: § 5.5
     snippet: Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 269
+      line: 267
   - label: warning_header_syntax (3)
     section: § 5.5
     snippet: Warnings are assigned three digit warn-codes.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 482
+      line: 536
   - label: warning_header_syntax (4)
     section: § 5.5
     snippet: warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 637
+      line: 691
   - label: warn-code grammar
     section: § 5.5
     snippet: warn-code = 3DIGIT warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 481
+      line: 535
     - file: lint-http-rules/src/violations/warning.rs
-      line: 77
+      line: 105
   - label: warning_header_syntax (5)
     section: § 5.5
     snippet: warn-date = DQUOTE HTTP-date DQUOTE
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 581
+      line: 635
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 695
+      line: 749
   - label: warn-text position
     section: § 5.5
     snippet: warn-text = quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 539
+      line: 593
     - file: lint-http-rules/src/violations/warning.rs
-      line: 116
+      line: 144
   - label: warning-value assembly
     section: § 5.5
     snippet: warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 475
+      line: 529
     - file: lint-http-rules/src/violations/warning.rs
-      line: 40
+      line: 50
     - file: lint-http-rules/src/violations/warning.rs
-      line: 96
+      line: 124
     - file: lint-http-rules/src/violations/warning.rs
-      line: 139
+      line: 167
 - label: RFC 7239
   url: https://www.rfc-editor.org/rfc/rfc7239.html
   fragments:
@@ -6450,7 +6450,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 292
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 421
+      line: 475
     - file: lint-http-rules/src/violations/list.rs
       line: 101
   - label: accept_patch_header_valid (6)
@@ -6704,7 +6704,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 185
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 407
+      line: 461
     - file: lint-http-rules/src/violations/request_target.rs
       line: 319
     - file: lint-http-rules/src/violations/request_target.rs
@@ -8032,7 +8032,7 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 98
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 719
+      line: 773
     - file: lint-http-rules/src/violations/http_date.rs
       line: 157
   - label: lint-http-core/src/http_date.rs (3)
@@ -8062,7 +8062,7 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 324
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 737
+      line: 791
     - file: lint-http-rules/src/violations/http_date.rs
       line: 196
   - label: lint-http-core/src/http_date.rs (6)
@@ -8084,7 +8084,7 @@ sources:
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
       line: 198
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 777
+      line: 831
     - file: lint-http-rules/src/violations/http_date.rs
       line: 128
   - label: lint-http-core/src/http_date.rs (7)
@@ -8832,7 +8832,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 352
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 409
+      line: 463
   - label: lint-http-rules/src/helpers/field_placement.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -9420,7 +9420,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 482
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 720
+      line: 774
     - file: lint-http-rules/src/violations/quoted_string.rs
       line: 60
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -11480,7 +11480,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 588
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 670
+      line: 724
   - label: via_header_syntax (13)
     section: § 7.6.3
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
@@ -11516,7 +11516,7 @@ sources:
     snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 776
+      line: 830
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.html
   fragments:
@@ -12294,6 +12294,26 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/vary.rs
       line: 60
+  - label: warning
+    section: § 5.5
+    snippet: The "Warning" header field was used to carry additional information about the status or transformation of a message that might not be reflected in the status code.
+    cited_by:
+    - file: lint-http-rules/src/violations/warning.rs
+      line: 209
+  - label: where the information goes
+    section: § 5.5
+    snippet: The information it carried can be gleaned from examining other header fields, such as Age.
+    cited_by:
+    - file: lint-http-rules/src/rules/warning_header_syntax.rs
+      line: 408
+  - label: the obsoletion
+    section: § 5.5
+    snippet: This specification obsoletes it, as it is not widely generated or surfaced to users.
+    cited_by:
+    - file: lint-http-rules/src/rules/warning_header_syntax.rs
+      line: 407
+    - file: lint-http-rules/src/violations/warning.rs
+      line: 210
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.html
   fragments:
