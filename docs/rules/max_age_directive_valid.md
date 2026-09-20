@@ -65,6 +65,46 @@ enabled = true
 > If-None-Match: "v1"    # conditional request used
 ```
 
+### ✅ Good — a method the stored entry could not have answered
+
+```http
+> OPTIONS /data HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=600
+
+# later, a GET for the same resource, carrying a validator from an entry
+# this linter never saw:
+> GET /data HTTP/1.1
+> Host: example.com
+> If-None-Match: "v1"
+
+# no cache stores an OPTIONS response, so its max-age describes no entry and
+# this GET revalidated nothing early
+```
+
+### ✅ Good — a validator for a variant this request did not select
+
+```http
+> GET /style.css HTTP/1.1
+> Host: example.com
+> Accept-Encoding: gzip
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=600
+< Vary: Accept-Encoding
+< ETag: "v1"
+
+# later, the same resource asked for without a coding preference:
+> GET /style.css HTTP/1.1
+> Host: example.com
+> If-None-Match: "v1"
+
+# the fresh entry is the gzip variant, which could not have answered this
+# request, so the round trip was not spent confirming a copy it could use
+```
+
 ### ❌ Bad — unnecessary revalidation while still fresh
 
 ```http

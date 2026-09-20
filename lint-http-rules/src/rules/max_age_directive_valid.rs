@@ -95,6 +95,16 @@ impl RuleMeta for MaxAgeDirectiveValid {
                 snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1\n< ETag: \"v1\"\n\n# later, after expiry:\n> GET /data HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # conditional request used",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a method the stored entry could not have answered"),
+                snippet: "> OPTIONS /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600\n\n# later, a GET for the same resource, carrying a validator from an entry\n# this linter never saw:\n> GET /data HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n\n# no cache stores an OPTIONS response, so its max-age describes no entry and\n# this GET revalidated nothing early",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a validator for a variant this request did not select"),
+                snippet: "> GET /style.css HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600\n< Vary: Accept-Encoding\n< ETag: \"v1\"\n\n# later, the same resource asked for without a coding preference:\n> GET /style.css HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n\n# the fresh entry is the gzip variant, which could not have answered this\n# request, so the round trip was not spent confirming a copy it could use",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— unnecessary revalidation while still fresh"),
                 snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n< ETag: \"v1\"\n\n# ten seconds later, client inexplicably revalidates\n> GET /data HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # age 10 < 60, should not revalidate yet",

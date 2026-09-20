@@ -5160,7 +5160,7 @@ sources:
     snippet: Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload).
     cited_by:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 168
+      line: 173
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 163
     - file: lint-http-rules/src/violations/cache_control.rs
@@ -5170,7 +5170,7 @@ sources:
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
     cited_by:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 169
+      line: 174
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 162
     - file: lint-http-rules/src/violations/cache_control.rs
@@ -11237,15 +11237,15 @@ sources:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 114
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 125
+      line: 130
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 128
+      line: 138
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 187
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 164
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
-      line: 103
+      line: 108
   - label: cached_validators_reused (2)
     section: § 4
     snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
@@ -11253,15 +11253,15 @@ sources:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 132
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 124
+      line: 129
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 127
+      line: 137
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 206
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 183
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
-      line: 102
+      line: 107
   - label: caching_directive_interaction
     section: § 4.2.1
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'
@@ -11337,13 +11337,13 @@ sources:
     snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
     cited_by:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 195
+      line: 200
   - label: immutable_cache_never_stale (2)
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request
     cited_by:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 194
+      line: 199
   - label: delta-seconds
     section: § 1.2.2
     snippet: delta-seconds  = 1*DIGIT
@@ -11425,7 +11425,7 @@ sources:
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 89
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 159
+      line: 169
   - label: lint-http-rules/src/helpers/cache_control.rs (9)
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
@@ -11469,7 +11469,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 480
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
-      line: 152
+      line: 157
     - file: lint-http-rules/src/violations/cache_control.rs
       line: 565
   - label: lint-http-rules/src/helpers/cache_control.rs (14)
@@ -11569,15 +11569,15 @@ sources:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 115
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 123
+      line: 128
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 126
+      line: 136
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 173
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 154
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
-      line: 101
+      line: 106
   - label: lint-http-rules/src/helpers/stored_response.rs (9)
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
@@ -11629,19 +11629,19 @@ sources:
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
     cited_by:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 190
+      line: 200
   - label: max_age_directive_valid (2)
     section: § 4.2
     snippet: When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency
     cited_by:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 196
+      line: 206
   - label: max_age_directive_valid (3)
     section: § 5.2.2.1
     snippet: The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds.
     cited_by:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 189
+      line: 199
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 268
   - label: must_revalidate_enforced
@@ -11655,7 +11655,7 @@ sources:
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 98
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
-      line: 143
+      line: 148
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 112
   - label: must_revalidate_enforced (2)

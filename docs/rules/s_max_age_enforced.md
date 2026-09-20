@@ -29,6 +29,27 @@ enabled = true
 
 ## Examples
 
+### ✅ Good — a variant this request did not select
+
+```http
+> GET /resource HTTP/1.1
+> Host: example.com
+> Accept-Encoding: gzip
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=3600, s-maxage=60
+< Vary: Accept-Encoding
+< ETag: "v1"
+
+# after 120s, the same resource asked for without a coding preference:
+> GET /resource HTTP/1.1
+> Host: example.com
+> If-None-Match: "v1"
+
+# the entry holding both directives is the gzip variant, which could not have
+# answered this request, so no cache read s-maxage as its freshness limit
+```
+
 ### ❌ Bad — premature revalidation based on `s-maxage`
 
 ```http

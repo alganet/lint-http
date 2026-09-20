@@ -67,6 +67,11 @@ impl RuleMeta for SMaxAgeEnforced {
         use crate::rules::{Compliance, Example};
         &[
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a variant this request did not select"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, s-maxage=60\n< Vary: Accept-Encoding\n< ETag: \"v1\"\n\n# after 120s, the same resource asked for without a coding preference:\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n\n# the entry holding both directives is the gzip variant, which could not have\n# answered this request, so no cache read s-maxage as its freshness limit",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— premature revalidation based on `s-maxage`"),
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, s-maxage=60\n< ETag: \"v1\"\n\n# seconds later, same client revalidates after 120s (s-maxage expired but\n# max-age still valid)\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"",

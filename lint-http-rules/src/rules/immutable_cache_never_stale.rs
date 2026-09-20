@@ -91,6 +91,11 @@ impl RuleMeta for ImmutableCacheNeverStale {
                 snippet: "> GET /static.css HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, immutable\n< ETag: \"v1\"\n\n# later, after expiry:\n> GET /static.css HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # revalidation after freshness is fine",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a method the stored entry could not have answered"),
+                snippet: "> OPTIONS /asset.js HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=31536000, immutable\n\n# later, a GET for the same resource:\n> GET /asset.js HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n\n# no cache stores an OPTIONS response, so nothing promised this GET that the\n# representation would not change and nothing was revalidated against it",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("— unnecessary revalidation while still fresh"),
                 snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600, immutable\n< ETag: \"a\"\n\n# still within the advertised lifetime\n> GET /image.png HTTP/1.1\n> Host: example.com\n> If-None-Match: \"a\"        # unnecessary conditional request",

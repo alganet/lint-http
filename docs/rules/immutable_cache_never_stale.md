@@ -58,6 +58,24 @@ enabled = true
 > If-None-Match: "v1"    # revalidation after freshness is fine
 ```
 
+### ✅ Good — a method the stored entry could not have answered
+
+```http
+> OPTIONS /asset.js HTTP/1.1
+> Host: example.com
+
+< HTTP/1.1 200 OK
+< Cache-Control: max-age=31536000, immutable
+
+# later, a GET for the same resource:
+> GET /asset.js HTTP/1.1
+> Host: example.com
+> If-None-Match: "v1"
+
+# no cache stores an OPTIONS response, so nothing promised this GET that the
+# representation would not change and nothing was revalidated against it
+```
+
 ### ❌ Bad — unnecessary revalidation while still fresh
 
 ```http
