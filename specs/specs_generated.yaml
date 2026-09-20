@@ -98,7 +98,7 @@ sources:
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 228
+      line: 245
     - file: lint-http-rules/src/violations/access_control_allow_credentials.rs
       line: 154
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
@@ -108,7 +108,7 @@ sources:
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 247
+      line: 264
     - file: lint-http-rules/src/violations/access_control_allow_origin.rs
       line: 109
   - label: refresh_header_syntax
@@ -2626,25 +2626,19 @@ sources:
       line: 385
   - label: cookie (6)
     section: § 5.2.3
-    snippet: If the attribute-value is empty, the behavior is undefined.
-    cited_by:
-    - file: lint-http-rules/src/violations/cookie.rs
-      line: 257
-  - label: cookie (7)
-    section: § 5.2.3
     snippet: Let cookie-domain be the attribute-value without the leading %x2E (".") character.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
       line: 272
     - file: lint-http-rules/src/violations/cookie.rs
       line: 287
-  - label: cookie (8)
+  - label: cookie (7)
     section: § 5.4
     snippet: If the cookie's secure-only-flag is true, then the request-uri's scheme must denote a "secure" protocol (as defined by the user agent).
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
       line: 570
-  - label: cookie (9)
+  - label: cookie (8)
     section: § 5.4
     snippet: The request-uri's path path-matches the cookie's path.
     cited_by:
@@ -2684,6 +2678,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
       line: 268
+  - label: cookie_attribute_consistent (5)
+    section: § 5.2.3
+    snippet: If the attribute-value is empty, the behavior is undefined.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
+      line: 430
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 257
   - label: cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
@@ -2894,6 +2896,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 385
+    - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
+      line: 395
     - file: lint-http-rules/src/violations/cookie.rs
       line: 171
     - file: lint-http-rules/src/violations/cookie.rs

@@ -20,7 +20,6 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 
 ## Violations
 
-- [cookie_domain_empty](../violations/cookie_domain_empty.md) — Set-Cookie Domain attribute is empty
 - [cookie_domain_missing](../violations/cookie_domain_missing.md) — Set-Cookie Domain attribute carries no value
 - [cookie_expires_malformed](../violations/cookie_expires_malformed.md) — Set-Cookie Expires is readable but derives from no HTTP-date
 - [cookie_expires_missing](../violations/cookie_expires_missing.md) — Set-Cookie Expires attribute carries no value
@@ -29,6 +28,7 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 - [cookie_max_age_missing](../violations/cookie_max_age_missing.md) — Set-Cookie Max-Age attribute carries no value
 - [cookie_pair_equals_missing](../violations/cookie_pair_equals_missing.md) — A Cookie pair is written without its '='
 - [cookie_pair_missing](../violations/cookie_pair_missing.md) — Set-Cookie carries no cookie-pair
+- [cookie_path_empty](../violations/cookie_path_empty.md) — Set-Cookie Path attribute is empty
 - [cookie_path_leading_slash_missing](../violations/cookie_path_leading_slash_missing.md) — Set-Cookie Path attribute is not rooted at `/`
 - [cookie_path_missing](../violations/cookie_path_missing.md) — Set-Cookie Path attribute carries no value
 - [cookie_same_site_invalid](../violations/cookie_same_site_invalid.md) — Set-Cookie SameSite names no policy the grammar defines

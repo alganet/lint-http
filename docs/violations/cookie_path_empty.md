@@ -30,4 +30,5 @@ severity = "warn"
 
 ## Reported By
 
+- [cookie_attribute_consistent](../rules/cookie_attribute_consistent.md)
 - [cookie_path_valid](../rules/cookie_path_valid.md)

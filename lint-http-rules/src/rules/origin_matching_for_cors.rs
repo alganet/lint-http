@@ -207,6 +207,23 @@ impl Rule for OriginMatchingForCors {
             let members: Vec<String> = crate::helpers::list::list_members(acao_raw)
                 .map(|m| m.to_string())
                 .collect();
+            // A field written with no value yields no members, and `!= 1` used
+            // to answer that with the entry written for the opposite case. The
+            // malformity entry's own definition opens "A value on the line, and
+            // it derives from none of the three alternatives" — an empty field
+            // puts no value on the line — and the sentence below says the field
+            // "must be a single value", which is untrue of a value that is not
+            // there at all: nothing here is multiple.
+            //
+            // What the empty field is, is `access_control_allow_origin_empty`,
+            // and this rule is not the one that says so. It reads the pair, and
+            // an absent value gives it nothing to compare the request's `Origin`
+            // against; the field's own grammar rule declares that entry and
+            // already reports it. So this declines rather than renaming the
+            // finding, which would be the same defect drawn twice.
+            if members.is_empty() {
+                return None;
+            }
             if members.len() != 1 {
                 // Not a list defect: the field has no list form for a comma to
                 // break, so what a second member produces is a value the CORS
@@ -286,6 +303,43 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
+    }
+
+    /// An `Access-Control-Allow-Origin` written with no value is the field's
+    /// own grammar rule's finding — `access_control_allow_origin_empty` — and
+    /// not this rule's. `list_members` yields no members for it, so the
+    /// `!= 1` test that separates one member from several used to answer the
+    /// empty field with the entry written for the several: "must be a single
+    /// value", said of a value that is not there and is therefore not
+    /// multiple. Both directions are pinned, because renaming the finding here
+    /// would be the same defect drawn twice.
+    #[rstest]
+    #[case("", None)]
+    #[case("  ", None)]
+    #[case(
+        "https://a.example, https://b.example",
+        Some("access_control_allow_origin_malformed")
+    )]
+    fn an_empty_allow_origin_is_not_a_value_that_is_multiple(
+        #[case] acao: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let rule = OriginMatchingForCors;
+        let mut tx =
+            make_test_transaction_with_response(200, &[("access-control-allow-origin", acao)]);
+        tx.request.headers = make_headers_from_pairs(&[("origin", "https://a.example")]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.as_ref().map(|v| v.violation.as_str()),
+            expected,
+            "{acao:?}: {:?}",
+            v.as_ref().map(|v| &v.message)
+        );
     }
 
     /// The two productions the shared reader borrows report under their own

@@ -7,13 +7,13 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::DRAFT_IETF_HTTPBIS_RFC6265BIS;
 use crate::violations::cookie::{
-    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING,
-    COOKIE_EXPIRES_MALFORMED, COOKIE_EXPIRES_MISSING, COOKIE_FLAG_VALUE_FORBIDDEN,
-    COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING, COOKIE_PAIR_EQUALS_MISSING,
-    COOKIE_PAIR_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
-    COOKIE_PATH_MISSING_WORDING, COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING,
-    COOKIE_SECURE_MISSING, COOKIE_VALUE_CHARACTER_FORBIDDEN, RFC_6265_4_1_1, RFC_6265_5_1_1,
-    RFC_6265_5_2_2, RFC_6265_5_2_3, RFC_6265_5_2_4,
+    COOKIE_DOMAIN_MISSING, COOKIE_DOMAIN_MISSING_WORDING, COOKIE_EXPIRES_MALFORMED,
+    COOKIE_EXPIRES_MISSING, COOKIE_FLAG_VALUE_FORBIDDEN, COOKIE_MAX_AGE_MALFORMED,
+    COOKIE_MAX_AGE_MISSING, COOKIE_PAIR_EQUALS_MISSING, COOKIE_PAIR_MISSING, COOKIE_PATH_EMPTY,
+    COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING, COOKIE_PATH_MISSING_WORDING,
+    COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, COOKIE_SECURE_MISSING,
+    COOKIE_VALUE_CHARACTER_FORBIDDEN, RFC_6265_4_1_1, RFC_6265_5_1_1, RFC_6265_5_2_2,
+    RFC_6265_5_2_3, RFC_6265_5_2_4,
 };
 use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
 use crate::violations::http_date::{
@@ -71,9 +71,9 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &COOKIE_PATH_MISSING,
+    &COOKIE_PATH_EMPTY,
     &COOKIE_PATH_LEADING_SLASH_MISSING,
     &COOKIE_DOMAIN_MISSING,
-    &COOKIE_DOMAIN_EMPTY,
     &DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN,
 ];
 
@@ -384,6 +384,21 @@ impl CookieAttributeConsistent {
                     ctx.report_with(&COOKIE_PATH_MISSING, about(COOKIE_PATH_MISSING_WORDING)),
                 );
             };
+            // `Some("")` is not a value of the wrong shape. § 5.2.4 tests
+            // emptiness and the first character in one sentence, and the
+            // catalogue splits them because the sender did: `cookie_path_empty`
+            // is "`Path=` with nothing after the `=`", where `cookie_path_missing`
+            // above is the bare attribute that never wrote an `=` at all. The
+            // leading-slash entry is about a first character that is not `/`,
+            // and an empty value has no first character — so this branch was
+            // telling an operator to prefix a value that is not there.
+            // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
+            if value.is_empty() {
+                return Some(ctx.report_with(
+                    &COOKIE_PATH_EMPTY,
+                    about("Set-Cookie attribute 'Path' is written with nothing after the '='"),
+                ));
+            }
             return (!value.starts_with('/')).then(|| {
                 ctx.report_with(
                     &COOKIE_PATH_LEADING_SLASH_MISSING,
@@ -401,11 +416,22 @@ impl CookieAttributeConsistent {
                     ctx.report_with(&COOKIE_DOMAIN_MISSING, about(COOKIE_DOMAIN_MISSING_WORDING)),
                 );
             };
+            // The same reading as `Path` above, and the catalogue draws the
+            // line in a different place for this attribute — deliberately.
+            // `cookie_domain_missing` is defined as "`Domain` written with no
+            // value, or with one that is empty before anything reads it", which
+            // is this branch and the one above it; `cookie_domain_empty` is
+            // reserved for a value that came to nothing *through the domain
+            // reader* — `Domain=.`, empty once the tolerated leading dot comes
+            // off — and its own definition says that is "why it is not
+            // COOKIE_DOMAIN_MISSING". This rule reads the attribute and never
+            // the domain, so it cannot be the one that reaches that entry, and
+            // saying so here named a value the sender did not write.
+            // cite(RFC 6265 § 5.2.3): "If the attribute-value is empty, the behavior is undefined."
             if value.is_empty() {
-                return Some(ctx.report_with(
-                    &COOKIE_DOMAIN_EMPTY,
-                    about("Set-Cookie attribute 'Domain' must not be empty"),
-                ));
+                return Some(
+                    ctx.report_with(&COOKIE_DOMAIN_MISSING, about(COOKIE_DOMAIN_MISSING_WORDING)),
+                );
             }
             // A space inside a host name is the *name's* defect and not the
             // attribute's: the same octet in a `Host`, a `Forwarded` host or a
@@ -1103,12 +1129,51 @@ mod tests {
         assert!(msg.contains("missing cookie-pair"));
     }
 
+    /// An attribute written with an empty value is not an attribute whose
+    /// value has the wrong shape, and the catalogue splits the two per
+    /// attribute rather than in general — so each half is pinned by the id it
+    /// draws and not by a word in its sentence.
+    ///
+    /// `Domain=` is `cookie_domain_missing`, whose definition covers a value
+    /// "empty before anything reads it"; `cookie_domain_empty` belongs to
+    /// `Domain=.`, which only the domain reader can see and which this rule
+    /// does not run. `Path=` is `cookie_path_empty`, which the catalogue keeps
+    /// apart from the bare `Path` above it because the operator's fix differs;
+    /// the leading-slash entry is about a first character, and an empty value
+    /// has none.
+    #[rstest]
+    #[case("SID=1; Domain=", "cookie_domain_missing")]
+    #[case("SID=1; Domain", "cookie_domain_missing")]
+    #[case("SID=1; Path=", "cookie_path_empty")]
+    #[case("SID=1; Path", "cookie_path_missing")]
+    #[case("SID=1; Path=x", "cookie_path_leading_slash_missing")]
+    fn an_empty_attribute_value_draws_the_entry_written_for_it(
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
+        let v = check_set_cookie(value).expect("a finding");
+        assert_eq!(v.violation, expected, "{value}: {}", v.message);
+    }
+
+    /// The two entries this rule may not reach, stated as the negative so a
+    /// return to either shape fails here rather than in a report. `Domain=.`
+    /// is `cookie_domain_empty`'s value and is reached through the domain
+    /// reader, which is a different rule; the leading-slash claim is about a
+    /// character that an empty value does not have.
     #[test]
-    fn domain_empty_reports_violation() {
-        let v = check_set_cookie("SID=1; Domain=");
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("must not be empty"));
+    fn an_empty_value_is_never_named_as_a_value_of_the_wrong_shape() {
+        for line in ["SID=1; Domain=", "SID=1; Domain=."] {
+            for v in all_set_cookie(line) {
+                assert_ne!(v.violation, "cookie_domain_empty", "{line}: {}", v.message);
+            }
+        }
+        for v in all_set_cookie("SID=1; Path=") {
+            assert_ne!(
+                v.violation, "cookie_path_leading_slash_missing",
+                "an empty Path has no first character: {}",
+                v.message
+            );
+        }
     }
 
     #[test]
