@@ -217,6 +217,15 @@ const RFC_8288_3_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
            `example` and `example*` as the pair. What says the asterisk reading is \
            not a `title*` special case",
 };
+const RFC_8288_B_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("B.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#appendix-B.2",
+    note: "The field's own algorithm for parsing a link-value, whose step 9 takes the \
+           relation types from the *first* tuple named `rel`. §3.3 says occurrences \
+           after the first are ignored; this is the same sentence written as the \
+           operation, and it is what decides which occurrence the preload pair reads",
+};
 const RFC_8288_B_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 8288",
     section: Some("B.3"),
@@ -364,6 +373,16 @@ impl RuleMeta for LinkHeaderValid {
          the four attributes §3.4.1 bounds, and the map read HTML performs takes the first \
          entry.\
          \n\n\
+         **A repeated `rel` is read by its first occurrence and judged by all of them.** §3.3 \
+         bounds the parameter and says what a recipient does with the rest, and Appendix B.2 \
+         step 9 spells that out: the relation types come from the *first* tuple named `rel`. So \
+         a member whose first `rel` says `preload` is a preload however a later one is spelled, \
+         and one whose first says `next` asks for no preload at all. The value's own grammar \
+         does not narrow that way — RFC 9110 §2.2 binds the sender to the ABNF for every element \
+         it generated — so every occurrence is measured against \
+         `relation-type *( 1*SP relation-type )`, the way a repeated `type` and a repeated \
+         `hreflang` already are.\
+         \n\n\
          **RFC 8297 requires nothing of a `Link` in a 103.** Its five modals are two MUST NOTs \
          and a SHOULD NOT addressed to the client about what it does with fields it received, \
          plus two MAYs handed to the server; none of them is about this field's content. The \
@@ -403,6 +422,7 @@ impl RuleMeta for LinkHeaderValid {
             RFC_8288_3_3,
             RFC_8288_3_4_1,
             RFC_8288_3_4_2,
+            RFC_8288_B_2,
             RFC_8288_B_3,
             RFC_8187_3_2_1,
             RFC_8288_2_1_1,
@@ -504,6 +524,16 @@ impl RuleMeta for LinkHeaderValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(rel twice in one link-value)"),
                 snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/>; rel=next; rel=prev",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the first rel is the one a parser reads, so this member is a preload with no as)"),
+                snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/script.js>; rel=preload; rel=next",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(and every occurrence still owes the value's grammar, wherever it stands)"),
+                snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/>; rel=Bad; rel=next",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -882,7 +912,10 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
     // walk for why that distinction only starts to matter once the walk keeps
     // going past a parameter it could not read.
     let mut wrote_rel = false;
-    let mut rel_value: Option<String> = None;
+    // The relation types of the **first** `rel`, which is the only one a
+    // recipient reads. See the arm below for why the grammar half of the same
+    // parameter is not funnelled through here.
+    let mut rel_types: Option<Vec<String>> = None;
     let mut as_value: Option<String> = None;
 
     for segment in split_semicolons_respecting_quotes(params_src) {
@@ -1052,12 +1085,46 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
         }
 
         match name.as_str() {
+            // **A repeated `rel` is two things, and they answer to different
+            // sentences.** § 3.3 bounds the parameter to one occurrence *and*
+            // says what a recipient does with the rest — Appendix B.2 step 9
+            // takes `relations_string` from the **first** tuple whose name is
+            // `rel`, so a second occurrence is, in [`LINK_REL_DUPLICATED`]'s own
+            // words, text nobody reads. That is the recipient's half, and the
+            // preload pair below is the only thing here that depends on it, so
+            // it is the first occurrence that is kept — exactly as `as` is kept.
+            //
+            // The *grammar* half does not narrow that way. § 2.2 forbids the
+            // sender to generate any protocol element that does not match its
+            // ABNF, and a second `rel` is an element the sender generated: the
+            // section's own value grammar asks each occurrence for a
+            // `relation-type *( 1*SP relation-type )` whether or not a parser
+            // will look at it. So every occurrence is judged, which is what the
+            // `type` and `hreflang` arms beside this one already do.
+            //
+            // **Collapsing both halves into one variable answered both
+            // questions with the last occurrence**, and it was wrong in both
+            // directions at once: `rel=preload; rel=next` on a response drew no
+            // preload finding, because the reading had discarded the relation
+            // type the recipient acts on; `rel=next; rel=preload` drew one,
+            // saying a member "asks for a preload" that no conforming parser
+            // sees; and `rel=Bad; rel=next` reported nothing about `Bad`, which
+            // is a value RFC 8288 § 3.3's alternation refuses and its sender
+            // wrote.
+            //
+            // A `rel` with no `=` and a `rel=""` are the same statement here:
+            // the optional group makes the first derive from `link-param`, and
+            // §3.3's own ABNF for the value then asks it for a `relation-type`
+            // that neither of them has.
+            // cite(RFC 8288 § B.2): "Let relations_string be the second item of the first tuple of link_parameters whose first item matches the string "rel" or the empty string ("") if it is not present."
+            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
             "rel" => {
-                // A `rel` with no `=` and a `rel=""` are the same statement
-                // here: the optional group makes the first derive from
-                // `link-param`, and §3.3's own ABNF for the value then asks it
-                // for a `relation-type` that neither of them has.
-                rel_value = Some(parsed.value.unwrap_or_default());
+                let value = parsed.value.unwrap_or_default();
+                let (types, defects) = validate_rel_value(&value);
+                out.extend(defects);
+                if rel_types.is_none() {
+                    rel_types = Some(types.into_iter().map(str::to_owned).collect());
+                }
             }
             // Kept for the preload check after the loop. The first occurrence
             // is the one judged: HTML's header extraction defers to RFC 8288's
@@ -1138,12 +1205,14 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
         seen.push(name);
     }
 
-    // The member's own three, independent of the parameters' defects above and
-    // chained to each other because each is the evidence the next reads: there
-    // is no relation type to judge without a `rel`, and no preload without one.
-    let Some(rel_value) = rel_value else {
+    // The member's own two, independent of the parameters' defects above and
+    // chained to each other because the first is the evidence the second reads:
+    // there is no preload without a `rel`. **The relation types' own grammar
+    // used to be a third one here**, judged off whichever occurrence the walk
+    // finished on; it is now the `rel` arm's, judged once per occurrence.
+    let Some(relation_types) = rel_types else {
         // **A parameter that does not parse is not a parameter that is not
-        // there.** `rel_value` is filled only by a segment the production
+        // there.** `rel_types` is filled only by a segment the production
         // accepted, so reading its absence as the attribute's absence answered
         // `</a>; rel=n\u{e9}xt` with *"carries no 'rel' parameter"* beside the
         // finding about the value it plainly carries. Before the walk collected
@@ -1156,13 +1225,33 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
         return out;
     };
 
-    // The types that were read are still the evidence for the preload pair
-    // below, and a type the production refuses is not `preload`: a member whose
-    // second relation type is malformed and whose first asks for a preload with
-    // no `as` has both to fix.
-    let (relation_types, rel_defects) = validate_rel_value(&rel_value);
-    out.extend(rel_defects);
+    // Gated on the direction here rather than inside: the HTML processing model
+    // that discards a `preload` with no `as` runs over a *response*'s header
+    // list, and a request's `Link` is never handed to it.
+    if is_response {
+        out.extend(preload_defects(member, &relation_types, as_value));
+    }
 
+    out
+}
+
+/// The preload pair, which is HTML's algorithm rather than any RFC's.
+///
+/// Split out of [`validate_link_value`], and the split is what a repeated
+/// `rel` paid for: once each occurrence's grammar is judged where it is
+/// written, what is left after the walk is one document's reading of one
+/// member, and it reads better with a name.
+///
+/// **The relation types handed here are the first `rel`'s.** § 3.3 ignores
+/// occurrences after the first and Appendix B.2 step 9 reads exactly that
+/// one, so this is asked about the member a recipient assembles rather than
+/// about the octets the sender wrote.
+fn preload_defects(
+    member: &str,
+    relation_types: &[String],
+    as_value: Option<String>,
+) -> Vec<Defect> {
+    let mut out = Vec::new();
     // The fold cannot change an answer today, and that is worth saying rather
     // than leaving for a reader to trace: every relation type reaching here
     // derives from `reg-rel-type`, which admits no capital, or from
@@ -1188,7 +1277,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
     // cite(HTML Semantics § 4.2.4.4): "To process link headers given a Document doc, a response response, and a "pre-media" or "media" phase"
     // cite(HTML Semantics § 4.2.4.4): "Apply link options from parsed header attributes to options given attribs"
     // cite(HTML Semantics § 4.2.4.4): "If attribs["as"] does not exist, then return false."
-    if is_response && preloads {
+    if preloads {
         let Some(as_value) = as_value else {
             out.push(Defect::named(
                 &LINK_PRELOAD_AS_MISSING,
@@ -1975,6 +2064,82 @@ mod tests {
             ids,
             vec!["link_attribute_duplicated", "bws_forbidden"],
             "{:?}",
+            found.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// A repeated `rel` is read by its **first** occurrence and judged by all
+    /// of them, and those are two different sentences of § 3.3.
+    ///
+    /// Appendix B.2 step 9 takes the relation types from the first tuple named
+    /// `rel`, so that is the one the preload pair asks about — a member is a
+    /// preload if its first `rel` says so, whatever a later one says. § 2.2
+    /// binds the sender to the ABNF for every element it generated, so each
+    /// occurrence still owes `relation-type *( 1*SP relation-type )`.
+    ///
+    /// Reading one variable for both answered both with the *last* occurrence,
+    /// which is neither: the first two cases are the false negative and the
+    /// false positive that came in one pair, and the third is a value the
+    /// alternation refuses going unreported for standing before a well-formed
+    /// sibling.
+    #[rstest]
+    // The recipient reads `preload`, so the absent `as` is the finding.
+    #[case(
+        b"</a>; rel=preload; rel=next",
+        vec!["link_rel_duplicated", "link_preload_as_missing"]
+    )]
+    // The recipient reads `next`, so nothing here asks for a preload.
+    #[case(
+        b"</a>; rel=next; rel=preload",
+        vec!["link_rel_duplicated"]
+    )]
+    // `Bad` is neither a reg-rel-type nor an absolute URI, whichever side of
+    // the well-formed occurrence the sender wrote it on.
+    #[case(
+        b"</a>; rel=Bad; rel=next",
+        vec!["link_relation_type_malformed", "link_rel_duplicated"]
+    )]
+    #[case(
+        b"</a>; rel=next; rel=Bad",
+        vec!["link_rel_duplicated", "link_relation_type_malformed"]
+    )]
+    // Three occurrences are two repetitions and two malformed relation types.
+    #[case(
+        b"</a>; rel=next; rel=Bad; rel=Worse",
+        vec![
+            "link_rel_duplicated",
+            "link_relation_type_malformed",
+            "link_rel_duplicated",
+            "link_relation_type_malformed"
+        ]
+    )]
+    // The first occurrence's `as` is present and names a destination, so the
+    // repetition is the whole of it.
+    #[case(
+        b"</a>; rel=preload; as=style; rel=next",
+        vec!["link_rel_duplicated"]
+    )]
+    // Each occurrence's own value grammar, not just its relation types: an
+    // empty second `rel` states no relation type either.
+    #[case(
+        b"</a>; rel=next; rel=\"\"",
+        vec!["link_rel_duplicated", "link_rel_empty"]
+    )]
+    fn a_repeated_rel_is_read_first_and_judged_throughout(
+        #[case] value: &[u8],
+        #[case] want: Vec<&str>,
+    ) {
+        let found = judge(
+            &crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]),
+            "Response",
+            true,
+        );
+        let ids: Vec<&str> = found.iter().map(|d| d.def.id).collect();
+        assert_eq!(
+            ids,
+            want,
+            "value {}: {:?}",
+            String::from_utf8_lossy(value),
             found.iter().map(|d| &d.message).collect::<Vec<_>>()
         );
     }

@@ -24,6 +24,8 @@ Parses the `Link` field of a request and of a response — every field line of o
 
 **An `as` value is measured against HTML's six preload destinations, not Fetch's table.** *Translate a preload destination* refuses membership before Fetch's *translate a potential destination* is ever consulted, so the set is `fetch`, `font`, `image`, `script`, `style`, `track` — and `as=document`, a Fetch destination, is discarded like any other non-member, while `as=fetch` conforms. The match keeps case, and deliberately: the neighbouring steps of the same algorithm say *"an ASCII case-insensitive match"* about `crossorigin` and `fetchpriority` in as many words and this step says nothing of the kind, so `as=Font` is a string the set does not hold. A repeated `as` is not reported and only the first is judged: RFC 8288's parsing algorithm deduplicates only the four attributes §3.4.1 bounds, and the map read HTML performs takes the first entry.
 
+**A repeated `rel` is read by its first occurrence and judged by all of them.** §3.3 bounds the parameter and says what a recipient does with the rest, and Appendix B.2 step 9 spells that out: the relation types come from the *first* tuple named `rel`. So a member whose first `rel` says `preload` is a preload however a later one is spelled, and one whose first says `next` asks for no preload at all. The value's own grammar does not narrow that way — RFC 9110 §2.2 binds the sender to the ABNF for every element it generated — so every occurrence is measured against `relation-type *( 1*SP relation-type )`, the way a repeated `type` and a repeated `hreflang` already are.
+
 **RFC 8297 requires nothing of a `Link` in a 103.** Its five modals are two MUST NOTs and a SHOULD NOT addressed to the client about what it does with fields it received, plus two MAYs handed to the server; none of them is about this field's content. The status-gated check this replaces asked a 103's members for a `rel` and let every other response omit it — a narrower rendering of §3.3's MUST, which is stated once for every link-value there is.
 
 **What this rule does not decide.**
@@ -78,6 +80,7 @@ Parses the `Link` field of a request and of a response — every field line of o
 - [RFC 8288 §3.3](https://www.rfc-editor.org/rfc/rfc8288.html#section-3.3): `rel` MUST be present and MUST NOT appear more than once; its value is `relation-type *( 1*SP relation-type )`; `relation-type = reg-rel-type / ext-rel-type` with `ext-rel-type = URI`, required to be absolute. The section that makes a URI-shaped relation type conforming and a capital letter in a registered one not
 - [RFC 8288 §3.4.1](https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.1): The four serialisation-defined attributes this document bounds to one occurrence — `media`, `title`, `title*`, `type` — each in its own MUST NOT. `hreflang` is the one it deliberately leaves unbounded, saying that repeating it means several languages are available. Also the per-attribute value ABNFs: `Language-Tag` for `hreflang`, `type-name "/" subtype-name` for `type`, and `media-query-list` for `media` — the first two measured here, the third declined for the reasons the description gives
 - [RFC 8288 §3.4.2](https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.2): Every other `link-param` is an extension target attribute, and such an attribute may be defined in the RFC 8187 encoding — the section names `example` and `example*` as the pair. What says the asterisk reading is not a `title*` special case
+- [RFC 8288 §B.2](https://www.rfc-editor.org/rfc/rfc8288.html#appendix-B.2): The field's own algorithm for parsing a link-value, whose step 9 takes the relation types from the *first* tuple named `rel`. §3.3 says occurrences after the first are ignored; this is the same sentence written as the operation, and it is what decides which occurrence the preload pair reads
 - [RFC 8288 §B.3](https://www.rfc-editor.org/rfc/rfc8288.html#appendix-B.3): The field's own parameter-parsing algorithm, whose step 7.5 decodes the value of any parameter whose name ends in an asterisk according to RFC 8187. The sentence that makes the `ext-value` this field's reading of the name rather than a convention
 - [RFC 8187 §3.2.1](https://www.rfc-editor.org/rfc/rfc8187.html#section-3.2.1): `ext-value = charset "'" [ language ] "'" value-chars` — the charset that may not be empty, the language that may be, and the `value-chars` made of `pct-encoded` and `attr-char`. Obsoletes RFC 5987, which older references named; the production is unchanged
 - [RFC 8288 §2.1.1](https://www.rfc-editor.org/rfc/rfc8288.html#section-2.1.1): Registered relation type names conform to `reg-rel-type` and are compared case-insensitively — the sentence behind folding case when asking whether a relation type is `preload`
@@ -173,6 +176,20 @@ Link: <https://example.com/>; rel=Next
 ```http
 HTTP/1.1 200 OK
 Link: <https://example.com/>; rel=next; rel=prev
+```
+
+### ❌ Bad (the first rel is the one a parser reads, so this member is a preload with no as)
+
+```http
+HTTP/1.1 200 OK
+Link: <https://example.com/script.js>; rel=preload; rel=next
+```
+
+### ❌ Bad (and every occurrence still owes the value's grammar, wherever it stands)
+
+```http
+HTTP/1.1 200 OK
+Link: <https://example.com/>; rel=Bad; rel=next
 ```
 
 ### ❌ Bad (BWS beside the "=")
