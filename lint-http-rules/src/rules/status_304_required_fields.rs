@@ -59,34 +59,6 @@ const PRECONDITIONS: [&str; 5] = [
     "if-unmodified-since",
 ];
 
-/// One request's header fields as they compare: every name it carries but for
-/// the preconditions, each with the field lines under it, sorted so two
-/// requests that wrote the same fields in a different order are the same
-/// request.
-///
-/// Read as octets. A comparison that decoded first would answer *these two
-/// requests differ* about a pair of identical values whenever either carries an
-/// `obs-text` octet, which is a difference the sender did not make.
-fn comparable_fields(headers: &hyper::HeaderMap) -> Vec<(&str, Vec<&[u8]>)> {
-    let mut fields: Vec<(&str, Vec<&[u8]>)> = headers
-        .keys()
-        .map(hyper::header::HeaderName::as_str)
-        .filter(|name| !PRECONDITIONS.contains(name))
-        .map(|name| {
-            (
-                name,
-                headers
-                    .get_all(name)
-                    .iter()
-                    .map(hyper::header::HeaderValue::as_bytes)
-                    .collect(),
-            )
-        })
-        .collect();
-    fields.sort_by(|a, b| a.0.cmp(b.0));
-    fields
-}
-
 /// Whether the earlier exchange asked what this one asks, precondition aside.
 ///
 /// **The strictest reading of "the same request", deliberately.** Anything
@@ -98,14 +70,15 @@ fn comparable_fields(headers: &hyper::HeaderMap) -> Vec<(&str, Vec<&[u8]>)> {
 /// varies anything at all between the two requests — a `Referer`, a `Cookie`,
 /// an `Accept-Encoding` it added — and silence is the direction to be wrong in
 /// here, since the finding is an `error`.
+///
+/// The comparison itself is [`crate::helpers::same_request`], which is shelved
+/// apart because the question is not this section's alone: § 15.3.7 writes the
+/// same sentence about a `206`, and only the field allowed to differ changes.
 fn asks_the_same(
     earlier: &crate::http_transaction::HttpTransaction,
     conditional: &crate::http_transaction::HttpTransaction,
 ) -> bool {
-    earlier.request.method == conditional.request.method
-        && earlier.request.uri == conditional.request.uri
-        && comparable_fields(&earlier.request.headers)
-            == comparable_fields(&conditional.request.headers)
+    crate::helpers::same_request::asks_the_same(earlier, conditional, &PRECONDITIONS)
 }
 
 impl RuleMeta for Status304RequiredFields {

@@ -110,6 +110,7 @@ pub mod qvalue;
 pub mod reference;
 pub mod request_target;
 pub mod rule_config;
+pub mod same_request;
 pub mod scheme;
 pub mod shown;
 pub mod status;

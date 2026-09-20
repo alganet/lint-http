@@ -6241,12 +6241,6 @@ sources:
       line: 120
   - label: accept_ranges_and_206_consistent (7)
     section: § 15.3.7
-    snippet: 'A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary.'
-    cited_by:
-    - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
-      line: 154
-  - label: accept_ranges_and_206_consistent (8)
-    section: § 15.3.7
     snippet: The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
@@ -9075,6 +9069,28 @@ sources:
       line: 235
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 49
+  - label: lint-http-rules/src/helpers/same_request.rs
+    section: § 15.3.7
+    snippet: 'A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary.'
+    cited_by:
+    - file: lint-http-rules/src/helpers/same_request.rs
+      line: 40
+    - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
+      line: 154
+  - label: lint-http-rules/src/helpers/same_request.rs (2)
+    section: § 15.4.5
+    snippet: 'The server generating a 304 response MUST generate any of the following header fields that would have been sent in a 200 (OK) response to the same request:'
+    cited_by:
+    - file: lint-http-rules/src/helpers/same_request.rs
+      line: 39
+    - file: lint-http-rules/src/rules/status_304_representation_metadata.rs
+      line: 144
+    - file: lint-http-rules/src/rules/status_304_required_fields.rs
+      line: 35
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 200
+    - file: lint-http-rules/src/violations/status.rs
+      line: 600
   - label: lint-http-rules/src/helpers/status.rs
     section: § 15.1
     snippet: Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls
@@ -10486,18 +10502,6 @@ sources:
     - file: lint-http-rules/src/violations/status.rs
       line: 553
   - label: status_304_representation_metadata (2)
-    section: § 15.4.5
-    snippet: 'The server generating a 304 response MUST generate any of the following header fields that would have been sent in a 200 (OK) response to the same request:'
-    cited_by:
-    - file: lint-http-rules/src/rules/status_304_representation_metadata.rs
-      line: 144
-    - file: lint-http-rules/src/rules/status_304_required_fields.rs
-      line: 35
-    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 200
-    - file: lint-http-rules/src/violations/status.rs
-      line: 600
-  - label: status_304_representation_metadata (3)
     section: § 8.2
     snippet: Representation header fields provide metadata about the representation.
     cited_by:
@@ -10514,7 +10518,7 @@ sources:
     snippet: The 304 (Not Modified) status code indicates that a conditional GET or HEAD request has been received and would have resulted in a 200 (OK) response if it were not for the fact that the condition evaluated to false.
     cited_by:
     - file: lint-http-rules/src/rules/status_304_required_fields.rs
-      line: 187
+      line: 160
   - label: status_3xx_vs_request_method
     section: § 15.4
     snippet: 307 (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] were later added to unambiguously indicate method-preserving redirects, and status codes 301 and 302 have been adjusted to allow a POST request to be redirected as GET.
