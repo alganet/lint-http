@@ -11,8 +11,8 @@ use crate::violations::auth_param::{
 };
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::challenge::{
-    CHALLENGE_MEMBER_EMPTY, CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID, RFC_9110_11_3,
-    RFC_9110_11_6_1,
+    CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_DUPLICATED, CHALLENGE_SCHEME_MISSING,
+    CHALLENGE_TOKEN68_INVALID, RFC_9110_11_3, RFC_9110_11_6_1,
 };
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -43,6 +43,7 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
     &AUTH_PARAM_REALM_QUOTING_INVALID,
+    &CHALLENGE_PARAMETER_DUPLICATED,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
@@ -60,7 +61,7 @@ impl RuleMeta for WwwAuthenticateChallengeSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "The `WWW-Authenticate` response header advertises authentication schemes that the server supports. Each challenge consists of an `auth-scheme` (a `token`) followed by optional parameters (`auth-param`) or a `token68` value.\n\nThis rule validates that each challenge:\n\n- Begins with a valid `auth-scheme` token (no illegal characters).\n- If parameters are present, each parameter is of the form `token=token` or `token=\"quoted-string\"` and quoted-strings are well-formed.\n- Token68 values are accepted as a single token-like remainder (no control characters)."
+        "The `WWW-Authenticate` response header advertises authentication schemes that the server supports. Each challenge consists of an `auth-scheme` (a `token`) followed by optional parameters (`auth-param`) or a `token68` value.\n\nThis rule validates that each challenge:\n\n- Begins with a valid `auth-scheme` token (no illegal characters).\n- If parameters are present, each parameter is of the form `token=token` or `token=\"quoted-string\"` and quoted-strings are well-formed.\n- Token68 values are accepted as a single token-like remainder (no control characters).\n- No `auth-param` name occurs twice in one challenge (RFC 9110 \u{a7}11.2), the names being folded before they are compared as the same sentence requires. The count is taken inside a challenge and never across the field line, because `WWW-Authenticate = #challenge` and \u{a7}11.6.1 prints two challenges each naming their own `realm` as the ordinary case.\n\n**A repeated parameter is not reported about an `Authorization`.** \u{a7}11.2's sentence counts per *challenge*, and \u{a7}11.4 gives `credentials` no such unit; RFC 7616 states nothing of its own about a Digest credential naming a parameter twice. So the silence there is the documents', not this reader's."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -118,6 +119,16 @@ impl RuleMeta for WwwAuthenticateChallengeSyntax {
                 compliance: Compliance::NonCompliant,
                 label: Some("(the realm derives from `auth-param`, and § 11.5 admits one spelling of it)"),
                 snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=example",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(§ 11.2 admits a parameter name once per challenge, and folds the name before comparing it)"),
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"one\", REALM=\"two\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(two challenges, each naming its own realm — the count is per challenge and not per field line)"),
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"a\", Bearer realm=\"b\"",
             },
         ]
     }
@@ -764,6 +775,70 @@ mod tests {
             &cfg,
         );
         assert_eq!(v.map(|v| v.violation), expected.map(str::to_string));
+    }
+
+    /// § 11.2 admits an `auth-param` name once per challenge, and the scope
+    /// term is the whole of the reading: `WWW-Authenticate = #challenge`, so
+    /// two challenges each naming their own `realm` is § 11.6.1's ordinary case
+    /// and not a repetition. A walk counting names per field line reports the
+    /// specification's own example, which is what the third row pins.
+    ///
+    /// The last row is the ordering between two facts the walk holds back. Both
+    /// are § 11.x sentences about a well-formed value, and the duplication is
+    /// named first because the realm reading takes the first realm and can only
+    /// do that by assuming there is one — told to quote a realm the recipient
+    /// may not be using, a sender repairs a value that was never the subject.
+    #[rstest]
+    #[case(
+        "Basic realm=\"a\", realm=\"b\"",
+        Some("challenge_parameter_duplicated")
+    )]
+    // Folded before comparison, because the same sentence folds the name.
+    #[case(
+        "Basic realm=\"a\", REALM=\"b\"",
+        Some("challenge_parameter_duplicated")
+    )]
+    // Two challenges, one realm each: § 11.6.1 prints this shape itself.
+    #[case("Basic realm=\"a\", Bearer realm=\"b\"", None)]
+    // A parameter that is not `realm` counts the same; the sentence names none.
+    #[case(
+        "Bearer error=\"x\", error=\"y\"",
+        Some("challenge_parameter_duplicated")
+    )]
+    // A defect of the production still outranks it: the walk returns on the
+    // first member that fails `auth-param` and never reaches the count.
+    #[case(
+        "Basic realm=\"a\", bad@name=x, realm=\"b\"",
+        Some("auth_param_name_character_forbidden")
+    )]
+    // And the duplication outranks § 11.5's spelling of the realm.
+    #[case("Basic realm=a, realm=\"b\"", Some("challenge_parameter_duplicated"))]
+    fn a_parameter_name_written_twice_in_one_challenge_is_reported(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let rule = WwwAuthenticateChallengeSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "www_authenticate_challenge_syntax",
+        ]);
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            401,
+            &[("www-authenticate", value)],
+        );
+        let all = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        // One challenge, one finding: the walk answers with the first defect it
+        // reaches, and a second here would mean the value was read twice.
+        assert!(all.len() <= 1, "{value:?} drew {all:?}");
+        assert_eq!(
+            all.first().map(|v| v.violation.clone()),
+            expected.map(str::to_string),
+            "{value:?}"
+        );
     }
 
     #[test]

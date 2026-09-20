@@ -3801,10 +3801,20 @@ enabled = "true"
     /// does not change how many ids are shared. One declarer became three, the
     /// production did not move, and that is the whole test of whether a second
     /// declarer is a seam or a duplication.
+    ///
+    /// **119, and it is the `challenge_*` seam widening rather than a new
+    /// one.** § 11.2's "each parameter name MUST only occur once per challenge"
+    /// counts inside a `challenge`, which `WWW-Authenticate` and
+    /// `Proxy-Authenticate` are two lists of — § 11.7.1 defines the second in
+    /// the first's terms — so `challenge_parameter_duplicated` is declared by
+    /// the same two rules that already share the three other `challenge_*` ids.
+    /// A fourth entry over that seam is not a fourth seam, and the credentials
+    /// side is deliberately not a third declarer: the sentence's scope term is
+    /// the challenge, and § 11.4 has no analogue of it.
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 118;
+        const CEILING: usize = 119;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();

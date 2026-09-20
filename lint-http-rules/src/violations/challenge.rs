@@ -16,6 +16,17 @@
 //! [`crate::violations::token68`] and [`crate::violations::auth_param`] where an
 //! `Authorization` value reports the same ones.
 //!
+//! **One § 11.2 sentence is here anyway, and its scope term is why.** "Each
+//! parameter name MUST only occur once per challenge" is stated about an
+//! `auth-param` like the four ids above it, and it counts *per challenge* —
+//! a unit § 11.4 has no analogue of, since a credentials field carries one
+//! `credentials` and no list around it. So the sentence reaches one side of
+//! the shared production and an `auth_param_duplicated` would claim a
+//! requirement no document states about an `Authorization`. That is the
+//! argument the paragraph above runs in the other direction: an id spelled
+//! after one side of a shared production is a claim about which side wrote
+//! it, and here the claim is the true one.
+//!
 //! **The `auth-param` four were the last to go, and this module's own doc had
 //! predicted they would not have to.** It said the wording was the field's and
 //! the ids were not, so "the day a second field reports one of these, the
@@ -39,7 +50,7 @@ use crate::violations::auth_param::{
     AUTH_PARAM_REALM_QUOTING_INVALID, AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
     RFC_9110_11_5,
 };
-use crate::violations::auth_scheme::AUTH_SCHEME_CHARACTER_FORBIDDEN;
+use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::list::LIST_MEMBER_EMPTY;
 use crate::violations::quoted_string::quoted_string_defect;
 use crate::violations::token68::TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN;
@@ -108,6 +119,51 @@ defects! {
         spec: &[],
     }
 
+    /// One challenge naming the same `auth-param` twice: `Basic realm="a",
+    /// realm="b"`.
+    ///
+    /// **Per challenge, and the sentence says so.** A `WWW-Authenticate` is
+    /// `#challenge`, so one field value commonly carries several — § 11.6.1
+    /// prints `Basic realm="simple", Newauth realm="apps", type=1,
+    /// title="Login to \"apps\""` as the ordinary case — and each of them
+    /// names its own `realm`. The count is therefore taken inside a challenge
+    /// after the members have been grouped, never across a field line, and a
+    /// walk that counted names per line would report § 11.6.1's own example.
+    ///
+    /// **The names are folded before they are compared**, because the same
+    /// sentence says the name token is matched case-insensitively:
+    /// `realm=a, REALM=b` is one parameter written twice and not two extension
+    /// parameters.
+    ///
+    /// **The first occurrence is the one that binds**, which is what makes this
+    /// a finding about the value rather than only about the count. Nothing in
+    /// § 11.2 says which of the two a recipient takes, so what the entry
+    /// reports is one protection space that two readers may describe
+    /// differently — and every other duplicate walk in this catalogue grades
+    /// the first and skips the rest, [`forwarded_parameter_duplicated`](crate::violations::forwarded::FORWARDED_PARAMETER_DUPLICATED)
+    /// among them. A reader keeping the *last* is worse than one keeping
+    /// either: appending a well-formed parameter to a malformed one then takes
+    /// the malformed one's own finding away.
+    ///
+    /// **Not the list's, though the two above it are.** An empty member and a
+    /// parameter before any scheme are visible at a member boundary, before
+    /// anything is assembled; this is visible only once a challenge exists to
+    /// count within.
+    ///
+    /// `error` from the keyword as it binds the sender. Both values are well
+    /// formed and nothing is unreadable — what is lost is which of them the
+    /// challenge meant.
+    ///
+    // cite(RFC 9110 § 11.2): "Authentication parameters are name/value pairs, where the name token is matched case-insensitively and each parameter name MUST only occur once per challenge."
+    CHALLENGE_PARAMETER_DUPLICATED = {
+        id: "challenge_parameter_duplicated",
+        title: "Authentication challenge names one parameter more than once",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_11_2],
+        strength: Strength::Must,
+    }
+
     /// One `realm` value carried by challenges of two different auth-schemes in
     /// one response.
     ///
@@ -166,6 +222,7 @@ pub fn challenge_defect(defect: AuthDefect<'_>) -> &'static ViolationDef {
         AuthDefect::ParameterNameCharacter(_) => &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
         AuthDefect::ParameterValueCharacter(_) => &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
         AuthDefect::ParameterQuotedValue { defect, .. } => quoted_string_defect(defect),
+        AuthDefect::ParameterDuplicated(_) => &CHALLENGE_PARAMETER_DUPLICATED,
         AuthDefect::RealmUnquoted(_) => &AUTH_PARAM_REALM_QUOTING_INVALID,
     }
 }

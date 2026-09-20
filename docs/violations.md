@@ -92,6 +92,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [cache_control_storage_conflicting](violations/cache_control_storage_conflicting.md) — Two Cache-Control directives disagree about storing the response
 - [cache_response_conflicting](violations/cache_response_conflicting.md) — Two responses for one URI disagree about which version is current
 - [challenge_member_empty](violations/challenge_member_empty.md) — Authentication challenge list has an empty member
+- [challenge_parameter_duplicated](violations/challenge_parameter_duplicated.md) — Authentication challenge names one parameter more than once
 - [challenge_realm_ambiguous](violations/challenge_realm_ambiguous.md) — One realm is advertised by two authentication schemes
 - [challenge_scheme_missing](violations/challenge_scheme_missing.md) — Authentication parameter arrives before any scheme
 - [challenge_token68_invalid](violations/challenge_token68_invalid.md) — Authentication token68 is indistinguishable from a parameter

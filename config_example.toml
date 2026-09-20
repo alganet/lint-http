@@ -1348,6 +1348,11 @@ severity = "warn"
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.challenge_parameter_duplicated]
+# Authentication challenge names one parameter more than once
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.challenge_realm_ambiguous]
 # One realm is advertised by two authentication schemes
 severity = "warn"

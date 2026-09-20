@@ -2443,7 +2443,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1005
+      line: 1059
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 249
     - file: lint-http-rules/src/violations/base64.rs
@@ -4085,7 +4085,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1097
+      line: 1151
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.html
   fragments:
@@ -4928,7 +4928,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1212
+      line: 1266
     - file: lint-http-rules/src/violations/digest_credentials.rs
       line: 233
 - label: RFC 7617
@@ -4945,7 +4945,7 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1018
+      line: 1072
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 61
   - label: basic-credentials base64
@@ -4953,13 +4953,13 @@ sources:
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1002
+      line: 1056
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1010
+      line: 1064
     - file: lint-http-rules/src/violations/basic_credentials.rs
       line: 46
 - label: RFC 7838
@@ -6734,13 +6734,13 @@ sources:
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
     cited_by:
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 139
+      line: 195
   - label: challenge (2)
     section: § 11.7.1
     snippet: 'Proxy-Authenticate = #challenge'
     cited_by:
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 192
+      line: 249
   - label: charset
     section: § 8.3.2
     snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
@@ -8162,7 +8162,7 @@ sources:
     snippet: It uses a case-insensitive token to identify the authentication scheme
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 885
+      line: 939
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 187
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
@@ -8175,14 +8175,22 @@ sources:
       line: 136
     - file: lint-http-rules/src/violations/auth_scheme.rs
       line: 51
+  - label: lint-http-rules/src/helpers/auth.rs (2)
+    section: § 11.2
+    snippet: Authentication parameters are name/value pairs, where the name token is matched case-insensitively and each parameter name MUST only occur once per challenge.
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 770
+    - file: lint-http-rules/src/violations/challenge.rs
+      line: 157
   - label: auth-param grammar
     section: § 11.2
     snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 623
+      line: 639
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1169
+      line: 1223
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 88
     - file: lint-http-rules/src/violations/auth_param.rs
@@ -8193,32 +8201,32 @@ sources:
       line: 143
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 158
-  - label: lint-http-rules/src/helpers/auth.rs (2)
+  - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.2
     snippet: token68    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 473
+      line: 489
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 676
-  - label: lint-http-rules/src/helpers/auth.rs (3)
+      line: 692
+  - label: lint-http-rules/src/helpers/auth.rs (4)
     section: § 11.3
     snippet: 'challenge   = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 509
+      line: 525
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 582
-  - label: lint-http-rules/src/helpers/auth.rs (4)
+      line: 598
+  - label: lint-http-rules/src/helpers/auth.rs (5)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 595
+      line: 611
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 232
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 86
+      line: 97
   - label: credentials grammar
     section: § 11.4
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
@@ -8226,60 +8234,60 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 210
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 583
+      line: 599
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 897
+      line: 951
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 269
     - file: lint-http-rules/src/violations/credentials.rs
       line: 68
     - file: lint-http-rules/src/violations/credentials.rs
       line: 99
-  - label: lint-http-rules/src/helpers/auth.rs (5)
+  - label: lint-http-rules/src/helpers/auth.rs (6)
     section: § 11.5
     snippet: For historical reasons, a sender MUST only generate the quoted-string syntax.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 727
+      line: 743
     - file: lint-http-rules/src/violations/auth_param.rs
       line: 205
-  - label: lint-http-rules/src/helpers/auth.rs (6)
+  - label: lint-http-rules/src/helpers/auth.rs (7)
     section: § 11.6.1
     snippet: 'WWW-Authenticate = #challenge'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 276
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 72
+      line: 83
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 191
-  - label: lint-http-rules/src/helpers/auth.rs (7)
+      line: 248
+  - label: lint-http-rules/src/helpers/auth.rs (8)
     section: § 11.7.1
     snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 99
     - file: lint-http-rules/src/rules/proxy_authenticate_challenge_syntax.rs
-      line: 163
+      line: 164
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 186
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 246
-  - label: lint-http-rules/src/helpers/auth.rs (8)
+  - label: lint-http-rules/src/helpers/auth.rs (9)
     section: § 11.7.1
     snippet: Note that the parsing considerations for WWW-Authenticate apply to this header field as well
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 166
-  - label: lint-http-rules/src/helpers/auth.rs (9)
+  - label: lint-http-rules/src/helpers/auth.rs (10)
     section: § 11.7.1
     snippet: The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 404
+      line: 417
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 185
-  - label: lint-http-rules/src/helpers/auth.rs (10)
+  - label: lint-http-rules/src/helpers/auth.rs (11)
     section: § 11.7.2
     snippet: Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested.
     cited_by:
@@ -8292,7 +8300,7 @@ sources:
     snippet: Proxy-Authorization = credentials
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 831
+      line: 885
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 64
   - label: 1#element expansion
@@ -8331,14 +8339,14 @@ sources:
       line: 279
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 599
-  - label: lint-http-rules/src/helpers/auth.rs (11)
+  - label: lint-http-rules/src/helpers/auth.rs (12)
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 699
+      line: 715
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 1170
+      line: 1224
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 141
     - file: lint-http-rules/src/helpers/cache_control.rs
@@ -10876,7 +10884,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 184
     - file: lint-http-rules/src/rules/www_authenticate_challenge_syntax.rs
-      line: 158
+      line: 169
   - label: status_code_semantics (5)
     section: § 11.7.1
     snippet: Note that the parsing considerations for WWW-Authenticate apply to this header field as well; see Section 11.6.1 for details.

@@ -15,6 +15,9 @@ This rule validates that each challenge:
 - Begins with a valid `auth-scheme` token (no illegal characters).
 - If parameters are present, each parameter is of the form `token=token` or `token="quoted-string"` and quoted-strings are well-formed.
 - Token68 values are accepted as a single token-like remainder (no control characters).
+- No `auth-param` name occurs twice in one challenge (RFC 9110 §11.2), the names being folded before they are compared as the same sentence requires. The count is taken inside a challenge and never across the field line, because `WWW-Authenticate = #challenge` and §11.6.1 prints two challenges each naming their own `realm` as the ordinary case.
+
+**A repeated parameter is not reported about an `Authorization`.** §11.2's sentence counts per *challenge*, and §11.4 gives `credentials` no such unit; RFC 7616 states nothing of its own about a Digest credential naming a parameter twice. So the silence there is the documents', not this reader's.
 
 ## Violations
 
@@ -26,6 +29,7 @@ This rule validates that each challenge:
 - [auth_param_value_empty](../violations/auth_param_value_empty.md) — An authentication parameter is written with no value after its '='
 - [auth_scheme_character_forbidden](../violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
 - [challenge_member_empty](../violations/challenge_member_empty.md) — Authentication challenge list has an empty member
+- [challenge_parameter_duplicated](../violations/challenge_parameter_duplicated.md) — Authentication challenge names one parameter more than once
 - [challenge_scheme_missing](../violations/challenge_scheme_missing.md) — Authentication parameter arrives before any scheme
 - [challenge_token68_invalid](../violations/challenge_token68_invalid.md) — Authentication token68 is indistinguishable from a parameter
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair
@@ -90,4 +94,18 @@ WWW-Authenticate: Basic realm="unfinished
 ```http
 HTTP/1.1 401 Unauthorized
 WWW-Authenticate: Basic realm=example
+```
+
+### ❌ Bad (§ 11.2 admits a parameter name once per challenge, and folds the name before comparing it)
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Basic realm="one", REALM="two"
+```
+
+### ✅ Good (two challenges, each naming its own realm — the count is per challenge and not per field line)
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Basic realm="a", Bearer realm="b"
 ```

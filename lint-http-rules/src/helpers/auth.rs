@@ -378,6 +378,19 @@ pub enum AuthDefect<'a> {
         /// What it failed to be.
         defect: crate::helpers::quoted_string::QuotedStringDefect,
     },
+    /// One `auth-param` name written more than once in one challenge, carrying
+    /// the name as the second occurrence spelled it.
+    ///
+    /// **The second variant here that is not a defect of the grammar**, and it
+    /// is held back the same way [`RealmUnquoted`](Self::RealmUnquoted) is:
+    /// `#auth-param` derives `realm=a, realm=b` as readily as any other list of
+    /// two, and a member that fails the production outright is what a sender
+    /// fixes first.
+    ///
+    /// **Challenge-side only, because the sentence counts per challenge.** A
+    /// `credentials` value is not a challenge and § 11.4 gives it no unit to
+    /// count within, so this is one of the two things [`Side`] decides.
+    ParameterDuplicated(&'a str),
     /// A `realm` written as a `token` where § 11.5 admits only the
     /// `quoted-string`. Carries the value as written.
     ///
@@ -448,6 +461,9 @@ impl AuthDefect<'_> {
                 "Invalid quoted-string in {field} auth-param '{}': {}",
                 name,
                 defect.message(value)
+            ),
+            Self::ParameterDuplicated(name) => format!(
+                "{field} names the '{name}' parameter more than once in one challenge, and RFC 9110 \u{a7}11.2 admits it once (\"each parameter name MUST only occur once per challenge\") \u{2014} both values are well formed, so what the challenge means by '{name}' is whichever one the recipient happens to keep"
             ),
             Self::RealmUnquoted(value) => format!(
                 "{field} writes its realm as the token '{}', and RFC 9110 \u{a7}11.5 admits only the quoted-string syntax for it (\"For historical reasons, a sender MUST only generate the quoted-string syntax\") \u{2014} write realm=\"{}\" instead",
@@ -728,6 +744,33 @@ pub fn validate_scheme_tail(
         let realm_is_answered_elsewhere = scheme.eq_ignore_ascii_case("digest");
         let mut unquoted_realm: Option<&str> = None;
 
+        // § 11.2's other MUST, held back on the same footing and reported ahead
+        // of the realm's spelling.
+        //
+        // **The scope is a challenge and not a field line.** `WWW-Authenticate`
+        // is `#challenge` and § 11.6.1 prints two challenges each naming their
+        // own `realm` as the ordinary case, so the count is taken here — inside
+        // one assembled challenge, after `split_and_group_challenges` has
+        // decided where the challenges are — and a walk that counted per field
+        // value would report the specification's own example. On the
+        // credentials side there is no challenge to count within: § 11.4 gives
+        // `credentials` no list around it and states no sentence of its own, so
+        // this is `Side`'s to decide and not the grammar's.
+        //
+        // **It outranks the realm's spelling**, which is the one ordering
+        // between two held-back facts that has to be chosen rather than
+        // derived. The realm reading takes the first realm and not the last,
+        // and it can only do that by assuming there is one; told to quote a
+        // realm the recipient may not be the one using, a sender repairs a
+        // value that was never the finding's subject. Naming the duplication
+        // first leaves one value with one repair, and the respelling is
+        // reported on the next message.
+        //
+        // The names are folded because the same sentence folds them.
+        // cite(RFC 9110 § 11.2): "Authentication parameters are name/value pairs, where the name token is matched case-insensitively and each parameter name MUST only occur once per challenge."
+        let mut seen: Vec<String> = Vec::new();
+        let mut duplicated: Option<&str> = None;
+
         for param in split_commas_respecting_quotes(rest) {
             if members == MemberEmptiness::ReadHere && param.trim().is_empty() {
                 return Err(AuthDefect::ParameterMemberEmpty);
@@ -771,8 +814,19 @@ pub fn validate_scheme_tail(
             {
                 unquoted_realm = Some(v);
             }
+            if side == Side::Challenge {
+                let folded = name.to_ascii_lowercase();
+                if seen.contains(&folded) {
+                    duplicated = duplicated.or(Some(name));
+                } else {
+                    seen.push(folded);
+                }
+            }
         }
 
+        if let Some(name) = duplicated {
+            return Err(AuthDefect::ParameterDuplicated(name));
+        }
         if let Some(value) = unquoted_realm {
             return Err(AuthDefect::RealmUnquoted(value));
         }
@@ -1425,6 +1479,75 @@ mod tests {
     fn consecutive_commas_report_error() {
         let r = split_and_group_challenges("Basic realm=\"x\", , error=\"y\"");
         assert_eq!(r.unwrap_err(), AuthDefect::EmptyMember);
+    }
+
+    /// § 11.2's count is scoped to a challenge, and § 11.4 gives `credentials`
+    /// no such unit — one field carries one `credentials` and no list around
+    /// it. RFC 7616 states nothing of its own about a Digest credential naming
+    /// a parameter twice either, so a finding on the credentials side would be
+    /// this reader's invention rather than a document's requirement.
+    ///
+    /// This is `Side`'s second decision, beside the bare word after a scheme,
+    /// and it is asserted rather than left to the caller list: both sides reach
+    /// the same walk, so a check written without the gate would report about an
+    /// `Authorization` and nothing in the tree would say it should not.
+    #[test]
+    fn a_repeated_parameter_is_the_challenge_sides_alone() {
+        let value = "Custom realm=\"a\", realm=\"b\"";
+        assert_eq!(
+            validate_scheme_tail(value, Side::Challenge, MemberEmptiness::AlreadyRefused),
+            Err(AuthDefect::ParameterDuplicated("realm"))
+        );
+        assert_eq!(
+            validate_scheme_tail(value, Side::Credentials, MemberEmptiness::ReadHere),
+            Ok(())
+        );
+    }
+
+    /// The two facts this walk holds back until every member has come through
+    /// the production, in the order it names them.
+    ///
+    /// A value that is both — a realm written twice and written as a token —
+    /// has one repair per finding and they are not the same repair, so the
+    /// order decides which the sender is handed. The duplication goes first
+    /// because § 11.5's reading takes *the first* realm and can only do that by
+    /// assuming there is one: naming the spelling of a value the recipient may
+    /// not be using sends a sender to repair something that was never the
+    /// subject.
+    #[test]
+    fn duplication_is_named_before_the_realms_spelling() {
+        assert_eq!(
+            validate_scheme_tail(
+                "Basic realm=a, realm=b",
+                Side::Challenge,
+                MemberEmptiness::AlreadyRefused
+            ),
+            Err(AuthDefect::ParameterDuplicated("realm"))
+        );
+        // And with one realm the historical reason is what is left.
+        assert_eq!(
+            validate_scheme_tail(
+                "Basic realm=a",
+                Side::Challenge,
+                MemberEmptiness::AlreadyRefused
+            ),
+            Err(AuthDefect::RealmUnquoted("a"))
+        );
+    }
+
+    /// The grammar still outranks both of them: the walk returns on the first
+    /// member that fails `auth-param`, so a duplicate after a malformed member
+    /// is never counted.
+    #[test]
+    fn a_member_outside_the_production_is_reached_first() {
+        assert_eq!(
+            validate_scheme_tail(
+                "Basic realm=\"a\", bad@name=x, realm=\"b\"",
+                Side::Challenge,
+                MemberEmptiness::AlreadyRefused
+            ),
+            Err(AuthDefect::ParameterNameCharacter('@'))
+        );
     }
 
     #[test]
