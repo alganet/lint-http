@@ -4,9 +4,9 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# challenge_parameter_name_character_forbidden
+# auth_param_value_empty
 
-Authentication parameter name holds a character outside token
+An authentication parameter is written with no value after its '='
 
 ## Message
 
@@ -23,13 +23,14 @@ _Written where it is reported: this defect's message names the value that caused
 ## Configuration
 
 ```toml
-[violations.challenge_parameter_name_character_forbidden]
-# Authentication parameter name holds a character outside token
+[violations.auth_param_value_empty]
+# An authentication parameter is written with no value after its '='
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 ```
 
 ## Reported By
 
+- [authorization_credentials_valid](../rules/authorization_credentials_valid.md)
 - [proxy_authenticate_challenge_syntax](../rules/proxy_authenticate_challenge_syntax.md)
 - [www_authenticate_challenge_syntax](../rules/www_authenticate_challenge_syntax.md)

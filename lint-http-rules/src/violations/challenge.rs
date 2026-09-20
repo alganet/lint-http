@@ -6,34 +6,40 @@
 //!
 //! The subject is `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]`,
 //! RFC 9110 § 11.3's production, and not the field carrying it.
-//! `WWW-Authenticate` is the one this crate reads today; `Proxy-Authenticate`
-//! is the same production under a different name, and a rule for it declares
-//! these same ten rather than ten of its own.
+//! `WWW-Authenticate` and `Proxy-Authenticate` are the same production under
+//! two names, and the rules for them declare these same four rather than four
+//! apiece.
 //!
-//! The scheme at the front of a challenge is *not* here, and neither is the
-//! `token68` after it. `auth-scheme = token` and `token68` are both § 11.2's,
-//! shared with § 11.4's `credentials`, so they live in
-//! [`crate::violations::auth_scheme`] and [`crate::violations::token68`] where
-//! an `Authorization` value reports the same ones.
+//! **None of § 11.2's three constructs is here.** `auth-scheme = token`,
+//! `token68` and `auth-param` are all § 11.2's, shared with § 11.4's
+//! `credentials`, so they live in [`crate::violations::auth_scheme`],
+//! [`crate::violations::token68`] and [`crate::violations::auth_param`] where an
+//! `Authorization` value reports the same ones.
 //!
-//! **The wording is still the field's, and that is the part left to move.**
-//! The messages come from [`crate::helpers::auth::ChallengeDefect`], which was
-//! written for one field and says `WWW-Authenticate` in every sentence. The
-//! ids do not, so the catalogue is already right; the day a second field
-//! reports one of these, the sentence is what has to be parameterised, and no
-//! id has to change. That is the order this campaign wants those two things
-//! done in.
+//! **The `auth-param` four were the last to go, and this module's own doc had
+//! predicted they would not have to.** It said the wording was the field's and
+//! the ids were not, so "the day a second field reports one of these, the
+//! sentence is what has to be parameterised, and no id has to change". The
+//! sentences were parameterised and the prediction still failed, because a
+//! `challenge_parameter_name_empty` reported about an `Authorization` names a
+//! challenge that is not in the message. An id spelled after one side of a
+//! shared production is a claim about which side wrote it.
 //!
 //! Two defects here are the *list's* rather than one challenge's — an empty
 //! member, and a parameter arriving before any scheme — because
 //! `WWW-Authenticate = #challenge` is read before its members are, and the
 //! member boundaries are where those two are visible.
 
-use crate::helpers::auth::ChallengeDefect;
+use crate::helpers::auth::AuthDefect;
 use crate::lint::Severity;
 use crate::lint::Strength;
 use crate::rules::SpecRef;
-use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
+use crate::violations::auth_param::{
+    AUTH_PARAM_EQUALS_MISSING, AUTH_PARAM_NAME_CHARACTER_FORBIDDEN, AUTH_PARAM_NAME_EMPTY,
+    AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+};
+use crate::violations::auth_scheme::AUTH_SCHEME_CHARACTER_FORBIDDEN;
+use crate::violations::list::LIST_MEMBER_EMPTY;
 use crate::violations::quoted_string::quoted_string_defect;
 use crate::violations::token68::TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN;
 use crate::violations::{defects, ViolationDef};
@@ -110,63 +116,6 @@ defects! {
         spec: &[],
     }
 
-    /// A parameter whose name is empty — `=x`, which has a value and nothing
-    /// for it to belong to.
-    ///
-    // cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
-    CHALLENGE_PARAMETER_NAME_EMPTY = {
-        id: "challenge_parameter_name_empty",
-        title: "Authentication parameter has an empty name",
-        message: "",
-        default_severity: Severity::Error,
-        spec: &[RFC_9110_11_2],
-        strength: Strength::Grammar,
-    }
-
-    /// An `auth-param` with no value. The production writes the `"="` and both
-    /// alternatives after it, so the value is not optional — `Basic realm` is
-    /// the shortest way to reach this.
-    ///
-    // cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
-    CHALLENGE_PARAMETER_VALUE_MISSING = {
-        id: "challenge_parameter_value_missing",
-        title: "Authentication parameter has no value",
-        message: "",
-        default_severity: Severity::Error,
-        spec: &[RFC_9110_11_2],
-        strength: Strength::Grammar,
-    }
-
-    /// A non-`tchar` octet in an `auth-param` name. The same complaint as
-    /// [`AUTH_SCHEME_CHARACTER_FORBIDDEN`] under a different production,
-    /// and kept apart from it for exactly that reason: an operator reading a
-    /// report is told which half of the challenge the octet was in.
-    ///
-    // cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
-    CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN = {
-        id: "challenge_parameter_name_character_forbidden",
-        title: "Authentication parameter name holds a character outside token",
-        message: "",
-        default_severity: Severity::Error,
-        spec: &[RFC_9110_11_2],
-        strength: Strength::Grammar,
-    }
-
-    /// A non-`tchar` octet in an unquoted `auth-param` value. The value has a
-    /// second alternative — the quoted one — which is where such an octet is
-    /// admitted, so this is also the defect whose fix is most often a pair of
-    /// DQUOTEs rather than a different character.
-    ///
-    // cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
-    CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN = {
-        id: "challenge_parameter_value_character_forbidden",
-        title: "Authentication parameter value holds a character outside token",
-        message: "",
-        default_severity: Severity::Error,
-        spec: &[RFC_9110_11_2],
-        strength: Strength::Grammar,
-    }
-
     /// One `realm` value carried by challenges of two different auth-schemes in
     /// one response.
     ///
@@ -205,26 +154,26 @@ defects! {
     }
 }
 
-/// The defect a parsed [`ChallengeDefect`] reports as.
+/// The defect a parsed [`AuthDefect`] reports as.
 ///
 /// The last arm hands the question to [`crate::violations::quoted_string`],
 /// which is the point of that module: a value between two DQUOTEs is the same
 /// production in an `auth-param` as in a `Cache-Control` directive, and reports
 /// under the same names.
-pub fn challenge_defect(defect: ChallengeDefect<'_>) -> &'static ViolationDef {
+pub fn challenge_defect(defect: AuthDefect<'_>) -> &'static ViolationDef {
     match defect {
-        ChallengeDefect::EmptyMember => &CHALLENGE_MEMBER_EMPTY,
-        ChallengeDefect::SchemeMissing => &CHALLENGE_SCHEME_MISSING,
-        ChallengeDefect::SchemeCharacter(_) => &AUTH_SCHEME_CHARACTER_FORBIDDEN,
-        ChallengeDefect::Token68ControlCharacter => &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
-        ChallengeDefect::SuspiciousSingleToken(_) => &CHALLENGE_TOKEN68_INVALID,
-        ChallengeDefect::EmptyParameterName => &CHALLENGE_PARAMETER_NAME_EMPTY,
-        ChallengeDefect::ParameterMissingValue(_) => &CHALLENGE_PARAMETER_VALUE_MISSING,
-        ChallengeDefect::ParameterNameCharacter(_) => &CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
-        ChallengeDefect::ParameterValueCharacter(_) => {
-            &CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN
-        }
-        ChallengeDefect::ParameterQuotedValue { defect, .. } => quoted_string_defect(defect),
+        AuthDefect::EmptyMember => &CHALLENGE_MEMBER_EMPTY,
+        AuthDefect::SchemeMissing => &CHALLENGE_SCHEME_MISSING,
+        AuthDefect::SchemeCharacter(_) => &AUTH_SCHEME_CHARACTER_FORBIDDEN,
+        AuthDefect::Token68ControlCharacter => &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
+        AuthDefect::SuspiciousSingleToken(_) => &CHALLENGE_TOKEN68_INVALID,
+        AuthDefect::ParameterMemberEmpty => &LIST_MEMBER_EMPTY,
+        AuthDefect::EmptyParameterName => &AUTH_PARAM_NAME_EMPTY,
+        AuthDefect::ParameterEqualsMissing(_) => &AUTH_PARAM_EQUALS_MISSING,
+        AuthDefect::ParameterValueEmpty(_) => &AUTH_PARAM_VALUE_EMPTY,
+        AuthDefect::ParameterNameCharacter(_) => &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
+        AuthDefect::ParameterValueCharacter(_) => &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
+        AuthDefect::ParameterQuotedValue { defect, .. } => quoted_string_defect(defect),
     }
 }
 
@@ -275,38 +224,40 @@ mod tests {
     #[test]
     fn each_challenge_defect_maps_to_its_own_id() {
         for (defect, id) in [
-            (ChallengeDefect::EmptyMember, "challenge_member_empty"),
-            (ChallengeDefect::SchemeMissing, "challenge_scheme_missing"),
+            (AuthDefect::EmptyMember, "challenge_member_empty"),
+            (AuthDefect::SchemeMissing, "challenge_scheme_missing"),
             (
-                ChallengeDefect::SchemeCharacter('@'),
+                AuthDefect::SchemeCharacter('@'),
                 "auth_scheme_character_forbidden",
             ),
             (
-                ChallengeDefect::Token68ControlCharacter,
+                AuthDefect::Token68ControlCharacter,
                 "token68_whitespace_or_control_forbidden",
             ),
             (
-                ChallengeDefect::SuspiciousSingleToken("realm"),
+                AuthDefect::SuspiciousSingleToken("realm"),
                 "challenge_token68_invalid",
             ),
+            (AuthDefect::EmptyParameterName, "auth_param_name_empty"),
             (
-                ChallengeDefect::EmptyParameterName,
-                "challenge_parameter_name_empty",
+                AuthDefect::ParameterEqualsMissing("flag"),
+                "auth_param_equals_missing",
             ),
             (
-                ChallengeDefect::ParameterMissingValue("realm"),
-                "challenge_parameter_value_missing",
+                AuthDefect::ParameterValueEmpty("realm"),
+                "auth_param_value_empty",
+            ),
+            (AuthDefect::ParameterMemberEmpty, "list_member_empty"),
+            (
+                AuthDefect::ParameterNameCharacter('@'),
+                "auth_param_name_character_forbidden",
             ),
             (
-                ChallengeDefect::ParameterNameCharacter('@'),
-                "challenge_parameter_name_character_forbidden",
+                AuthDefect::ParameterValueCharacter('@'),
+                "auth_param_value_character_forbidden",
             ),
             (
-                ChallengeDefect::ParameterValueCharacter('@'),
-                "challenge_parameter_value_character_forbidden",
-            ),
-            (
-                ChallengeDefect::ParameterQuotedValue {
+                AuthDefect::ParameterQuotedValue {
                     name: "realm",
                     value: "\"x",
                     defect: crate::helpers::quoted_string::QuotedStringDefect::NotQuoted,

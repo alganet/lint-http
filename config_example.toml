@@ -1024,6 +1024,26 @@ severity = "warn"
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 
+[violations.auth_param_name_character_forbidden]
+# An authentication parameter name holds a character outside token
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
+
+[violations.auth_param_name_empty]
+# An authentication parameter has an empty name
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
+
+[violations.auth_param_value_character_forbidden]
+# An authentication parameter value holds a character outside token
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
+
+[violations.auth_param_value_empty]
+# An authentication parameter is written with no value after its '='
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
+
 [violations.auth_scheme_character_forbidden]
 # Authentication scheme holds a character outside token
 severity = "warn"
@@ -1200,26 +1220,6 @@ severity = "warn"
 
 [violations.challenge_member_empty]
 # Authentication challenge list has an empty member
-# GRAMMAR obliges the sender, so this defaults to error.
-severity = "error"
-
-[violations.challenge_parameter_name_character_forbidden]
-# Authentication parameter name holds a character outside token
-# GRAMMAR obliges the sender, so this defaults to error.
-severity = "error"
-
-[violations.challenge_parameter_name_empty]
-# Authentication parameter has an empty name
-# GRAMMAR obliges the sender, so this defaults to error.
-severity = "error"
-
-[violations.challenge_parameter_value_character_forbidden]
-# Authentication parameter value holds a character outside token
-# GRAMMAR obliges the sender, so this defaults to error.
-severity = "error"
-
-[violations.challenge_parameter_value_missing]
-# Authentication parameter has no value
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 

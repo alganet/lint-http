@@ -4,10 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::auth_param::{
+    AUTH_PARAM_EQUALS_MISSING, AUTH_PARAM_NAME_CHARACTER_FORBIDDEN, AUTH_PARAM_NAME_EMPTY,
+    AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+};
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::credentials::{
     credentials_defect, CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN, CREDENTIALS_EMPTY,
     CREDENTIALS_MISSING, RFC_9110_11_4, RFC_9110_11_6_2,
+};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
+use crate::violations::quoted_string::{
+    QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::ViolationDef;
 
@@ -28,12 +38,27 @@ use crate::violations::ViolationDef;
 /// to answer.
 pub struct AuthorizationCredentialsValid;
 
-/// The defects this rule reports. Three belong to `credentials = auth-scheme
-/// [ 1*SP ( token68 / #auth-param ) ]`, which `Proxy-Authorization` carries
-/// too; the fourth is the scheme's, shared with the response side of the
-/// framework — `www_authenticate_challenge_syntax` reports the same id about a
-/// server's `WWW-Authenticate`, because `auth-scheme = token` is written once
-/// and used from both directions.
+/// The defects this rule reports, and only the first three are this field's.
+/// The scheme's is shared with the response side of the framework —
+/// `www_authenticate_challenge_syntax` reports the same id about a server's
+/// `WWW-Authenticate`, because `auth-scheme = token` is written once and used
+/// from both directions — and the ten after it belong to what § 11.4 writes
+/// after the scheme, `[ 1*SP ( token68 / #auth-param ) ]`, which § 11.3 writes
+/// identically for a challenge. That half of the list is new: this rule used to
+/// read the credentials as far as "there is something there and it holds no
+/// control octet" and call that the framework's grammar.
+///
+/// **Two of the challenge side's entries are deliberately not here.**
+/// `challenge_member_empty` and `challenge_scheme_missing` are
+/// `WWW-Authenticate = #challenge`'s, found while its members are grouped, and
+/// `credentials` is one value with no list around it. The `#auth-param` inside
+/// it *is* a list, and its empty member is `list_member_empty`, which is here.
+///
+/// **`token68_whitespace_or_control_forbidden` is not here either**, and the
+/// reason is the order rather than the production: a control octet in the
+/// credentials is refused by both alternatives, so this rule answers it before
+/// the alternative is chosen and reports the id an operator has already
+/// configured.
 ///
 /// **There is no non-UTF-8 finding.** The verdict that once stood here named an
 /// encoding where the defect is an octet the field's grammar does not admit;
@@ -44,6 +69,16 @@ static DECLARED: &[&ViolationDef] = &[
     &CREDENTIALS_MISSING,
     &CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN,
     &AUTH_SCHEME_CHARACTER_FORBIDDEN,
+    &LIST_MEMBER_EMPTY,
+    &AUTH_PARAM_NAME_EMPTY,
+    &AUTH_PARAM_EQUALS_MISSING,
+    &AUTH_PARAM_VALUE_EMPTY,
+    &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
+    &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -83,7 +118,7 @@ impl RuleMeta for AuthorizationCredentialsValid {
     }
 
     fn description(&self) -> &'static str {
-        "The `Authorization` and `Proxy-Authorization` request header fields both carry credentials: an authentication scheme, then the authentication information that scheme defines. § 11.6.2 and § 11.7.2 write the same production for them and differ only in which hop consumes the value, so this rule reads that framework structure in either and names the field it read. It reports a field that is empty, one whose `auth-scheme` carries a character no `token` admits, one that stops after the scheme where the scheme wants credentials, and a control octet in the credentials themselves. Every field line is read, because a sender wrote each — that a request carries more than one line of either field is `singleton_fields_not_repeated`'s finding. What the credentials must *be* once the scheme is known belongs to the scheme's own rule; whether the scheme is one the deployment accepts belongs to `auth_scheme_registered`."
+        "The `Authorization` and `Proxy-Authorization` request header fields both carry credentials: an authentication scheme, then the authentication information that scheme defines. § 11.6.2 and § 11.7.2 write the same production for them and differ only in which hop consumes the value, so this rule reads that framework structure in either and names the field it read. It reports a field that is empty, one whose `auth-scheme` carries a character no `token` admits, one that stops after the scheme where the scheme wants credentials, and a control octet in the credentials themselves — and then it reads what § 11.4 writes after the scheme, `[ 1*SP ( token68 / #auth-param ) ]`, which § 11.3 writes identically for a challenge and one reader answers for both. A single `token68` is accepted whatever it holds, because a bare word is derived by that alternative and by an `auth-param` whose value was left off, and on this side of the framework nothing is missing from it; the parameters are read in full. Every field line is read, because a sender wrote each — that a request carries more than one line of either field is `singleton_fields_not_repeated`'s finding. What the credentials must *be* once the scheme is known belongs to the scheme's own rule; whether the scheme is one the deployment accepts belongs to `auth_scheme_registered`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -91,6 +126,10 @@ impl RuleMeta for AuthorizationCredentialsValid {
             RFC_9110_11_6_2,
             RFC_9110_11_4,
             RFC_9110_11_2,
+            // The `#` on `#auth-param` is the list construct, and its members
+            // answer to § 5.6.1.1 like every other list's.
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_4,
             RFC_7617,
             RFC_6750,
         ]
@@ -131,6 +170,36 @@ impl RuleMeta for AuthorizationCredentialsValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(the other field § 11 writes as `credentials`)"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nProxy-Authorization: Basic",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(an `#auth-param` member with nothing in it)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Custom realm=\"x\", , qop=\"auth\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a value where the name goes)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Custom =\"x\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(an octet no `token` admits, in the name)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Custom re@alm=\"x\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a parameter written without its `=`)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Custom realm=\"x\", qop",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a parameter written with nothing after its `=`)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Custom realm=\"x\", qop=",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(an octet no `token` admits, in an unquoted value)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Custom realm=a@b",
             },
         ]
     }
@@ -173,10 +242,9 @@ impl Rule for AuthorizationCredentialsValid {
                 // reasoning and the §11.4 structure cite.
                 // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
                 if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(&s) {
-                    return Some(ctx.report_with(
-                        credentials_defect(defect),
-                        format!("Invalid {shown} header: {}", defect.message()),
-                    ));
+                    return Some(
+                        ctx.report_with(credentials_defect(defect), defect.message(shown)),
+                    );
                 }
             }
             None
@@ -257,6 +325,76 @@ mod tests {
             found.as_ref().map(|v| v.violation.as_str()),
             expected,
             "{value:?}: {found:?}",
+        );
+    }
+
+    /// **§ 11.4's alternative, which this rule used to stop before.**
+    ///
+    /// Each value below is one the response side has always reported and this
+    /// one was silent about: `credentials` and `challenge` are the same
+    /// production, so `Authorization: Custom realm="x", , qop="auth"` is the
+    /// defect `WWW-Authenticate: Custom realm="x", , qop="auth"` is. The id is
+    /// asserted rather than a boolean because every one of these values has a
+    /// second reading standing ready to answer instead — the scheme's, the
+    /// list's, or the coarse "there is a control octet in here".
+    ///
+    /// The last four are the silences, and they are the point of the rest: a
+    /// single `token68` is derived by that alternative *and* by an `auth-param`
+    /// whose value was left off, and on this side of the framework nothing is
+    /// missing from it. The response side reports the ambiguity and this side
+    /// must not.
+    #[rstest]
+    #[case("Custom realm=\"x\", , qop=\"auth\"", Some("list_member_empty"))]
+    #[case("Custom =\"x\"", Some("auth_param_name_empty"))]
+    #[case("Custom re@alm=\"x\"", Some("auth_param_name_character_forbidden"))]
+    #[case("Custom realm=\"x\", qop", Some("auth_param_equals_missing"))]
+    #[case("Custom realm=\"x\", qop=", Some("auth_param_value_empty"))]
+    #[case("Custom realm=a@b", Some("auth_param_value_character_forbidden"))]
+    #[case("Custom realm=\"unfinished", Some("quoted_string_delimiter_missing"))]
+    // AWS SigV4 writes `/` and `;` in unquoted `auth-param` values, and neither
+    // is a `tchar`. It is here because it is the shape this reading meets most
+    // often on real traffic, and a session tuning the entry down needs the case
+    // that made it fire.
+    #[case(
+        "AWS4-HMAC-SHA256 Credential=AK/20130524/us-east-1/s3/aws4_request, Signature=fe5f",
+        Some("auth_param_value_character_forbidden")
+    )]
+    #[case("Negotiate YIIFxAYGKwYBBQUCoIIFuDCCBbSgh==", None)]
+    #[case("NTLM TlRMTVNTUAABAAAA", None)]
+    #[case("Custom realm", None)]
+    #[case("Custom abcdef", None)]
+    fn the_production_after_the_scheme_is_read(
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let found = judge(&with_authorization(&[value]));
+        assert_eq!(
+            found.as_ref().map(|v| v.violation.as_str()),
+            expected,
+            "{value:?}: {found:?}",
+        );
+    }
+
+    /// The sentence names the field it read, for the production's findings as
+    /// well as the framework's. Both halves used to say `Authorization`
+    /// outright, so a `Proxy-Authorization` finding named the wrong field inside
+    /// the right one.
+    #[rstest]
+    #[case("authorization", "Authorization")]
+    #[case("proxy-authorization", "Proxy-Authorization")]
+    fn a_production_finding_names_the_field_it_was_read_from(
+        #[case] key: &str,
+        #[case] shown: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[(key, "Custom re@alm=\"x\"")]);
+        let found = judge(&tx).unwrap_or_else(|| panic!("nothing reported for {key}"));
+        assert_eq!(found.violation, "auth_param_name_character_forbidden");
+        assert!(
+            found.message.contains(shown),
+            "a finding about {key} says {:?}, which does not name the field it read",
+            found.message
         );
     }
 

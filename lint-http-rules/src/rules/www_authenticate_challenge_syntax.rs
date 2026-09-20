@@ -4,12 +4,14 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::auth_param::{
+    AUTH_PARAM_EQUALS_MISSING, AUTH_PARAM_NAME_CHARACTER_FORBIDDEN, AUTH_PARAM_NAME_EMPTY,
+    AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+};
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::challenge::{
-    CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
-    CHALLENGE_PARAMETER_NAME_EMPTY, CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN,
-    CHALLENGE_PARAMETER_VALUE_MISSING, CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID,
-    RFC_9110_11_3, RFC_9110_11_6_1,
+    CHALLENGE_MEMBER_EMPTY, CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID, RFC_9110_11_3,
+    RFC_9110_11_6_1,
 };
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -34,10 +36,11 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTH_SCHEME_CHARACTER_FORBIDDEN,
     &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &CHALLENGE_TOKEN68_INVALID,
-    &CHALLENGE_PARAMETER_NAME_EMPTY,
-    &CHALLENGE_PARAMETER_VALUE_MISSING,
-    &CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
-    &CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN,
+    &AUTH_PARAM_NAME_EMPTY,
+    &AUTH_PARAM_EQUALS_MISSING,
+    &AUTH_PARAM_VALUE_EMPTY,
+    &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
+    &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
@@ -239,19 +242,11 @@ mod tests {
         "challenge_member_empty",
         crate::lint::Severity::Error
     )]
-    #[case(
-        "Basic =\"x\"",
-        "challenge_parameter_name_empty",
-        crate::lint::Severity::Error
-    )]
-    #[case(
-        "Basic realm=",
-        "challenge_parameter_value_missing",
-        crate::lint::Severity::Error
-    )]
+    #[case("Basic =\"x\"", "auth_param_name_empty", crate::lint::Severity::Error)]
+    #[case("Basic realm=", "auth_param_value_empty", crate::lint::Severity::Error)]
     #[case(
         "Basic re@alm=\"x\"",
-        "challenge_parameter_name_character_forbidden",
+        "auth_param_name_character_forbidden",
         crate::lint::Severity::Error
     )]
     #[case(
@@ -461,14 +456,16 @@ mod tests {
     }
 
     #[test]
-    fn auth_param_without_equals_reports_missing_value() {
+    fn auth_param_without_equals_reports_the_absent_delimiter() {
         // This case is not representable as a single header field (top-level commas separate
         // challenges), but the per-challenge validation should detect a parameter without '='
         // when run against an assembled challenge string.
         let r = crate::helpers::auth::validate_challenge_syntax("Basic realm=\"x\", flag");
         assert_eq!(
             r,
-            Err(crate::helpers::auth::ChallengeDefect::ParameterMissingValue("flag"))
+            Err(crate::helpers::auth::AuthDefect::ParameterEqualsMissing(
+                "flag"
+            ))
         );
     }
 
@@ -679,7 +676,7 @@ mod tests {
         );
         assert!(v.is_some());
         if let Some(vv) = v {
-            assert!(vv.message.contains("missing value"));
+            assert!(vv.message.contains("has nothing after its '='"));
         }
     }
 
@@ -819,7 +816,7 @@ mod tests {
         );
         assert!(v.is_some());
         if let Some(vv) = v {
-            assert!(vv.message.contains("missing value"));
+            assert!(vv.message.contains("has nothing after its '='"));
         }
     }
 
@@ -836,11 +833,11 @@ mod tests {
     )]
     #[case(
         "Basic realm, Bearer re@alm=\"x\"",
-        &["challenge_token68_invalid", "challenge_parameter_name_character_forbidden"]
+        &["challenge_token68_invalid", "auth_param_name_character_forbidden"]
     )]
     #[case(
         "Basic re@alm=\"x\", Bearer realm",
-        &["challenge_parameter_name_character_forbidden", "challenge_token68_invalid"]
+        &["auth_param_name_character_forbidden", "challenge_token68_invalid"]
     )]
     // A member that is well formed contributes nothing, so the count follows
     // the defects and not the commas.

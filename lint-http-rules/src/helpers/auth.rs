@@ -19,12 +19,12 @@
 //! here and says which field it read.
 //!
 //! **Every function here answers with a named defect, and none returns a
-//! sentence.** [`ChallengeDefect`], [`AuthorizationDefect`],
+//! sentence.** [`AuthDefect`], [`AuthorizationDefect`],
 //! [`BasicCredentialsDefect`] and [`BearerTokenDefect`] each carry what their
 //! finding needs and own its wording; the callers compose only the subject.
 //! Two of them span the same octet complaint under different productions —
-//! `ChallengeDefect::SchemeCharacter` and
-//! `ChallengeDefect::ParameterNameCharacter` — which is the distinction the
+//! `AuthDefect::SchemeCharacter` and
+//! `AuthDefect::ParameterNameCharacter` — which is the distinction the
 //! `String`s could not draw and the reason the conversion was worth doing.
 //!
 //! **Every trim here is `OWS` and every split is `is_sp_or_htab`, and the two
@@ -48,7 +48,7 @@
 //! The fourth was `Basic`'s "decoded credentials empty", which needed base64's
 //! arithmetic rather than a reading — zero octets come out of zero symbols.
 //!
-//! `split_and_group_challenges` answers with [`ChallengeDefect`] too, rather
+//! `split_and_group_challenges` answers with [`AuthDefect`] too, rather
 //! than with a type of its own: it reads the same field value as
 //! `validate_challenge_syntax`, one half each, and a caller that has to match
 //! on two types to report one field is a split made for the reader's
@@ -187,7 +187,7 @@ fn is_sp_or_htab(c: char) -> bool {
 /// members without a leading scheme are treated as continuation parameters for
 /// the current challenge.
 ///
-/// Returns `Ok(Vec<String>)` on success or the [`ChallengeDefect`] naming a
+/// Returns `Ok(Vec<String>)` on success or the [`AuthDefect`] naming a
 /// parsing problem: an empty member, or a parameter with no challenge before
 /// it. There was a third — *missing scheme on a member that starts with
 /// whitespace* — and it was the same problem read off a character the list
@@ -197,7 +197,7 @@ fn is_sp_or_htab(c: char) -> bool {
 /// they are variants of the same type as the rest because a caller reports them
 /// the same way: this function and [`validate_challenge_syntax`] are two halves
 /// of reading one field value.
-pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, ChallengeDefect<'_>> {
+pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, AuthDefect<'_>> {
     let members: Vec<&str> = split_commas_respecting_quotes(s);
     let mut challenges: Vec<String> = Vec::new();
 
@@ -208,7 +208,7 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, ChallengeDefec
         // are two of the octets the `auth-scheme` check below exists to name.
         let mm = m;
         if mm.is_empty() {
-            return Err(ChallengeDefect::EmptyMember);
+            return Err(AuthDefect::EmptyMember);
         }
 
         let is_new = {
@@ -238,19 +238,34 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, ChallengeDefec
             // one thing to say about it.
             // cite(RFC 9110 § 11.6.1): "WWW-Authenticate = #challenge"
             // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
-            return Err(ChallengeDefect::SchemeMissing);
+            return Err(AuthDefect::SchemeMissing);
         }
     }
 
     Ok(challenges)
 }
 
-/// What a single assembled `WWW-Authenticate` challenge fails to be.
+/// What a value written as an `auth-scheme` and whatever § 11.2 allows after it
+/// fails to be.
 ///
-/// The split is by *what was being read*, which is the only way these group:
-/// the challenge as a whole, the `auth-scheme`, the `token68` alternative, and
-/// the `#auth-param` one. Two variants that look alike belong to different
-/// halves of that — [`SchemeCharacter`](Self::SchemeCharacter) and
+/// **Named for the framework and not for a side, because § 11.3 and § 11.4
+/// write the same production.** `challenge = auth-scheme [ 1*SP ( token68 /
+/// #auth-param ) ]` and `credentials = auth-scheme [ 1*SP ( token68 /
+/// #auth-param ) ]` are one grammar under two names, so a `WWW-Authenticate`
+/// and an `Authorization` fail to be it in the same ways and
+/// [`validate_scheme_tail`] answers for both. The type was called
+/// `ChallengeDefect` while one side read it, which made the second reader's
+/// findings look like they were about a challenge that was not in the message.
+///
+/// Two variants are the *list's* and reach this from the challenge side only:
+/// [`EmptyMember`](Self::EmptyMember) and [`SchemeMissing`](Self::SchemeMissing)
+/// are `#challenge`'s, found while the members were being grouped, and
+/// `credentials` is one value with no list around it.
+///
+/// The rest split by *what was being read*, which is the only way they group:
+/// the `auth-scheme`, the `token68` alternative, and the `#auth-param` one. Two
+/// variants that look alike belong to different halves of that —
+/// [`SchemeCharacter`](Self::SchemeCharacter) and
 /// [`ParameterNameCharacter`](Self::ParameterNameCharacter) both report a
 /// non-`token` octet, and the production each read it under is the difference.
 ///
@@ -261,7 +276,7 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, ChallengeDefec
 /// of. Naming it keeps that heuristic from reading as a syntax verdict — the
 /// `String` this replaced made it one sentence among the rest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChallengeDefect<'a> {
+pub enum AuthDefect<'a> {
     /// An empty member of `WWW-Authenticate = #challenge`, found while the
     /// members were being grouped. There is no second variant for a challenge
     /// that is empty once assembled, because a challenge is a member: the
@@ -282,9 +297,32 @@ pub enum ChallengeDefect<'a> {
     /// A member whose name is empty — `=x`, which has a value and nothing it
     /// belongs to.
     EmptyParameterName,
-    /// An `auth-param` with no value, carrying the name. `auth-param` is
-    /// `token BWS "=" BWS ( token / quoted-string )`: the value is not optional.
-    ParameterMissingValue(&'a str),
+    /// An `auth-param` written without its `=` at all, carrying the word that
+    /// was there. `auth-param` is `token BWS "=" BWS ( token / quoted-string )`
+    /// and nothing brackets the delimiter, so a bare word among the parameters
+    /// derives from the production not at all.
+    ParameterEqualsMissing(&'a str),
+    /// An `auth-param` whose `=` is written and whose value is not, carrying the
+    /// name. Both alternatives after the delimiter have a floor of one
+    /// character, so neither derives the empty value.
+    ///
+    /// **Split from [`ParameterEqualsMissing`](Self::ParameterEqualsMissing),
+    /// which one variant used to answer for as well.** The two are different
+    /// mistakes — a name written as though it were a flag, and a value written
+    /// as though it were optional — and a sender told only "missing value"
+    /// cannot tell which of them it made.
+    ParameterValueEmpty(&'a str),
+    /// A member of the `#auth-param` list with nothing in it: a doubled comma,
+    /// or one at either end.
+    ///
+    /// **Reachable from the credentials side only, and that is why it exists.**
+    /// On the challenge side [`split_and_group_challenges`] has already refused
+    /// every empty member before a challenge is assembled, and the parameter
+    /// walk below was written under that guarantee. `credentials` has no list
+    /// around it, so nothing has looked at its members before the walk does, and
+    /// the guarantee the walk was leaning on is not one its second caller can
+    /// make.
+    ParameterMemberEmpty,
     /// A non-`token` octet in an `auth-param` name, carrying the character.
     ParameterNameCharacter(char),
     /// A non-`token` octet in an unquoted `auth-param` value, carrying the
@@ -305,7 +343,7 @@ pub enum ChallengeDefect<'a> {
     },
 }
 
-impl ChallengeDefect<'_> {
+impl AuthDefect<'_> {
     /// The finding, about the field that carried the challenge.
     ///
     /// **The field is an argument because the production is not the field's.**
@@ -336,21 +374,32 @@ impl ChallengeDefect<'_> {
                 "{field} challenge carries the single word '{word}' after its scheme, and the grammar refuses nothing about it: `token68` derives that word, and so does an `auth-param` whose value was left off, so the value cannot say which of the two was written"
             ),
             Self::EmptyParameterName => format!("{field} auth-param name is empty"),
-            Self::ParameterMissingValue(name) => {
-                format!("{field} auth-param '{name}' missing value")
+            Self::ParameterEqualsMissing(name) => {
+                format!("{field} auth-param '{name}' is written without its '='")
             }
+            Self::ParameterValueEmpty(name) => {
+                format!("{field} auth-param '{name}' has nothing after its '='")
+            }
+            Self::ParameterMemberEmpty => {
+                format!("{field} auth-param list has an empty member")
+            }
+            // These three take the field and used to drop it. A
+            // `Proxy-Authenticate` finding read "Invalid character '@' in
+            // auth-param name" with nothing in it saying which of the four
+            // fields carrying this production had been read, which is the whole
+            // reason the argument is here.
             Self::ParameterNameCharacter(c) => {
-                format!("Invalid character '{}' in auth-param name", c)
+                format!("Invalid character '{c}' in {field} auth-param name")
             }
             Self::ParameterValueCharacter(c) => {
-                format!("Invalid character '{}' in auth-param value", c)
+                format!("Invalid character '{c}' in {field} auth-param value")
             }
             Self::ParameterQuotedValue {
                 name,
                 value,
                 defect,
             } => format!(
-                "Invalid quoted-string in auth-param '{}': {}",
+                "Invalid quoted-string in {field} auth-param '{}': {}",
                 name,
                 defect.message(value)
             ),
@@ -384,7 +433,7 @@ fn token68_padding(value: &str) -> Option<usize> {
 }
 
 /// Whether one assembled `WWW-Authenticate` challenge is syntactically
-/// acceptable, answered as a [`ChallengeDefect`].
+/// acceptable, answered as a [`AuthDefect`].
 ///
 /// **A challenge cannot fail to have an `auth-scheme` here, and the branch that
 /// said it could is gone.** The value is trimmed and checked for emptiness
@@ -396,7 +445,7 @@ fn token68_padding(value: &str) -> Option<usize> {
 /// variant nothing constructs is a claim the module cannot back. What the test
 /// named `validate_missing_scheme_error` actually exercises is a leading-space
 /// member whose scheme reads as `realm="x"` and fails on the `=`.
-pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<'_>> {
+pub fn validate_challenge_syntax(challenge: &str) -> Result<(), AuthDefect<'_>> {
     let c = trim_ows(challenge);
     // The caller has already refused this. `split_and_group_challenges` returns
     // `EmptyMember` for any member that is empty after the splitter's `OWS`
@@ -408,22 +457,83 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
     // tomorrow.
     // cite(RFC 9110 § 11.3): "challenge   = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
     if c.is_empty() {
-        return Err(ChallengeDefect::SchemeMissing);
+        return Err(AuthDefect::SchemeMissing);
     }
+    // A challenge is a member of a list, so its `#auth-param` members have
+    // already been through `split_and_group_challenges`. `Ambiguity::Report` is
+    // the other half of what makes this side different: a bare word here may be
+    // a `realm` whose value was left off, and that is a judgment about a
+    // challenge rather than about the grammar.
+    validate_scheme_tail(c, Ambiguity::Report, MemberEmptiness::AlreadyRefused)
+}
 
+/// Whether a bare word after the scheme is worth reporting as ambiguous.
+///
+/// `token68` derives a single word and so does an `auth-param` whose value was
+/// left off, so a reader cannot say which was written. Whether that is worth a
+/// finding depends on what the reader was looking for, and only one side has an
+/// answer: a challenge exists to hand a client parameters, so a word where
+/// `realm="x"` belongs is a plausible mistake. Credentials are the other way
+/// round — a single `token68` is what `Negotiate`, `NTLM` and `DPoP` write, and
+/// no parameter is missing from it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ambiguity {
+    /// Report the bare word as [`AuthDefect::SuspiciousSingleToken`].
+    Report,
+    /// Accept it. The grammar refuses nothing about it.
+    Accept,
+}
+
+/// Whether the caller has already refused the empty members of the
+/// `#auth-param` list.
+///
+/// The parameter walk below was written under a guarantee that only one of its
+/// two callers can make. `split_and_group_challenges` splits a
+/// `WWW-Authenticate` on the same commas first and returns
+/// [`AuthDefect::EmptyMember`] for any member with nothing in it, so a challenge
+/// reaching the walk has none left; `credentials` has no list around it, and
+/// nothing has looked at its commas before the walk does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberEmptiness {
+    /// The caller refused them, and the walk will not meet one.
+    AlreadyRefused,
+    /// Nothing has looked yet, and the walk reports its own.
+    ReadHere,
+}
+
+/// The part of § 11.2's framework that follows an `auth-scheme`, read for
+/// whichever field carried it.
+///
+/// **§ 11.3 and § 11.4 write this identically**, so `WWW-Authenticate`,
+/// `Proxy-Authenticate`, `Authorization` and `Proxy-Authorization` are one
+/// grammar under four names and this is the one reading of it. It was the
+/// challenge reader's second half for as long as only challenges were read that
+/// far: the request side asked whether the credentials were non-empty and held
+/// no control octet and stopped, so `Authorization: Custom realm="x", , q="1"`
+/// drew nothing where the same value in `WWW-Authenticate` drew a finding.
+///
+/// The `scheme` argument is read and not just skipped: one branch below turns on
+/// whether it is a scheme whose own document is in this crate.
+// cite(RFC 9110 § 11.3): "challenge   = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
+// cite(RFC 9110 § 11.4, label: credentials grammar): "credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
+pub fn validate_scheme_tail(
+    value: &str,
+    ambiguity: Ambiguity,
+    members: MemberEmptiness,
+) -> Result<(), AuthDefect<'_>> {
     // The three `token68` readings below share this: the alternative's alphabet
     // has no control octet in it, whichever way the value reached the branch.
     let has_control = |s: &str| s.chars().any(|c| (c as u32) < 0x20 || c == '\x7f');
 
     // scheme is first token before whitespace
     // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
-    let mut parts = c.splitn(2, is_sp_or_htab);
+    let mut parts = value.splitn(2, is_sp_or_htab);
     let scheme = parts
         .next()
         .expect("splitn always yields at least one element");
     let scheme = trim_ows(scheme);
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
-        return Err(ChallengeDefect::SchemeCharacter(invalid));
+        return Err(AuthDefect::SchemeCharacter(invalid));
     }
 
     if let Some(rest) = parts.next() {
@@ -456,13 +566,14 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
 
         if !rest.contains('=') {
             if has_control(rest) {
-                return Err(ChallengeDefect::Token68ControlCharacter);
+                return Err(AuthDefect::Token68ControlCharacter);
             }
-            if !rest
-                .chars()
-                .any(|ch| matches!(ch, '+' | '/' | '=' | '.' | '-' | '_'))
+            if ambiguity == Ambiguity::Report
+                && !rest
+                    .chars()
+                    .any(|ch| matches!(ch, '+' | '/' | '=' | '.' | '-' | '_'))
             {
-                return Err(ChallengeDefect::SuspiciousSingleToken(rest));
+                return Err(AuthDefect::SuspiciousSingleToken(rest));
             }
             return Ok(());
         }
@@ -474,7 +585,7 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
         if !rest.contains(',') {
             if first_invalid && !after_eq.starts_with('"') {
                 if has_control(rest) {
-                    return Err(ChallengeDefect::Token68ControlCharacter);
+                    return Err(AuthDefect::Token68ControlCharacter);
                 }
                 return Ok(());
             }
@@ -485,24 +596,27 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
                     && !scheme.eq_ignore_ascii_case("digest")
                 {
                     if has_control(rest) {
-                        return Err(ChallengeDefect::Token68ControlCharacter);
+                        return Err(AuthDefect::Token68ControlCharacter);
                     }
                     return Ok(());
                 }
 
-                return Err(ChallengeDefect::ParameterMissingValue(first_part));
+                return Err(AuthDefect::ParameterValueEmpty(first_part));
             }
         }
 
         // Parse auth-params. The `OWS` around the `#auth-param` commas is the
         // splitter's; the `str::trim` this replaced also took the two `obs-text`
         // octets that look like whitespace, and no `token` admits either.
-        // No empty-member branch here, for the reason there is none above: every
-        // comma this splits on is one the assembler wrote between two non-empty
-        // members, or one that sat inside a member the outer split had already
-        // found non-empty using this same function. An empty parameter would
-        // fall to `EmptyParameterName` below, which is what it is.
+        // Whether an empty member is this walk's to report is the caller's
+        // answer, and both answers are true of one of them: the challenge side's
+        // commas have been through `split_and_group_challenges`, the credentials
+        // side's have been through nothing.
+        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         for param in split_commas_respecting_quotes(rest) {
+            if members == MemberEmptiness::ReadHere && param.trim().is_empty() {
+                return Err(AuthDefect::ParameterMemberEmpty);
+            }
             let mut kv = param.splitn(2, '=');
             let name = kv
                 .next()
@@ -510,28 +624,32 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
             let name = trim_ows(name);
             let val = kv.next();
             if name.is_empty() {
-                return Err(ChallengeDefect::EmptyParameterName);
+                return Err(AuthDefect::EmptyParameterName);
             }
+            // The `=` and the value after it are two things a sender leaves out,
+            // and one variant used to answer for both. A member with no `=` in
+            // it derives from `auth-param` not at all; a member with an `=` and
+            // nothing after it broke the floor of the two alternatives.
             let Some(val) = val else {
-                return Err(ChallengeDefect::ParameterMissingValue(name));
+                return Err(AuthDefect::ParameterEqualsMissing(name));
             };
             if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
-                return Err(ChallengeDefect::ParameterNameCharacter(inv));
+                return Err(AuthDefect::ParameterNameCharacter(inv));
             }
             let v = trim_ows(val);
             if v.is_empty() {
-                return Err(ChallengeDefect::ParameterMissingValue(name));
+                return Err(AuthDefect::ParameterValueEmpty(name));
             }
             if v.starts_with('"') {
                 if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(v) {
-                    return Err(ChallengeDefect::ParameterQuotedValue {
+                    return Err(AuthDefect::ParameterQuotedValue {
                         name,
                         value: v,
                         defect,
                     });
                 }
             } else if let Some(inv) = crate::helpers::token::find_invalid_token_char(v) {
-                return Err(ChallengeDefect::ParameterValueCharacter(inv));
+                return Err(AuthDefect::ParameterValueCharacter(inv));
             }
         }
     }
@@ -539,48 +657,75 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
     Ok(())
 }
 
-/// What an `Authorization` field value fails to be.
+/// What a `credentials` field value fails to be.
 ///
-/// Four variants for one field read in two halves: the `auth-scheme`, and
-/// whatever follows it. [`MissingCredentials`](Self::MissingCredentials) is the
-/// one that is this helper's judgment rather than § 11.4's grammar — see
+/// Five variants for a value read in three passes: the `auth-scheme`, the two
+/// things this helper judges about what follows it, and then § 11.4's own
+/// alternative. [`MissingCredentials`](Self::MissingCredentials) is the one
+/// that is this helper's judgment rather than § 11.4's grammar — see
 /// [`validate_authorization_syntax`], which explains why a bare scheme is
 /// framework-valid and reported anyway.
+///
+/// [`Credentials`](Self::Credentials) is the production, and it is a wrapper
+/// rather than a set of variants because the grammar it carries is not this
+/// field's: § 11.4 writes `auth-scheme [ 1*SP ( token68 / #auth-param ) ]` and
+/// § 11.3 writes it again for a challenge, so both sides fail to be it in the
+/// same ways and [`validate_scheme_tail`] answers for both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuthorizationDefect {
+pub enum AuthorizationDefect<'a> {
     /// No field value.
     Empty,
     /// A non-`token` octet in the `auth-scheme`, carrying the character.
     SchemeCharacter(char),
     /// A scheme with nothing after it, or nothing but whitespace.
     MissingCredentials,
-    /// A control octet in the credentials. This helper reads no further into
-    /// them than that — which scheme's grammar they have to satisfy is the
-    /// scheme's own helper's question.
+    /// A control octet in the credentials, read before the alternative is
+    /// chosen. Both alternatives refuse it — `token68`'s alphabet holds no
+    /// control octet and neither does a `token` or the `qdtext` of a
+    /// `quoted-string` — so this is the one verdict about the value that does
+    /// not need to know which of the two was written.
     CredentialsControlCharacter,
+    /// What § 11.4's `[ 1*SP ( token68 / #auth-param ) ]` failed to be, read by
+    /// the same function that reads § 11.3's.
+    Credentials(AuthDefect<'a>),
 }
 
-impl AuthorizationDefect {
-    /// The finding. Each names the field, because the two callers add the
-    /// transaction's context rather than the field's.
-    pub fn message(self) -> String {
+impl<'a> AuthorizationDefect<'a> {
+    /// The finding, about the field that carried the credentials.
+    ///
+    /// **The field is an argument because the production is not the field's.**
+    /// § 11.7.2 writes `Proxy-Authorization = credentials`, the same production
+    /// § 11.6.2 writes for the origin's field, so one reader answers for both.
+    /// These sentences named `Authorization` outright and the rule prefixed the
+    /// field it had actually read, so a `Proxy-Authorization` finding read
+    /// *"Invalid Proxy-Authorization header: Invalid character '@' in
+    /// Authorization auth-scheme"* — the wrong field named inside the right one,
+    /// and the origin's own findings naming theirs twice.
+    ///
+    /// Callers pass the field as a sender spells it, because that is how a
+    /// reader will find it in the message they are holding.
+    // cite(RFC 9110 § 11.7.2, label: Proxy-Authorization grammar): "Proxy-Authorization = credentials"
+    pub fn message(self, field: &str) -> String {
         match self {
-            Self::Empty => "Authorization header is empty".to_string(),
+            Self::Empty => format!("{field} header is empty"),
             Self::SchemeCharacter(c) => {
-                format!("Invalid character '{}' in Authorization auth-scheme", c)
+                format!("Invalid character '{c}' in {field} auth-scheme")
             }
             Self::MissingCredentials => {
-                "Authorization header missing credentials after auth-scheme".to_string()
+                format!("{field} header missing credentials after auth-scheme")
             }
             Self::CredentialsControlCharacter => {
-                "Authorization credentials contain control characters".to_string()
+                format!("{field} credentials contain control characters")
             }
+            // The production's own sentence, which names the field it was read
+            // from because four fields carry it.
+            Self::Credentials(defect) => defect.message(field),
         }
     }
 }
 
-/// Whether an `Authorization` field value has a valid `auth-scheme` and
-/// non-empty credentials after it, answered as an [`AuthorizationDefect`].
+/// Whether a `credentials` field value is § 11.4's production, answered as an
+/// [`AuthorizationDefect`].
 ///
 /// Unlike a `WWW-Authenticate` challenge, this requires the credentials — see
 /// the § 11.4 note in the body for why, which is that every concrete scheme
@@ -592,7 +737,17 @@ impl AuthorizationDefect {
 /// `trim_ows` cannot empty it. That makes three helpers in this module that
 /// carried the same unreachable sentence, all three written the same way, and
 /// naming the failures is what surfaced all three.
-pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDefect> {
+///
+/// **What follows the scheme is § 11.4's own alternative, and this function used
+/// to stop before it.** It asked whether the credentials were non-empty and held
+/// no control octet, and called that the framework's grammar; the framework's
+/// grammar is `[ 1*SP ( token68 / #auth-param ) ]`, which § 11.3 writes
+/// identically and [`validate_scheme_tail`] has always read for a challenge. So
+/// `Authorization: Custom realm="x", , q="1"` drew nothing while the same value
+/// in `WWW-Authenticate` drew a finding, and every scheme without a rule of its
+/// own — `Negotiate`, `NTLM`, anything bespoke — had its credentials read no
+/// further than "there is something there".
+pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDefect<'_>> {
     let v = trim_ows(value);
     if v.is_empty() {
         return Err(AuthorizationDefect::Empty);
@@ -621,9 +776,29 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
         if rest.is_empty() {
             return Err(AuthorizationDefect::MissingCredentials);
         }
-        // Basic checks: no control characters
+        // Read before the alternative is chosen, and it stays ahead of the
+        // production's own reading for that reason: a control octet is refused
+        // by `token68`, by `token` and by `qdtext` alike, so this is the one
+        // verdict that does not depend on which alternative was written. Moving
+        // it behind `validate_scheme_tail` would trade an id an operator has
+        // configured for one that says the same thing about a narrower half.
         if rest.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
             return Err(AuthorizationDefect::CredentialsControlCharacter);
+        }
+        // `Ambiguity::Accept`, and the reason is not that the ambiguity is
+        // absent here. A single bare word after the scheme is derived by
+        // `token68` and by an `auth-param` whose value was left off on either
+        // side of the framework. What differs is what the reader was looking
+        // for: a challenge exists to hand a client parameters, so a word where
+        // `realm="x"` belongs is a plausible mistake, while a single `token68`
+        // *is* what `Negotiate`, `NTLM` and `DPoP` write and nothing is missing
+        // from it.
+        //
+        // `MemberEmptiness::ReadHere`, because nothing has looked: a challenge's
+        // commas have been through `split_and_group_challenges` before the walk
+        // sees them and these have been through nothing.
+        if let Err(defect) = validate_scheme_tail(v, Ambiguity::Accept, MemberEmptiness::ReadHere) {
+            return Err(AuthorizationDefect::Credentials(defect));
         }
         Ok(())
     } else {
@@ -1053,13 +1228,13 @@ mod tests {
     #[test]
     fn empty_member_is_error() {
         let r = split_and_group_challenges(", Basic realm=\"x\"");
-        assert_eq!(r.unwrap_err(), ChallengeDefect::EmptyMember);
+        assert_eq!(r.unwrap_err(), AuthDefect::EmptyMember);
     }
 
     #[test]
     fn parameter_before_scheme_is_error() {
         let r = split_and_group_challenges("error=\"x\"");
-        assert_eq!(r.unwrap_err(), ChallengeDefect::SchemeMissing);
+        assert_eq!(r.unwrap_err(), AuthDefect::SchemeMissing);
     }
 
     /// The leading space is `#challenge`'s own `OWS`, so this member is the one
@@ -1071,8 +1246,7 @@ mod tests {
         for value in [" realm=\"x\"", "\trealm=\"x\"", "realm=\"x\"  "] {
             let r = split_and_group_challenges(value);
             assert!(
-                r.as_ref()
-                    .is_err_and(|e| *e == ChallengeDefect::SchemeMissing),
+                r.as_ref().is_err_and(|e| *e == AuthDefect::SchemeMissing),
                 "{value}: {r:?}"
             );
         }
@@ -1081,7 +1255,7 @@ mod tests {
     #[test]
     fn consecutive_commas_report_error() {
         let r = split_and_group_challenges("Basic realm=\"x\", , error=\"y\"");
-        assert_eq!(r.unwrap_err(), ChallengeDefect::EmptyMember);
+        assert_eq!(r.unwrap_err(), AuthDefect::EmptyMember);
     }
 
     #[test]
@@ -1181,11 +1355,19 @@ mod tests {
         assert_eq!(validate_challenge_syntax(challenge), Ok(()));
     }
 
+    /// A member with no `=` and a member with an `=` and nothing after it are
+    /// two mistakes, and one variant used to answer for both. The pair below is
+    /// the assertion: `flag` left out the delimiter, `realm=` left out the
+    /// value, and a sender told only "missing value" cannot tell which it made.
     #[test]
-    fn validate_challenge_detects_missing_value_in_param_list() {
+    fn a_member_without_its_delimiter_is_not_one_without_its_value() {
         assert_eq!(
             validate_challenge_syntax("Basic realm=\"x\", flag"),
-            Err(ChallengeDefect::ParameterMissingValue("flag"))
+            Err(AuthDefect::ParameterEqualsMissing("flag"))
+        );
+        assert_eq!(
+            validate_challenge_syntax("NewSch realm=, other=1"),
+            Err(AuthDefect::ParameterValueEmpty("realm"))
         );
     }
 
@@ -1198,7 +1380,7 @@ mod tests {
     fn an_empty_challenge_has_no_auth_scheme() {
         assert_eq!(
             validate_challenge_syntax(""),
-            Err(ChallengeDefect::SchemeMissing)
+            Err(AuthDefect::SchemeMissing)
         );
     }
 
@@ -1210,7 +1392,7 @@ mod tests {
     fn validate_missing_scheme_error() {
         assert_eq!(
             validate_challenge_syntax(" realm=\"x\""),
-            Err(ChallengeDefect::SchemeCharacter('='))
+            Err(AuthDefect::SchemeCharacter('='))
         );
     }
 
@@ -1218,7 +1400,7 @@ mod tests {
     fn validate_invalid_scheme_char() {
         assert_eq!(
             validate_challenge_syntax("B@sic realm=\"x\""),
-            Err(ChallengeDefect::SchemeCharacter('@'))
+            Err(AuthDefect::SchemeCharacter('@'))
         );
     }
 
@@ -1232,7 +1414,7 @@ mod tests {
     fn suspicious_single_token_after_scheme_reports_error() {
         assert_eq!(
             validate_challenge_syntax("NewSch abcd"),
-            Err(ChallengeDefect::SuspiciousSingleToken("abcd"))
+            Err(AuthDefect::SuspiciousSingleToken("abcd"))
         );
     }
 
@@ -1240,7 +1422,7 @@ mod tests {
     fn token68_with_control_character_reports_error() {
         assert_eq!(
             validate_challenge_syntax("NewSch \u{0001}"),
-            Err(ChallengeDefect::Token68ControlCharacter)
+            Err(AuthDefect::Token68ControlCharacter)
         );
     }
 
@@ -1296,10 +1478,10 @@ mod tests {
     }
 
     #[test]
-    fn scheme_with_trailing_eq_on_basic_reports_missing_value() {
+    fn scheme_with_trailing_eq_on_basic_reports_the_empty_value() {
         assert_eq!(
             validate_challenge_syntax("Basic realm="),
-            Err(ChallengeDefect::ParameterMissingValue("realm"))
+            Err(AuthDefect::ParameterValueEmpty("realm"))
         );
     }
 
@@ -1317,7 +1499,7 @@ mod tests {
     fn an_empty_auth_param_is_a_parameter_with_no_name() {
         assert_eq!(
             validate_challenge_syntax("Basic realm=\"x\", "),
-            Err(ChallengeDefect::EmptyParameterName)
+            Err(AuthDefect::EmptyParameterName)
         );
     }
 
@@ -1325,7 +1507,7 @@ mod tests {
     fn empty_param_name_is_error() {
         assert_eq!(
             validate_challenge_syntax("Basic =\"x\""),
-            Err(ChallengeDefect::EmptyParameterName)
+            Err(AuthDefect::EmptyParameterName)
         );
     }
 
@@ -1333,15 +1515,7 @@ mod tests {
     fn invalid_character_in_param_name_is_error() {
         assert_eq!(
             validate_challenge_syntax("Basic re@alm=1, x=1"),
-            Err(ChallengeDefect::ParameterNameCharacter('@'))
-        );
-    }
-
-    #[test]
-    fn param_with_missing_value_in_params_is_error() {
-        assert_eq!(
-            validate_challenge_syntax("NewSch realm=, other=1"),
-            Err(ChallengeDefect::ParameterMissingValue("realm"))
+            Err(AuthDefect::ParameterNameCharacter('@'))
         );
     }
 
@@ -1425,7 +1599,7 @@ mod tests {
         let r = validate_challenge_syntax("Basic realm=\"unterminated");
         assert_eq!(
             r,
-            Err(ChallengeDefect::ParameterQuotedValue {
+            Err(AuthDefect::ParameterQuotedValue {
                 name: "realm",
                 value: "\"unterminated",
                 defect: crate::helpers::quoted_string::QuotedStringDefect::NotQuoted,
@@ -1434,7 +1608,7 @@ mod tests {
         assert!(r
             .unwrap_err()
             .message("WWW-Authenticate")
-            .starts_with("Invalid quoted-string in auth-param 'realm': "));
+            .starts_with("Invalid quoted-string in WWW-Authenticate auth-param 'realm': "));
     }
 
     #[test]
@@ -1463,11 +1637,11 @@ mod tests {
     fn invalid_character_in_param_value_is_error() {
         assert_eq!(
             validate_challenge_syntax("Basic realm=x@y"),
-            Err(ChallengeDefect::ParameterValueCharacter('@'))
+            Err(AuthDefect::ParameterValueCharacter('@'))
         );
         assert_eq!(
             validate_challenge_syntax("Basic re@alm=xy, x=1"),
-            Err(ChallengeDefect::ParameterNameCharacter('@'))
+            Err(AuthDefect::ParameterNameCharacter('@'))
         );
         assert_eq!(validate_challenge_syntax("Basic re@alm=xy"), Ok(()));
     }

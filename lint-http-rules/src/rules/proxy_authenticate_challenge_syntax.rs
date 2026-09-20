@@ -4,12 +4,14 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::auth_param::{
+    AUTH_PARAM_EQUALS_MISSING, AUTH_PARAM_NAME_CHARACTER_FORBIDDEN, AUTH_PARAM_NAME_EMPTY,
+    AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN, AUTH_PARAM_VALUE_EMPTY,
+};
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::challenge::{
-    CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
-    CHALLENGE_PARAMETER_NAME_EMPTY, CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN,
-    CHALLENGE_PARAMETER_VALUE_MISSING, CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID,
-    RFC_9110_11_3, RFC_9110_11_6_1,
+    CHALLENGE_MEMBER_EMPTY, CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID, RFC_9110_11_3,
+    RFC_9110_11_6_1,
 };
 use crate::violations::proxy_authenticate::RFC_9110_11_7_1;
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
@@ -58,10 +60,11 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTH_SCHEME_CHARACTER_FORBIDDEN,
     &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &CHALLENGE_TOKEN68_INVALID,
-    &CHALLENGE_PARAMETER_NAME_EMPTY,
-    &CHALLENGE_PARAMETER_VALUE_MISSING,
-    &CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
-    &CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN,
+    &AUTH_PARAM_NAME_EMPTY,
+    &AUTH_PARAM_EQUALS_MISSING,
+    &AUTH_PARAM_VALUE_EMPTY,
+    &AUTH_PARAM_NAME_CHARACTER_FORBIDDEN,
+    &AUTH_PARAM_VALUE_CHARACTER_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
@@ -203,7 +206,7 @@ mod tests {
     #[rstest]
     #[case("Basic realm=\"unfinished", "quoted_string_delimiter_missing")]
     #[case("b@d realm=\"x\"", "challenge_scheme_missing")]
-    #[case("Basic re@alm=\"x\"", "challenge_parameter_name_character_forbidden")]
+    #[case("Basic re@alm=\"x\"", "auth_param_name_character_forbidden")]
     #[case("Basic realm", "challenge_token68_invalid")]
     #[case(", Basic realm=\"x\"", "challenge_member_empty")]
     fn a_challenge_defect_is_reported_on_this_field_too(#[case] val: &str, #[case] expected: &str) {
@@ -214,7 +217,7 @@ mod tests {
 
     /// The sentence names the field that carried the value, which is the whole
     /// of what had to move before a second reader could exist: every arm of
-    /// `ChallengeDefect::message` used to say `WWW-Authenticate`, so a true
+    /// `AuthDefect::message` used to say `WWW-Authenticate`, so a true
     /// finding here would have sent a reader to the wrong header field.
     #[test]
     fn the_finding_names_the_field_it_was_read_from() {

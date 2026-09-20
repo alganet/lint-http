@@ -18,12 +18,13 @@ This rule validates that each challenge:
 
 ## Violations
 
+- [auth_param_equals_missing](../violations/auth_param_equals_missing.md) — An authentication parameter is written without its '='
+- [auth_param_name_character_forbidden](../violations/auth_param_name_character_forbidden.md) — An authentication parameter name holds a character outside token
+- [auth_param_name_empty](../violations/auth_param_name_empty.md) — An authentication parameter has an empty name
+- [auth_param_value_character_forbidden](../violations/auth_param_value_character_forbidden.md) — An authentication parameter value holds a character outside token
+- [auth_param_value_empty](../violations/auth_param_value_empty.md) — An authentication parameter is written with no value after its '='
 - [auth_scheme_character_forbidden](../violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
 - [challenge_member_empty](../violations/challenge_member_empty.md) — Authentication challenge list has an empty member
-- [challenge_parameter_name_character_forbidden](../violations/challenge_parameter_name_character_forbidden.md) — Authentication parameter name holds a character outside token
-- [challenge_parameter_name_empty](../violations/challenge_parameter_name_empty.md) — Authentication parameter has an empty name
-- [challenge_parameter_value_character_forbidden](../violations/challenge_parameter_value_character_forbidden.md) — Authentication parameter value holds a character outside token
-- [challenge_parameter_value_missing](../violations/challenge_parameter_value_missing.md) — Authentication parameter has no value
 - [challenge_scheme_missing](../violations/challenge_scheme_missing.md) — Authentication parameter arrives before any scheme
 - [challenge_token68_invalid](../violations/challenge_token68_invalid.md) — Authentication token68 is indistinguishable from a parameter
 - [quoted_pair_malformed](../violations/quoted_pair_malformed.md) — Escape is not a quoted-pair

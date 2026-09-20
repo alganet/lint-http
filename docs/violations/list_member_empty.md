@@ -37,6 +37,7 @@ severity = "error"
 - [accept_ranges_values_valid](../rules/accept_ranges_values_valid.md)
 - [allow_header_method_tokens_valid](../rules/allow_header_method_tokens_valid.md)
 - [alt_svc_header_syntax](../rules/alt_svc_header_syntax.md)
+- [authorization_credentials_valid](../rules/authorization_credentials_valid.md)
 - [cache_control_directive_valid](../rules/cache_control_directive_valid.md)
 - [cache_control_token_valid](../rules/cache_control_token_valid.md)
 - [caching_directive_interaction](../rules/caching_directive_interaction.md)

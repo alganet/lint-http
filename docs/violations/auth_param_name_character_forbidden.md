@@ -4,9 +4,9 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# challenge_parameter_value_missing
+# auth_param_name_character_forbidden
 
-Authentication parameter has no value
+An authentication parameter name holds a character outside token
 
 ## Message
 
@@ -23,13 +23,14 @@ _Written where it is reported: this defect's message names the value that caused
 ## Configuration
 
 ```toml
-[violations.challenge_parameter_value_missing]
-# Authentication parameter has no value
+[violations.auth_param_name_character_forbidden]
+# An authentication parameter name holds a character outside token
 # GRAMMAR obliges the sender, so this defaults to error.
 severity = "error"
 ```
 
 ## Reported By
 
+- [authorization_credentials_valid](../rules/authorization_credentials_valid.md)
 - [proxy_authenticate_challenge_syntax](../rules/proxy_authenticate_challenge_syntax.md)
 - [www_authenticate_challenge_syntax](../rules/www_authenticate_challenge_syntax.md)

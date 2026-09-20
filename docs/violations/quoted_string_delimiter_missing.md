@@ -34,6 +34,7 @@ severity = "error"
 - [accept_header_media_type_syntax](../rules/accept_header_media_type_syntax.md)
 - [accept_patch_header_valid](../rules/accept_patch_header_valid.md)
 - [alt_svc_header_syntax](../rules/alt_svc_header_syntax.md)
+- [authorization_credentials_valid](../rules/authorization_credentials_valid.md)
 - [cache_control_directive_valid](../rules/cache_control_directive_valid.md)
 - [cache_control_token_valid](../rules/cache_control_token_valid.md)
 - [charset_registered](../rules/charset_registered.md)

@@ -113,16 +113,26 @@ defects! {
 
 /// The defect a parsed [`AuthorizationDefect`] reports as.
 ///
-/// The scheme arm leaves this subject on purpose: an octet no `token` admits is
-/// the same defect in a `WWW-Authenticate` challenge, and reports under the
-/// same id.
-pub fn credentials_defect(defect: AuthorizationDefect) -> &'static ViolationDef {
+/// **Two of the five arms leave this subject on purpose, and they leave it in
+/// two directions.** An octet no `token` admits is the same defect in a
+/// `WWW-Authenticate` challenge, so the scheme arm reports under
+/// [`crate::violations::auth_scheme`]'s id; and what follows the scheme is a
+/// production rather than a field, so the last arm hands the whole question to
+/// [`crate::violations::challenge::challenge_defect`], which is the same
+/// mapping the response side uses. Nothing about `[ 1*SP ( token68 /
+/// #auth-param ) ]` is `credentials`' own — § 11.3 writes it too — so an id
+/// spelled `credentials_*` for any of it would be naming the side that
+/// happened to send the value.
+pub fn credentials_defect(defect: AuthorizationDefect<'_>) -> &'static ViolationDef {
     match defect {
         AuthorizationDefect::Empty => &CREDENTIALS_EMPTY,
         AuthorizationDefect::SchemeCharacter(_) => &AUTH_SCHEME_CHARACTER_FORBIDDEN,
         AuthorizationDefect::MissingCredentials => &CREDENTIALS_MISSING,
         AuthorizationDefect::CredentialsControlCharacter => {
             &CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN
+        }
+        AuthorizationDefect::Credentials(defect) => {
+            crate::violations::challenge::challenge_defect(defect)
         }
     }
 }
@@ -163,7 +173,7 @@ mod tests {
         assert!(std::ptr::eq(
             credentials_defect(AuthorizationDefect::SchemeCharacter('@')),
             crate::violations::challenge::challenge_defect(
-                crate::helpers::auth::ChallengeDefect::SchemeCharacter('@')
+                crate::helpers::auth::AuthDefect::SchemeCharacter('@')
             ),
         ));
     }

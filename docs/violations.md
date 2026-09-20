@@ -43,6 +43,10 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [alt_svc_port_missing](violations/alt_svc_port_missing.md) — Alt-Svc alt-authority names no port
 - [alt_svc_protocol_id_invalid](violations/alt_svc_protocol_id_invalid.md) — Alt-Svc protocol-id is not the one spelling this field allows for its ALPN name
 - [auth_param_equals_missing](violations/auth_param_equals_missing.md) — An authentication parameter is written without its '='
+- [auth_param_name_character_forbidden](violations/auth_param_name_character_forbidden.md) — An authentication parameter name holds a character outside token
+- [auth_param_name_empty](violations/auth_param_name_empty.md) — An authentication parameter has an empty name
+- [auth_param_value_character_forbidden](violations/auth_param_value_character_forbidden.md) — An authentication parameter value holds a character outside token
+- [auth_param_value_empty](violations/auth_param_value_empty.md) — An authentication parameter is written with no value after its '='
 - [auth_scheme_character_forbidden](violations/auth_scheme_character_forbidden.md) — Authentication scheme holds a character outside token
 - [auth_scheme_unregistered](violations/auth_scheme_unregistered.md) — Authentication scheme is not one the deployment recognises
 - [authority_conflicting](violations/authority_conflicting.md) — A request's :authority and Host name different authorities
@@ -84,10 +88,6 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [cache_control_storage_conflicting](violations/cache_control_storage_conflicting.md) — Two Cache-Control directives disagree about storing the response
 - [cache_response_conflicting](violations/cache_response_conflicting.md) — Two responses for one URI disagree about which version is current
 - [challenge_member_empty](violations/challenge_member_empty.md) — Authentication challenge list has an empty member
-- [challenge_parameter_name_character_forbidden](violations/challenge_parameter_name_character_forbidden.md) — Authentication parameter name holds a character outside token
-- [challenge_parameter_name_empty](violations/challenge_parameter_name_empty.md) — Authentication parameter has an empty name
-- [challenge_parameter_value_character_forbidden](violations/challenge_parameter_value_character_forbidden.md) — Authentication parameter value holds a character outside token
-- [challenge_parameter_value_missing](violations/challenge_parameter_value_missing.md) — Authentication parameter has no value
 - [challenge_realm_ambiguous](violations/challenge_realm_ambiguous.md) — One realm is advertised by two authentication schemes
 - [challenge_scheme_missing](violations/challenge_scheme_missing.md) — Authentication parameter arrives before any scheme
 - [challenge_token68_invalid](violations/challenge_token68_invalid.md) — Authentication token68 is indistinguishable from a parameter
