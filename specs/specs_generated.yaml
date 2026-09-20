@@ -490,45 +490,51 @@ sources:
     snippet: 'A serialized CSP is an ASCII string consisting of a semicolon-delimited series of serialized directives, adhering to the following ABNF grammar [RFC5234]:'
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 104
+      line: 122
   - label: serialized-policy grammar
     section: § 2.2
     snippet: serialized-policy = serialized-directive *( optional-ascii-whitespace ";" [ optional-ascii-whitespace serialized-directive ] )
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 135
+      line: 153
   - label: base64-value grammar
     section: § 2.3.1
     snippet: base64-value  = 1*( ALPHA / DIGIT / "+" / "/" / "-" / "_" )*2( "=" )
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 233
+      line: 251
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 253
+      line: 271
   - label: hash-source grammar
     section: § 2.3.1
     snippet: hash-source    = "'" hash-algorithm "-" base64-value "'"
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 188
+      line: 206
   - label: nonce-source grammar
     section: § 2.3.1
     snippet: nonce-source  = "'nonce-" base64-value "'"
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 187
+      line: 205
   - label: source-expression alternatives
     section: § 2.3.1
     snippet: source-expression      = scheme-source / host-source / keyword-source / nonce-source / hash-source
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 208
+      line: 226
   - label: frame-ancestors overrides X-Frame-Options
     section: § 6.4.2.2
     snippet: In order to allow backwards-compatible deployment, the frame-ancestors directive overrides the
     cited_by:
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 287
+      line: 305
+  - label: content_security_policy (2)
+    section: § 6.5.2
+    snippet: The report-to directive defines a reporting endpoint to which violation reports ought to be sent
+    cited_by:
+    - file: lint-http-rules/src/violations/content_security_policy.rs
+      line: 353
   - label: content_security_policy_and_frame_options_consistent
     section: § 6.4.2
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
@@ -538,13 +544,47 @@ sources:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
       line: 279
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 286
+      line: 304
   - label: content_security_policy_and_frame_options_consistent (2)
     section: § 6.4.2.2
     snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
       line: 278
+  - label: content_security_policy_report_to_named
+    section: § 2.2
+    snippet: a comma-delimited series of serialized CSPs
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
+      line: 136
+  - label: content_security_policy_report_to_named (2)
+    section: § 2.2.1
+    snippet: Directive names are case-insensitive
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
+      line: 170
+  - label: content_security_policy_report_to_named (3)
+    section: § 2.2.1
+    snippet: Let directive value be the result of splitting token on ASCII whitespace
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
+      line: 180
+    - file: lint-http-rules/src/violations/content_security_policy.rs
+      line: 354
+  - label: content_security_policy_report_to_named (4)
+    section: § 2.2.1
+    snippet: directive set contains a directive whose name is directive name
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
+      line: 169
+  - label: report-to grammar
+    section: § 6.5.2
+    snippet: directive-value = token
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_report_to_named.rs
+      line: 188
+    - file: lint-http-rules/src/violations/content_security_policy.rs
+      line: 352
   - label: content_security_policy_valid
     section: § 2.3
     snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
@@ -552,7 +592,7 @@ sources:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
       line: 136
     - file: lint-http-rules/src/violations/content_security_policy.rs
-      line: 161
+      line: 179
   - label: content_security_policy_valid (2)
     section: § 2.3
     snippet: hash-algorithm = "sha256" / "sha384" / "sha512"

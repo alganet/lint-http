@@ -150,6 +150,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [content_security_policy_directive_name_character_forbidden](violations/content_security_policy_directive_name_character_forbidden.md) — A CSP directive name holds a character the production does not admit
 - [content_security_policy_empty](violations/content_security_policy_empty.md) — Content-Security-Policy is written with no policy in it
 - [content_security_policy_frame_ancestors_conflicting](violations/content_security_policy_frame_ancestors_conflicting.md) — frame-ancestors and X-Frame-Options state different framing policies
+- [content_security_policy_report_to_malformed](violations/content_security_policy_report_to_malformed.md) — A report-to directive names no endpoint group, so violation reports go nowhere
 - [content_security_policy_source_delimiter_missing](violations/content_security_policy_source_delimiter_missing.md) — A nonce or hash source is written without its single quotes
 - [content_security_policy_source_empty](violations/content_security_policy_source_empty.md) — A quoted source expression is written with nothing in it
 - [content_transfer_encoding_forbidden](violations/content_transfer_encoding_forbidden.md) — A MIME field HTTP does not use survived into an HTTP message

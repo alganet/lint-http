@@ -84,6 +84,24 @@ pub const CSP3_2_3: SpecRef = SpecRef {
     note: "Directives: `directive-name = 1*( ALPHA / DIGIT / \"-\" )`, letters, digits and a hyphen and nothing else — where an HTTP `token` also admits `_`, `.` and a dozen other marks",
 };
 
+/// `report-to`: the one token naming the endpoint group violation reports go
+/// to, and the note that a `report-uri` beside it is the documented thing to do.
+pub const CSP3_6_5_2: SpecRef = SpecRef {
+    spec: "CSP3",
+    section: Some("6.5.2"),
+    url: "https://www.w3.org/TR/CSP3/#directive-report-to",
+    note: "`report-to` — `directive-value = token`, one token naming a reporting endpoint group declared elsewhere in the response, where the deprecated `report-uri` takes URI-references instead",
+};
+
+/// Parsing a serialized CSP: how a directive value is cut up, and the earlier
+/// occurrence that wins where a name is written twice.
+pub const CSP3_2_2_1: SpecRef = SpecRef {
+    spec: "CSP3",
+    section: Some("2.2.1"),
+    url: "https://www.w3.org/TR/CSP3/#parse-serialized-policy",
+    note: "Parse a serialized CSP — a directive value is the token split on ASCII whitespace, directive names are case-insensitive, and a name already in the directive set makes the later occurrence be skipped",
+};
+
 defects! {
     /// A `Content-Security-Policy` field written and left blank.
     ///
@@ -291,6 +309,56 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[CSP3_6_4_2],
+    }
+
+    /// A `report-to` directive whose value is not the single token § 6.5.2
+    /// gives it.
+    ///
+    /// **The policy still enforces, and every violation it catches is
+    /// discarded.** § 5.5 looks the value up as the *name* of a reporting
+    /// endpoint group declared elsewhere in the response; a value that is no
+    /// token names no group, and there is nowhere to send the report. Nothing
+    /// in the response says so and nothing arrives at the endpoint to say so
+    /// either, so a deployment watching an empty report stream reads it as a
+    /// policy nobody violates.
+    ///
+    /// **What a real origin writes here is a URL**, which is the *other*
+    /// directive's value: § 6.5.1 gives `report-uri` a
+    /// `uri-reference *( required-ascii-whitespace uri-reference )` and § 6.5.2
+    /// gives this one a bare `token`, and the two are one line apart in the
+    /// same subsection. **The mistake costs more than it looks**, because
+    /// § 5.5 skips `report-uri` entirely whenever a `report-to` is present —
+    /// so an origin that pasted its URL into both has disabled the directive
+    /// that would have worked by writing the one that does not.
+    ///
+    /// **Not a finding: a `report-uri` beside a well-formed `report-to`.**
+    /// § 6.5.1 asks for exactly that — *"To ensure backwards compatibility, we
+    /// suggest specifying both"* — so the pairing is the documented deployment
+    /// and reporting it would contradict the sentence this entry rests on.
+    ///
+    /// **One entry for the three shapes, because there is one repair**: write
+    /// the group's name. A value of no tokens, of two, and of one that is not a
+    /// token are all "this directive names no endpoint group", and the message
+    /// says which of them was written — the half only the reading knows.
+    ///
+    /// `error`, level with the entries above it. Those leave a policy that
+    /// enforces less than it says; this one leaves a policy that enforces
+    /// everything it says and reports none of it, which is the failure a
+    /// `Content-Security-Policy-Report-Only` consists *entirely* of.
+    ///
+    /// `Grammar`: § 6.5.2 writes the production, and a value deriving from it
+    /// is one token.
+    ///
+    // cite(CSP3 § 6.5.2, label: report-to grammar): "directive-value = token"
+    // cite(CSP3 § 6.5.2): "The report-to directive defines a reporting endpoint to which violation reports ought to be sent"
+    // cite(CSP3 § 2.2.1): "Let directive value be the result of splitting token on ASCII whitespace"
+    CONTENT_SECURITY_POLICY_REPORT_TO_MALFORMED = {
+        id: "content_security_policy_report_to_malformed",
+        title: "A report-to directive names no endpoint group, so violation reports go nowhere",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[CSP3_6_5_2, CSP3_2_2_1],
+        strength: Strength::Grammar,
     }
 }
 

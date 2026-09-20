@@ -291,6 +291,9 @@ enabled = true
 [rules.content_security_policy_and_frame_options_consistent]
 enabled = true
 
+[rules.content_security_policy_report_to_named]
+enabled = true
+
 [rules.content_security_policy_valid]
 enabled = true
 
@@ -1587,6 +1590,11 @@ severity = "error"
 [violations.content_security_policy_frame_ancestors_conflicting]
 # frame-ancestors and X-Frame-Options state different framing policies
 severity = "warn"
+
+[violations.content_security_policy_report_to_malformed]
+# A report-to directive names no endpoint group, so violation reports go nowhere
+# GRAMMAR obliges the sender, so this defaults to error.
+severity = "error"
 
 [violations.content_security_policy_source_delimiter_missing]
 # A nonce or hash source is written without its single quotes
