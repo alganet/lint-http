@@ -406,23 +406,27 @@ impl Rule for SingletonFieldsNotRepeated {
         // origin repeated are two senders each breaking the same requirement,
         // and the repair is in a different message for each.
         let mut out = Vec::new();
-        if let Some(message) = judge(
-            &tx.request.headers,
-            tx.request.trailers.as_ref(),
-            "Request",
-            &tx.request.version,
-        ) {
-            out.push(ctx.by_client().report_with(&FIELD_LINE_DUPLICATED, message));
-        }
+        out.extend(
+            judge(
+                &tx.request.headers,
+                tx.request.trailers.as_ref(),
+                "Request",
+                &tx.request.version,
+            )
+            .into_iter()
+            .map(|message| ctx.by_client().report_with(&FIELD_LINE_DUPLICATED, message)),
+        );
         if let Some(resp) = &tx.response {
-            if let Some(message) = judge(
-                &resp.headers,
-                resp.trailers.as_ref(),
-                "Response",
-                &resp.version,
-            ) {
-                out.push(ctx.by_server().report_with(&FIELD_LINE_DUPLICATED, message));
-            }
+            out.extend(
+                judge(
+                    &resp.headers,
+                    resp.trailers.as_ref(),
+                    "Response",
+                    &resp.version,
+                )
+                .into_iter()
+                .map(|message| ctx.by_server().report_with(&FIELD_LINE_DUPLICATED, message)),
+            );
         }
         out
     }
@@ -432,8 +436,8 @@ impl Rule for SingletonFieldsNotRepeated {
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
 static REGISTRATION: &dyn crate::rules::Rule = &SingletonFieldsNotRepeated;
 
-/// Count each table field across one message's two sections and report the
-/// first that is written more than once.
+/// Count each table field across one message's two sections and report every
+/// one that is written more than once.
 ///
 /// The count is header lines plus trailer lines, because § 5.3's MUST NOT is
 /// about the message and says so — *"whether in the headers or trailers"* —
@@ -447,12 +451,20 @@ static REGISTRATION: &dyn crate::rules::Rule = &SingletonFieldsNotRepeated;
 // cite(RFC 9110 § 5.3, label: the exception's shape): "such as an ABNF rule of #(values) defined in Section 5.6.1"
 // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
 // cite(RFC 9110 § 5.5): "This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability."
+/// **Every row is asked, and the return is a sentence per field.** The twelve
+/// are twelve fields with twelve definitions; a message repeating two of them
+/// has broken § 5.3 twice, and the two repairs are in two places. The sentence
+/// names the field it counted lines of, so answering with the first left the
+/// second field with no sentence at all -- an operator who deletes the extra
+/// `User-Agent` this named still has a message with two `Date` lines and
+/// nothing in the report that says so.
 fn judge(
     headers: &hyper::HeaderMap,
     trailers: Option<&hyper::HeaderMap>,
     side: &str,
     version: &str,
-) -> Option<String> {
+) -> Vec<String> {
+    let mut out = Vec::new();
     for (name, grammar, split) in SINGLETON_FIELDS {
         // The version is read before the lines are counted, because for the one
         // row it can answer, a permitted split is not a defect a recipient
@@ -472,7 +484,7 @@ fn judge(
                 ""
             };
             let caveat = split.caveat();
-            return Some(format!(
+            out.push(format!(
                 "{side} writes {lines} field lines of '{name}'{where_written}; the field is a \
                  singleton — {grammar} has no comma-separated-list alternative — so a sender \
                  must not generate more than one in a message, whether in the headers or \
@@ -480,7 +492,7 @@ fn judge(
             ));
         }
     }
-    None
+    out
 }
 
 #[cfg(test)]
@@ -501,6 +513,78 @@ mod tests {
             &cfg(),
         )
         .map(|v| v.message)
+    }
+
+    fn all(tx: &crate::http_transaction::HttpTransaction) -> Vec<String> {
+        crate::test_helpers::run_rule_all(
+            &SingletonFieldsNotRepeated,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+        .into_iter()
+        .map(|v| v.message)
+        .collect()
+    }
+
+    /// **Each repeated singleton is its own finding.** `judge` walked the twelve
+    /// rows and returned at the first field whose lines it had counted, so a
+    /// message repeating two of them was told about one. § 5.3 is broken once
+    /// per field and repaired once per field, and the sentence names the field
+    /// it counted -- so the second one was not merely unstated, it was
+    /// unstatable from the report. `run_rule` takes the first of however many,
+    /// which is exactly what the masking already satisfied, so this counts.
+    #[test]
+    fn two_repeated_singletons_are_two_findings() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut headers = hyper::HeaderMap::new();
+        headers.append(
+            "date",
+            HeaderValue::from_static("Sun, 30 Aug 2026 10:00:00 GMT"),
+        );
+        headers.append(
+            "date",
+            HeaderValue::from_static("Sun, 30 Aug 2026 10:00:00 GMT"),
+        );
+        headers.append("user-agent", HeaderValue::from_static("a"));
+        headers.append("user-agent", HeaderValue::from_static("b"));
+        tx.request.headers = headers;
+        let found = all(&tx);
+        assert_eq!(found.len(), 2, "{found:?}");
+        for name in ["'date'", "'user-agent'"] {
+            assert!(
+                found.iter().any(|m| m.contains(name)),
+                "no finding names {name}: {found:?}"
+            );
+        }
+    }
+
+    /// The same, once per section: a request repeating a field and a response
+    /// repeating a different one are two senders and two findings. The section
+    /// split was already right; what this pins is that widening `judge` did not
+    /// make one section's list stand for the other's.
+    #[test]
+    fn each_section_reports_its_own_repeated_singleton() {
+        let mut tx = response_with_lines(&[("server", "a"), ("server", "b")]);
+        let mut headers = hyper::HeaderMap::new();
+        headers.append("user-agent", HeaderValue::from_static("a"));
+        headers.append("user-agent", HeaderValue::from_static("b"));
+        tx.request.headers = headers;
+        let found = crate::test_helpers::run_rule_all(
+            &SingletonFieldsNotRepeated,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        );
+        assert_eq!(
+            found.len(),
+            2,
+            "{:?}",
+            found.iter().map(|v| &v.message).collect::<Vec<_>>()
+        );
+        let parties: Vec<_> = found.iter().filter_map(|v| v.party).collect();
+        assert!(parties.contains(&crate::lint::Party::Client), "{parties:?}");
+        assert!(parties.contains(&crate::lint::Party::Server), "{parties:?}");
     }
 
     fn response_with_lines(pairs: &[(&str, &str)]) -> crate::http_transaction::HttpTransaction {
