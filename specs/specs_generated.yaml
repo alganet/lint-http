@@ -7000,7 +7000,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 185
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 237
+      line: 251
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 213
   - label: content_location_and_uri_consistent
@@ -10368,7 +10368,7 @@ sources:
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
     cited_by:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 226
+      line: 240
   - label: retry_after_date_or_delay
     section: § 10.2.3
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
@@ -11916,7 +11916,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 140
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 212
+      line: 226
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 210
   - label: content_transfer_encoding_valid
@@ -11948,7 +11948,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 161
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 232
+      line: 246
   - label: head_response_headers_match_get
     section: § 6.1
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
@@ -12160,7 +12160,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 135
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 213
+      line: 227
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 212
   - label: proxy_connection_discouraged
@@ -12190,7 +12190,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 157
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 217
+      line: 231
     - file: lint-http-rules/src/violations/content_length.rs
       line: 106
   - label: request_body_length_accuracy
@@ -12200,7 +12200,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 168
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 227
+      line: 241
     - file: lint-http-rules/src/violations/content_length.rs
       line: 76
   - label: request_body_length_accuracy (2)

@@ -198,6 +198,20 @@ impl Rule for ResponseBodyLengthAccuracy {
             // The field is to be ignored outright.
             // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
             // cite(RFC 9112 § 6.3): "A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message."
+            //
+            // **What this decline does not say, and used to be read as saying.**
+            // Both sentences quoted here bind the *recipient*, and they answer
+            // only whether a length can be measured against octets that are not
+            // content. Whether the server was entitled to write the field at all
+            // is a different sentence with a different subject — RFC 9110
+            // § 9.3.6's "A server MUST NOT send any Transfer-Encoding or
+            // Content-Length header fields in a 2xx (Successful) response to
+            // CONNECT" — and for as long as this was the only rule reading the
+            // shape, that MUST NOT had no reader anywhere and a `200 Connection
+            // Established` carrying a `Content-Length` drew nothing at all. It is
+            // `connect_response_framing_valid`'s finding now, so the silence here
+            // is this rule declining a measurement rather than the catalogue
+            // having nothing to say about the message.
             if tx.request.method.eq_ignore_ascii_case("CONNECT")
                 && (200..300).contains(&resp.status)
             {
