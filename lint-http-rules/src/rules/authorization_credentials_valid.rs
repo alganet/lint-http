@@ -118,7 +118,7 @@ impl RuleMeta for AuthorizationCredentialsValid {
     }
 
     fn description(&self) -> &'static str {
-        "The `Authorization` and `Proxy-Authorization` request header fields both carry credentials: an authentication scheme, then the authentication information that scheme defines. § 11.6.2 and § 11.7.2 write the same production for them and differ only in which hop consumes the value, so this rule reads that framework structure in either and names the field it read. It reports a field that is empty, one whose `auth-scheme` carries a character no `token` admits, one that stops after the scheme where the scheme wants credentials, and a control octet in the credentials themselves — and then it reads what § 11.4 writes after the scheme, `[ 1*SP ( token68 / #auth-param ) ]`, which § 11.3 writes identically for a challenge and one reader answers for both. A single `token68` is accepted whatever it holds, because a bare word is derived by that alternative and by an `auth-param` whose value was left off, and on this side of the framework nothing is missing from it; the parameters are read in full. Every field line is read, because a sender wrote each — that a request carries more than one line of either field is `singleton_fields_not_repeated`'s finding. What the credentials must *be* once the scheme is known belongs to the scheme's own rule; whether the scheme is one the deployment accepts belongs to `auth_scheme_registered`."
+        "The `Authorization` and `Proxy-Authorization` request header fields both carry credentials: an authentication scheme, then the authentication information that scheme defines. § 11.6.2 and § 11.7.2 write the same production for them and differ only in which hop consumes the value, so this rule reads that framework structure in either and names the field it read. It reports a field that is empty, one whose `auth-scheme` carries a character no `token` admits, one that stops after the scheme where the scheme wants credentials, and a control octet in the credentials themselves — and then it reads what § 11.4 writes after the scheme, `[ 1*SP ( token68 / #auth-param ) ]`, which § 11.3 writes identically for a challenge and one reader answers for both. A single `token68` is accepted whatever it holds, because a bare word is derived by that alternative and by an `auth-param` whose value was left off, and on this side of the framework nothing is missing from it; the parameters are read in full. **A word closing on one `=` is the same ambiguity a second time and is settled the same way.** `token68` ends in `*\"=\"`, so `Basic dXNlcjpwYXNzMTI=` is a padded credential and is equally an `auth-param` written with its `=` and no value — and RFC 7617 § 2 and RFC 6750 § 2.1 both write a `token68` for this side, so it is accepted here and reported in a challenge, where those documents write parameters instead. `Digest` is the one scheme that decides without a direction: RFC 7616 gives it no `token68` form at all. Every field line is read, because a sender wrote each — that a request carries more than one line of either field is `singleton_fields_not_repeated`'s finding. What the credentials must *be* once the scheme is known belongs to the scheme's own rule; whether the scheme is one the deployment accepts belongs to `auth_scheme_registered`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -150,6 +150,16 @@ impl RuleMeta for AuthorizationCredentialsValid {
                 compliance: Compliance::Compliant,
                 label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Bearer abc123",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a `token68` closes with `*\"=\"`, so base64 padding is inside the production)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Basic dXNlcjpwYXNzMTI=",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(RFC 6750 §2.1 writes the same alternative for this scheme)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Bearer mF_9.B5f-4.1JqM=",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -363,6 +373,19 @@ mod tests {
     #[case("NTLM TlRMTVNTUAABAAAA", None)]
     #[case("Custom realm", None)]
     #[case("Custom abcdef", None)]
+    // **One padding octet, which is the whole of the second ambiguity.** A
+    // `token68` closes with `*"="`, so `dXNlcjpwYXNzMTI=` — the base64 of
+    // `user:pass12` — derives from it, and derives equally from an `auth-param`
+    // written with its `=` and nothing after. § 11.4 does not choose; the side
+    // does, and on this one RFC 7617 § 2 and RFC 6750 § 2.1 both write a
+    // `token68`. About a third of all base64 closes on exactly one `=`, so
+    // reading these as parameters made an ordinary credential an `error`.
+    #[case("Basic dXNlcjpwYXNzMTI=", None)]
+    #[case("Bearer mF_9.B5f-4.1JqM=", None)]
+    // `Digest` is the one name that decides without a side: RFC 7616 gives it
+    // no `token68` form in either direction, so an `=` with nothing after it is
+    // a parameter missing its value here as much as in a challenge.
+    #[case("Digest username=\"u\", realm=", Some("auth_param_value_empty"))]
     fn the_production_after_the_scheme_is_read(
         #[case] value: &str,
         #[case] expected: Option<&str>,

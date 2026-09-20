@@ -193,6 +193,18 @@ mod tests {
     // `token68` and nothing reopens it, so what follows the padding is outside
     // every alternative the production offers.
     #[case("NewScheme ab==cd", true)]
+    // **The side is what decides a single padding octet, and this is the half
+    // that reports it.** `Basic abc=` derives from `token68` and from an
+    // `auth-param` written with its `=` and nothing after, and RFC 7617 § 2
+    // writes this scheme's *challenge* as `realm` and `charset` parameters — so
+    // on this side the parameter reading is the one the sender was reaching
+    // for. The same octets in an `Authorization` are a credential's base64
+    // padding and are accepted there.
+    #[case("Basic abc=", true)]
+    #[case("Bearer mF_9.B5f-4.1JqM=", true)]
+    // A scheme whose own document writes no parameters for its challenge has
+    // nothing for the padding to be mistaken for.
+    #[case("Negotiate YIIFxAYGKwYBBQUCoIIFuDCCBbSgh=", false)]
     #[case("Basic realm=\"a,b\"", false)]
     #[case("Basic", false)]
     #[case("", true)]

@@ -460,28 +460,42 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), AuthDefect<'_>> 
         return Err(AuthDefect::SchemeMissing);
     }
     // A challenge is a member of a list, so its `#auth-param` members have
-    // already been through `split_and_group_challenges`. `Ambiguity::Report` is
+    // already been through `split_and_group_challenges`. `Side::Challenge` is
     // the other half of what makes this side different: a bare word here may be
     // a `realm` whose value was left off, and that is a judgment about a
     // challenge rather than about the grammar.
-    validate_scheme_tail(c, Ambiguity::Report, MemberEmptiness::AlreadyRefused)
+    validate_scheme_tail(c, Side::Challenge, MemberEmptiness::AlreadyRefused)
 }
 
-/// Whether a bare word after the scheme is worth reporting as ambiguous.
+/// Which side of § 11.2's framework wrote the value being read.
 ///
-/// `token68` derives a single word and so does an `auth-param` whose value was
-/// left off, so a reader cannot say which was written. Whether that is worth a
-/// finding depends on what the reader was looking for, and only one side has an
-/// answer: a challenge exists to hand a client parameters, so a word where
-/// `realm="x"` belongs is a plausible mistake. Credentials are the other way
-/// round — a single `token68` is what `Negotiate`, `NTLM` and `DPoP` write, and
-/// no parameter is missing from it.
+/// **Two constructs after the scheme are derived by `token68` *and* by
+/// `#auth-param`, and neither can be settled from the octets.** A single bare
+/// word is a `token68` and is equally an `auth-param` whose value was left off;
+/// a word ending in one `=` is a `token68` with a padding octet and is equally
+/// an `auth-param` written with its `=` and nothing after it. § 11.3 and § 11.4
+/// print the same right-hand side, so the grammar does not choose — what
+/// chooses is which side wrote it, because that is what says which alternative
+/// the sender was reaching for.
+///
+/// A challenge exists to hand a client parameters, so a word where `realm="x"`
+/// belongs is a plausible mistake. Credentials are the other way round: a
+/// `token68` is what `Negotiate`, `NTLM`, `DPoP`, `Basic` and `Bearer` write
+/// there, and nothing is missing from it.
+///
+/// **This was `Ambiguity`, and the name was the defect.** It answered one of
+/// the two ambiguities and was named after the answer, so the branch reading a
+/// padded value had no way to ask the same question and decided by a list of
+/// three scheme names instead — with no direction on it, and therefore wrong
+/// for two of the three in one of the two directions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Ambiguity {
-    /// Report the bare word as [`AuthDefect::SuspiciousSingleToken`].
-    Report,
-    /// Accept it. The grammar refuses nothing about it.
-    Accept,
+pub enum Side {
+    /// `WWW-Authenticate` or `Proxy-Authenticate`: the server offering a
+    /// challenge, whose § 11.3 tail is the parameters it wants back.
+    Challenge,
+    /// `Authorization` or `Proxy-Authorization`: the client presenting
+    /// credentials, whose § 11.4 tail is whatever the scheme defines.
+    Credentials,
 }
 
 /// Whether the caller has already refused the empty members of the
@@ -518,7 +532,7 @@ pub enum MemberEmptiness {
 // cite(RFC 9110 § 11.4, label: credentials grammar): "credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
 pub fn validate_scheme_tail(
     value: &str,
-    ambiguity: Ambiguity,
+    side: Side,
     members: MemberEmptiness,
 ) -> Result<(), AuthDefect<'_>> {
     // The three `token68` readings below share this: the alternative's alphabet
@@ -568,7 +582,7 @@ pub fn validate_scheme_tail(
             if has_control(rest) {
                 return Err(AuthDefect::Token68ControlCharacter);
             }
-            if ambiguity == Ambiguity::Report
+            if side == Side::Challenge
                 && !rest
                     .chars()
                     .any(|ch| matches!(ch, '+' | '/' | '=' | '.' | '-' | '_'))
@@ -591,10 +605,33 @@ pub fn validate_scheme_tail(
             }
 
             if rest.ends_with('=') && after_eq.is_empty() {
-                if !scheme.eq_ignore_ascii_case("basic")
-                    && !scheme.eq_ignore_ascii_case("bearer")
-                    && !scheme.eq_ignore_ascii_case("digest")
-                {
+                // **The second construct both alternatives derive, and it is
+                // settled the way the bare word above it is: by the side.**
+                // `dXNlcjpwYXNzMTI=` is a `token68` whose last octet is the
+                // `*"="` the production closes with, and it is equally an
+                // `auth-param` named `dXNlcjpwYXNzMTI` written with its `=` and
+                // no value. Nothing in § 11.2 chooses between them.
+                //
+                // A scheme's own document does choose, but only for the side it
+                // is talking about, and the list here had no side on it. RFC
+                // 7617 § 2 writes `Basic`'s challenge as `realm` and `charset`
+                // auth-params and its credentials as the base64 `token68` of a
+                // `user-pass`; RFC 6750 splits the same way, § 3 auth-params for
+                // the challenge and § 2.1's `b64token` for the credentials. Only
+                // `Digest` writes `#auth-param` in both directions — RFC 7616
+                // gives it no `token68` form at all — so it is the one name that
+                // decides without a side.
+                //
+                // Reading the three without the side made an ordinary Basic
+                // credential an `error`: `Authorization: Basic dXNlcjpwYXNzMTI=`
+                // is `user:pass12`, and about a third of all base64 closes on
+                // exactly one padding octet.
+                // cite(RFC 9110 § 11.2): "token68    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
+                let scheme_writes_params = scheme.eq_ignore_ascii_case("digest")
+                    || (side == Side::Challenge
+                        && (scheme.eq_ignore_ascii_case("basic")
+                            || scheme.eq_ignore_ascii_case("bearer")));
+                if !scheme_writes_params {
                     if has_control(rest) {
                         return Err(AuthDefect::Token68ControlCharacter);
                     }
@@ -785,7 +822,7 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
         if rest.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
             return Err(AuthorizationDefect::CredentialsControlCharacter);
         }
-        // `Ambiguity::Accept`, and the reason is not that the ambiguity is
+        // `Side::Credentials`, and the reason is not that the ambiguity is
         // absent here. A single bare word after the scheme is derived by
         // `token68` and by an `auth-param` whose value was left off on either
         // side of the framework. What differs is what the reader was looking
@@ -797,7 +834,7 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
         // `MemberEmptiness::ReadHere`, because nothing has looked: a challenge's
         // commas have been through `split_and_group_challenges` before the walk
         // sees them and these have been through nothing.
-        if let Err(defect) = validate_scheme_tail(v, Ambiguity::Accept, MemberEmptiness::ReadHere) {
+        if let Err(defect) = validate_scheme_tail(v, Side::Credentials, MemberEmptiness::ReadHere) {
             return Err(AuthorizationDefect::Credentials(defect));
         }
         Ok(())
