@@ -286,6 +286,16 @@ sources:
   - label: MDN Refresh
     url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh
 
+  - label: MDN Report-To
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Report-To
+    # The only document that still describes `Report-To`. The W3C Reporting API
+    # once defined it and no longer does — https://www.w3.org/TR/reporting-1/
+    # names `Reporting-Endpoints` and does not contain the string `Report-To` at
+    # all — so there is no current specification to cite and no superseded one
+    # that says what replaced it. This page says both, which is the same reason
+    # `MDN X-XSS-Protection` is here: a field deployments still send and no
+    # standards document defines.
+
   - label: MDN Set-Cookie
     url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie
     # The rules cite .../Headers/Set-Cookie/SameSite, which no longer exists as a

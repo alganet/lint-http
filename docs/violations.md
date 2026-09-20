@@ -408,6 +408,8 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [refresh_url_empty](violations/refresh_url_empty.md) — A Refresh value writes URL= with no URL
 - [refresh_url_malformed](violations/refresh_url_malformed.md) — A Refresh URL is not a valid URL string
 - [refresh_value_malformed](violations/refresh_value_malformed.md) — A Refresh value is neither of the two forms
+- [report_to_malformed](violations/report_to_malformed.md) — Report-To does not parse, so none of the endpoint groups it declares exist
+- [report_to_obsolete](violations/report_to_obsolete.md) — A response declares its endpoint groups in a field that has been replaced
 - [request_target_asterisk_forbidden](violations/request_target_asterisk_forbidden.md) — The asterisk target is sent with a method other than OPTIONS
 - [request_target_authority_form_forbidden](violations/request_target_authority_form_forbidden.md) — The host-and-port target is sent with a method other than CONNECT
 - [request_target_connect_form_invalid](violations/request_target_connect_form_invalid.md) — A CONNECT's request-target is not a host and port

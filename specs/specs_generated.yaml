@@ -1158,12 +1158,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/nel_policy_valid.rs
       line: 167
+    - file: lint-http-rules/src/rules/report_to_groups_valid.rs
+      line: 118
   - label: nel_policy_valid (2)
     section: § 4
     snippet: run the resulting octet sequence through a JSON parser.
     cited_by:
     - file: lint-http-rules/src/rules/nel_policy_valid.rs
       line: 184
+    - file: lint-http-rules/src/rules/report_to_groups_valid.rs
+      line: 155
+  - label: Report-To grammar
+    section: § 2
+    snippet: 'json-field-value = #json-field-item'
+    cited_by:
+    - file: lint-http-rules/src/violations/report_to.rs
+      line: 130
 - label: MDN Content-Type
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
   fragments:
@@ -1172,6 +1182,35 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/charset_present.rs
       line: 178
+- label: MDN Report-To
+  url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Report-To
+  fragments:
+  - label: report_to
+    snippet: allows website administrators to define named groups of endpoints that can be used as the destination for warning and error reports
+    cited_by:
+    - file: lint-http-rules/src/violations/report_to.rs
+      line: 86
+  - label: report_to_groups_valid
+    snippet: It is a deprecated part of an earlier iteration of the
+    cited_by:
+    - file: lint-http-rules/src/rules/report_to_groups_valid.rs
+      line: 135
+    - file: lint-http-rules/src/violations/report_to.rs
+      line: 85
+  - label: report_to_groups_valid (2)
+    snippet: One or more endpoint-group definitions, defined as a JSON array that omits the surrounding
+    cited_by:
+    - file: lint-http-rules/src/rules/report_to_groups_valid.rs
+      line: 154
+    - file: lint-http-rules/src/violations/report_to.rs
+      line: 129
+  - label: report_to_groups_valid (3)
+    snippet: This header has been replaced by the
+    cited_by:
+    - file: lint-http-rules/src/rules/report_to_groups_valid.rs
+      line: 134
+    - file: lint-http-rules/src/violations/report_to.rs
+      line: 84
 - label: MDN X-XSS-Protection
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
   fragments:
@@ -8627,6 +8666,8 @@ sources:
       line: 224
     - file: lint-http-rules/src/rules/referrer_policy_valid.rs
       line: 205
+    - file: lint-http-rules/src/rules/report_to_groups_valid.rs
+      line: 119
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 469
   - label: lint-http-rules/src/helpers/headers.rs (3)
