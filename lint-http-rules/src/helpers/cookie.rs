@@ -398,9 +398,20 @@ pub fn parse_set_cookie(
                     }
                 }
             }
+            // § 5.2.1 sends a user agent to § 5.1.1 for this attribute and
+            // nowhere else, so the store reads it with the algorithm the
+            // recipient is obliged to use. It used to ask
+            // `parse_http_date_to_datetime`, which is § 5.6.7's `HTTP-date` and
+            // refuses everything § 5.1.1 tolerates: on the counted wire that
+            // silently dropped the expiry of every hyphenated value, and the
+            // shape it mattered for is the ordinary way a server deletes a
+            // cookie -- `Expires=Thu, 01-Jan-1970 00:00:00 GMT`, which parsed
+            // as nothing, left `expiration` at `None`, and made
+            // `is_expired_at` answer `false` for a cookie the user agent had
+            // just discarded.
             "expires" => {
                 if let Some(v) = val_opt {
-                    if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(v) {
+                    if let Some(dt) = cookie_date_instant(v) {
                         expires_attr = Some(dt);
                     }
                 }
@@ -521,7 +532,7 @@ pub fn build_cookie_store(
     live_cookies
 }
 
-/// Does RFC 6265 § 5.1.1's algorithm read an instant out of this value?
+/// The instant RFC 6265 § 5.1.1's algorithm reads out of this value, if any.
 ///
 /// **This is the recipient's parse, and it is not § 5.6.7's.** § 5.2.1 sends a
 /// user agent here and nowhere else for an `Expires` attribute, so this — not
@@ -540,12 +551,21 @@ pub fn build_cookie_store(
 ///   are skipped as unmatched tokens, and step 6 fixes the result as UTC
 ///   regardless of what was written.
 ///
-/// So this returns `false` only for a value that names no instant to anybody —
+/// So this returns `None` only for a value that names no instant to anybody —
 /// which is the whole reason it is separate from a grammar check.
+///
+/// **It returns the instant rather than a `bool` because both of this module's
+/// questions about an `Expires` are this algorithm's.** One caller asks whether
+/// a user agent can read the value at all, and
+/// [`cookie_date_is_readable`] is that question phrased over this answer. The
+/// other is [`parse_set_cookie`], which needs *when* the cookie expires — and
+/// which used to ask [`crate::http_date::parse_http_date_to_datetime`], the
+/// function the paragraph above says is not the one that decides. A `bool` is
+/// what let those two disagree.
 ///
 // cite(RFC 6265 § 5.1.1): "The user agent MUST use an algorithm equivalent to
 // the following algorithm to parse a cookie-date."
-pub fn cookie_date_is_readable(s: &str) -> bool {
+pub fn cookie_date_instant(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     // cite(RFC 6265 § 5.1.1): "delimiter       = %x09 / %x20-2F / %x3B-40 / %x5B-60 / %x7B-7E"
     fn is_delimiter(b: u8) -> bool {
         b == 0x09
@@ -618,10 +638,10 @@ pub fn cookie_date_is_readable(s: &str) -> bool {
     }
 
     let (Some(hour), Some(minute), Some(second)) = (hour, minute, second) else {
-        return false;
+        return None;
     };
     let (Some(day_of_month), Some(month), Some(year)) = (day_of_month, month, year) else {
-        return false;
+        return None;
     };
 
     // cite(RFC 6265 § 5.1.1): "If the year-value is greater than or equal to 70 and less than or"
@@ -638,7 +658,7 @@ pub fn cookie_date_is_readable(s: &str) -> bool {
         && minute <= 59
         && second <= 59)
     {
-        return false;
+        return None;
     }
 
     // Step 5's list bounds each field on its own, and `31` is in range for
@@ -653,9 +673,32 @@ pub fn cookie_date_is_readable(s: &str) -> bool {
         u32::try_from(month),
         u32::try_from(day_of_month),
     ) else {
-        return false;
+        return None;
     };
-    chrono::NaiveDate::from_ymd_opt(year, month, day).is_some()
+    // Step 6 builds the instant and is the step that refuses when there is
+    // none, so constructing it *is* the last abort condition rather than a
+    // check performed before one. The zone is the algorithm's own: it fixes the
+    // result in UTC whatever the value wrote.
+    let (Ok(hour), Ok(minute), Ok(second)) = (
+        u32::try_from(hour),
+        u32::try_from(minute),
+        u32::try_from(second),
+    ) else {
+        return None;
+    };
+    chrono::NaiveDate::from_ymd_opt(year, month, day)?
+        .and_hms_opt(hour, minute, second)
+        .map(|naive| naive.and_utc())
+}
+
+/// Whether § 5.1.1's algorithm reads any instant at all out of this value.
+///
+/// The question [`cookie_attribute_consistent`](crate::rules) asks to choose
+/// between an `Expires` a recipient reads and one nobody does. It is
+/// [`cookie_date_instant`] with the instant thrown away, and it is written that
+/// way round so the two callers cannot drift apart again.
+pub fn cookie_date_is_readable(s: &str) -> bool {
+    cookie_date_instant(s).is_some()
 }
 
 /// `hms-time`, split out only because three `time-field`s do not fit a
@@ -796,6 +839,67 @@ mod tests {
         let header = format!("z=1; Expires={}", exp_str);
         let c3 = parse_set_cookie(&header, "https://example.com/", ts).unwrap();
         assert!(c3.expiration.is_some());
+    }
+
+    /// The store reads `Expires` with § 5.1.1, so the spellings a user agent
+    /// reads and `IMF-fixdate` refuses carry their instant into the model.
+    ///
+    /// The first case is the ordinary way a server deletes a cookie. It parsed
+    /// as no date at all, which left `expiration` at `None` — and `None` means
+    /// "no known expiry", so `is_expired_at` answered `false` and the store
+    /// kept a cookie the user agent had just been told to drop.
+    #[rstest]
+    #[case("Thu, 01-Jan-1970 00:00:00 GMT", true)]
+    #[case("Thu, 01 Jan 1970 00:00:00 GMT", true)]
+    // A real corpus spelling, and its instant falls a day before the evaluation
+    // timestamp below: `UTC` where `GMT` was meant is a token no production
+    // matches, so the algorithm skips it and fixes the result in UTC anyway.
+    #[case("Mon, 31 Aug 2026 01:32:44 UTC", true)]
+    #[case("Wed, 27-Aug-2036 02:28:19 GMT", false)]
+    #[case(
+        "Wed Sep 29 2027 02:27:24 GMT+0000 (Coordinated Universal Time)",
+        false
+    )]
+    fn the_store_reads_expires_with_the_recipients_algorithm(
+        #[case] expires: &str,
+        #[case] expired: bool,
+    ) {
+        let ts = chrono::DateTime::parse_from_rfc3339("2026-09-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let cookie = parse_set_cookie(
+            &format!("sid=abc; Expires={expires}"),
+            "https://example.com/",
+            ts,
+        )
+        .unwrap();
+        assert!(
+            cookie.expiration.is_some(),
+            "§ 5.1.1 reads '{expires}' and the store dropped it"
+        );
+        assert_eq!(
+            cookie.is_expired_at(ts),
+            expired,
+            "'{expires}' against 2026-09-01"
+        );
+    }
+
+    /// And the other direction: a value § 5.1.1 cannot read names no instant,
+    /// so the attribute is ignored and the cookie has no known expiry. `31-Feb`
+    /// is the one that clears every bound in step 5.
+    #[rstest]
+    #[case("Sat, 31-Feb-2026 00:00:00 GMT")]
+    #[case("NotADate")]
+    fn an_unreadable_expires_leaves_the_cookie_without_one(#[case] expires: &str) {
+        let ts = chrono::Utc::now();
+        let cookie = parse_set_cookie(
+            &format!("sid=abc; Expires={expires}"),
+            "https://example.com/",
+            ts,
+        )
+        .unwrap();
+        assert!(cookie.expiration.is_none(), "'{expires}' named an instant");
+        assert!(!cookie.is_expired_at(ts));
     }
 
     #[test]
