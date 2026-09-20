@@ -425,14 +425,14 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<Defect> {
     // The brackets § 5.6.6 puts around its own `[ parameter ]` are what makes
     // that conforming there and a defect here, which is why the entry is this
     // field's rather than that subject's.
-    if parameter.is_empty() {
-        return Some(Defect::named(
-            &ALT_SVC_PARAMETER_EMPTY,
-            format!(
-                "Alt-Svc alt-value '{shown}' carries a semicolon with no parameter after it. Each repetition of `*( OWS \";\" OWS parameter )` holds one `parameter`, and a `parameter` is a name, an '=' and a value"
-            ),
-        ));
-    }
+    // **The empty repetition is not read here**, though it was, with the same
+    // sentence the caller carries. `*( OWS ";" OWS parameter )` is a defect of
+    // the *member*: a member written with three gaps has one thing wrong with
+    // it, and a reading that answers per parameter would say so three times.
+    // So the caller collapses every gap into one finding and never calls this
+    // with an empty segment -- which left the branch here unreachable, and
+    // unreachable beside a live one saying the same thing is the shape that
+    // becomes a double report the first time the caller changes.
     //
     // **Not `parameter_equals_missing`.** That def carries § 5.6.6's
     // `parameter`, whose value the constructs reading it treat as optional --
@@ -762,7 +762,7 @@ impl RuleMeta for AltSvcHeaderSyntax {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Alt-Svc: h2=example.com:443       # alt-authority is a quoted-string\nAlt-Svc: h2=\"example.com\"         # the colon and the port are not optional\nAlt-Svc: h2=\"example.com:notaport\" # port is *DIGIT\nAlt-Svc: h2example.com:443        # no '=' in the alternative\nAlt-Svc: h@=\":443\"                # '@' is no tchar\nAlt-Svc: x%3dy=\":443\"             # hex digits are uppercase\nAlt-Svc: %68%32=\":443\"            # a tchar is not percent-encoded\nAlt-Svc: clear, h2=\":443\"         # clear beside an alternative\nAlt-Svc: h2 = \":443\"              # no OWS beside the '='\nAlt-Svc: h2=\":443\"; persist=2     # persist's only value is \"1\"\nAlt-Svc: ,                        # empty list element",
+                snippet: "Alt-Svc: h2=example.com:443       # alt-authority is a quoted-string\nAlt-Svc: h2=\"example.com\"         # the colon and the port are not optional\nAlt-Svc: h2=\"example.com:\"        # the delimiter and no port number\nAlt-Svc: h2=\"example.com:notaport\" # port is *DIGIT\nAlt-Svc: h2=\"exämple.com:443\"      # the authority is US-ASCII; an IDN is A-labels\nAlt-Svc: h2=\":99999\"              # a port registry is sixteen bits wide\nAlt-Svc: h2example.com:443        # no '=' in the alternative\nAlt-Svc: h@=\":443\"                # '@' is no tchar\nAlt-Svc: x%3dy=\":443\"             # hex digits are uppercase\nAlt-Svc: %68%32=\":443\"            # a tchar is not percent-encoded\nAlt-Svc: clear, h2=\":443\"         # clear beside an alternative\nAlt-Svc: h2 = \":443\"              # no OWS beside the '='\nAlt-Svc: h2=\":443\";;ma=3600       # a repetition with no parameter in it\nAlt-Svc: h2=\":443\"; ma            # a parameter is a name, an '=' and a value\nAlt-Svc: h2=\":443\"; persist=2     # persist's only value is \"1\"\nAlt-Svc: ,                        # empty list element",
             },
         ]
     }
@@ -1148,6 +1148,36 @@ mod tests {
             finding.message
         );
         assert_eq!(finding.violation, violation, "for {header:?}");
+    }
+
+    /// A member written with several gaps has one thing wrong with it, and the
+    /// sentence is about the member -- so the empty repetition is counted once
+    /// however many times it appears.
+    ///
+    /// The ratchet is here because the reading existed twice: the caller
+    /// collapses the gaps, and the parameter reader carried a second branch
+    /// with the same sentence. That branch was unreachable and its removal
+    /// changed nothing -- measured by putting it back, which this test does not
+    /// notice. What it does notice is the caller: the moment `check_alt_value`
+    /// stops skipping an empty segment, a three-gap member states its one
+    /// defect three times, and only a test that counts can say so.
+    #[test]
+    fn a_member_written_with_three_gaps_reports_once() {
+        for value in [
+            "h2=\":443\";;ma=3600",
+            "h2=\":443\";;;",
+            "h2=\":443\"; ; ; ma=60",
+        ] {
+            let empties: Vec<_> = run_all(&[("alt-svc", value)])
+                .into_iter()
+                .filter(|v| v.violation == "alt_svc_parameter_empty")
+                .collect();
+            assert_eq!(
+                empties.len(),
+                1,
+                "{value:?} should state the empty repetition once, got {empties:?}"
+            );
+        }
     }
 
     /// `port = *DIGIT` has no bound, and the sixteen-bit one this rule applies

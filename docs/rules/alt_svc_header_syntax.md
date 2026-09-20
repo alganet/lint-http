@@ -107,13 +107,18 @@ Alt-Svc: w%3Dx%3Ay#z=":443"
 ```http
 Alt-Svc: h2=example.com:443       # alt-authority is a quoted-string
 Alt-Svc: h2="example.com"         # the colon and the port are not optional
+Alt-Svc: h2="example.com:"        # the delimiter and no port number
 Alt-Svc: h2="example.com:notaport" # port is *DIGIT
+Alt-Svc: h2="exämple.com:443"      # the authority is US-ASCII; an IDN is A-labels
+Alt-Svc: h2=":99999"              # a port registry is sixteen bits wide
 Alt-Svc: h2example.com:443        # no '=' in the alternative
 Alt-Svc: h@=":443"                # '@' is no tchar
 Alt-Svc: x%3dy=":443"             # hex digits are uppercase
 Alt-Svc: %68%32=":443"            # a tchar is not percent-encoded
 Alt-Svc: clear, h2=":443"         # clear beside an alternative
 Alt-Svc: h2 = ":443"              # no OWS beside the '='
+Alt-Svc: h2=":443";;ma=3600       # a repetition with no parameter in it
+Alt-Svc: h2=":443"; ma            # a parameter is a name, an '=' and a value
 Alt-Svc: h2=":443"; persist=2     # persist's only value is "1"
 Alt-Svc: ,                        # empty list element
 ```
