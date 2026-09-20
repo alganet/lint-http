@@ -29,7 +29,12 @@ A `%` must open a well-formed `pct-encoded` triplet, and a value that carries a 
 - [percent_encoding_digits_missing](../violations/percent_encoding_digits_missing.md) — Percent-encoding stops before its two hexadecimal digits
 - [percent_encoding_malformed](../violations/percent_encoding_malformed.md) — Percent-encoding is not two hexadecimal digits
 - [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
 - [uri_host_empty](../violations/uri_host_empty.md) — An http or https reference names no host
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
 - [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
 - [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
 - [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
@@ -46,6 +51,8 @@ A `%` must open a well-formed `pct-encoded` triplet, and a value that carries a 
 - [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
 - [RFC 9110 §4.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1): http URI Scheme — a TCP connection and no more, `http-URI = "http" "://" authority path-abempty [ "?" query ]`, the default port, and the MUST NOT against an empty host identifier with the recipient's MUST to reject one
 - [RFC 9110 §4.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2): https URI Scheme — what "secured" means for a resource named by one and the client's MUST to secure its requests for it, the same shape as the http scheme with TLS and port 443, and the MUST NOT against an empty host identifier
+- [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere
+- [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string
 
 ## Configuration
 

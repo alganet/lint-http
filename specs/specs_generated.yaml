@@ -220,13 +220,13 @@ sources:
     snippet: A preload destination is "fetch", "font", "image", "script", "style", or "track".
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1329
+      line: 1401
   - label: link_header_valid (2)
     section: § 4.6.8.20
     snippet: If destination is not a preload destination, then return null.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1330
+      line: 1402
 - label: HTML Speculative Loading
   url: https://html.spec.whatwg.org/multipage/speculative-loading.html
   type: text/html
@@ -292,13 +292,13 @@ sources:
     snippet: Apply link options from parsed header attributes to options given attribs
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1278
+      line: 1350
   - label: preload as existence
     section: § 4.2.4.4
     snippet: If attribs["as"] does not exist, then return false.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1279
+      line: 1351
     - file: lint-http-rules/src/violations/link.rs
       line: 177
   - label: link_header_valid (2)
@@ -306,13 +306,13 @@ sources:
     snippet: If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1303
+      line: 1375
   - label: preload as translation
     section: § 4.2.4.4
     snippet: If destination is null, then return false.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1302
+      line: 1374
     - file: lint-http-rules/src/violations/link.rs
       line: 203
   - label: link_header_valid (3)
@@ -320,13 +320,13 @@ sources:
     snippet: Let destination be the result of translating attribs["as"].
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1301
+      line: 1373
   - label: link_header_valid (4)
     section: § 4.2.4.4
     snippet: To process link headers given a Document doc, a response response, and a "pre-media" or "media" phase
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1277
+      line: 1349
   - label: refresh_header_syntax
     section: § 4.2.5.3
     snippet: 'For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:'
@@ -1546,7 +1546,7 @@ sources:
     snippet: Some protocol elements allow only the absolute form of a URI without a fragment identifier.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 362
+      line: 393
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 387
   - label: host_and_authority_consistent
@@ -1573,6 +1573,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/authority.rs
       line: 43
+    - file: lint-http-rules/src/helpers/authority.rs
+      line: 395
     - file: lint-http-rules/src/helpers/origin.rs
       line: 267
   - label: lint-http-rules/src/helpers/authority.rs (3)
@@ -1720,7 +1722,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 48
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 288
+      line: 297
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 220
     - file: lint-http-rules/src/violations/uri.rs
@@ -1860,7 +1862,7 @@ sources:
     - file: lint-http-rules/src/helpers/reference.rs
       line: 152
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 433
+      line: 464
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 308
   - label: lint-http-rules/src/helpers/reference.rs (11)
@@ -1876,7 +1878,7 @@ sources:
     - file: lint-http-rules/src/helpers/request_target.rs
       line: 135
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 432
+      line: 463
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 314
   - label: lint-http-rules/src/helpers/scheme.rs
@@ -1894,7 +1896,7 @@ sources:
     - file: lint-http-rules/src/helpers/scheme.rs
       line: 108
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1426
+      line: 1498
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 405
     - file: lint-http-rules/src/violations/uri.rs
@@ -1954,11 +1956,11 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 79
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 230
+      line: 239
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 359
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 764
+      line: 777
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 283
   - label: location_header_uri_valid
@@ -1966,13 +1968,13 @@ sources:
     snippet: URI-reference = URI / relative-ref
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 216
+      line: 225
   - label: location_header_uri_valid (2)
     section: § 4.4
     snippet: The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier.
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 272
+      line: 281
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 322
   - label: oauth2_code_flow
@@ -3812,7 +3814,7 @@ sources:
     snippet: 'Type and subtype names MUST conform to the following ABNF:'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1524
+      line: 1596
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 203
   - label: link_header_valid (2)
@@ -3820,7 +3822,7 @@ sources:
     snippet: restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1525
+      line: 1597
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 217
     - file: lint-http-rules/src/violations/media_type.rs
@@ -3830,13 +3832,13 @@ sources:
     snippet: restricted-name-chars = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "-" / "^" / "_"
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1526
+      line: 1598
   - label: link_header_valid (4)
     section: § 4.2
     snippet: restricted-name-chars =/ "+" ; Characters after last plus always ; specify a structured syntax suffix
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1528
+      line: 1600
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 211
     - file: lint-http-rules/src/violations/media_type.rs
@@ -3846,13 +3848,13 @@ sources:
     snippet: restricted-name-chars =/ "." ; Characters before first dot always ; specify a facet name
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1527
+      line: 1599
   - label: link_header_valid (6)
     section: § 4.2
     snippet: type-name = restricted-name subtype-name = restricted-name
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1501
+      line: 1573
   - label: media_type_suffix_valid
     section: § 4.2.8
     snippet: '"+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions.'
@@ -4979,63 +4981,63 @@ sources:
     snippet: 'This document uses the Augmented Backus-Naur Form (ABNF) [RFC5234] notation of [RFC7230], including the #rule, and explicitly includes the following rules from it'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 942
+      line: 1014
   - label: link_header_valid (2)
     section: § 1.2
     snippet: The requirements regarding conformance and error handling highlighted in [RFC7230], Section 2.5 apply to this document.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 678
+      line: 691
   - label: link_header_valid (3)
     section: § 2.1.1
     snippet: Registered relation type names MUST conform to the reg-rel-type rule (see Section 3.3) and MUST be compared character by character in a case-insensitive fashion.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1264
+      line: 1336
   - label: link_header_valid (4)
     section: § 2.1.2
     snippet: When extension relation types are compared, they MUST be compared as strings (after converting to URIs if serialised in a different format) in a case-insensitive fashion, character by character.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1416
+      line: 1488
   - label: link_header_valid (5)
     section: § 2.2
     snippet: The names of target attributes SHOULD conform to the token rule, but SHOULD NOT include any of the characters "%", "'", or "*", for portability across serialisations and MUST be compared in a case-insensitive fashion.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1005
+      line: 1077
   - label: link_header_valid (6)
     section: § 3
     snippet: Individual link-params specify their syntax in terms of the value after any necessary unquoting
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 941
+      line: 1013
   - label: link_header_valid (7)
     section: § 3
     snippet: 'Link       = #link-value link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 680
+      line: 693
   - label: link_header_valid (8)
     section: § 3
     snippet: Note that any link-param can be generated with values using either the token or the quoted-string syntax; therefore, recipients MUST be able to parse both forms.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 940
+      line: 1012
   - label: link_header_valid (9)
     section: § 3
     snippet: The Link header field provides a means for serialising one or more links into HTTP headers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 475
+      line: 488
   - label: link-param optional group
     section: § 3
     snippet: link-param = token BWS [ "=" BWS ( token / quoted-string ) ]
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 939
+      line: 1011
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 956
+      line: 1028
     - file: lint-http-rules/src/violations/link.rs
       line: 392
   - label: link-value assembly
@@ -5043,9 +5045,9 @@ sources:
     snippet: link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 763
+      line: 776
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 842
+      line: 930
     - file: lint-http-rules/src/violations/link.rs
       line: 35
     - file: lint-http-rules/src/violations/link.rs
@@ -5059,7 +5061,7 @@ sources:
     snippet: Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>").
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 876
+      line: 853
     - file: lint-http-rules/src/violations/link.rs
       line: 320
   - label: link_header_valid (11)
@@ -5067,15 +5069,15 @@ sources:
     snippet: Note that extension relation types are REQUIRED to be absolute URIs in Link header fields and MUST be quoted when they contain characters not allowed in tokens
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1415
+      line: 1487
   - label: rel at most once
     section: § 3.3
     snippet: The rel parameter MUST be present but MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 816
+      line: 829
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1338
+      line: 1410
     - file: lint-http-rules/src/violations/link.rs
       line: 110
     - file: lint-http-rules/src/violations/link.rs
@@ -5085,33 +5087,33 @@ sources:
     snippet: The rel parameter can, however, contain multiple link relation types.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1357
+      line: 1429
   - label: link_header_valid (13)
     section: § 3.3
     snippet: The relation type of a link conveyed in the Link header field is conveyed in the "rel" parameter's value.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1337
+      line: 1409
   - label: link_header_valid (14)
     section: § 3.3
     snippet: ext-rel-type   = URI ; Section 3 of [RFC3986]
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1414
+      line: 1486
   - label: link_header_valid (15)
     section: § 3.3
     snippet: reg-rel-type   = LOALPHA *( LOALPHA / DIGIT / "." / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1413
+      line: 1485
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1478
+      line: 1550
   - label: relation-type alternation
     section: § 3.3
     snippet: relation-type  = reg-rel-type / ext-rel-type
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1412
+      line: 1484
     - file: lint-http-rules/src/violations/link.rs
       line: 296
   - label: rel value production
@@ -5119,7 +5121,7 @@ sources:
     snippet: relation-type *( 1*SP relation-type )
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1356
+      line: 1428
     - file: lint-http-rules/src/violations/link.rs
       line: 247
     - file: lint-http-rules/src/violations/link.rs
@@ -5129,31 +5131,31 @@ sources:
     snippet: Its value MUST be quoted if it contains a semicolon (";") or comma (",").
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1201
+      line: 1273
   - label: link_header_valid (17)
     section: § 3.4.1
     snippet: The "title*" link-param can be used to encode this attribute in a different character set and/or contain language information as per [RFC8187].
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1053
+      line: 1125
   - label: link_header_valid (18)
     section: § 3.4.1
     snippet: 'The ABNF for the hreflang parameter''s value is:'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1163
+      line: 1235
   - label: link_header_valid (19)
     section: § 3.4.1
     snippet: 'The ABNF for the media parameter''s value is:'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1200
+      line: 1272
   - label: type value ABNF
     section: § 3.4.1
     snippet: 'The ABNF for the type parameter''s value is:'
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1177
+      line: 1249
     - file: lint-http-rules/src/violations/link.rs
       line: 153
   - label: link_header_valid (20)
@@ -5161,25 +5163,25 @@ sources:
     snippet: The title attribute MUST NOT appear more than once in a given link; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 818
+      line: 831
   - label: link_header_valid (21)
     section: § 3.4.1
     snippet: The title* link-param MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 819
+      line: 832
   - label: link_header_valid (22)
     section: § 3.4.1
     snippet: The type attribute MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 820
+      line: 833
   - label: attribute at most once
     section: § 3.4.1
     snippet: There MUST NOT be more than one media attribute in a link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 817
+      line: 830
     - file: lint-http-rules/src/violations/link.rs
       line: 132
   - label: link_header_valid (23)
@@ -5187,19 +5189,19 @@ sources:
     snippet: Such target attributes MAY be defined to use the encoding in [RFC8187] (e.g., "example" and "example*").
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1052
+      line: 1124
   - label: link_header_valid (24)
     section: § B.2
     snippet: Let relations_string be the second item of the first tuple of link_parameters whose first item matches the string "rel" or the empty string ("") if it is not present.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1119
+      line: 1191
   - label: link_header_valid (25)
     section: § B.3
     snippet: If the last character of parameter_name is an asterisk ("*"), decode parameter_value according to [RFC8187].
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1051
+      line: 1123
 - label: RFC 8297
   url: https://www.rfc-editor.org/rfc/rfc8297.html
   fragments:
@@ -6087,7 +6089,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 59
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 169
+      line: 178
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 212
     - file: lint-http-rules/src/rules/redirect_status_and_location_valid.rs
@@ -6117,7 +6119,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 254
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 363
+      line: 394
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 425
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
@@ -6129,11 +6131,11 @@ sources:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 539
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 679
+      line: 692
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 1120
+      line: 1192
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 217
+      line: 226
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 431
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
@@ -6699,7 +6701,7 @@ sources:
     snippet: A "partial-URI" rule is defined for protocol elements that can contain a relative URI but not a fragment component.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 360
+      line: 391
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 385
     - file: lint-http-rules/src/violations/content_location.rs
@@ -6709,7 +6711,7 @@ sources:
     snippet: Each protocol element in HTTP that allows a URI reference will indicate in its ABNF production whether the element allows any form of reference (URI-reference), only a URI in absolute form (absolute-URI), only the path and optional query components (partial-URI), or some combination of the above.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 361
+      line: 392
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 386
   - label: content_location_and_uri_consistent (3)
@@ -6717,13 +6719,13 @@ sources:
     snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 256
+      line: 265
   - label: Content-Location grammar
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 229
+      line: 238
     - file: lint-http-rules/src/violations/content_location.rs
       line: 75
   - label: content_location_and_uri_consistent (4)
@@ -6731,31 +6733,31 @@ sources:
     snippet: For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 465
+      line: 496
   - label: content_location_and_uri_consistent (5)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 464
+      line: 495
   - label: content_location_and_uri_consistent (6)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 375
+      line: 406
   - label: content_location_and_uri_consistent (7)
     section: § 8.7
     snippet: In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 403
+      line: 434
   - label: content_location_and_uri_consistent (8)
     section: § 8.7
     snippet: Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 466
+      line: 497
     - file: lint-http-rules/src/violations/content_location.rs
       line: 126
   - label: content_location_and_uri_consistent (9)
@@ -6763,15 +6765,15 @@ sources:
     snippet: The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 216
+      line: 225
   - label: content_location_and_uri_consistent (10)
     section: § 8.7
     snippet: The field value is either an absolute-URI or a partial-URI.
     cited_by:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 287
+      line: 296
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 359
+      line: 390
   - label: content_range
     section: § 15.3.7
     snippet: A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation.
@@ -6907,7 +6909,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 61
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 214
+      line: 223
     - file: lint-http-rules/src/violations/location.rs
       line: 148
   - label: context_fields_direction (8)
@@ -7351,7 +7353,7 @@ sources:
     snippet: A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 991
+      line: 1063
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 406
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -7363,7 +7365,7 @@ sources:
     snippet: A sender MUST NOT generate BWS in messages.
     cited_by:
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 990
+      line: 1062
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 405
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -7927,7 +7929,7 @@ sources:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 238
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 704
+      line: 717
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
       line: 200
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -8195,7 +8197,7 @@ sources:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 542
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 682
+      line: 695
     - file: lint-http-rules/src/rules/refresh_header_syntax.rs
       line: 349
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -8353,7 +8355,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 334
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
-      line: 257
+      line: 266
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 265
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -8427,7 +8429,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 839
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 690
+      line: 703
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 258
   - label: lint-http-rules/src/helpers/list.rs (2)
@@ -8473,7 +8475,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 617
     - file: lint-http-rules/src/rules/link_header_valid.rs
-      line: 784
+      line: 797
     - file: lint-http-rules/src/violations/quoted_pair.rs
       line: 46
   - label: lint-http-rules/src/helpers/list.rs (5)
@@ -8529,7 +8531,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 399
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 257
+      line: 266
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 180
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
@@ -8971,31 +8973,31 @@ sources:
     snippet: A Location field value cannot allow a list of members because the comma list separator is a valid data character within a URI-reference.
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 238
+      line: 247
   - label: location_header_uri_valid (2)
     section: § 10.2.2
     snippet: If an invalid message is sent with multiple Location field lines, a recipient along the path might combine those field lines into one value.
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 239
+      line: 248
   - label: Location grammar
     section: § 10.2.2
     snippet: Location = URI-reference
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 215
+      line: 224
   - label: location_header_uri_valid (3)
     section: § 16.3.2.2
     snippet: because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 240
+      line: 249
   - label: location_header_uri_valid (4)
     section: § 5.5
     snippet: Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators.
     cited_by:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
-      line: 237
+      line: 246
   - label: location_on_redirect_present
     section: § 10.2.2
     snippet: For 201 (Created) responses, the Location value refers to the primary resource created by the request.

@@ -32,10 +32,13 @@ severity = "error"
 ## Reported By
 
 - [alt_svc_header_syntax](../rules/alt_svc_header_syntax.md)
+- [content_location_and_uri_consistent](../rules/content_location_and_uri_consistent.md)
 - [forwarded_header_valid](../rules/forwarded_header_valid.md)
 - [host_header](../rules/host_header.md)
 - [http2_pseudo_headers_valid](../rules/http2_pseudo_headers_valid.md)
 - [http3_pseudo_headers_valid](../rules/http3_pseudo_headers_valid.md)
+- [link_header_valid](../rules/link_header_valid.md)
+- [location_header_uri_valid](../rules/location_header_uri_valid.md)
 - [referer_uri_valid](../rules/referer_uri_valid.md)
 - [warning_header_syntax](../rules/warning_header_syntax.md)
 - [x_forwarded_consistent](../rules/x_forwarded_consistent.md)

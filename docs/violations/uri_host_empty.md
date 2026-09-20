@@ -34,5 +34,6 @@ severity = "error"
 
 - [content_location_and_uri_consistent](../rules/content_location_and_uri_consistent.md)
 - [http2_pseudo_headers_valid](../rules/http2_pseudo_headers_valid.md)
+- [link_header_valid](../rules/link_header_valid.md)
 - [location_header_uri_valid](../rules/location_header_uri_valid.md)
 - [referer_uri_valid](../rules/referer_uri_valid.md)

@@ -10,10 +10,12 @@ use crate::violations::content_location::{
 };
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::uri::{
-    scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2,
-    RFC_3986_2_1, RFC_3986_3_1, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
-    URI_HOST_EMPTY, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
-    URI_SCHEME_LEADING_LETTER_MISSING,
+    host_and_port as host_and_port_defect, scheme_name, PERCENT_ENCODING_DIGITS_MISSING,
+    PERCENT_ENCODING_MALFORMED, RFC_3986_2, RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2,
+    RFC_3986_3_2_3, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
+    URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
+    URI_HOST_EMPTY, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
+    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -47,6 +49,11 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &URI_HOST_EMPTY,
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -126,6 +133,8 @@ impl RuleMeta for ContentLocationAndUriConsistent {
             RFC_3986_3_1,
             RFC_9110_4_2_1,
             RFC_9110_4_2_2,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
         ]
     }
 
@@ -336,6 +345,28 @@ impl Rule for ContentLocationAndUriConsistent {
                              NOT generate an \"{}\" URI with one (RFC 9110 §{section})",
                             crate::helpers::shown::shown_in_finding(s),
                             scheme.to_ascii_lowercase(),
+                        ),
+                    ));
+                }
+
+                // `uri-host [ ":" port ]` is one question with one answer, and
+                // the shared reader is where it lives. Asked after the empty
+                // host because that one is not a grammar finding and this one
+                // is: § 8.7 borrows `absolute-URI / partial-URI` whole, and
+                // § 2.2 forbids a sender to generate a protocol element that
+                // does not match its ABNF — the same footing the fragment
+                // finding below rests on, for the same reason. `Referer` and
+                // `Location` reach the same reader from the same production;
+                // the userinfo `Referer` also reports is § 10.1.3's MUST NOT
+                // and no sentence states one for this field, so the component
+                // is dropped rather than named.
+                if let Some(defect) = crate::helpers::authority::reference_host_defect(s) {
+                    return Some(ctx.report_with(
+                        host_and_port_defect(defect),
+                        format!(
+                            "Content-Location value '{}' does not carry a well-formed authority: {}",
+                            crate::helpers::shown::shown_in_finding(s),
+                            defect.message()
                         ),
                     ));
                 }
@@ -577,6 +608,50 @@ mod tests {
             }
             false => assert!(
                 finding.is_none_or(|v| v.violation != "uri_host_empty"),
+                "{value}"
+            ),
+        }
+    }
+
+    /// The same production, one field over: `uri-host [ ":" port ]` is read by
+    /// the shared reader four fields call, and each defect it can answer with
+    /// reaches its own id. The conforming half is not decoration — an IPv6
+    /// literal beside a port is exactly what the reader takes apart, and a
+    /// reference carrying no authority must come back with nothing rather than
+    /// being skipped.
+    #[rstest]
+    #[case("http://[::1/p", Some("uri_host_closing_bracket_missing"))]
+    #[case("http://[not:an:addr:!]/p", Some("uri_host_ip_literal_malformed"))]
+    #[case("http://ex[ample.test/p", Some("uri_host_bracket_forbidden"))]
+    #[case("http://example.test:80a/p", Some("uri_port_character_forbidden"))]
+    #[case("https://[2001:db8::1]:8443/p", None)]
+    #[case("https://example.test:8443/p", None)]
+    #[case("/no-authority-at-all", None)]
+    fn an_authority_that_derives_from_no_host_production_is_reported(
+        #[case] value: &str,
+        #[case] id: Option<&str>,
+    ) {
+        let tx = make_tx_with_req_uri(value, 200, &[("content-location", value)]);
+        let finding = crate::test_helpers::run_rule(
+            &ContentLocationAndUriConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_location_and_uri_consistent",
+            ]),
+        );
+        match id {
+            Some(id) => {
+                let v = finding.unwrap_or_else(|| panic!("accepted {value}"));
+                assert_eq!(v.violation, id, "{}", v.message);
+                assert!(
+                    v.message.contains("does not carry a well-formed authority"),
+                    "{}",
+                    v.message
+                );
+            }
+            None => assert!(
+                finding.is_none_or(|v| !v.message.contains("well-formed authority")),
                 "{value}"
             ),
         }

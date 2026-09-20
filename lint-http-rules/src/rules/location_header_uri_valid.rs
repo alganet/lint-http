@@ -9,10 +9,12 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::location::LOCATION_EMPTY;
 use crate::violations::uri::{
-    scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2,
-    RFC_3986_2_1, RFC_3986_3_1, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
-    URI_HOST_EMPTY, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
-    URI_SCHEME_LEADING_LETTER_MISSING,
+    host_and_port as host_and_port_defect, scheme_name, PERCENT_ENCODING_DIGITS_MISSING,
+    PERCENT_ENCODING_MALFORMED, RFC_3986_2, RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2,
+    RFC_3986_3_2_3, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
+    URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
+    URI_HOST_EMPTY, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
+    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -46,6 +48,11 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &URI_HOST_EMPTY,
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
     &FIELD_LINE_DUPLICATED,
     &LOCATION_EMPTY,
 ];
@@ -108,6 +115,8 @@ impl RuleMeta for LocationHeaderUriValid {
             RFC_3986_3_1,
             RFC_9110_4_2_1,
             RFC_9110_4_2_2,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
         ]
     }
 
@@ -335,6 +344,29 @@ impl Rule for LocationHeaderUriValid {
                 ));
             }
 
+            // `uri-host [ ":" port ]` is one question with one answer, and the
+            // shared reader is where it lives: the bracket that distinguishes an
+            // IP literal, the address inside it, and a port of digits. Asked
+            // after the empty host because that one is not a grammar finding and
+            // this one is — the generic syntax generates the empty authority and
+            // refuses these — and asked at all because § 10.2.2 borrows the
+            // whole of `URI-reference` and § 2.2 forbids a sender to generate a
+            // protocol element that does not match its ABNF. `Referer` reaches
+            // the same reader from the same production; the userinfo it also
+            // reports is its own section's MUST NOT and no sentence states one
+            // for this field, so the component is dropped here rather than
+            // named.
+            if let Some(defect) = crate::helpers::authority::reference_host_defect(value) {
+                return Some(ctx.report_with(
+                    host_and_port_defect(defect),
+                    format!(
+                        "Location value '{}' does not carry a well-formed authority: {}",
+                        crate::helpers::shown::shown_in_finding(value),
+                        defect.message()
+                    ),
+                ));
+            }
+
             None
         };
         Vec::from_iter(finding())
@@ -534,6 +566,46 @@ mod tests {
     fn a_malformed_triplet_is_reported(#[case] loc: &[u8], #[case] expected: &str) {
         let v = judge(&make_tx_with_locs(&[loc])).expect("expected a finding");
         assert!(v.message.contains(expected), "{}", v.message);
+    }
+
+    /// `uri-host [ ":" port ]` is one production and four fields read it, so a
+    /// case here is a case about the composition rather than about this field:
+    /// each defect the shared reader can answer with reaches its own id, and a
+    /// conforming authority reaches none. Written in both directions because
+    /// the reading is a `return` inside a funnel — a guard that engaged on
+    /// every value would pass a one-directional test just as well.
+    #[rstest]
+    #[case(b"http://[::1/p", "uri_host_closing_bracket_missing")]
+    #[case(b"http://[not:an:addr:!]/p", "uri_host_ip_literal_malformed")]
+    #[case(b"http://ex[ample.test/p", "uri_host_bracket_forbidden")]
+    #[case(b"http://example.test:80a/p", "uri_port_character_forbidden")]
+    fn an_authority_that_derives_from_no_host_production_is_reported(
+        #[case] loc: &[u8],
+        #[case] id: &str,
+    ) {
+        let v = judge(&make_tx_with_locs(&[loc])).expect("expected a finding");
+        assert_eq!(v.violation, id, "{}", v.message);
+        assert!(
+            v.message.contains("does not carry a well-formed authority"),
+            "{}",
+            v.message
+        );
+    }
+
+    /// The other direction, and the two things that make it worth its own case.
+    /// An IPv6 literal and a port are exactly what the reader is written to
+    /// take apart, so a value carrying both is where an over-eager guard shows;
+    /// and a reference with no authority at all must reach the reader and come
+    /// back with nothing to say rather than being skipped by the caller.
+    #[rstest]
+    #[case(b"https://[2001:db8::1]:8443/p")]
+    #[case(b"https://example.test:8443/p")]
+    #[case(b"https://user:pw@example.test/p")]
+    #[case(b"/no-authority-at-all")]
+    #[case(b"https://[v7.abc]/p")]
+    fn a_well_formed_authority_is_not_reported(#[case] loc: &[u8]) {
+        let v = judge(&make_tx_with_locs(&[loc]));
+        assert!(v.is_none(), "{:?}: {v:?}", loc);
     }
 
     /// The scheme's three defects are RFC 3986 § 3.1's, so the id is the

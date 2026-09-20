@@ -366,6 +366,39 @@ pub fn validate_host_and_optional_port(value: &str) -> Result<(), HostAndPortDef
     Ok(())
 }
 
+/// The `uri-host [ ":" port ]` of a URI reference, measured, or `None` when the
+/// reference carries no authority to measure.
+///
+/// **The composition is the point, not either half.** Four fields carry a
+/// `URI-reference` written from the generic syntax — `Referer`, `Location`,
+/// `Content-Location` and the target of a `Link` — and the question each of
+/// them has to ask about a host is the same one, because the production is the
+/// same production. Written out at a report site it is three steps that are
+/// easy to stop after one: find the authority, drop the `userinfo` the `@`
+/// delimits, and read what is left. Three of the four fields stopped before the
+/// third step, so the reference is assembled here once and each caller is left
+/// with the sentence its own field says.
+///
+/// **The `userinfo` is dropped rather than reported**, because whether the
+/// component is allowed is each field's own question and not the host's:
+/// RFC 9110 § 10.1.3 forbids it in a `Referer` by name, and no sentence forbids
+/// it in the other three. A caller that has such a sentence asks
+/// [`split_userinfo`] for itself, before this; what it must not do is let the
+/// component make the host look like a port to a reader splitting on the colon,
+/// which is why it comes off here either way.
+///
+/// **An empty host is not a defect of this production** and does not come back
+/// from here: `reg-name` is `*( ... )`, so `http://` derives, and the MUST NOT
+/// that refuses it belongs to the two schemes rather than to the grammar —
+/// [`empty_host_scheme`] is that question, asked separately by every caller
+/// that has it.
+// cite(RFC 3986 § 3.2): "authority   = [ userinfo "@" ] host [ ":" port ]"
+pub fn reference_host_defect(reference: &str) -> Option<HostAndPortDefect<'_>> {
+    let authority = authority_component(reference)?;
+    let (_userinfo, host_and_port) = split_userinfo(authority);
+    validate_host_and_optional_port(host_and_port).err()
+}
+
 /// What a `uri-host [ ":" port ]` fails to be.
 ///
 /// Two halves and therefore two variants: everything the host can be wrong

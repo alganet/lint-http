@@ -69,6 +69,12 @@ Parses the `Link` field of a request and of a response — every field line of o
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
 - [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
 - [uri_character_forbidden](../violations/uri_character_forbidden.md) — Value holds a character no URI is written with
+- [uri_host_bracket_forbidden](../violations/uri_host_bracket_forbidden.md) — Host holds a square bracket outside an IP literal
+- [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
+- [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
+- [uri_host_empty](../violations/uri_host_empty.md) — An http or https reference names no host
+- [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
+- [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
 - [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
 - [uri_scheme_empty](../violations/uri_scheme_empty.md) — URI scheme is empty
 - [uri_scheme_leading_letter_missing](../violations/uri_scheme_leading_letter_missing.md) — URI scheme does not begin with a letter
@@ -97,6 +103,10 @@ Parses the `Link` field of a request and of a response — every field line of o
 - [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters — the limited set a URI is composed from, every other octet being percent-encoded before the reference is formed
 - [RFC 3986 §3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3): `URI` — the production `ext-rel-type` is, and the reason a relation type with a scheme is read as one instead of being measured against `tchar`. `URI-Reference` (§4.1) is the target's
 - [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
+- [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere
+- [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string
+- [RFC 9110 §4.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1): http URI Scheme — a TCP connection and no more, `http-URI = "http" "://" authority path-abempty [ "?" query ]`, the default port, and the MUST NOT against an empty host identifier with the recipient's MUST to reject one
+- [RFC 9110 §4.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2): https URI Scheme — what "secured" means for a resource named by one and the client's MUST to secure its requests for it, the same shape as the http scheme with TLS and port 443, and the MUST NOT against an empty host identifier
 - [RFC 5646 §2.1](https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1): Syntax: the `Language-Tag` production, wherever a field or a parameter carries one. Its prose properties are enforced; its subtag ordering and length classes are not
 - [RFC 6838 §4.2](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2): Naming Requirements: `restricted-name`, the production behind both halves of a `type` value. It opens on a letter or digit and closes at 127 characters, and §3.4.1's ABNF for the value ends at the subtype-name, so there is no parameters group and no wildcard here
 - [HTML Semantics §4.2.4.4](https://html.spec.whatwg.org/multipage/semantics.html#processing-link-headers): *Processing `Link` headers* — the algorithm that reads this field out of a **response** and, for `rel=preload`, returns early when `as` does not exist or names no preload destination. The only published sentences pairing the two, and the reason both findings are worded as a member being discarded rather than as a MUST

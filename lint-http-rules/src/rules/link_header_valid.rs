@@ -37,8 +37,11 @@ use crate::violations::token::{
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::uri::{
-    scheme_name, RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
-    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+    host_and_port as host_and_port_defect, scheme_name, RFC_3986_2, RFC_3986_3_1, RFC_3986_3_2_2,
+    RFC_3986_3_2_3, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
+    URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
+    URI_HOST_EMPTY, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
+    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -111,6 +114,12 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &URI_HOST_EMPTY,
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
     &LANGUAGE_TAG_EMPTY,
     &LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &LANGUAGE_TAG_CHARACTER_FORBIDDEN,
@@ -439,6 +448,10 @@ impl RuleMeta for LinkHeaderValid {
             RFC_3986_2,
             RFC_3986_3,
             RFC_3986_3_1,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
+            RFC_9110_4_2_1,
+            RFC_9110_4_2_2,
             RFC_5646_2_1,
             RFC_6838_4_2,
             HTML_SEMANTICS_4_2_4_4,
@@ -820,6 +833,81 @@ fn split_link_values(s: &str) -> Vec<&str> {
 // cite(RFC 8288 § 3.4.1): "The type attribute MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers."
 const AT_MOST_ONCE: &[&str] = &["rel", "media", "title", "title*", "type"];
 
+/// What the target IRI fails to be, once it has been taken out of its angle
+/// brackets.
+///
+/// Split out of [`validate_link_value`] because it is a different subject: the
+/// member's own production says where the target starts and ends, and
+/// everything inside it is RFC 3986's — the same three questions `Location`,
+/// `Content-Location` and `Referer` each ask of the reference they carry, in
+/// the same order, for the same reasons.
+fn link_target_defect(target: &str) -> Option<Defect> {
+    // The target is a URI, converted from an IRI by the sender if it began as
+    // one. That conversion is what makes an octet outside the URI alphabet a
+    // finding here rather than a question about the field's encoding: %xE9 in
+    // the brackets is an IRI that was never converted.
+    //
+    // The empty target is not one of these: `URI-Reference` derives the empty
+    // string (a `relative-ref` with an empty `path-abempty`), and `<>` names
+    // the message's own context.
+    // cite(RFC 8288 § 3.1): "Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>")."
+    if let Some(c) = find_non_uri_char(target) {
+        return Some(Defect::named(
+            &URI_CHARACTER_FORBIDDEN,
+            format!(
+                "target '{}' holds {}, which no URI-Reference admits",
+                shown_in_finding(target),
+                describe_char(c)
+            ),
+        ));
+    }
+
+    // A scheme that is one, naming no host after it. Not a grammar finding —
+    // `reg-name` is `*( ... )`, so the generic syntax generates `http:///p` —
+    // but each of the two schemes HTTP mints identifiers in says a sender may
+    // not, and a target IRI naming no origin server is a link to nowhere. The
+    // same entry `Location`, `Content-Location` and `Referer` report, from the
+    // same two sentences.
+    if let Some(scheme) = crate::helpers::authority::empty_host_scheme(target) {
+        return Some(Defect::named(
+            &URI_HOST_EMPTY,
+            format!(
+                "target '{}' names the scheme '{}' and then an empty host identifier, so it \
+                 identifies no origin server: a sender MUST NOT generate an \"{}\" URI with one \
+                 (RFC 9110 §4.2.{})",
+                shown_in_finding(target),
+                shown_in_finding(scheme),
+                scheme.to_ascii_lowercase(),
+                if scheme.eq_ignore_ascii_case("http") {
+                    "1"
+                } else {
+                    "2"
+                }
+            ),
+        ));
+    }
+
+    // `uri-host [ ":" port ]` is one question with one answer, and the shared
+    // reader is where it lives: the bracket that distinguishes an IP literal,
+    // the address inside it, and a port of digits. The target is a
+    // `URI-Reference` by the sentence quoted above, so every component of the
+    // generic syntax is RFC 3986's to judge — the alphabet check before this
+    // is a floor rather than a ceiling, and passes any octet the host
+    // productions could have written wherever they could have written it.
+    if let Some(defect) = crate::helpers::authority::reference_host_defect(target) {
+        return Some(Defect::named(
+            host_and_port_defect(defect),
+            format!(
+                "target '{}' does not carry a well-formed authority: {}",
+                shown_in_finding(target),
+                defect.message()
+            ),
+        ));
+    }
+
+    None
+}
+
 /// Validate one `link-value`, parameter by parameter.
 ///
 /// **The same masking the member walk carried, one level down.** The
@@ -865,24 +953,8 @@ fn validate_link_value(member: &str, is_response: bool) -> Vec<Defect> {
     };
     let (target, after) = rest.split_at(close);
 
-    // The target is a URI, converted from an IRI by the sender if it began as
-    // one. That conversion is what makes an octet outside the URI alphabet a
-    // finding here rather than a question about the field's encoding: %xE9 in
-    // the brackets is an IRI that was never converted.
-    //
-    // The empty target is not one of these: `URI-Reference` derives the empty
-    // string (a `relative-ref` with an empty `path-abempty`), and `<>` names
-    // the message's own context.
-    // cite(RFC 8288 § 3.1): "Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>")."
-    if let Some(c) = find_non_uri_char(target) {
-        return vec![Defect::named(
-            &URI_CHARACTER_FORBIDDEN,
-            format!(
-                "target '{}' holds {}, which no URI-Reference admits",
-                shown_in_finding(target),
-                describe_char(c)
-            ),
-        )];
+    if let Some(defect) = link_target_defect(target) {
+        return vec![defect];
     }
 
     // `*( OWS ";" OWS link-param )` -- the repetition opens on a `;` and there
@@ -1610,6 +1682,14 @@ mod tests {
     #[rstest]
     // The grammar, member by member.
     #[case(b"<https://example.com/>; rel=next")]
+    // The authority's conforming half, and it is the direction the reader can
+    // fail in silently: an IPv6 literal beside a port is what it takes apart, a
+    // `file:` URI names no origin server and no sentence asks it to, and a
+    // target with no authority at all must reach the reader and come back with
+    // nothing rather than being skipped before it.
+    #[case(b"<https://[2001:db8::1]:8443/p>; rel=next")]
+    #[case(b"<https://example.test:8443/p>; rel=next")]
+    #[case(b"<file:///etc/hosts>; rel=next")]
     #[case(b"<>; rel=next")]
     #[case(b"<https://example.com/>; rel=\"next\"; title=\"Home\"")]
     #[case(b"<https://example.com/>; rel=next; title=\"a;b\"")]
@@ -1922,6 +2002,22 @@ mod tests {
         b"</a>; rel=next; title*=iso-8859-1'en'%A3%20rates",
         "ext_value_charset_forbidden"
     )]
+    // The target's own authority, which is `uri-host [ ":" port ]` and is the
+    // production this field borrowed last. The empty host is the one row here
+    // that is not a grammar finding: the generic syntax generates it and the
+    // two schemes refuse it, which is why its id is the reference's rather
+    // than this field's.
+    #[case(b"<http://[::1/p>; rel=next", "uri_host_closing_bracket_missing")]
+    #[case(
+        b"<http://[not:an:addr:!]/p>; rel=next",
+        "uri_host_ip_literal_malformed"
+    )]
+    #[case(b"<http://ex[ample.test/p>; rel=next", "uri_host_bracket_forbidden")]
+    #[case(
+        b"<http://example.test:80a/p>; rel=next",
+        "uri_port_character_forbidden"
+    )]
+    #[case(b"<http:///p>; rel=next", "uri_host_empty")]
     fn a_link_value_borrows_every_production_it_is_made_of(#[case] value: &[u8], #[case] id: &str) {
         let headers = crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]);
         let mut found = judge(&headers, "Response", true);
