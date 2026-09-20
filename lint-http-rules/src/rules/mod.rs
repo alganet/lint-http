@@ -1950,6 +1950,114 @@ enabled = "true"
     ///    *return type* yields several borrowed strings is a member reader, so
     ///    it joins the file's walk set — the test reads the shape rather than
     ///    the name.
+    ///
+    /// **And three more that hid seven walks in three rules.** Each is a way of
+    /// reading a list that does not look like reading a list from the outside:
+    ///
+    /// 4. **No splitter at all.** `for element in value.split(',')` names
+    ///    nothing — not a helper, not a local, not a function this file
+    ///    defines. The iterated expression *is* the split. Every inline
+    ///    splitter is read as a member walk now; there are seven of them in the
+    ///    whole of `rules/`, and the three that are not masking pass on their
+    ///    own behaviour rather than by exemption.
+    /// 5. **Members handed back as owned strings.** The return types above are
+    ///    all borrowings of the value, so a splitter answering with
+    ///    `Vec<String>` or `Vec<(String, String)>` was not a member reader as
+    ///    far as this test was concerned, and neither were the loops over what
+    ///    it collected. A tuple counts only where its *first* element is a
+    ///    string: `Vec<(&'static ViolationDef, String)>` is a list of findings,
+    ///    which is what a fixed rule returns and not a list of members.
+    /// 6. **A walk that ends by returning an `Err`.** The two spellings looked
+    ///    for were `return Some(` and `return vec![`, which is what a walk
+    ///    inside a `findings` body writes. A splitter reporting to its caller
+    ///    writes `return Err(` instead, and `?` propagates one out of the loop
+    ///    without the word `return` appearing at all. Both end the walk and
+    ///    both are looked for.
+    ///
+    /// **A `for` inside a comment is not a loop.** Widening the iterator test
+    /// to a construct rather than a name made prose reachable for the first
+    /// time: "standing in for it" in a doc comment is a `for `, an ` in `, and
+    /// eight lines of joined text after it in which a `.split(` is easy to
+    /// find. Comment lines are skipped.
+    /// **The names a member walk can wear inside one rule file.** Two of the
+    /// blind spots [`a_list_walk_does_not_end_at_its_first_defective_member`]
+    /// had were names rather than shapes: a helper's result put in a local
+    /// before the loop, and a splitter the file defines for itself. Both are
+    /// collected here so the loop headers can be read for either.
+    fn member_walk_names(
+        lines: &[&str],
+        walks: &[&str],
+        statement: &dyn Fn(usize, char) -> (String, usize),
+    ) -> Vec<String> {
+        let mut local_walks: Vec<String> = Vec::new();
+        for (i, line) in lines.iter().enumerate() {
+            let trimmed = line.trim();
+            // `fn members(value: &str) -> impl Iterator<Item = &str>` and
+            // `-> Vec<&str>`: a function whose return type yields several
+            // borrowed strings is reading a value into its parts. The shape
+            // is the test, not the name — `x_forwarded_consistent` calls
+            // its own `members` and no helper appears in its loop at all.
+            if let Some(rest) = trimmed
+                .strip_prefix("fn ")
+                .or_else(|| trimmed.strip_prefix("pub fn "))
+            {
+                let (signature, _) = statement(i, '{');
+                // A collection of several strings, borrowed or owned. A
+                // tuple counts only where its first element is a string:
+                // `Vec<(&'static ViolationDef, String)>` is a list of
+                // findings, which is what a rule that has been fixed
+                // returns rather than a list of members.
+                let yields_parts = [
+                    "Iterator<Item = &str>",
+                    "Iterator<Item = &'a str>",
+                    "Iterator<Item = String>",
+                    "Vec<&str>",
+                    "Vec<&'a str>",
+                    "Vec<String>",
+                    "Vec<(String",
+                    "Vec<(&str",
+                    "Vec<(&'a str",
+                ]
+                .iter()
+                .any(|shape| signature.contains(shape));
+                if yields_parts {
+                    local_walks.push(
+                        rest.chars()
+                            .take_while(|c| c.is_alphanumeric() || *c == '_')
+                            .collect(),
+                    );
+                }
+                continue;
+            }
+            // `let members = list_members_as_written(&value);` — the helper
+            // is named one line above the loop instead of inside it. Four
+            // rules were written that way and none was ever matched here.
+            if let Some(rest) = trimmed
+                .strip_prefix("let ")
+                .map(|r| r.strip_prefix("mut ").unwrap_or(r))
+                // `let (members, defects) = split(..)`: a splitter that
+                // answers with the members AND what is wrong with them
+                // binds a tuple, and the members are its first element.
+                .map(|r| r.strip_prefix('(').unwrap_or(r))
+                .map(|r| r.strip_prefix("mut ").unwrap_or(r))
+            {
+                let (assignment, _) = statement(i, ';');
+                let names_a_walk = walks.iter().any(|w| assignment.contains(w))
+                    || local_walks
+                        .iter()
+                        .any(|w| assignment.contains(&format!("{w}(")));
+                if names_a_walk {
+                    local_walks.push(
+                        rest.chars()
+                            .take_while(|c| c.is_alphanumeric() || *c == '_')
+                            .collect(),
+                    );
+                }
+            }
+        }
+        local_walks
+    }
+
     #[test]
     fn a_list_walk_does_not_end_at_its_first_defective_member() -> anyhow::Result<()> {
         // Answers per message by an argument written at its own assembly site,
@@ -2096,60 +2204,25 @@ enabled = "true"
                 (text, j)
             };
 
-            // **The names a member walk can wear in this file.** Two of the
-            // three blind spots this test had were names: a helper's result put
-            // in a local before the loop, and a splitter the file defines for
-            // itself. Both are collected here so the loop headers below can be
-            // read for either.
-            let mut local_walks: Vec<String> = Vec::new();
-            for (i, line) in lines.iter().enumerate() {
-                let trimmed = line.trim();
-                // `fn members(value: &str) -> impl Iterator<Item = &str>` and
-                // `-> Vec<&str>`: a function whose return type yields several
-                // borrowed strings is reading a value into its parts. The shape
-                // is the test, not the name — `x_forwarded_consistent` calls
-                // its own `members` and no helper appears in its loop at all.
-                if let Some(rest) = trimmed
-                    .strip_prefix("fn ")
-                    .or_else(|| trimmed.strip_prefix("pub fn "))
-                {
-                    let (signature, _) = statement(i, '{');
-                    let yields_parts = signature.contains("Iterator<Item = &str>")
-                        || signature.contains("Iterator<Item = &'a str>")
-                        || signature.contains("-> Vec<&str>")
-                        || signature.contains("-> Vec<&'a str>");
-                    if yields_parts {
-                        local_walks.push(
-                            rest.chars()
-                                .take_while(|c| c.is_alphanumeric() || *c == '_')
-                                .collect(),
-                        );
-                    }
-                    continue;
-                }
-                // `let members = list_members_as_written(&value);` — the helper
-                // is named one line above the loop instead of inside it. Four
-                // rules were written that way and none was ever matched here.
-                if let Some(rest) = trimmed
-                    .strip_prefix("let ")
-                    .map(|r| r.strip_prefix("mut ").unwrap_or(r))
-                {
-                    let (assignment, _) = statement(i, ';');
-                    let names_a_walk = WALKS.iter().any(|w| assignment.contains(w))
-                        || local_walks
-                            .iter()
-                            .any(|w| assignment.contains(&format!("{w}(")));
-                    if names_a_walk {
-                        local_walks.push(
-                            rest.chars()
-                                .take_while(|c| c.is_alphanumeric() || *c == '_')
-                                .collect(),
-                        );
-                    }
-                }
-            }
+            let local_walks = member_walk_names(&lines, &WALKS, &statement);
+
+            // The splitters a rule writes inline, where the iterated
+            // expression is the split itself and names no reader at all.
+            const INLINE_SPLITTERS: [&str; 5] = [
+                ".split(",
+                ".split_terminator(",
+                ".split_inclusive(",
+                ".split_whitespace()",
+                ".split_ascii_whitespace()",
+            ];
 
             for (i, line) in lines.iter().enumerate() {
+                // Prose is not a loop. "standing in for it" in a doc comment
+                // reads as a `for ` and an ` in `, and the eight lines this
+                // test joins after one are enough text to find anything in.
+                if line.trim_start().starts_with("//") {
+                    continue;
+                }
                 if !line.contains("for ") || !line.contains(" in ") {
                     continue;
                 }
@@ -2160,6 +2233,7 @@ enabled = "true"
                     continue;
                 };
                 let walks_a_list = WALKS.iter().any(|w| iterated.contains(w))
+                    || INLINE_SPLITTERS.iter().any(|s| iterated.contains(s))
                     || local_walks.iter().any(|w| {
                         !w.is_empty()
                             && (iterated.contains(&format!("{w}("))
@@ -2182,14 +2256,19 @@ enabled = "true"
                             && l.trim_start().starts_with('}')
                     })
                     .unwrap_or(lines.len());
-                // Both spellings of ending the walk, because a rule whose
+                // Every spelling of ending the walk, because a rule whose
                 // reader already collects regresses by returning a `vec!` and
                 // not by returning a `Some`: this test used to name only the
                 // shape the rules had before they were fixed, which is the
-                // shape they can no longer be written in.
-                let ends_the_walk = lines[j + 1..end]
-                    .iter()
-                    .any(|l| l.contains("return Some(") || l.contains("return vec!["));
+                // shape they can no longer be written in. `Err` and `?` are the
+                // two a splitter uses, which is how seven walks stayed here
+                // after the `Some` and `vec!` spellings were both watched.
+                let ends_the_walk = lines[j + 1..end].iter().any(|l| {
+                    l.contains("return Some(")
+                        || l.contains("return vec![")
+                        || l.contains("return Err(")
+                        || l.contains("?;")
+                });
                 if ends_the_walk {
                     carrying.push(format!("{}:{}", name, i + 1));
                 }
