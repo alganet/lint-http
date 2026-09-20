@@ -70,6 +70,13 @@ const RFC_9110_14_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1",
     note: "Range units: `range-unit = token`, shared by `Accept-Ranges` and `Range`, and case-insensitive — which is why both sides of the comparison are folded",
 };
+const RFC_9110_15_5_17: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.17"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17",
+    note: "`416 Range Not Satisfiable`: why the unadvertised-unit finding names no outcome. Its note says clients \"cannot depend on receiving a 416 ... even when it is most appropriate\", which is the specification saying in its own words that neither answer to this request is the one to plan for",
+};
+
 const RFC_9110_15_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.7"),
@@ -88,11 +95,17 @@ impl RuleMeta for AcceptRangesOnPartialContent {
     }
 
     fn description(&self) -> &'static str {
-        "Advice a client was given, and whether the next request took it. `Accept-Ranges` tells a client which range units a resource supports, or that it supports none — and almost everything this rule has to say about the request that follows is advice, because RFC 9110 §14.3 says the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\".\n\n**`Accept-Ranges: none` followed by a `Range` request** is the one finding addressed to the client. The permission to send `none` is granted to a server that supports no kind of range request \"to advise the client not to attempt a range request on the same request path\", and this request attempts one. It is still advice: the same section says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\".\n\n**A `Range` in a unit the previous response did not advertise** is advice about a wasted transfer. §14.2 says an origin server \"MUST ignore a Range header field that contains a range unit it does not understand\", so such a request is answered with the whole representation — which is what the advertisement exists to prevent. Nothing makes the advertised list exhaustive, so this is not a violation either.\n\n**What this rule no longer reports.** A `Range` request following a 206 that carried no `Accept-Ranges` field: §14.3's \"regardless of having received an Accept-Ranges field\" permits it in as many words, and §14 makes range requests an OPTIONAL feature of HTTP altogether. Whether the advertised value is a well-formed list of range units belongs to `accept_ranges_values_valid`; whether the `Range` value is a well-formed ranges-specifier belongs to `range_header_syntax`. Where either value cannot be read as this rule needs it, it declines rather than reporting the field a second time — but a `Range` field that cannot be read is still a range request, and still takes the `none` advice.\n\n**What no rule can check.** §14.3 also says a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", and §15.3.7 that a client \"MUST inspect a 206 response's Content-Type and Content-Range field(s)\". Both are requirements on a conclusion the client drew; nothing on the wire distinguishes a client that assumed from one that did not, so this rule stops there rather than approximating them.\n\n**What it reads, and what that assumes.** The transaction immediately preceding this one from the same client for the same request URI, which is what \"the same request path\" is measured against; a later response supersedes what an earlier one advised, so only the most recent is read. `Accept-Ranges` is read from the trailer section as well as the header section, which §14.3 permits. Two assumptions come with that and are worth knowing before enabling this rule. *The same client* is an address and a `User-Agent` string, so several user agents behind one address that send the same `User-Agent` are one client here, and advice given to one of them is measured against another's request. And the rule's name is historical: nothing it checks depends on the previous response being a `206 Partial Content`, and after the corrections above it does not read the status code at all."
+        "Advice a client was given, and whether the next request took it. `Accept-Ranges` tells a client which range units a resource supports, or that it supports none — and almost everything this rule has to say about the request that follows is advice, because RFC 9110 §14.3 says the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\".\n\n**`Accept-Ranges: none` followed by a `Range` request** is the one finding addressed to the client. The permission to send `none` is granted to a server that supports no kind of range request \"to advise the client not to attempt a range request on the same request path\", and this request attempts one. It is still advice: the same section says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\".\n\n**A `Range` in a unit the previous response did not advertise** is advice about a request that buys nothing. \u{a7}14.2 describes two servers: an origin that \"MUST ignore a Range header field that contains a range unit it does not understand\", which answers with the whole representation, and one that supports ranges for the target resource and should send a `416 (Range Not Satisfiable)` where \"the range-unit is not supported for that target resource\". Both sentences have this request in scope, so the finding names neither outcome \u{2014} \u{a7}15.5.17\'s own note says clients \"cannot depend on receiving a 416 ... even when it is most appropriate\". Nothing makes the advertised list exhaustive, so this is not a violation either.\n\n**What this rule no longer reports.** A `Range` request following a 206 that carried no `Accept-Ranges` field: §14.3's \"regardless of having received an Accept-Ranges field\" permits it in as many words, and §14 makes range requests an OPTIONAL feature of HTTP altogether. Whether the advertised value is a well-formed list of range units belongs to `accept_ranges_values_valid`; whether the `Range` value is a well-formed ranges-specifier belongs to `range_header_syntax`. Where either value cannot be read as this rule needs it, it declines rather than reporting the field a second time — but a `Range` field that cannot be read is still a range request, and still takes the `none` advice.\n\n**What no rule can check.** §14.3 also says a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", and §15.3.7 that a client \"MUST inspect a 206 response's Content-Type and Content-Range field(s)\". Both are requirements on a conclusion the client drew; nothing on the wire distinguishes a client that assumed from one that did not, so this rule stops there rather than approximating them.\n\n**What it reads, and what that assumes.** The transaction immediately preceding this one from the same client for the same request URI, which is what \"the same request path\" is measured against; a later response supersedes what an earlier one advised, so only the most recent is read. `Accept-Ranges` is read from the trailer section as well as the header section, which §14.3 permits. Two assumptions come with that and are worth knowing before enabling this rule. *The same client* is an address and a `User-Agent` string, so several user agents behind one address that send the same `User-Agent` are one client here, and advice given to one of them is measured against another's request. And the rule's name is historical: nothing it checks depends on the previous response being a `206 Partial Content`, and after the corrections above it does not read the status code at all."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_14_3, RFC_9110_14_2, RFC_9110_14_1, RFC_9110_15_3_7]
+        &[
+            RFC_9110_14_3,
+            RFC_9110_14_2,
+            RFC_9110_14_1,
+            RFC_9110_15_3_7,
+            RFC_9110_15_5_17,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -204,17 +217,37 @@ impl Rule for AcceptRangesOnPartialContent {
 
             let unit = requested_unit(&tx.request.headers)?;
 
-            // What the mismatch costs, and all it costs: an origin server must
-            // ignore a `Range` field in a unit it does not understand, so the
-            // request is answered with the whole representation. That is the
-            // unnecessary transfer this field exists to prevent, and it is still
-            // advice -- nothing makes the advertised list exhaustive, and the
-            // sentence at the top of this function permits the request outright.
+            // What the mismatch costs, and all it costs: the request buys
+            // nothing. What it does NOT cost is any particular answer, and this
+            // sentence used to name one.
+            //
+            // § 14.2 describes two servers here, not one. An origin that does
+            // not understand the unit must ignore the field, and answers with
+            // the whole representation. An origin that supports ranges for this
+            // resource and simply does not support this unit for it is told to
+            // send a `416`, and `items=0-9` is a valid `ranges-specifier` --
+            // `range-unit` is a bare `token` and `0-9` is an `int-range` -- so
+            // that second sentence has this exact request in its scope. Reading
+            // only the first made the finding predict a 200, which the response
+            // in the very same record refutes wherever an origin took the
+            // second: the field was not ignored but converted into a failure.
+            //
+            // So the finding names neither outcome. § 15.5.17 says as much in
+            // its own note, and a client that cannot depend on the answer is a
+            // client that should not send the request -- which is the whole of
+            // the advice, and stronger than the prediction it replaces.
             //
             // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
+            // cite(RFC 9110 § 14.2): "If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier, and either the range-unit is not supported for that target resource or the ranges-specifier is unsatisfiable with respect to the selected representation, the server SHOULD send a 416 (Range Not Satisfiable) response."
+            // cite(RFC 9110 § 14.1.1): "ranges-specifier = range-unit "=" range-set"
+            // cite(RFC 9110 § 15.5.17): "Thus, clients cannot depend on receiving a 416 (Range Not Satisfiable) response even when it is most appropriate."
+            //
+            // It is still advice either way -- nothing makes the advertised list
+            // exhaustive, and the sentence at the top of this function permits
+            // the request outright.
             if !advertised.advertises(&unit) {
                 return Some(ctx.report_with(&ACCEPT_RANGES_IGNORED, format!(
-                        "Range asks in '{}', a unit the previous response for this resource did not advertise, so a server that does not understand it will ignore the field and send the whole representation (advice: nothing forbids it)",
+                        "Range asks in '{}', a unit the previous response for this resource did not advertise, so the request buys nothing: the answer is either the whole representation, from an origin that ignores a unit it does not understand, or a 416, from one that does not support this unit for this resource -- and RFC 9110 \u{a7}15.5.17 says a client cannot depend on which (advice: nothing forbids it)",
                         unit
                     )));
             }
@@ -351,6 +384,44 @@ mod tests {
     #[case::after_a_416(416)]
     fn a_response_that_advertised_nothing_is_not_advice(#[case] status: u16) {
         assert!(judge(Previously::AResponse(status, &[], &[]), RANGE).is_none());
+    }
+
+    /// The unadvertised-unit sentence promises no answer, because § 14.2
+    /// licenses two and § 15.5.17 says a client cannot depend on either.
+    ///
+    /// Asserted on the sentence itself rather than on a gate, because the
+    /// sentence *is* the claim here: the rule's behaviour is the same either
+    /// way, and what was wrong was a prediction an operator would act on. The
+    /// earlier wording said the field "will ignore the field and send the whole
+    /// representation", which an origin answering `416` to the very same
+    /// request refutes.
+    #[test]
+    fn an_unadvertised_unit_predicts_no_answer() {
+        let found = judge(
+            Previously::AResponse(200, &[("accept-ranges", b"bytes".as_slice())], &[]),
+            &[("range", b"items=0-9".as_slice())],
+        )
+        .expect("a unit the previous response did not advertise is advice");
+
+        // The value it is about.
+        assert!(found.message.contains("items"), "{}", found.message);
+        // Both outcomes named, and neither promised.
+        assert!(
+            found.message.contains("the whole representation"),
+            "{}",
+            found.message
+        );
+        assert!(found.message.contains("416"), "{}", found.message);
+        assert!(
+            found.message.contains("cannot depend on which"),
+            "{}",
+            found.message
+        );
+        assert!(
+            !found.message.contains("will ignore the field"),
+            "the sentence must not predict one of the two answers: {}",
+            found.message
+        );
     }
 
     /// § 14.3 permits the field in a trailer section, so advice given there is
