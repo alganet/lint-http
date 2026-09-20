@@ -411,13 +411,22 @@ defects! {
     /// would name the versions rather than the defect.
     ///
     /// **`_unsolicited` rather than `_forbidden`, and the sentences are the
-    /// reason.** Only the HTTP/1.0 one carries a keyword at all, and its MUST is
-    /// addressed to what a server does with a *field* rather than to the status
-    /// code; the other two state that a version does not support the code, which
-    /// is a definition withheld and not a prohibition. That is the test
-    /// `status_206_unsolicited` was written against and
+    /// reason.** Each of the two states that a version does not support the
+    /// code, which is a definition withheld and not a prohibition. That is the
+    /// test `status_206_unsolicited` was written against and
     /// `status_206_multipart_forbidden` fails: where a sentence prohibits the
-    /// message the entry is `_forbidden`, and here none does.
+    /// message the entry is `_forbidden`, and here neither does.
+    ///
+    /// **Two versions, and it used to be three.** The HTTP/1.0 arm was the one
+    /// that did not fit: § 7.8 carries a MUST, but addressed to what a server
+    /// does with a *field* rather than to the status code — so the ending
+    /// argued above was reached by leaving out § 15.2, which prohibits the
+    /// response itself for every member of the `1xx` class.
+    /// [`STATUS_1XX_FORBIDDEN`](STATUS_1XX_FORBIDDEN) is that MUST NOT, and it
+    /// reports the `101` now; `status_101_switching_protocols` declines an
+    /// HTTP/1.0 request rather than drawing a second, weaker finding on one
+    /// message with one repair. What is left here is the two arms the reasoning
+    /// was always right about.
     ///
     /// `warn`, with the rest of the subject. A `101` is an interim response, and
     /// a recipient of a 1xx it does not expect is entitled to read past it and
@@ -425,7 +434,6 @@ defects! {
     /// rather than stuck, which is the line the `upgrade_*` entries sit on the
     /// other side of.
     ///
-    // cite(RFC 9110 § 7.8): "A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field."
     // cite(RFC 9113 § 8.6): "HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
     // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
     STATUS_101_UNSOLICITED = {
@@ -433,7 +441,7 @@ defects! {
         title: "101 Switching Protocols is sent on a version with no upgrade mechanism",
         message: "",
         default_severity: Severity::Warn,
-        spec: &[RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5],
+        spec: &[RFC_9113_8_6, RFC_9114_4_5],
         strength: Strength::Unstated,
     }
 
@@ -1177,9 +1185,24 @@ defects! {
     /// A `1xx` answering an HTTP/1.0 request.
     ///
     /// **The id names the class because the sentence does.** § 15.2's MUST NOT
-    /// is about any 1xx, not about the one status the rule reading it happens
-    /// to check — HTTP/1.0 defined none of them, so a client on that version
-    /// cannot place any interim response at all.
+    /// is about any 1xx — HTTP/1.0 defined none of them, so a client on that
+    /// version cannot place any interim response at all.
+    ///
+    /// **And the reading is now the class's too.** This entry was reported from
+    /// inside `status_103_early_hints_before_final`, whose scope gate is the
+    /// status code `103`, so the sentence was applied to one member and a `100
+    /// (Continue)` answering an HTTP/1.0 request — the shape it most plainly
+    /// covers — drew nothing. `status_1xx_vs_request_version` is scoped to
+    /// `100..=199` and is the only rule that declares this entry.
+    ///
+    /// **The `101` is in it, and the entry beside it is why that had to be
+    /// decided rather than assumed.**
+    /// [`STATUS_101_UNSOLICITED`](STATUS_101_UNSOLICITED) covered that member on
+    /// § 7.8, which binds what a server does with an `Upgrade` *field* rather
+    /// than the status code — the reason that entry is `_unsolicited` and
+    /// claims no keyword. Two sentences, one sender, one repair: the response
+    /// is reported here, on the one that prohibits it, and that entry keeps the
+    /// two versions whose sections withhold a definition instead.
     ///
     /// Both digits decide it, not the major one: HTTP/1.1 is the version that
     /// has 1xx, so the minor digit is the whole gate.
@@ -1257,14 +1280,25 @@ mod tests {
         }
     }
 
-    /// One defect stated by three documents: the id names none of the versions,
-    /// because the same server sending the same response over any of them has
-    /// made one mistake and an operator silencing it silences one thing.
+    /// One defect stated by two documents: the id names neither version,
+    /// because the same server sending the same response over either of them
+    /// has made one mistake and an operator silencing it silences one thing.
+    ///
+    /// It was three, and § 7.8 left with the HTTP/1.0 arm. That arm's sentence
+    /// binds a server's handling of an `Upgrade` field rather than the status
+    /// code, so it was the one section here that could not support the entry's
+    /// `_unsolicited` ending on its own terms — and § 15.2 does prohibit that
+    /// response, which is `STATUS_1XX_FORBIDDEN` and is reported over the whole
+    /// `1xx` class. What is left is two sections that withhold a definition.
     #[test]
-    fn the_version_entry_names_three_sections_and_no_version() {
-        assert_eq!(
-            STATUS_101_UNSOLICITED.spec,
-            [RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5]
+    fn the_version_entry_names_two_sections_and_no_version() {
+        assert_eq!(STATUS_101_UNSOLICITED.spec, [RFC_9113_8_6, RFC_9114_4_5]);
+        assert!(
+            !STATUS_101_UNSOLICITED
+                .spec
+                .iter()
+                .any(|s| s.section == Some("7.8")),
+            "§ 7.8's arm is status_1xx_forbidden's, on § 15.2's MUST NOT",
         );
         for word in ["http", "1_0", "2", "3"] {
             assert!(

@@ -46,6 +46,16 @@
 // cite(RFC 8297 § 2): "A server MAY use a 103 (Early Hints) response to indicate only some of the header fields that are expected to be found in the final response."
 // cite(RFC 8297 § 2): "A server MAY emit multiple 103 (Early Hints) responses with additional header fields as new information becomes available while the request is being processed."
 //!
+//! **§ 15.2's MUST NOT is not made here.** "Since HTTP/1.0 did not define any
+//! 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0
+//! client" is a sentence about the class, and this rule is scoped to one member
+//! of it — so making the finding from here applied it to `103` alone and left a
+//! `100 (Continue)` to an HTTP/1.0 client, which is the shape the sentence most
+//! plainly covers, unreported. `status_1xx_vs_request_version` reads the class.
+//! The version is declined below rather than falling through to the finding
+//! this rule does make, because a response that may not be sent at all has one
+//! repair.
+//!
 //! And comparing a `103`'s fields against the final response's is declined at
 //! the source: the document says the repetition is typical and then says in the
 //! next breath that not repeating is legitimate.
@@ -54,14 +64,16 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::status::{
-    RFC_9110_15, RFC_9110_15_2, STATUS_103_AMBIGUOUS, STATUS_1XX_FORBIDDEN,
-};
+use crate::violations::status::{RFC_9110_15, RFC_9110_15_2, STATUS_103_AMBIGUOUS};
 use crate::violations::ViolationDef;
 
-/// Two entries: the interim response a version cannot place at all, and the
-/// interim response standing where the final one goes.
-static DECLARED: &[&ViolationDef] = &[&STATUS_1XX_FORBIDDEN, &STATUS_103_AMBIGUOUS];
+/// One entry: the interim response standing where the final one goes.
+///
+/// `status_1xx_forbidden` was declared here too, and reported from inside this
+/// rule's gate on `103`. Its sentence is about the whole `1xx` class, so a
+/// reading scoped to one status could only ever apply it to one member.
+/// `status_1xx_vs_request_version` is scoped to the class and owns it now.
+static DECLARED: &[&ViolationDef] = &[&STATUS_103_AMBIGUOUS];
 
 /// Report a `103 (Early Hints)` recorded as a request's response.
 pub struct Status103EarlyHintsBeforeFinal;
@@ -93,7 +105,7 @@ impl RuleMeta for Status103EarlyHintsBeforeFinal {
     }
 
     fn description(&self) -> &'static str {
-        "A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single request zero or more interim responses \"followed by exactly one final response\", and RFC 8297 §2 defines the status as telling the client that a final response is still likely to come. This rule reports a capture in which the response recorded for a request **is** the `103` — an exchange whose final response is not in the capture, or an interim response that some recipient took for the final one (RFC 8297 §3 describes exactly that mishandling). It also reports a `103` answering an HTTP/1.0 request, which RFC 9110 §15.2 makes a MUST NOT because HTTP/1.0 defined no `1xx` status codes at all.\n\n**What this rule does not report, and why.** A conforming `103` followed by a final response is not a defect and is not visible either: a transaction in this capture format has one response field, so a `103` and the final response for the same request are never both recorded. The check this rule used to make — a `103` for a client and target whose *previous* transaction had ended in a final response — was therefore not about RFC 9110 §15's requirement at all. Two transactions are two requests, and a repeat request to a URI answered with a `103` is the document's ordinary case; that finding is retired.\n\n**RFC 8297 states no requirement on a server.** Its three BCP 14 requirements — two MUST NOTs and a SHOULD NOT — are addressed to the client and concern what it does with the fields, which no captured message states. Its two server sentences are MAYs: a `103` may carry only some of the fields expected in the final response, and a server may emit several of them. Comparing a `103`'s fields against a final response's is declined at the source, since §2 calls the repetition typical and then names cases where omitting it is right.\n\n**Where a `103` in a capture comes from.** On the HTTP/1.x and HTTP/2 upstream legs this proxy discards interim responses before recording anything — hyper's HTTP/1.x client skips `100` and `102..=199` outright, and its HTTP/2 client reads `h2`'s main response, which steps over interim headers. The HTTP/3 leg does not: `h3`'s `recv_response` returns the first HEADERS frame whatever its status, so a `103` from an HTTP/3 origin becomes the recorded response. That leg and `lint-captures` over capture files written elsewhere are where this rule's findings live."
+        "A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single request zero or more interim responses \"followed by exactly one final response\", and RFC 8297 §2 defines the status as telling the client that a final response is still likely to come. This rule reports a capture in which the response recorded for a request **is** the `103` — an exchange whose final response is not in the capture, or an interim response that some recipient took for the final one (RFC 8297 §3 describes exactly that mishandling). \n\n**A `103` answering an HTTP/1.0 request is not reported here.** RFC 9110 §15.2 makes it a MUST NOT — HTTP/1.0 defined no `1xx` status codes at all — and that sentence is about the whole class rather than about this status code, so applying it from a rule scoped to `103` left every other member of the class unreported. `status_1xx_vs_request_version` reads the class and makes that finding. This rule declines the version rather than adding a second finding beside it: a response that may not be sent under any circumstances has one repair, and the ambiguity below is a consequence of the message existing rather than a second thing to fix.\n\n**What this rule does not report, and why.** A conforming `103` followed by a final response is not a defect and is not visible either: a transaction in this capture format has one response field, so a `103` and the final response for the same request are never both recorded. The check this rule used to make — a `103` for a client and target whose *previous* transaction had ended in a final response — was therefore not about RFC 9110 §15's requirement at all. Two transactions are two requests, and a repeat request to a URI answered with a `103` is the document's ordinary case; that finding is retired.\n\n**RFC 8297 states no requirement on a server.** Its three BCP 14 requirements — two MUST NOTs and a SHOULD NOT — are addressed to the client and concern what it does with the fields, which no captured message states. Its two server sentences are MAYs: a `103` may carry only some of the fields expected in the final response, and a server may emit several of them. Comparing a `103`'s fields against a final response's is declined at the source, since §2 calls the repetition typical and then names cases where omitting it is right.\n\n**Where a `103` in a capture comes from.** On the HTTP/1.x and HTTP/2 upstream legs this proxy discards interim responses before recording anything — hyper's HTTP/1.x client skips `100` and `102..=199` outright, and its HTTP/2 client reads `h2`'s main response, which steps over interim headers. The HTTP/3 leg does not: `h3`'s `recv_response` returns the first HEADERS frame whatever its status, so a `103` from an HTTP/3 origin becomes the recorded response. That leg and `lint-captures` over capture files written elsewhere are where this rule's findings live."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -126,8 +138,10 @@ impl RuleMeta for Status103EarlyHintsBeforeFinal {
                 snippet: "> GET /resource HTTP/1.1\n\n< 103 Early Hints\n< Link: </static/style.css>; rel=preload; as=style",
             },
             Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— HTTP/1.0 defined no 1xx status codes, so this one may not be sent at all"),
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "— as far as this rule is concerned: HTTP/1.0 defined no 1xx status codes, and `status_1xx_vs_request_version` reports the response on §15.2's MUST NOT rather than this rule reporting the ambiguity beside it",
+                ),
                 snippet: "> GET /resource HTTP/1.0\n\n< 103 Early Hints\n< Link: </static/style.css>; rel=preload; as=style",
             },
         ]
@@ -164,28 +178,31 @@ impl Rule for Status103EarlyHintsBeforeFinal {
                 return None;
             }
 
-            // ── The HTTP/1.0 client ──
-            // Reported first because it is the narrower fact and the only sentence
-            // in reach that is a MUST NOT on the sender. Both digits, not the major
-            // one: HTTP/1.1 is the version that has 1xx, so the minor digit is the
-            // whole gate. RFC 8297 § 3 spends its Security Considerations on what
-            // goes wrong when a client cannot place an informational response, and
-            // it worries about HTTP/1.1 clients — RFC 9110 turns the same concern
-            // into a requirement one version down, where the client cannot have
-            // learned about 1xx at all.
+            // ── The HTTP/1.0 client, declined ──
+            // The narrower fact wins, and it is no longer this rule's to state.
+            // § 15.2's MUST NOT is about any `1xx`, so making it from a rule
+            // gated on `103` applied it to one member of the class and left the
+            // rest — a `100 (Continue)` above all — unreported.
+            // `status_1xx_vs_request_version` is scoped to the class and makes
+            // that finding for every member of it.
+            //
+            // The version is declined here rather than falling through to the
+            // finding below, which is the behaviour the report had: a response
+            // that may not be sent under any circumstances has one repair, and
+            // "either the final response never arrived, or the interim one was
+            // taken for it" describes a consequence of the message existing
+            // rather than a second thing to fix. RFC 8297 § 3 spends its
+            // Security Considerations on what goes wrong when a client cannot
+            // place an informational response, and it worries about HTTP/1.1
+            // clients — RFC 9110 turns the same concern into a requirement one
+            // version down, where the client cannot have learned about `1xx` at
+            // all, and that is the sentence the other rule cites.
             // cite(RFC 9110 § 15.2): "Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client."
             if matches!(
                 crate::http_version::parse(&tx.request.version),
                 Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
             ) {
-                return Some(
-                    ctx.report_with(
-                        &STATUS_1XX_FORBIDDEN,
-                        "103 (Early Hints) answering an HTTP/1.0 request: HTTP/1.0 defined no \
-                              1xx status codes, so a server must not send one to that client"
-                            .into(),
-                    ),
-                );
+                return None;
             }
 
             // ── The interim response standing where the final one goes ──
@@ -239,25 +256,30 @@ mod tests {
         tx
     }
 
-    /// The two entries, and which sentence each rests on: the class a version
-    /// cannot place at all, and the interim response standing where the one
-    /// final response goes.
-    ///
-    /// The levels differ for the same reason the ids do. § 15.2 prohibits a
-    /// server from sending any `1xx` to an HTTP/1.0 client in as many words;
-    /// nothing prohibits a `103` and the second entry says so by ending in
-    /// `_ambiguous`.
-    #[rstest]
-    #[case::http_1_0("HTTP/1.0", "status_1xx_forbidden", crate::lint::Severity::Error)]
-    #[case::in_the_final_slot("HTTP/1.1", "status_103_ambiguous", crate::lint::Severity::Warn)]
-    fn each_finding_names_its_entry(
-        #[case] version: &str,
-        #[case] id: &str,
-        #[case] severity: crate::lint::Severity,
-    ) {
-        let found = run(&tx_with(103, version)).expect("a finding");
-        assert_eq!(found.violation, id);
-        assert_eq!(found.severity, severity);
+    /// The one entry left, and the sentence it rests on: the interim response
+    /// standing where the one final response goes. Nothing prohibits a `103`,
+    /// which is what the id's `_ambiguous` ending says.
+    #[test]
+    fn the_finding_names_its_entry() {
+        let found = run(&tx_with(103, "HTTP/1.1")).expect("a finding");
+        assert_eq!(found.violation, "status_103_ambiguous");
+        assert_eq!(found.severity, crate::lint::Severity::Warn);
+    }
+
+    /// The surrender, asserted from this side. `status_1xx_forbidden` is
+    /// `status_1xx_vs_request_version`'s to report, over the whole class, and
+    /// this rule says nothing at all about an HTTP/1.0 exchange — neither the
+    /// entry it gave up nor the one it kept.
+    #[test]
+    fn an_http_1_0_request_is_declined_rather_than_answered() {
+        assert!(run(&tx_with(103, "HTTP/1.0")).is_none());
+        assert!(
+            !Status103EarlyHintsBeforeFinal
+                .violations()
+                .iter()
+                .any(|v| v.id == "status_1xx_forbidden"),
+            "the entry is declared by the rule scoped to the class",
+        );
     }
 
     #[test]
@@ -283,17 +305,6 @@ mod tests {
     #[case("HTTP/3.0")]
     fn a_103_is_reported_on_every_version_that_has_1xx(#[case] version: &str) {
         assert!(run(&tx_with(103, version)).is_some());
-    }
-
-    #[test]
-    fn a_103_answering_http_1_0_names_the_must_not() {
-        let v = run(&tx_with(103, "HTTP/1.0")).expect("RFC 9110 § 15.2's MUST NOT");
-        assert!(v.message.contains("HTTP/1.0"));
-        assert!(v.message.contains("1xx"));
-        // The narrower fact wins: reporting this one as "the final response
-        // never arrived" would name the wrong sentence for a response that may
-        // not be sent under any circumstances.
-        assert!(!v.message.contains("interim"));
     }
 
     /// The retired finding. Two transactions are two requests, and a repeat
@@ -331,10 +342,8 @@ mod tests {
     }
 
     /// This rule's id names one status, and the others are not its business.
-    /// `101` has an owner (`status_101_switching_protocols`, which reports one
-    /// answering an HTTP/1.0 request via RFC 9110 § 7.8's Upgrade sentence
-    /// rather than via § 15.2's MUST NOT above). `100` and `102` have none —
-    /// that is a gap, not something to answer from here.
+    /// Every member of the class answering an HTTP/1.0 request now has an owner
+    /// — `status_1xx_vs_request_version` — which is the gap this used to record.
     #[rstest]
     #[case(100)]
     #[case(101)]
@@ -344,8 +353,9 @@ mod tests {
     }
 
     /// A malformed version is not an HTTP/1.0 one, and must not silence the
-    /// § 15 finding — `parse` failing is `http_version_syntax`'s
-    /// report to make, not a reason for this rule to say nothing.
+    /// § 15 finding — `parse` failing is `http_version_syntax`'s report to
+    /// make, and the decline above turns on a version that parses as HTTP/1.0
+    /// rather than on one that fails to parse.
     #[rstest]
     #[case("HTTP/1.0.0")]
     #[case("http/1.0")]
@@ -391,8 +401,8 @@ mod tests {
             reported_count += usize::from(reported);
         }
         assert_eq!(
-            reported_count, 2,
-            "both NonCompliant examples must actually produce a finding"
+            reported_count, 1,
+            "the one NonCompliant example must actually produce a finding"
         );
     }
 

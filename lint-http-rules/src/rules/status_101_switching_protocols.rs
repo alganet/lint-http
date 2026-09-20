@@ -19,7 +19,10 @@ use crate::violations::ViolationDef;
 /// chosen protocol, and that protocol MUST have been offered by the client.
 ///
 /// Additionally:
-/// - HTTP/1.0 does not support the Upgrade mechanism (RFC 9110 §7.8).
+/// - HTTP/1.0 is declined: it does not support the Upgrade mechanism (RFC 9110
+///   §7.8), but RFC 9110 §15.2 prohibits the *response* outright — "a server
+///   MUST NOT send a 1xx response to an HTTP/1.0 client" — and
+///   `status_1xx_vs_request_version` makes that finding for the whole class.
 /// - HTTP/2 forbids 101 entirely (RFC 9113 §8.6).
 /// - HTTP/3 forbids 101 (RFC 9114 §4.5).
 /// - After a successful 101 exchange on a connection, no further HTTP messages
@@ -55,7 +58,7 @@ impl RuleMeta for Status101SwitchingProtocols {
     }
 
     fn description(&self) -> &'static str {
-        "Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:\n\n- The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.\n- The 101 itself must name what it switched to: RFC 9110 \u{a7} 15.2.2 requires an `Upgrade` header field in the response, and the requirement holds whatever the request said.\n- The protocol chosen in the response `Upgrade` header must match one offered by the client.\n- 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.\n- After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol.\n\n**The client's obligation and the server's are reported separately.** They are written for different senders and neither is a measurement the other needs, so a 101 that answers a request carrying no `Upgrade` *and* names no protocol of its own draws both findings rather than the first one alone."
+        "Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:\n\n- The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.\n- The 101 itself must name what it switched to: RFC 9110 \u{a7} 15.2.2 requires an `Upgrade` header field in the response, and the requirement holds whatever the request said.\n- The protocol chosen in the response `Upgrade` header must match one offered by the client.\n- 101 must not be sent over HTTP/2 or HTTP/3, where the Upgrade mechanism is not supported. **An HTTP/1.0 request is declined rather than reported.** RFC 9110 \u{a7}7.8 binds what a server does with an `Upgrade` *field* — which is why this rule's entry is `status_101_unsolicited` and claims no keyword — while RFC 9110 \u{a7}15.2 prohibits the response itself: \"a server MUST NOT send a 1xx response to an HTTP/1.0 client\". `status_1xx_vs_request_version` makes that stronger finding, over every member of the class, so an HTTP/1.0 exchange draws one finding rather than two with one repair between them. The `Upgrade` obligations below are declined for the same exchange, since they presuppose a version that has the mechanism.\n- After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol.\n\n**The client's obligation and the server's are reported separately.** They are written for different senders and neither is a measurement the other needs, so a 101 that answers a request carrying no `Upgrade` *and* names no protocol of its own draws both findings rather than the first one alone."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -157,15 +160,11 @@ impl Rule for Status101SwitchingProtocols {
                 // finding of it carries no citation and the version is what decides
                 // which sentence it broke. The quotes are on the entry.
                 //
-                // HTTP/1.0 needs both digits, and it is the only one here that does:
-                // HTTP/1.1 is the version that *does* support Upgrade, so the minor
-                // digit is the whole difference. A 101 over HTTP/1.0 is reported
-                // whether or not the request carried an `Upgrade` — the sentence
-                // covers the field being present, and a 101 with no request field at
-                // all is illegitimate a fortiori, since a 101 presupposes an
-                // exchange HTTP/1.0 cannot have had.
+                // Two versions reach a report here, not three: HTTP/1.0 is
+                // declined just below, for a reason that is about which sentence
+                // names the defect rather than about whether there is one.
                 //
-                // The other two read the major digit only. Two spellings of HTTP/2
+                // Both of these read the major digit only. Two spellings of HTTP/2
                 // were once listed here because the value is one a writer chose —
                 // this version carries no version field of its own — and neither
                 // enumerating them nor guessing which arrives is the question.
@@ -175,14 +174,29 @@ impl Rule for Status101SwitchingProtocols {
                 // code's own side, behind a narrower gate that also required the
                 // response to be HTTP/3; every finding it could make was one of
                 // these, so it was deleted rather than declared beside this one.
+                // HTTP/1.0 is declined, and it is the one of the three that
+                // another sentence prohibits outright. § 7.8 binds what a server
+                // does with an `Upgrade` *field*, which is why this entry ends in
+                // `_unsolicited` and claims no keyword; § 15.2 binds the status
+                // code — "a server MUST NOT send a 1xx response to an HTTP/1.0
+                // client" — and `status_1xx_forbidden` is that MUST NOT, reported
+                // over the whole class by `status_1xx_vs_request_version`. One
+                // response, one repair, so the stronger and more precise claim is
+                // the only one made; reporting from here as well would be two
+                // findings a recipient could act on only once.
+                //
+                // The decline keeps the short-circuit the report had. The two
+                // `Upgrade` obligations below presuppose a version that has the
+                // mechanism, so asking them of an HTTP/1.0 exchange would report
+                // a request for not offering a protocol on a version whose
+                // server is required to ignore the field it would have offered
+                // it in.
+                // cite(RFC 9110 § 15.2): "Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client."
                 if matches!(
                     crate::http_version::parse(&tx.request.version),
                     Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
                 ) {
-                    let message = "101 Switching Protocols must not be sent in response to an \
-                     HTTP/1.0 request; a server that receives an Upgrade field in an HTTP/1.0 \
-                     request must ignore it (RFC 9110 §7.8)";
-                    return vec![ctx.report_with(&STATUS_101_UNSOLICITED, message.into())];
+                    return Vec::new();
                 }
 
                 if crate::http_version::is_major(&tx.request.version, 2) {
@@ -582,18 +596,24 @@ mod tests {
         assert!(v.message.contains("was not offered by the client"));
     }
 
-    // ── Violation: HTTP/1.0 ──
+    // ── Declined: HTTP/1.0 ──
 
+    /// The version this rule surrendered. § 15.2 prohibits the response
+    /// outright and `status_1xx_vs_request_version` reports it over the whole
+    /// class, so nothing is said from here — not the version entry, and not the
+    /// two `Upgrade` obligations, which presuppose a mechanism this version
+    /// does not have. Both directions are asserted: the conforming handshake
+    /// and the one that would otherwise draw both sides' findings.
     #[rstest]
-    fn http10_101_forbidden() {
-        let tx = make_upgrade_tx(
-            "HTTP/1.0",
-            &[("upgrade", "websocket")],
-            101,
-            &[("upgrade", "websocket")],
-        );
+    #[case(&[("upgrade", "websocket")][..], &[("upgrade", "websocket")][..])]
+    #[case(&[][..], &[][..])]
+    fn an_http_1_0_exchange_is_declined(
+        #[case] req: &[(&str, &str)],
+        #[case] resp: &[(&str, &str)],
+    ) {
+        let tx = make_upgrade_tx("HTTP/1.0", req, 101, resp);
         let rule = Status101SwitchingProtocols;
-        let v = crate::test_helpers::run_rule(
+        assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -601,8 +621,7 @@ mod tests {
                 "status_101_switching_protocols",
             ]),
         )
-        .unwrap();
-        assert!(v.message.contains("HTTP/1.0"));
+        .is_none());
     }
 
     // ── Violation: HTTP/2 ──

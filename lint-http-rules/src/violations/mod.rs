@@ -1442,7 +1442,6 @@ mod tests {
         "oauth2_state_conflicting",
         "preference_applied_unsolicited",
         "referer_empty",
-        "status_101_unsolicited",
         "status_301_ambiguous",
         "status_302_ambiguous",
         "status_401_ignored",

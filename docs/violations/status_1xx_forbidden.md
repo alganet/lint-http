@@ -31,4 +31,4 @@ severity = "error"
 
 ## Reported By
 
-- [status_103_early_hints_before_final](../rules/status_103_early_hints_before_final.md)
+- [status_1xx_vs_request_version](../rules/status_1xx_vs_request_version.md)

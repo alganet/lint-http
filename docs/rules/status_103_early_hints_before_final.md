@@ -8,7 +8,9 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single request zero or more interim responses "followed by exactly one final response", and RFC 8297 §2 defines the status as telling the client that a final response is still likely to come. This rule reports a capture in which the response recorded for a request **is** the `103` — an exchange whose final response is not in the capture, or an interim response that some recipient took for the final one (RFC 8297 §3 describes exactly that mishandling). It also reports a `103` answering an HTTP/1.0 request, which RFC 9110 §15.2 makes a MUST NOT because HTTP/1.0 defined no `1xx` status codes at all.
+A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single request zero or more interim responses "followed by exactly one final response", and RFC 8297 §2 defines the status as telling the client that a final response is still likely to come. This rule reports a capture in which the response recorded for a request **is** the `103` — an exchange whose final response is not in the capture, or an interim response that some recipient took for the final one (RFC 8297 §3 describes exactly that mishandling). 
+
+**A `103` answering an HTTP/1.0 request is not reported here.** RFC 9110 §15.2 makes it a MUST NOT — HTTP/1.0 defined no `1xx` status codes at all — and that sentence is about the whole class rather than about this status code, so applying it from a rule scoped to `103` left every other member of the class unreported. `status_1xx_vs_request_version` reads the class and makes that finding. This rule declines the version rather than adding a second finding beside it: a response that may not be sent under any circumstances has one repair, and the ambiguity below is a consequence of the message existing rather than a second thing to fix.
 
 **What this rule does not report, and why.** A conforming `103` followed by a final response is not a defect and is not visible either: a transaction in this capture format has one response field, so a `103` and the final response for the same request are never both recorded. The check this rule used to make — a `103` for a client and target whose *previous* transaction had ended in a final response — was therefore not about RFC 9110 §15's requirement at all. Two transactions are two requests, and a repeat request to a URI answered with a `103` is the document's ordinary case; that finding is retired.
 
@@ -19,7 +21,6 @@ A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single reques
 ## Violations
 
 - [status_103_ambiguous](../violations/status_103_ambiguous.md) — A 103 stands where the one final response should be
-- [status_1xx_forbidden](../violations/status_1xx_forbidden.md) — An interim response answers a client whose version has none
 
 ## Specifications
 
@@ -56,7 +57,7 @@ enabled = true
 < Link: </static/style.css>; rel=preload; as=style
 ```
 
-### ❌ Bad — HTTP/1.0 defined no 1xx status codes, so this one may not be sent at all
+### ✅ Good — as far as this rule is concerned: HTTP/1.0 defined no 1xx status codes, and `status_1xx_vs_request_version` reports the response on §15.2's MUST NOT rather than this rule reporting the ambiguity beside it
 
 ```http
 > GET /resource HTTP/1.0

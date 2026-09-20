@@ -800,6 +800,9 @@ enabled = true
 [rules.status_103_early_hints_before_final]
 enabled = true
 
+[rules.status_1xx_vs_request_version]
+enabled = true
+
 [rules.status_200_vs_204_body_consistent]
 enabled = true
 
