@@ -119,7 +119,11 @@ impl Rule for AcceptEncodingPresent {
             //
             // Advising a client to negotiate content codings for a tunnel is noise,
             // and on a proxy it is noise on every CONNECT that passes through.
-            if tx.request.method.eq_ignore_ascii_case("CONNECT") {
+            // Compared exactly: the method token is case-sensitive, so `Connect`
+            // names no method and asks for no tunnel, and a decline written to
+            // CONNECT's semantics is not one it has earned.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method == "CONNECT" {
                 return None;
             }
 
@@ -331,6 +335,19 @@ mod tests {
         let mut tx = req(&headers);
         tx.request.method = "CONNECT".into();
         assert!(run(&tx).is_none(), "{headers:?}");
+    }
+
+    /// And the exemption belongs to the method token, not to its spelling. The
+    /// token is case-sensitive, so `Connect` asks for no tunnel and has no
+    /// claim on the silence CONNECT earns.
+    #[rstest]
+    #[case("Connect")]
+    #[case("connect")]
+    #[case("CONNECt")]
+    fn a_method_spelled_in_another_case_is_not_connect(#[case] method: &str) {
+        let mut tx = req(&[]);
+        tx.request.method = method.into();
+        assert!(run(&tx).is_some(), "{method}");
     }
 
     /// And the exemption is the method's, not a general one.

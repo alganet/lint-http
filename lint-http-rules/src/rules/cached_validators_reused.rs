@@ -88,8 +88,13 @@ impl Rule for CachedValidatorsReused {
             // SHOULD is written "when making a GET request". On other methods a validator
             // is carried by If-Match / If-Unmodified-Since instead, so a POST/PUT that
             // omits If-None-Match is not the omission this rule is about.
-            let method = tx.request.method.to_ascii_uppercase();
-            if method != "GET" && method != "HEAD" {
+            //
+            // Read as written rather than folded to upper case: the method
+            // token is case-sensitive, so `Get` is not a GET request and the
+            // SHOULD § 13.1.2 writes "when making a GET request" is not
+            // addressed to whoever sent it.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if !matches!(tx.request.method.as_str(), "GET" | "HEAD") {
                 return None;
             }
 
@@ -588,6 +593,46 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(violation.is_none(), "POST re-request must not be flagged");
+        Ok(())
+    }
+
+    /// The scope is the GET and HEAD methods, and the method token is
+    /// case-sensitive, so `Get` is outside it. The value was folded to upper
+    /// case before the comparison, which put a request nobody defined inside a
+    /// SHOULD § 13.1.2 writes "when making a GET request".
+    #[rstest]
+    #[case("Get")]
+    #[case("get")]
+    #[case("Head")]
+    fn a_method_spelled_in_another_case_is_out_of_scope(
+        #[case] method: &str,
+    ) -> anyhow::Result<()> {
+        let rule = CachedValidatorsReused;
+        let store = StateStore::new(300, 10);
+        let client = make_client();
+        let resource = "http://example.com/api/data";
+
+        let mut prev = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("etag", "\"abc123\"")],
+        );
+        prev.client = client.clone();
+        prev.request.uri = resource.to_string();
+        store.record_transaction(&prev);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+        tx.request.method = method.to_string();
+
+        let history = crate::queries::by_resource::by_resource(&store, &client, resource);
+        let violation = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(violation.is_none(), "{method} is not a GET request");
         Ok(())
     }
 

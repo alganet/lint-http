@@ -87,7 +87,11 @@ enum Clock {
 fn dates_the_resource(method: &str, status: u16) -> bool {
     // cite(RFC 9110 § 15.3.1): "The content sent in a 200 response depends on the request method."
     // cite(RFC 9111 § 4.3.5): "A response to the HEAD method is identical to what an equivalent request made with a GET would have been, without sending the content."
-    if !method.eq_ignore_ascii_case("GET") && !method.eq_ignore_ascii_case("HEAD") {
+    // Compared exactly, because the method token is case-sensitive: `Get` names
+    // no method, so neither of the two sentences above is about it and nothing
+    // says its response dates the resource.
+    // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+    if !matches!(method, "GET" | "HEAD") {
         return false;
     }
     // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
@@ -382,6 +386,7 @@ static REGISTRATION: &dyn crate::rules::Rule = &CacheCoherence;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     fn make_resp_tx(
         uri: &str,
@@ -877,6 +882,36 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = crate::test_helpers::run_rule(&rule, &curr, &history, &cfg);
         assert_eq!(v.unwrap().violation, "cache_response_conflicting");
+    }
+
+    /// And that exception is HEAD's, not that of anything spelled like it. The
+    /// method token is case-sensitive, so `Head` names no method, nothing says
+    /// its response answers as the GET would have, and it does not join the
+    /// resource's timeline — the same reading as the `OPTIONS` above.
+    #[rstest]
+    #[case("Head")]
+    #[case("head")]
+    #[case("Get")]
+    fn a_method_spelled_in_another_case_is_on_no_resource_timeline(#[case] method: &str) {
+        let rule = CacheCoherence;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let prev = make_method_tx(
+            method,
+            "https://example.com/foo",
+            200,
+            &[("last-modified", "Sun, 30 Aug 2026 01:36:09 GMT")],
+        );
+        let mut curr = make_resp_tx(
+            "https://example.com/foo",
+            200,
+            &[("last-modified", "Sun, 30 Aug 2026 01:35:43 GMT")],
+        );
+        curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        assert!(
+            crate::test_helpers::run_rule(&rule, &curr, &history, &cfg).is_none(),
+            "{method} dates no resource"
+        );
     }
 
     /// A page served under `Vary: Accept-Encoding` is stored once per encoding.

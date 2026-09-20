@@ -5942,7 +5942,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 236
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 138
+      line: 142
     - file: lint-http-rules/src/violations/accept_encoding.rs
       line: 78
   - label: accept_encoding_parameter_valid (5)
@@ -5972,7 +5972,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 122
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 130
+      line: 134
   - label: accept_encoding_parameter_valid (9)
     section: § 12.5.3
     snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
@@ -5992,13 +5992,13 @@ sources:
     snippet: 'Accept-Encoding = #( codings [ weight ] )'
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 132
+      line: 136
   - label: accept_encoding_present (2)
     section: § 12.5.3
     snippet: If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 131
+      line: 135
     - file: lint-http-rules/src/violations/accept_encoding.rs
       line: 56
   - label: accept_encoding_present (3)
@@ -6006,8 +6006,82 @@ sources:
     snippet: If the representation has no content coding, then it is acceptable by default unless specifically excluded by the Accept-Encoding header field stating either "identity;q=0" or "*;q=0" without a more specific entry for "identity".
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 179
+      line: 183
   - label: accept_encoding_present (4)
+    section: § 9.1
+    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 125
+    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
+      line: 265
+    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
+      line: 429
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 93
+    - file: lint-http-rules/src/rules/cached_validators_reused.rs
+      line: 96
+    - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
+      line: 237
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 97
+    - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
+      line: 122
+    - file: lint-http-rules/src/rules/content_type_present.rs
+      line: 139
+    - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
+      line: 257
+    - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
+      line: 283
+    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
+      line: 92
+    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
+      line: 300
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 446
+    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
+      line: 357
+    - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
+      line: 405
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 280
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 427
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 249
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 361
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 213
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
+      line: 148
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
+      line: 113
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 234
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 308
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 347
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 161
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 170
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 226
+    - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
+      line: 174
+    - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
+      line: 206
+    - file: lint-http-rules/src/rules/status_405_allow_valid.rs
+      line: 57
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 174
+    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
+      line: 328
+    - file: lint-http-rules/src/violations/method.rs
+      line: 561
+  - label: accept_encoding_present (5)
     section: § 9.3.6
     snippet: Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target.
     cited_by:
@@ -6015,7 +6089,7 @@ sources:
       line: 118
     - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
       line: 131
-  - label: accept_encoding_present (5)
+  - label: accept_encoding_present (6)
     section: § 9.3.6
     snippet: The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed.
     cited_by:
@@ -6134,62 +6208,6 @@ sources:
     - file: lint-http-rules/src/violations/list.rs
       line: 101
   - label: accept_patch_header_valid (6)
-    section: § 9.1
-    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
-    cited_by:
-    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 265
-    - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 429
-    - file: lint-http-rules/src/rules/connect_response_framing_valid.rs
-      line: 122
-    - file: lint-http-rules/src/rules/cors_request_header_syntax.rs
-      line: 257
-    - file: lint-http-rules/src/rules/cors_response_header_syntax.rs
-      line: 283
-    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 92
-    - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
-      line: 300
-    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 446
-    - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
-      line: 357
-    - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 405
-    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 280
-    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 427
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 249
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 361
-    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
-      line: 213
-    - file: lint-http-rules/src/rules/patch_partial_update.rs
-      line: 148
-    - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 113
-    - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 234
-    - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 308
-    - file: lint-http-rules/src/rules/request_target_form_valid.rs
-      line: 347
-    - file: lint-http-rules/src/rules/request_version_method_valid.rs
-      line: 161
-    - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
-      line: 174
-    - file: lint-http-rules/src/rules/status_3xx_vs_request_method.rs
-      line: 206
-    - file: lint-http-rules/src/rules/status_405_allow_valid.rs
-      line: 57
-    - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 174
-    - file: lint-http-rules/src/violations/method.rs
-      line: 561
-  - label: accept_patch_header_valid (7)
     section: § 9.3.7
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
     cited_by:
@@ -6274,7 +6292,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 134
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 93
+      line: 97
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 191
     - file: lint-http-rules/src/rules/status_206_required_fields.rs
@@ -6544,19 +6562,19 @@ sources:
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 94
+      line: 98
   - label: cache_coherence (3)
     section: § 15.5
     snippet: Except when responding to a HEAD request, the server SHOULD send a representation containing an explanation of the error situation, and whether it is a temporary or permanent condition.
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 95
+      line: 99
   - label: cache_coherence (4)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 296
+      line: 300
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
       line: 198
   - label: cache_coherence (5)
@@ -6564,7 +6582,7 @@ sources:
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 283
+      line: 287
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 59
   - label: cache_control_directive_valid
@@ -6586,13 +6604,13 @@ sources:
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 185
+      line: 190
   - label: cached_validators_reused (2)
     section: § 13.1.3
     snippet: 'If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag'
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 186
+      line: 191
   - label: challenge
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
@@ -6758,7 +6776,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 187
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 404
+      line: 408
   - label: conditional_headers_consistent
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -6782,9 +6800,9 @@ sources:
     snippet: A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 361
+      line: 365
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 225
+      line: 229
     - file: lint-http-rules/src/violations/conditional.rs
       line: 90
   - label: conditional_headers_consistent (4)
@@ -6798,7 +6816,7 @@ sources:
     snippet: A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 256
+      line: 260
     - file: lint-http-rules/src/violations/if_range.rs
       line: 81
   - label: conditional_headers_consistent (6)
@@ -6806,7 +6824,7 @@ sources:
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 373
+      line: 377
     - file: lint-http-rules/src/rules/status_206_required_fields.rs
       line: 65
     - file: lint-http-rules/src/violations/if_range.rs
@@ -6816,7 +6834,7 @@ sources:
     snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 271
+      line: 275
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 306
   - label: If-Range grammar
@@ -6824,7 +6842,7 @@ sources:
     snippet: If-Range = entity-tag / HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 270
+      line: 274
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 62
     - file: lint-http-rules/src/violations/if_range.rs
@@ -6834,19 +6852,19 @@ sources:
     snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match (Section 8.8.3.2), since the client intends this precondition to prevent the method from being applied if there have been any changes to the representation data.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 193
+      line: 197
   - label: conditional_request_handling (2)
     section: § 13.1.1
     snippet: If the field value is a list of entity tags, the condition is true if any of the listed tags match the entity tag of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 192
+      line: 196
   - label: conditional_request_handling (3)
     section: § 13.1.2
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 497
+      line: 501
     - file: lint-http-rules/src/violations/status.rs
       line: 784
   - label: conditional_request_handling (4)
@@ -6854,15 +6872,15 @@ sources:
     snippet: If the field value is "*", the condition is false if the origin server has a current representation for the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 246
+      line: 250
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 498
+      line: 502
   - label: conditional_request_handling (5)
     section: § 13.1.2
     snippet: If the field value is a list of entity tags, the condition is false if one of the listed tags matches the entity tag of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 247
+      line: 251
   - label: conditional_request_handling (6)
     section: § 13.1.2
     snippet: the 304 (Not Modified) status code if the request method is GET or HEAD
@@ -6874,43 +6892,43 @@ sources:
     snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 552
+      line: 556
   - label: conditional_request_handling (8)
     section: § 13.1.4
     snippet: A recipient MUST ignore the If-Unmodified-Since header field if the resource does not have a modification date available.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 226
+      line: 230
   - label: conditional_request_handling (9)
     section: § 13.1.4
     snippet: If the selected representation's last modification date is earlier than or equal to the date provided in the field value, the condition is true.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 227
+      line: 231
   - label: conditional_request_handling (10)
     section: § 13.2.1
     snippet: Likewise, a server MUST ignore the conditional request header fields defined by this specification when received with a request method that does not involve the selection or modification of a selected representation, such as CONNECT, OPTIONS, or TRACE.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 101
+      line: 106
   - label: conditional_request_handling (11)
     section: § 13.2.2
     snippet: 'A recipient cache or origin server MUST evaluate the request preconditions defined by this specification in the following order:'
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 273
+      line: 277
   - label: conditional_request_handling (12)
     section: § 13.2.2
     snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 553
+      line: 557
   - label: conditional_request_handling (13)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if both are not weak and their opaque-tags match character-by-character.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 194
+      line: 198
   - label: connect_response_framing_valid
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma
@@ -7000,7 +7018,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 185
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 251
+      line: 261
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 213
   - label: content_location_and_uri_consistent
@@ -7098,7 +7116,7 @@ sources:
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 190
+      line: 194
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 162
     - file: lint-http-rules/src/violations/content_type.rs
@@ -7108,7 +7126,7 @@ sources:
     snippet: Content-Type = media-type
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 191
+      line: 195
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 224
   - label: content_type_present (3)
@@ -7116,7 +7134,7 @@ sources:
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 197
+      line: 201
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 200
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
@@ -7126,7 +7144,7 @@ sources:
     snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 198
+      line: 202
   - label: content_type_present (5)
     section: § 9.3.2
     snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
@@ -7992,7 +8010,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 85
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
-      line: 146
+      line: 150
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 586
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -9254,7 +9272,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 40
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 499
+      line: 503
   - label: lint-http-rules/src/helpers/validator.rs
     section: § 13.1.2
     snippet: 'If-None-Match = "*" / #entity-tag'
@@ -9264,7 +9282,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_etag_syntax.rs
       line: 188
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 405
+      line: 409
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 156
   - label: lint-http-rules/src/helpers/validator.rs (2)
@@ -10368,7 +10386,7 @@ sources:
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
     cited_by:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 240
+      line: 250
   - label: retry_after_date_or_delay
     section: § 10.2.3
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
@@ -11193,7 +11211,7 @@ sources:
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 345
+      line: 349
     - file: lint-http-rules/src/violations/cache.rs
       line: 22
     - file: lint-http-rules/src/violations/cache.rs
@@ -11303,7 +11321,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
       line: 159
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 166
+      line: 171
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 374
     - file: lint-http-rules/src/violations/conditional.rs
@@ -11321,7 +11339,7 @@ sources:
     snippet: 'A cache MUST NOT store a response to a request unless:'
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 114
+      line: 119
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
       line: 130
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
@@ -11337,7 +11355,7 @@ sources:
     snippet: request header fields nominated by the stored response (if any) match those presented (see Section 4.1)
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 132
+      line: 137
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
       line: 129
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
@@ -11463,7 +11481,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 477
     - file: lint-http-rules/src/rules/cache_coherence.rs
-      line: 355
+      line: 359
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 196
   - label: lint-http-rules/src/helpers/cache_control.rs (3)
@@ -11653,7 +11671,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 70
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
-      line: 115
+      line: 120
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
       line: 128
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
@@ -11916,7 +11934,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 140
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 226
+      line: 236
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 210
   - label: content_transfer_encoding_valid
@@ -11938,17 +11956,17 @@ sources:
     snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 139
+      line: 144
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 199
+      line: 206
   - label: content_type_present (2)
     section: § 6.3
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_present.rs
-      line: 161
+      line: 165
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 246
+      line: 256
   - label: head_response_headers_match_get
     section: § 6.1
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
@@ -12160,7 +12178,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 135
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 227
+      line: 237
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 212
   - label: proxy_connection_discouraged
@@ -12190,7 +12208,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 157
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 231
+      line: 241
     - file: lint-http-rules/src/violations/content_length.rs
       line: 106
   - label: request_body_length_accuracy
@@ -12200,7 +12218,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 168
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 241
+      line: 251
     - file: lint-http-rules/src/violations/content_length.rs
       line: 76
   - label: request_body_length_accuracy (2)
@@ -12338,7 +12356,7 @@ sources:
     snippet: A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message.
     cited_by:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 200
+      line: 207
   - label: status_code_valid_range
     section: § 4
     snippet: A client SHOULD ignore the reason-phrase content because it is not a reliable channel for information

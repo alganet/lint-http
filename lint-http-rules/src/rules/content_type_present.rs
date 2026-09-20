@@ -132,13 +132,17 @@ impl Rule for ContentTypePresent {
             // transactions, and its configurable header list already names
             // `content-type`.
             // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
-            let head_request = tx.request.method.eq_ignore_ascii_case("HEAD");
+            //
+            // Both methods are compared exactly, because the method token is
+            // case-sensitive: `Head` and `Connect` name no method, so neither
+            // brings the semantics that would excuse an absent `Content-Type`.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            let head_request = tx.request.method == "HEAD";
 
             // And a 2xx to CONNECT is a tunnel: the octets after the header section
             // are not content and no media type describes them.
             // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
-            let tunnelling =
-                tx.request.method.eq_ignore_ascii_case("CONNECT") && (200..300).contains(&status);
+            let tunnelling = tx.request.method == "CONNECT" && (200..300).contains(&status);
 
             if bodiless_status || reset_content || head_request || tunnelling {
                 return None;
@@ -404,6 +408,13 @@ mod tests {
     #[case("GET", 200)]
     #[case("CONNECT", 405)]
     #[case("POST", 201)]
+    // The method token is case-sensitive, so neither of the two exempt methods
+    // is exempt in another case: `Head` names no method and the response to it
+    // carries content like any other.
+    #[case("Head", 200)]
+    #[case("head", 200)]
+    #[case("Connect", 200)]
+    #[case("connect", 299)]
     fn ordinary_responses_are_still_checked(#[case] method: &str, #[case] status: u16) {
         let mut tx = resp(status, &[("content-length", "10")], None);
         tx.request.method = method.to_string();

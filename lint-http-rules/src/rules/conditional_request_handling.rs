@@ -90,8 +90,13 @@ impl Preconditions {
 /// The two methods whose failed precondition is answered with 304 rather than
 /// 412, which is what makes the checks below about a `200` at all.
 // cite(RFC 9110 § 13.1.2): "the 304 (Not Modified) status code if the request method is GET or HEAD"
+///
+/// Compared exactly here and below, because the method token is
+/// case-sensitive: `Get` names no method, so a server matching method names
+/// does not reach § 13.1.2's `304` answer for it.
+// cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
 fn is_get_or_head(method: &str) -> bool {
-    method.eq_ignore_ascii_case("GET") || method.eq_ignore_ascii_case("HEAD")
+    matches!(method, "GET" | "HEAD")
 }
 
 /// The methods on which a false precondition is answered with `412` rather
@@ -100,10 +105,7 @@ fn is_get_or_head(method: &str) -> bool {
 /// preconditions on, since those select no representation to condition on.
 // cite(RFC 9110 § 13.2.1): "Likewise, a server MUST ignore the conditional request header fields defined by this specification when received with a request method that does not involve the selection or modification of a selected representation, such as CONNECT, OPTIONS, or TRACE."
 fn is_state_changing(method: &str) -> bool {
-    !is_get_or_head(method)
-        && !["CONNECT", "OPTIONS", "TRACE"]
-            .iter()
-            .any(|m| method.eq_ignore_ascii_case(m))
+    !is_get_or_head(method) && !matches!(method, "CONNECT" | "OPTIONS" | "TRACE")
 }
 
 /// A response that describes the resource's current representation: a `2xx`
@@ -150,7 +152,9 @@ impl LastSeen {
             etag: seen_with("etag"),
             last_modified: seen_with("last-modified"),
             representation_current: describing().next().map(|(tx, _)| {
-                describes_representation(tx) && !tx.request.method.eq_ignore_ascii_case("DELETE")
+                // Exact, for the same reason: only a DELETE removes the
+                // representation, and `Delete` is not one.
+                describes_representation(tx) && tx.request.method != "DELETE"
             }),
         }
     }
@@ -1514,6 +1518,14 @@ mod tests {
     #[case::if_none_match_true("PUT", &[("if-none-match", "\"v1\"")], 200, &[("etag", "\"v3\"")], None)]
     #[case::if_match_true_then_if_none_match_false("PUT", &[("if-match", "\"v2\""), ("if-none-match", "\"v2\"")], 200, &[], Some("status_412_missing"))]
     #[case::if_unmodified_since_displaced_by_if_match("PUT", &[("if-match", "\"v2\""), ("if-unmodified-since", EARLIER)], 200, &[("etag", "\"v3\"")], None)]
+    // The method token is case-sensitive, so neither of the two silences above
+    // is earned by a method spelled in another case: `Get` is not one of the
+    // two § 13.1.2 answers with a `304`, and `Options` is not one of the three
+    // § 13.2.1 has a server ignore preconditions on. Both are state-changing by
+    // exclusion, and a false precondition on them owes a `412`.
+    #[case::get_in_another_case_is_not_get("Get", &[("if-match", "\"v1\"")], 200, &[("etag", "\"v3\"")], Some("status_412_missing"))]
+    #[case::options_in_another_case_ignores_nothing("Options", &[("if-match", "\"v1\"")], 200, &[("etag", "\"v3\"")], Some("status_412_missing"))]
+    #[case::connect_in_another_case_ignores_nothing("Connect", &[("if-match", "\"v1\"")], 200, &[("etag", "\"v3\"")], Some("status_412_missing"))]
     fn a_false_precondition_on_a_state_changing_request(
         #[case] method: &str,
         #[case] req: &[(&str, &str)],
@@ -1599,6 +1611,11 @@ mod tests {
     #[case::never_tagged("GET", 200, &[("content-type", "text/plain")], &[("if-match", "\"v1\"")], None)]
     #[case::absent("GET", 404, &[], &[("if-none-match", "*")], None)]
     #[case::created_by_a_put("PUT", 201, &[("etag", "\"v2\"")], &[("if-none-match", "*")], Some("status_412_missing"))]
+    // Only a DELETE removes the representation, and the method token is
+    // case-sensitive: `Delete` names no method, so a `204` to it is a response
+    // with no content rather than a resource that is gone, and the
+    // representation it leaves behind is still current.
+    #[case::deleted_in_another_case("Delete", 204, &[], &[("if-none-match", "*")], Some("status_412_missing"))]
     fn the_last_seen_state_is_the_newest_answer_describing_the_resource(
         #[case] prev_method: &str,
         #[case] prev_status: u16,

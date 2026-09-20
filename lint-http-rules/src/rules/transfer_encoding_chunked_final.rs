@@ -320,7 +320,13 @@ impl Rule for TransferEncodingChunkedFinal {
             // that does not exist would report an advisory value for failing at
             // a job it was never doing.
             // cite(RFC 9112 § 6.1): "Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET."
-            let bodiless = tx.request.method.eq_ignore_ascii_case("HEAD") || resp.status == 304;
+            //
+            // Compared exactly: § 6.1's permission is granted to a response to
+            // a HEAD request, and the method token is case-sensitive, so a
+            // response to `Head` is not one of the two messages without a body
+            // and its transfer coding is framing something.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            let bodiless = tx.request.method == "HEAD" || resp.status == 304;
             if !bodiless {
                 out.extend(check(&resp.headers, false));
             }
@@ -624,6 +630,29 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none(), "{method} -> {status}: {v:?}");
+    }
+
+    /// The exemption belongs to the HEAD method, and the method token is
+    /// case-sensitive: a response to `Head` frames a body like any other, so
+    /// `chunked, gzip` on it is a coding sequence that never frames its result.
+    #[rstest]
+    #[case("Head")]
+    #[case("head")]
+    fn a_method_spelled_in_another_case_is_not_head(#[case] method: &str) {
+        let rule = TransferEncodingChunkedFinal;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("transfer-encoding", "chunked, gzip")],
+        );
+        tx.request.method = method.to_string();
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some(), "{method} names no method and frames a body");
     }
 
     /// The exemption is the *response's*. A HEAD request that itself carries a

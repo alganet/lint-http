@@ -231,7 +231,11 @@ fn if_modified_since_fate(
     // a call sitting alone inside a closure is credited only when the finding
     // fires — and "the reading ran and correctly stayed quiet" then reads
     // exactly like "nothing ever reached this".
-    if !(req.method.eq_ignore_ascii_case("GET") || req.method.eq_ignore_ascii_case("HEAD")) {
+    // Compared exactly, because the method token is case-sensitive: `Get` is
+    // not one of the two methods § 13.1.3 defines the field for, so the field
+    // is to be ignored on it exactly as on a POST.
+    // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+    if !matches!(req.method.as_str(), "GET" | "HEAD") {
         return Some(ctx.report_with(&CONDITIONAL_DATE_IGNORED, "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into()));
     }
     None
@@ -588,6 +592,33 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(found.violation, expected, "{headers:?}");
+    }
+
+    /// The method token is case-sensitive, so `Get` is not one of the two
+    /// methods § 13.1.3 defines `If-Modified-Since` over: the field is to be
+    /// ignored on it exactly as on a `PUT`, and folding the comparison was what
+    /// let it pass as a GET.
+    #[rstest]
+    #[case("Get")]
+    #[case("get")]
+    #[case("Head")]
+    fn a_method_spelled_in_another_case_is_neither_get_nor_head(#[case] method: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = method.into();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "if-modified-since",
+            "Wed, 21 Oct 2015 07:28:00 GMT",
+        )]);
+
+        let rule = ConditionalHeadersConsistent;
+        let found = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a method nobody defined is not GET or HEAD");
+        assert_eq!(found.violation, "conditional_date_ignored", "{method}");
     }
 
     #[rstest]

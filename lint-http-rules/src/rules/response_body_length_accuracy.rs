@@ -161,7 +161,14 @@ impl Rule for ResponseBodyLengthAccuracy {
             // is the real requirement, and nothing in one transaction can answer
             // it: the octets it describes were never sent. `head_response_headers_match_get`
             // is the rule with two transactions to compare.
-            let head_request = tx.request.method.eq_ignore_ascii_case("HEAD");
+            //
+            // Compared exactly, and the comparison decides two things at once
+            // here: whether the length check is declined, and whether carrying
+            // octets is forbidden. `Head` is not HEAD, so a folded match would
+            // both excuse a wrong length and forbid a body the request was
+            // entitled to.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            let head_request = tx.request.method == "HEAD";
             let bodiless_status =
                 (100..200).contains(&resp.status) || resp.status == 204 || resp.status == 304;
             if head_request || bodiless_status {
@@ -212,9 +219,12 @@ impl Rule for ResponseBodyLengthAccuracy {
             // `connect_response_framing_valid`'s finding now, so the silence here
             // is this rule declining a measurement rather than the catalogue
             // having nothing to say about the message.
-            if tx.request.method.eq_ignore_ascii_case("CONNECT")
-                && (200..300).contains(&resp.status)
-            {
+            //
+            // Compared exactly: no tunnel is established by a method token
+            // nobody defined, so a `Connect` answered `200` with a wrong
+            // `Content-Length` has a length disagreement to report.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method == "CONNECT" && (200..300).contains(&resp.status) {
                 return None;
             }
 
@@ -665,6 +675,24 @@ mod tests {
         );
     }
 
+    /// The method token is case-sensitive, and this one comparison decides two
+    /// things at once, so folding it was wrong in both directions at the same
+    /// site: a response to `Head` was excused the length comparison it owes,
+    /// *and* was told it could carry no body. Neither is true of a request
+    /// whose method nobody defined — it gets measured like any other.
+    #[rstest]
+    #[case("Head")]
+    #[case("head")]
+    fn a_method_spelled_in_another_case_is_not_head(#[case] method: &str) {
+        let mut tx = resp_with(200, &[("content-length", "1024")], Some(7));
+        tx.request.method = method.into();
+        let found = run(&tx).expect("an undefined method carries a body like any other");
+        assert!(
+            found.message.contains("does not match"),
+            "the length is measured rather than the body forbidden: {found:?}"
+        );
+    }
+
     /// The finding is the body's existence, not its size: a response whose
     /// captured octets happen to equal its declared length still has a body, and
     /// the message says so rather than reporting a match.
@@ -732,6 +760,11 @@ mod tests {
     #[case("GET", 200)]
     #[case("CONNECT", 405)]
     #[case("GET", 404)]
+    // The method token is case-sensitive, so `Connect` establishes no tunnel
+    // and its 2xx is an ordinary response with a length to measure. This is the
+    // decline that a folded comparison excused.
+    #[case("Connect", 200)]
+    #[case("connect", 299)]
     fn ordinary_responses_are_still_measured(#[case] method: &str, #[case] status: u16) {
         let mut tx = resp_with(status, &[("content-length", "10")], Some(3));
         tx.request.method = method.to_string();
