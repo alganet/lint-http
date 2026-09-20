@@ -29,6 +29,7 @@ use crate::violations::quoted_string::{
 use crate::violations::status::STATUS_417_IGNORED;
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
 
@@ -50,6 +51,16 @@ pub struct ExpectHeaderValid;
 /// status code, the evidence is an earlier exchange, and an id built on this
 /// field would have named the expectation as the thing ignored — which is a
 /// server's behaviour and the opposite of the finding.
+///
+/// **Both of `token`'s two octet entries, because the site names neither.** A
+/// parameter's name and its value each reach
+/// [`token_character`](crate::violations::token::token_character), which sorts
+/// "not a `tchar`" into the character a sender chose and the whitespace or
+/// `CTL` something between the peers left behind — so what this rule reports
+/// there is decided by the value and not by anything written here. Declaring
+/// one of the pair does not narrow the reading; it costs the other entry its
+/// configuration, since a severity and an `enabled` flag resolve against this
+/// list and fall back to the def's own default when the def is absent from it.
 static DECLARED: &[&ViolationDef] = &[
     &EXPECT_100_CONTINUE_FORBIDDEN,
     &EXPECT_100_CONTINUE_INVALID,
@@ -58,6 +69,7 @@ static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &PARAMETER_EQUALS_MISSING,
     &PARAMETER_VALUE_EMPTY,
     &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
@@ -816,6 +828,34 @@ mod tests {
             found.iter().map(|v| &v.message).collect::<Vec<_>>()
         );
         assert_ne!(found[0].message, found[1].message);
+    }
+
+    /// **A parameter's octet is sorted by the value, so the rule declares both
+    /// entries.** `token_character` answers `token_character_forbidden` for a
+    /// character a sender chose and `token_whitespace_or_control_forbidden` for
+    /// whitespace or a `CTL`, and this site spells neither: which one is
+    /// reported is the octet's to decide. Declaring only the first left the
+    /// second resolving against a list it was not on, so its configured
+    /// severity fell back to the default and `enabled = false` could not
+    /// silence it — in this rule alone, while every other rule reading a
+    /// `token` honoured the same block.
+    ///
+    /// Both call sites, because a parameter's name and its value reach the
+    /// mapper separately. The `=` is written in every case: a `;` on a bare
+    /// expectation is refused at the `;` and never reaches the parameter
+    /// reader.
+    #[rstest]
+    #[case("foo=bar;a b=c", "token_whitespace_or_control_forbidden")]
+    #[case("foo=bar;a=b c", "token_whitespace_or_control_forbidden")]
+    #[case("foo=bar;a@b=c", "token_character_forbidden")]
+    #[case("foo=bar;a=b@c", "token_character_forbidden")]
+    fn a_parameters_octet_is_sorted_by_the_value(#[case] value: &str, #[case] id: &str) {
+        let found = judge_value(value).unwrap_or_else(|| panic!("a finding for {value:?}"));
+        assert_eq!(found.violation, id, "{}", found.message);
+        assert!(
+            DECLARED.iter().any(|d| d.id == id),
+            "{id} is reported here and not declared, so its configuration is ignored",
+        );
     }
 
     /// A member that is no `expectation` at all still answers once: the

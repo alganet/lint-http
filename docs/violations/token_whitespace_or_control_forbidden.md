@@ -50,6 +50,7 @@ severity = "error"
 - [cookie_pair_valid](../rules/cookie_pair_valid.md)
 - [digest_auth_valid](../rules/digest_auth_valid.md)
 - [digest_header_syntax](../rules/digest_header_syntax.md)
+- [expect_header_valid](../rules/expect_header_valid.md)
 - [forwarded_header_valid](../rules/forwarded_header_valid.md)
 - [header_field_names_token_valid](../rules/header_field_names_token_valid.md)
 - [keep_alive_header_valid](../rules/keep_alive_header_valid.md)

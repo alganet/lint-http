@@ -41,6 +41,7 @@ Reads a request's `Expect` field as `#expectation`, where each member is `token 
 - [status_417_ignored](../violations/status_417_ignored.md) — A request repeats an expectation a 417 already refused
 - [token_character_forbidden](../violations/token_character_forbidden.md) — Token holds a character outside tchar
 - [token_empty](../violations/token_empty.md) — Token is written with no characters in it
+- [token_whitespace_or_control_forbidden](../violations/token_whitespace_or_control_forbidden.md) — Token holds whitespace or a control character
 
 ## Specifications
 
