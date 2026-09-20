@@ -9774,7 +9774,7 @@ sources:
     snippet: Previous specifications allowed additional extension parameters to appear after the weight parameter.
     cited_by:
     - file: lint-http-rules/src/violations/media_range.rs
-      line: 91
+      line: 102
   - label: media_type
     section: § 8.3.1
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].

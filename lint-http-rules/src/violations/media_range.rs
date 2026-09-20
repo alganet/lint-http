@@ -88,6 +88,17 @@ defects! {
     /// finding is about what a sender generated, not about what a recipient
     /// will do — which is also why it is `warn` and not `error`.
     ///
+    /// **"Nothing derives past that point" is about parameters, and a second
+    /// `q` is not one.** § 12.5.1 records that the media type registry
+    /// disallows a parameter named `q`, and one paragraph above it a recipient
+    /// is told to read any parameter so named as the weight wherever it sits —
+    /// so `text/html;q=0.5;q=0.8` carries two weights and no parameter, and the
+    /// entry for it is
+    /// [`WEIGHT_DUPLICATED`](crate::violations::qvalue::WEIGHT_DUPLICATED).
+    /// This one drew it for as long as the walk decided by position alone,
+    /// which named a grammar the sender was not writing and left the
+    /// duplicate-weight entry with two of its five fields unread.
+    ///
     // cite(RFC 9110 § 12.5.1): "Previous specifications allowed additional extension parameters to appear after the weight parameter."
     MEDIA_RANGE_PARAMETER_FORBIDDEN = {
         id: "media_range_parameter_forbidden",
