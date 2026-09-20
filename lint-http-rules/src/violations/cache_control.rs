@@ -591,20 +591,32 @@ defects! {
     ///
     /// **The opposite outcome to the entry above, from the same silence.**
     /// There a cache invents a lifetime; here § 15.1's list does not cover the
-    /// status, so nothing stores the response at all unless it says how long it
-    /// is good for. Two entries because a sender reading one of them learns the
-    /// wrong thing about the other.
+    /// status, so nothing stores the response at all unless it says something
+    /// that licenses storing it. Two entries because a sender reading one of
+    /// them learns the wrong thing about the other.
+    ///
+    /// **A lifetime is not the only such licence, and reading it as the only
+    /// one made the finding untrue rather than unhelpful.** § 3's last term is
+    /// a disjunction, and `public` is a member of it beside the heuristically
+    /// cacheable status: a response marked explicitly cacheable is stored on
+    /// that directive alone, and § 4.2.2 extends the heuristic to it, so the
+    /// cache calculates the very lifetime this entry says the response lacks.
+    /// `private` is the member after it, for a cache that is not shared.
+    /// Neither is reported now. § 5.2.3's cache extension is the one member
+    /// left unread, and that omission leaves a finding standing.
     ///
     /// `info`, and for the plainest of reasons: not being cached is a perfectly
     /// good outcome, and the finding says only that it was not chosen.
     ///
-    /// **Only a final status is asked.** Storability is a conjunction and a
-    /// final status code is the condition § 3 states before this one, so an
-    /// interim response fails the earlier test and no freshness it states could
-    /// carry it. The entry names a lifetime the sender could have given; on a
-    /// `1xx` there is no such lifetime, which makes the finding advice about a
-    /// response no cache was going to hold. A `5xx` is not in that position —
-    /// it is final, and stating its own freshness does make it storable.
+    /// **Only a final status is asked, and only where `no-store` is absent.**
+    /// Storability is a conjunction, and both of those are conditions § 3
+    /// states before this one: an interim response and a `no-store` one each
+    /// fail an earlier test, so no freshness either could state would carry
+    /// it. The entry names a lifetime the sender could have given; where an
+    /// earlier term already refuses, there is no such lifetime, which makes
+    /// the finding advice about a response no cache was going to hold. A `5xx`
+    /// is not in that position — it is final, and stating its own freshness
+    /// does make it storable.
     ///
     // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
     CACHE_CONTROL_FRESHNESS_MISSING = {

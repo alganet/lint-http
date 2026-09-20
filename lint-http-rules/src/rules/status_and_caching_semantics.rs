@@ -11,8 +11,10 @@ use crate::violations::ViolationDef;
 /// long it would be good for.
 static DECLARED: &[&ViolationDef] = &[&CACHE_CONTROL_FRESHNESS_MISSING];
 
-/// Ensures responses that are not cacheable by default include explicit
-/// freshness information (e.g., `Cache-Control: max-age=...` / `s-maxage=...` or `Expires`).
+/// Ensures a response no cache stores by default says something that would
+/// let one store it — explicit freshness (`Cache-Control: max-age=...` /
+/// `s-maxage=...` or `Expires`), or the `public` or `private` directive that
+/// licenses storage and lets § 4.2.2 supply the lifetime instead.
 /// Default-cacheable status codes are: 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501.
 pub struct StatusAndCachingSemantics;
 
@@ -23,7 +25,7 @@ const RFC_9111_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
     section: Some("3"),
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
-    note: "Storing Responses in Caches (the freshness signals a cache requires: Expires, max-age, s-maxage, or a heuristically cacheable status)",
+    note: "Storing Responses in Caches (the licences to store a response: public, private, Expires, max-age, s-maxage, a cache extension, or a heuristically cacheable status)",
 };
 
 impl RuleMeta for StatusAndCachingSemantics {
@@ -41,7 +43,7 @@ impl RuleMeta for StatusAndCachingSemantics {
     }
 
     fn description(&self) -> &'static str {
-        "Responses with certain status codes are cacheable by default (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). For other status codes to be cacheable, servers MUST include explicit freshness information such as `Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header.\n\nThis rule warns when a response status that is not cacheable by default does not include explicit freshness information."
+        "Responses with certain status codes are heuristically cacheable (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). A response on any other status is stored only if it says something that licenses storing it: explicit freshness (`Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header), or a `public` or `private` directive — which licenses storage on its own and lets a cache calculate the lifetime heuristically.\n\nThis rule warns when a response status that is not heuristically cacheable says none of those, so no cache may keep it. It stays silent where a lifetime would not help: `no-store` on either message, an interim status, and a method that defines no caching semantics."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -69,6 +71,20 @@ impl RuleMeta for StatusAndCachingSemantics {
                 compliance: Compliance::Compliant,
                 label: None,
                 snippet: "HTTP/1.1 503 Service Unavailable\nExpires: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(`public` licenses storing it without a lifetime, and \u{a7}4.2.2 lets the cache calculate one)",
+                ),
+                snippet: "HTTP/1.1 302 Found\nCache-Control: public\nLocation: https://example.org/",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(`no-store` fails an earlier term of \u{a7}3, so no lifetime would make a cache keep it)",
+                ),
+                snippet: "HTTP/1.1 302 Found\nCache-Control: no-store\nLocation: https://example.org/",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -143,11 +159,61 @@ impl Rule for StatusAndCachingSemantics {
                 return None;
             }
 
+            // `no-store` is the next term of the conjunction, and it fails the
+            // same way the two above do: § 3 states it before the one about
+            // freshness, so a response carrying it is unstorable whatever
+            // lifetime it also advertises. Asking such a sender for `max-age`
+            // names a repair that does not exist -- the third time this rule
+            // has had that shape, after the method and the interim status.
+            //
+            // Both messages are read because the directive is defined twice.
+            // § 3 gives the response's; § 5.2.1.5 gives the request the same
+            // power over the response it provoked, so a reader of one of them
+            // answers half the question. The helper reads both, and is the
+            // same one every other rule in this corner already asks.
+            // cite(RFC 9111 § 3): "the no-store cache directive is not present in the response"
+            if crate::helpers::stored_response::no_store_forbids(&tx.request.headers, &resp.headers)
+            {
+                return None;
+            }
+
             // The heuristically cacheable status codes (RFC 9111 §4.2.2 calls the older name
             // "cacheable by default"), enumerated in RFC 9110 §15.1. Such a response can be reused
             // with heuristic expiration, so it needs no explicit freshness.
             // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
             if crate::helpers::status::is_heuristically_cacheable(status) {
+                return None;
+            }
+
+            // A heuristically cacheable status is one member of § 3's last
+            // term, and that term is a disjunction: `public` is another, and
+            // it licenses storage on its own. § 4.2.2 then supplies what this
+            // entry asks the sender for, because the heuristic it permits
+            // reaches a response marked explicitly cacheable as well as one
+            // whose status is on § 15.1's list. So a `public` response is both
+            // held and given a lifetime nobody wrote, and the sentence saying
+            // nothing stores it is untrue of the value rather than unhelpful
+            // about it -- which is what separates this from the terms above.
+            //
+            // `private` is the member after it, and it is read for the reason
+            // `storage_allowed` states next door: the question is whether
+            // *any* conforming cache could have kept the response, and a
+            // private cache may keep a `private` one and apply the same
+            // heuristic to it. Nothing on the wire says which kind of cache a
+            // reader is standing in for, so speaking would be reporting a
+            // guess.
+            //
+            // § 5.2.3's cache extension is the one member still unread, and it
+            // needs a registry this rule does not have. That omission leaves a
+            // finding standing where the others withdraw one, which is the
+            // direction worth naming rather than leaving to be discovered.
+            // cite(RFC 9111 § 3): "a public response directive"
+            // cite(RFC 9111 § 3): "a private response directive, if the cache is not shared"
+            // cite(RFC 9111 § 4.2.2): "on responses without explicit freshness that have been marked as explicitly cacheable (e.g., with a public response directive)"
+            if ["public", "private"]
+                .iter()
+                .any(|directive| crate::helpers::cache_control::has(&resp.headers, directive))
+            {
                 return None;
             }
 
@@ -205,6 +271,36 @@ mod tests {
     #[case(302, vec![("cache-control", "max-age=-1")], true)]
     #[case(302, vec![("cache-control", "max-age=abc")], true)]
     #[case(302, vec![("cache-control", "public"), ("cache-control", "max-age=5")], false)]
+    // `public` on its own was never pinned, and it is the row that was wrong:
+    // the case above passes on the `max-age` and says nothing about the
+    // directive beside it. § 3 stores the response on that directive alone and
+    // § 4.2.2 lets the cache calculate the lifetime, so there is nothing to
+    // ask the sender for. `private` is the same disjunction's next member.
+    #[case(302, vec![("cache-control", "public")], false)]
+    #[case(302, vec![("cache-control", "private")], false)]
+    #[case(302, vec![("cache-control", "public, no-cache")], false)]
+    // `no-store` fails a term of § 3 that comes before the freshness one, so
+    // the response is unstorable and no lifetime would change that. Pinned
+    // beside a `no-store` that also states a lifetime, because the answer has
+    // to be the same for both: the directive decides, not the lifetime.
+    #[case(302, vec![("cache-control", "no-store")], false)]
+    #[case(302, vec![("cache-control", "no-store, max-age=60")], false)]
+    #[case(302, vec![("cache-control", "no-store, no-cache, must-revalidate")], false)]
+    // A qualified `no-store` is not the directive § 3 names: the response form
+    // takes no argument, so `no-store="x"` is something else and leaves the
+    // question asked. This is the helper's own reading, pinned here because
+    // this rule is what a user meets it through.
+    #[case(302, vec![("cache-control", "no-store=\"x\"")], true)]
+    // Neither term reaches a status § 15.1 already covers, so a 200 stays
+    // silent for the reason it always did and not for a new one.
+    #[case(200, vec![("cache-control", "no-store")], false)]
+    #[case(200, vec![("cache-control", "public")], false)]
+    // The neighbouring directives that do NOT license storage keep the finding
+    // standing, which is the half that proves the change is not a blanket
+    // silence: `no-cache` and `must-revalidate` are about reuse, not storage.
+    #[case(302, vec![("cache-control", "no-cache")], true)]
+    #[case(302, vec![("cache-control", "must-revalidate")], true)]
+    #[case(302, vec![("cache-control", "immutable")], true)]
     #[case(503, vec![("expires", "Wed, 21 Oct 2015 07:28:00 GMT")], false)]
     #[case(503, vec![("expires", "not-a-date")], true)]
     #[case(200, vec![], false)] // 200 is cacheable by default
@@ -288,6 +384,46 @@ mod tests {
             v.is_some(),
             expect_violation,
             "method {method} judged wrongly: {v:?}"
+        );
+        Ok(())
+    }
+
+    /// § 5.2.1.5 gives the request the same power over the response it
+    /// provoked that § 3 gives the response over itself, so the term is
+    /// answered by either message. A reader of one of them answers half the
+    /// question, and the half it misses is the one no response header shows.
+    ///
+    /// The `false` row is the control: the same request directive on a status
+    /// § 15.1 covers changes nothing, because that response was never going to
+    /// draw this finding for a reason of its own.
+    #[rstest]
+    #[case(302, "no-store", false)]
+    #[case(302, "no-cache", true)]
+    #[case(302, "max-age=0", true)]
+    #[case(200, "no-store", false)]
+    fn the_request_carries_the_no_store_term_too(
+        #[case] status: u16,
+        #[case] request_directive: &str,
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
+        let rule = StatusAndCachingSemantics;
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(status, &[]);
+        tx.request.headers.insert(
+            "cache-control",
+            hyper::header::HeaderValue::from_str(request_directive)?,
+        );
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "request Cache-Control {request_directive:?} on {status} judged wrongly: {v:?}"
         );
         Ok(())
     }

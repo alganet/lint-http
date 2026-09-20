@@ -8767,9 +8767,9 @@ sources:
     - file: lint-http-rules/src/helpers/status.rs
       line: 18
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 149
+      line: 183
     - file: lint-http-rules/src/violations/cache_control.rs
-      line: 609
+      line: 621
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -11131,6 +11131,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 144
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 211
   - label: lint-http-rules/src/helpers/stored_response.rs (2)
     section: § 3
     snippet: a status code that is defined as heuristically cacheable
@@ -11151,6 +11153,8 @@ sources:
       line: 140
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 207
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 174
   - label: lint-http-rules/src/helpers/stored_response.rs (5)
     section: § 3
     snippet: the request method is understood by the cache
@@ -11158,7 +11162,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 91
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 128
+      line: 144
   - label: lint-http-rules/src/helpers/stored_response.rs (6)
     section: § 3
     snippet: 'the response contains at least one of the following:'
@@ -11172,7 +11176,7 @@ sources:
     - file: lint-http-rules/src/helpers/stored_response.rs
       line: 142
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 141
+      line: 157
   - label: lint-http-rules/src/helpers/stored_response.rs (8)
     section: § 4
     snippet: the request method associated with the stored response allows it to be used for the presented request
@@ -11250,7 +11254,7 @@ sources:
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
       line: 173
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 159
+      line: 225
   - label: must_revalidate_enforced
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields.
@@ -11322,19 +11326,31 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 67
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 171
+      line: 237
   - label: status_and_caching_semantics
     section: § 3
     snippet: A cache MUST NOT store a response to a request unless
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 182
+      line: 248
   - label: status_and_caching_semantics (2)
+    section: § 3
+    snippet: a public response directive
+    cited_by:
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 210
+  - label: status_and_caching_semantics (3)
+    section: § 4.2.2
+    snippet: on responses without explicit freshness that have been marked as explicitly cacheable (e.g., with a public response directive)
+    cited_by:
+    - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
+      line: 212
+  - label: status_and_caching_semantics (4)
     section: § 5.2.2.10
     snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires
     cited_by:
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
-      line: 160
+      line: 226
   - label: vary
     section: § 4.1
     snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
