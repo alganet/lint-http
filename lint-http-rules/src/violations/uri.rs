@@ -380,7 +380,6 @@ pub fn uri_host(defect: UriHostDefect<'_>) -> &'static ViolationDef {
         UriHostDefect::UnclosedBracket(_) => &URI_HOST_CLOSING_BRACKET_MISSING,
         UriHostDefect::NotAnIpLiteral(_) => &URI_HOST_IP_LITERAL_MALFORMED,
         UriHostDefect::Bracket(_) => &URI_HOST_BRACKET_FORBIDDEN,
-        UriHostDefect::IpLiteralDelimiterMissing(_) => &URI_HOST_IP_LITERAL_DELIMITER_MISSING,
         UriHostDefect::PercentEncoding(defect) => percent_encoding(defect),
         UriHostDefect::BadCharacter { .. } => &URI_HOST_CHARACTER_FORBIDDEN,
     }
@@ -393,6 +392,7 @@ pub fn uri_host(defect: UriHostDefect<'_>) -> &'static ViolationDef {
 pub fn host_and_port(defect: HostAndPortDefect<'_>) -> &'static ViolationDef {
     match defect {
         HostAndPortDefect::Host(defect) => uri_host(defect),
+        HostAndPortDefect::IpLiteralDelimiterMissing(_) => &URI_HOST_IP_LITERAL_DELIMITER_MISSING,
         HostAndPortDefect::PortCharacter { .. } => &URI_PORT_CHARACTER_FORBIDDEN,
     }
 }

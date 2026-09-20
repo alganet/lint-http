@@ -215,13 +215,6 @@ pub enum UriHostDefect<'a> {
     /// A bracket somewhere other than around an IP literal. § 3.2.2 calls the
     /// literal the only place in the URI syntax where one appears.
     Bracket(&'a str),
-    /// An IPv6 address with no brackets round it, carrying the whole value.
-    ///
-    /// **The one variant here that is about the value and not about the host**,
-    /// because until the brackets are there nobody can say where the host was.
-    /// It is returned before the host and the port are told apart, for that
-    /// reason, and it is the only ordering constraint in this module.
-    IpLiteralDelimiterMissing(&'a str),
     /// A malformed `pct-encoded` triplet in what would otherwise be a
     /// `reg-name`.
     PercentEncoding(PercentEncodingDefect<'a>),
@@ -244,10 +237,6 @@ impl UriHostDefect<'_> {
             Self::Bracket(host) => format!(
                 "'{}' holds a bracket, which appears in no host form but an IP literal",
                 host
-            ),
-            Self::IpLiteralDelimiterMissing(value) => format!(
-                "IPv6 literal '{}' must be enclosed in square brackets",
-                value
             ),
             Self::PercentEncoding(defect) => defect.message(),
             Self::BadCharacter { character, host } => {
@@ -386,9 +375,7 @@ pub fn validate_host_and_optional_port(value: &str) -> Result<(), HostAndPortDef
     if value.parse::<std::net::Ipv6Addr>().is_ok()
         || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(value)
     {
-        return Err(HostAndPortDefect::Host(
-            UriHostDefect::IpLiteralDelimiterMissing(value),
-        ));
+        return Err(HostAndPortDefect::IpLiteralDelimiterMissing(value));
     }
 
     let (host, port) = split_host_and_port(value);
@@ -447,6 +434,15 @@ pub fn reference_host_defect(reference: &str) -> Option<HostAndPortDefect<'_>> {
 pub enum HostAndPortDefect<'a> {
     /// The `uri-host` half.
     Host(UriHostDefect<'a>),
+    /// An IPv6 address with no brackets round it, carrying the whole value.
+    ///
+    /// **Here and not in [`UriHostDefect`], although it is a defect of the
+    /// host.** Until the brackets are there nobody can say where the host was,
+    /// so the only reader that can detect it is the one holding both halves
+    /// before they are told apart -- and a variant on the host's own enum
+    /// would be an arm [`validate_uri_host`] never returns, reachable in the
+    /// mapping and dead at every one of its direct callers.
+    IpLiteralDelimiterMissing(&'a str),
     /// A character in the port that is not a `DIGIT`. There is no out-of-range
     /// variant beside it: `port = *DIGIT` bounds nothing at either end, and a
     /// rule wanting the transport's namespace wants [`port_number`] and a
@@ -464,6 +460,12 @@ impl HostAndPortDefect<'_> {
     pub fn message(self) -> String {
         match self {
             Self::Host(defect) => defect.message(),
+            Self::IpLiteralDelimiterMissing(value) => {
+                format!(
+                    "IPv6 literal '{}' must be enclosed in square brackets",
+                    value
+                )
+            }
             Self::PortCharacter { character, port } => {
                 format!("invalid character '{}' in port '{}'", character, port)
             }

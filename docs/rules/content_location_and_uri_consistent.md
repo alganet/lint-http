@@ -29,6 +29,7 @@ For 2xx responses the rule additionally compares the value against the request t
 - [uri_host_character_forbidden](../violations/uri_host_character_forbidden.md) — Host holds a character outside the registered-name alphabet
 - [uri_host_closing_bracket_missing](../violations/uri_host_closing_bracket_missing.md) — Host opens an IP literal and never closes it
 - [uri_host_empty](../violations/uri_host_empty.md) — An http or https reference names no host
+- [uri_host_ip_literal_delimiter_missing](../violations/uri_host_ip_literal_delimiter_missing.md) — An IPv6 address is written without the brackets that mark it
 - [uri_host_ip_literal_malformed](../violations/uri_host_ip_literal_malformed.md) — Host brackets something that is not an IP literal
 - [uri_port_character_forbidden](../violations/uri_port_character_forbidden.md) — Port holds a character that is not a digit
 - [uri_scheme_character_forbidden](../violations/uri_scheme_character_forbidden.md) — URI scheme holds a character outside letters, digits, '+', '-' and '.'
