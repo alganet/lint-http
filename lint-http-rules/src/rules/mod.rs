@@ -280,7 +280,7 @@ impl<'a> RuleContext<'a> {
     /// def's id and not its address, and `declared` is 1–6 entries long. It
     /// runs once per finding, which is the rare path.
     pub fn reported(&self, findings: Vec<Violation>) -> Vec<Violation> {
-        findings
+        let reported: Vec<Violation> = findings
             .into_iter()
             .filter(|finding| {
                 self.declared
@@ -289,7 +289,12 @@ impl<'a> RuleContext<'a> {
                     .and_then(|i| self.violations.get(i))
                     .is_none_or(|resolved| resolved.enabled)
             })
-            .collect()
+            .collect();
+        #[cfg(test)]
+        for finding in &reported {
+            reported_trace::record(&finding.violation);
+        }
+        reported
     }
 
     /// The rule-specific state this rule's own `prepare` returned.
@@ -432,6 +437,85 @@ impl<'a> RuleContext<'a> {
         index
             .and_then(|i| self.violations.get(i))
             .map_or(def.default_severity, |resolved| resolved.severity)
+    }
+}
+
+/// Which entries this crate's own suite ever produces, when it is asked.
+///
+/// The catalogue can already say which of its entries carry no published
+/// example, and a coverage run can say which readings a corpus never reaches.
+/// Neither answers the question a reviewer of an untested claim actually has —
+/// *has any input at all ever been put in front of this entry* — because the
+/// third place an input lives is the suite in this crate, and nothing could
+/// read that set out.
+///
+/// Reading it out of the source would be reading a spelling: a test names the
+/// entry it expects by id, by def constant or by the wording, it may just as
+/// well be asserting the entry must **not** fire, and all four look alike to a
+/// search. So it is observed instead, at the one place every dispatch passes
+/// through — [`RuleContext::reported`], whose funnel
+/// `no_dispatch_skips_the_enabled_table` already gates — and what is recorded
+/// is a finding the suite actually produced and kept.
+///
+/// **It is a floor, deliberately.** A test that reaches a rule's inner
+/// functions without dispatching through a context records nothing, and an
+/// entry switched off by the test's own config is filtered out before this
+/// sees it. Both make the recorded set smaller than the truth, which is the
+/// direction that keeps an unread claim visible rather than hiding one.
+///
+/// Off unless `LINT_HTTP_REPORTED_IDS` names a file to append to, so an
+/// ordinary `cargo test` pays one `OnceLock` read and writes nothing.
+///
+/// **Deliberately not tested from inside the suite.** The sink is decided once
+/// per process, so a test that set the variable would either be too late to
+/// change it or early enough to redirect every other test's findings into its
+/// own temporary file. What a reader of the record needs instead is a check
+/// that it was written at all — the empty file that a dropped hook or a
+/// misspelled variable produces reads exactly like a catalogue no test touches,
+/// and that belongs to whoever asks for the recording, before they subtract it
+/// from anything.
+#[cfg(test)]
+mod reported_trace {
+    use std::io::Write;
+    use std::sync::{Mutex, OnceLock};
+
+    /// The append sink, opened once per test process and shared by its threads.
+    /// `None` once means off for the rest of the process — the environment does
+    /// not change under a running suite, and a path that cannot be opened is a
+    /// mistake in the invocation rather than something to retry per finding.
+    static SINK: OnceLock<Option<Mutex<std::fs::File>>> = OnceLock::new();
+
+    /// Note that `id` was reported, and by whom. One line per finding,
+    /// duplicates included: the reader wants the set, and counting here would
+    /// mean holding state no process can flush at the end of a test binary's
+    /// life.
+    ///
+    /// The second column is the thread's name, which the test harness sets to
+    /// the name of the test running on it. That is what makes the record worth
+    /// reading rather than counting — an entry the suite produces is a claim
+    /// somebody may or may not have *asserted*, and the test that produced it
+    /// is where to look. Under `--test-threads=1` every test shares the main
+    /// thread and the column says `main`, which is honest and useless; run it
+    /// parallel.
+    pub(super) fn record(id: &str) {
+        let sink = SINK.get_or_init(|| {
+            let path = std::env::var_os("LINT_HTTP_REPORTED_IDS")?;
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .ok()
+                .map(Mutex::new)
+        });
+        if let Some(sink) = sink {
+            // A poisoned lock means another thread panicked mid-write, which is
+            // a failing test and not this record's business; the id still goes
+            // down. Write errors are ignored for the same reason.
+            let thread = std::thread::current();
+            let by = thread.name().unwrap_or("?");
+            let mut file = sink.lock().unwrap_or_else(|e| e.into_inner());
+            let _ = writeln!(file, "{id}\t{by}");
+        }
     }
 }
 
