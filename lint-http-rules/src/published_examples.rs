@@ -506,11 +506,20 @@ fn tokenize(snippet: &str) -> Option<Vec<Msg>> {
     }
 }
 
+/// The target a transaction carries until a request line overwrites it.
+///
+/// Named because two things read it: `fresh_tx` writes it, and [`path_of`] and
+/// [`authority_of`] answer `None` for it. A story whose exchange has no request
+/// line at all — the opening `HTTP/1.1 200 OK` of every cache example — carries
+/// this and has named no resource, and scoping history against it would compare
+/// a placeholder to a target the example did write.
+const UNSTATED_TARGET: &str = "http://example/";
+
 fn fresh_tx() -> HttpTransaction {
     let mut tx = HttpTransaction::new(
         crate::test_helpers::make_test_client(),
         "GET".into(),
-        "http://example/".into(),
+        UNSTATED_TARGET.into(),
     );
     tx.request.headers = HeaderMap::new();
     tx
@@ -684,7 +693,26 @@ fn judge_one(rule: &dyn Rule, cfg: &crate::config::Config, tx: &HttpTransaction)
 }
 
 /// The last transaction judged with the earlier ones as its history, all on
-/// one connection.
+/// one connection — **narrowed to the history the engine would actually hand
+/// this rule**.
+///
+/// A stateful rule never sees every earlier exchange. `STATEFUL_RULES` pairs
+/// each one with a [`QueryType`], and the engine builds its history from that:
+/// `ByResource` keys on the exact request URI, `ByOrigin` on scheme-host-port,
+/// `ByConnection` on the connection. A story judged against *all* the earlier
+/// messages is judged against a history no deployment produces — and an
+/// example correlating two messages the rule's own scope keeps apart then
+/// passes here while the rule can never draw it on the wire.
+///
+/// `oauth2_code_flow` is what this was written for. Its two non-compliant
+/// examples walked an authorization request at one host to a callback at
+/// another and passed, because this function handed the rule both; the engine
+/// handed it a history keyed on the exact URI, in which the authorization
+/// request is never present. Two of its three entries could not fire on any
+/// value, and the published page taught a correlation the rule does not make.
+///
+/// A rule absent from `STATEFUL_RULES` reads no history at all, so its story
+/// is judged on the last message alone.
 fn judge_story(
     rule: &dyn Rule,
     cfg: &crate::config::Config,
@@ -697,10 +725,98 @@ fn judge_story(
     let last = txs.pop().expect("a story has a last exchange");
     // History is newest-first; the group stamped the timestamps increasing.
     txs.reverse();
-    let history = crate::transaction_history::TransactionHistory::from_transactions(txs);
+    let scoped = match crate::rules::query_type_for(rule.id()) {
+        None => Vec::new(),
+        Some(q) => txs
+            .into_iter()
+            .filter(|prev| in_scope(q, &last, prev))
+            .collect(),
+    };
+    let history = crate::transaction_history::TransactionHistory::from_transactions(scoped);
     ids_of(crate::test_helpers::run_rule_all(
         rule, &last, &history, cfg,
     ))
+}
+
+/// Whether `prev` is in the history the engine would build for `last`.
+///
+/// The three keys the query layer uses, read off the two transactions rather
+/// than off a `StateStore`: this function has no store to ask, and what it has
+/// to reproduce is which earlier exchange *reaches* the rule, not how the
+/// store indexes it. `ByResourceAll` is `ByResource` with the client dropped,
+/// and the client is one identity across a story unless a comment introduced a
+/// second one — which the story builder records on the transaction.
+///
+/// **Only what both messages state is compared.** A published example writes
+/// what the sentence is about and leaves the rest out: a story demonstrating a
+/// cache rule opens with a bare `HTTP/1.1 200 OK` and no request line at all,
+/// and one written in origin-form names its authority in a `Host` where a
+/// capture would carry an absolute URI. Neither is an exchange that crossed a
+/// boundary — it is an exchange the example did not spell out — so an unstated
+/// authority or target matches any. Comparing them as unequal empties the
+/// history of every story in the ordinary notation, which is what the first
+/// two drafts of this did: seventeen examples failed, and twelve of the
+/// seventeen were the spelling.
+fn in_scope(q: crate::queries::QueryType, last: &HttpTransaction, prev: &HttpTransaction) -> bool {
+    use crate::queries::QueryType::*;
+    let same_client = prev.client == last.client;
+    let same_authority = agree(authority_of(prev), authority_of(last));
+    let same_resource = same_authority && agree(path_of(prev), path_of(last));
+    match q {
+        ByResource => same_client && same_resource,
+        ByResourceAll => same_resource,
+        ByOrigin => same_client && same_authority,
+        ByConnection => prev.connection_id == last.connection_id,
+        ByClient => same_client,
+    }
+}
+
+/// Two stated values that differ are a boundary; anything else is not.
+fn agree<T: PartialEq>(a: Option<T>, b: Option<T>) -> bool {
+    match (a, b) {
+        (Some(x), Some(y)) => x == y,
+        _ => true,
+    }
+}
+
+/// The authority a message names, however it names it, or `None` where it
+/// names none.
+///
+/// Scheme is left out. RFC 6454's origin has one, and the boundary a story can
+/// actually cross is the host: an authorization request at an identity
+/// provider and a callback at the client's own domain. Reading the scheme off
+/// a story would also mean guessing it, since an origin-form target under a
+/// `Host` states none.
+fn authority_of(tx: &HttpTransaction) -> Option<String> {
+    if tx.request.uri == UNSTATED_TARGET {
+        return None;
+    }
+    crate::helpers::request_target::extract_authority_from_request_target(&tx.request.uri)
+        .or_else(|| {
+            crate::helpers::headers::get_header_str(&tx.request.headers, "host")
+                .map(|h| h.trim().to_string())
+        })
+        .map(|a| a.to_ascii_lowercase())
+        .filter(|a| !a.is_empty())
+}
+
+/// The part of the target below the authority — what `ByResource` keys on once
+/// the authority agrees — or `None` where the message states no target at all.
+///
+/// Written as the message wrote it, since two spellings of one path are two
+/// resources to a store that indexes by string.
+fn path_of(tx: &HttpTransaction) -> Option<&str> {
+    let u = tx.request.uri.as_str();
+    if u.is_empty() || u == UNSTATED_TARGET {
+        return None;
+    }
+    Some(match u.split_once("://") {
+        Some((_, rest)) => match rest.find('/') {
+            Some(i) => &rest[i..],
+            None => "/",
+        },
+        None => u,
+    })
 }
 
 /// Why a snippet was not judged.

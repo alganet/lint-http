@@ -8,6 +8,7 @@
 //! `TransactionHistory` that can be passed to rules.  Rules never interact
 //! with `StateStore` directly — this module is the bridge.
 
+pub mod by_client;
 pub mod by_connection;
 pub mod by_origin;
 pub mod by_resource;
@@ -33,4 +34,9 @@ pub enum QueryType {
     /// connection-level protocol behaviour (pipelining, multiplexing,
     /// connection reuse).
     ByConnection,
+    /// Every transaction one client made, across every origin. The only query
+    /// that can answer a question about **two origins** — a cookie's `Domain`
+    /// against the host that received it, and an authorization request at an
+    /// identity provider against the callback at the client's own domain.
+    ByClient,
 }

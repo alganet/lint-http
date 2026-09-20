@@ -1156,6 +1156,27 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         &cookie_same_site_enforced::CookieSameSiteEnforced,
         QueryType::ByOrigin,
     ),
+    // ── ByClient: history spans every origin one client reached ──
+    // Both of these compare two hosts, so neither can be answered from one
+    // origin's history.
+    //
+    // A domain mismatch IS the comparison between the host that set a cookie
+    // and the host that received it: `cookie_scope_ignored`'s whole subject.
+    // Keyed on the exact request URI, the only `Set-Cookie` that could reach
+    // this rule was one sent by a response to the very target now carrying the
+    // `Cookie` -- and the store it builds from that is not a cookie store.
+    (
+        &cookie_domain_matching::CookieDomainMatching,
+        QueryType::ByClient,
+    ),
+    // The authorization endpoint and the redirection URI are two different
+    // origins, which is what the code flow IS: RFC 6749 § 4.1.1's request goes
+    // to the identity provider and § 4.1.2's callback comes back to the
+    // client's own domain. Keyed on the exact request URI, the gate asking
+    // whether this client was seen starting a flow was false for every
+    // callback there can be, and both of this rule's callback entries could
+    // fire on no value at all.
+    (&oauth2_code_flow::Oauth2CodeFlow, QueryType::ByClient),
     // ── ByResourceAll: history for a resource across all clients ──
     (
         &private_cache_visibility::PrivateCacheVisibility,
@@ -1186,10 +1207,6 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
     (&cache_coherence::CacheCoherence, QueryType::ByResource),
     (
         &head_response_headers_match_get::HeadResponseHeadersMatchGet,
-        QueryType::ByResource,
-    ),
-    (
-        &cookie_domain_matching::CookieDomainMatching,
         QueryType::ByResource,
     ),
     // `status_103_early_hints_before_final` was here. Its requirement relates
@@ -1229,7 +1246,6 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         &status_304_required_fields::Status304RequiredFields,
         QueryType::ByResource,
     ),
-    (&oauth2_code_flow::Oauth2CodeFlow, QueryType::ByResource),
     (
         &range_request_and_caching::RangeRequestAndCaching,
         QueryType::ByResource,

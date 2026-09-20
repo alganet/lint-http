@@ -20,11 +20,26 @@ use crate::rules::{Rule, RuleMeta};
 /// verifies a matching `state` was observed earlier.  Missing or mismatched
 /// `state` parameters trigger violations.
 ///
-/// Correlation is performed only within the transaction history provided by
-/// the engine for this rule. In the current engine this typically includes
-/// requests to the same resource/origin as the one being checked; requests to
-/// other origins (for example, an IdP on a different host) may not be
-/// available for correlation, depending on query configuration.
+/// **The correlation spans two origins, so the history this rule is handed
+/// does too.** § 4.1.1's request goes to the identity provider and § 4.1.2's
+/// callback comes back to the client's own domain — that is what the flow is,
+/// and neither message is ever in the other's origin history.
+/// `STATEFUL_RULES` therefore pairs this rule with `QueryType::ByClient`, the
+/// one query that keeps a client's exchanges together across hosts.
+///
+/// It was paired with `ByResource`, which keys on the exact request URI. The
+/// gate below asking whether this client was seen starting a flow was then
+/// false for every callback there can be — an authorization endpoint and a
+/// redirection URI are two URIs — so `oauth2_state_conflicting` and
+/// `oauth2_callback_state_missing` could fire on no value at all. The one
+/// shape that satisfied the gate was a target carrying `response_type=code`
+/// and `code` at once, requested twice; and there the prior `state` is the
+/// same string as this one, so the mismatch the first entry reports could not
+/// arise either.
+///
+/// The bound is still one client: a `state` binds a callback to a request the
+/// same user agent made, so a history wider than the client would correlate
+/// one person's flow against another's.
 pub struct Oauth2CodeFlow;
 
 /// The specification references this rule declares, each named so a finding
@@ -60,7 +75,7 @@ impl RuleMeta for Oauth2CodeFlow {
     }
 
     fn description(&self) -> &'static str {
-        "The OAuth 2.0 authorization code flow **recommends** (SHOULD) that clients generate and include a `state` parameter in the initial authorization request to bind the request and eventual callback.  When the server echoes an authorization `code`, it is required to return the same `state` value **only if** the request contained one (RFC 6749 §4.1.1).  The parameter is optional in the spec, but omitting it leaves the flow vulnerable to CSRF/replay attacks.\n\nThis rule therefore treats a request or callback that either lacks a `state` parameter or provides an empty/whitespace value as a violation, enforcing a best‑practice requirement that a meaningful state be correlated.\n\nThis value prevents cross-site request forgery (CSRF) and replay attacks by ensuring the callback corresponds to a request the client actually initiated. Without this correlation, a malicious site could trick the user agent into sending a `code` it did not request, allowing the attacker to hijack the authorization grant.\n\nThe lint rule observes outgoing requests from a user agent.  It records any `state` seen in authorization requests and, when a later request carries an authorization `code`, verifies that a matching `state` occurred previously. Violations are raised for missing `state` parameters in either direction or when the callback contains a value not previously observed.\n\nThe check does not assume the authorization request and callback share a common origin; the redirect is typically to the client's own domain while the initial request targets the identity provider."
+        "The OAuth 2.0 authorization code flow **recommends** (SHOULD) that clients generate and include a `state` parameter in the initial authorization request to bind the request and eventual callback.  When the server echoes an authorization `code`, it is required to return the same `state` value **only if** the request contained one (RFC 6749 §4.1.1).  The parameter is optional in the spec, but omitting it leaves the flow vulnerable to CSRF/replay attacks.\n\nThis rule therefore treats a request or callback that either lacks a `state` parameter or provides an empty/whitespace value as a violation, enforcing a best‑practice requirement that a meaningful state be correlated.\n\nThis value prevents cross-site request forgery (CSRF) and replay attacks by ensuring the callback corresponds to a request the client actually initiated. Without this correlation, a malicious site could trick the user agent into sending a `code` it did not request, allowing the attacker to hijack the authorization grant.\n\nThe lint rule observes outgoing requests from a user agent.  It records any `state` seen in authorization requests and, when a later request carries an authorization `code`, verifies that a matching `state` occurred previously. Violations are raised for missing `state` parameters in either direction or when the callback contains a value not previously observed.\n\nThe check does not assume the authorization request and callback share a common origin — the redirect is typically to the client's own domain while the initial request targets the identity provider — and the history it reads is scoped to the client rather than to an origin for exactly that reason. It is scoped to the client and no wider: the `state` parameter binds a callback to a request the same user agent made, so correlating across user agents would be a different sentence."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -520,5 +535,80 @@ mod tests {
                 ("z".to_string(), "3".to_string()),
             ]
         );
+    }
+
+    /// **The scope this rule is wired to, asserted rather than assumed.**
+    ///
+    /// Everything below is about a flow whose two messages are at two hosts,
+    /// which is every code flow there is. A rule paired with `ByResource` is
+    /// handed a history keyed on the exact request URI and never sees the
+    /// authorization request from the callback, so these three tests passed
+    /// against a history no deployment produced while the entries they name
+    /// fired on nothing. The pairing is the thing that has to be true.
+    #[test]
+    fn the_flow_is_correlated_across_origins_and_only_for_one_client() {
+        assert_eq!(
+            crate::rules::query_type_for("oauth2_code_flow"),
+            Some(crate::queries::QueryType::ByClient),
+            "the authorization request and the callback are at two hosts, so a history \
+             scoped to a resource or an origin cannot hold both"
+        );
+    }
+
+    /// The callback correlates against an authorization request at **another
+    /// host**, which is the shape `ByResource` could not deliver.
+    #[test]
+    fn a_callback_whose_state_no_request_carried_is_reported() {
+        let rule = Oauth2CodeFlow;
+        let prior = make_tx("https://idp.example.com/authorize?response_type=code&state=xyz");
+        let tx = make_tx("https://app.example.net/callback?code=abc&state=wrong");
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prior]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["oauth2_code_flow"]),
+        )
+        .unwrap();
+        assert_eq!(v.violation, "oauth2_state_conflicting");
+    }
+
+    /// The same flow with the binding intact draws nothing — so the test above
+    /// is about the mismatch and not about the correlation running at all.
+    #[test]
+    fn a_callback_echoing_the_state_it_was_given_is_not_reported() {
+        let rule = Oauth2CodeFlow;
+        let prior = make_tx("https://idp.example.com/authorize?response_type=code&state=xyz");
+        let tx = make_tx("https://app.example.net/callback?code=abc&state=xyz");
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prior]);
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["oauth2_code_flow"]),
+        )
+        .is_none());
+    }
+
+    /// And a callback carrying no state at all, once a flow has been seen
+    /// starting: the entry shipped at `error` whose only two findings anywhere
+    /// were an advertising beacon posting `?code=<base64 url>`.
+    #[test]
+    fn a_callback_with_no_state_is_reported_once_a_flow_was_seen() {
+        let rule = Oauth2CodeFlow;
+        let prior = make_tx("https://idp.example.com/authorize?response_type=code&state=xyz");
+        let tx = make_tx("https://app.example.net/callback?code=abc");
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prior]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["oauth2_code_flow"]),
+        )
+        .unwrap();
+        assert_eq!(v.violation, "oauth2_callback_state_missing");
     }
 }

@@ -16,7 +16,7 @@ This value prevents cross-site request forgery (CSRF) and replay attacks by ensu
 
 The lint rule observes outgoing requests from a user agent.  It records any `state` seen in authorization requests and, when a later request carries an authorization `code`, verifies that a matching `state` occurred previously. Violations are raised for missing `state` parameters in either direction or when the callback contains a value not previously observed.
 
-The check does not assume the authorization request and callback share a common origin; the redirect is typically to the client's own domain while the initial request targets the identity provider.
+The check does not assume the authorization request and callback share a common origin — the redirect is typically to the client's own domain while the initial request targets the identity provider — and the history it reads is scoped to the client rather than to an origin for exactly that reason. It is scoped to the client and no wider: the `state` parameter binds a callback to a request the same user agent made, so correlating across user agents would be a different sentence.
 
 ## Violations
 

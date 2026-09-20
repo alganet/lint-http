@@ -132,6 +132,7 @@ impl PreparedEngine {
         > = None;
         let mut history_by_connection: Option<crate::transaction_history::TransactionHistory> =
             None;
+        let mut history_by_client: Option<crate::transaction_history::TransactionHistory> = None;
         // Rules that don't read history (the vast majority) are dispatched
         // against this shared empty history instead of an unused per-resource
         // query.
@@ -188,6 +189,8 @@ impl PreparedEngine {
                             crate::transaction_history::TransactionHistory::empty()
                         }
                     }),
+                Some(crate::queries::QueryType::ByClient) => history_by_client
+                    .get_or_insert_with(|| crate::queries::by_client::by_client(state, &tx.client)),
                 // Rule reads no history.
                 None => &empty_history,
             };

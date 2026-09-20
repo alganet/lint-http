@@ -524,4 +524,52 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "cookie_domain_matching");
         crate::rules::validate_rules(&cfg).unwrap();
     }
+
+    /// **The scope this rule is wired to, asserted rather than assumed.**
+    ///
+    /// A domain mismatch is a comparison between the host that set the cookie
+    /// and the host that received it, so the `Set-Cookie` and the `Cookie` are
+    /// never at one origin — that is what makes it a mismatch. Paired with
+    /// `ByResource` this rule was handed a history keyed on the exact request
+    /// URI, in which the only `Set-Cookie` that can appear is one sent by a
+    /// response to the very target now carrying the `Cookie`, and the store
+    /// built from it is not a cookie store. Its own published example of the
+    /// entry could not draw it.
+    #[test]
+    fn a_domain_mismatch_is_two_hosts_so_the_history_spans_them() {
+        assert_eq!(
+            crate::rules::query_type_for("cookie_domain_matching"),
+            Some(crate::queries::QueryType::ByClient),
+            "the host that set the cookie and the host that received it are two hosts, \
+             so a history scoped to a resource or an origin cannot hold both"
+        );
+    }
+
+    /// The property that assertion buys, at the rule rather than at the table:
+    /// a cookie scoped to one host, sent to another, is reported.
+    #[test]
+    fn a_cookie_sent_to_a_host_its_domain_excludes_is_reported() {
+        let rule = CookieDomainMatching;
+        let mut prior = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("set-cookie", "sid=123; Domain=example.com")],
+        );
+        prior.request.uri = "http://example.com/".into();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.uri = "http://other.com/".into();
+        tx.request.headers.insert(
+            hyper::header::COOKIE,
+            hyper::header::HeaderValue::from_static("sid=123"),
+        );
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prior]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .expect("a cookie whose Domain does not cover the request host is reported");
+        assert_eq!(v.violation, "cookie_scope_ignored");
+    }
 }
