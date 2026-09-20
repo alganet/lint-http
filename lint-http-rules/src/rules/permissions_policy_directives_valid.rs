@@ -59,7 +59,7 @@ impl RuleMeta for PermissionsPolicyDirectivesValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which, and so does their number: a parse failure is reported alone because nothing else in the field survived it, while every directive that parsed and will be ignored is reported beside the others like it. A member with no `=` at all belongs to the second group — §4.2.2 reads a bare key as the Boolean true, which parses, so the cost is that one directive.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Inside an inner list two questions are kept apart: an item that **derives** and is not one of those forms is deliberately not policed — §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive — while an item that derives from no structured type at all is RFC 9651 §4.2's failure and takes the whole field. `(self 42)` is enforced as `(self)`; `(1abc)` discards every directive in the header. Space against a parenthesis is neither: §4.2.1.2 discards leading SP before asking whether the list has ended, so `( self )` is the same list as `(self)`.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
+        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which, and so does their number: a parse failure is reported alone because nothing else in the field survived it, while every directive that parsed and will be ignored is reported beside the others like it. A member with no `=` at all belongs to the second group — §4.2.2 reads a bare key as the Boolean true, which parses, so the cost is that one directive; and the `=` that decides this is the one in the member's *head*, so `geolocation;report-to=\"x\"` is a bare member with a parameter and not a member whose allowlist is a String. Where a member has both — an allowlist §5.2 would drop and something §4.2 cannot parse — the parse failure is what is reported, because it is what is true of the header: `geolocation=SELF;Q=1` does not leave one directive unenforced, it leaves the whole policy unenforced.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Inside an inner list two questions are kept apart: an item that **derives** and is not one of those forms is deliberately not policed — §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive — while an item that derives from no structured type at all is RFC 9651 §4.2's failure and takes the whole field. `(self 42)` is enforced as `(self)`; `(1abc)` discards every directive in the header. Space against a parenthesis is neither: §4.2.1.2 discards leading SP before asking whether the list has ended, so `( self )` is the same list as `(self)`.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -109,6 +109,20 @@ impl RuleMeta for PermissionsPolicyDirectivesValid {
                 compliance: Compliance::NonCompliant,
                 label: Some("(a bare member name has no allowlist at all)"),
                 snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "(a parameter's \"=\" is not the member's: this is still a bare member name, carrying a parameter)",
+                ),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation;report-to=\"endpoint\"\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "(an uppercase parameter key fails \u{a7}4.2.3.3, so the whole policy is discarded and not just this directive)",
+                ),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=SELF;Q=1\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -295,6 +309,27 @@ enum Verdict {
 }
 
 /// Judge one Dictionary member: its name, its allowlist, and its parameters.
+///
+/// **The head is isolated before the "=" is looked for, and § 4.2.2 is why.**
+/// A member is `key`, optionally `=value`, then its parameters — so the "=" that
+/// separates key from value is the one in the *head*, not the first one in the
+/// member. Reading the member's first "=" finds the one in
+/// `geolocation;report-to="x"` and reads a parameter's value as the member's
+/// allowlist: that member has no value at all, § 4.2.2 makes it the Boolean
+/// true, and § 5.2 drops the directive for it — while the String borrowed from
+/// the parameter made it look enforced. The same read spelled a feature name
+/// `geolocation;p` in a finding about `geolocation`, and called `1` in
+/// `geolocation;q=1` a "numeric value" the member does not have.
+// cite(RFC 9651 § 4.2.2): "Let this_key be the result of running Parsing a Key (Section 4.2.3.3) with input_string."
+///
+/// **The order below is the two scopes, not a convenience.** § 4.2 parses the
+/// key, then the value, then the parameters, and a failure at any of the three
+/// discards the entire field; only once all three have parsed do § 4.2.2's
+/// duplicate resolution and § 5.2's question about the allowlist arise. Asking
+/// § 5.2 first reported one ignored directive for `geolocation=SELF;Q=1` — where
+/// an uppercase parameter key is a § 4.2.3.3 parse failure and *nothing* in the
+/// header is enforced.
+// cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
 fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>) -> Verdict {
     if member.is_empty() {
         return Verdict::FieldDiscarded(
@@ -303,31 +338,20 @@ fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>)
         );
     }
 
-    // A member with no `=` is not malformed and this used to say it was.
-    // § 4.2.2 reads a bare key as the Boolean true, which parses -- so the
-    // field survives and this one directive does not: a Boolean is a Member
-    // Value of "any other form", and § 5.2 drops the member for it. The same
-    // finding as the explicit `?1` below, reached by leaving the value out.
+    let parts = split_semicolons_outside_quotes(member);
+    let head = parts.first().map(|p| p.trim()).unwrap_or("");
+    // A member with no "=" in its head is not malformed. § 4.2.2 reads a bare
+    // key as the Boolean true, which parses — so the field survives and this one
+    // directive does not, which is the verdict reached at the end rather than
+    // here: the parameters still have to parse first.
     // cite(RFC 9651 § 4.2.2): "Let value be Boolean true."
-    let Some(eq) = find_char_outside_quotes(member, '=') else {
-        return Verdict::DirectiveIgnored(
-            &PERMISSIONS_POLICY_ALLOWLIST_INVALID,
-            format!(
-                "member '{}' has no value, which is the Boolean true and not an allowlist: \
-             § 5.2 permits a string, the token '*', the token 'self', or an inner list \
-             of those",
-                member
-            ),
-        );
+    let (feature, value) = match find_char_outside_quotes(head, '=') {
+        Some(eq) => {
+            let (key, value) = head.split_at(eq);
+            (key.trim(), Some(value[1..].trim()))
+        }
+        None => (head, None),
     };
-    let (left, right) = member.split_at(eq);
-    let value_part = right[1..].trim(); // drop '='
-
-    // The name may carry parameters (`key;param=1`); only the key names the feature.
-    let mut feature = left.trim();
-    if let Some(semicolon) = find_char_outside_quotes(feature, ';') {
-        feature = feature[..semicolon].trim();
-    }
 
     if !is_valid_feature_identifier(feature) {
         return Verdict::FieldDiscarded(
@@ -341,12 +365,37 @@ fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>)
         );
     }
 
-    // A repeated key is not a parse failure and not an error: the parser
-    // keeps the last one and the earlier directive simply stops existing.
-    // That is precisely this rule's subject -- something the server wrote
-    // that will not be enforced -- and it is invisible without being told,
-    // since the header still looks like it says both things. Keys are
-    // compared character for character, which § 4.2.2 says outright and
+    // The value's own parse, where a value was written. `judge_allowlist`
+    // answers two questions at once and only the § 4.2 half is consulted here;
+    // its § 5.2 half is held until the whole member has parsed.
+    let value_verdict = match value {
+        // Nothing after the "=" fails § 4.2.2's parse of a Dictionary member
+        // value, so this is the whole field rather than the one directive.
+        Some("") => {
+            return Verdict::FieldDiscarded(
+                &STRUCTURED_FIELD_VALUE_EMPTY,
+                format!("member '{}' has empty value", feature),
+            )
+        }
+        Some(value) => Some(judge_allowlist(value, feature)),
+        None => None,
+    };
+    if let Some(Verdict::FieldDiscarded(def, message)) = value_verdict {
+        return Verdict::FieldDiscarded(def, message);
+    }
+
+    // The parameters' parse, and the one question this field asks of them.
+    let parameters = judge_parameters(&parts, feature);
+    if let Verdict::FieldDiscarded(def, message) = parameters {
+        return Verdict::FieldDiscarded(def, message);
+    }
+
+    // Everything below here has parsed. A repeated key is not a parse failure
+    // and not an error: the parser keeps the last one and the earlier directive
+    // simply stops existing. That is precisely this rule's subject -- something
+    // the server wrote that will not be enforced -- and it is invisible without
+    // being told, since the header still looks like it says both things. Keys
+    // are compared character for character, which § 4.2.2 says outright and
     // which the key grammar makes moot anyway.
     // cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
     if !seen_keys.insert(feature.to_string()) {
@@ -360,20 +409,23 @@ fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>)
         );
     }
 
-    let parts = split_semicolons_outside_quotes(value_part);
-    let item = parts.first().map(|s| s.trim()).unwrap_or("");
-    // Nothing after the `=` fails § 4.2.2's parse of a Dictionary member
-    // value, so this is the whole field rather than the one directive.
-    if item.is_empty() {
-        return Verdict::FieldDiscarded(
-            &STRUCTURED_FIELD_VALUE_EMPTY,
-            format!("member '{}' has empty value", feature),
-        );
-    }
-
-    match judge_allowlist(item, feature) {
-        Verdict::Enforced => judge_parameters(&parts, feature),
-        verdict => verdict,
+    match value_verdict {
+        // A Boolean is a Member Value of "any other form", and § 5.2 drops the
+        // member for it -- the same finding as an explicit `?1`, reached by
+        // leaving the value out.
+        None => Verdict::DirectiveIgnored(
+            &PERMISSIONS_POLICY_ALLOWLIST_INVALID,
+            format!(
+                "member '{}' has no value, which is the Boolean true and not an allowlist: \
+             § 5.2 permits a string, the token '*', the token 'self', or an inner list \
+             of those",
+                feature
+            ),
+        ),
+        // The allowlist is one § 5.2 permits, so what is left to say is
+        // whatever the parameters had to say.
+        Some(Verdict::Enforced) => parameters,
+        Some(verdict) => verdict,
     }
 }
 
@@ -921,6 +973,59 @@ mod tests {
     #[case("geolocation=(self \"https://a.example\" )")]
     fn space_against_a_parenthesis_is_the_same_inner_list(#[case] value: &str) {
         assert_eq!(ids_for(value), Vec::<&str>::new(), "{value}");
+    }
+
+    /// The "=" that separates a member's key from its value is the one in the
+    /// head. Every row below has its first "=" inside a *parameter*, and reading
+    /// that one made the parameter's value stand in for a member value the
+    /// member does not have: § 4.2.2 reads a bare key as the Boolean true, which
+    /// § 5.2 drops. `geolocation;report-to="x"` was silent outright, the two
+    /// numeric rows named a value the member never carried, and the last row put
+    /// `geolocation;p` in a finding as though that were a feature name.
+    // cite(RFC 9651 § 4.2.2): "Let this_key be the result of running Parsing a Key (Section 4.2.3.3) with input_string."
+    #[rstest]
+    #[case("geolocation")]
+    #[case("geolocation;report-to=\"x\"")]
+    #[case("geolocation;q=1")]
+    #[case("geolocation;p")]
+    fn a_parameters_equals_is_not_the_members(#[case] value: &str) {
+        assert_eq!(
+            ids_for(value),
+            vec!["permissions_policy_allowlist_invalid"],
+            "{value}"
+        );
+        let message = findings_for(value).remove(0);
+        assert!(
+            message.contains("member 'geolocation' has no value"),
+            "the finding is about the member, and names it: {message}"
+        );
+    }
+
+    /// § 4.2 parses the key, then the value, then the parameters, and a failure
+    /// at any of the three discards the entire field; § 4.2.2's duplicate
+    /// resolution and § 5.2's question about the allowlist arise only once all
+    /// three have parsed. Each row here has a parse failure *and* something
+    /// § 5.2 or § 4.2.2 would say, and the parse failure is the finding: telling
+    /// an operator that one directive is ignored, where in truth nothing in the
+    /// header is enforced, is the wrong scope and the wrong advice.
+    // cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
+    #[rstest]
+    // an unenforceable allowlist beside an uppercase parameter key
+    #[case("geolocation=SELF;Q=1", "structured_field_key_malformed")]
+    // a repeated key beside an inner-list member that does not derive
+    #[case(
+        "geolocation=(), geolocation=(1abc)",
+        "structured_field_value_malformed"
+    )]
+    // a bare member beside an uppercase parameter key
+    #[case("geolocation;Q=1", "structured_field_key_malformed")]
+    fn a_parse_failure_outranks_an_ignored_directive(#[case] value: &str, #[case] expected: &str) {
+        assert_eq!(
+            ids_for(value),
+            vec![expected],
+            "{value}: {:?}",
+            findings_for(value)
+        );
     }
 
     /// The other direction of the same reading, and the half a permissive walk
