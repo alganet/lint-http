@@ -79,17 +79,27 @@ const MDN_SET_COOKIE: crate::rules::SpecRef = crate::rules::SpecRef {
 };
 
 impl CookieAttributeConsistent {
-    /// The first defect in one `Set-Cookie` field line, if it has one.
+    /// What is wrong with one `Set-Cookie` field line.
     ///
     /// The line is a cookie-pair and then attributes, and those are two
     /// different grammars: the pair is judged here, each attribute by
     /// [`Self::attribute_defect`], and the one question that needs both — a
     /// `SameSite=None` cookie that is not `Secure` — after the walk.
-    fn set_cookie_defect(
+    ///
+    /// **The pair is one production and answers once; the attributes are a
+    /// repetition and answer one apiece.** `cookie-av *( ";" SP cookie-av )`
+    /// puts each attribute beside the others rather than inside them, so a
+    /// cookie whose `Expires` names no instant and whose `Max-Age` holds no
+    /// integer is two edits in two places, and a walk that stopped at the
+    /// first of them named one of the two. Which is not what the pair's own
+    /// reading is: there a name that is not a `token` and a value carrying a
+    /// forbidden octet are two readings of one `cookie-pair`, taken left to
+    /// right, and the second reads text the first has already condemned.
+    fn set_cookie_defects(
         &self,
         line: &str,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         let (pair, attributes) = crate::helpers::cookie::split_set_cookie(line);
         // Which cookie every sentence below is about. A response sets many,
         // and until each finding said which one it was for, two of them read
@@ -99,10 +109,10 @@ impl CookieAttributeConsistent {
         let cookie = crate::helpers::cookie::set_cookie_name(line);
         let about = |sentence: &str| crate::helpers::cookie::about_cookie(cookie, sentence);
         if pair.is_empty() {
-            return Some(ctx.report_with(
+            return vec![ctx.report_with(
                 &COOKIE_PAIR_MISSING,
                 about("Set-Cookie header missing cookie-pair"),
-            ));
+            )];
         }
 
         // `cookie-pair = cookie-name "=" cookie-value` requires the `=`
@@ -113,10 +123,10 @@ impl CookieAttributeConsistent {
         // never asked whether an `=` had been there to precede.
         // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
         let Some((name, value)) = pair.split_once('=') else {
-            return Some(ctx.report_with(
+            return vec![ctx.report_with(
                 &COOKIE_PAIR_EQUALS_MISSING,
                 about(&format!("Set-Cookie pair '{pair}' has no '=': `cookie-pair = cookie-name \"=\" cookie-value` requires one")),
-            ));
+            )];
         };
 
         // The name is a `token` by import rather than by resemblance -- § 4.1.1
@@ -124,16 +134,16 @@ impl CookieAttributeConsistent {
         // document -- so both of its defects are that production's.
         let name = name.trim();
         if name.is_empty() {
-            return Some(ctx.report_with(&TOKEN_EMPTY, about("Set-Cookie cookie name is empty")));
+            return vec![ctx.report_with(&TOKEN_EMPTY, about("Set-Cookie cookie name is empty"))];
         }
         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-            return Some(ctx.report_with(
+            return vec![ctx.report_with(
                 token_character(c),
                 about(&format!(
                     "Set-Cookie cookie-name contains invalid character: '{}'",
                     c
                 )),
-            ));
+            )];
         }
 
         // `cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )`,
@@ -144,22 +154,25 @@ impl CookieAttributeConsistent {
         // by `split_set_cookie` before this point -- it reports above, on the
         // segment it starts, as a pair with no `=`.
         if let Some(c) = find_invalid_cookie_octet(value) {
-            return Some(ctx.report_with(
+            return vec![ctx.report_with(
                 &COOKIE_VALUE_CHARACTER_FORBIDDEN,
                 about(&format!(
                     "Set-Cookie value '{value}' contains a character outside cookie-octet: '{c}'"
                 )),
-            ));
+            )];
         }
 
+        let mut out = Vec::new();
         let mut secure_present = false;
         let mut same_site: Option<String> = None;
         for attribute in attributes {
-            if let Some(defect) = self.attribute_defect(&attribute, cookie, ctx) {
-                return Some(defect);
-            }
-            // Past the defect check the values are known good, so what is
-            // recorded here is what the sender successfully asked for.
+            out.extend(self.attribute_defect(&attribute, cookie, ctx));
+            // What the sender asked for, whether or not the asking was well
+            // formed. A `SameSite` whose value no algorithm recognises is
+            // still a `SameSite` the sender wrote, and the pairing below is
+            // about which attributes are on the line rather than about
+            // whether each derives — reading it off a walk that no longer
+            // stops means an attribute past a defective one is seen at all.
             if attribute.is("secure") {
                 secure_present = true;
             } else if attribute.is("samesite") {
@@ -172,12 +185,12 @@ impl CookieAttributeConsistent {
         // a suggestion.
         // cite(draft-ietf-httpbis-rfc6265bis § 5.7): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
         if same_site.as_deref() == Some("none") && !secure_present {
-            return Some(ctx.report_with(
+            out.push(ctx.report_with(
                 &COOKIE_SECURE_MISSING,
                 about("Set-Cookie with 'SameSite=None' must also set 'Secure'"),
             ));
         }
-        None
+        out
     }
 
     /// What is wrong with one `cookie-av`, if anything.
@@ -416,6 +429,13 @@ impl RuleMeta for CookieAttributeConsistent {
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— one cookie, two attributes, two findings: the attributes sit beside each other and neither is read out of the other",
+                ),
+                snippet: "Set-Cookie: a=1; Expires=NotADate; Max-Age=soon",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
                 label: Some("— Expires names no instant at all"),
                 snippet: "Set-Cookie: SID=1; Expires=NotADate",
             },
@@ -454,12 +474,13 @@ impl Rule for CookieAttributeConsistent {
         let Some(resp) = tx.response.as_ref() else {
             return Vec::new();
         };
-        // One finding per cookie, not one per response. `find_map` stood here
-        // and stopped at the first line with anything wrong with it, so a
-        // response setting a cookie with a malformed `Max-Age` beside one with
-        // an unknown `SameSite` reported the first and was silent about the
-        // second — a cookie the operator never learned about, under a rule that
-        // had read it.
+        // One finding per defective attribute, not one per response and not
+        // one per cookie. `find_map` stood here first and stopped at the first
+        // line with anything wrong with it, so a response setting a cookie
+        // with a malformed `Max-Age` beside one with an unknown `SameSite`
+        // reported the first and was silent about the second. Collecting the
+        // lines left the same silence one level down, inside a line: the
+        // attributes of one cookie are a repetition too.
         resp.headers
             .get_all("set-cookie")
             .iter()
@@ -467,8 +488,8 @@ impl Rule for CookieAttributeConsistent {
             // not a list, and § 4.1.1's grammar stops at `CHAR`, so an
             // octet above %x7F is the attribute reader's finding rather
             // than a verdict about the field's encoding.
-            .filter_map(|line| {
-                self.set_cookie_defect(&crate::helpers::headers::field_line_as_written(line), ctx)
+            .flat_map(|line| {
+                self.set_cookie_defects(&crate::helpers::headers::field_line_as_written(line), ctx)
             })
             .collect()
     }
@@ -484,10 +505,18 @@ mod tests {
     use rstest::rstest;
 
     fn check_set_cookie(value: &str) -> Option<Violation> {
+        all_set_cookie(value).into_iter().next()
+    }
+
+    /// Every finding one `Set-Cookie` line draws, in the order the reader
+    /// makes them. `run_rule` takes the first of however many, so a case
+    /// asking a yes/no question cannot see a second finding arrive — which is
+    /// the whole subject of this rule's walk.
+    fn all_set_cookie(value: &str) -> Vec<Violation> {
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(200, &[("set-cookie", value)]);
         let rule = CookieAttributeConsistent;
-        crate::test_helpers::run_rule(
+        crate::test_helpers::run_rule_all(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -570,6 +599,99 @@ mod tests {
             found[1].message.ends_with("(cookie 'tracker')"),
             "{:?}",
             found[1].message
+        );
+    }
+
+    /// Two defective attributes on one cookie are two edits, and each is
+    /// named by the attribute it is about.
+    ///
+    /// `Expires` and `Max-Age` sit beside each other in `cookie-av *( ";" SP
+    /// cookie-av )`; neither is inside the other and neither is read out of
+    /// the other's text. A walk that answered once for the line told an
+    /// operator to fix the date and said nothing about the integer.
+    #[test]
+    fn two_defective_attributes_of_one_cookie_are_two_findings() {
+        let found = all_set_cookie("a=b; Expires=notadate; Max-Age=xyz");
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!(found[0].violation, "http_date_malformed");
+        assert!(
+            found[0].message.contains("'Expires'"),
+            "{:?}",
+            found[0].message
+        );
+        assert_eq!(found[1].violation, "cookie_max_age_malformed");
+        assert!(
+            found[1].message.contains("'Max-Age'"),
+            "{:?}",
+            found[1].message
+        );
+        assert!(
+            found.iter().all(|v| v.message.ends_with("(cookie 'a')")),
+            "{found:?}"
+        );
+    }
+
+    /// Three of them, so the count is a count and not the pair the fix was
+    /// written against.
+    #[test]
+    fn three_defective_attributes_of_one_cookie_are_three_findings() {
+        let found = all_set_cookie("a=b; SameSite=Bogus; Max-Age=xyz; Secure=1");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "cookie_same_site_invalid",
+                "cookie_max_age_malformed",
+                "cookie_flag_value_forbidden",
+            ],
+            "{found:?}"
+        );
+    }
+
+    /// The other direction: a conforming cookie stays silent however many
+    /// attributes it carries, so the walk collecting is not the walk reporting.
+    #[test]
+    fn a_conforming_cookie_with_many_attributes_is_silent() {
+        assert!(all_set_cookie(
+            "a=b; Expires=Wed, 09 Jun 2021 10:18:14 GMT; Max-Age=60; \
+                 Path=/; Domain=example.com; Secure; HttpOnly; SameSite=Lax"
+        )
+        .is_empty());
+    }
+
+    /// An attribute past a defective one is still read for the pairing that
+    /// needs two of them. Before the walk collected, the `Secure` on this line
+    /// was never reached — the `SameSite` returned first — and `secure_present`
+    /// stayed false, so a cookie that *is* `Secure` was about to be told it was
+    /// not. The finding the flag's own value draws stands; the pairing does not.
+    #[test]
+    fn an_attribute_after_a_defective_one_still_counts_for_the_pairing() {
+        let found = all_set_cookie("a=b; SameSite=None; Secure=1");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["cookie_flag_value_forbidden"],
+            "{found:?}"
+        );
+    }
+
+    /// A defective `cookie-pair` still answers once: its name and its value
+    /// are two readings of one production taken left to right, and the second
+    /// reads octets the first has already condemned.
+    #[test]
+    fn a_defective_pair_answers_once() {
+        let found = all_set_cookie("a@b=c,d; Max-Age=xyz");
+        assert_eq!(
+            found
+                .iter()
+                .map(|v| v.violation.as_str())
+                .collect::<Vec<_>>(),
+            vec!["token_character_forbidden"],
+            "{found:?}"
         );
     }
 

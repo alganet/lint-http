@@ -92,6 +92,12 @@ Set-Cookie: a=1; Max-Age=soon
 Set-Cookie: b=2; SameSite=maybe
 ```
 
+### ❌ Bad — one cookie, two attributes, two findings: the attributes sit beside each other and neither is read out of the other
+
+```http
+Set-Cookie: a=1; Expires=NotADate; Max-Age=soon
+```
+
 ### ❌ Bad — Expires names no instant at all
 
 ```http

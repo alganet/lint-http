@@ -897,7 +897,7 @@ sources:
     snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 173
+      line: 186
     - file: lint-http-rules/src/violations/cookie.rs
       line: 489
   - label: cookie_same_site_enforced
@@ -2653,7 +2653,7 @@ sources:
     snippet: expires-av        = "Expires=" sane-cookie-date
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 276
+      line: 289
     - file: lint-http-rules/src/violations/cookie.rs
       line: 503
     - file: lint-http-rules/src/violations/cookie.rs
@@ -2663,25 +2663,25 @@ sources:
     snippet: extension-av      = <any CHAR except CTLs or ";">
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 187
+      line: 200
   - label: cookie_attribute_consistent (2)
     section: § 4.1.1
     snippet: httponly-av       = "HttpOnly"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 198
+      line: 211
   - label: cookie_attribute_consistent (3)
     section: § 4.1.1
     snippet: secure-av         = "Secure"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 197
+      line: 210
   - label: cookie_attribute_consistent (4)
     section: § 5.2.2
     snippet: If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 246
+      line: 259
   - label: cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
@@ -2779,7 +2779,7 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 250
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 114
+      line: 124
     - file: lint-http-rules/src/rules/cookie_pair_valid.rs
       line: 155
     - file: lint-http-rules/src/violations/cookie.rs
