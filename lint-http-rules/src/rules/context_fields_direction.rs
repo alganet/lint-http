@@ -187,31 +187,35 @@ impl Rule for ContextFieldsDirection {
         // senders, and a misdirected field in the request is no evidence about
         // the response.
         let mut out = Vec::new();
-        if let Some(message) = misdirected(
-            &tx.request.headers,
-            RESPONSE_CONTEXT_FIELDS,
-            "Request",
-            "response context field",
-            "a request",
-        ) {
-            out.push(
+        out.extend(
+            misdirected(
+                &tx.request.headers,
+                RESPONSE_CONTEXT_FIELDS,
+                "Request",
+                "response context field",
+                "a request",
+            )
+            .into_iter()
+            .map(|message| {
                 ctx.by_client()
-                    .report_with(&FIELD_RESPONSE_CONTEXT_MISDIRECTED, message),
-            );
-        }
+                    .report_with(&FIELD_RESPONSE_CONTEXT_MISDIRECTED, message)
+            }),
+        );
         if let Some(resp) = &tx.response {
-            if let Some(message) = misdirected(
-                &resp.headers,
-                REQUEST_CONTEXT_FIELDS,
-                "Response",
-                "request context field",
-                "a response",
-            ) {
-                out.push(
+            out.extend(
+                misdirected(
+                    &resp.headers,
+                    REQUEST_CONTEXT_FIELDS,
+                    "Response",
+                    "request context field",
+                    "a response",
+                )
+                .into_iter()
+                .map(|message| {
                     ctx.by_server()
-                        .report_with(&FIELD_REQUEST_CONTEXT_MISDIRECTED, message),
-                );
-            }
+                        .report_with(&FIELD_REQUEST_CONTEXT_MISDIRECTED, message)
+                }),
+            );
         }
         out
     }
@@ -228,16 +232,23 @@ static REGISTRATION: &dyn crate::rules::Rule = &ContextFieldsDirection;
 /// arrival, and the defect this rule exists to report is a field that says
 /// nothing where it was sent — so the message says what the field is *for*
 /// and where it arrived, and calls itself advice.
+/// **Every row is asked.** Each field in the table is a separate definition
+/// with a separate subject, and the sentence names the field and states what
+/// that one field is for -- so a section carrying two of them has two things
+/// wrong with it and two sentences to say. Answering with the first told the
+/// operator about one field and left the other with no sentence in the report
+/// to name it.
 fn misdirected(
     headers: &hyper::HeaderMap,
     table: &[(&str, &str)],
     side: &str,
     class: &str,
     wrong_home: &str,
-) -> Option<String> {
+) -> Vec<String> {
+    let mut out = Vec::new();
     for (name, subject) in table {
         if headers.contains_key(*name) {
-            return Some(format!(
+            out.push(format!(
                 "{side} carries '{name}', a {class}: its subject is {subject}, and no \
                  definition gives the field a meaning in {wrong_home}. RFC 9110 §10 states no \
                  requirement about the arrival, so this is advice — the field states nothing \
@@ -245,7 +256,7 @@ fn misdirected(
             ));
         }
     }
-    None
+    out
 }
 
 #[cfg(test)]
@@ -265,6 +276,66 @@ mod tests {
             &cfg(),
         )
         .map(|v| v.message)
+    }
+
+    /// **Every misdirected field in a section is its own finding.** The table
+    /// walk `return`ed at the first name it found, so a request carrying
+    /// `Server`, `Retry-After` and `Allow` was told about one of them. The three
+    /// are three definitions with three subjects, and the sentence states the
+    /// subject of the field it names — so the two behind it had nothing said
+    /// about them at all. Counted, because `run_rule` takes the first of however
+    /// many and the masking passed every boolean fixture already here.
+    #[test]
+    fn every_misdirected_field_in_a_section_is_reported() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("server", "httpd/2.4"),
+            ("retry-after", "120"),
+            ("allow", "GET"),
+        ]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[
+                ("referer", "https://example.com/"),
+                ("from", "a@example.com"),
+            ]);
+        let found = crate::test_helpers::run_rule_all(
+            &ContextFieldsDirection,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        );
+        let messages: Vec<&String> = found.iter().map(|v| &v.message).collect();
+        assert_eq!(found.len(), 5, "{messages:?}");
+        for name in [
+            "'server'",
+            "'retry-after'",
+            "'allow'",
+            "'referer'",
+            "'from'",
+        ] {
+            assert!(
+                messages.iter().any(|m| m.contains(name)),
+                "no finding names {name}: {messages:?}"
+            );
+        }
+        // The two entries stay apart: a response context field in a request is
+        // the client's, a request context field in a response is the origin's.
+        assert_eq!(
+            found
+                .iter()
+                .filter(|v| v.violation == "field_response_context_misdirected")
+                .count(),
+            3,
+            "{messages:?}"
+        );
+        assert_eq!(
+            found
+                .iter()
+                .filter(|v| v.violation == "field_request_context_misdirected")
+                .count(),
+            2,
+            "{messages:?}"
+        );
     }
 
     /// Each field in its own direction draws nothing — that is the direction
