@@ -734,12 +734,10 @@ mod tests {
     #[rstest]
     #[case("Basic realm=token123", Some("auth_param_realm_quoting_invalid"))]
     #[case("Basic realm=\"token123\"", None)]
-    // The realm of a challenge, whatever scheme offers it. § 3.4's reader walks
-    // requests, so a `Digest` challenge is this reading's alone.
-    #[case(
-        "Digest realm=r, nonce=\"n\"",
-        Some("auth_param_realm_quoting_invalid")
-    )]
+    // Except under `Digest`, whose own document says it about a challenge in
+    // § 3.3 and about a credential in § 3.4. This rule reads the framework and
+    // reports nothing here; `digest_challenge_valid` does.
+    #[case("Digest realm=r, nonce=\"n\"", None)]
     // A defect of the production outranks it, and the walk holds the realm back
     // until every member has been read for exactly this case.
     #[case("Basic realm=a[b]", Some("auth_param_value_character_forbidden"))]

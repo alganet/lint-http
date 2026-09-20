@@ -308,9 +308,8 @@ mod tests {
     /// and six parameters beside it: RFC 7616 § 3.4 is the more specific
     /// sentence for that credential and `digest_auth_valid` reports it, so this
     /// reading stands aside rather than putting a second finding on one value
-    /// with one repair. The decline is directed — it is about a Digest
-    /// *credential*, not about the scheme — because that reader never looks at
-    /// a response, so a `Digest` challenge stays this reading's.
+    /// with one repair. § 3.3 does the same for a `Digest` *challenge*, so the
+    /// decline is the scheme's and not one direction's.
     #[rstest]
     #[case("Custom realm=foo", Some("auth_param_realm_quoting_invalid"))]
     #[case("Custom realm=\"foo\"", None)]

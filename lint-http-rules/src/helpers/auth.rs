@@ -712,16 +712,20 @@ pub fn validate_scheme_tail(
         // other arm here: one value, one finding, and the one a reader meets
         // first is the one the walk reaches first.
         //
-        // Where the credential is a `Digest`, RFC 7616 § 3.4 says this about
-        // `realm` and six parameters beside it and `digest_auth_valid` reports
-        // it there, so the general reading declines rather than putting a
-        // second finding on one value with one repair. The direction is part of
-        // the guard and not an afterthought: that reader walks `Authorization`
-        // and `Proxy-Authorization` and never a response, so a *challenge*
-        // spelled `Digest realm=foo` is this reading's and nobody else's.
+        // Where the scheme is `Digest`, RFC 7616 says this about `realm` in
+        // both directions and reports it under its own entries — § 3.4 for a
+        // credential, § 3.3 for a challenge — so the general reading declines
+        // rather than putting a second finding on one value with one repair.
+        //
+        // **The guard was directed and is not any more**, which is worth saying
+        // because the narrower version was correct when it was written: § 3.4's
+        // reader walks `Authorization` and `Proxy-Authorization` and never a
+        // response, so a challenge spelled `Digest realm=foo` really was this
+        // reading's alone until § 3.3 gained one. A decline scoped to a
+        // direction is a claim about which readers exist, and that is a fact
+        // that moves.
         // cite(RFC 9110 § 11.5): "For historical reasons, a sender MUST only generate the quoted-string syntax."
-        let realm_is_answered_elsewhere =
-            side == Side::Credentials && scheme.eq_ignore_ascii_case("digest");
+        let realm_is_answered_elsewhere = scheme.eq_ignore_ascii_case("digest");
         let mut unquoted_realm: Option<&str> = None;
 
         for param in split_commas_respecting_quotes(rest) {

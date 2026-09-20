@@ -70,6 +70,7 @@ pub mod date;
 pub mod delta_seconds;
 pub mod deprecation;
 pub mod digest;
+pub mod digest_challenge;
 pub mod digest_credentials;
 pub mod domain;
 pub mod early_data;

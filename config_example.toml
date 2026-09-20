@@ -404,6 +404,9 @@ enabled = true
 [rules.digest_auth_valid]
 enabled = true
 
+[rules.digest_challenge_valid]
+enabled = true
+
 [rules.digest_header_syntax]
 enabled = true
 
@@ -1759,6 +1762,11 @@ severity = "error"
 
 [violations.deprecation_malformed]
 # A Deprecation is not a Structured Field Date
+# MUST obliges the sender, so this defaults to error.
+severity = "error"
+
+[violations.digest_challenge_quoting_invalid]
+# A Digest challenge parameter is written in the syntax its definition refuses
 # MUST obliges the sender, so this defaults to error.
 severity = "error"
 

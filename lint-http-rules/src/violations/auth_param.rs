@@ -175,9 +175,11 @@ defects! {
     /// historical reasons". That is the sibling relation to
     /// [`DIGEST_CREDENTIALS_QUOTING_INVALID`](crate::violations::digest_credentials::DIGEST_CREDENTIALS_QUOTING_INVALID),
     /// which is RFC 7616 § 3.4 saying the identical thing about seven Digest
-    /// parameters at once, and which keeps the one value both sentences bind: a
-    /// realm in Digest credentials is answered by the document that defines
-    /// that credential, so one repair stays one finding.
+    /// parameters at once — and its challenge-side twin
+    /// [`DIGEST_CHALLENGE_QUOTING_INVALID`](crate::violations::digest_challenge::DIGEST_CHALLENGE_QUOTING_INVALID)
+    /// on § 3.3. Those two keep every value they bind: a realm written under
+    /// the `Digest` scheme is answered by the document that defines the scheme,
+    /// in either direction, so one repair stays one finding.
     ///
     /// **The subject is the parameter and not the field, which is the whole of
     /// why it is here.** § 11.5 binds "a sender" — every sender — and a realm

@@ -190,6 +190,7 @@ Entries are in id order, which groups them by subject: an id reads `<subject>[_<
 - [delta_seconds_character_forbidden](violations/delta_seconds_character_forbidden.md) — A time in seconds holds an octet DIGIT does not admit
 - [delta_seconds_empty](violations/delta_seconds_empty.md) — A time in seconds is stated with no digits
 - [deprecation_malformed](violations/deprecation_malformed.md) — A Deprecation is not a Structured Field Date
+- [digest_challenge_quoting_invalid](violations/digest_challenge_quoting_invalid.md) — A Digest challenge parameter is written in the syntax its definition refuses
 - [digest_credentials_challenge_missing](violations/digest_credentials_challenge_missing.md) — Digest credentials name a nonce no observed challenge offered
 - [digest_credentials_nc_invalid](violations/digest_credentials_nc_invalid.md) — A Digest nonce-count is not the number the exchange calls for
 - [digest_credentials_nc_malformed](violations/digest_credentials_nc_malformed.md) — A Digest nonce-count is not eight hexadecimal digits
