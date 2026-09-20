@@ -191,6 +191,33 @@ impl Rule for OriginMatchingForCors {
             // catalogue names — the scheme and the URI alphabet — and two are
             // this field's own: a path where the production has no component for
             // one, and a value deriving from neither alternative.
+            //
+            // **This `return` ends the reading of the response, and that is a
+            // decline rather than a slip.** One finding about the client's
+            // `Origin` stands in front of four the response could have earned,
+            // and they are attributed to the other peer — so `--about server`
+            // shows nothing about this exchange. What makes it safe is not the
+            // shape of the body; it is that every one of the four is said
+            // somewhere else, and
+            // [`Self::the_response_side_findings_this_decline_rests_on_are_declared_elsewhere`]
+            // asserts each of those declarations by name so the day one of them
+            // moves, this silence becomes visible instead of staying quiet:
+            //
+            // - `field_line_duplicated` and `access_control_allow_origin_
+            //   malformed` are `access_control_allow_origin_valid`'s, which
+            //   counts the lines and reads the value whatever the request said —
+            //   and says more about each than this rule does;
+            // - `access_control_allow_origin_credentials_conflicting`'s *fact*
+            //   is `access_control_allow_credentials_when_origin`'s
+            //   `access_control_allow_credentials_conflicting`, which scans the
+            //   origin field for a `*` and never reads the request;
+            // - `access_control_allow_origin_conflicting` has no second declarer
+            //   and needs none here, because it cannot be computed: the check
+            //   compares against the *serialization* of the request's origin,
+            //   and a value deriving from neither alternative of
+            //   `origin-list-or-null` has none. Reported past this point it
+            //   would be a comparison against a string no user agent would ever
+            //   produce.
             if let Err(defect) = crate::helpers::origin::validate_origin_value(origin) {
                 let message = format!(
                     "Invalid Origin header value '{}': {}",
@@ -310,6 +337,13 @@ impl Rule for OriginMatchingForCors {
             //
             // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
             // cite(RFC 6454 § 6.2): "If the port part of the origin triple is different from the default port for the protocol given by the scheme part of the origin triple:"
+            // The guard at the top of this body has already established that the
+            // value is `null` or a `serialized-origin`, which is exactly what
+            // the serializer accepts, so the fallback is unreachable from here
+            // and is the value as written rather than a panic — the two readers
+            // agreeing on what an origin is is the invariant, and an `expect`
+            // would turn a future disagreement between them into a crash in a
+            // linter.
             let serialized = crate::helpers::origin::ascii_serialized_origin(origin)
                 .unwrap_or_else(|| origin.to_string());
             if acao_val != serialized {
@@ -841,6 +875,55 @@ mod tests {
         let found = ids_and_messages("ftp://a.example:443", "ftp://a.example");
         assert_eq!(found.len(), 1, "{found:?}");
         assert_eq!(found[0].0, "access_control_allow_origin_conflicting");
+    }
+
+    /// **The decline this body makes rests on three other declarations, and a
+    /// decline resting on somebody else's declaration is only as good as an
+    /// assertion about it.**
+    ///
+    /// A client's `Origin` defect ends the reading here, so the four
+    /// response-side entries below it are not asked on that exchange — and they
+    /// are the *server's*, so the peer that could act on them is told nothing.
+    /// That is safe exactly while each is said somewhere else, which is a fact
+    /// about two other rules' `violations()` and not about this file. Asserted
+    /// by name, in the direction that fails: remove one of these from its own
+    /// rule and this test goes red rather than the silence going unnoticed.
+    ///
+    /// The fourth, `access_control_allow_origin_conflicting`, is deliberately
+    /// not in the list. It has no second declarer and needs none: the check
+    /// compares against the serialization of the request's origin, and a value
+    /// deriving from neither alternative of `origin-list-or-null` has none.
+    #[test]
+    fn the_response_side_findings_this_decline_rests_on_are_declared_elsewhere() {
+        let by_the_field_rule: Vec<&str> =
+            crate::rules::access_control_allow_origin_valid::AccessControlAllowOriginValid
+                .violations()
+                .iter()
+                .map(|d| d.id)
+                .collect();
+        for id in [
+            "field_line_duplicated",
+            "access_control_allow_origin_malformed",
+        ] {
+            assert!(
+                by_the_field_rule.contains(&id),
+                "{id} is no longer declared by access_control_allow_origin_valid, so this rule's \
+                 decline on a malformed Origin now loses it outright: {by_the_field_rule:?}"
+            );
+        }
+
+        let by_the_credentials_rule: Vec<&str> =
+            crate::rules::access_control_allow_credentials_when_origin::AccessControlAllowCredentialsWhenOrigin
+                .violations()
+                .iter()
+                .map(|d| d.id)
+                .collect();
+        assert!(
+            by_the_credentials_rule.contains(&"access_control_allow_credentials_conflicting"),
+            "the wildcard-with-credentials fact is no longer stated by \
+             access_control_allow_credentials_when_origin, so a malformed Origin now hides it \
+             entirely: {by_the_credentials_rule:?}"
+        );
     }
 
     #[test]
