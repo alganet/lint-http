@@ -321,8 +321,10 @@ enabled = true
          repetition where that value is judged: `Strict-Transport-Security`, \
          `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, the three \
          `Cross-Origin-*-Policy` fields, the five `Sec-Fetch-*` fields, \
-         `Origin-Agent-Cluster`, `Deprecation`, `Refresh` and \
-         `Access-Control-Allow-Origin`.\n\n\
+         `Origin-Agent-Cluster`, `Deprecation`, `Refresh`, \
+         `Access-Control-Allow-Origin` and `Alt-Used`, whose `alt_used_valid` counts it for \
+         the same reason `host_header` does: RFC 7838 §5 writes the field as `uri-host [ \":\" \
+         port ]`, which prints no `#`, so two lines of it are not one value.\n\n\
          **That list is a census and a census goes stale**, which this one had: it said \
          thirteen while seventeen more sites had been added around it, and a reader counting \
          the fields this catalogue watches would have been told less than half of them. \
@@ -543,6 +545,7 @@ mod tests {
 
         let mut named = [
             "access_control_allow_origin_valid",
+            "alt_used_valid",
             "conditional_headers_consistent",
             "content_disposition_token_valid",
             "content_location_and_uri_consistent",

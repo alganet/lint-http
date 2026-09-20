@@ -85,6 +85,30 @@ pub const RFC_7838_8: SpecRef = SpecRef {
     note: "Internationalization Considerations: an internationalized domain name in this field is written as A-labels, which is what makes an octet at or above %x80 inside an `alt-authority` a defect with a remedy rather than only an octet no production admits",
 };
 
+/// The document's *other* field, whose defects are none of them its own.
+///
+/// **Here rather than in a module of its own because there is nothing to put
+/// in one.** `Alt-Used = uri-host [ ":" port ]` is RFC 3986's two productions
+/// and RFC 7838 adds not a word to either, so every defect an `Alt-Used` value
+/// can have is already an entry in [`uri`](crate::violations::uri) — the same
+/// entries a `Host`, a `:authority` and a `Forwarded` `host` draw, out of the
+/// one reader all of them call. A module here would hold this reference and no
+/// entry, and every other module in this directory is a set of entries.
+///
+/// **What the section does state, `alt_used_valid` declines rather than
+/// reports.** "Clients SHOULD include an Alt-Used header field in all requests"
+/// has an antecedent — *when using an alternative service* — and a captured
+/// exchange does not say whether the connection it arrived on was one. The
+/// obligation is real and unobservable from a message, which is a different
+/// thing from absent, and the rule's own documentation says so where an
+/// operator reads it.
+pub const RFC_7838_5: SpecRef = SpecRef {
+    spec: "RFC 7838",
+    section: Some("5"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-5",
+    note: "The Alt-Used HTTP Header Field: `Alt-Used = uri-host [ \":\" port ]`, the same two productions `Host` prints, carried on a request to name the alternative service in use. The section adds no constraint of its own to either production, and its one requirement on a sender — that a client using an alternative service send the field — has an antecedent a message does not record",
+};
+
 /// The field: its grammar, the `clear` keyword, and what a recipient does with
 /// a value carrying that keyword beside an alternative service.
 pub const RFC_7838_3: SpecRef = SpecRef {

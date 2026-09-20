@@ -1944,6 +1944,8 @@ sources:
       line: 285
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 49
+    - file: lint-http-rules/src/rules/alt_used_valid.rs
+      line: 189
     - file: lint-http-rules/src/rules/host_header.rs
       line: 253
     - file: lint-http-rules/src/violations/uri.rs
@@ -1992,6 +1994,8 @@ sources:
       line: 161
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 324
+    - file: lint-http-rules/src/rules/alt_used_valid.rs
+      line: 179
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 358
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
@@ -4976,31 +4980,31 @@ sources:
     snippet: A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services).
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 119
+      line: 143
   - label: alt_svc (2)
     section: § 3
     snippet: 'In order to have precisely one way to represent any ALPN protocol name, the following additional constraints apply:'
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 436
+      line: 460
   - label: alt_svc (3)
     section: § 3.1
     snippet: Clients MUST ignore "persist" parameters with values other than "1".
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 468
+      line: 492
   - label: alt_svc (4)
     section: § 3.1
     snippet: This specification only defines a single value for "persist".
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 467
+      line: 491
   - label: alt_svc (5)
     section: § 8
     snippet: An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1).
     cited_by:
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 320
+      line: 344
   - label: Alt-Svc grammar
     section: § 3
     snippet: Alt-Svc       = clear / 1#alt-value
@@ -5028,7 +5032,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 38
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 437
+      line: 461
   - label: alt_svc_h3_advertisement_valid (3)
     section: § 3
     snippet: clear         = %s"clear"; "clear", case-sensitive
@@ -5074,7 +5078,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 450
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 216
+      line: 240
   - label: alt_svc_header_syntax (6)
     section: § 3
     snippet: Note that the "quoted-string" syntax needs to be used because ":" is not an allowed character in "token".
@@ -5102,11 +5106,11 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 289
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 348
+      line: 372
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 369
+      line: 393
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 400
+      line: 424
   - label: alt_svc_header_syntax (10)
     section: § 3
     snippet: The field value consists either of a list of values, each of which indicates one alternative service, or the keyword "clear".
@@ -5144,9 +5148,9 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 404
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 217
+      line: 241
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 286
+      line: 310
   - label: alt_svc_header_syntax (15)
     section: § 3
     snippet: alternative   = protocol-id "=" alt-authority
@@ -5156,7 +5160,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 415
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 151
+      line: 175
   - label: alt_svc_header_syntax (16)
     section: § 3
     snippet: parameter     = token "=" ( token / quoted-string )
@@ -5166,9 +5170,9 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 449
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 182
+      line: 206
     - file: lint-http-rules/src/violations/alt_svc.rs
-      line: 247
+      line: 271
   - label: alt_svc_header_syntax (17)
     section: § 3
     snippet: protocol-id   = token ; percent-encoded ALPN protocol name
@@ -5209,6 +5213,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 142
+  - label: Alt-Used grammar
+    section: § 5
+    snippet: Alt-Used     = uri-host [ ":" port ]
+    cited_by:
+    - file: lint-http-rules/src/rules/alt_used_valid.rs
+      line: 148
+  - label: alt_used_valid
+    section: § 5
+    snippet: The Alt-Used header field is used in requests to identify the alternative service in use, just as the Host header field
+    cited_by:
+    - file: lint-http-rules/src/rules/alt_used_valid.rs
+      line: 82
 - label: RFC 8187
   url: https://www.rfc-editor.org/rfc/rfc8187.html
   fragments:
@@ -7891,6 +7907,8 @@ sources:
       line: 379
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 198
+    - file: lint-http-rules/src/rules/alt_used_valid.rs
+      line: 171
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 171
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
@@ -8709,6 +8727,8 @@ sources:
       line: 280
     - file: lint-http-rules/src/helpers/product.rs
       line: 167
+    - file: lint-http-rules/src/rules/alt_used_valid.rs
+      line: 172
     - file: lint-http-rules/src/rules/host_header.rs
       line: 225
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
@@ -8835,6 +8855,8 @@ sources:
       line: 475
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 41
+    - file: lint-http-rules/src/rules/alt_used_valid.rs
+      line: 147
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 184
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
@@ -8862,7 +8884,7 @@ sources:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 462
+      line: 464
     - file: lint-http-rules/src/rules/strict_transport_security_valid.rs
       line: 254
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
@@ -8914,7 +8936,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 287
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 464
+      line: 466
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.5
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
@@ -8922,7 +8944,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 473
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 465
+      line: 467
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.5
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
@@ -10666,7 +10688,7 @@ sources:
     snippet: 'such as an ABNF rule of #(values) defined in Section 5.6.1'
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 463
+      line: 465
   - label: singleton_fields_not_repeated (4)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated, having the same semantics as the Origination Date Field (orig-date) defined in Section 3.6.1 of [RFC5322].

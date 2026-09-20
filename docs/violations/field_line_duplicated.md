@@ -32,6 +32,7 @@ severity = "error"
 ## Reported By
 
 - [access_control_allow_origin_valid](../rules/access_control_allow_origin_valid.md)
+- [alt_used_valid](../rules/alt_used_valid.md)
 - [conditional_headers_consistent](../rules/conditional_headers_consistent.md)
 - [content_disposition_token_valid](../rules/content_disposition_token_valid.md)
 - [content_location_and_uri_consistent](../rules/content_location_and_uri_consistent.md)

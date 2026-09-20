@@ -187,6 +187,9 @@ enabled = true
 # never looks at.
 allowed = ["h2", "h3", "h2c", "http/1.1"]
 
+[rules.alt_used_valid]
+enabled = true
+
 [rules.auth_scheme_registered]
 enabled = true
 allowed = ["Basic", "Bearer", "Digest"]

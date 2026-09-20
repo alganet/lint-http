@@ -30,4 +30,5 @@ severity = "warn"
 
 ## Reported By
 
+- [alt_used_valid](../rules/alt_used_valid.md)
 - [host_header](../rules/host_header.md)

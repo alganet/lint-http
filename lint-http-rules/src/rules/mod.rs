@@ -3802,8 +3802,17 @@ enabled = "true"
     /// production did not move, and that is the whole test of whether a second
     /// declarer is a seam or a duplication.
     ///
-    /// **119, and it is the `challenge_*` seam widening rather than a new
-    /// one.** § 11.2's "each parameter name MUST only occur once per challenge"
+    /// **120, and it is `Host`'s production printed by a second document.**
+    /// `uri_host_ip_literal_delimiter_missing` had exactly one declarer until
+    /// `Alt-Used` got a reader, because `host_header` is where the unbracketed
+    /// IPv6 reading lives. RFC 7838 § 5 writes `Alt-Used = uri-host [ ":" port
+    /// ]` — `Host`'s two productions, verbatim, in another document — so the
+    /// second declarer is a second *field*, and the two rules cannot reach one
+    /// value between them: one reads `host` and the other reads `alt-used`. An
+    /// entry is about a value, there are two values, and that is the seam.
+    ///
+    /// **119 before it, and it was the `challenge_*` seam widening rather than
+    /// a new one.** § 11.2's "each parameter name MUST only occur once per challenge"
     /// counts inside a `challenge`, which `WWW-Authenticate` and
     /// `Proxy-Authenticate` are two lists of — § 11.7.1 defines the second in
     /// the first's terms — so `challenge_parameter_duplicated` is declared by
@@ -3814,7 +3823,7 @@ enabled = "true"
     #[test]
     fn no_violation_is_emitted_by_two_rules() {
         /// Read from what the assertion prints, never incremented.
-        const CEILING: usize = 119;
+        const CEILING: usize = 120;
 
         let mut declarers: std::collections::BTreeMap<&str, Vec<&str>> =
             std::collections::BTreeMap::new();

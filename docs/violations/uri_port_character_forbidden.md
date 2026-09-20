@@ -31,6 +31,7 @@ severity = "warn"
 ## Reported By
 
 - [alt_svc_header_syntax](../rules/alt_svc_header_syntax.md)
+- [alt_used_valid](../rules/alt_used_valid.md)
 - [content_location_and_uri_consistent](../rules/content_location_and_uri_consistent.md)
 - [forwarded_header_valid](../rules/forwarded_header_valid.md)
 - [host_header](../rules/host_header.md)
